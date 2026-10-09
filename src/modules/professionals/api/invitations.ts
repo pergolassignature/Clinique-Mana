@@ -28,13 +28,13 @@ export interface EmailProblem {
 }
 
 /** « Envoyer l'invitation » and the like: the new link's expiry when the email left, else why it did not. */
-export interface InvitationResult {
+interface InvitationResult {
   expiresAt: string | null
   emailProblem: EmailProblem | null
 }
 
 /** « Demander une mise à jour »: the open submission, and why its email did not leave, if it did not (P4-267). */
-export interface UpdateRequestResult {
+interface UpdateRequestResult {
   submissionId: string
   emailProblem: EmailProblem | null
 }
@@ -161,7 +161,7 @@ const subjectEmailPayload = z
 export type SubjectEmail = z.output<typeof subjectEmailPayload>
 
 /** The most emails the timeline reads: the RPC's own cap (no cursor; a professional gets a few). */
-export const PROFESSIONAL_EMAILS_MAX = 100
+const PROFESSIONAL_EMAILS_MAX = 100
 
 /** The professional's emails, newest first (at most PROFESSIONAL_EMAILS_MAX). */
 export async function fetchProfessionalEmails(id: string): Promise<SubjectEmail[]> {

@@ -78,7 +78,7 @@ export const placesSchema = z
       .refine((v) => v === '' || /^[0-9]{1,2}$/.test(v), { error: t('modules.professionals.validation.places') })
       .transform((v) => (v === '' ? null : Number(v))),
   })
-export type PlacesValues = z.input<typeof placesSchema>
+type PlacesValues = z.input<typeof placesSchema>
 
 export function toPlacesFormValues(m: MatchingProfile): PlacesValues {
   return { newClientPlaces: m.newClientPlaces === null ? '' : String(m.newClientPlaces) }
@@ -86,7 +86,7 @@ export function toPlacesFormValues(m: MatchingProfile): PlacesValues {
 
 /** « Bon à savoir »: trimmed, 1000 characters at most (`set_professional_matching_note`), empty clears it. */
 export const matchingNoteSchema = z.object({ note: longText(1000) })
-export type MatchingNoteValues = z.input<typeof matchingNoteSchema>
+type MatchingNoteValues = z.input<typeof matchingNoteSchema>
 
 export function toMatchingNoteFormValues(note: { note: string } | null): MatchingNoteValues {
   return { note: note?.note ?? '' }

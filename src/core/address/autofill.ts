@@ -21,7 +21,7 @@ import { civicNumber, splitCivicNumber, startsWithGeneric, streetLine } from './
  */
 
 /** The form's field names for each address part (the clinic uses snake_case, Professionnels camelCase). */
-export interface AddressFieldNames<T extends FieldValues> {
+interface AddressFieldNames<T extends FieldValues> {
   line1: Path<T>
   line2: Path<T>
   city: Path<T>

@@ -5,19 +5,19 @@ import type { ProfessionalsSettings } from '../api/parse'
 const V = 'modules.professionals.settings.invitations.validation'
 
 /** The settings' bounds (4b.1's `validate_professionals_setting`): the link lives 1–30 days, the reminder leaves after 1–29. */
-export const INVITATION_EXPIRY_MAX = 30
+const INVITATION_EXPIRY_MAX = 30
 export const INVITATION_REMINDER_MAX = 29
 /** A reminder switched on with no delay saved yet starts here (4b.1's default). */
 const DEFAULT_REMINDER_DAYS = 3
 
 /** The « Invitations » form: whole days as typed (strings), and the reminder's switch. */
-export type InvitationsFormValues = {
+type InvitationsFormValues = {
   expiryDays: string
   reminderEnabled: boolean
   reminderDays: string
 }
 
-export type InvitationsSettingsPatch = Pick<ProfessionalsSettings, 'invitationExpiryDays' | 'invitationReminderAfterDays'>
+type InvitationsSettingsPatch = Pick<ProfessionalsSettings, 'invitationExpiryDays' | 'invitationReminderAfterDays'>
 
 /** The stored settings as form values; a reminder that is off keeps a delay ready for the switch. */
 export function toInvitationsFormValues(settings: InvitationsSettingsPatch): InvitationsFormValues {

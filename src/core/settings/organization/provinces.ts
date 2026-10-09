@@ -1,4 +1,4 @@
-import type { TranslationKey } from '@/i18n'
+import { t, type TranslationKey } from '@/i18n'
 import type { Province } from './schemas'
 
 /** The province and territory picker: the 13 codes of `PROVINCES`, by French name in alphabetical order. */
@@ -17,3 +17,9 @@ export const PROVINCE_OPTIONS: readonly { value: Province; labelKey: Translation
   { value: 'NT', labelKey: 'settings.provinces.NT' },
   { value: 'YT', labelKey: 'settings.provinces.YT' },
 ]
+
+/** A province code's French name; the code itself when it is not one of the 13. */
+export function provinceName(code: string): string {
+  const option = PROVINCE_OPTIONS.find((o) => o.value === code)
+  return option ? t(option.labelKey) : code
+}

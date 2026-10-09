@@ -19,7 +19,7 @@ const UNSAFE = /[^\p{L}\p{N} '’()._-]+/gu
 const FALLBACK = 'Document signé'
 
 export const SEALED_SUFFIX = ' - complet scellé'
-export const CERTIFICATE_SUFFIX = ' - certificat et journal de signature'
+const CERTIFICATE_SUFFIX = ' - certificat et journal de signature'
 
 /** The title made safe for a file name; « Document signé » when nothing is left. */
 export function signedFileBase(title: string | null | undefined): string {
@@ -34,7 +34,7 @@ export function signedFileName(title: string | null | undefined, suffix: string)
   return `${base || FALLBACK}${suffix}.pdf`
 }
 
-export interface SignedFileNames {
+interface SignedFileNames {
   document: string
   certificate: string
   sealed: string

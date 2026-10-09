@@ -77,7 +77,7 @@ export function liveTotal(row: ReviewRow, drafts: Drafts): number | null {
  * The note `import_professional` gives the opening balance it writes in the month before the
  * import (P4-192): that month's « sessions » are the whole count so far, not the month's.
  */
-export const IMPORTED_BALANCE_NOTE = 'Solde importé'
+const IMPORTED_BALANCE_NOTE = 'Solde importé'
 
 /** Whether the month's entry is only an imported opening balance (no session typed for it). */
 export const isImportedBalance = (row: ReviewRow): boolean =>

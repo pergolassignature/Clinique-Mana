@@ -38,7 +38,7 @@ import { PickerFlatList, PickerGroupSection, type PickerRowsContext } from './Pi
 const P = 'modules.professionals.record.matching.picker'
 
 /** A flat list longer than this gets the search field and « Sélectionnés seulement »; a grouped list always does. */
-export const SEARCH_FROM_ITEMS = 12
+const SEARCH_FROM_ITEMS = 12
 
 export type PickerDraft = Map<string, { specialized: boolean }>
 

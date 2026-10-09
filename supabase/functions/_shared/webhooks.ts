@@ -4,7 +4,8 @@
  * leased claim RPCs (`webhook_events`, Task 3.2; PS Hub
  * `claim_contract_webhook_event`).
  *
- * Flow: verify the signature, resolve the org from a row, `claimEvent`;
+ * Flow: verify the signature with the secret of the org named by `?org=`,
+ * then `claimEvent`;
  * `duplicate` → 200, `in_progress` → 409 (the provider retries); do the work;
  * then `completeEvent`, or `failEvent` with an error code and answer 500.
  * The payload passed to `claimEvent` is minimised by the caller (ids only).
@@ -28,7 +29,7 @@ export interface ClaimInput {
   provider: 'resend' | 'documenso'
   /** Resend: the `svix-id`; Documenso: `<org_id>:<event>:<envelope_id>[:<version>]` (design §2.7, `documensoEventId`). */
   eventId: string
-  /** From a database row, never from the payload. */
+  /** The org whose secret verified the signature (`?org=`), never from the payload. */
   orgId: string
   eventType: string
   /** Minimised payload kept for a retry (ids only, no address). */
@@ -57,7 +58,7 @@ export async function claimEvent(
   client: SupabaseClient,
   input: ClaimInput,
 ): Promise<ClaimResult> {
-  // Assumed signature (Task 3.2, DB lane to confirm):
+  // Signature (*_core_rate_limits_webhook_events.sql):
   // claim_webhook_event(p_provider text, p_event_id text, p_org_id uuid,
   //   p_event_type text, p_payload jsonb, p_lease_seconds int default 300)
   //   returns table (status text, id uuid, claim_token uuid)
@@ -104,7 +105,7 @@ export function completeEvent(
   id: string,
   token: string,
 ): Promise<boolean> {
-  // Assumed: complete_webhook_event(p_id uuid, p_claim_token uuid) returns boolean.
+  // SQL: complete_webhook_event(p_id uuid, p_claim_token uuid) returns boolean.
   return booleanRpc(client, 'complete_webhook_event', {
     p_id: id,
     p_claim_token: token,
@@ -122,7 +123,7 @@ export function failEvent(
   token: string,
   code: string,
 ): Promise<boolean> {
-  // Assumed: fail_webhook_event(p_id uuid, p_claim_token uuid, p_error text) returns boolean.
+  // SQL: fail_webhook_event(p_id uuid, p_claim_token uuid, p_error text) returns boolean.
   return booleanRpc(client, 'fail_webhook_event', {
     p_id: id,
     p_claim_token: token,

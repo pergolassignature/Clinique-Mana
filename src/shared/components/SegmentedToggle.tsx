@@ -2,7 +2,7 @@ import { useRef, type KeyboardEvent } from 'react'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from '@/shared/ui/field-classes'
 
-export interface SegmentedToggleOption<V extends string> {
+interface SegmentedToggleOption<V extends string> {
   value: V
   label: string
 }

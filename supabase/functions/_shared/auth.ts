@@ -1,15 +1,16 @@
 /**
  * Shared auth for Edge Functions (adapted from PS Hub `_shared/auth.ts`).
  *
- * RULE: every function deployed with `verify_jwt = false` MUST call
- * `verifyAuth()` / `verifyServiceRoleAuth()` before doing anything else,
- * or verify a webhook signature (use `timingSafeEqual` for the comparison).
+ * RULE: every function deployed with `verify_jwt = false` authenticates
+ * itself before anything else: `verifyAuth()` (user functions), a webhook
+ * signature compared with `timingSafeEqual`, `runJob`'s `X-Job-Signature`
+ * (jobs), or a hashed single-use token (public token functions).
  *
  * Module gate:
- * - user-scoped functions: `verifyAuth(req, { module })` or
- *   `requireModule(auth.client, key)`;
- * - service-role / webhook / cron functions: resolve the org from a database
- *   row, then `requireModuleForOrg(serviceClient, orgId, key)`.
+ * - user-scoped functions: `verifyAuth(req, { module })`;
+ * - service-role and job functions: resolve the org from a database row, then
+ *   `requireModuleForOrg(serviceClient, orgId, key)`; webhooks take the org
+ *   from `?org=` once its secret verified the signature.
  *
  * Permissions come from `public.get_my_access()` (the same payload the web app
  * reads). The RLS helpers (`private.has_permission`, …) are not exposed over the
@@ -28,7 +29,6 @@ import {
 } from '@supabase/supabase-js'
 import { logErrorCode } from './log.ts'
 import { reportError } from './report.ts'
-import { timingSafeEqual } from './timing-safe-equal.ts'
 
 /**
  * Error codes stay English; the UI maps each one to a French text (P3-28).
@@ -447,51 +447,6 @@ function secretKeysFromEnv(): string[] {
   return raw.split(',')
 }
 
-/**
- * Keys accepted by `verifyServiceRoleAuth`, empty values ignored:
- * `SUPABASE_SERVICE_ROLE_KEY` (legacy JWT), each `SUPABASE_SECRET_KEYS` value
- * (`sb_secret_…`), and the optional `INTERNAL_FUNCTION_SECRET`.
- */
-export function serviceKeys(): string[] {
-  return [
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    ...secretKeysFromEnv(),
-    Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? '',
-  ].map((k) => k.trim()).filter(Boolean)
-}
-
-/**
- * For internal-only functions called by a holder of a service key (another
- * function, an operator script). Contract: the caller sends
- * `Authorization: Bearer <key>` with one of `serviceKeys()`.
- * Returns null when authorised, otherwise a Response. Fails closed (500) when
- * no key is configured. Every key is compared in constant time.
- *
- * **Never for `pg_net` callers** (cron, « Exécuter maintenant »): pg_net keeps
- * queued request headers in `net.http_request_queue`, readable by every
- * database role, so a bearer sent from SQL leaks. Scheduled jobs verify a
- * short-lived `X-Job-Signature` instead (`runJob` in `jobs.ts`). No function
- * calls this one today.
- */
-export function verifyServiceRoleAuth(req: Request): Response | null {
-  const keys = serviceKeys()
-  if (keys.length === 0) return misconfigured('service key', req)
-  const token = bearerToken(req)
-  if (!token) {
-    return errorResponse(
-      'unauthenticated',
-      'Missing Authorization header',
-      401,
-      req,
-    )
-  }
-  let match = false
-  for (const key of keys) match = timingSafeEqual(token, key) || match
-  return match
-    ? null
-    : errorResponse('unauthenticated', 'Service key required', 401, req)
-}
-
 // ---------------------------------------------------------------------------
 // Clients
 // ---------------------------------------------------------------------------
@@ -505,7 +460,8 @@ const serverOptions = {
 }
 
 /**
- * Bypasses RLS. Only use AFTER verifyAuth / verifyServiceRoleAuth succeeded.
+ * Bypasses RLS. Only use once the caller is authenticated (or, for public
+ * token functions, to rate-limit before the token lookup).
  * Returns a Response (500) when the environment is incomplete.
  */
 export function getServiceRoleClient(req?: Request): SupabaseClient | Response {

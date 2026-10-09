@@ -32,7 +32,7 @@ export function preloadFicheRenderer(): void {
   void loadRenderer().catch(() => undefined)
 }
 
-export interface FicheTarget {
+interface FicheTarget {
   record: ProfessionalRecord
   catalog: CatalogView
   titleId: string | null
@@ -44,7 +44,7 @@ export interface FicheTarget {
  * fiche's title, read fresh (a grid can change any day). A failed read of any makes no fiche
  * (never one that shows what the clinic chose to hide).
  */
-export async function renderFiche(queryClient: QueryClient, { record, catalog, titleId }: FicheTarget): Promise<{ blob: Blob; fileName: string }> {
+async function renderFiche(queryClient: QueryClient, { record, catalog, titleId }: FicheTarget): Promise<{ blob: Blob; fileName: string }> {
   const [{ renderFichePdf }, organization, settings, fees, photoFileId] = await Promise.all([
     loadRenderer(),
     // The same entry as Settings' cards: fresh for a minute, so a fiche made right after an edit of
@@ -71,7 +71,7 @@ export async function renderFiche(queryClient: QueryClient, { record, catalog, t
 }
 
 /** The French text for a fiche that could not be made (or sent): a new deploy, a refusal, else the generic one. */
-export function ficheErrorMessage(error: unknown, fallback: string): string {
+function ficheErrorMessage(error: unknown, fallback: string): string {
   if (isChunkLoadError(error)) return t('modules.professionals.fiche.errors.appUpdated')
   return moduleErrorMessage(error, fallback, 'professionals')
 }
@@ -93,7 +93,7 @@ export function useDownloadFiche() {
 }
 
 /** A failure of « Envoyer par courriel », with the step it happened at. */
-export class FicheSendError extends Error {
+class FicheSendError extends Error {
   constructor(
     readonly step: 'render' | 'upload' | 'send',
     readonly cause: unknown,
@@ -104,7 +104,7 @@ export class FicheSendError extends Error {
 }
 
 /** What the send dialog shows for a failure: under the address field, or above the buttons. */
-export interface FicheSendFailure {
+interface FicheSendFailure {
   message: string
   field?: 'to'
 }
@@ -150,7 +150,7 @@ export function ficheSendFailure(error: unknown): FicheSendFailure {
   return { message: cause.code === 'missing_variable' ? t(`${E}.template`) : t(`${E}.send`) }
 }
 
-export interface FicheSend extends FicheTarget {
+interface FicheSend extends FicheTarget {
   to: string
   message: string
 }

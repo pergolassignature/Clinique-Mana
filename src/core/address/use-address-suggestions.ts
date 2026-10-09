@@ -3,11 +3,11 @@ import { fetchAddressSuggestions, fetchPlaceAddress, newPlacesSession, type Addr
 import { pauseSuggestions, suggestionsPaused } from './availability'
 
 /** The pause in typing before asking (each request is billed). */
-export const SUGGEST_DEBOUNCE_MS = 250
+const SUGGEST_DEBOUNCE_MS = 250
 /** Fewer characters than this ask nothing (the function refuses them too). */
-export const MIN_QUERY_LENGTH = 3
+const MIN_QUERY_LENGTH = 3
 /** More characters than this ask nothing (not an address). */
-export const MAX_QUERY_LENGTH = 200
+const MAX_QUERY_LENGTH = 200
 
 // eslint-disable-next-line no-control-regex -- removing control characters is the point
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]+/g
@@ -16,7 +16,7 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]+/g
  * What is sent for a typed text: NFC, control characters (a pasted tab or line break) as spaces,
  * spaces collapsed, trimmed. The function refuses control characters (400), so they never leave.
  */
-export function suggestionQuery(text: string): string {
+function suggestionQuery(text: string): string {
   return text.normalize('NFC').replace(CONTROL_CHARS, ' ').replace(/\s+/g, ' ').trim()
 }
 

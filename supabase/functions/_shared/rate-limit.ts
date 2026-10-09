@@ -406,7 +406,7 @@ export async function consume(
     })
     return { ...FAIL_CLOSED }
   }
-  // Assumed signature (Task 3.2, DB lane to confirm):
+  // Signature (*_core_rate_limits_webhook_events.sql):
   // consume_rate_limit(p_bucket text, p_key_hash bytea, p_max int, p_window_seconds int)
   //   returns table (allowed boolean, hits int, retry_after_seconds int)
   // → PostgREST answers an array with one row; bytea is sent as '\x<hex>'.

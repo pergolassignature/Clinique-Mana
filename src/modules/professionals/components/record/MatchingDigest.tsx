@@ -88,7 +88,7 @@ function Empty({ children }: { children: ReactNode }) {
 }
 
 /** « Âge minimum : 14 ans » (when no held age group carries it) and « Femmes seulement », under the clientèles (P4-245). */
-export function Limits({ digest }: { digest: Pick<Digest, 'minClientAge' | 'womenOnly'> }) {
+function Limits({ digest }: { digest: Pick<Digest, 'minClientAge' | 'womenOnly'> }) {
   const lines = [digest.minClientAge !== null && minClientAgeLabel(digest.minClientAge), digest.womenOnly && t('modules.professionals.display.womenOnly')].filter(
     (line): line is string => typeof line === 'string',
   )

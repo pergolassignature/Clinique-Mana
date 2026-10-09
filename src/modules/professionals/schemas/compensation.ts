@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { t, type TranslationKey } from '@/i18n'
-import { isCalendarDate } from '@/core/settings/tax/schemas'
+import { isCalendarDate } from '@/shared/lib/timezone'
 import { formatDateOnlyShort, shiftCalendarDay } from '@/shared/lib/timezone'
 import { DURATIONS, type AgreementInput, type Decision, type Duration, type GridInput, type RateInput } from '../api/compensation'
 import { parseDollars, parsePercent, parseSessions } from '../lib/compensation'
@@ -141,7 +141,7 @@ export type AgreementFormValues = {
  * `set_professional_client_agreement` refuses it. « AB-123 », « M.T. », « D-1042 » pass.
  */
 const FULL_NAME = /^\p{L}[\p{L}'’-]+(?:\s+\p{L}[\p{L}'’-]+)+$/u
-export const looksLikeFullName = (label: string): boolean => !/[0-9]/.test(label) && FULL_NAME.test(label)
+const looksLikeFullName = (label: string): boolean => !/[0-9]/.test(label) && FULL_NAME.test(label)
 
 export function agreementSchema(): z.ZodType<AgreementInput, AgreementFormValues> {
   return z

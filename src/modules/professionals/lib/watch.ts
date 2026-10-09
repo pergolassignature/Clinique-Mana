@@ -14,7 +14,7 @@ import { clinicDaysSince, invitationEmail, invitationState } from './onboarding'
  * expired (danger), from `insurance_status` / `insurance_expires_on` (the list's columns, the
  * record's `readiness.insurance`). Inactive files are not watched.
  */
-export type WatchFlagKey =
+type WatchFlagKey =
   | 'insurance_expired'
   | 'insurance_expiring'
   | 'submission_to_review'
@@ -43,7 +43,7 @@ export const WATCH_TAB: Readonly<Partial<Record<WatchFlagKey, RecordTab>>> = {
 /** An invitation is « sans réponse » after this many clinic days without being opened (Task 4b.3). */
 export const INVITATION_UNANSWERED_DAYS = 3
 
-export interface WatchFlag {
+interface WatchFlag {
   key: WatchFlagKey
   label: string
   tone: 'danger' | 'muted'

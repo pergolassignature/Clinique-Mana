@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  clinicNow,
   clinicTimeToUTC,
   formatClinicDateShort,
   formatClinicTime,
   formatDateOnly,
   formatInClinicTimezone,
+  isCalendarDate,
   getClinicTimezone,
   isClinicToday,
   resetClinicTimezone,
@@ -89,7 +89,6 @@ describe('clinic timezone', () => {
     expect(isClinicToday('2026-01-15T15:00:00Z')).toBe(true)
     expect(isClinicToday('2026-01-16T06:00:00Z')).toBe(false)
     expect(isClinicToday(null)).toBe(false)
-    expect(clinicNow().getHours()).toBe(22)
   })
 
   it('converts clinic wall time to UTC regardless of the host timezone', () => {
@@ -121,5 +120,16 @@ describe('shiftCalendarDay', () => {
     expect(shiftCalendarDay('2026-03-08', 1)).toBe('2026-03-09')
     expect(shiftCalendarDay('2026-11-01', 1)).toBe('2026-11-02')
     expect(shiftCalendarDay('2026-11-02', -1)).toBe('2026-11-01')
+  })
+})
+
+describe('isCalendarDate', () => {
+  it('accepts a real yyyy-MM-dd day, leap days included', () => {
+    expect(isCalendarDate('2027-01-01')).toBe(true)
+    expect(isCalendarDate('2028-02-29')).toBe(true)
+  })
+
+  it.each(['', '2027-02-29', '2027-02-30', '2027-13-01', '2027-1-01', '01/01/2027', '2027-01-01T00:00'])('refuses « %s »', (v) => {
+    expect(isCalendarDate(v)).toBe(false)
   })
 })

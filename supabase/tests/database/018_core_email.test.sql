@@ -11,13 +11,12 @@
 -- (get_email_context with the reply-to fallback, queue_email and its refusals,
 -- mark_email_sent including the provider_unavailable override, mark_email_failed),
 -- apply_email_event (monotonic, final states, the provider_unavailable override, module gate,
--- org check, tag and provider id of two rows), count_org_emails_today (clinic day, one minute
--- either side of midnight); the two maintenance jobs (retention, stale queued rows, one minute
+-- org check, tag and provider id of two rows); the two maintenance jobs (retention, stale queued rows, one minute
 -- either side of each threshold) and their cron entries.
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(185);
+select plan(183);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -156,11 +155,10 @@ select results_eq($$
      and p.proname in ('set_email_sender', 'set_email_sending_domain', 'list_email_templates',
                        'save_email_template', 'reset_email_template', 'list_email_log',
                        'list_subject_emails', 'get_email_context', 'queue_email', 'mark_email_sent',
-                       'mark_email_failed', 'apply_email_event', 'count_org_emails_today')
+                       'mark_email_failed', 'apply_email_event')
    order by 1
 $$, $$ values
   ('apply_email_event'::text, false, false, true),
-  ('count_org_emails_today', false, false, true),
   ('get_email_context', false, false, true),
   ('list_email_log', false, true, false),
   ('list_email_templates', false, true, false),
@@ -725,10 +723,6 @@ select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (sele
 select results_eq($$ select e.status from public.email_log e left join q on q.id = e.id
                      where q.step in ('q1', 'q2') or e.id = 'c0000000-0000-0000-0000-000000000006' order by e.status $$,
   array['bounced'::text, 'complained', 'delivered'], 'delivered, bounced and complained rows are unchanged');
-
-select is(public.count_org_emails_today('b0000000-0000-0000-0000-00000000000b'), 3,
-  'count_org_emails_today counts the clinic day only: from 00:00 Toronto, not 23:30 or 23:59 the evening before');
-select is(public.count_org_emails_today('b0000000-0000-0000-0000-0000000000ff'), 0, 'an unknown org counts 0');
 
 -- =============================================================================
 -- Jobs (as postgres)

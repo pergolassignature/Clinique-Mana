@@ -30,7 +30,6 @@
     "loading": "Chargement…",
     "retry": "Réessayer",
     "close": "Fermer",
-    "readOnly": "Lecture seule",
     "readOnlyNotice": {
       "title": "Lecture seule",
       "body": "Seule l'administration peut modifier ces informations."
@@ -1285,9 +1284,6 @@
           "image_consent": "le consentement au droit à l'image",
           "other_documents": "d'autres documents requis"
         },
-        "warnings": {
-          "login_email_mismatch": "Le courriel du dossier diffère du courriel de connexion."
-        },
         "nextAction": {
           "completeMatching": "Complétez le profil de jumelage.",
           "completeIdentity": "Complétez les titres et permis.",
@@ -1908,7 +1904,6 @@
         }
       },
       "history": {
-        "title": "Historique du dossier",
         "filter": {
           "label": "Afficher",
           "all": "Tout",
@@ -2420,7 +2415,6 @@
         },
         "delete": "Supprimer",
         "deleting": "Suppression…",
-        "history": "Historique",
         "from": "À partir du",
         "note": "Note",
         "noteHelp": "Facultative, sur une ligne.",
@@ -4050,17 +4044,7 @@
           "sinOnFile": "Déjà fourni (••• {last3}). Laissez vide pour le garder."
         },
         "consent": {
-          "version": "Version {version}",
-          "none": "La clinique n'a pas encore publié ce texte. Vous pourrez le signer, puis envoyer votre profil, dès qu'elle l'aura publié.",
-          "signed": "Signé le {date} par {name}.",
-          "newVersion": "Le texte a changé depuis votre signature. Relisez-le, puis signez de nouveau.",
-          "agree": "J'ai lu et j'accepte ce consentement.",
-          "agreeRequired": "Cochez la case pour accepter.",
-          "name": "Votre nom complet",
-          "nameHelp": "Écrivez « {name} », tel qu'à votre dossier.",
-          "nameRequired": "Écrivez votre nom complet.",
-          "nameMismatch": "Le nom saisi ne correspond pas au nom du dossier.",
-          "signAndContinue": "Signer et continuer"
+          "signed": "Signé le {date} par {name}."
         },
         "review": {
           "ready": "Toutes les étapes sont complètes. Vérifiez vos réponses, puis envoyez votre profil.",

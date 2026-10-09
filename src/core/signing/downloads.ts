@@ -32,7 +32,7 @@ export interface SignedDocumentFiles {
 
 export type SignedDownloadKind = 'document' | 'certificate' | 'sealed'
 
-export interface SignedDownload {
+interface SignedDownload {
   /** The file to save; null for a certificate the sealed PDF does not hold. */
   file: { bytes: Uint8Array; fileName: string } | null
   /** Whether the sealed PDF holds pages after the document (null: not split, not known). */
