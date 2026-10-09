@@ -2706,6 +2706,26 @@
           "weekly": "Rappel chaque semaine après l'échéance",
           "weeklyHelp": "Un courriel par semaine tant qu'aucune nouvelle preuve n'est vérifiée.",
           "remindersOnlyInsurance": "Les rappels par courriel ne s'appliquent qu'à la preuve d'assurance.",
+          "consentNoExpiry": "Aucune expiration",
+          "consentNoExpiryHelp": "Le consentement au droit à l'image n'expire pas : une fois signé, il reste valide.",
+          "consentText": {
+            "title": "Consentement au droit à l'image",
+            "body": "Le texte que signent les professionnels est le modèle « Consentement au droit à l'image ». Il se modifie et se publie dans Contrats et formulaires.",
+            "open": "Ouvrir Contrats et formulaires"
+          },
+          "job": {
+            "title": "Rappels d'assurance",
+            "description": "Les rappels par courriel, les avis « Assurance expirée » et le compte des documents manquants partent une fois par jour, par la tâche planifiée « Échéances des assurances ».",
+            "on": "La tâche planifiée est activée : elle passe chaque jour vers {hour} h (heure de la clinique).",
+            "onNoHour": "La tâche planifiée est activée : elle passe une fois par jour.",
+            "off": "Aucun rappel ne part pour l'instant : la tâche planifiée « Échéances des assurances » est désactivée. Les assurances échues ne sont ni signalées ni rappelées aux professionnels.",
+            "enable": "Activer la tâche planifiée",
+            "enabling": "Activation…",
+            "askAdmin": "Un administrateur peut l'activer dans Paramètres → Tâches planifiées.",
+            "openJobs": "Ouvrir Tâches planifiées",
+            "unknown": "Les rappels partent seulement si la tâche planifiée « Échéances des assurances » est activée (Paramètres → Tâches planifiées).",
+            "loadError": "L'état de la tâche planifiée n'a pas pu être chargé."
+          },
           "files": "Fichiers acceptés",
           "filesSummary": "{types} · {size}",
           "allFiles": "Tous les types",
