@@ -3,7 +3,7 @@ import { contractPayload, templatePayload, versionPayload, type ContractRequest,
 
 /**
  * The service contract's payloads as the database returns them (snake_case JSON), shaped on
- * `get_professional_contract` (20261009120511), `list_document_templates` and the rows of
+ * `get_professional_contract` (20261009030158), `list_document_templates` and the rows of
  * `document_template_versions` (20261008073909). Test-only: no production file imports this one.
  */
 

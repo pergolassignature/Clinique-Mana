@@ -12,7 +12,7 @@ import { sqlArgs } from './sql-args'
  * A professional's documents (Tasks 4c.2, 4c.3, 4c.6; 20261009000253_professionals_documents.sql):
  * the tab's and « Mes documents »' one read, the upload (storage pipeline, then attach), the
  * reviewer's actions, and « Paramètres → Consentements »
- * (20261009080417_professionals_documents_settings.sql). Every function throws the PostgREST error
+ * (20261009030156_professionals_documents_settings.sql). Every function throws the PostgREST error
  * unchanged; a function's refusal is thrown as the RPC error it passes on (`asRpcRefusal`).
  */
 
