@@ -744,7 +744,7 @@ function describeSet(catalog: CatalogView, batch: SetBatch): Pick<HistoryEvent, 
 // --- Assembly ----------------------------------------------------------------------------------------
 
 /**
- * The subject of the sentence: the person's name; « Une personne qui n'a plus accès » for an actor
+ * The subject of the sentence: the person's name; « Un compte supprimé » for an actor
  * id the clinic no longer names; else what wrote the row, by source (P4-104): `seed` and
  * `import…` → « L'importation », `migration:…` → « Une mise à jour du système », anything else
  * (`bootstrap`, `service`…) → « Le système ».

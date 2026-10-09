@@ -127,7 +127,8 @@ select functions_are('public', array[
   'prepare_professional_contract', 'get_professional_contract',
   'copy_professional_invitation_link', 'record_professional_invitation_email_failure_for_service',
   'prepare_professional_image_consent', 'get_professional_image_consent', 'prepare_my_image_consent', 'get_my_image_consent',
-  'search_professionals'
+  'search_professionals',
+  'delete_staff_account'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

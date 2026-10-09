@@ -9,6 +9,32 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      account_deletion_guards: {
+        Row: {
+          created_at: string
+          guard_function: string
+          module_key: string
+        }
+        Insert: {
+          created_at?: string
+          guard_function: string
+          module_key: string
+        }
+        Update: {
+          created_at?: string
+          guard_function?: string
+          module_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_deletion_guards_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: true
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -5086,6 +5112,7 @@ export type Database = {
       }
       delete_retention_grid: { Args: { p_id: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
+      delete_staff_account: { Args: { p_user_id: string }; Returns: string }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       delete_user_preference: {
         Args: { p_key: string; p_user_id: string }
