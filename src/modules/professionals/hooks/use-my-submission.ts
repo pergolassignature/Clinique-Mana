@@ -66,7 +66,7 @@ export type Collect = () => Record<string, unknown> | null
  * Refusals that say the questionnaire itself changed under the page (sent from another tab,
  * closed by the clinic, file deactivated): the page reloads the submission instead of a field error.
  */
-export const PAGE_HINTS: ReadonlySet<string> = new Set(['submitted', 'submission', 'status'])
+const PAGE_HINTS: ReadonlySet<string> = new Set(['submitted', 'submission', 'status'])
 
 /** A P0001 refusal (the database's French message, the field as HINT). */
 export const isRefusal = (error: unknown) => rpcErrorCode(error) === 'P0001'
@@ -207,7 +207,7 @@ export interface QuestionnaireAutosave {
 
 const OK: SaveOutcome = { ok: true }
 
-export interface AutosaveOptions {
+interface AutosaveOptions {
   /** The questionnaire was closed or sent elsewhere (`PAGE_HINTS`): the page explains it once reloaded. */
   onPageRefusal?: (hint: string, message: string) => void
 }

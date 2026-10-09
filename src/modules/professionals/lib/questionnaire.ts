@@ -93,7 +93,7 @@ export function changedFields(parsed: Values, current: Values): Record<string, u
  * The fields `submission_gaps` needs answered (P4-173), per section with a form. A file section
  * needs its file (and the insurance its expiry); availability needs only to be saved once.
  */
-export const REQUIRED_FIELDS: Readonly<Partial<Record<SubmissionSection, readonly string[]>>> = {
+const REQUIRED_FIELDS: Readonly<Partial<Record<SubmissionSection, readonly string[]>>> = {
   personal: ['personal_phone', 'address_line1', 'city', 'province', 'postal_code'],
   professional: ['professions'],
   portrait: ['bio'],

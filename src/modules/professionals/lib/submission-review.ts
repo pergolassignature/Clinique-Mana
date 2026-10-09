@@ -77,7 +77,7 @@ export function idList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
 }
 
-export interface IdsDiff {
+interface IdsDiff {
   added: string[]
   removed: string[]
   kept: string[]
@@ -103,7 +103,7 @@ export function clienteleRefs(value: unknown): SpecializedRef[] {
   })
 }
 
-export interface ClienteleDiff extends IdsDiff {
+interface ClienteleDiff extends IdsDiff {
   /** Kept, and now ★ spécialisé. */
   starred: string[]
   /** Kept, and no longer ★. */
@@ -171,7 +171,7 @@ export function submissionKindLabel(kind: SubmissionKind): string {
   return t(`${S}.kinds.${kind}`)
 }
 
-export type SubmissionState = 'returned' | 'in_progress' | 'to_review' | 'applied' | 'approved_unchanged' | 'cancelled'
+type SubmissionState = 'returned' | 'in_progress' | 'to_review' | 'applied' | 'approved_unchanged' | 'cancelled'
 
 const STATE_TONE: Readonly<Record<SubmissionState, StatusTone>> = {
   returned: 'neutral',

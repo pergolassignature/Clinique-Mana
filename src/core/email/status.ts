@@ -12,7 +12,7 @@ export const EMAIL_STATUSES = {
   failed: 'error',
 } as const satisfies Record<string, StatusTone>
 export type EmailStatus = keyof typeof EMAIL_STATUSES
-export const isEmailStatus = (status: string): status is EmailStatus => Object.hasOwn(EMAIL_STATUSES, status)
+const isEmailStatus = (status: string): status is EmailStatus => Object.hasOwn(EMAIL_STATUSES, status)
 
 /**
  * The `error_code` of a `failed` row, as written by the send path and the database:
@@ -31,7 +31,7 @@ const FAILURES = {
 } as const
 const isKnownFailure = (code: string): code is keyof typeof FAILURES => Object.hasOwn(FAILURES, code)
 
-export interface EmailStatusLabel {
+interface EmailStatusLabel {
   /** The French word for the outcome. */
   label: string
   tone: StatusTone

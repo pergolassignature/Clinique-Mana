@@ -235,7 +235,7 @@ export const needsDecision = (status: RetentionStatus): boolean => status === 'g
  * floor, green for an increase decided for the month; plain otherwise (a starting rate to fix
  * included: it has its own neutral mark, never the gap's yellow, P4-197).
  */
-export type RetentionTone = 'warning' | 'info' | 'success' | 'default'
+type RetentionTone = 'warning' | 'info' | 'success' | 'default'
 export function retentionTone(display: RetentionDisplay): RetentionTone {
   if (display === 'newTier' || display === 'gridGap') return 'warning'
   if (display === 'increaseDecided') return 'success'

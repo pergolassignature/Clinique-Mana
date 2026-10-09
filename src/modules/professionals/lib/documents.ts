@@ -43,7 +43,7 @@ export function defaultExpiry(rule: DocumentExpiryRule, today: string): string |
 }
 
 /** The largest reminder (days before the last valid day): the « bientôt échu » window; 0 without one. */
-export const reminderWindow = (type: DocumentType) => Math.max(0, ...type.reminderDays)
+const reminderWindow = (type: DocumentType) => Math.max(0, ...type.reminderDays)
 
 /**
  * The last day an e-consent is in force: its own last day, or the day before its withdrawal takes
@@ -177,7 +177,7 @@ export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Pa
 }
 
 /** The dot next to the words: an expiry soon is a warning, an expired, refused or missing required document an error. */
-export function typeStateTone(kind: DocumentStateKind, required = true): StatusTone {
+function typeStateTone(kind: DocumentStateKind, required = true): StatusTone {
   if (kind === 'valid') return 'success'
   if (kind === 'expiring' || kind === 'pending' || kind === 'submitted') return 'warning'
   if (kind === 'missing' && !required) return 'neutral'

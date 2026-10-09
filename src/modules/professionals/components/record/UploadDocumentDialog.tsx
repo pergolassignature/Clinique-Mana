@@ -25,7 +25,7 @@ const HINT_FIELD: Record<string, FieldName> = { expires_on: 'expiresOn', insurer
 /** A check of the dialog's fields that stopped the upload: said under its field, and in the zone. */
 class FieldCheckError extends Error {}
 
-export interface UploadDocumentDialogProps {
+interface UploadDocumentDialogProps {
   professionalId: string
   /** « Le document s'ajoute au dossier de Marie Tremblay » (staff); null on « Mes documents ». */
   professionalName: string | null

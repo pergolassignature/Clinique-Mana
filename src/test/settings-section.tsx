@@ -6,7 +6,7 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 import { renderWithContexts } from './contexts'
 
 /** A clinic section that may be read only (Identité légale), for pages rendered outside SettingsLayout. */
-export const testSettingsSection: SettingsSection = {
+const testSettingsSection: SettingsSection = {
   id: 'identity',
   path: 'identite',
   labelKey: 'settings.sections.identity',

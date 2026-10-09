@@ -57,7 +57,7 @@ async function confirmUpload(fileId: string): Promise<void> {
   }
 }
 
-export interface UploadInput {
+interface UploadInput {
   /** The `upload_purposes` key (`org_logo`…): its permission, size and types apply. */
   purpose: string
   subjectType: string
@@ -116,7 +116,7 @@ export async function signedFileUrl(fileId: string, { download = false, ...optio
 }
 
 /** The stored file could not be read through its signed URL (the network, or storage answered an error). */
-export class StoredFileReadError extends Error {
+class StoredFileReadError extends Error {
   constructor(readonly status: number | null) {
     super(status === null ? 'Stored file unreachable' : `Stored file read failed (${status})`)
     this.name = 'StoredFileReadError'

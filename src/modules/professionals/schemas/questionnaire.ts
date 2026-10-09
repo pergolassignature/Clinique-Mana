@@ -55,7 +55,7 @@ export function toPersonalValues(values: Readonly<Record<string, unknown>>): Per
 // --- Profil professionnel -------------------------------------------------------------------------
 
 /** One title as the section stores it. */
-export interface SubmittedProfession {
+interface SubmittedProfession {
   title_id: string
   licence_number: string | null
   is_primary: boolean

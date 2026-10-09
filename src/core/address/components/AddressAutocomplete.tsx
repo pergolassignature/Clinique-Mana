@@ -8,7 +8,7 @@ import type { AddressSuggestion } from '../api'
 import type { AddressAutofill, AddressFill } from '../autofill'
 import { useAddressSuggestions } from '../use-address-suggestions'
 
-export interface AddressAutocompleteProps extends Omit<InputProps, 'role' | 'autoComplete' | 'type'> {
+interface AddressAutocompleteProps extends Omit<InputProps, 'role' | 'autoComplete' | 'type'> {
   /** How a chosen suggestion fills the form (`addressAutofill(form, names)`). */
   autofill: AddressAutofill
 }

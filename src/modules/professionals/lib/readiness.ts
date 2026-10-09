@@ -52,7 +52,7 @@ const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professi
 export const REVIEW_TAB: RecordTab = 'documents'
 
 /** Where the service contract is sent and followed (the card atop Documents, Task 4d.3). */
-export const CONTRACT_TAB: RecordTab = 'documents'
+const CONTRACT_TAB: RecordTab = 'documents'
 
 /**
  * Where the service contract stands, for « Prochaine action » (`contractProgress`, lib/contract.ts):
@@ -72,7 +72,7 @@ export type NextActionButton =
   | { kind: 'invite'; label: string; action: InviteAction }
   | { kind: 'copyLink'; label: string }
 
-export interface NextAction {
+interface NextAction {
   message: string
   /** At most one small outline button, only when the user may do what it leads to. */
   action: NextActionButton | null

@@ -44,7 +44,7 @@ const appliedPayload = z
     note: z.string().nullable(),
   })
   .transform((a) => ({ id: a.id, pct: a.retention_pct, decision: a.decision, effectiveFrom: a.effective_from, tierThreshold: a.tier_threshold, note: a.note }))
-export type AppliedRate = z.output<typeof appliedPayload>
+type AppliedRate = z.output<typeof appliedPayload>
 
 /**
  * Pay per session for one duration (P4-189): `appliedCents` at the rate in force on the read's

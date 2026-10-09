@@ -176,7 +176,6 @@ export type ReadinessMissing = (typeof READINESS_MISSING)[number] | (typeof READ
 
 /** Readiness warnings: noted, but not gaps (`complete` stays true). */
 export const READINESS_WARNINGS = ['login_email_mismatch'] as const
-export type ReadinessWarning = (typeof READINESS_WARNINGS)[number]
 
 /** The record's tabs (P4-13), as URL segments: `/professionnels/:id/:onglet`. */
 export const RECORD_TABS = ['apercu', 'jumelage', 'profil-public', 'identite', 'documents', 'remuneration', 'historique'] as const

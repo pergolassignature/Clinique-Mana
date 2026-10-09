@@ -141,7 +141,7 @@ export type AgreementFormValues = {
  * `set_professional_client_agreement` refuses it. « AB-123 », « M.T. », « D-1042 » pass.
  */
 const FULL_NAME = /^\p{L}[\p{L}'’-]+(?:\s+\p{L}[\p{L}'’-]+)+$/u
-export const looksLikeFullName = (label: string): boolean => !/[0-9]/.test(label) && FULL_NAME.test(label)
+const looksLikeFullName = (label: string): boolean => !/[0-9]/.test(label) && FULL_NAME.test(label)
 
 export function agreementSchema(): z.ZodType<AgreementInput, AgreementFormValues> {
   return z
