@@ -254,7 +254,7 @@ describe('IdentityTab', () => {
     })
 
     it('says the link already sent stops working while one is live, and only then', async () => {
-      const at = (expiresAt: string) => ({ invitation: { state: 'sent' as const, sentAt: '2026-10-05T14:00:00Z', expiresAt, openedAt: null, usedAt: null }, submission: null, onboardingApproved: false })
+      const at = (expiresAt: string) => ({ invitation: { state: 'sent' as const, sentAt: '2026-10-05T14:00:00Z', expiresAt, openedAt: null, usedAt: null, delivery: 'email' as const, emailStatus: 'sent', emailError: null }, submission: null, onboardingApproved: false })
       renderRecordTab(<IdentityTab />, { record: stored, onboarding: at('2999-01-01T00:00:00Z') })
       await userEvent.click(changeButton())
       const dialog = await screen.findByRole('dialog', { name: t(`${I}.changeEmail.title`) })
@@ -262,7 +262,7 @@ describe('IdentityTab', () => {
     })
 
     it('says nothing of a link that is no longer live (expired)', async () => {
-      const lapsed = { invitation: { state: 'sent' as const, sentAt: '2026-10-05T14:00:00Z', expiresAt: '2000-01-01T00:00:00Z', openedAt: null, usedAt: null }, submission: null, onboardingApproved: false }
+      const lapsed = { invitation: { state: 'sent' as const, sentAt: '2026-10-05T14:00:00Z', expiresAt: '2000-01-01T00:00:00Z', openedAt: null, usedAt: null, delivery: 'email' as const, emailStatus: 'sent', emailError: null }, submission: null, onboardingApproved: false }
       renderRecordTab(<IdentityTab />, { record: stored, onboarding: lapsed })
       await userEvent.click(changeButton())
       const dialog = await screen.findByRole('dialog', { name: t(`${I}.changeEmail.title`) })

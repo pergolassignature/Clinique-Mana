@@ -116,6 +116,7 @@ function harness(opts: {
       }),
       mark_email_sent: { data: null },
       mark_email_failed: { data: null },
+      record_professional_invitation_email_failure_for_service: { data: null },
       ...opts.rpc,
     },
   })
@@ -725,5 +726,23 @@ Deno.test('professionals-invitation-reminders: no batch starts after the soft de
     )
     assertEquals(reissuedIds(h.service.calls).length, 1 + BATCH_SIZE)
     assertEquals(h.http.calls.length, 1 + BATCH_SIZE)
+  })
+})
+
+Deno.test('professionals-invitation-reminders: a reminder not even queued is stamped on its re-issued link; a queued one is not (P4-490)', async () => {
+  await run(async () => {
+    const stamp = 'record_professional_invitation_email_failure_for_service'
+    const unconfigured = harness({ env: { EMAIL_TRANSPORT: 'carrier-pigeon' } })
+    await captureConsole('error', async () => {
+      await unconfigured.handler(await jobRequest())
+    })
+    assertEquals(callsTo(unconfigured.service.calls, stamp), [
+      { p_org: ORG_ID, p_link_id: pid(900), p_code: 'not_configured' },
+    ])
+    const provider = harness({ mailpit: mailpitFailing([pid(1)], 500) })
+    await captureConsole('error', async () => {
+      await provider.handler(await jobRequest())
+    })
+    assertEquals(callsTo(provider.service.calls, stamp), [])
   })
 })

@@ -1,19 +1,23 @@
 import { t } from '@/i18n'
 import type { ProfessionalStatus, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
-import { clinicDaysSince, invitationState } from './onboarding'
+import { clinicDaysSince, invitationEmail, invitationState } from './onboarding'
 
 /**
  * « À surveiller »: what staff should look at, for the list column, the filter and Aperçu.
  * 4a flags (muted): an incomplete matching profile, a login email that differs from the record's
  * (decision #38 leaves it). 4b (Task 4b.3): a submission waiting for review (« Dossier à
  * réviser », « Mise à jour à réviser »), an expired invitation link, an invitation unanswered for
- * INVITATION_UNANSWERED_DAYS. 4c adds the insurance flags (danger). Inactive files are not watched.
+ * INVITATION_UNANSWERED_DAYS; an invitation email that did not leave (danger) or whose outcome is
+ * unknown (P4-490, as Aperçu says). 4c adds the insurance flags (danger). Inactive files are not
+ * watched.
  */
 export type WatchFlagKey =
   | 'submission_to_review'
   | 'update_to_review'
   | 'invitation_expired'
+  | 'invitation_not_sent'
+  | 'invitation_unknown'
   | 'invitation_unanswered'
   | 'matching_incomplete'
   | 'login_email_mismatch'
@@ -64,7 +68,10 @@ function onboardingFlags({ hasAccount, onboarding }: WatchSubject, now: number):
   // As of `now`: a link past its expiry is expired before the next refetch says so.
   const state = invitationState(invitation, now)
   if (state === 'expired') flags.push({ key: 'invitation_expired', label: t(`${W}.invitation_expired`), tone: 'muted' })
-  if (state === 'sent') {
+  const email = state === 'sent' ? invitationEmail(invitation, now) : null
+  if (email?.kind === 'failed') flags.push({ key: 'invitation_not_sent', label: t(`${W}.invitation_not_sent`), tone: 'danger' })
+  if (email?.kind === 'unknown') flags.push({ key: 'invitation_unknown', label: t(`${W}.invitation_unknown`), tone: 'muted' })
+  if (email?.kind === 'sent' || email?.kind === 'copied') {
     const days = clinicDaysSince(invitation.sentAt, now)
     if (days >= INVITATION_UNANSWERED_DAYS) {
       flags.push({ key: 'invitation_unanswered', label: t(`${W}.invitation_unanswered`, { count: String(days) }), tone: 'muted' })
