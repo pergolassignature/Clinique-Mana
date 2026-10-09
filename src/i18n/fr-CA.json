@@ -3446,10 +3446,8 @@
           "working": "Envoi…",
           "journal": "Journal de signature",
           "hideJournal": "Masquer le journal",
-          "pdf": "Voir le PDF signé",
-          "pdfLabel": "Voir le PDF signé du contrat de {firstName} (nouvel onglet)",
-          "pdfLoading": "Préparation du PDF…",
-          "pdfUnavailable": "PDF indisponible"
+          "pdf": "Télécharger le PDF signé",
+          "pdfLabel": "Télécharger le PDF signé du contrat de {firstName}"
         },
         "confirm": {
           "send": {

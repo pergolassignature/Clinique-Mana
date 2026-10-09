@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as Sentry from '@sentry/react'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import type { ProfessionalRecord } from '../../api/parse'
+import { professionalKeys } from '../../hooks/keys'
 import { IDS } from '../../test/fixtures'
 import { recordWithStatus } from '../../test/fixtures-domain'
 import { renderRecordTab } from '../../test/record-tab'
@@ -84,7 +86,7 @@ describe('SendFicheDialog', () => {
 
   it('makes the fiche, uploads that file, sends it, then closes and returns focus to « Fiche PDF »', async () => {
     const record = recordWithStatus('active', true)
-    renderMenu(record)
+    const { queryClient, invalidated } = renderMenu(record)
     await openDialog()
     await userEvent.type(toField(), '  client@exemple.ca ')
     await userEvent.type(screen.getByRole('textbox', { name: t(`${S}.message`) }), '  Comme convenu, voici la fiche.  ')
@@ -106,6 +108,23 @@ describe('SendFicheDialog', () => {
     expect(mocks.markFicheGenerated).not.toHaveBeenCalled()
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.sent`, { email: 'client@exemple.ca' }))
     await waitFor(() => expect(trigger()).toHaveFocus())
+    // The email is in Historique (its first page, and the emails under it).
+    expect(invalidated()).toContainEqual(professionalKeys.history(IDS.professional))
+    // The client's address is not kept in the mutation cache.
+    expect(queryClient.getMutationCache().getAll().every((m) => m.options.gcTime === 0)).toBe(true)
+  })
+
+  it('reports an unexpected send failure with its code only, never its message', async () => {
+    renderMenu()
+    mocks.sendFicheEmail.mockRejectedValue(new FunctionCallError('missing_variable', 400, 'professional.name for client@exemple.ca'))
+    await openDialog()
+    await userEvent.type(toField(), 'client@exemple.ca')
+    await submit()
+    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${E}.template`))
+    const [report] = vi.mocked(Sentry.captureException).mock.calls[0] ?? []
+    expect(report).toBeInstanceOf(Error)
+    expect((report as Error).message).toBe('missing_variable')
+    expect(JSON.stringify(vi.mocked(Sentry.captureException).mock.calls)).not.toContain('client@exemple.ca')
   })
 
   it('offers the title when there are two, the primary first, and makes the fiche of the one chosen', async () => {

@@ -14,13 +14,16 @@ const mocks = vi.hoisted(() => ({
   contracts: { fetchProfessionalContract: vi.fn(), sendProfessionalContract: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn() },
   sync: vi.fn(),
-  signedUrl: vi.fn(),
+  documentDownloadUrl: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../api/contracts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/contracts')>()), ...mocks.contracts }))
 vi.mock('../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/record')>()), ...mocks.record }))
 vi.mock('@/core/signing/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/signing/api')>()), syncSignatureRequest: mocks.sync }))
-vi.mock('@/core/storage/hooks', () => ({ useSignedFileUrl: (...args: unknown[]) => mocks.signedUrl(...args) }))
+vi.mock('../../api/documents', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/documents')>()),
+  documentDownloadUrl: (...args: unknown[]) => mocks.documentDownloadUrl(...args),
+}))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -32,7 +35,7 @@ const A = `${C}.actions`
 async function openCard(json: Record<string, unknown> | null, { role = 'admin', permissions }: { role?: FixtureRole; permissions?: string[] } = {}) {
   mocks.contracts.fetchProfessionalContract.mockResolvedValue(json === null ? null : parsedContract(json))
   mocks.record.fetchProfessionalRecord.mockResolvedValue(recordFixture())
-  mocks.signedUrl.mockReturnValue({ data: { url: 'https://files.test/contrat.pdf', expires_at: '2026-10-09T15:05:00Z' }, isError: false })
+  mocks.documentDownloadUrl.mockResolvedValue('https://files.test/contrat.pdf')
   const rendered = renderRecordTab(<ContractCard />, { record: recordFixture(), role, permissions })
   await screen.findByText(t(`${C}.title`))
   await waitFor(() => expect(screen.queryByText(t('common.loading'))).not.toBeInTheDocument())
@@ -140,10 +143,11 @@ describe('ContractCard (Task 4d.3)', () => {
     await openCard(contractJson(SIGNED_REQUEST))
     expect(screen.getByText('Signé')).toBeInTheDocument()
     expect(screen.getByText(/^Envoyé le .+ · Signé le .+$/)).toBeInTheDocument()
-    const pdf = screen.getByRole('link', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })
-    expect(pdf).toHaveAttribute('href', 'https://files.test/contrat.pdf')
-    expect(pdf).toHaveAttribute('target', '_blank')
-    expect(mocks.signedUrl).toHaveBeenCalledWith(SIGNED_FILE, { refresh: true })
+    // Signed at the press, never on render nor every few minutes (storage-sign: 120 an hour, P4-455).
+    const pdf = screen.getByRole('button', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })
+    expect(mocks.documentDownloadUrl).not.toHaveBeenCalled()
+    await userEvent.click(pdf)
+    await waitFor(() => expect(mocks.documentDownloadUrl).toHaveBeenCalledExactlyOnceWith(SIGNED_FILE))
     expect(button(t(`${A}.regenerate`))).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: t(`${A}.journal`) }))
     expect(screen.getByText(t(`${C}.journal.title`))).toBeInTheDocument()
@@ -155,8 +159,8 @@ describe('ContractCard (Task 4d.3)', () => {
     await openCard(contractJson({ ...SIGNED_REQUEST, can_read: false, signed_file_id: null }), { role: 'counselor' })
     expect(screen.getByText('Signé')).toBeInTheDocument()
     expect(screen.getByText(t(`${C}.restricted`))).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })).toBeNull()
-    expect(mocks.signedUrl).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })).toBeNull()
+    expect(mocks.documentDownloadUrl).not.toHaveBeenCalled()
   })
 
   it('the adjointe (no contracts.send, no compensation) cannot send', async () => {

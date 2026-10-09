@@ -47,6 +47,7 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | discarded (« Consentements »)            |                                                                |
  * | a contract sent, re-sent, regenerated or | `record(id)` (its `contract(id)` too: readiness follows the    |
  * | synchronised (4d.3)                      | contract), `lists()`, `history(id)` (first page)               |
+ * | a fiche emailed (4c.5)                   | `history(id)` (first page, its `emails(id)` too)               |
  * | a contract template's version saved,     | `contractTemplateKeys.all` (the list and the versions), and    |
  * | published or archived (4d.3)             | for a publication every `contract(…)` alone (`isContractKey`,  |
  * |                                          | « Aucun modèle publié »), never the records around them        |

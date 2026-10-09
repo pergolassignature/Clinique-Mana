@@ -15,6 +15,7 @@ import { fetchPublicFees, markFicheGenerated, sendFicheEmail } from '../api/fich
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
 import { ficheFileName, ficheProfession } from '../lib/fiche'
+import { refreshProfessionalHistory } from './use-professional-record'
 import { professionalsSettingsQuery } from './use-professionals-settings'
 
 /**
@@ -135,7 +136,8 @@ export function ficheSendFailure(error: unknown): FicheSendFailure {
   const text = SEND_TEXTS[cause.code]
   if (text) return { message: text() }
   // missing_variable (the clinic's template names a value this send lacks), internal, anything new.
-  const report = new Error(cause.message)
+  // The code only: a function's message is never sent to Sentry.
+  const report = new Error(cause.code)
   report.name = `FunctionCallError ${cause.code}`
   Sentry.captureException(report, { tags: { area: 'professionals', code: cause.code } })
   return { message: cause.code === 'missing_variable' ? t(`${E}.template`) : t(`${E}.send`) }
@@ -150,11 +152,13 @@ export interface FicheSend extends FicheTarget {
  * « Envoyer par courriel » (P4-58): renders the fiche, uploads that very file (purpose
  * `professional_fiche`, kept one day), then `professionals-fiche` checks it and emails it to the
  * client. The function stamps `fiche_generated_at`. Failures carry their step (`FicheSendError`);
- * the dialog shows them (`ficheSendFailure`).
+ * the dialog shows them (`ficheSendFailure`). The client's address is never cached (`gcTime` 0);
+ * a send refreshes the record's history (its first page and its emails).
  */
 export function useSendFiche() {
   const queryClient = useQueryClient()
   return useMutation({
+    gcTime: 0,
     mutationFn: async ({ to, message, ...target }: FicheSend) => {
       const { blob, fileName } = await renderFiche(queryClient, target).catch((error: unknown) => {
         throw new FicheSendError('render', error)
@@ -173,6 +177,9 @@ export function useSendFiche() {
         throw new FicheSendError('send', error)
       })
     },
-    onSuccess: (_sent, { to }) => toast.success(t('modules.professionals.fiche.send.sent', { email: to })),
+    onSuccess: (_sent, { to, record }) => {
+      void refreshProfessionalHistory(queryClient, record.professional.id)
+      toast.success(t('modules.professionals.fiche.send.sent', { email: to }))
+    },
   })
 }

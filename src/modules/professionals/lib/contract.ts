@@ -16,7 +16,7 @@ import type { ContractProgress } from './readiness'
  *   `STALE_SEND_MS`: a fresh claim would still answer 409, so offering a retry is safe) →
  *   « Réessayer l'envoi » (the same request, P4-434) and « Régénérer ».
  * - `sent`, `viewed` → « Synchroniser », « Renvoyer » (the signing email again), « Régénérer ».
- * - `signed` → « Voir le PDF signé », « Journal de signature ».
+ * - `signed` → « Télécharger le PDF signé », « Journal de signature ».
  * - `rejected`, `expired`, `cancelled`, `abandoned` → « Régénérer » (a new contract).
  * Sending needs `professionals.contracts.send` and `professionals.compensation` (P4-436);
  * « Synchroniser » and the PDF need to read the request (`canRead`, P4-435).

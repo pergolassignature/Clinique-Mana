@@ -3,7 +3,6 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
-import { useSignedFileUrl } from '@/core/storage/hooks'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -24,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { StatusDot } from '@/shared/ui/status-dot'
 import type { ContractAction, ContractRequest, ContractSigner, ProfessionalContract } from '../../api/contracts'
 import { useProfessionalContract, useSendContract, useSyncContract } from '../../hooks/use-contracts'
+import { useDocumentDownload } from '../../hooks/use-documents'
 import { contractButtons, contractState, contractStateLabel, signerRoleLabel, type ContractState } from '../../lib/contract'
 import { RefusalAlert } from '../compensation/DatedRowParts'
 import { useRecordData } from './record-context'
@@ -279,21 +279,23 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
   )
 }
 
-/** « Voir le PDF signé »: the stored copy through a 5-minute signed URL (P3-33), opened in a new tab. */
+/**
+ * « Télécharger le PDF signé »: the stored copy through a new 5-minute URL signed at each press
+ * (`useDocumentDownload`, P4-455), never on render nor kept fresh by a timer (storage-sign allows
+ * 120 an hour, P4-479).
+ */
 function SignedPdfLink({ fileId, firstName }: { fileId: string; firstName: string }) {
-  const url = useSignedFileUrl(fileId, { refresh: true })
-  if (!url.data) {
-    return (
-      <Button type="button" size="sm" variant="outline" aria-disabled className={cn(softDisabledClasses)}>
-        {url.isError ? t(`${C}.actions.pdfUnavailable`) : t(`${C}.actions.pdfLoading`)}
-      </Button>
-    )
-  }
+  const download = useDocumentDownload()
   return (
-    <Button asChild size="sm">
-      <a href={url.data.url} target="_blank" rel="noopener noreferrer" aria-label={t(`${C}.actions.pdfLabel`, { firstName })}>
-        {t(`${C}.actions.pdf`)}
-      </a>
+    <Button
+      type="button"
+      size="sm"
+      aria-label={t(`${C}.actions.pdfLabel`, { firstName })}
+      aria-disabled={download.isPending || undefined}
+      className={softDisabledClasses}
+      onClick={ignoreWhenInactive(download.isPending, () => download.mutate(fileId))}
+    >
+      {t(`${C}.actions.pdf`)}
     </Button>
   )
 }
