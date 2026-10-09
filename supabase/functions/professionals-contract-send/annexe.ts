@@ -254,3 +254,39 @@ export function annexeBlocks(terms: AnnexeTerms): Block[] {
   )
   return blocks
 }
+
+/** One line of the preview's summary: « Rencontre 50 min » → « 126 $ … ». */
+export interface SummaryLine {
+  label: string
+  value: string
+}
+
+/**
+ * The main values Annexe A prints, for the preview's side panel (P4-502):
+ * the profession, where the professional stands, and per duration the client
+ * price and the amount paid today (the rate in force when there is one, else
+ * the current tier's). The same words as `annexeBlocks`, from the same terms.
+ */
+export function annexeSummary(terms: AnnexeTerms): SummaryLine[] {
+  const current = terms.tiers.find((t) => t.from === terms.current_tier_from) ??
+    null
+  const today = terms.in_force?.pay ?? current?.pay ?? []
+  const lines: SummaryLine[] = [
+    { label: 'Profession', value: terms.title_label },
+    {
+      label: 'Séances cumulées',
+      value: `${decimal(terms.sessions_total)}${
+        current ? ` (palier « ${tierLabel(current)} »)` : ''
+      }`,
+    },
+  ]
+  for (const price of terms.prices) {
+    lines.push({
+      label: durationLabel(price.duration),
+      value: `${money(price.client_price_cents)} facturés au client · ${
+        cell(payFor(today, price.duration))
+      } versés au professionnel (${TAX_WORDING})`,
+    })
+  }
+  return lines
+}

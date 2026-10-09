@@ -9,7 +9,7 @@ import type { ContractProgress } from './readiness'
  * state are core's `signatureStatusLabel` (the same as « Signature électronique »), so the card
  * and the settings never disagree.
  *
- * - `none`: no contract yet → « Préparer et envoyer ».
+ * - `none`: no contract yet → « Préparer le contrat ».
  * - `sending`: a draft whose send runs (no error yet, its claim younger than `STALE_SEND_MS`)
  *   → « Synchroniser » only.
  * - `failed`: a draft whose send failed, or whose send died without a word (its claim older than

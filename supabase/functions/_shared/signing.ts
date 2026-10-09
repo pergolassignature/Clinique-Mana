@@ -3,6 +3,9 @@
  * the server, store it, send it through Documenso, and record each step.
  * Module functions call `createSignatureRequest` (Professionnels 4d), and so
  * does `signing-test-document` with the built-in test document.
+ * `renderSignaturePreview` (P4-502) runs steps 1, 2 and 4 alone, through the
+ * same helpers (`prepareSigning`, `renderFilled`): the PDF a send of the same
+ * input renders, with no row, claim, stored file or Documenso call.
  *
  * **This module renders** (it imports `pdf/render.ts`, so pdfmake): only
  * functions that create requests may import it. The webhook and the sync use
@@ -313,15 +316,40 @@ function assetRefs(doc: PdfDocument, context: SigningContext): AssetRef[] {
   })
 }
 
+/** The context and the filled document, or the answer that ends the call here. */
+type Prepared =
+  | {
+    ok: true
+    context: SigningContext
+    apiKey: string
+    document: PdfDocument
+    email: { subject: string; message: string }
+  }
+  | {
+    ok: false
+    result:
+      | {
+        ok: false
+        code: 'not_configured' | 'module_disabled'
+        requestId: null
+      }
+      | {
+        ok: false
+        code: 'missing_variable'
+        requestId: null
+        variable: { path: string; label: string } | null
+      }
+  }
+
 /**
- * Creates (or resumes) a signature request and sends it through Documenso
- * (module comment). Throws `SigningFailure` for an internal error.
+ * Steps 1 and 2 of the module comment, shared by the send and the preview:
+ * the context ∥ the credentials, then the filled template. Throws
+ * `SigningFailure` for an internal error.
  */
-export async function createSignatureRequest(
-  deps: SigningDeps,
+async function prepareSigning(
+  client: SupabaseClient,
   input: CreateSignatureRequestInput,
-): Promise<CreateSignatureRequestResult> {
-  const { client } = deps
+): Promise<Prepared> {
   const [contextResult, credentials] = await Promise.all([
     client.rpc('get_signing_context', {
       p_org_id: input.orgId,
@@ -343,11 +371,17 @@ export async function createSignatureRequest(
     },
   }
   if (!context.module_enabled) {
-    return { ok: false, code: 'module_disabled', requestId: null }
+    return {
+      ok: false,
+      result: { ok: false, code: 'module_disabled', requestId: null },
+    }
   }
   const apiKey = credentials.api_key ?? ''
   if (!context.settings.base_url || !apiKey) {
-    return { ok: false, code: 'not_configured', requestId: null }
+    return {
+      ok: false,
+      result: { ok: false, code: 'not_configured', requestId: null },
+    }
   }
   const prepared = prepareDocument(input, context)
   if (!prepared.ok) {
@@ -357,15 +391,85 @@ export async function createSignatureRequest(
       )
       return {
         ok: false,
-        code: 'missing_variable',
-        requestId: null,
-        variable: variable
-          ? { path: variable.path, label: variable.label }
-          : null,
+        result: {
+          ok: false,
+          code: 'missing_variable',
+          requestId: null,
+          variable: variable
+            ? { path: variable.path, label: variable.label }
+            : null,
+        },
       }
     }
     throw new SigningFailure(prepared.code)
   }
+  return {
+    ok: true,
+    context,
+    apiKey,
+    document: prepared.document,
+    email: prepared.email,
+  }
+}
+
+/** Step 4: the images the document uses, then the PDF (the send's and the preview's). */
+async function renderFilled(
+  deps: Pick<SigningDeps, 'client' | 'renderer'>,
+  document: PdfDocument,
+  context: SigningContext,
+): Promise<RenderedPdf> {
+  const assets = await loadAssets(deps.client, assetRefs(document, context))
+  return await (deps.renderer ?? pdfRenderer).render(document, assets)
+}
+
+/** A preview's outcome: the PDF a send of the same input renders, or why not. */
+export type SignaturePreviewResult =
+  | { ok: true; bytes: Uint8Array; pageCount: number }
+  | Extract<Prepared, { ok: false }>['result']
+
+/**
+ * The PDF a send of `input` would render (P4-502), byte for byte: the same
+ * context, fill, images and renderer as `createSignatureRequest`'s steps 1,
+ * 2 and 4, and nothing else: no request row, no claim, no stored file, no
+ * Documenso call. The refusals a send would meet before its request
+ * (module disabled, Documenso not configured, a missing value) answer the
+ * same way, so they show before anything is sent. A missing image →
+ * `not_configured`; another render failure throws `SigningFailure`.
+ */
+export async function renderSignaturePreview(
+  deps: Pick<SigningDeps, 'client' | 'renderer'>,
+  input: CreateSignatureRequestInput,
+): Promise<SignaturePreviewResult> {
+  const prepared = await prepareSigning(deps.client, input)
+  if (!prepared.ok) return prepared.result
+  try {
+    const rendered = await renderFilled(
+      deps,
+      prepared.document,
+      prepared.context,
+    )
+    return { ok: true, bytes: rendered.bytes, pageCount: rendered.pageCount }
+  } catch (error) {
+    const code = error instanceof PdfError ? error.code : 'render_failed'
+    if (code === 'missing_asset') {
+      return { ok: false, code: 'not_configured', requestId: null }
+    }
+    throw new SigningFailure(code)
+  }
+}
+
+/**
+ * Creates (or resumes) a signature request and sends it through Documenso
+ * (module comment). Throws `SigningFailure` for an internal error.
+ */
+export async function createSignatureRequest(
+  deps: SigningDeps,
+  input: CreateSignatureRequestInput,
+): Promise<CreateSignatureRequestResult> {
+  const { client } = deps
+  const ready = await prepareSigning(client, input)
+  if (!ready.ok) return ready.result
+  const { context, apiKey } = ready
 
   const signers = [...input.signers].sort((a, b) => a.order - b.order)
   const created = await client.rpc('create_signature_request', {
@@ -420,8 +524,8 @@ export async function createSignatureRequest(
     requestId: request.id,
     existing: request.existing,
     context,
-    document: prepared.document,
-    email: prepared.email,
+    document: ready.document,
+    email: ready.email,
     signers,
     documenso: documensoClient(baseUrl, apiKey, deps.fetch, {
       signal,
@@ -575,11 +679,7 @@ async function send(
 
   let rendered: RenderedPdf
   try {
-    const assets = await loadAssets(client, assetRefs(plan.document, context))
-    rendered = await (deps.renderer ?? pdfRenderer).render(
-      plan.document,
-      assets,
-    )
+    rendered = await renderFilled(deps, plan.document, context)
   } catch (error) {
     const code = error instanceof PdfError ? error.code : 'render_failed'
     await markFailed(code)

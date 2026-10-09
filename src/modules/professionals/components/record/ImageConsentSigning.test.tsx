@@ -10,7 +10,7 @@ import { renderRecordTab } from '../../test/record-tab'
 import { ImageConsentSigning } from './ImageConsentSigning'
 
 const mocks = vi.hoisted(() => ({
-  contracts: { fetchProfessionalImageConsent: vi.fn(), sendProfessionalContract: vi.fn() },
+  contracts: { fetchProfessionalImageConsent: vi.fn(), sendProfessionalContract: vi.fn(), previewProfessionalContract: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
@@ -20,6 +20,9 @@ vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 afterEach(() => vi.clearAllMocks())
+// jsdom has no blob URLs (and would fetch one in the iframe): the preview's PDF is shown through one (P4-502).
+Object.assign(URL, { createObjectURL: vi.fn(() => 'about:blank#pdf'), revokeObjectURL: vi.fn() })
+const PREVIEW = { bytes: new Uint8Array([37, 80, 68, 70]), pageCount: 2, title: 'Consentement', signers: [{ role: 'professional', name: 'Marie Tremblay', order: 1 }], summary: [] }
 
 const I = 'modules.professionals.imageConsent'
 
@@ -39,17 +42,19 @@ async function open(json: Record<string, unknown> | null, { role = 'admin', perm
 }
 
 describe('ImageConsentSigning (P4-481 – P4-486)', () => {
-  it('nothing sent: « Envoyer pour signature » after a confirmation, sent as the image consent', async () => {
+  it('nothing sent: « Envoyer pour signature » shows the form first (P4-502), then sends it as the image consent', async () => {
+    mocks.contracts.previewProfessionalContract.mockResolvedValue(PREVIEW)
     mocks.contracts.sendProfessionalContract.mockResolvedValue(REQUEST_ID)
     await open(consentJson(null))
     expect(screen.getByText(t(`${I}.state.none`))).toBeInTheDocument()
     expect(screen.getByText(t(`${I}.none`, { firstName: 'Marie' }))).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: t(`${I}.actions.send`) }))
-    const dialog = await screen.findByRole('alertdialog', { name: t(`${I}.confirm.send.title`, { firstName: 'Marie' }) })
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${I}.confirm.send.action`) }))
-    await waitFor(() =>
-      expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'send', expect.any(String), 'image_consent'),
-    )
+    const dialog = await screen.findByRole('dialog', { name: t(`${I}.preview.title`, { firstName: 'Marie' }) })
+    await within(dialog).findByTitle(t('modules.professionals.contract.preview.frameTitle'))
+    const [, action, key, form] = mocks.contracts.previewProfessionalContract.mock.calls[0]!
+    expect([action, form]).toEqual(['send', 'image_consent'])
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${I}.preview.send`, { firstName: 'Marie' }) }))
+    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'send', key, 'image_consent'))
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${I}.toasts.send`, { firstName: 'Marie' })))
   })
 
@@ -73,14 +78,17 @@ describe('ImageConsentSigning (P4-481 – P4-486)', () => {
   })
 
   it('signed: « Signé le … », the PDF is the document below, and a renewal is offered', async () => {
+    mocks.contracts.previewProfessionalContract.mockResolvedValue(PREVIEW)
     mocks.contracts.sendProfessionalContract.mockResolvedValue(REQUEST_ID)
     await open(consentJson(SIGNED_REQUEST))
     expect(screen.getByText(/Signé le/, { selector: 'p' })).toBeInTheDocument()
     expect(screen.getByText(t(`${I}.signedHelp`))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('modules.professionals.contract.actions.pdf') })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: t(`${I}.actions.renew`) }))
-    const dialog = await screen.findByRole('alertdialog', { name: t(`${I}.confirm.renew.title`, { firstName: 'Marie' }) })
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${I}.confirm.renew.action`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${I}.preview.title`, { firstName: 'Marie' }) })
+    expect(dialog).toHaveTextContent(t(`${I}.confirm.renew.body`, { firstName: 'Marie', version: '2' }))
+    await within(dialog).findByTitle(t('modules.professionals.contract.preview.frameTitle'))
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${I}.preview.send`, { firstName: 'Marie' }) }))
     await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'send', expect.any(String), 'image_consent'))
   })
 })
