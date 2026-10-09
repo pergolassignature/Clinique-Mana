@@ -6,6 +6,7 @@ import {
   changedFieldKeys,
   clienteleDiff,
   fieldsToApply,
+  fieldWarning,
   idsDiff,
   plainValueText,
   reviewPlan,
@@ -90,6 +91,23 @@ describe('submissionState', () => {
     [{ status: 'cancelled', decisionNote: null, appliedCount: null }, 'cancelled'],
   ] as const)('%o reads %s', (row, state) => {
     expect(submissionState(row)).toBe(state)
-    expect(submissionStateLabel(state)).not.toMatch(/^modules\./)
+    for (const kind of ['onboarding', 'update'] as const) expect(submissionStateLabel(state, kind)).not.toMatch(/^modules\./)
+  })
+})
+
+// P4-378: what « Appliquer » would refuse, said before the click (the database still decides).
+describe('fieldWarning', () => {
+  const TODAY = '2026-10-08'
+  it('an insurance whose expiry is before the clinic’s today; the day itself is still valid', () => {
+    expect(fieldWarning({ field: 'insurance', submitted: { file_id: 'f', expires_on: '2026-10-07' } }, TODAY)).toEqual({ kind: 'insurance_expired', expiresOn: '2026-10-07' })
+    expect(fieldWarning({ field: 'insurance', submitted: { file_id: 'f', expires_on: TODAY } }, TODAY)).toBeNull()
+    expect(fieldWarning({ field: 'insurance', submitted: { file_id: 'f' } }, TODAY)).toBeNull()
+  })
+
+  it('a consent signed on a text replaced since; the latest text, or an older payload without the flag, is none', () => {
+    expect(fieldWarning({ field: 'consent', submitted: { version: 1, is_latest: false } }, TODAY)).toEqual({ kind: 'consent_outdated' })
+    expect(fieldWarning({ field: 'consent', submitted: { version: 2, is_latest: true } }, TODAY)).toBeNull()
+    expect(fieldWarning({ field: 'consent', submitted: { version: 1 } }, TODAY)).toBeNull()
+    expect(fieldWarning({ field: 'city', submitted: 'Laval' }, TODAY)).toBeNull()
   })
 })

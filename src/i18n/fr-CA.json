@@ -1269,6 +1269,10 @@
           "reviewOnboardingUndated": "{firstName} a envoyé son questionnaire. Il attend votre révision.",
           "reviewUpdate": "{firstName} a envoyé une mise à jour de son profil le {date} : elle attend votre révision.",
           "reviewUpdateUndated": "{firstName} a envoyé une mise à jour de son profil. Elle attend votre révision.",
+          "reviewOwnOnboarding": "Vous avez envoyé votre questionnaire le {date} : une autre personne autorisée doit le réviser.",
+          "reviewOwnOnboardingUndated": "Vous avez envoyé votre questionnaire. Une autre personne autorisée doit le réviser.",
+          "reviewOwnUpdate": "Vous avez envoyé une mise à jour de votre profil le {date} : une autre personne autorisée doit la réviser.",
+          "reviewOwnUpdateUndated": "Vous avez envoyé une mise à jour de votre profil. Une autre personne autorisée doit la réviser.",
           "review": "Réviser le profil"
         }
       },
@@ -1327,7 +1331,7 @@
           },
           "new_link": {
             "title": "Envoyer un nouveau lien à {name} ?",
-            "body": "Le lien envoyé le {sent} a expiré le {expires}. Un nouveau lien sera envoyé à {email}."
+            "body": "Le lien envoyé le {sent} a expiré le {expires} : un nouveau lien sera envoyé à {email}."
           },
           "revoke": {
             "title": "Révoquer l'invitation de {name} ?",
@@ -1594,6 +1598,10 @@
           "pending": "Activation…",
           "pendingReactivate": "Réactivation…",
           "nowIncomplete": "Le dossier n'est plus complet. Indiquez la raison de l'activation."
+        },
+        "noteReadable": {
+          "named": "{firstName} peut lire cette note.",
+          "unnamed": "La personne professionnelle peut lire cette note."
         },
         "deactivate": {
           "title": "Désactiver {name} ?",
@@ -2816,12 +2824,22 @@
           "update": "Mise à jour du profil"
         },
         "states": {
-          "returned": "Renvoyé au professionnel",
-          "in_progress": "En cours chez le professionnel",
-          "to_review": "À réviser",
-          "applied": "Appliqué",
-          "approved_unchanged": "Approuvé sans changement",
-          "cancelled": "Fermé sans être appliqué"
+          "onboarding": {
+            "returned": "Renvoyé au professionnel",
+            "in_progress": "En cours chez le professionnel",
+            "to_review": "À réviser",
+            "applied": "Appliqué",
+            "approved_unchanged": "Approuvé sans changement",
+            "cancelled": "Fermé sans être appliqué"
+          },
+          "update": {
+            "returned": "Renvoyée au professionnel",
+            "in_progress": "En cours chez le professionnel",
+            "to_review": "À réviser",
+            "applied": "Appliquée",
+            "approved_unchanged": "Approuvée sans changement",
+            "cancelled": "Fermée sans être appliquée"
+          }
         },
         "values": {
           "current": "Actuel",
@@ -2852,6 +2870,7 @@
           "insuranceSent": "Preuve d'assurance transmise, échéance le {date}.",
           "insuranceSentUndated": "Preuve d'assurance transmise.",
           "openFile": "Ouvrir le fichier",
+          "newTab": "(nouvel onglet)",
           "fileUnavailable": "Le fichier ne peut pas être affiché pour l'instant.",
           "consentNone": "Aucun consentement au dossier.",
           "consentUnsigned": "Pas encore signé.",
@@ -2866,12 +2885,16 @@
             "title": "Aucun questionnaire pour l'instant.",
             "body": "Le questionnaire d'accueil apparaît ici dès l'envoi de l'invitation."
           },
-          "sentOn": "Envoyé le {date}",
-          "startedOn": "Commencé le {date}",
-          "appliedOn": "Approuvé le {date}",
-          "appliedOnBy": "Approuvé le {date} par {name}",
-          "returnedOn": "Renvoyé le {date}",
-          "returnedOnBy": "Renvoyé le {date} par {name}",
+          "sentOn": { "onboarding": "Envoyé le {date}", "update": "Envoyée le {date}" },
+          "startedOn": { "onboarding": "Commencé le {date}", "update": "Commencée le {date}" },
+          "appliedOn": { "onboarding": "Approuvé le {date}", "update": "Approuvée le {date}" },
+          "appliedOnBy": { "onboarding": "Approuvé le {date} par {name}", "update": "Approuvée le {date} par {name}" },
+          "returnedOn": { "onboarding": "Renvoyé le {date}", "update": "Renvoyée le {date}" },
+          "returnedOnBy": { "onboarding": "Renvoyé le {date} par {name}", "update": "Renvoyée le {date} par {name}" },
+          "origin": {
+            "clinic": "Demandée par la clinique",
+            "self": "Commencée par {firstName}"
+          },
           "changes": "{count} changements appliqués",
           "changesOne": "1 changement appliqué",
           "sections": "Sections demandées : {sections}",
@@ -2882,7 +2905,10 @@
         },
         "sheet": {
           "title": "Réviser le profil de {name}",
-          "sentOn": "{kind} envoyé le {date}.",
+          "sentOn": {
+            "onboarding": "Questionnaire d'accueil envoyé le {date}.",
+            "update": "Mise à jour du profil envoyée le {date}."
+          },
           "loadingDescription": "Chargement des réponses envoyées.",
           "loadError": "Les réponses n'ont pas pu être chargées.",
           "gone": "Cette soumission n'existe plus ou vous n'y avez pas accès.",
@@ -2897,6 +2923,10 @@
           "showUnchanged": "Voir les champs inchangés ({count})",
           "checkedCount": "{checked} changements cochés sur {total}. Les changements décochés ne seront pas appliqués.",
           "noneChecked": "Cochez au moins un changement, ou renvoyez le profil au professionnel.",
+          "warnings": {
+            "insuranceExpired": "Cette assurance est échue depuis le {date} : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
+            "consentOutdated": "Le texte du consentement a changé depuis la signature : ce consentement ne peut pas être appliqué. Décochez-le, ou renvoyez le profil au professionnel pour qu'il signe la nouvelle version."
+          },
           "apply": "Appliquer les changements sélectionnés ({count})",
           "applying": "Application…",
           "approveUnchanged": "Approuver sans changement",
@@ -2996,8 +3026,13 @@
           },
           "update": {
             "title": "Mettez votre profil à jour",
-            "body": "Sections à revoir : {sections}.",
+            "body": "La clinique vous demande de revoir : {sections}.",
             "action": "Mettre mon profil à jour"
+          },
+          "self": {
+            "title": "Terminez votre mise à jour",
+            "body": "Vous avez choisi de revoir : {sections}. Envoyez-la quand elle est prête.",
+            "action": "Continuer ma mise à jour"
           },
           "returned": {
             "title": "La clinique vous demande des précisions",
@@ -3014,7 +3049,9 @@
         "intro": {
           "onboarding": "Quelques étapes pour présenter votre pratique à la clinique. Vos réponses sont enregistrées au fur et à mesure : vous pouvez faire une pause et revenir quand vous voulez.",
           "updateOne": "La clinique vous demande de revoir une section de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
-          "updateMany": "La clinique vous demande de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure."
+          "updateMany": "La clinique vous demande de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "selfOne": "Vous avez choisi de revoir une section de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "selfMany": "Vous avez choisi de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure."
         },
         "stepsLabel": "Étapes du questionnaire",
         "stepOf": "Étape {current} sur {total}",

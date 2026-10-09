@@ -34,6 +34,7 @@ const accessFor = (userId: string, org_timezone = 'America/Edmonton'): Access =>
   role: 'admin_assistant',
   permissions: ['settings.view'],
   modules: ['professionals'],
+  has_professional_file: false,
 })
 
 const sessionFor = (userId: string) => ({ access_token: `token-${userId}`, user: { id: userId } }) as Session

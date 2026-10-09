@@ -5,7 +5,8 @@ import { useAccess } from '@/core/access/access-context'
 import { moduleErrorMessage, rpcErrorHint } from '@/core/modules/errors'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
-import { formatClinicDateTime } from '@/shared/lib/timezone'
+import { useClinicDate } from '@/shared/lib/use-clinic-date'
+import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -21,7 +22,17 @@ import { useApplySubmission, useReturnSubmission, useSubmissionReview } from '..
 import type { SubmissionField } from '../../lib/constants'
 import { fullName } from '../../lib/display'
 import { sectionLabel } from '../../lib/onboarding'
-import { changedFieldKeys, fieldLabel, fieldsToApply, isSetDiffField, reviewPlan, submissionKindLabel, type SectionPlan } from '../../lib/submission-review'
+import {
+  changedFieldKeys,
+  fieldLabel,
+  fieldsToApply,
+  fieldWarning,
+  isSetDiffField,
+  reviewPlan,
+  submissionKindLabel,
+  type FieldWarning,
+  type SectionPlan,
+} from '../../lib/submission-review'
 import { Disclosure } from './MotifsSummary'
 import { useRecordData } from './record-context'
 import { FileProposal, SetChange, SetValue, SideBySide, SideValue, type ValueContext } from './ReviewFieldValue'
@@ -59,7 +70,7 @@ export function SubmissionReviewSheet({ submissionId, onClose, onCloseAutoFocus 
           <SheetDescription>
             {data
               ? data.submission.submittedAt
-                ? t(`${S}.sentOn`, { kind: submissionKindLabel(data.submission.kind), date: formatClinicDateTime(data.submission.submittedAt) })
+                ? t(`${S}.sentOn.${data.submission.kind}`, { date: formatClinicDateTime(data.submission.submittedAt) })
                 : submissionKindLabel(data.submission.kind)
               : t(`${S}.loadingDescription`)}
           </SheetDescription>
@@ -101,6 +112,8 @@ function ReviewContent({ review, onClose, onBusyChange }: { review: SubmissionRe
   const { professional } = record
   const ctx: ValueContext = { catalog, gender: professional.gender }
   const plan = useMemo(() => reviewPlan(review), [review])
+  // The clinic's today: an insurance past its expiry is flagged before « Appliquer » (P4-378).
+  const today = useClinicDate()
   const changed = useMemo(() => changedFieldKeys(review), [review])
   const [checked, setChecked] = useState<ReadonlySet<SubmissionField>>(() => new Set(changed))
   const [mode, setMode] = useState<'decide' | 'return'>('decide')
@@ -172,6 +185,7 @@ function ReviewContent({ review, onClose, onBusyChange }: { review: SubmissionRe
             onToggle={toggle}
             disabled={!waiting || pending || mode === 'return'}
             masks={masks}
+            today={today}
           />
         ))}
       </SheetBody>
@@ -264,10 +278,12 @@ interface SectionBlockProps {
   onToggle: (field: SubmissionField, value: boolean) => void
   disabled: boolean
   masks: Masks
+  /** The clinic's date (`yyyy-MM-dd`), for the insurance's expiry. */
+  today: string
 }
 
 /** One section: its changed fields (checkbox, « Modifié », Actuel / Proposé), then the unchanged ones folded. */
-function ReviewSectionBlock({ plan, ctx, checked, onToggle, disabled, masks }: SectionBlockProps) {
+function ReviewSectionBlock({ plan, ctx, checked, onToggle, disabled, masks, today }: SectionBlockProps) {
   const headingId = useId()
   const counts = [
     plan.changed.length > 0 && t(plan.changed.length === 1 ? `${S}.changedOne` : `${S}.changedMany`, { count: String(plan.changed.length) }),
@@ -284,12 +300,25 @@ function ReviewSectionBlock({ plan, ctx, checked, onToggle, disabled, masks }: S
       {plan.changed.length > 0 && (
         <ul className="space-y-2">
           {plan.changed.map((field) => (
-            <ChangedFieldRow key={field.field} field={field} ctx={ctx} checked={checked.has(field.field)} onToggle={onToggle} disabled={disabled} masks={masks} />
+            <ChangedFieldRow
+              key={field.field}
+              field={field}
+              ctx={ctx}
+              checked={checked.has(field.field)}
+              onToggle={onToggle}
+              disabled={disabled}
+              masks={masks}
+              warning={fieldWarning(field, today)}
+            />
           ))}
         </ul>
       )}
       {plan.unchanged.length > 0 && (
-        <Disclosure label={<span className="text-xs text-muted-foreground">{t(`${S}.showUnchanged`, { count: String(plan.unchanged.length) })}</span>}>
+        <Disclosure
+          // A taller tap target on a phone (44 px), compact from `sm`.
+          className="max-sm:min-h-11 max-sm:items-center max-sm:py-2"
+          label={<span className="text-xs text-muted-foreground">{t(`${S}.showUnchanged`, { count: String(plan.unchanged.length) })}</span>}
+        >
           <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
             {plan.unchanged.map((field) => (
               <div key={field.field} className="contents">
@@ -306,6 +335,11 @@ function ReviewSectionBlock({ plan, ctx, checked, onToggle, disabled, masks }: S
   )
 }
 
+/** What « Appliquer » would refuse, on the field itself (P4-378), with what to do instead. */
+function warningText(warning: FieldWarning): string {
+  return warning.kind === 'insurance_expired' ? t(`${S}.warnings.insuranceExpired`, { date: formatDateOnly(warning.expiresOn) }) : t(`${S}.warnings.consentOutdated`)
+}
+
 /** A changed field: its checkbox and label, « Modifié », then what changes, in words. */
 function ChangedFieldRow({
   field,
@@ -314,7 +348,8 @@ function ChangedFieldRow({
   onToggle,
   disabled,
   masks,
-}: { field: ReviewField } & Pick<SectionBlockProps, 'ctx' | 'onToggle' | 'disabled' | 'masks'> & { checked: boolean }) {
+  warning,
+}: { field: ReviewField } & Pick<SectionBlockProps, 'ctx' | 'onToggle' | 'disabled' | 'masks'> & { checked: boolean; warning: FieldWarning | null }) {
   const id = useId()
   return (
     <li className="rounded-md border border-border border-l-2 border-l-primary p-3">
@@ -324,12 +359,16 @@ function ChangedFieldRow({
           checked={checked}
           disabled={disabled}
           onCheckedChange={(value) => onToggle(field.field, value === true)}
-          aria-describedby={`${id}-values`}
-          className="mt-0.5"
+          aria-describedby={warning ? `${id}-values ${id}-warning` : `${id}-values`}
+          // On a phone, a 44 px hit area (the checkbox's invisible ::after), the look unchanged.
+          className="mt-0.5 max-sm:after:-inset-[15px]"
         />
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <Label htmlFor={id}>{fieldLabel(field.field)}</Label>
+            {/* The label row is a 44 px tap target on a phone too. */}
+            <Label htmlFor={id} className="max-sm:-my-3 max-sm:py-3">
+              {fieldLabel(field.field)}
+            </Label>
             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               <StatusDot tone="warning" />
               {t(`${V}.changed`)}
@@ -338,6 +377,12 @@ function ChangedFieldRow({
           <div id={`${id}-values`} className="text-sm text-foreground">
             <ChangedValue field={field} ctx={ctx} masks={masks} />
           </div>
+          {warning && (
+            <p id={`${id}-warning`} className="flex items-start gap-1.5 text-sm text-foreground">
+              <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning-strong" />
+              <span>{warningText(warning)}</span>
+            </p>
+          )}
         </div>
       </div>
     </li>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { FileText } from 'lucide-react'
+import { ExternalLink, FileText } from 'lucide-react'
 import { t } from '@/i18n'
 import { useSignedFileUrl } from '@/core/storage/hooks'
 import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
@@ -197,8 +197,11 @@ export function FileProposal({ field, value }: { field: 'photo' | 'insurance'; v
       <FileText aria-hidden className="size-4 shrink-0 text-subtle" />
       <span>{expiry ? t(`${V}.insuranceSent`, { date: formatDateOnly(expiry) }) : t(`${V}.insuranceSentUndated`)}</span>
       {preview.data && (
-        <a href={preview.data.url} target="_blank" rel="noreferrer" className="text-link underline-offset-2 hover:underline">
+        <a href={preview.data.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-link underline-offset-2 hover:underline">
           {t(`${V}.openFile`)}
+          <ExternalLink aria-hidden className="size-3.5 shrink-0" />
+          {/* The link opens a new tab: said to screen readers, shown by the icon. */}
+          <span className="sr-only"> {t(`${V}.newTab`)}</span>
         </a>
       )}
       {preview.isError && <span className="text-muted-foreground">{t(`${V}.fileUnavailable`)}</span>}

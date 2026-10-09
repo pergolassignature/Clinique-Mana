@@ -75,16 +75,20 @@ export function SubmissionsCard() {
   )
 }
 
-/** What happened to a submission and when: « Envoyée le 8 oct. 2026 · Appliquée le 9 oct. 2026 par Julie Roy · 4 changements ». */
+/**
+ * What happened to a submission and when, in agreement with its kind: « Envoyé le 8 oct. 2026 ·
+ * Approuvé le 9 oct. 2026 par Julie Roy » (le questionnaire), « Envoyée … · Approuvée … » (la mise à jour).
+ */
 function datesLine(row: SubmissionRow): string {
+  const { kind } = row
   const parts: string[] = []
-  if (row.submittedAt) parts.push(t(`${C}.sentOn`, { date: formatClinicDateShort(row.submittedAt) }))
-  else parts.push(t(`${C}.startedOn`, { date: formatClinicDateShort(row.createdAt) }))
+  if (row.submittedAt) parts.push(t(`${C}.sentOn.${kind}`, { date: formatClinicDateShort(row.submittedAt) }))
+  else parts.push(t(`${C}.startedOn.${kind}`, { date: formatClinicDateShort(row.createdAt) }))
   if (row.reviewedAt) {
     const date = formatClinicDateShort(row.reviewedAt)
     const by = row.reviewedByName
-    const key = row.status === 'approved' ? 'appliedOn' : 'returnedOn'
-    parts.push(by ? t(`${C}.${key}By`, { date, name: by }) : t(`${C}.${key}`, { date }))
+    if (row.status === 'approved') parts.push(by ? t(`${C}.appliedOnBy.${kind}`, { date, name: by }) : t(`${C}.appliedOn.${kind}`, { date }))
+    else parts.push(by ? t(`${C}.returnedOnBy.${kind}`, { date, name: by }) : t(`${C}.returnedOn.${kind}`, { date }))
   }
   if (row.status === 'approved' && row.appliedCount !== null && row.appliedCount > 0) {
     parts.push(t(row.appliedCount === 1 ? `${C}.changesOne` : `${C}.changes`, { count: String(row.appliedCount) }))
@@ -108,12 +112,17 @@ function SubmissionItem({ row, onReview }: { row: SubmissionRow; onReview: (butt
           <span className="font-medium text-foreground">{submissionKindLabel(row.kind)}</span>
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <StatusDot tone={submissionStateTone(state)} />
-            {submissionStateLabel(state)}
+            {submissionStateLabel(state, row.kind)}
           </span>
         </p>
         <p className="text-xs text-muted-foreground">{datesLine(row)}</p>
         {row.kind === 'update' && (
-          <p className="text-xs text-muted-foreground">{t(`${C}.sections`, { sections: listLabel(row.requestedSections.map(sectionLabel)) })}</p>
+          <p className="text-xs text-muted-foreground">
+            {/* Who started it (P4-375): the clinic asked, or the professional chose to from « Mon profil ». */}
+            {row.startedByProfessional ? t(`${C}.origin.self`, { firstName: record.professional.firstName }) : t(`${C}.origin.clinic`)}
+            {' · '}
+            {t(`${C}.sections`, { sections: listLabel(row.requestedSections.map(sectionLabel)) })}
+          </p>
         )}
         {state === 'returned' && row.decisionNote && (
           <p className="mt-1 whitespace-pre-line border-l-2 border-border pl-2 text-sm text-foreground">

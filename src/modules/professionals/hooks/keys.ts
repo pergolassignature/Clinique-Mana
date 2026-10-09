@@ -35,7 +35,8 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * |                                          | `review(…)` (the suggestions follow the grids)                 |
  * | a submission applied or sent back (4b.5) | `record(id)` (its onboarding and submissions too), `lists()`,  |
  * |                                          | `history(id)` (first page), its `submissionReview` (refetched  |
- * |                                          | in place after a refusal)                                      |
+ * |                                          | in place after a refusal); once applied, `private(id)` when a  |
+ * |                                          | private field was, `usage()` when a set was (P4-374)           |
  * | « Mettre mon profil à jour » (4b.5)      | `mySubmission()`, `myRecord()`                                 |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.

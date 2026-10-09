@@ -79,6 +79,20 @@ export type SubmissionField = (typeof SUBMISSION_FIELDS)[number]
 export const SUBMISSION_FIELD_KINDS = ['plain', 'set', 'file', 'private', 'consent'] as const
 export type SubmissionFieldKind = (typeof SUBMISSION_FIELD_KINDS)[number]
 
+/** The `private` fields of `private.submission_fields()`: applied to `professional_private` (its masks change). */
+export const PRIVATE_SUBMISSION_FIELDS: ReadonlySet<SubmissionField> = new Set([
+  'business_number',
+  'gst_number',
+  'qst_number',
+  'bank_institution',
+  'bank_transit',
+  'bank_account',
+  'sin',
+])
+
+/** The `set` fields of `private.submission_fields()`: they change the lists' « Utilisé par » counts. */
+export const SET_SUBMISSION_FIELDS: ReadonlySet<SubmissionField> = new Set(['professions', 'language_ids', 'clienteles', 'motif_ids'])
+
 /** `private.submission_sections()`: the questionnaire's eleven sections, in its order (P4-276). */
 export const SUBMISSION_SECTIONS = [
   'personal',

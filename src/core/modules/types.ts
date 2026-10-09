@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { Access } from '@/core/access/access'
 import type { TranslationKey } from '@/i18n'
 import type { LazyPage } from '@/shared/lib/lazy-page'
 
@@ -20,10 +21,11 @@ export interface ModuleNavItem {
   icon: LucideIcon
   permission: string
   /**
-   * Not shown to whoever holds this permission as well: « Mon profil » (`professionals.self`) is a
-   * professional's page, and admins hold that key by default without a file of their own.
+   * Shown only when this also holds for the signed-in user, beyond the permission: « Mon profil »
+   * (`professionals.self`) needs a professional file linked to the account (P4-376), since admins
+   * hold that key by default without one.
    */
-  hiddenWith?: string
+  shownWhen?: (access: Access) => boolean
   /** Lower comes first in the menu. */
   order: number
 }
@@ -33,6 +35,8 @@ export interface ModuleHomeCard {
   /** Stable English identifier, unique across modules (React key, error scope). */
   id: string
   permission: string
+  /** As `ModuleNavItem.shownWhen`: a further condition on the signed-in user. */
+  shownWhen?: (access: Access) => boolean
   /** A lazyPage(): Accueil does not load the module's code for users who cannot see the card. */
   component: LazyPage
 }

@@ -25,7 +25,7 @@ vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 const P = 'modules.professionals.myProfile'
 const Q = `${P}.questionnaire`
 
-/** Nadia, a social worker (« Travailleuse sociale », P4-342), with the staff's notes the RPC blanks. */
+/** Nadia, a social worker (« Travailleuse sociale », P4-342). */
 function nadia(over: Partial<ProfessionalRecord['professional']> = {}): ProfessionalRecord {
   const record = socialWorkerRecord('female')
   return { ...record, professional: { ...record.professional, firstName: 'Nadia', lastName: 'Côté', email: 'nadia@exemple.ca', status: 'active', ...over } }
@@ -73,8 +73,9 @@ describe('MyProfilePage', () => {
     expect(screen.getByText('Nadia Côté · Travailleuse sociale')).toBeInTheDocument()
     expect(screen.getByText('Travailleuse sociale · OPQ TS04518')).toBeInTheDocument()
     expect(screen.getByText('nadia@exemple.ca')).toBeInTheDocument()
-    // The motifs by name, under their category (P4-249).
-    const matching = screen.getByRole('region', { name: t('modules.professionals.onboarding.sections.motifs') })
+    // The motifs by name, under their category (P4-249), in a subsection (h4) of the matching card (h3).
+    expect(screen.getByRole('heading', { level: 3, name: t(`${P}.cards.matching`) })).toBeInTheDocument()
+    const matching = screen.getByRole('heading', { level: 4, name: t('modules.professionals.onboarding.sections.motifs') }).parentElement as HTMLElement
     expect(matching).toHaveTextContent('Vie intérieure')
     expect(matching).toHaveTextContent('Anxiété')
     expect(mocks.self.fetchMyProfessionalRecord).toHaveBeenCalledOnce()
@@ -88,10 +89,14 @@ describe('MyProfilePage', () => {
     expect(mocks.self.fetchMyProfessionalPrivate).toHaveBeenCalledOnce()
   })
 
-  it('shows nothing written for the clinic (no compensation, no staff note)', async () => {
-    record = nadia({ deactivationNote: null })
+  it('shows nothing written for the clinic (no compensation, no staff note), although the record carries the notes', async () => {
+    // get_my_professional_record returns both notes (Loi 25, P4-373): the page does not display them.
+    record = nadia({ deactivationNote: 'Note interne de la clinique', activationOverrideReason: 'Activée avant la fin du questionnaire' })
     renderPage()
     await screen.findByRole('heading', { level: 1, name: t(`${P}.pageTitle`) })
+    expect(screen.getByText('Nadia Côté · Travailleuse sociale')).toBeInTheDocument()
+    expect(screen.queryByText(/Note interne de la clinique/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Activée avant la fin du questionnaire/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Rémunération|Retenue|rétention/i)).not.toBeInTheDocument()
   })
 

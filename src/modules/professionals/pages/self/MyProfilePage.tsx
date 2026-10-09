@@ -31,8 +31,10 @@ const P = 'modules.professionals.myProfile'
  * « Mon profil » (`/mon-profil`, `professionals.self`, Task 4b.5): the professional's own file,
  * read-only, in the questionnaire's words: coordonnées, titles, public profile, matching profile
  * (motifs by name, by category), tax and bank data as masks only, and the documents to come (4c).
- * Nothing written for the clinic: no compensation, no retention, no staff note (the only note shown
- * is the one the clinic wrote to her when it sent her profile back). Three requests in one tick: her
+ * Nothing written for the clinic: no compensation, no retention, and the clinic's notes on her row
+ * (deactivation note, activation reason) are not displayed, although the record carries them: she
+ * may read them (Loi 25, P4-373), the page stays calm. The only note shown is the one the clinic
+ * wrote to her when it sent her profile back. Three requests in one tick: her
  * record, her open questionnaire and the catalogue; the masks follow with their card.
  */
 export function MyProfilePage() {
@@ -92,11 +94,12 @@ function MyProfile({ record, submission, catalog }: { record: ProfessionalRecord
       </ProfileCard>
       <ProfileCard title={t(`${P}.cards.matching`)} description={t(`${P}.cards.matchingHelp`)}>
         <div className="space-y-4">
+          {/* Subsections of the card (its title is an h3): h4, named by their heading alone. */}
           {(['languages', 'clienteles', 'motifs', 'availability'] as const).map((section) => (
-            <section key={section} aria-label={sectionLabel(section)} className="space-y-1.5">
-              <h3 className="text-sm font-semibold text-foreground">{sectionLabel(section)}</h3>
+            <div key={section} className="space-y-1.5">
+              <h4 className="text-sm font-semibold text-foreground">{sectionLabel(section)}</h4>
               {summary(section)}
-            </section>
+            </div>
           ))}
         </div>
       </ProfileCard>

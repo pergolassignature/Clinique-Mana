@@ -143,3 +143,12 @@ export function placesLabel(count: number | null, setAt: string | null, now: num
   const places = count === 0 ? t(`${M}.placesCount.none`) : count === 1 ? t(`${M}.placesCount.one`) : t(`${M}.placesCount.other`, { count: String(count) })
   return setAt ? t(`${M}.placesSince`, { places, date: shortDate(setAt, now) }) : places
 }
+
+/**
+ * Under a note staff write on the file (the deactivation's « Note », the activation's reason): the
+ * professional may read it on her own row (Loi 25 right of access, P4-373), so staff are told.
+ */
+export function noteReadableText(firstName: string | null | undefined): string {
+  const name = firstName?.trim()
+  return name ? t('modules.professionals.record.noteReadable.named', { firstName: name }) : t('modules.professionals.record.noteReadable.unnamed')
+}

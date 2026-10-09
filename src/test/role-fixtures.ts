@@ -38,7 +38,10 @@ export const ROLE_PERMISSIONS = {
 
 export type FixtureRole = keyof typeof ROLE_PERMISSIONS
 
-/** An access payload with a role's real default permissions (no overrides). */
+/**
+ * An access payload with a role's real default permissions (no overrides). A provider's account is
+ * linked to a professional file (`has_professional_file`); staff accounts are not.
+ */
 export function accessForRole(role: FixtureRole, overrides: Partial<Access> = {}): Access {
-  return { ...testAccess, role, permissions: [...ROLE_PERMISSIONS[role]], ...overrides }
+  return { ...testAccess, role, permissions: [...ROLE_PERMISSIONS[role]], has_professional_file: role === 'provider', ...overrides }
 }

@@ -159,6 +159,16 @@ describe('QuestionnairePage — states', () => {
     // Opens on the first step to complete, out of the tab order.
     expect(await stepTitle('personal')).toBeInTheDocument()
     expect(screen.getAllByText(t(`${Q}.stepOf`, { current: '1', total: '3' })).length).toBeGreaterThan(0)
+    // The clinic asked for this one.
+    expect(screen.getByText(t(`${Q}.intro.updateMany`, { count: '2' }))).toBeInTheDocument()
+  })
+
+  // P4-375: an update she started from « Mon profil » is not the clinic's request.
+  it('an update she started herself says she chose its sections', async () => {
+    current = mySubmission({ kind: 'update', requested_sections: ['motifs'], prefill: {}, values: {}, started_by_me: true })
+    renderPage()
+    expect(await screen.findByText(t(`${Q}.intro.selfOne`))).toBeInTheDocument()
+    expect(screen.queryByText(/La clinique vous demande/)).not.toBeInTheDocument()
   })
 })
 

@@ -162,6 +162,20 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     expect(nextAction(onboardingFile('user-1', 'in_review'), submitted, can(...INVITE), NOW).action).toBeNull()
   })
 
+  it('never offers « Réviser le profil » on the reviewer’s own file (P4-304)', () => {
+    const submitted: Onboarding = { invitation: null, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' }, onboardingApproved: true }
+    expect(nextAction(onboardingFile('user-1', 'active'), submitted, can('professionals.review'), NOW, 'user-1')).toEqual({
+      message: 'Vous avez envoyé une mise à jour de votre profil le 10 oct. : une autre personne autorisée doit la réviser.',
+      action: null,
+    })
+    // Another reviewer's file keeps the button.
+    expect(nextAction(onboardingFile('user-1', 'active'), submitted, can('professionals.review'), NOW, 'user-2').action).toEqual({
+      kind: 'tab',
+      label: t(`${N}.review`),
+      tab: 'documents',
+    })
+  })
+
   it('an update waiting for review comes first, even on an active file', () => {
     const update: Onboarding = { invitation: null, submission: { id: 's2', kind: 'update', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' }, onboardingApproved: true }
     expect(nextAction(withReadiness([], 'active'), update, can(...INVITE), NOW).message).toBe(t(`${N}.reviewUpdate`, { firstName: 'Marie', date: '10 oct.' }))

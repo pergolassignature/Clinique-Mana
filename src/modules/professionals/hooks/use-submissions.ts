@@ -7,8 +7,8 @@ import {
   fetchSubmissionReview,
   rejectProfessionalSubmission,
 } from '../api/submissions'
-import type { SubmissionField, SubmissionKind } from '../lib/constants'
-import { professionalKeys } from './keys'
+import { PRIVATE_SUBMISSION_FIELDS, SET_SUBMISSION_FIELDS, type SubmissionField, type SubmissionKind } from '../lib/constants'
+import { professionalCatalogKeys, professionalKeys } from './keys'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
 import { refreshProfessionalHistory } from './use-professional-record'
 
@@ -70,6 +70,17 @@ export interface ApplyVariables {
 }
 
 /**
+ * What an applied submission changed beyond the record (P4-374, the `keys.ts` table): a private
+ * field the file's masks (`private(id)`), a set the lists' « Utilisé par » counts (`usage()`).
+ */
+function refreshAfterApply(queryClient: QueryClient, professionalId: string, fields: readonly SubmissionField[]) {
+  return Promise.all([
+    fields.some((field) => PRIVATE_SUBMISSION_FIELDS.has(field)) && queryClient.invalidateQueries({ queryKey: professionalKeys.private(professionalId) }),
+    fields.some((field) => SET_SUBMISSION_FIELDS.has(field)) && queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() }),
+  ])
+}
+
+/**
  * « Appliquer les changements sélectionnés »: one call (P4-176). The toast says how many changes the
  * file received, or that it was approved without one. A refusal goes to the sheet (`feedback`).
  */
@@ -77,7 +88,8 @@ export function useApplySubmission(feedback?: MutationFeedback) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ submissionId, fields }: ApplyVariables) => applyProfessionalSubmission(submissionId, fields),
-    onSuccess: (_data, { kind, fields }) => {
+    onSuccess: (_data, { professionalId, kind, fields }) => {
+      void refreshAfterApply(queryClient, professionalId, fields)
       const count = fields.length
       if (count === 0) toast.success(t(`${T}.approvedUnchanged.${kind}`))
       else toast.success(t(count === 1 ? `${T}.appliedOne.${kind}` : `${T}.applied.${kind}`, { count: String(count) }))

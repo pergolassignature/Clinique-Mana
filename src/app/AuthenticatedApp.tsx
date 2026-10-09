@@ -1,7 +1,8 @@
-import { createElement, Suspense, useEffect, useMemo, type ReactNode } from 'react'
+import { createElement, Suspense, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Home, Settings } from 'lucide-react'
 import { t } from '@/i18n'
+import type { Access } from '@/core/access/access'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { Forbidden, RequireAccess } from '@/core/access/guards'
 import { AccountPage } from '@/core/account/pages/AccountPage'
@@ -33,8 +34,14 @@ function RequireAnyAccess({ allowed, children }: { allowed: boolean; children: R
 /** The signed-in app. Renders under RequireAuth, so access is ready (useReadyAccess throws otherwise). */
 export function AuthenticatedApp() {
   // Enabled module keys come with the access payload (get_my_access): no extra query.
-  const { modules: enabledKeys, org_timezone } = useReadyAccess()
+  const access = useReadyAccess()
+  const { modules: enabledKeys, org_timezone } = access
   const { can } = useAccess()
+  // A nav item or Accueil card may add a condition on the user beyond its permission (`shownWhen`).
+  const shown = useCallback(
+    (item: { permission: string; shownWhen?: (a: Access) => boolean }) => can(item.permission) && (item.shownWhen?.(access) ?? true),
+    [can, access],
+  )
 
   const modules = useMemo(() => resolveEnabledModules(ALL_MODULES, new Set(enabledKeys)), [enabledKeys])
 
@@ -61,12 +68,12 @@ export function AuthenticatedApp() {
   }, [visibleSections, routeComponents])
 
   // Accueil's module cards this user may see (each loads its own chunk when it renders).
-  const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter((card) => can(card.permission))), [modules, can])
+  const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter(shown)), [modules, shown])
 
   const navItems = useMemo<ShellNavItem[]>(() => {
     const moduleItems = modules
       .flatMap((m) => [m.nav ?? []].flat())
-      .filter((item) => can(item.permission) && !(item.hiddenWith && can(item.hiddenWith)))
+      .filter(shown)
       .sort((a, b) => a.order - b.order)
     return [
       { path: '/accueil', labelKey: 'nav.home', icon: Home },
@@ -83,7 +90,7 @@ export function AuthenticatedApp() {
           ]
         : []),
     ]
-  }, [modules, can, canOpenSettings, visibleSections])
+  }, [modules, shown, canOpenSettings, visibleSections])
 
   return (
     <UnsavedChangesProvider>

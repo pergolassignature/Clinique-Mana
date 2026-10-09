@@ -65,6 +65,14 @@ describe('InvitationDialog', () => {
     expect(invalidated()).toEqual(expect.arrayContaining([professionalKeys.record(ID), professionalKeys.lists(), professionalKeys.history(ID)]))
   })
 
+  // P4-372: a short date (« 12 oct. ») never runs into a sentence's period.
+  it('« Envoyer un nouveau lien »: the dates of the expired link, never « oct.. »', async () => {
+    const expired: Onboarding = { ...live, invitation: { ...live.invitation!, state: 'expired', sentAt: '2026-09-28T14:00:00Z', expiresAt: '2026-10-05T14:00:00Z' } }
+    const { dialog } = await choose(t(`${A}.new_link`), { onboarding: expired })
+    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Le lien envoyé le 28 sept\. a expiré le 5 oct\. : un nouveau lien sera envoyé à marie\.t@exemple\.ca\./))
+    expect(dialog.textContent).not.toMatch(/\.\./)
+  })
+
   it('the link created but not emailed: a warning that says « Renvoyer l’invitation »', async () => {
     mocks.invitations.sendProfessionalInvitation.mockResolvedValue({ expiresAt: null, emailProblem: { code: 'provider_error', retryAfter: null } })
     const { dialog } = await choose(t(`${A}.resend`), { onboarding: live })

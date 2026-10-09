@@ -1,10 +1,14 @@
 import { CircleUser, Compass, FileText, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
 
+
+/** « Mon profil » and Accueil's card: an account linked to a professional file (P4-376). */
+const hasProfessionalFile = (access: Access) => access.has_professional_file
 
 /** The record page, also preloaded by the list (row hover or focus). */
 export const professionalRecordPage = lazyPage(() => import('./pages/ProfessionalRecordPage'), 'ProfessionalRecordPage')
@@ -25,14 +29,14 @@ export const professionalsManifest: ModuleManifest = {
   dependsOn: [],
   nav: [
     { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', order: 10 },
-    // The professional's own file (Task 4b.5), right after Accueil. Hidden from staff who read every
-    // record (admins hold professionals.self by default, without a file of their own: P4-361).
+    // The professional's own file (Task 4b.5), right after Accueil, for an account linked to a file
+    // (P4-376): admins hold professionals.self by default without one; an admin who practises keeps it.
     {
       path: '/mon-profil',
       labelKey: 'modules.professionals.myProfile.nav',
       icon: CircleUser,
       permission: 'professionals.self',
-      hiddenWith: 'professionals.view',
+      shownWhen: hasProfessionalFile,
       order: 5,
     },
   ],
@@ -57,11 +61,13 @@ export const professionalsManifest: ModuleManifest = {
       component: lazyPage(() => import('./pages/self/QuestionnairePage'), 'QuestionnairePage'),
     },
   ],
-  // Accueil « Complétez votre profil » (P4-319): the professional's open questionnaire, if any.
+  // Accueil « Complétez votre profil » (P4-319): the professional's open questionnaire, if any. Only
+  // for an account linked to a file: an admin without one never reads a questionnaire (P4-376).
   homeCards: [
     {
       id: 'professionals-profile',
       permission: 'professionals.self',
+      shownWhen: hasProfessionalFile,
       component: lazyPage(() => import('./components/self/ProfileHomeCard'), 'ProfileHomeCard'),
     },
   ],

@@ -12,7 +12,7 @@ import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/sha
 import { AuthenticatedApp } from './AuthenticatedApp'
 import { ALL_MODULES } from './modules'
 
-const mocks = vi.hoisted(() => ({ captureException: vi.fn(), accountMounts: 0, mySubmission: null as unknown }))
+const mocks = vi.hoisted(() => ({ captureException: vi.fn(), accountMounts: 0, mySubmission: null as unknown, mySubmissionReads: 0 }))
 // The topbar bell (and Accueil) read the caller's notices: none here, and no network.
 vi.mock('@/core/notifications/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/notifications/api')>()),
@@ -25,7 +25,10 @@ vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 // none unless a test sets one, and no network.
 vi.mock('@/modules/professionals/api/self', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/modules/professionals/api/self')>()),
-  fetchMySubmission: async () => mocks.mySubmission,
+  fetchMySubmission: async () => {
+    mocks.mySubmissionReads += 1
+    return mocks.mySubmission
+  },
 }))
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.
@@ -89,6 +92,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   mocks.captureException.mockReset()
   mocks.mySubmission = null
+  mocks.mySubmissionReads = 0
 })
 
 const adminLike: Access = accessForRole('admin', { display_name: 'Camille Admin', modules: ['professionals'] })
@@ -228,8 +232,8 @@ describe('AuthenticatedApp', () => {
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
   })
 
-  // Task 4b.5 (P4-361): « Mon profil » right after Accueil for a professional, never for staff who read every record.
-  it('shows « Mon profil » to a professional, after Accueil, and not to an admin who holds professionals.self', () => {
+  // Task 4b.5 (P4-376): « Mon profil » right after Accueil for an account linked to a professional file.
+  it('shows « Mon profil » to a professional, after Accueil, and not to an admin without a file of her own', () => {
     render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'] })))
     expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.myProfile.nav')])
     expect(screen.getByRole('link', { name: t('modules.professionals.myProfile.nav') })).toHaveAttribute('href', '/mon-profil')
@@ -239,6 +243,11 @@ describe('AuthenticatedApp', () => {
     expect(menuLinks()).not.toContain(t('modules.professionals.myProfile.nav'))
   })
 
+  it('keeps « Mon profil » for an admin who practises (her account is linked to a file)', () => {
+    render(appAt('/accueil', { ...adminLike, has_professional_file: true }))
+    expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.myProfile.nav'), t('modules.professionals.name'), t('nav.settings')])
+  })
+
   // P4-319 (Task 4b.5): the module's Accueil card, for whoever holds professionals.self.
   it('shows a professional « Complétez votre profil » on Accueil while her questionnaire is open', async () => {
     const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')
@@ -246,6 +255,16 @@ describe('AuthenticatedApp', () => {
     render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'] })))
     expect(await screen.findByRole('heading', { name: t('modules.professionals.myProfile.home.onboarding.title') })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: t('modules.professionals.myProfile.home.onboarding.action') })).toHaveAttribute('href', '/mon-profil/questionnaire')
+  })
+
+  it('never reads a questionnaire for an admin without a file (no Accueil card)', async () => {
+    const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')
+    mocks.mySubmission = mySubmission()
+    render(appAt('/accueil'))
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('heading', { name: t('modules.professionals.myProfile.home.onboarding.title') })).not.toBeInTheDocument()
+    expect(mocks.mySubmissionReads).toBe(0)
   })
 
   // Outside Paramètres: a role with no settings section (here a provider) still reaches it.

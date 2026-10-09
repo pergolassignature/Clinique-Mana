@@ -5,6 +5,7 @@ import { matchPath, Route, Routes } from 'react-router-dom'
 import { t } from '@/i18n'
 import { coreSettingsSections } from '@/core/settings/sections'
 import { renderWithContexts } from '@/test/contexts'
+import { accessForRole } from '@/test/role-fixtures'
 import { professionalsManifest } from './index'
 import { professionalRecordPage } from './manifest'
 
@@ -16,9 +17,16 @@ describe('professionalsManifest', () => {
     expect(professionalsManifest.dependsOn).toEqual([])
     expect(professionalsManifest.nav).toEqual([
       expect.objectContaining({ path: '/professionnels', permission: 'professionals.view', order: 10 }),
-      // « Mon profil » right after Accueil, for professionals only (P4-361).
-      expect.objectContaining({ path: '/mon-profil', permission: 'professionals.self', hiddenWith: 'professionals.view', order: 5 }),
+      // « Mon profil » right after Accueil, for an account linked to a file (P4-376).
+      expect.objectContaining({ path: '/mon-profil', permission: 'professionals.self', order: 5 }),
     ])
+    const [, myProfile] = [professionalsManifest.nav ?? []].flat()
+    const [card] = professionalsManifest.homeCards ?? []
+    for (const item of [myProfile, card]) {
+      expect(item?.shownWhen?.(accessForRole('provider'))).toBe(true)
+      expect(item?.shownWhen?.(accessForRole('admin'))).toBe(false)
+      expect(item?.shownWhen?.(accessForRole('admin', { has_professional_file: true }))).toBe(true)
+    }
     expect(professionalsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['professionnels', 'professionals.view'],
       ['professionnels/:id/:onglet?', 'professionals.view'],

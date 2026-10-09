@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { t } from '@/i18n'
-import { useAccess } from '@/core/access/access-context'
+import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { useNow } from '@/shared/lib/use-now'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -21,9 +21,10 @@ import { TabLink } from './TabLink'
 export function NextActionCard() {
   const { record, onboarding, focusHeading } = useRecordData()
   const { can } = useAccess()
+  const { user_id } = useReadyAccess()
   // A minute is enough: the sentences name days (« expiré le 15 oct. »).
   const now = useNow(60_000)
-  const { message, action } = nextAction(record, onboarding, can, now)
+  const { message, action } = nextAction(record, onboarding, can, now, user_id)
   const [dialog, setDialog] = useState<'activate' | InviteAction | null>(null)
   const button = useRef<HTMLButtonElement>(null)
   const restoreFocus = (event: Event) => focusAfterClose(event, [button.current], focusHeading)

@@ -28,9 +28,19 @@ describe('ProfileHomeCard', () => {
     expect(screen.getByRole('link', { name: t(`${H}.onboarding.action`) })).toHaveAttribute('href', '/mon-profil/questionnaire')
   })
 
-  it('an update names its sections', async () => {
+  it('an update names its sections, and that the clinic asked', async () => {
     renderCard(mySubmission({ kind: 'update', requested_sections: ['languages', 'motifs'] }))
-    expect(await screen.findByText(t(`${H}.update.body`, { sections: 'Langues et Motifs' }))).toBeInTheDocument()
+    expect(await screen.findByText('La clinique vous demande de revoir : Langues et Motifs.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: t(`${H}.update.title`) })).toBeInTheDocument()
+  })
+
+  // P4-375: an update she started herself is hers to finish, not the clinic's request.
+  it('an update she started herself says she chose its sections', async () => {
+    renderCard(mySubmission({ kind: 'update', requested_sections: ['motifs'], started_by_me: true }))
+    expect(await screen.findByRole('heading', { name: t(`${H}.self.title`) })).toBeInTheDocument()
+    expect(screen.getByText('Vous avez choisi de revoir : Motifs. Envoyez-la quand elle est prête.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t(`${H}.self.action`) })).toHaveAttribute('href', '/mon-profil/questionnaire')
+    expect(screen.queryByText(/La clinique vous demande/)).not.toBeInTheDocument()
   })
 
   it('a profile sent back says the clinic asks for details', async () => {

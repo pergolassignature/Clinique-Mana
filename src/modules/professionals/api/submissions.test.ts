@@ -53,6 +53,14 @@ describe('decisions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('apply_professional_submission', { p_submission_id: SUBMISSION_ID, p_fields: ['city', 'motif_ids'] })
   })
 
+  // P4-363: « Approuver sans changement » is an empty list. Never null: the RPC reads null as
+  // « every available field » (P4-176).
+  it('approves without a change with an empty list, never null', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await applyProfessionalSubmission(SUBMISSION_ID, [])
+    expect(mocks.rpc).toHaveBeenCalledWith('apply_professional_submission', { p_submission_id: SUBMISSION_ID, p_fields: [] })
+  })
+
   it('sends the profile back with the note', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: null })
     await rejectProfessionalSubmission(SUBMISSION_ID, 'Précisez vos langues.')

@@ -159,7 +159,7 @@ export const REVIEW_CHANGED_FIELDS = [
   'consent',
 ] as const
 
-/** `list_professional_submissions`: the open one sent for review, an update sent back, an approved onboarding. */
+/** `list_professional_submissions`: the onboarding sent for review, an update Marie started herself, applied. */
 export const SUBMISSIONS_JSON = [
   {
     id: SUBMISSION_ID,
@@ -172,6 +172,7 @@ export const SUBMISSIONS_JSON = [
     reviewed_by_name: null,
     decision_note: null,
     applied_count: null,
+    started_by_professional: false,
   },
   {
     id: '00000000-0000-4000-8000-00000000e102',
@@ -184,12 +185,27 @@ export const SUBMISSIONS_JSON = [
     reviewed_by_name: 'Julie Adjointe',
     decision_note: null,
     applied_count: 1,
+    started_by_professional: true,
   },
 ]
 
 /** REVIEW_JSON as the sheet reads it, with `over` merged into its submission. */
 export function submissionReview(over: Partial<(typeof REVIEW_JSON)['submission']> = {}): SubmissionReview {
   const review = parseRpc(reviewPayload, { ...REVIEW_JSON, submission: { ...REVIEW_JSON.submission, ...over } })
+  if (!review) throw new Error('fixture: no review')
+  return review
+}
+
+/**
+ * REVIEW_JSON with some fields replaced (`{field: {...}}` merged into each named field), as the sheet
+ * reads it: an expired insurance, a consent on an older text, or nothing changed at all.
+ */
+export function submissionReviewWithFields(fields: Record<string, Record<string, unknown>>, every?: Record<string, unknown>): SubmissionReview {
+  const sections = REVIEW_JSON.sections.map((section) => ({
+    ...section,
+    fields: section.fields.map((f) => ({ ...f, ...every, ...fields[f.field] })),
+  }))
+  const review = parseRpc(reviewPayload, { ...REVIEW_JSON, sections })
   if (!review) throw new Error('fixture: no review')
   return review
 }

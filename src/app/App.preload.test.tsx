@@ -31,7 +31,7 @@ const fake = vi.hoisted(() => {
   // Like testAccess (src/test/contexts.tsx), inlined: vi.hoisted runs before imports.
   const testAccessHoisted = {
     user_id: 'u1', org_id: 'o1', org_name: 'Clinique MANA', org_timezone: 'America/Toronto', display_name: 'Test',
-    email: 't@mana.test', status: 'active', role: 'admin', permissions: ['settings.view'], modules: [],
+    email: 't@mana.test', status: 'active', role: 'admin', permissions: ['settings.view'], modules: [], has_professional_file: false,
   }
   return { state, supabase }
 })

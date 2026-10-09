@@ -19,6 +19,7 @@ export const MY_SUBMISSION_JSON = {
   submitted_at: null,
   updated_at: '2026-10-08T14:32:00.123456+00:00',
   private_saved_at: null,
+  started_by_me: false,
   private: null,
   on_file: null,
   consent: { id: '00000000-0000-4000-8000-00000000c001', version: 1, title: 'Consentement au droit à l’image', body: 'Texte' },

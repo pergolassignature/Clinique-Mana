@@ -89,6 +89,8 @@ describe('DeactivateDialog', () => {
     expect(await within(dialog()).findByText(t('modules.professionals.validation.reasonRequired'))).toBeInTheDocument()
     expect(reasonSelect()).toHaveFocus()
     expect(noteField()).toHaveAccessibleName(t(`${D}.note`))
+    // The professional may read it on her own row (P4-373): said under the field.
+    expect(noteField()).toHaveAccessibleDescription('Marie peut lire cette note.')
 
     await userEvent.selectOptions(reasonSelect(), 'Autre')
     expect(noteField()).toHaveAccessibleName(`${t(`${D}.note`)} ${REQUIRED}`)
@@ -167,7 +169,8 @@ describe('DeactivateDialog', () => {
     await userEvent.selectOptions(reasonSelect(), 'Congé')
     await userEvent.click(confirmButton())
 
-    await waitFor(() => expect(noteField()).toHaveAccessibleDescription('Précisez la raison.'))
+    // The help first (P4-373), then the refusal.
+    await waitFor(() => expect(noteField()).toHaveAccessibleDescription('Marie peut lire cette note. Précisez la raison.'))
     expect(noteField()).toHaveFocus()
     expect(invalidated()).toContainEqual(professionalCatalogKeys.catalog())
   })

@@ -17,7 +17,7 @@ import type { ProfessionalRecord } from '../../api/parse'
 import { professionalKeys } from '../../hooks/keys'
 import { useActivateProfessional } from '../../hooks/use-professional-mutations'
 import type { CatalogView } from '../../lib/catalog-view'
-import { fullName, listLabel } from '../../lib/display'
+import { fullName, listLabel, noteReadableText } from '../../lib/display'
 import { missingLabel, readinessItemLabel } from '../../lib/readiness'
 import { activationMode, type ActivationMode } from '../../lib/status-actions'
 import { overrideSchema, type OverrideValues } from '../../schemas/status'
@@ -109,6 +109,7 @@ export function ActivateDialog({ onClose, onCloseAutoFocus }: StatusDialogProps)
             error={form.formState.errors.reason?.message}
             saving={saving}
             onSuggest={(text) => form.setValue('reason', text, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })}
+            firstName={professional.firstName}
           />
         )}
         <DialogRefusal message={form.formState.errors.root?.server?.message} />
@@ -177,19 +178,21 @@ interface OverrideReasonProps {
   error: string | undefined
   saving: boolean
   onSuggest: (text: string) => void
+  /** Named in the help: she may read the reason (P4-373). */
+  firstName: string
 }
 
 /**
  * « Raison de l'activation »*, with the suggestion that fills it in one press. A `fieldset disabled`
  * while saving, as the deactivation's fields: what is being saved stays what shows.
  */
-function OverrideReason({ registration, inputRef, error, saving, onSuggest }: OverrideReasonProps) {
+function OverrideReason({ registration, inputRef, error, saving, onSuggest, firstName }: OverrideReasonProps) {
   const suggestionLabel = useId()
   const suggestion = t(`${A}.suggestionText`)
   const { ref, ...field } = registration
   return (
     <fieldset disabled={saving} className="grid min-w-0 gap-2">
-      <FormField label={t(`${A}.reason`)} required help={t(`${A}.reasonHelp`)} error={error}>
+      <FormField label={t(`${A}.reason`)} required help={`${t(`${A}.reasonHelp`)} ${noteReadableText(firstName)}`} error={error}>
         {(control) => (
           <Textarea
             {...control}

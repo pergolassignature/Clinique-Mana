@@ -31,6 +31,7 @@ const submissionRowPayload = z
     reviewed_by_name: z.string().nullable(),
     decision_note: z.string().nullable(),
     applied_count: z.number().nullable(),
+    started_by_professional: z.boolean(),
   })
   .transform((r) => ({
     id: r.id,
@@ -46,6 +47,8 @@ const submissionRowPayload = z
     decisionNote: r.decision_note,
     /** Fields applied on approval; null until then. */
     appliedCount: r.applied_count,
+    /** The professional started it herself (« Mettre mon profil à jour »); otherwise the clinic asked (P4-375). */
+    startedByProfessional: r.started_by_professional,
   }))
 export type SubmissionRow = z.output<typeof submissionRowPayload>
 

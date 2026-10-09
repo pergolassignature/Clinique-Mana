@@ -293,9 +293,10 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
         description={
           kind === 'onboarding'
             ? t(`${Q}.intro.onboarding`)
-            : requested.length === 1
-              ? t(`${Q}.intro.updateOne`)
-              : t(`${Q}.intro.updateMany`, { count: String(requested.length) })
+            : // Who asked (P4-375): « La clinique vous demande de revoir … », or « Vous avez choisi de revoir … ».
+              requested.length === 1
+              ? t(submission.startedByMe ? `${Q}.intro.selfOne` : `${Q}.intro.updateOne`)
+              : t(submission.startedByMe ? `${Q}.intro.selfMany` : `${Q}.intro.updateMany`, { count: String(requested.length) })
         }
       />
       {submission.decisionNote && (

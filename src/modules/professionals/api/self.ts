@@ -32,6 +32,8 @@ export const mySubmissionPayload = z
     submitted_at: z.string().nullable(),
     updated_at: z.string(),
     private_saved_at: z.string().nullable(),
+    /** She started this update herself (« Mettre mon profil à jour »), not the clinic (P4-375). */
+    started_by_me: z.boolean(),
     /** The private step as saved for this submission: plain numbers and masks only (never a SIN or an account). */
     private: z
       .object({
@@ -65,6 +67,7 @@ export const mySubmissionPayload = z
     submittedAt: s.submitted_at,
     updatedAt: s.updated_at,
     privateSavedAt: s.private_saved_at,
+    startedByMe: s.started_by_me,
     private: s.private && {
       businessNumber: s.private.business_number,
       gstNumber: s.private.gst_number,

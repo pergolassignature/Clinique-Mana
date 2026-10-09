@@ -44,6 +44,23 @@ export function fieldsToApply(review: Pick<SubmissionReview, 'sections'>, checke
   return changedFieldKeys(review).filter((field) => checked.has(field))
 }
 
+/**
+ * What « Appliquer » would refuse for a field, said on it before the click (P4-378; the database
+ * still decides, P4-305): an insurance whose expiry is before the clinic's today, or a consent signed
+ * on a text the clinic has replaced since (`is_latest` false). Null otherwise.
+ */
+export type FieldWarning = { kind: 'insurance_expired'; expiresOn: string } | { kind: 'consent_outdated' }
+
+export function fieldWarning(field: Pick<ReviewField, 'field' | 'submitted'>, today: string): FieldWarning | null {
+  const submitted = field.submitted as Record<string, unknown> | null
+  if (field.field === 'insurance') {
+    const expiresOn = submitted?.expires_on
+    return typeof expiresOn === 'string' && expiresOn < today ? { kind: 'insurance_expired', expiresOn } : null
+  }
+  if (field.field === 'consent') return submitted?.is_latest === false ? { kind: 'consent_outdated' } : null
+  return null
+}
+
 /** The French label of a field (`modules.professionals.submission.fields.<field>`, the payload's `label_key`). */
 export function fieldLabel(field: SubmissionField): string {
   return t(`${S}.fields.${field}`)
@@ -189,8 +206,9 @@ export function submissionState(row: Pick<SubmissionRow, 'status' | 'decisionNot
   }
 }
 
-export function submissionStateLabel(state: SubmissionState): string {
-  return t(`${S}.states.${state}`)
+/** In agreement with the kind: « Appliqué » (le questionnaire), « Appliquée » (la mise à jour). */
+export function submissionStateLabel(state: SubmissionState, kind: SubmissionKind): string {
+  return t(`${S}.states.${kind}.${state}`)
 }
 
 export function submissionStateTone(state: SubmissionState): StatusTone {

@@ -5,7 +5,7 @@ import { t } from '@/i18n'
 import { professionalKeys } from '../../../hooks/keys'
 import { IDS } from '../../../test/fixtures'
 import { recordFixture } from '../../../test/fixtures-domain'
-import { REVIEW_CHANGED_FIELDS, SUBMISSION_ID, SUBMISSIONS_JSON, submissionReview } from '../../../test/fixtures-review'
+import { INSURANCE_FILE, REVIEW_CHANGED_FIELDS, SUBMISSION_ID, SUBMISSIONS_JSON, submissionReview, submissionReviewWithFields } from '../../../test/fixtures-review'
 import { renderRecordTab } from '../../../test/record-tab'
 import { DocumentsTab } from './DocumentsTab'
 
@@ -52,6 +52,7 @@ function listed(over: Record<string, unknown>[] = []) {
     reviewedByName: r.reviewed_by_name,
     decisionNote: r.decision_note,
     appliedCount: r.applied_count,
+    startedByProfessional: r.started_by_professional,
   }))
 }
 
@@ -70,13 +71,15 @@ async function openTab({ role = 'admin_assistant', list = listed(), record = rec
   return rendered
 }
 
-async function openSheet(options: TabOptions = {}) {
+async function openSheet(options: TabOptions & { summary?: string } = {}) {
   const rendered = await openTab(options)
   await userEvent.click(await screen.findByRole('button', { name: t(`${C}.reviewLabel`, { kind: t('modules.professionals.submission.kinds.onboarding') }) }))
   const sheet = await screen.findByRole('dialog', { name: t(`${S}.title`, { name: 'Marie Tremblay' }) })
-  await within(sheet).findByText(t(`${S}.summary`, { count: String(REVIEW_CHANGED_FIELDS.length) }))
+  await within(sheet).findByText(options.summary ?? t(`${S}.summary`, { count: String(REVIEW_CHANGED_FIELDS.length) }))
   return { ...rendered, sheet }
 }
+
+const applyAll = () => screen.getByRole('button', { name: t(`${S}.apply`, { count: String(REVIEW_CHANGED_FIELDS.length) }) })
 
 describe('« Questionnaire et mises à jour »', () => {
   it('lists the submissions newest first, each with its state in words and its dates in the clinic’s time', async () => {
@@ -84,12 +87,30 @@ describe('« Questionnaire et mises à jour »', () => {
     const items = within(screen.getByRole('list')).getAllByRole('listitem')
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent(t('modules.professionals.submission.kinds.onboarding'))
-    expect(items[0]).toHaveTextContent(t('modules.professionals.submission.states.to_review'))
-    expect(items[0]).toHaveTextContent(t(`${C}.sentOn`, { date: '08 oct. 2026' }))
-    expect(items[1]).toHaveTextContent(t('modules.professionals.submission.states.applied'))
-    expect(items[1]).toHaveTextContent(t(`${C}.appliedOnBy`, { date: '03 sept. 2026', name: 'Julie Adjointe' }))
+    expect(items[0]).toHaveTextContent(t('modules.professionals.submission.states.onboarding.to_review'))
+    expect(items[0]).toHaveTextContent('Envoyé le 08 oct. 2026')
+    // « Mise à jour du profil » is feminine: every state and date agrees with it (P4-377).
+    expect(items[1]).toHaveTextContent('Appliquée')
+    expect(items[1]).toHaveTextContent('Envoyée le 02 sept. 2026')
+    expect(items[1]).toHaveTextContent('Approuvée le 03 sept. 2026 par Julie Adjointe')
     expect(items[1]).toHaveTextContent(t(`${C}.changesOne`))
     expect(items[1]).toHaveTextContent(t(`${C}.sections`, { sections: 'Motifs' }))
+    // Marie started that update herself (P4-375).
+    expect(items[1]).toHaveTextContent('Commencée par Marie')
+  })
+
+  it('an update the clinic asked for says so; an update sent back or closed agrees with « la mise à jour »', async () => {
+    await openTab({
+      list: listed([
+        { kind: 'update', status: 'draft', requested_sections: ['languages'], started_by_professional: false, reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.' },
+        { status: 'cancelled', reviewed_at: null, reviewed_by_name: null, applied_count: null },
+      ]),
+    })
+    const [first, second] = within(screen.getByRole('list')).getAllByRole('listitem') as HTMLElement[]
+    expect(first).toHaveTextContent(t(`${C}.origin.clinic`))
+    expect(first).toHaveTextContent('Renvoyée au professionnel')
+    expect(first).toHaveTextContent('Renvoyée le 08 oct. 2026 par Julie Adjointe')
+    expect(second).toHaveTextContent('Fermée sans être appliquée')
   })
 
   it('shows the note of a profile sent back', async () => {
@@ -97,7 +118,7 @@ describe('« Questionnaire et mises à jour »', () => {
       list: listed([{ status: 'draft', submitted_at: '2026-10-08T14:00:00+00:00', reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.' }]),
     })
     const first = within(screen.getByRole('list')).getAllByRole('listitem')[0] as HTMLElement
-    expect(first).toHaveTextContent(t('modules.professionals.submission.states.returned'))
+    expect(first).toHaveTextContent('Renvoyé au professionnel')
     expect(first).toHaveTextContent('Précisez vos langues.')
     expect(within(first).queryByRole('button')).not.toBeInTheDocument()
   })
@@ -154,7 +175,12 @@ describe('SubmissionReviewSheet', () => {
     const { sheet } = await openSheet()
     const insurance = within(sheet).getByRole('checkbox', { name: t(`${F}.insurance`) }).closest('li') as HTMLElement
     expect(insurance).toHaveTextContent(t(`${V}.insuranceSent`, { date: '31 mars 2027' }))
-    expect(within(insurance).getByRole('link', { name: t(`${V}.openFile`) })).toHaveAttribute('href', 'https://files.test/x')
+    // A new tab, said to screen readers (« (nouvel onglet) ») and shown by an icon.
+    const open = within(insurance).getByRole('link', { name: `${t(`${V}.openFile`)} ${t(`${V}.newTab`)}` })
+    expect(open).toHaveAttribute('href', 'https://files.test/x')
+    expect(open).toHaveAttribute('target', '_blank')
+    // A valid insurance and the latest consent text: no warning.
+    expect(insurance).not.toHaveTextContent(/échue/)
     const photo = within(sheet).getByRole('checkbox', { name: t(`${F}.photo`) }).closest('li') as HTMLElement
     expect(within(photo).getByRole('img', { name: t(`${V}.photoAlt`) })).toBeInTheDocument()
     const titles = within(sheet).getByRole('checkbox', { name: t(`${F}.professions`) }).closest('li') as HTMLElement
@@ -236,6 +262,85 @@ describe('SubmissionReviewSheet', () => {
     await within(sheet).findByText('Cette soumission n’attend pas de révision.')
     expect(within(sheet).queryByRole('button', { name: t(`${S}.return`) })).not.toBeInTheDocument()
     expect(within(sheet).getByText(t('common.close'), { selector: 'button' })).toBeInTheDocument()
+  })
+
+  it('says the kind and the date in agreement: « Questionnaire d’accueil envoyé le … »', async () => {
+    const { sheet } = await openSheet()
+    expect(sheet).toHaveAccessibleDescription("Questionnaire d'accueil envoyé le 08 oct. 2026 à 10:00.")
+  })
+
+  // P4-378: what « Appliquer » would refuse is said on the field first (the database still decides).
+  it('flags an insurance already expired and a consent signed on an older text, before « Appliquer »', async () => {
+    mocks.submissions.fetchSubmissionReview.mockResolvedValue(
+      submissionReviewWithFields({
+        insurance: { submitted: { file_id: INSURANCE_FILE, expires_on: '2020-03-31' } },
+        consent: { submitted: { consent_version_id: '00000000-0000-4000-8000-00000000c001', signer_name: 'Marie Tremblay', signed_at: '2026-10-08T13:58:00+00:00', version: 1, is_latest: false } },
+      }),
+    )
+    const { sheet } = await openSheet()
+    const insurance = within(sheet).getByRole('checkbox', { name: t(`${F}.insurance`) })
+    expect(insurance.closest('li')).toHaveTextContent(t(`${S}.warnings.insuranceExpired`, { date: '31 mars 2020' }))
+    expect(insurance).toHaveAccessibleDescription(expect.stringContaining('Cette assurance est échue depuis le 31 mars 2020'))
+    const consent = within(sheet).getByRole('checkbox', { name: t(`${F}.consent`) })
+    expect(consent.closest('li')).toHaveTextContent(t(`${S}.warnings.consentOutdated`))
+    // Still checked: the reviewer decides; the server refuses if she applies it anyway.
+    expect(insurance).toBeChecked()
+  })
+
+  // P4-363: no change proposed at all is a decision of its own, sent as an empty list (never null).
+  it('« Approuver sans changement » sends an empty list of fields', async () => {
+    mocks.submissions.fetchSubmissionReview.mockResolvedValue(submissionReviewWithFields({}, { changed: false }))
+    mocks.submissions.applyProfessionalSubmission.mockResolvedValue(undefined)
+    const { sheet } = await openSheet({ summary: t(`${S}.noChange`) })
+    expect(within(sheet).queryByRole('checkbox')).not.toBeInTheDocument()
+    await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.approveUnchanged`) }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.submissions.applyProfessionalSubmission).toHaveBeenCalledExactlyOnceWith(SUBMISSION_ID, [])
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.submission.toasts.approvedUnchanged.onboarding'))
+  })
+
+  it('the reviewer’s own file (HINT submission): the sentence, then « Fermer » only', async () => {
+    mocks.submissions.applyProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'Vous ne pouvez pas réviser votre propre profil.', hint: 'submission' })
+    const { sheet } = await openSheet()
+    await userEvent.click(applyAll())
+    const alert = await within(sheet).findByRole('alert')
+    expect(alert).toHaveTextContent('Vous ne pouvez pas réviser votre propre profil.')
+    // A routing HINT is never shown as text.
+    expect(alert).not.toHaveTextContent(/submission/)
+    expect(within(sheet).queryByRole('button', { name: t(`${S}.return`) })).not.toBeInTheDocument()
+    expect(within(sheet).getByText(t('common.close'), { selector: 'button' })).toBeInTheDocument()
+  })
+
+  it('the SIN no longer collected (HINT sin): the sentence, and the reviewer can still decide', async () => {
+    mocks.submissions.applyProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'La collecte du NAS n’est pas activée.', hint: 'sin' })
+    const { sheet } = await openSheet()
+    await userEvent.click(applyAll())
+    const alert = await within(sheet).findByRole('alert')
+    expect(alert).toHaveTextContent('La collecte du NAS n’est pas activée.')
+    expect(alert).not.toHaveTextContent(/\bsin\b/)
+    expect(within(sheet).getByRole('button', { name: t(`${S}.return`) })).toBeInTheDocument()
+    expect(applyAll()).toBeInTheDocument()
+  })
+
+  it('a refused send-back stays in the note form; one decided elsewhere leaves « Fermer » only', async () => {
+    mocks.submissions.rejectProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'La note compte au plus 1000 caractères.', hint: 'note' })
+    const { sheet } = await openSheet()
+    await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.return`) }))
+    const note = within(sheet).getByRole('textbox', { name: new RegExp(t(`${S}.noteLabel`, { firstName: 'Marie' })) })
+    await userEvent.type(note, 'Précisez vos langues.')
+    await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.sendBack`) }))
+    expect(await within(sheet).findByRole('alert')).toHaveTextContent('La note compte au plus 1000 caractères.')
+    // The note stays, and so do the buttons.
+    expect(note).toHaveValue('Précisez vos langues.')
+    expect(within(sheet).getByRole('button', { name: t(`${S}.sendBack`) })).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    mocks.submissions.rejectProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'Cette soumission n’attend pas de révision.', hint: 'status' })
+    await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.sendBack`) }))
+    await within(sheet).findByText('Cette soumission n’attend pas de révision.')
+    expect(within(sheet).queryByRole('button', { name: t(`${S}.sendBack`) })).not.toBeInTheDocument()
+    expect(within(sheet).getByText(t('common.close'), { selector: 'button' })).toBeInTheDocument()
+    expect(mocks.toast.success).not.toHaveBeenCalled()
   })
 
   it('a submission no longer waiting: read-only, « Fermer »', async () => {
