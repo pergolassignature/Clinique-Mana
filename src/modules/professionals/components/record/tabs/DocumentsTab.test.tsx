@@ -102,11 +102,11 @@ describe('« Questionnaire et mises à jour »', () => {
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent(t('modules.professionals.submission.kinds.onboarding'))
     expect(items[0]).toHaveTextContent(t('modules.professionals.submission.states.onboarding.to_review'))
-    expect(items[0]).toHaveTextContent('Envoyé le 08 oct. 2026')
+    expect(items[0]).toHaveTextContent('Envoyé le 8 oct. 2026')
     // « Mise à jour du profil » is feminine: every state and date agrees with it (P4-377).
     expect(items[1]).toHaveTextContent('Appliquée')
-    expect(items[1]).toHaveTextContent('Envoyée le 02 sept. 2026')
-    expect(items[1]).toHaveTextContent('Approuvée le 03 sept. 2026 par Julie Adjointe')
+    expect(items[1]).toHaveTextContent('Envoyée le 2 sept. 2026')
+    expect(items[1]).toHaveTextContent('Approuvée le 3 sept. 2026 par Julie Adjointe')
     expect(items[1]).toHaveTextContent(t(`${C}.changesOne`))
     expect(items[1]).toHaveTextContent(t(`${C}.sections`, { sections: 'Motifs' }))
     // Marie started that update herself (P4-375).
@@ -123,7 +123,7 @@ describe('« Questionnaire et mises à jour »', () => {
     const [first, second] = within(submissionsList()).getAllByRole('listitem') as HTMLElement[]
     expect(first).toHaveTextContent(t(`${C}.origin.clinic`))
     expect(first).toHaveTextContent('Renvoyée au professionnel')
-    expect(first).toHaveTextContent('Renvoyée le 08 oct. 2026 par Julie Adjointe')
+    expect(first).toHaveTextContent('Renvoyée le 8 oct. 2026 par Julie Adjointe')
     expect(second).toHaveTextContent('Fermée sans être appliquée')
   })
 
@@ -167,7 +167,7 @@ describe('« Questionnaire et mises à jour »', () => {
     })
     const first = within(submissionsList()).getAllByRole('listitem')[0] as HTMLElement
     expect(first).toHaveTextContent('Renvoyé au professionnel')
-    expect(first).toHaveTextContent('Renvoyé le 08 oct. 2026 par Julie Adjointe')
+    expect(first).toHaveTextContent('Renvoyé le 8 oct. 2026 par Julie Adjointe')
     expect(first).not.toHaveTextContent(t(`${C}.note`))
   })
 
@@ -326,7 +326,7 @@ describe('SubmissionReviewSheet', () => {
 
   it('says the kind and the date in agreement: « Questionnaire d’accueil envoyé le … »', async () => {
     const { sheet } = await openSheet()
-    expect(sheet).toHaveAccessibleDescription("Questionnaire d'accueil envoyé le 08 oct. 2026 à 10:00.")
+    expect(sheet).toHaveAccessibleDescription("Questionnaire d'accueil envoyé le 8 oct. 2026 à 10:00.")
   })
 
   it('reads a deposit left empty « Non fourni » (optional, P4-480), the other private fields « Non transmis »', async () => {

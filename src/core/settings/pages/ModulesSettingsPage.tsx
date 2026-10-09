@@ -20,7 +20,7 @@ export function ModulesSettingsPage() {
 
   return (
     <div className="max-w-form space-y-5">
-      <PageHeader title={t('settings.sections.modules')} description={t('settings.modules.description')} />
+      <PageHeader title={t('settings.sections.modules')} description={t('settings.modules.description')} fullWidthDescription />
       {isPending ? (
         <Loading />
       ) : isError && !modules ? (

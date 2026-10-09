@@ -68,7 +68,7 @@ export function BankSettingsPage() {
 
   return (
     <div className="max-w-form space-y-5">
-      <PageHeader title={t('settings.sections.bank')} description={t('settings.bank.description')} />
+      <PageHeader title={t('settings.sections.bank')} description={t('settings.bank.description')} fullWidthDescription />
       {content}
     </div>
   )

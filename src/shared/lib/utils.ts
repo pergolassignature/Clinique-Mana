@@ -6,8 +6,10 @@ import { extendTailwindMerge } from 'tailwind-merge'
  * - shadows `soft`/`medium`/`large`/`focus`/`focus-inset`/`highlight`: otherwise read as shadow colours, and
  *   `cn('shadow-soft', 'shadow-none')` keeps both;
  * - font size `2xs`: otherwise read as a text colour, and `cn('text-2xs', 'text-sm')` keeps both;
- * - max widths `form`/`content`: otherwise unknown, and `cn('max-w-form', 'max-w-sm')` keeps both.
- * Register any new shadow or font-size key here, with a test.
+ * - max widths `form`/`content`: otherwise unknown, and `cn('max-w-form', 'max-w-sm')` keeps both;
+ * - animations (`dialog-in`, `dialog-in-top`…): otherwise unknown, and `cn('animate-dialog-in',
+ *   'animate-dialog-in-top')` keeps both (the CSS order would then pick one).
+ * Register any new shadow, font-size or animation key here, with a test.
  */
 const twMerge = extendTailwindMerge({
   extend: {
@@ -15,6 +17,7 @@ const twMerge = extendTailwindMerge({
       shadow: [{ shadow: ['soft', 'medium', 'large', 'focus', 'focus-inset', 'highlight'] }],
       'font-size': [{ text: ['2xs'] }],
       'max-w': [{ 'max-w': ['form', 'content'] }],
+      animate: [{ animate: ['shimmer', 'fade-in', 'dialog-in', 'dialog-in-top', 'zoom-in', 'slide-in-right', 'accordion-down', 'accordion-up'] }],
     },
   },
 })

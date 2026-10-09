@@ -55,7 +55,7 @@ function NoticeRow({ notice, now }: { notice: Notice; now: number }) {
           {notice.title}
         </p>
         {notice.body && <p className="mt-0.5 text-xs text-muted-foreground">{notice.body}</p>}
-        <time dateTime={notice.created_at} title={formatClinicDateTime(notice.created_at)} className="mt-0.5 block text-xs text-subtle">
+        <time dateTime={notice.created_at} title={formatClinicDateTime(notice.created_at)} className="mt-0.5 block text-xs text-muted-foreground">
           {noticeAge(notice.created_at, now)}
         </time>
       </div>

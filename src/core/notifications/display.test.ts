@@ -66,7 +66,7 @@ describe('noticeAge', () => {
   })
 
   it('gives the date from a week back', () => {
-    expect(noticeAge('2026-10-01T12:00:00Z', now)).toBe('01 oct. 2026')
+    expect(noticeAge('2026-10-01T12:00:00Z', now)).toBe('1 oct. 2026')
     expect(noticeAge('2026-09-20T12:00:00Z', now)).toBe('20 sept. 2026')
   })
 })

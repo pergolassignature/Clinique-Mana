@@ -248,7 +248,7 @@ function NoticeItem({ notice, now, onChoose }: { notice: Notice; now: number; on
             id={ageId}
             dateTime={notice.created_at}
             title={formatClinicDateTime(notice.created_at)}
-            className="mt-1 block text-xs text-subtle"
+            className="mt-1 block text-xs text-muted-foreground"
           >
             {noticeAge(notice.created_at, now)}
           </time>

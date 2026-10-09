@@ -125,7 +125,7 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
               </span>
             </>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">{t(`${R}.noRate`)}</span>
           )}
         </Item>
       </dl>

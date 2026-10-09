@@ -25,14 +25,15 @@ export function OrganizationSettingsPage({ title, description, children }: Organ
 
   return (
     <div className="max-w-form space-y-5">
-      <PageHeader title={title} description={description} />
+      {/* The subtitle wraps at the cards' width (640), not a narrower reading measure. */}
+      <PageHeader title={title} description={description} fullWidthDescription />
       {readOnly && <ReadOnlyNotice />}
       {isPending ? (
         <Loading />
       ) : isError && !organization ? (
         <LoadError message={t('settings.organization.loadError')} retrying={isFetching} onRetry={() => void refetch()} />
       ) : (
-        organization && <div className="space-y-4">{children(organization)}</div>
+        organization && <div className="space-y-5">{children(organization)}</div>
       )}
     </div>
   )

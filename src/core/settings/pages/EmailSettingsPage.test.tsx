@@ -144,7 +144,7 @@ describe('EmailSettingsPage', () => {
       await user.click(within(keysCard()).getByRole('button', { name: t('settings.webhook.copy') }))
       expect(writeText).toHaveBeenCalledWith(url)
       expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.webhook.copied'))
-      expect(await within(keysCard()).findByText(t('settings.email.keys.lastEvent', { date: '08 oct. 2026 à 08:00' }))).toBeInTheDocument()
+      expect(await within(keysCard()).findByText(t('settings.email.keys.lastEvent', { date: '8 oct. 2026 à 08:00' }))).toBeInTheDocument()
     })
 
     it('says when no event was received yet', async () => {

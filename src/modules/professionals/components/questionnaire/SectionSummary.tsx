@@ -37,7 +37,7 @@ interface Row {
 /** A label and its value, one per line on a phone, side by side from `sm`. Empty reads « Non indiqué ». */
 function Rows({ rows }: { rows: Row[] }) {
   return (
-    <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+    <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
       {rows.map((row) => (
         <div key={row.label} className="contents">
           <dt className="text-muted-foreground">{row.label}</dt>

@@ -16,7 +16,7 @@ const CLIENTELE_COLUMNS: ReferenceColumn<'clienteles'>[] = [
     id: 'ages',
     header: t(`${S}.ages`),
     // « 0 à 12 ans », « 18 ans et plus », « Sans âge » (couples, familles, parents: muted like the lists' « — »).
-    cell: (row) => <span className={cn('tabular', row.minAge === null && 'text-subtle')}>{agesLabel(row)}</span>,
+    cell: (row) => <span className={cn('tabular', row.minAge === null && 'text-muted-foreground')}>{agesLabel(row)}</span>,
   },
 ]
 

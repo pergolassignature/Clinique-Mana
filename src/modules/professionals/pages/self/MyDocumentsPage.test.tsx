@@ -107,12 +107,12 @@ describe('MyDocumentsPage — documents sent with her questionnaire (P4-495)', (
     renderPage(documentsFixture({ documents: [], consent: null, staged: staged('submitted') }))
     await loaded()
     for (const name of [PHOTO, INSURANCE]) {
-      expect(region(name)).toHaveTextContent('Envoyé avec votre questionnaire le 08 oct. 2026 · en attente de vérification par la clinique')
+      expect(region(name)).toHaveTextContent('Envoyé avec votre questionnaire le 8 oct. 2026 · en attente de vérification par la clinique')
       expect(region(name)).not.toHaveTextContent(t(`${D}.state.missing`))
       expect(region(name)).not.toHaveTextContent(t(`${D}.lines.none`))
       expect(within(region(name)).queryByRole('button', { name: /^(Téléverser|Remplacer)/ })).not.toBeInTheDocument()
     }
-    expect(region(CONSENT)).toHaveTextContent('Signé dans votre questionnaire envoyé le 08 oct. 2026 · en attente de vérification par la clinique')
+    expect(region(CONSENT)).toHaveTextContent('Signé dans votre questionnaire envoyé le 8 oct. 2026 · en attente de vérification par la clinique')
     expect(screen.getByText('Documents requis en règle : 0 sur 3 · 3 en attente de vérification')).toBeInTheDocument()
     // No link to the review on her side; « Téléverser un document » (other types) stays.
     expect(screen.queryByRole('button', { name: t(`${D}.lines.showReview`) })).not.toBeInTheDocument()
@@ -148,7 +148,7 @@ describe('MyDocumentsPage — her own documents', () => {
     renderPage(documentsFixture({ consent: { ...CONSENT_JSON, signer_name: null } }))
     await loaded()
     const consent = screen.getByRole('region', { name: "Consentement droit à l'image" })
-    expect(consent).toHaveTextContent('Signé électroniquement le 08 oct. 2026 (version 1)')
+    expect(consent).toHaveTextContent('Signé électroniquement le 8 oct. 2026 (version 1)')
     expect(consent).not.toHaveTextContent(' par ')
   })
 
@@ -164,7 +164,7 @@ describe('MyDocumentsPage — her own documents', () => {
     await loaded()
     const insurance = screen.getByRole('region', { name: INSURANCE })
     expect(insurance).toHaveTextContent(t(`${D}.state.pendingSelf`))
-    expect(insurance).toHaveTextContent('Téléversé le 01 oct. 2026 par vous')
+    expect(insurance).toHaveTextContent('Téléversé le 1 oct. 2026 par vous')
     const photo = screen.getByRole('region', { name: 'Photo professionnelle' })
     expect(photo).toHaveTextContent(t(`${M}.rejectedNote`))
     expect(photo).toHaveTextContent('Raison : Photo floue.')

@@ -66,7 +66,7 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
     <>
       <section aria-labelledby={requiredId} className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h3 id={requiredId} className="text-base font-semibold tracking-tight text-foreground">
+          <h3 id={requiredId} className="text-lg font-semibold text-foreground">
             {t(`${D}.required.title`)}
           </h3>
           {summary.total > 0 && (

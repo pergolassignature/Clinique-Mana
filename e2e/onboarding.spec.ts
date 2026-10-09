@@ -179,7 +179,7 @@ test('the adjointe invites a professional, who completes the questionnaire, and 
   await expect(apply).toBeEnabled()
   await apply.click()
   await expect(sheet).toBeHidden({ timeout: 15_000 })
-  await expect(page.getByText(/^Questionnaire approuvé : \d+ changements? appliqués? au dossier\.$/)).toBeVisible()
+  await expect(page.getByText(/^Questionnaire approuvé\s:\s\d+ changements? appliqués? au dossier\.$/)).toBeVisible()
 
   // Aperçu: the questionnaire is approved; the file waits for activation (« En préparation », P4-43).
   await page.getByRole('tab', { name: 'Aperçu' }).click()
