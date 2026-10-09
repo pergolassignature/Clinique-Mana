@@ -159,3 +159,6 @@ verify_jwt = false
 # (Task 4b.6; verifyAuth, module professionals, professionals.manage).
 [functions.professionals-set-status]
 verify_jwt = false
+# « Refuser » a document, then the professional's email (Task 4c.3; verifyAuth, professionals.documents.review).
+[functions.professionals-documents]
+verify_jwt = false

@@ -147,8 +147,9 @@ export const MOTIF_CATEGORY_ICONS = [
 export type MotifCategoryIcon = (typeof MOTIF_CATEGORY_ICONS)[number]
 
 /**
- * The eight reference lists, by table name: what `set_professionals_reference_active`,
+ * The nine reference lists, by table name: what `set_professionals_reference_active`,
  * `reorder_professionals_reference` and `list_professionals_reference_usage` call a « kind ».
+ * `document_types` is « Documents requis » (Task 4c.2, edited in 4c.3).
  */
 export const REFERENCE_KINDS = [
   'professional_orders',
@@ -159,6 +160,7 @@ export const REFERENCE_KINDS = [
   'motifs',
   'languages',
   'deactivation_reasons',
+  'document_types',
 ] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
@@ -191,3 +193,46 @@ export const PAGE_SIZE = 25
 
 /** The most ids a set RPC or a list filter takes (`22023` beyond). */
 export const MAX_SET_SIZE = 500
+
+// --- Documents (Tasks 4c.2, 4c.3, 4c.6) -----------------------------------------------------------
+
+/** `professional_documents.status`: pending → verified | rejected; verified → expired. */
+export const DOCUMENT_STATUSES = ['pending', 'verified', 'rejected', 'expired'] as const
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number]
+
+/** `document_types.expiry_rule`: none, the next March 31 (P4-412), or the date + 12 months. */
+export const DOCUMENT_EXPIRY_RULES = ['none', 'next_march_31', 'months_12'] as const
+export type DocumentExpiryRule = (typeof DOCUMENT_EXPIRY_RULES)[number]
+
+/** The six file types the two document upload purposes accept (`document_types.accepted_mime` ⊆ these). */
+export const DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const
+export type DocumentMimeType = (typeof DOCUMENT_MIME_TYPES)[number]
+
+/** The photo is printed on the fiche: JPEG or PNG only (`document_types_photo_mime_check`). */
+export const PHOTO_MIME_TYPES: readonly DocumentMimeType[] = ['image/jpeg', 'image/png']
+
+/** The types the application follows (readiness, reminders): never archived, may be made optional (P4-405). */
+export const SYSTEM_DOCUMENT_TYPES = ['photo', 'insurance', 'image_consent'] as const
+
+/** The upload purposes (`upload_purposes`, 20261009000253_professionals_documents.sql): staff and the provider. */
+export const DOCUMENT_UPLOAD_PURPOSE = { staff: 'professional_document', self: 'professional_self_document' } as const
+/** Both purposes' caps (the type's own are within them): 10 MB, images up to 4000 px a side. */
+export const DOCUMENT_PURPOSE_MAX_BYTES = 10_485_760
+export const DOCUMENT_MAX_IMAGE_SIDE = 4000
+/** `document_types.max_bytes` bounds (100 KB – 10 MB). */
+export const DOCUMENT_TYPE_MIN_BYTES = 102_400
+
+/** `professionals_readiness.insurance_status` (P4-406). */
+export const INSURANCE_STATUSES = ['valid', 'expiring', 'expired', 'missing'] as const
+export type InsuranceStatus = (typeof INSURANCE_STATUSES)[number]
+
+/** The consents « Paramètres → Consentements » versions (`consent_versions.key`). */
+export const CONSENT_KEYS = ['image_rights'] as const
+export type ConsentKey = (typeof CONSENT_KEYS)[number]

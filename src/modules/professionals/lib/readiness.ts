@@ -26,7 +26,7 @@ export const MISSING_TAB: Readonly<Record<ReadinessMissing, RecordTab>> = {
   language: 'jumelage',
   clientele: 'jumelage',
   motif: 'jumelage',
-  // « Documents » (Task 4c.3): no button until the tab is built (TAB_PERMISSION has no entry).
+  // « Documents » (Task 4c.3): « Compléter » for whoever uploads (`professionals.manage`).
   photo: 'documents',
   insurance: 'documents',
   insurance_expired: 'documents',
@@ -37,7 +37,7 @@ export const MISSING_TAB: Readonly<Record<ReadinessMissing, RecordTab>> = {
 type Can = (permission: string) => boolean
 
 /** Who may fix the gaps of each tab. */
-const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professionals.manage', jumelage: 'professionals.matching' }
+const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professionals.manage', jumelage: 'professionals.matching', documents: 'professionals.manage' }
 
 /**
  * Where a submission is reviewed (the review's entry point, Task 4b.5): « Questionnaire et mises à

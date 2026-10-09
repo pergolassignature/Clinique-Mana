@@ -54,10 +54,17 @@ describe('nextAction', () => {
     ],
     ['matching gaps, read-only: the sentence alone', ['motif'], 'draft', [], { message: T('modules.professionals.readiness.nextAction.completeMatching'), action: null }],
     [
-      'document gaps: the sentence, no button until « Documents » is built (4c.3)',
+      'document gaps → Documents, for whoever uploads (4c.3)',
       ['photo', 'insurance_expired'],
       'draft',
       ['professionals.manage', 'professionals.matching'],
+      { message: T('modules.professionals.readiness.nextAction.completeDocuments'), action: { kind: 'tab', label: T('modules.professionals.readiness.nextAction.complete'), tab: 'documents' } },
+    ],
+    [
+      'document gaps, without professionals.manage: the sentence alone',
+      ['image_consent'],
+      'draft',
+      ['professionals.matching'],
       { message: T('modules.professionals.readiness.nextAction.completeDocuments'), action: null },
     ],
     [

@@ -58,6 +58,16 @@ const VARIABLE = {
     sample: '31 mars 2027',
     kind: 'date',
   },
+  'document.type_name': {
+    label: 'Type de document',
+    sample: 'Photo professionnelle',
+    kind: 'text',
+  },
+  'document.rejection_reason': {
+    label: 'Raison du refus',
+    sample: 'La photo est floue.',
+    kind: 'text',
+  },
 } as const
 
 const TEMPLATES: Record<
@@ -96,6 +106,19 @@ const TEMPLATES: Record<
     body: 'Bonjour,\n\n{{professional.full_name}} a envoyé son profil.',
     button: 'Réviser le dossier',
     paths: ['professional.full_name'],
+  },
+  'professionals.document_rejected': {
+    subject: 'Un document est à reprendre',
+    body: 'Bonjour {{professional.first_name}},\n\n' +
+      'L’équipe de {{clinic.name}} vous demande de reprendre ' +
+      '« {{document.type_name}} » :\n\n{{document.rejection_reason}}',
+    button: 'Voir mes documents',
+    paths: [
+      'professional.first_name',
+      'clinic.name',
+      'document.type_name',
+      'document.rejection_reason',
+    ],
   },
   'professionals.document_expiring': {
     subject: 'Votre assurance prend fin le {{document.expires_on}}',

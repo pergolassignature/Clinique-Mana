@@ -70,6 +70,7 @@ describe('referenceRows', () => {
     expect(referenceRows(catalog, 'motif_categories')).toBe(catalog.motifCategories)
     expect(referenceRows(catalog, 'deactivation_reasons')).toBe(catalog.deactivationReasons)
     expect(referenceRows(catalog, 'languages')[0]?.code).toBe('fr')
+    expect(referenceRows(catalog, 'document_types').map((row) => row.key)).toEqual(['photo', 'insurance', 'image_consent', 'cv', 'other', 'ancien_document'])
   })
 })
 
@@ -113,6 +114,29 @@ describe('saveReference', () => {
       { id: null, name: 'Congé', requiresNote: false, disablesAccount: true },
       'save_deactivation_reason',
       { p_id: null, p_name: 'Congé', p_requires_note: false, p_disables_account: true },
+    ],
+    document_types: [
+      {
+        id: IDS.insuranceType,
+        name: "Preuve d'assurance responsabilité",
+        required: true,
+        expiryRule: 'next_march_31',
+        reminderDays: [30, 7],
+        weeklyAfterExpiry: true,
+        acceptedMime: ['application/pdf', 'image/jpeg'],
+        maxBytes: 5_242_880,
+      },
+      'save_document_type',
+      {
+        p_id: IDS.insuranceType,
+        p_name: "Preuve d'assurance responsabilité",
+        p_required: true,
+        p_expiry_rule: 'next_march_31',
+        p_reminder_days: [30, 7],
+        p_weekly_after_expiry: true,
+        p_accepted_mime: ['application/pdf', 'image/jpeg'],
+        p_max_bytes: 5_242_880,
+      },
     ],
   }
 

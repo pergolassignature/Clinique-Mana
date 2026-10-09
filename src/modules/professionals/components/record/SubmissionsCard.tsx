@@ -53,7 +53,7 @@ export function SubmissionsCard() {
         ) : submissions.data.length === 0 ? (
           <EmptyState title={t(`${C}.empty.title`)} body={t(`${C}.empty.body`, { firstName: professional.firstName })} />
         ) : (
-          <ul className="divide-y divide-border-light border-y border-border-light">
+          <ul aria-label={t(`${C}.title`)} className="divide-y divide-border-light border-y border-border-light">
             {submissions.data.map((row) => (
               <SubmissionItem
                 key={row.id}

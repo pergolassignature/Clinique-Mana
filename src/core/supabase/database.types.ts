@@ -4920,6 +4920,7 @@ export type Database = {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
       }
+      discard_consent_draft: { Args: { p_id: string }; Returns: undefined }
       discard_system_file: {
         Args: { p_file_id: string; p_org_id: string }
         Returns: boolean
@@ -4948,6 +4949,7 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_consent_versions: { Args: { p_key?: string }; Returns: Json }
       get_email_context: {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
@@ -4992,6 +4994,10 @@ export type Database = {
       }
       get_professional_compensation: {
         Args: { p_id: string; p_on?: string }
+        Returns: Json
+      }
+      get_professional_document_rejection_for_service: {
+        Args: { p_actor: string; p_doc_id: string }
         Returns: Json
       }
       get_professional_documents: { Args: { p_id?: string }; Returns: Json }
@@ -5482,6 +5488,7 @@ export type Database = {
         Returns: Json
       }
       pii_health_check: { Args: never; Returns: boolean }
+      publish_consent_version: { Args: { p_id: string }; Returns: undefined }
       publish_template_version: { Args: { p_id: string }; Returns: undefined }
       queue_email: {
         Args: {
@@ -5601,6 +5608,10 @@ export type Database = {
           p_min_age: number
           p_name: string
         }
+        Returns: string
+      }
+      save_consent_draft: {
+        Args: { p_body: string; p_key: string; p_title: string }
         Returns: string
       }
       save_deactivation_reason: {

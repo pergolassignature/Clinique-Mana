@@ -1,4 +1,4 @@
-import { CircleUser, Compass, FileText, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import { CircleUser, Compass, FileCheck, FileText, FolderOpen, GraduationCap, HandCoins, Languages, Send, ShieldCheck, Tags, UserMinus, Users } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -39,6 +39,15 @@ export const professionalsManifest: ModuleManifest = {
       shownWhen: hasProfessionalFile,
       order: 5,
     },
+    // « Mes documents » (Task 4c.6): the professional's own documents, right after « Mon profil ».
+    {
+      path: '/mes-documents',
+      labelKey: 'modules.professionals.myDocuments.nav',
+      icon: FolderOpen,
+      permission: 'professionals.self',
+      shownWhen: hasProfessionalFile,
+      order: 6,
+    },
   ],
   routes: [
     { path: 'professionnels', permission: 'professionals.view', component: lazyPage(() => import('./pages/ProfessionalsListPage'), 'ProfessionalsListPage') },
@@ -60,6 +69,8 @@ export const professionalsManifest: ModuleManifest = {
       permission: 'professionals.self',
       component: lazyPage(() => import('./pages/self/QuestionnairePage'), 'QuestionnairePage'),
     },
+    // « Mes documents » (4c.6): her documents, « Téléverser », the insurance's banner.
+    { path: 'mes-documents', permission: 'professionals.self', component: lazyPage(() => import('./pages/self/MyDocumentsPage'), 'MyDocumentsPage') },
   ],
   // Accueil « Complétez votre profil » (P4-319): the professional's open questionnaire, if any. Only
   // for an account linked to a file: an admin without one never reads a questionnaire (P4-376).
@@ -112,6 +123,24 @@ export const professionalsManifest: ModuleManifest = {
       icon: UserMinus,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/DeactivationReasonsSettingsPage'), 'DeactivationReasonsSettingsPage'),
+    },
+    {
+      // The document types a file holds (Task 4c.3): read like the lists, changed with `professionals.settings`.
+      id: 'required-documents',
+      path: 'documents-requis',
+      labelKey: 'modules.professionals.settings.requiredDocuments.title',
+      icon: FileCheck,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/RequiredDocumentsSettingsPage'), 'RequiredDocumentsSettingsPage'),
+    },
+    {
+      // The image consent's versions (Task 4c.3, P4-452): read by the lists' readers, changed with `professionals.settings`.
+      id: 'consents',
+      path: 'consentements',
+      labelKey: 'modules.professionals.settings.consents.title',
+      icon: ShieldCheck,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/ConsentsSettingsPage'), 'ConsentsSettingsPage'),
     },
     {
       // What the fiche given to clients shows (P4-353): read like the lists, changed with `professionals.settings`.

@@ -19,10 +19,12 @@ describe('professionalsManifest', () => {
       expect.objectContaining({ path: '/professionnels', permission: 'professionals.view', order: 10 }),
       // « Mon profil » right after Accueil, for an account linked to a file (P4-376).
       expect.objectContaining({ path: '/mon-profil', permission: 'professionals.self', order: 5 }),
+      // « Mes documents » right after it (Task 4c.6), for the same accounts.
+      expect.objectContaining({ path: '/mes-documents', permission: 'professionals.self', order: 6 }),
     ])
-    const [, myProfile] = [professionalsManifest.nav ?? []].flat()
+    const [, myProfile, myDocuments] = [professionalsManifest.nav ?? []].flat()
     const [card] = professionalsManifest.homeCards ?? []
-    for (const item of [myProfile, card]) {
+    for (const item of [myProfile, myDocuments, card]) {
       expect(item?.shownWhen?.(accessForRole('provider'))).toBe(true)
       expect(item?.shownWhen?.(accessForRole('admin'))).toBe(false)
       expect(item?.shownWhen?.(accessForRole('admin', { has_professional_file: true }))).toBe(true)
@@ -33,6 +35,7 @@ describe('professionalsManifest', () => {
       ['professionnels/revision-mensuelle', 'professionals.compensation'],
       ['mon-profil', 'professionals.self'],
       ['mon-profil/questionnaire', 'professionals.self'],
+      ['mes-documents', 'professionals.self'],
     ])
     expect(professionalsManifest.homeCards?.map((c) => [c.id, c.permission])).toEqual([['professionals-profile', 'professionals.self']])
   })
@@ -60,13 +63,15 @@ describe('professionalsManifest', () => {
     expect(matchPath(`/${record.path}`, '/professionnels')).toBeNull()
   })
 
-  it('declares the five list sections of 4a.6–4a.9, « Fiche PDF » (P4-353), « Invitations » (4b.3), then « Rémunération » (4a.18), in the Modules group', () => {
+  it('declares the five list sections of 4a.6–4a.9, « Documents requis » and « Consentements » (4c.3), « Fiche PDF » (P4-353), « Invitations » (4b.3), then « Rémunération » (4a.18), in the Modules group', () => {
     expect(sections.map((s) => [s.id, s.path])).toEqual([
       ['professions', 'professions'],
       ['clienteles', 'clienteles'],
       ['motifs', 'motifs'],
       ['languages', 'langues'],
       ['deactivation-reasons', 'raisons-desactivation'],
+      ['required-documents', 'documents-requis'],
+      ['consents', 'consentements'],
       ['fiche', 'fiche-pdf'],
       ['invitations', 'invitations'],
       ['compensation', 'remuneration'],
@@ -75,7 +80,7 @@ describe('professionalsManifest', () => {
       expect(s.group).toBe('modules')
       expect(t(s.labelKey)).not.toBe(s.labelKey)
     }
-    for (const s of sections.slice(0, 6)) {
+    for (const s of sections.slice(0, 8)) {
       // Seen by whoever manages the records or the lists; changed only with professionals.settings.
       expect(s.permission).toEqual(['professionals.manage', 'professionals.settings'])
       expect(s.editPermission).toBe('professionals.settings')

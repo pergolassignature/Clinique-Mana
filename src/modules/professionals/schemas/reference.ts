@@ -1,6 +1,15 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { MOTIF_CATEGORY_ICONS, type MotifCategoryIcon, type ReferenceKind } from '../lib/constants'
+import {
+  DOCUMENT_EXPIRY_RULES,
+  DOCUMENT_MIME_TYPES,
+  DOCUMENT_PURPOSE_MAX_BYTES,
+  DOCUMENT_TYPE_MIN_BYTES,
+  MOTIF_CATEGORY_ICONS,
+  PHOTO_MIME_TYPES,
+  type MotifCategoryIcon,
+  type ReferenceKind,
+} from '../lib/constants'
 import { hasPostgresOnlySyntax } from '../lib/licence-pattern'
 import type { ReferenceFields, ReferenceRow } from '../api/catalog'
 import { tidy, tidyText } from './text'
@@ -31,6 +40,11 @@ const M = {
   languageCode: t('modules.professionals.validation.languageCode'),
   clienteleKind: t('modules.professionals.validation.clienteleKind'),
   otherReasonNote: t('modules.professionals.validation.otherReasonNote'),
+  reminderDays: t('modules.professionals.validation.reminderDays'),
+  remindersNeedExpiry: t('modules.professionals.validation.remindersNeedExpiry'),
+  acceptedMime: t('modules.professionals.validation.acceptedMime'),
+  photoMime: t('modules.professionals.validation.photoMime'),
+  maxBytes: t('modules.professionals.validation.maxBytes'),
 } as const
 
 const name = () => tidyText({ max: 120, requiredMessage: M.nameRequired, tooLongMessage: M.nameTooLong })
@@ -112,6 +126,61 @@ const languageSchema = z.object({
 
 const deactivationReasonSchema = z.object({ name: name(), requiresNote: z.boolean(), disablesAccount: z.boolean() })
 
+/**
+ * « Rappels » as typed: up to three whole numbers of days (1–90) separated by commas or spaces
+ * (« 30, 7 »); empty = none. Stored distinct, largest first, as `save_document_type` does.
+ */
+export function parseReminderDays(text: string): number[] | null {
+  const parts = text.split(/[\s,;]+/).filter((p) => p !== '')
+  if (parts.length > 3 || parts.some((p) => !/^[0-9]{1,2}$/.test(p))) return null
+  const days = [...new Set(parts.map(Number))].sort((a, b) => b - a)
+  return days.every((d) => d >= 1 && d <= 90) ? days : null
+}
+
+/**
+ * A document type (« Documents requis », save_document_type): reminders only for the insurance and
+ * with an expiry rule (P4-402); at least one accepted file type, the photo JPEG or PNG only; a size
+ * between 100 Ko and 10 Mo. `key` is the row's (null when adding: a new type is never the insurance).
+ */
+const documentTypeSchema = (key: string | null) =>
+  z
+    .object({
+      name: name(),
+      required: z.boolean(),
+      expiryRule: z.enum(DOCUMENT_EXPIRY_RULES),
+      reminderDays: z.string(),
+      weeklyAfterExpiry: z.boolean(),
+      acceptedMime: z.array(z.enum(DOCUMENT_MIME_TYPES)),
+      maxBytes: z.string(),
+    })
+    .transform((v, ctx) => {
+      const insurance = key === 'insurance'
+      const days = insurance ? parseReminderDays(v.reminderDays) : []
+      if (days === null) ctx.addIssue({ code: 'custom', path: ['reminderDays'], message: M.reminderDays })
+      const weekly = insurance && v.weeklyAfterExpiry
+      if (insurance && v.expiryRule === 'none' && ((days?.length ?? 0) > 0 || weekly)) {
+        ctx.addIssue({ code: 'custom', path: ['expiryRule'], message: M.remindersNeedExpiry })
+      }
+      if (v.acceptedMime.length === 0) ctx.addIssue({ code: 'custom', path: ['acceptedMime'], message: M.acceptedMime })
+      else if (key === 'photo' && v.acceptedMime.some((m) => !PHOTO_MIME_TYPES.includes(m))) {
+        ctx.addIssue({ code: 'custom', path: ['acceptedMime'], message: M.photoMime })
+      }
+      const bytes = Number(v.maxBytes)
+      if (!Number.isInteger(bytes) || bytes < DOCUMENT_TYPE_MIN_BYTES || bytes > DOCUMENT_PURPOSE_MAX_BYTES) {
+        ctx.addIssue({ code: 'custom', path: ['maxBytes'], message: M.maxBytes })
+      }
+      return {
+        name: v.name,
+        required: v.required,
+        expiryRule: v.expiryRule,
+        reminderDays: days ?? [],
+        weeklyAfterExpiry: weekly,
+        // In the order of the list (the RPC sorts them too).
+        acceptedMime: DOCUMENT_MIME_TYPES.filter((m) => v.acceptedMime.includes(m)),
+        maxBytes: bytes,
+      }
+    })
+
 /** The dialogs' form values: strings for text and numbers, booleans for switches. */
 export interface ReferenceFormValues {
   professional_orders: { name: string; acronym: string; licenceLabel: string; licencePattern: string }
@@ -122,6 +191,16 @@ export interface ReferenceFormValues {
   motifs: { name: string; categoryId: string; isRestricted: boolean }
   languages: { name: string; code: string }
   deactivation_reasons: { name: string; requiresNote: boolean; disablesAccount: boolean }
+  /** `reminderDays` as typed (« 30, 7 »), `maxBytes` the chosen size in bytes. */
+  document_types: {
+    name: string
+    required: boolean
+    expiryRule: (typeof DOCUMENT_EXPIRY_RULES)[number]
+    reminderDays: string
+    weeklyAfterExpiry: boolean
+    acceptedMime: (typeof DOCUMENT_MIME_TYPES)[number][]
+    maxBytes: string
+  }
 }
 
 /** Each list's schema: form values in, the save RPC's fields out. */
@@ -134,6 +213,8 @@ export const referenceSchemas = {
   motifs: motifSchema,
   languages: languageSchema,
   deactivation_reasons: deactivationReasonSchema,
+  // A new type's schema; editing a system type goes through `documentTypeSchema(row.key)` (referenceSchema).
+  document_types: documentTypeSchema(null),
 } as const satisfies { [K in ReferenceKind]: z.ZodType<ReferenceFields<K>, ReferenceFormValues[K]> }
 
 /** The duplicate comparison of the save RPCs and the unique indexes: lower(normalize(name, NFKC)). */
@@ -162,7 +243,9 @@ const SYSTEM_RULES: { [K in ReferenceKind]?: SystemRule<K> } = {
  * row holds (archived included) gets the RPC's message.
  */
 export function referenceSchema<K extends ReferenceKind>(kind: K, { rows, current }: ReferenceContext<K>): z.ZodType<ReferenceFields<K>, ReferenceFormValues[K]> {
-  const base = referenceSchemas[kind] as unknown as z.ZodType<ReferenceFields<K>, ReferenceFormValues[K]>
+  // A document type's rules depend on which one it is (the insurance's reminders, the photo's types).
+  const schema = kind === 'document_types' ? documentTypeSchema((current as ReferenceRow<'document_types'> | null)?.key ?? null) : referenceSchemas[kind]
+  const base = schema as unknown as z.ZodType<ReferenceFields<K>, ReferenceFormValues[K]>
   const systemRule = SYSTEM_RULES[kind] as SystemRule<K> | undefined
   const taken = new Set(rows.filter((r) => r.id !== current?.id).map((r) => nameKey(r.name)))
   return base.superRefine((value, ctx) => {
@@ -190,6 +273,16 @@ const TO_FORM: { [K in ReferenceKind]: (row: ReferenceRow<K> | null) => Referenc
   motifs: (r) => ({ name: r?.name ?? '', categoryId: r?.categoryId ?? '', isRestricted: r?.isRestricted ?? false }),
   languages: (r) => ({ name: r?.name ?? '', code: r?.code ?? '' }),
   deactivation_reasons: (r) => ({ name: r?.name ?? '', requiresNote: r?.requiresNote ?? false, disablesAccount: r?.disablesAccount ?? false }),
+  // A new type: optional, no expiry, every file type, 10 Mo (save_document_type's defaults).
+  document_types: (r) => ({
+    name: r?.name ?? '',
+    required: r?.required ?? false,
+    expiryRule: r?.expiryRule ?? 'none',
+    reminderDays: r ? r.reminderDays.join(', ') : '',
+    weeklyAfterExpiry: r?.weeklyAfterExpiry ?? false,
+    acceptedMime: r ? [...r.acceptedMime] : [...DOCUMENT_MIME_TYPES],
+    maxBytes: String(r?.maxBytes ?? DOCUMENT_PURPOSE_MAX_BYTES),
+  }),
 }
 
 /** A dialog's starting values: the row being edited, or a new row's defaults (`row` null). */
