@@ -25,7 +25,7 @@ const NavTabs = React.forwardRef<HTMLDivElement, NavTabsProps>(
     <div
       ref={ref}
       role="tablist"
-      className={cn('flex overflow-x-auto overflow-y-hidden border-b border-border', className)}
+      className={cn('scrollbar-hide flex overflow-x-auto overflow-y-hidden border-b border-border', className)}
       {...props}
     >
       {children}

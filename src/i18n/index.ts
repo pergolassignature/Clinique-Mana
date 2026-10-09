@@ -93,8 +93,8 @@ function template(dictionary: TranslationDictionary, key: string): string {
  * (`t('nav.userMenu', { name: 'Camille' })`); a placeholder without a value stays as written.
  * « de » / « que » right before a name placeholder (`name`, `firstName`, `fullName`) elide when
  * the name starts with a vowel: « Fiche de {name} » → « Fiche d'Aurélie Essai », « Ce que
- * {firstName} a envoyé » → « Ce qu'Aurélie a envoyé ». The template gets French spacing first
- * (`frenchSpacing`): « Supprimer ? » holds a U+202F, never a plain space.
+ * {firstName} a envoyé » → « Ce qu'Aurélie a envoyé ». The template gets French
+ * spacing first (`frenchSpacing`): « Supprimer ? » holds a U+202F, never a plain space.
  */
 export function t(key: TranslationKey, values?: Record<string, string>): string {
   const dictionary = translations[currentLocale]

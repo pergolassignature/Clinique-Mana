@@ -198,6 +198,16 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+
+  /* A strip that scrolls sideways without showing a scrollbar (tab lists on phones): it still
+     scrolls by touch, trackpad and wheel, and a focused tab is scrolled into view. */
+  .scrollbar-hide {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Toasts (sonner.tsx). Outside @layer so they are never purged; the [data-sonner-toaster]

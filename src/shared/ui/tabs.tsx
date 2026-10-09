@@ -8,13 +8,14 @@ import { focusRing } from './field-classes'
  * active, 1px baseline). Real tabs (decision #35): one tab stop, the arrow keys switch views,
  * Tab then goes into the panel. Section tabs inside a form or sheet use NavTabs instead
  * (CLAUDE.md §10). The tabs' focus ring is inset (2px teal): the strip scrolls sideways, so an
- * outer ring would be clipped.
+ * outer ring would be clipped. The strip's scrollbar is hidden (`scrollbar-hide`): it still scrolls
+ * by touch, trackpad and wheel, and the browser scrolls the focused tab into view.
  */
 const Tabs = TabsPrimitive.Root
 
 const TabsList = React.forwardRef<React.ElementRef<typeof TabsPrimitive.List>, React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>>(
   ({ className, ...props }, ref) => (
-    <TabsPrimitive.List ref={ref} className={cn('flex overflow-x-auto overflow-y-hidden border-b border-border', className)} {...props} />
+    <TabsPrimitive.List ref={ref} className={cn('scrollbar-hide flex overflow-x-auto overflow-y-hidden border-b border-border', className)} {...props} />
   )
 )
 TabsList.displayName = TabsPrimitive.List.displayName
