@@ -768,8 +768,9 @@ select results_eq($$ select s.status, s.decision_note, (select count(*)::int fro
                        from public.professional_submissions s where s.id = current_setting('test.s1')::uuid $$,
   $$ values ('submitted'::text, null::text, 2) $$, 'sent again: the note is cleared, a new notice');
 
--- A draft consent text (4c.3) is read by staff only (P4-307); once published, a signature on the
--- previous version is not applied (P4-305). An insurance expired since the sending is not either.
+-- A draft consent text (4c.3) is read by staff only (P4-307). A draft's e-consent answer is never
+-- applied any more (P4-507: the consent is on file once signed through Documenso). An insurance
+-- expired since the sending is not applied (P4-305).
 reset role;
 insert into public.consent_versions (org_id, key, version, title, body)
 values (current_setting('test.a')::uuid, 'image_rights', 2, 'Consentement au droit à l''image', 'Texte révisé.');
@@ -785,13 +786,15 @@ update public.consent_versions set published_at = now() where org_id = current_s
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['consent']) $$,
-  'P0001', 'Le texte du consentement a changé depuis la signature.', 'apply: a consent signed on a version that is no longer the latest');
-select is(private.test_error_hint($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['consent']) $$),
-  'Renvoyez le profil au professionnel : il signera la nouvelle version.', '… with the sheet''s button in its hint (P4-369)');
-select is((select f -> 'submitted' ->> 'is_latest'
+  '22023', 'Champ non soumis.', 'apply: a draft''s e-consent answer is never applied (P4-507)');
+select is((select f -> 'answered'
              from jsonb_array_elements(public.get_submission_review(current_setting('test.s1')::uuid) -> 'sections') sec,
                   jsonb_array_elements(sec -> 'fields') f
-            where f ->> 'field' = 'consent'), 'false', 'the review says the consent names an older text, before « Appliquer » (P4-378)');
+            where f ->> 'field' = 'consent'), 'false'::jsonb, 'the review offers no consent to apply');
+select is((select f -> 'submitted'
+             from jsonb_array_elements(public.get_submission_review(current_setting('test.s1')::uuid) -> 'sections') sec,
+                  jsonb_array_elements(sec -> 'fields') f
+            where f ->> 'field' = 'consent'), 'null'::jsonb, '… and reads no e-consent answer (only a Documenso signature, 083)');
 reset role;
 delete from public.consent_versions where org_id = current_setting('test.a')::uuid and version = 2;
 update public.professional_submissions
@@ -811,7 +814,7 @@ update public.professional_submissions
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select lives_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid,
-  array['consent', 'postal_code', 'personal_phone', 'professions', 'motif_ids', 'language_ids', 'clienteles', 'women_only', 'photo', 'bank_account', 'bank_institution']) $$,
+  array['postal_code', 'personal_phone', 'professions', 'motif_ids', 'language_ids', 'clienteles', 'women_only', 'photo', 'bank_account', 'bank_institution']) $$,
   'the adjointe applies a selection, private values included, without seeing them');
 reset role;
 select results_eq($$ select p.personal_phone, p.postal_code, p.city, p.status from public.professionals p where p.id = current_setting('test.p1')::uuid $$,
@@ -830,11 +833,8 @@ select results_eq($$ select f.subject_type, f.subject_id, f.view_permission, f.o
              'professionals.self'::text, null::timestamptz) $$, 'the photo is attached to the professional, no longer staged');
 select ok((select f.retain_until is not null and f.subject_type = 'professional_submission' from public.stored_files f
             where f.id = 'e0000000-0000-0000-0000-000000000002'), 'the insurance not chosen stays staged');
-select results_eq($$ select c.consent_version_id, c.signer_name, c.expires_on = ((c.signed_at at time zone 'America/Toronto')::date + interval '12 months')::date,
-                            c.submission_id
-                       from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid $$,
-  $$ values (current_setting('test.consent_v1')::uuid, 'paul ÚN'::text, true, current_setting('test.s1')::uuid) $$,
-  'the consent: valid 12 months from the clinic date of the signature');
+select is_empty($$ select 1 from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid $$,
+  'no e-consent row is written any more (P4-507)');
 select results_eq($$ select pp.bank_institution, pp.bank_account_last4, pp.business_number, private.decrypt_pii(pp.bank_account, pp.key_version),
                             pp.updated_by
                        from public.professional_private pp where pp.professional_id = current_setting('test.p1')::uuid $$,
@@ -843,7 +843,7 @@ select results_eq($$ select pp.bank_institution, pp.bank_account_last4, pp.busin
 select results_eq($$ select s.status, s.reviewed_by, s.applied_fields from public.professional_submissions s where s.id = current_setting('test.s1')::uuid $$,
   $$ values ('approved'::text, 'a0000000-0000-0000-0000-000000000002'::uuid,
              array['personal_phone', 'postal_code', 'professions', 'language_ids', 'clienteles', 'women_only', 'motif_ids', 'photo', 'bank_institution',
-                   'bank_account', 'consent']) $$, 'approved, with the fields applied in questionnaire order');
+                   'bank_account']) $$, 'approved, with the fields applied in questionnaire order');
 select is_empty($$ select 1 from public.professional_submission_private sp where sp.submission_id = current_setting('test.s1')::uuid $$,
   'the submission''s private copy is deleted (Loi 25)');
 select ok(exists (select 1 from public.audit_log a where a.table_name = 'professional_professions' and left(a.record_id, 36) = current_setting('test.p1')
@@ -857,9 +857,9 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is(public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account'), '1234567', 'the admin reveals the applied account');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid) -> 'items',
   '[{"key": "matching_profile", "done": true, "missing": []}, {"key": "account_created", "done": true, "missing": []},
-    {"key": "submission_approved", "done": true, "missing": []}, {"key": "documents", "done": false, "missing": ["insurance"]},
+    {"key": "submission_approved", "done": true, "missing": []}, {"key": "documents", "done": false, "missing": ["insurance", "image_consent"]},
     {"key": "contract_signed", "done": false, "missing": []}]'::jsonb,
-  'readiness: matching, account, questionnaire; of the documents (4c.2), the approved photo and e-consent count, the insurance (not chosen) is missing; the contract (4d.1) still to sign');
+  'readiness: matching, account, questionnaire; of the documents (4c.2), the approved photo counts, the insurance (not chosen) and the image consent (none signed through Documenso, P4-507) are missing; the contract (4d.1) still to sign');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid) - 'items' - 'insurance',
   '{"complete": false, "done": 3, "total": 5, "warnings": []}'::jsonb, 'the file waits for its insurance and its contract');
 select results_eq($$ select r.account_created, r.submission_approved, r.ready from public.professionals_readiness r
@@ -876,7 +876,7 @@ select throws_ok($$ select public.get_professional_onboarding(current_setting('t
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select set_eq($$ select distinct h.table_name from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
                   where h.table_name in ('professional_submissions', 'professional_consents', 'professional_submission_private') $$,
-  array['professional_submissions', 'professional_consents'], 'the history shows submissions and consents, never the private answers');
+  array['professional_submissions'], 'the history shows the submissions, never the private answers');
 
 -- The provider reads her own masks (« Mon profil »).
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);

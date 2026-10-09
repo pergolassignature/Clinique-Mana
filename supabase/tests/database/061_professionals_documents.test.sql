@@ -162,7 +162,8 @@ select results_eq($$ select key, is_system, required, expiry_rule, reminder_days
                        from public.document_types where org_id = current_setting('test.a')::uuid order by sort_order $$,
   $$ values ('photo'::text, true, true, 'none'::text, '{}'::int[], false, 5242880),
             ('insurance', true, true, 'next_march_31', '{7}', true, 10485760),
-            ('image_consent', true, true, 'months_12', '{}', false, 10485760),
+            -- No expiry since P4-504 (*_professionals_image_consent_no_expiry.sql).
+            ('image_consent', true, true, 'none', '{}', false, 10485760),
             ('cv', false, false, 'none', '{}', false, 10485760),
             ('diploma', false, false, 'none', '{}', false, 10485760),
             ('licence_attestation', false, false, 'none', '{}', false, 10485760),
@@ -443,20 +444,17 @@ select is(public.get_professional_documents() ->> 'professional_id', 'c0000000-0
 select is((select x ->> 'reviewed_by_name' from jsonb_array_elements(public.get_professional_documents() -> 'documents') x), null,
   'the provider does not get the reviewer''s name');
 select is(public.get_professional_documents('c0000000-0000-0000-0000-000000000001'), null, 'never another professional''s');
--- P4-472: her e-consent without the signer's name (a re-linked account would read the previous
--- holder's, P4-420); staff read it.
+-- P4-507: the retired e-consent is no longer read (P4-472's signer name with it): `consent` is null.
 reset role;
 insert into public.professional_consents (org_id, professional_id, consent_version_id, signer_name, signed_at, expires_on)
 select current_setting('test.a')::uuid, 'c0000000-0000-0000-0000-000000000002', v.id, 'Ancienne Titulaire', now() - interval '2 days',
        current_setting('test.today')::date + 300
   from public.consent_versions v where v.org_id = current_setting('test.a')::uuid order by v.version desc limit 1;
 set local role authenticated;
-select ok((public.get_professional_documents() -> 'consent' ->> 'signer_name') is null
-          and (public.get_professional_documents() -> 'consent' ->> 'version') is not null,
-  'the provider reads her consent''s version and dates, never the signer''s name');
+select is(public.get_professional_documents() -> 'consent', 'null'::jsonb, 'the provider reads no e-consent (P4-507)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select is(public.get_professional_documents('c0000000-0000-0000-0000-000000000002') #>> '{consent,signer_name}', 'Ancienne Titulaire',
-  'staff read the signer''s name');
+select is(public.get_professional_documents('c0000000-0000-0000-0000-000000000002') -> 'consent', 'null'::jsonb,
+  'nor do staff');
 reset role;
 delete from public.professional_consents where professional_id = 'c0000000-0000-0000-0000-000000000002';
 set local role authenticated;
@@ -480,23 +478,33 @@ select results_eq($$ select r.photo_ok, r.insurance_ok, r.consent_ok, r.document
                        from public.professionals_readiness r where r.professional_id = 'c0000000-0000-0000-0000-000000000001' $$,
   $$ values (true, true, false, false, 2, 3, 'valid'::text) $$, 'readiness columns');
 reset role;
--- An e-consent in force satisfies the image consent.
+-- A verified consent document (here a paper one) satisfies the image consent, with no end date
+-- (P4-504); a retired e-consent does not (P4-507).
 insert into public.professional_consents (org_id, professional_id, consent_version_id, signer_name, signed_at, expires_on)
 select current_setting('test.a')::uuid, 'c0000000-0000-0000-0000-000000000001', v.id, 'Paul Un', now() - interval '1 day',
        current_setting('test.today')::date + 300
   from public.consent_versions v where v.org_id = current_setting('test.a')::uuid order by v.version desc limit 1;
-set local role authenticated;
-select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'items' -> 3,
-  '{"key": "documents", "done": true, "missing": []}'::jsonb, 'the e-consent satisfies the image consent');
-reset role;
-update public.professional_consents set withdrawn_at = now(), withdrawal_effective_on = current_setting('test.today')::date
- where professional_id = 'c0000000-0000-0000-0000-000000000001';
+insert into public.stored_files
+  (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, original_name, mime_type, ext,
+   size_bytes, sha256, status, view_permission, uploaded_by, confirmed_at)
+values ('e0000000-0000-0000-0000-0000000000c1', current_setting('test.a')::uuid, 'documents',
+        current_setting('test.a') || '/professionals/c0000000-0000-0000-0000-000000000001/e0000000-0000-0000-0000-0000000000c1.pdf',
+        'professionals', 'professional_document', 'professional', 'c0000000-0000-0000-0000-000000000001', 'consentement.pdf',
+        'application/pdf', 'pdf', 2048, repeat('a', 64), 'ready', 'professionals.view', 'a0000000-0000-0000-0000-000000000002', now());
+insert into public.professional_documents (id, org_id, professional_id, document_type_id, stored_file_id, status, uploaded_by, reviewed_at)
+select 'd0000000-0000-0000-0000-0000000000c1', current_setting('test.a')::uuid, 'c0000000-0000-0000-0000-000000000001', t.id,
+       'e0000000-0000-0000-0000-0000000000c1', 'pending', 'a0000000-0000-0000-0000-000000000002', null
+  from public.document_types t where t.org_id = current_setting('test.a')::uuid and t.key = 'image_consent';
 set local role authenticated;
 select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'items' -> 3 -> 'missing',
-  '["image_consent"]'::jsonb, 'a withdrawal in effect today no longer counts');
+  '["image_consent"]'::jsonb, 'an e-consent, or a consent document waiting for review, does not count');
 reset role;
-update public.professional_consents set withdrawn_at = null, withdrawal_effective_on = null
- where professional_id = 'c0000000-0000-0000-0000-000000000001';
+update public.professional_documents set status = 'verified', reviewed_at = now() where id = 'd0000000-0000-0000-0000-0000000000c1';
+delete from public.professional_consents where professional_id = 'c0000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'items' -> 3,
+  '{"key": "documents", "done": true, "missing": []}'::jsonb, 'a verified consent document satisfies the image consent');
+reset role;
 -- The insurance: expiring, then expired (missing vs expired).
 update public.professional_documents set expires_on = current_setting('test.today')::date + 3 where id = current_setting('test.d_ins1')::uuid;
 set local role authenticated;

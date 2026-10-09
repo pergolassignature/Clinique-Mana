@@ -3348,9 +3348,9 @@
         "ownFile": "C'est votre propre dossier : une autre personne autorisée vérifie, refuse ou supprime vos documents.",
         "state": {
           "validUntil": "Valide jusqu'au {date}",
-          "signedValidUntil": "Signé le {date} · valide jusqu'au {until}",
+          "signedOn": "Signé le {date}",
           "verified": "Vérifié",
-          "expiring": "Expire le {date}",
+          "expiring": "Expire bientôt : valide jusqu'au {date}",
           "expiredOn": "Expiré : valide jusqu'au {date}",
           "expired": "Expiré",
           "pending": "À vérifier",
@@ -3379,9 +3379,6 @@
           "insurer": "Assureur : {value}",
           "policy": "N° de police : {value}",
           "fileGone": "Le fichier a été retiré.",
-          "consent": "Signé électroniquement le {date} par {name} (version {version})",
-          "consentNoName": "Signé électroniquement le {date} (version {version})",
-          "consentWithdrawn": "Retrait demandé : il prend effet le {date}.",
           "newPending": "Nouveau document",
           "showReview": "Voir le questionnaire à réviser",
           "none": "Aucun document pour l'instant."
@@ -3631,14 +3628,13 @@
       },
       "consentSign": {
         "loadError": "Votre consentement n'a pas pu être chargé.",
-        "summary": "Ce formulaire autorise la clinique à utiliser votre photo professionnelle sur son site web, sur votre fiche et dans ses communications internes, pour 12 mois. Vous le lisez et le signez ici, en ligne.",
+        "summary": "Ce formulaire autorise la clinique à utiliser votre photo professionnelle sur son site web, sur votre fiche et dans ses communications internes. Vous le lisez et le signez ici, en ligne.",
         "sign": "Signer le consentement",
         "fill": "Remplir et signer",
-        "renew": "Renouveler : remplir et signer",
         "opening": "Préparation…",
         "retry": "Réessayer",
-        "signedOn": "Signé le {date} · valide jusqu'au {until}",
-        "validUntil": "Consentement en vigueur jusqu'au {until}",
+        "signedOn": "Signé le {date}",
+        "onFile": "Consentement au dossier",
         "notSignedYet": "Pas encore signé.",
         "notPublished": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard. Vous pouvez envoyer votre profil sans attendre.",
         "notPublishedDocuments": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard.",
@@ -3673,7 +3669,7 @@
         "none": "Aucun formulaire de consentement n'a encore été envoyé à {firstName} pour signature électronique.",
         "noTemplate": "Aucun modèle de consentement publié : publiez « Consentement au droit à l'image » avant d'envoyer.",
         "failedHelp": "« Réessayer l'envoi » renvoie le consentement tel qu'il a été préparé. Si le nom ou l'adresse courriel du dossier a changé depuis, corrigez-le, puis utilisez « Régénérer ».",
-        "signedHelp": "Le PDF signé est au dossier ci-dessous : il compte comme consentement valide pendant 12 mois.",
+        "signedHelp": "Le PDF signé est au dossier ci-dessous : il compte comme consentement valide, sans date de fin.",
         "journal": {
           "viewed": "{name} a consulté le consentement le {date}",
           "completed": "Consentement signé et PDF signé conservé le {date}"
@@ -3706,7 +3702,7 @@
           },
           "renew": {
             "title": "Envoyer un nouveau consentement à {firstName} ?",
-            "body": "Un nouveau formulaire (version {version} du modèle) est envoyé à {firstName} pour signature. Le consentement signé reste au dossier; le nouveau le remplacera une fois signé, pour 12 mois.",
+            "body": "Un nouveau formulaire (version {version} du modèle) est envoyé à {firstName} pour signature. Le consentement signé reste au dossier; le nouveau le remplacera une fois signé.",
             "action": "Envoyer pour signature"
           }
         },

@@ -17,9 +17,9 @@ const S = 'modules.professionals.consentSign'
 /**
  * The professional's image consent, filled in and signed in the app (P4-487 – P4-489): the
  * questionnaire's « Consentement » step (`variant="step"`) and « Mes documents »' card
- * (`variant="documents"`). In force → « Signé le … · valide jusqu'au … »; the form not published →
- * the clinic sends it later (never a block); otherwise a short summary and « Signer le
- * consentement » (« Remplir et signer », « Renouveler : remplir et signer » once expired), which
+ * (`variant="documents"`). In force → « Signé le … » (it never expires, P4-504); the form not
+ * published → the clinic sends it later (never a block); otherwise a short summary and « Signer le
+ * consentement » (« Remplir et signer » on « Mes documents »), which
  * opens Documenso's page inside this one (`EmbeddedSigning`, with its fallback). Back from the full
  * signing page (`?consentement=signe`), the signature is synced at once.
  */
@@ -94,8 +94,7 @@ export function ConsentSigning({ back, variant, cardSaysInForce = false }: { bac
   if (signing.link) {
     return <EmbeddedSigning link={signing.link} onCompleted={signing.completed} onClose={signing.close} />
   }
-  const renew = data.request?.status === 'signed'
-  const label = variant === 'step' ? t(`${S}.sign`) : renew ? t(`${S}.renew`) : t(`${S}.fill`)
+  const label = variant === 'step' ? t(`${S}.sign`) : t(`${S}.fill`)
   return (
     <div className="space-y-3">
       {variant === 'step' && <p className="text-sm text-foreground">{t(`${S}.summary`)}</p>}
@@ -119,7 +118,7 @@ export function ConsentSigning({ back, variant, cardSaysInForce = false }: { bac
   )
 }
 
-/** « Révision »'s line for the consent: in force (with its dates), to sign later, or not signed yet. */
+/** « Révision »'s line for the consent: in force (« Signé le … »), to sign later, or not signed yet. */
 export function MyConsentSummary() {
   const consent = useMyImageConsent()
   if (consent.isPending) return <Loading />

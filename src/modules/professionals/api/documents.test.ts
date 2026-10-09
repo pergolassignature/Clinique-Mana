@@ -16,7 +16,7 @@ import {
 } from './documents'
 import { UNEXPECTED_SHAPE } from './parse'
 import { IDS } from '../test/fixtures'
-import { CONSENT_JSON, DOC_IDS, documentJson, documentsJson } from '../test/fixtures-documents'
+import { DOC_IDS, documentJson, documentsJson } from '../test/fixtures-documents'
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), invokeFunction: vi.fn(), uploadFile: vi.fn(), signedFileUrl: vi.fn() }))
 vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc } }))
@@ -45,13 +45,13 @@ describe('fetchProfessionalDocuments / fetchMyDocuments', () => {
       uploadedBySelf: true,
       file: { id: DOC_IDS.insuranceFile, name: 'assurance-2026.pdf', mimeType: 'application/pdf', sizeBytes: 245_760 },
     })
-    expect(data?.consent?.signerName).toBe('Marie Tremblay')
   })
 
-  it('the provider’s own consent comes without the signer’s name (null, P4-472)', async () => {
-    ok(documentsJson({ consent: { ...CONSENT_JSON, signer_name: null } }))
+  it('the signed image consent is a document without an end date; the retired e-consent is not read (P4-504, P4-507)', async () => {
+    ok(documentsJson())
     const data = await fetchMyDocuments()
-    expect(data?.consent).toMatchObject({ version: 1, signerName: null, signedAt: CONSENT_JSON.signed_at })
+    expect(data?.documents[2]).toMatchObject({ typeKey: 'image_consent', expiresOn: null, signatureRequestId: '00000000-0000-4000-8000-00000000c501' })
+    expect(data).not.toHaveProperty('consent')
   })
 
   it('« Mes documents » asks for her own record (no id); null without a file', async () => {

@@ -270,11 +270,13 @@ describe('QuestionnairePage — steps', () => {
     expect(screen.getByRole('link', { name: t('modules.professionals.consentSign.openInPage') })).toHaveAttribute('href', 'http://127.0.0.1:55390/sign/tok_1')
     mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
       available: true,
-      validUntil: '2027-10-08',
+      validUntil: '2100-12-31',
       request: { status: 'signed', lastError: null, sentAt: '2026-10-08T16:00:00Z', completedAt: '2026-10-08T16:02:00Z', signedAt: '2026-10-08T16:02:00Z' },
     })
     await userEvent.click(within(frame).getByRole('button', { name: 'Documenso : signer' }))
-    expect(await screen.findByText(/^Signé le .* · valide jusqu'au 8 octobre 2027$/)).toBeInTheDocument()
+    // No end date: the consent never expires (P4-504).
+    expect(await screen.findByText(t('modules.professionals.consentSign.signedOn', { date: '8 oct. 2026' }))).toBeInTheDocument()
+    expect(screen.queryByText(/valide jusqu/)).not.toBeInTheDocument()
     expect(mocks.consentSign.syncMyConsent).toHaveBeenCalledOnce()
     expect(screen.queryByTestId('documenso-frame')).not.toBeInTheDocument()
   })
@@ -754,7 +756,7 @@ describe('QuestionnairePage — consent and review', () => {
     await waitFor(() => expect(mocks.consentSign.syncMyConsent).toHaveBeenCalledOnce())
   })
 
-  it('reads « Signé (version n) » on a sent profile once the clinic published a newer text', async () => {
+  it('never reads a draft’s former e-consent answer on a sent profile: the consent signed through Documenso only (P4-507)', async () => {
     current = mySubmission({
       status: 'submitted',
       submitted_at: '2026-10-08T15:00:00Z',
@@ -766,9 +768,8 @@ describe('QuestionnairePage — consent and review', () => {
     renderPage()
     await screen.findByRole('heading', { level: 1, name: t(`${Q}.states.submitted.pageTitle`) })
     expect(
-      screen.getByText(t(`${Q}.review.signedVersion`, { version: '1', date: formatClinicDateTime('2026-10-08T14:00:00Z'), name: 'Félix Gauthier' })),
-    ).toBeInTheDocument()
-    expect(screen.queryByText(t(`${Q}.review.notSigned`))).not.toBeInTheDocument()
+      screen.queryByText(t(`${Q}.review.signedVersion`, { version: '1', date: formatClinicDateTime('2026-10-08T14:00:00Z'), name: 'Félix Gauthier' })),
+    ).not.toBeInTheDocument()
   })
 
   it('reads a prefilled section never confirmed « À confirmer »', async () => {

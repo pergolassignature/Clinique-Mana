@@ -1,8 +1,8 @@
 import { t } from '@/i18n'
 import { formatMegabytes } from '@/shared/lib/files'
-import { formatClinicDateShort, formatDateOnly, isCalendarDate, shiftCalendarDay } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnly, isCalendarDate } from '@/shared/lib/timezone'
 import type { StatusTone } from '@/shared/ui/status-dot'
-import type { ProfessionalConsent, ProfessionalDocument, ProfessionalDocuments, StagedDocument } from '../api/documents'
+import type { ProfessionalDocument, ProfessionalDocuments, StagedDocument } from '../api/documents'
 import type { DocumentType } from '../api/parse'
 import type { DocumentExpiryRule, DocumentMimeType } from './constants'
 import { listLabel } from './display'
@@ -45,16 +45,6 @@ export function defaultExpiry(rule: DocumentExpiryRule, today: string): string |
 /** The largest reminder (days before the last valid day): the « bientôt échu » window; 0 without one. */
 const reminderWindow = (type: DocumentType) => Math.max(0, ...type.reminderDays)
 
-/**
- * The last day an e-consent is in force: its own last day, or the day before its withdrawal takes
- * effect (as the readiness view, P4-405).
- */
-export function consentLastDay(consent: ProfessionalConsent): string {
-  if (!consent.withdrawalEffectiveOn) return consent.expiresOn
-  const before = shiftCalendarDay(consent.withdrawalEffectiveOn, -1)
-  return before < consent.expiresOn ? before : consent.expiresOn
-}
-
 /** `submitted`: nothing counts yet, but the questionnaire waiting for review holds it (P4-495). */
 export type DocumentStateKind = 'valid' | 'expiring' | 'expired' | 'pending' | 'submitted' | 'rejected' | 'missing'
 
@@ -68,9 +58,7 @@ export interface TypeDocuments {
   pending: ProfessionalDocument | null
   /** The newest document when it was refused (and nothing waits since). */
   rejected: ProfessionalDocument | null
-  /** The image consent's e-consent while it is in force (it satisfies the type, P4-405). */
-  consent: ProfessionalConsent | null
-  /** The last valid day shown (the current document's, or the e-consent's), if any. */
+  /** The last valid day shown (the current document's), if any; never for the image consent (P4-504). */
   until: string | null
   /** The type's other documents (superseded, older refusals), newest first. */
   older: ProfessionalDocument[]
@@ -88,9 +76,10 @@ const isValid = (d: ProfessionalDocument, today: string, rule: DocumentExpiryRul
 /**
  * The state of one type on the clinic's `today`: valid (or expiring within the type's largest
  * reminder), expired, pending (nothing valid yet, a document waits), refused (the newest one,
- * nothing waiting), missing. For the image consent, an e-consent in force counts as valid.
+ * nothing waiting), missing. The image consent is a document like the others (signed through
+ * Documenso, or a paper one), with no end date (P4-504, P4-507).
  */
-export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocuments, 'documents' | 'consent' | 'today'> & Partial<Pick<ProfessionalDocuments, 'staged'>>): TypeDocuments {
+export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocuments, 'documents' | 'today'> & Partial<Pick<ProfessionalDocuments, 'staged'>>): TypeDocuments {
   const { today } = data
   const docs = data.documents.filter((d) => d.typeId === type.id)
   const reviewed = docs.filter((d) => d.status === 'verified' || d.status === 'expired')
@@ -101,23 +90,15 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
       : reviewed.reduce<ProfessionalDocument | null>((best, d) => (best === null || (d.expiresOn ?? '') > (best.expiresOn ?? '') ? d : best), null)
   const pending = docs.find((d) => d.status === 'pending') ?? null
   const rejected = pending === null && docs[0]?.status === 'rejected' ? docs[0] : null
-  // The payload holds the latest e-consent only (the view takes the latest valid one of all: the
-  // same unless a newer one ends sooner, a case the questionnaire does not produce).
-  const consent = type.key === 'image_consent' && data.consent && consentLastDay(data.consent) >= today ? data.consent : null
   const older = docs.filter((d) => d !== current && d !== pending && d !== rejected)
   const staged = data.staged?.find((x) => x.typeKey === type.key) ?? null
 
   let kind: DocumentStateKind
   let until: string | null = null
   if (current && isValid(current, today, type.expiryRule)) {
-    // The image consent: the later of the document's last day and the e-consent's.
-    const consentUntil = consent ? consentLastDay(consent) : null
-    until = consentUntil !== null && current.expiresOn !== null && consentUntil > current.expiresOn ? consentUntil : current.expiresOn
+    until = current.expiresOn
     const window = reminderWindow(type)
     kind = until !== null && window > 0 && daysBetween(today, until) <= window ? 'expiring' : 'valid'
-  } else if (consent) {
-    kind = 'valid'
-    until = consentLastDay(consent)
   } else if (current) {
     kind = 'expired'
     until = current.expiresOn
@@ -130,8 +111,16 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
   }
   // Sent with the questionnaire, waiting for review: never « Manquant » (nor « Refusé », « Expiré »).
   if (staged?.status === 'submitted' && (kind === 'missing' || kind === 'rejected' || kind === 'expired')) kind = 'submitted'
-  return { type, kind, current, pending, rejected, consent, until, older, staged }
+  return { type, kind, current, pending, rejected, until, older, staged }
 }
+
+/**
+ * Whether the file holds an image consent in force: a verified « Consentement droit à l'image »
+ * document (signed through Documenso, or a paper one). It never expires (P4-504) and is the only
+ * source (P4-507). The fiche prints the photo only then (P4-512).
+ */
+export const imageConsentOnFile = (documents: readonly Pick<ProfessionalDocument, 'typeKey' | 'status'>[]) =>
+  documents.some((d) => d.typeKey === 'image_consent' && d.status === 'verified')
 
 /**
  * The professional's own draft holds this type while nothing counts (P4-495): « Ajouté à votre
@@ -329,7 +318,7 @@ export type InsuranceBanner = { kind: 'expiring'; until: string } | { kind: 'exp
  */
 export function insuranceBanner(
   types: readonly DocumentType[],
-  data: Pick<ProfessionalDocuments, 'documents' | 'consent' | 'today'> & Partial<Pick<ProfessionalDocuments, 'staged'>>,
+  data: Pick<ProfessionalDocuments, 'documents' | 'today'> & Partial<Pick<ProfessionalDocuments, 'staged'>>,
 ): InsuranceBanner | null {
   const type = types.find((x) => x.key === 'insurance' && x.isActive)
   if (!type) return null

@@ -65,30 +65,6 @@ const documentPayload = z
 export type ProfessionalDocument = z.output<typeof documentPayload>
 export type DocumentFile = NonNullable<ProfessionalDocument['file']>
 
-const consentPayload = z
-  .object({
-    id: z.string(),
-    version: z.number(),
-    /** Staff only: null for the provider (P4-420, P4-472: a re-linked account would read the previous holder's). */
-    signer_name: z.string().nullable(),
-    signed_at: z.string(),
-    expires_on: z.string(),
-    withdrawn_at: z.string().nullable(),
-    withdrawal_effective_on: z.string().nullable(),
-  })
-  .transform((c) => ({
-    id: c.id,
-    version: c.version,
-    signerName: c.signer_name,
-    signedAt: c.signed_at,
-    /** Last valid day (date-only). */
-    expiresOn: c.expires_on,
-    withdrawnAt: c.withdrawn_at,
-    /** The withdrawal takes effect on this day (3 months' notice, A3.5). */
-    withdrawalEffectiveOn: c.withdrawal_effective_on,
-  }))
-export type ProfessionalConsent = z.output<typeof consentPayload>
-
 const stagedPayload = z
   .object({
     type_key: z.enum(['photo', 'insurance', 'image_consent']),
@@ -118,7 +94,6 @@ export const documentsPayload = z
     today: z.string(),
     photo: z.object({ document_id: z.string(), file_id: z.string() }).nullable(),
     documents: z.array(documentPayload),
-    consent: consentPayload.nullable(),
     // Absent from a database not yet migrated (the web app and the migration ship together).
     staged: z.array(stagedPayload).default([]),
   })
@@ -130,8 +105,6 @@ export const documentsPayload = z
     photo: p.photo ? { documentId: p.photo.document_id, fileId: p.photo.file_id } : null,
     /** Newest first, at most 200. */
     documents: p.documents,
-    /** The latest e-consent (« droit à l'image »), if any. */
-    consent: p.consent,
     /** The open questionnaire's photo, insurance and image consent, by type key (P4-495). */
     staged: p.staged,
   }))
