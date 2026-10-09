@@ -1,8 +1,8 @@
 /**
  * Fixtures for the Professionnels function tests (Task 4b.2): ids, the
- * caller's access and `get_email_context` results for the module's four
- * templates (the 4b.1 seed's subjects, buttons and variables, shortened
- * bodies). Test-only: never deployed.
+ * caller's access and `get_email_context` results for the module's
+ * templates (the 4b.1 and 4c.2 seeds' subjects, buttons and variables,
+ * shortened bodies). Test-only: never deployed.
  */
 import { accessFixture, emailContextFixture } from './email-fixtures.ts'
 
@@ -53,6 +53,11 @@ const VARIABLE = {
     sample: '15 octobre 2026 à 14 h 30',
     kind: 'datetime',
   },
+  'document.expires_on': {
+    label: 'Fin de l’assurance',
+    sample: '31 mars 2027',
+    kind: 'date',
+  },
 } as const
 
 const TEMPLATES: Record<
@@ -91,6 +96,27 @@ const TEMPLATES: Record<
     body: 'Bonjour,\n\n{{professional.full_name}} a envoyé son profil.',
     button: 'Réviser le dossier',
     paths: ['professional.full_name'],
+  },
+  'professionals.document_expiring': {
+    subject: 'Votre assurance prend fin le {{document.expires_on}}',
+    body: 'Bonjour {{professional.first_name}},\n\n' +
+      'Votre preuve chez {{clinic.name}} prend fin le {{document.expires_on}}.',
+    button: 'Téléverser ma preuve',
+    paths: ['professional.first_name', 'clinic.name', 'document.expires_on'],
+  },
+  'professionals.document_expired': {
+    subject: 'Votre assurance est échue',
+    body: 'Bonjour {{professional.first_name}},\n\n' +
+      'Votre preuve chez {{clinic.name}} a pris fin le {{document.expires_on}}.',
+    button: 'Téléverser ma preuve',
+    paths: ['professional.first_name', 'clinic.name', 'document.expires_on'],
+  },
+  'professionals.document_expired_reminder': {
+    subject: 'Rappel : votre preuve d’assurance est attendue',
+    body: 'Bonjour {{professional.first_name}},\n\n' +
+      'Fin le {{document.expires_on}} ; {{clinic.name}} attend la nouvelle.',
+    button: 'Téléverser ma preuve',
+    paths: ['professional.first_name', 'clinic.name', 'document.expires_on'],
   },
 }
 
