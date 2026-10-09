@@ -56,7 +56,7 @@ import {
   verifyAuth,
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
-import { rpcErrorResponse } from '../_shared/errors.ts'
+import { isExpectedRpcError, rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
 import { type ImageKind, imageSizeReader } from '../_shared/image-size.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
@@ -165,7 +165,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       p_file_id: fileId,
     })
     if (pending.error) {
-      if (!['P0001', '42501', '22023'].includes(pending.error.code ?? '')) {
+      if (!isExpectedRpcError(pending.error)) {
         return await fail('get_pending_failed')
       }
       return rpcErrorResponse(pending.error, req)

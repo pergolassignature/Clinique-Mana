@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { setFrenchSpacing } from '@/i18n'
 import type { ProfessionalRecord } from '../api/parse'
 import { IDS } from '../test/fixtures'
 import { CATALOG_VIEW, GENDERED_CATALOG_VIEW, motifsCatalog, recordFixture, seventyTwoMotifsCatalog, socialWorkerRecord } from '../test/fixtures-domain'
@@ -187,6 +188,27 @@ describe('buildFicheContent', () => {
       fees: ['Rencontre 50\u00a0min\u00a0: 175\u00a0$', 'Rencontre 30\u00a0min\u00a0: 130\u00a0$', 'Rencontre 60\u00a0min (couple/famille)\u00a0: 200\u00a0$'],
       photo: 'data:image/png;base64,x',
     })
+  })
+
+  it('holds no plain space before « ? ! ; : » or inside « » in the words it writes (French spacing, as t() gives it)', () => {
+    setFrenchSpacing(true)
+    try {
+      const fees = [
+        { duration: 50, clientPriceCents: 17500 },
+        { duration: 60, clientPriceCents: 20000 },
+      ] as const
+      const record = { matchingProfile: { ...recordFixture().matchingProfile, minClientAge: 14, womenOnly: true }, clienteles: [] }
+      const content = buildFicheContent(input({ fees }, record))
+      // The words the fiche builds itself or takes from t(); the professional's own texts are values.
+      const written = [content.title, content.credential, content.footerContact, content.closing?.body, ...(content.fees ?? []), ...content.clientLimits]
+      expect(written.filter((text): text is string => Boolean(text)).length).toBeGreaterThan(5)
+      for (const text of written) if (text) expect(text).not.toMatch(/ [?!;:]|«[^\u00a0\u202f]|[^\u00a0\u202f]»/)
+      // The PDF prints U+202F as a no-break space (the fonts lack it).
+      expect(content.fees?.[0]).toBe('Rencontre 50\u00A0min\u00A0: 175\u00A0$')
+      expect(content.clientLimits).toContain('Âge minimum\u00A0: 14 ans')
+    } finally {
+      setFrenchSpacing(false)
+    }
   })
 
   it('passes every text through what the fonts can draw', () => {

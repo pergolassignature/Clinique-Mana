@@ -20,6 +20,10 @@
  *   single pass: a value is never read as markup or as a placeholder.
  * - The subject is plain text on one line: control characters (line breaks
  *   included) and U+2028/U+2029 become spaces, and runs of spaces collapse.
+ * - French spacing (`../french.ts`): the template text (subject, body, button
+ *   label: defaults and clinic edits alike) gets a U+202F before « ? ! ; : »
+ *   and inside « » before any value is inserted, so a value (an address, a
+ *   URL, a time) is never rewritten.
  */
 import {
   formatValue,
@@ -28,6 +32,7 @@ import {
   type TemplateVariable,
   valueAt,
 } from '../format.ts'
+import { frenchSpacing } from '../french.ts'
 import { escapeHtml, toHtml, toText } from './markup.ts'
 
 // The email path's callers import these from here.
@@ -86,14 +91,20 @@ export function renderTemplate(input: RenderInput): RenderResult {
   }
 
   const byPath = new Map(input.variables.map((v) => [v.path, v]))
-  const htmlBody = toHtml(input.body)
-  const textBody = toText(input.body)
+  // French spacing on the template text only: values are filled afterwards.
+  const subject = frenchSpacing(input.subject)
+  const body = frenchSpacing(input.body)
+  const buttonLabel = input.buttonLabel === null
+    ? null
+    : frenchSpacing(input.buttonLabel)
+  const htmlBody = toHtml(body)
+  const textBody = toText(body)
   // The texts as written, then the parts actually filled (the text part drops
   // bold markers): whatever is filled has been checked.
   const texts: [string, RegExp][] = [
-    [input.subject, PLACEHOLDER],
-    [input.body, PLACEHOLDER],
-    [input.buttonLabel ?? '', PLACEHOLDER],
+    [subject, PLACEHOLDER],
+    [body, PLACEHOLDER],
+    [buttonLabel ?? '', PLACEHOLDER],
     [htmlBody, HTML_PLACEHOLDER],
     [textBody, PLACEHOLDER],
   ]
@@ -132,9 +143,9 @@ export function renderTemplate(input: RenderInput): RenderResult {
 
   return {
     ok: true,
-    subject: oneLine(fill(input.subject)),
+    subject: oneLine(fill(subject)),
     html: fill(htmlBody, HTML_PLACEHOLDER, escapeHtml),
     text: fill(textBody),
-    buttonLabel: input.buttonLabel === null ? null : fill(input.buttonLabel),
+    buttonLabel: buttonLabel === null ? null : fill(buttonLabel),
   }
 }

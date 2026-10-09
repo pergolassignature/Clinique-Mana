@@ -36,8 +36,6 @@ export interface FakeSignatureRequest {
   status: string
   view_permission: string
   idempotency_key: string
-  /** Deprecated (`core_signing_envelope`): never written, read back null. */
-  documenso_document_id: null
   envelope_id: string | null
   source_file_id: string | null
   /** N, the sent document's pages (`mark_signature_request_sent`'s `p_page_count`). */
@@ -203,7 +201,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       status: 'draft',
       view_permission: 'settings.integrations_manage',
       idempotency_key: `key-${row.id}`,
-      documenso_document_id: null,
       envelope_id: null,
       source_file_id: null,
       page_count: null,
@@ -396,7 +393,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           signers: signersJson(row),
           last_error: row.last_error,
           created_at: row.created_at,
-          documenso_document_id: row.documenso_document_id,
           envelope_id: row.envelope_id,
         }],
       }
@@ -661,7 +657,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           title: r.title,
           status: r.status,
           view_permission: r.view_permission,
-          documenso_document_id: r.documenso_document_id,
           envelope_id: r.envelope_id,
           expires_at: r.expires_at,
           completed_event_at: r.completed_event_at,
@@ -689,7 +684,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
             subject_id: r.subject_id,
             title: r.title,
             status: r.status,
-            documenso_document_id: r.documenso_document_id,
             envelope_id: r.envelope_id,
             expires_at: r.expires_at,
             sent_at: r.sent_at,
@@ -740,7 +734,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           id: r.id,
           module_key: r.module_key,
           status: r.status,
-          documenso_document_id: r.documenso_document_id,
           envelope_id: r.envelope_id,
           expires_at: r.expires_at,
           action: action(r),

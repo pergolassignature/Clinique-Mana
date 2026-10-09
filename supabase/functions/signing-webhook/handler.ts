@@ -65,6 +65,7 @@ import { z } from 'zod'
 import type { Deps } from '../_shared/deps.ts'
 import { documensoEventId, isEnvelopeId } from '../_shared/documenso.ts'
 import { readCapped } from '../_shared/http.ts'
+import { UUID } from '../_shared/patterns.ts'
 import { clientIp, consume, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
@@ -86,7 +87,6 @@ import {
 } from '../_shared/webhooks.ts'
 
 const FN = 'signing-webhook'
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Design §6.3. */
 const MAX_BODY_BYTES = 256 * 1024
 const SAFE_CODE = /^[a-z0-9_]{1,64}$/

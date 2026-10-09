@@ -17,6 +17,7 @@
  * few dozen of them; `imageSize` reads bytes already in memory. Pure, no
  * top-level side effects.
  */
+import { be16, be32, concatBytes, latin1, le16, le24, le32 } from './bytes.ts'
 
 /** Width and height in pixels, as the header states them. */
 export interface ImageSize {
@@ -38,41 +39,24 @@ export interface ImageSizeReader {
 /** Bytes a PNG (signature, IHDR) or WebP (RIFF, first chunk) header needs. */
 const FIXED_HEADER = { png: 24, webp: 30 } as const
 
-const be16 = (b: Uint8Array, at: number) => (b[at] << 8) | b[at + 1]
-const be32 = (b: Uint8Array, at: number) =>
-  ((b[at] << 24) | (b[at + 1] << 16) | (b[at + 2] << 8) | b[at + 3]) >>> 0
-const le16 = (b: Uint8Array, at: number) => b[at] | (b[at + 1] << 8)
-const le24 = (b: Uint8Array, at: number) =>
-  b[at] | (b[at + 1] << 8) | (b[at + 2] << 16)
-const ascii = (b: Uint8Array, from: number, to: number) =>
-  String.fromCharCode(...b.subarray(from, to))
-
-/** A new array holding `a` then `b`. */
-function join(a: Uint8Array, b: Uint8Array): Uint8Array {
-  const out = new Uint8Array(a.length + b.length)
-  out.set(a)
-  out.set(b, a.length)
-  return out
-}
-
 /** The size in a complete PNG or WebP header (`FIXED_HEADER` bytes), or null. */
 function fixedHeaderSize(
   kind: 'png' | 'webp',
   b: Uint8Array,
 ): ImageSize | null {
   if (kind === 'png') {
-    return ascii(b, 12, 16) === 'IHDR'
+    return latin1(b, 12, 16) === 'IHDR'
       ? { width: be32(b, 16), height: be32(b, 20) }
       : null
   }
-  switch (ascii(b, 12, 16)) {
+  switch (latin1(b, 12, 16)) {
     case 'VP8 ': // frame tag (3), start code 9d 01 2a, then 14-bit sizes
       return b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a
         ? { width: le16(b, 26) & 0x3fff, height: le16(b, 28) & 0x3fff }
         : null
     case 'VP8L': { // signature 0x2f, then 14-bit width − 1 and height − 1
       if (b[20] !== 0x2f) return null
-      const bits = (b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24)) >>> 0
+      const bits = le32(b, 21)
       return {
         width: (bits & 0x3fff) + 1,
         height: ((bits >>> 14) & 0x3fff) + 1,
@@ -165,10 +149,15 @@ export function imageSizeReader(kind: ImageKind): ImageSizeReader {
         if (data.length === 0) return
       }
       if (kind === 'jpeg') {
-        return walkJpeg(pending.length === 0 ? data : join(pending, data))
+        return walkJpeg(
+          pending.length === 0 ? data : concatBytes([pending, data]),
+        )
       }
       const need = FIXED_HEADER[kind]
-      const head = join(pending, data.subarray(0, need - pending.length))
+      const head = concatBytes([
+        pending,
+        data.subarray(0, need - pending.length),
+      ])
       if (head.length < need) {
         pending = head
         return

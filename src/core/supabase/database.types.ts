@@ -3895,7 +3895,6 @@ export type Database = {
           completed_at: string | null
           completed_event_at: string | null
           created_at: string
-          documenso_document_id: string | null
           envelope_id: string | null
           expired_at: string | null
           expires_at: string | null
@@ -3918,7 +3917,6 @@ export type Database = {
           status: string
           subject_id: string
           subject_type: string
-          superseded_document_ids: string[]
           superseded_envelope_ids: string[]
           template_version_id: string | null
           title: string
@@ -3932,7 +3930,6 @@ export type Database = {
           completed_at?: string | null
           completed_event_at?: string | null
           created_at?: string
-          documenso_document_id?: string | null
           envelope_id?: string | null
           expired_at?: string | null
           expires_at?: string | null
@@ -3955,7 +3952,6 @@ export type Database = {
           status?: string
           subject_id: string
           subject_type: string
-          superseded_document_ids?: string[]
           superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title: string
@@ -3969,7 +3965,6 @@ export type Database = {
           completed_at?: string | null
           completed_event_at?: string | null
           created_at?: string
-          documenso_document_id?: string | null
           envelope_id?: string | null
           expired_at?: string | null
           expires_at?: string | null
@@ -3992,7 +3987,6 @@ export type Database = {
           status?: string
           subject_id?: string
           subject_type?: string
-          superseded_document_ids?: string[]
           superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title?: string
@@ -5031,7 +5025,6 @@ export type Database = {
         Args: { p: Json }
         Returns: {
           created_at: string
-          documenso_document_id: string
           envelope_id: string
           existing: boolean
           id: string
@@ -5218,7 +5211,6 @@ export type Database = {
         Args: { p_id: string }
         Returns: {
           completed_at: string
-          documenso_document_id: string
           envelope_id: string
           expires_at: string
           id: string
@@ -5562,7 +5554,6 @@ export type Database = {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
           action: string
-          documenso_document_id: string
           envelope_id: string
           expires_at: string
           id: string
