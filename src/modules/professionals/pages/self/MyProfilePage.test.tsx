@@ -67,6 +67,11 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks())
 
 describe('MyProfilePage', () => {
+  it('links its Documents card to « Mes documents » (4c.6)', async () => {
+    renderPage()
+    expect(await screen.findByRole('link', { name: t(`${P}.documents.link`) })).toHaveAttribute('href', '/mes-documents')
+  })
+
   it('shows her own file in the questionnaire’s words, the title in her form', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: t(`${P}.pageTitle`) })).toBeInTheDocument()

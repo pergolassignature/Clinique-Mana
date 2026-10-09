@@ -27,10 +27,13 @@ import { titleLabel } from '../../lib/title-label'
 
 const P = 'modules.professionals.myProfile'
 
+/** « Mes documents » (Task 4c.6). */
+const MY_DOCUMENTS_PATH = '/mes-documents'
+
 /**
  * « Mon profil » (`/mon-profil`, `professionals.self`, Task 4b.5): the professional's own file,
  * read-only, in the questionnaire's words: coordonnées, titles, public profile, matching profile
- * (motifs by name, by category), tax and bank data as masks only, and the documents to come (4c).
+ * (motifs by name, by category), tax and bank data as masks only, and a link to « Mes documents » (4c.6).
  * Nothing written for the clinic: no compensation, no retention, and the clinic's notes on her row
  * (deactivation note, activation reason) are not displayed, although the record carries them: she
  * may read them (Loi 25, P4-373), the page stays calm. The only note shown is the one the clinic
@@ -108,7 +111,10 @@ function MyProfile({ record, submission, catalog }: { record: ProfessionalRecord
       </ProfileCard>
       <TaxBankCard />
       <ProfileCard title={t(`${P}.cards.documents`)}>
-        <EmptyState title={t(`${P}.documents.title`)} body={t(`${P}.documents.body`)} />
+        <p className="text-sm text-muted-foreground">{t(`${P}.documents.body`)}</p>
+        <Button asChild variant="outline" size="sm" className="mt-3">
+          <Link to={MY_DOCUMENTS_PATH}>{t(`${P}.documents.link`)}</Link>
+        </Button>
       </ProfileCard>
     </div>
   )

@@ -1,4 +1,4 @@
-import { CircleUser, Compass, FileCheck, FileText, GraduationCap, HandCoins, Languages, Send, ShieldCheck, Tags, UserMinus, Users } from 'lucide-react'
+import { CircleUser, Compass, FileCheck, FileText, FolderOpen, GraduationCap, HandCoins, Languages, Send, ShieldCheck, Tags, UserMinus, Users } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -39,6 +39,15 @@ export const professionalsManifest: ModuleManifest = {
       shownWhen: hasProfessionalFile,
       order: 5,
     },
+    // « Mes documents » (Task 4c.6): the professional's own documents, right after « Mon profil ».
+    {
+      path: '/mes-documents',
+      labelKey: 'modules.professionals.myDocuments.nav',
+      icon: FolderOpen,
+      permission: 'professionals.self',
+      shownWhen: hasProfessionalFile,
+      order: 6,
+    },
   ],
   routes: [
     { path: 'professionnels', permission: 'professionals.view', component: lazyPage(() => import('./pages/ProfessionalsListPage'), 'ProfessionalsListPage') },
@@ -60,6 +69,8 @@ export const professionalsManifest: ModuleManifest = {
       permission: 'professionals.self',
       component: lazyPage(() => import('./pages/self/QuestionnairePage'), 'QuestionnairePage'),
     },
+    // « Mes documents » (4c.6): her documents, « Téléverser », the insurance's banner.
+    { path: 'mes-documents', permission: 'professionals.self', component: lazyPage(() => import('./pages/self/MyDocumentsPage'), 'MyDocumentsPage') },
   ],
   // Accueil « Complétez votre profil » (P4-319): the professional's open questionnaire, if any. Only
   // for an account linked to a file: an admin without one never reads a questionnaire (P4-376).

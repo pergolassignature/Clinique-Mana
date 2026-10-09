@@ -19,10 +19,12 @@ describe('professionalsManifest', () => {
       expect.objectContaining({ path: '/professionnels', permission: 'professionals.view', order: 10 }),
       // « Mon profil » right after Accueil, for an account linked to a file (P4-376).
       expect.objectContaining({ path: '/mon-profil', permission: 'professionals.self', order: 5 }),
+      // « Mes documents » right after it (Task 4c.6), for the same accounts.
+      expect.objectContaining({ path: '/mes-documents', permission: 'professionals.self', order: 6 }),
     ])
-    const [, myProfile] = [professionalsManifest.nav ?? []].flat()
+    const [, myProfile, myDocuments] = [professionalsManifest.nav ?? []].flat()
     const [card] = professionalsManifest.homeCards ?? []
-    for (const item of [myProfile, card]) {
+    for (const item of [myProfile, myDocuments, card]) {
       expect(item?.shownWhen?.(accessForRole('provider'))).toBe(true)
       expect(item?.shownWhen?.(accessForRole('admin'))).toBe(false)
       expect(item?.shownWhen?.(accessForRole('admin', { has_professional_file: true }))).toBe(true)
@@ -33,6 +35,7 @@ describe('professionalsManifest', () => {
       ['professionnels/revision-mensuelle', 'professionals.compensation'],
       ['mon-profil', 'professionals.self'],
       ['mon-profil/questionnaire', 'professionals.self'],
+      ['mes-documents', 'professionals.self'],
     ])
     expect(professionalsManifest.homeCards?.map((c) => [c.id, c.permission])).toEqual([['professionals-profile', 'professionals.self']])
   })

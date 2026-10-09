@@ -3250,8 +3250,8 @@
         },
         "taxBankError": "Impossible d'afficher vos renseignements fiscaux et bancaires.",
         "documents": {
-          "title": "Vos documents arrivent bientôt.",
-          "body": "Votre assurance, votre photo et votre contrat s'afficheront ici."
+          "body": "Votre assurance, votre photo et vos autres documents sont dans « Mes documents ».",
+          "link": "Voir mes documents"
         },
         "questionnaire": {
           "title": "Votre profil",

@@ -133,6 +133,8 @@ const PROFESSIONALS_REVIEW_ROUTE = 'professionals:/professionnels/revision-mensu
 const PROFESSIONALS_QUESTIONNAIRE_ROUTE = 'professionals:/mon-profil/questionnaire'
 // « Mon profil » (4b.5, professionals.self).
 const PROFESSIONALS_MY_PROFILE_ROUTE = 'professionals:/mon-profil'
+// « Mes documents » (4c.6, professionals.self).
+const PROFESSIONALS_MY_DOCUMENTS_ROUTE = 'professionals:/mes-documents'
 
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -241,17 +243,25 @@ describe('AuthenticatedApp', () => {
   // Task 4b.5 (P4-376): « Mon profil » right after Accueil for an account linked to a professional file.
   it('shows « Mon profil » to a professional, after Accueil, and not to an admin without a file of her own', () => {
     render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'] })))
-    expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.myProfile.nav')])
+    expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.myProfile.nav'), t('modules.professionals.myDocuments.nav')])
     expect(screen.getByRole('link', { name: t('modules.professionals.myProfile.nav') })).toHaveAttribute('href', '/mon-profil')
+    expect(screen.getByRole('link', { name: t('modules.professionals.myDocuments.nav') })).toHaveAttribute('href', '/mes-documents')
     cleanup()
     render(appAt('/accueil'))
     expect(adminLike.permissions).toContain('professionals.self')
     expect(menuLinks()).not.toContain(t('modules.professionals.myProfile.nav'))
+    expect(menuLinks()).not.toContain(t('modules.professionals.myDocuments.nav'))
   })
 
   it('keeps « Mon profil » for an admin who practises (her account is linked to a file)', () => {
     render(appAt('/accueil', { ...adminLike, has_professional_file: true }))
-    expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.myProfile.nav'), t('modules.professionals.name'), t('nav.settings')])
+    expect(menuLinks()).toEqual([
+      t('nav.home'),
+      t('modules.professionals.myProfile.nav'),
+      t('modules.professionals.myDocuments.nav'),
+      t('modules.professionals.name'),
+      t('nav.settings'),
+    ])
   })
 
   // P4-319 (Task 4b.5): the module's Accueil card, for whoever holds professionals.self.
@@ -410,7 +420,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE, PROFESSIONALS_MY_DOCUMENTS_ROUTE])
   })
 
   it('skips the pages the user may not open', () => {
