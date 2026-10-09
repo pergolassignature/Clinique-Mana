@@ -78,6 +78,25 @@ export interface ModuleSearchProvider {
   load: () => Promise<ModuleSearchFn>
 }
 
+/**
+ * What a module tells the Journal d'audit about its own tables (Paramètres → Journal d'audit):
+ * their French names, the columns' names and how its stored values read. Core never imports a
+ * module; it asks the enabled modules' `ModuleManifest.audit` loaders. `i18nAuditLabels`
+ * (`@/core/audit/module-labels`) builds one from an i18n prefix.
+ */
+export interface ModuleAuditLabels {
+  /** The module's audited tables, in the order of the « Section » filter. */
+  tables: readonly string[]
+  /** The French name of one of its tables; undefined for any other table. */
+  tableLabel: (table: string) => string | undefined
+  /** The French name of a column of one of its tables; undefined lets core use the shared names (`audit.commonFields`). */
+  fieldLabel: (table: string, column: string) => string | undefined
+  /** A stored value of one of its tables as read (a status, a month, an amount); undefined lets core format it. */
+  value: (table: string, column: string, value: unknown) => string | undefined
+  /** Who wrote a row with no actor (`audit_log.source`), for the module's own sources (« Importation »); undefined otherwise. */
+  sourceLabel: (source: string) => string | undefined
+}
+
 export type SettingsGroup = 'clinique' | 'plateforme' | 'modules' | 'compte'
 
 export interface SettingsSection {
@@ -118,6 +137,12 @@ export interface ModuleManifest {
   homeCards?: readonly ModuleHomeCard[]
   /** Its record groups in the global search (⌘K), in this order. */
   search?: readonly ModuleSearchProvider[]
+  /**
+   * The names and values of its audited tables, for the Journal d'audit. A loader: the labels
+   * (and the formatting code they use) load in their own chunk when the journal opens, never on
+   * the login page's entry path.
+   */
+  audit?: () => Promise<ModuleAuditLabels>
   /** The shell adds `moduleKey: key` to each (AuthenticatedApp). */
   settingsSections: Omit<SettingsSection, 'moduleKey'>[]
 }

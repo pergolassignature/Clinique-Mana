@@ -1196,6 +1196,389 @@
   },
   "modules": {
     "professionals": {
+      "audit": {
+        "tables": {
+          "professionals": "Professionnels",
+          "professional_professions": "Titres des professionnels",
+          "professional_payer_numbers": "Numéros de payeurs des professionnels",
+          "professional_public_profiles": "Profils publics des professionnels",
+          "professional_matching_profiles": "Profils de jumelage",
+          "professional_matching_notes": "Notes Bon à savoir",
+          "professional_motifs": "Motifs des professionnels",
+          "professional_clienteles": "Clientèles des professionnels",
+          "professional_languages": "Langues des professionnels",
+          "professional_private": "Données privées des professionnels",
+          "professional_invitation_deliveries": "Envois des invitations",
+          "professional_submissions": "Questionnaires des professionnels",
+          "professional_submission_private": "Données privées des questionnaires",
+          "professional_documents": "Documents des professionnels",
+          "professional_consents": "Consentements des professionnels",
+          "professional_contract_snapshots": "Contrats de service préparés",
+          "professional_session_counts": "Séances des professionnels",
+          "professional_retention": "Taux de retenue des professionnels",
+          "professional_client_agreements": "Ententes particulières",
+          "document_types": "Documents requis",
+          "consent_versions": "Versions des consentements",
+          "retention_grids": "Grilles de rétention",
+          "retention_grid_tiers": "Paliers des grilles de rétention",
+          "retention_grid_prices": "Prix des grilles de rétention",
+          "compensation_rates": "Taux des autres services",
+          "professional_orders": "Ordres professionnels",
+          "profession_categories": "Catégories de professions",
+          "profession_titles": "Titres professionnels",
+          "clienteles": "Clientèles",
+          "motif_categories": "Catégories de motifs",
+          "motifs": "Motifs",
+          "languages": "Langues",
+          "deactivation_reasons": "Raisons de désactivation"
+        },
+        "fields": {
+          "professionals": {
+            "profile_id": "Compte",
+            "first_name": "Prénom",
+            "last_name": "Nom",
+            "email": "Courriel",
+            "personal_phone": "Téléphone personnel",
+            "address_line1": "Adresse",
+            "address_line2": "Appartement ou bureau",
+            "city": "Ville",
+            "province": "Province",
+            "postal_code": "Code postal",
+            "country": "Pays",
+            "years_experience": "Années d'expérience",
+            "gender": "Genre",
+            "status": "Statut",
+            "status_changed_at": "Statut modifié le",
+            "status_changed_by": "Statut modifié par",
+            "deactivation_reason_id": "Raison de la désactivation",
+            "deactivation_note": "Note de désactivation",
+            "deactivation_disabled_account": "Compte désactivé avec le dossier",
+            "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
+            "fiche_generated_at": "Fiche PDF générée le"
+          },
+          "professional_professions": {
+            "professional_id": "Professionnel",
+            "profession_title_id": "Titre",
+            "licence_number": "Numéro de permis",
+            "is_primary": "Titre principal"
+          },
+          "professional_payer_numbers": {
+            "professional_id": "Professionnel",
+            "payer_type": "Payeur",
+            "number": "Numéro"
+          },
+          "professional_public_profiles": {
+            "professional_id": "Professionnel",
+            "bio": "Présentation",
+            "approach": "Approche",
+            "public_email": "Courriel public",
+            "public_phone": "Téléphone public",
+            "photo_document_id": "Photo"
+          },
+          "professional_matching_profiles": {
+            "professional_id": "Professionnel",
+            "accepting_new_clients": "Accepte de nouveaux clients",
+            "availability_periods": "Disponibilités générales",
+            "availability_note": "Note sur les disponibilités",
+            "min_client_age": "Âge minimum des clients",
+            "women_only": "Femmes seulement",
+            "new_client_places": "Places offertes",
+            "new_client_places_set_at": "Places offertes indiquées le"
+          },
+          "professional_matching_notes": {
+            "professional_id": "Professionnel",
+            "note": "Bon à savoir"
+          },
+          "professional_motifs": {
+            "professional_id": "Professionnel",
+            "motif_id": "Motif"
+          },
+          "professional_clienteles": {
+            "professional_id": "Professionnel",
+            "clientele_id": "Clientèle",
+            "is_specialized": "Spécialisé"
+          },
+          "professional_languages": {
+            "professional_id": "Professionnel",
+            "language_id": "Langue"
+          },
+          "professional_private": {
+            "professional_id": "Professionnel",
+            "sin": "NAS",
+            "sin_last3": "NAS (3 derniers chiffres)",
+            "business_number": "Numéro d'entreprise (NE)",
+            "gst_number": "Numéro de TPS",
+            "qst_number": "Numéro de TVQ",
+            "bank_institution": "Numéro d'institution",
+            "bank_transit": "Numéro de transit",
+            "bank_account": "Numéro de compte",
+            "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
+            "key_version": "Version de la clé de chiffrement"
+          },
+          "professional_invitation_deliveries": {
+            "professional_id": "Professionnel",
+            "link_id": "Lien d'invitation",
+            "method": "Mode d'envoi",
+            "email_failure": "Échec du courriel"
+          },
+          "professional_submissions": {
+            "professional_id": "Professionnel",
+            "kind": "Type",
+            "status": "Statut",
+            "requested_by": "Demandé par",
+            "requested_sections": "Sections demandées",
+            "secure_link_id": "Lien d'invitation",
+            "prefill": "Réponses préremplies",
+            "submitted_values": "Réponses envoyées",
+            "submitted_at": "Envoyé le",
+            "private_saved_at": "Données privées enregistrées le",
+            "reviewed_by": "Révisé par",
+            "reviewed_at": "Révisé le",
+            "decision_note": "Note de révision",
+            "applied_fields": "Champs appliqués"
+          },
+          "professional_submission_private": {
+            "submission_id": "Questionnaire",
+            "professional_id": "Professionnel",
+            "sin": "NAS",
+            "sin_last3": "NAS (3 derniers chiffres)",
+            "business_number": "Numéro d'entreprise (NE)",
+            "gst_number": "Numéro de TPS",
+            "qst_number": "Numéro de TVQ",
+            "bank_institution": "Numéro d'institution",
+            "bank_transit": "Numéro de transit",
+            "bank_account": "Numéro de compte",
+            "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
+            "key_version": "Version de la clé de chiffrement"
+          },
+          "professional_documents": {
+            "professional_id": "Professionnel",
+            "document_type_id": "Type de document",
+            "stored_file_id": "Fichier",
+            "status": "Statut",
+            "expires_on": "Dernier jour de validité",
+            "metadata": "Renseignements du document",
+            "uploaded_by": "Téléversé par",
+            "uploaded_at": "Téléversé le",
+            "reviewed_by": "Vérifié par",
+            "reviewed_at": "Vérifié le",
+            "rejection_reason": "Raison du refus",
+            "submission_id": "Questionnaire",
+            "signature_request_id": "Signature électronique"
+          },
+          "professional_consents": {
+            "professional_id": "Professionnel",
+            "consent_version_id": "Version du consentement",
+            "submission_id": "Questionnaire",
+            "signer_name": "Nom du signataire",
+            "signed_at": "Signé le",
+            "expires_on": "Valide jusqu'au",
+            "withdrawn_at": "Retiré le",
+            "withdrawal_effective_on": "Retrait en vigueur le"
+          },
+          "professional_contract_snapshots": {
+            "professional_id": "Professionnel",
+            "template_version_id": "Version du modèle",
+            "title": "Titre",
+            "template_values": "Valeurs du modèle",
+            "annexe": "Annexe A",
+            "signers": "Signataires",
+            "idempotency_key": "Clé d'envoi"
+          },
+          "professional_session_counts": {
+            "professional_id": "Professionnel",
+            "month": "Mois",
+            "sessions_50_60": "Séances de 50 ou 60 min",
+            "sessions_30": "Séances de 30 min",
+            "adjustment": "Ajustement (séances)",
+            "note": "Note"
+          },
+          "professional_retention": {
+            "professional_id": "Professionnel",
+            "retention_pct": "Retenue (%)",
+            "decision": "Décision",
+            "tier_threshold": "Palier (séances)",
+            "suggested_pct": "Taux suggéré (%)",
+            "sessions_total": "Séances cumulées",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "note": "Note"
+          },
+          "professional_client_agreements": {
+            "professional_id": "Professionnel",
+            "client_label": "Référence du client",
+            "client_id": "Client",
+            "duration": "Durée (min)",
+            "professional_amount_cents": "Versé au professionnel (¢)",
+            "client_price_cents": "Prix client (¢)",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "note": "Note"
+          },
+          "document_types": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "required": "Requis",
+            "expiry_rule": "Échéance",
+            "reminder_days": "Rappels (jours avant l'échéance)",
+            "weekly_after_expiry": "Rappel chaque semaine après l'échéance",
+            "accepted_mime": "Types de fichiers acceptés",
+            "max_bytes": "Taille maximale",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif"
+          },
+          "consent_versions": {
+            "key": "Consentement",
+            "version": "Version",
+            "title": "Titre",
+            "body": "Texte",
+            "published_at": "Publiée le",
+            "published_by": "Publiée par"
+          },
+          "retention_grids": {
+            "title_id": "Profession",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "note": "Note"
+          },
+          "retention_grid_tiers": {
+            "grid_id": "Grille",
+            "threshold_sessions": "Seuil (séances)",
+            "retention_pct": "Retenue (%)"
+          },
+          "retention_grid_prices": {
+            "grid_id": "Grille",
+            "duration": "Durée (min)",
+            "client_price_cents": "Prix client (¢)"
+          },
+          "compensation_rates": {
+            "kind": "Type",
+            "retention_pct": "Retenue (%)",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)"
+          },
+          "professional_orders": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "acronym": "Sigle",
+            "licence_label": "Libellé du permis",
+            "licence_pattern": "Format du permis"
+          },
+          "profession_categories": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif"
+          },
+          "profession_titles": {
+            "key": "Clé",
+            "name": "Nom",
+            "name_feminine": "Forme féminine",
+            "name_masculine": "Forme masculine",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "category_id": "Catégorie",
+            "order_id": "Ordre professionnel"
+          },
+          "clienteles": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "min_age": "Âge minimum",
+            "max_age": "Âge maximum"
+          },
+          "motif_categories": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "description": "Description",
+            "icon": "Icône"
+          },
+          "motifs": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "category_id": "Catégorie",
+            "is_restricted": "Réservé aux professions réglementées"
+          },
+          "languages": {
+            "code": "Code",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Active"
+          },
+          "deactivation_reasons": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "requires_note": "Note requise",
+            "disables_account": "Désactive le compte"
+          }
+        },
+        "values": {
+          "professional_documents": {
+            "status": {
+              "pending": "À vérifier",
+              "verified": "Vérifié",
+              "rejected": "Refusé",
+              "expired": "Expiré"
+            }
+          },
+          "document_types": {
+            "expiry_rule": {
+              "none": "Aucune échéance",
+              "next_march_31": "Le 31 mars suivant",
+              "months_12": "12 mois après le téléversement"
+            }
+          },
+          "professional_submissions": {
+            "status": {
+              "draft": "En cours",
+              "submitted": "Envoyé, à réviser",
+              "approved": "Approuvé",
+              "cancelled": "Fermé sans être appliqué"
+            },
+            "kind": {
+              "onboarding": "Questionnaire d'accueil",
+              "update": "Mise à jour du profil"
+            }
+          },
+          "professional_invitation_deliveries": {
+            "method": {
+              "email": "Par courriel",
+              "copied": "Lien copié"
+            }
+          },
+          "consent_versions": {
+            "key": {
+              "image_rights": "Droit à l'image"
+            }
+          },
+          "professional_payer_numbers": {
+            "payer_type": {
+              "ivac": "IVAC"
+            }
+          }
+        },
+        "sources": {
+          "import": "Importation"
+        }
+      },
       "name": "Professionnels",
       "status": {
         "draft": "À inviter",
@@ -4125,33 +4508,14 @@
       "email_settings": "Expéditeur des courriels",
       "email_templates": "Modèles de courriel",
       "email_template_versions": "Versions des modèles de courriel",
-      "professional_orders": "Ordres professionnels",
-      "profession_categories": "Catégories de professions",
-      "profession_titles": "Titres professionnels",
-      "clienteles": "Clientèles",
-      "motif_categories": "Catégories de motifs",
-      "motifs": "Motifs",
-      "languages": "Langues",
-      "deactivation_reasons": "Raisons de désactivation",
-      "professionals": "Professionnels",
-      "professional_public_profiles": "Profils publics des professionnels",
-      "professional_matching_profiles": "Profils de jumelage",
-      "professional_matching_notes": "Notes Bon à savoir",
-      "professional_professions": "Titres des professionnels",
-      "professional_clienteles": "Clientèles des professionnels",
-      "professional_motifs": "Motifs des professionnels",
-      "professional_languages": "Langues des professionnels",
-      "professional_payer_numbers": "Numéros de payeurs des professionnels",
-      "professional_private": "Données privées des professionnels",
-      "compensation_rates": "Taux des autres services",
-      "retention_grids": "Grilles de rétention",
-      "retention_grid_tiers": "Paliers des grilles de rétention",
-      "retention_grid_prices": "Prix des grilles de rétention",
-      "professional_session_counts": "Séances des professionnels",
-      "professional_retention": "Taux de retenue des professionnels",
-      "professional_client_agreements": "Ententes particulières",
-      "document_types": "Documents requis",
-      "professional_documents": "Documents des professionnels"
+      "staff_invitations": "Invitations du personnel",
+      "signing_settings": "Réglages de la signature électronique",
+      "document_templates": "Modèles de documents",
+      "document_template_versions": "Versions des modèles de documents",
+      "signature_requests": "Demandes de signature",
+      "signature_request_signers": "Signataires des demandes de signature",
+      "stored_files": "Fichiers",
+      "secure_links": "Liens sécurisés"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -4187,7 +4551,10 @@
         "record_retention_years": "Durée de conservation des dossiers (années)",
         "timezone": "Fuseau horaire",
         "default_locale": "Langue",
-        "currency": "Devise"
+        "currency": "Devise",
+        "signatory_email": "Courriel du signataire",
+        "logo_file_id": "Logo",
+        "signature_file_id": "Image de la signature"
       },
       "profiles": {
         "display_name": "Nom",
@@ -4212,7 +4579,8 @@
       },
       "org_modules": {
         "module_key": "Module",
-        "enabled": "Activé"
+        "enabled": "Activé",
+        "disabled_at": "Désactivé le"
       },
       "org_module_settings": {
         "module_key": "Module",
@@ -4235,7 +4603,8 @@
         "transit_number": "Numéro de transit",
         "account_number": "Numéro de compte",
         "account_last4": "Fin du numéro de compte",
-        "etransfer_email": "Courriel Interac"
+        "etransfer_email": "Courriel Interac",
+        "key_version": "Version de la clé de chiffrement"
       },
       "org_scheduled_jobs": {
         "job_key": "Tâche",
@@ -4258,238 +4627,122 @@
         "key": "Modèle",
         "last_version": "Dernière version"
       },
-      "professional_orders": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "acronym": "Sigle",
-        "licence_label": "Libellé du permis",
-        "licence_pattern": "Format du permis"
-      },
-      "profession_categories": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif"
-      },
-      "profession_titles": {
-        "key": "Clé",
-        "name": "Nom",
-        "name_feminine": "Forme féminine",
-        "name_masculine": "Forme masculine",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "category_id": "Catégorie",
-        "order_id": "Ordre professionnel"
-      },
-      "clienteles": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "min_age": "Âge minimum",
-        "max_age": "Âge maximum"
-      },
-      "motif_categories": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "description": "Description",
-        "icon": "Icône"
-      },
-      "motifs": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "category_id": "Catégorie",
-        "is_restricted": "Réservé aux professions réglementées"
-      },
-      "languages": {
-        "code": "Code",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Active"
-      },
-      "deactivation_reasons": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "requires_note": "Note requise",
-        "disables_account": "Désactive le compte"
-      },
-      "document_types": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "required": "Requis",
-        "expiry_rule": "Échéance",
-        "reminder_days": "Rappels (jours avant l'échéance)",
-        "weekly_after_expiry": "Rappel chaque semaine après l'échéance",
-        "accepted_mime": "Types de fichiers acceptés",
-        "max_bytes": "Taille maximale",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif"
-      },
-      "professional_documents": {
-        "professional_id": "Professionnel",
-        "document_type_id": "Type de document",
-        "stored_file_id": "Fichier",
-        "status": "Statut",
-        "expires_on": "Dernier jour de validité",
-        "metadata": "Renseignements du document",
-        "uploaded_by": "Téléversé par",
-        "uploaded_at": "Téléversé le",
-        "reviewed_by": "Vérifié par",
-        "reviewed_at": "Vérifié le",
-        "rejection_reason": "Raison du refus",
-        "submission_id": "Questionnaire",
-        "signature_request_id": "Signature électronique"
-      },
-      "professionals": {
-        "profile_id": "Compte",
-        "first_name": "Prénom",
-        "last_name": "Nom",
+      "staff_invitations": {
+        "display_name": "Nom",
         "email": "Courriel",
-        "personal_phone": "Téléphone personnel",
-        "address_line1": "Adresse",
-        "address_line2": "Appartement ou bureau",
-        "city": "Ville",
-        "province": "Province",
-        "postal_code": "Code postal",
-        "country": "Pays",
-        "years_experience": "Années d'expérience",
-        "gender": "Genre",
+        "role": "Rôle",
         "status": "Statut",
-        "status_changed_at": "Statut modifié le",
-        "status_changed_by": "Statut modifié par",
-        "deactivation_reason_id": "Raison de la désactivation",
-        "deactivation_note": "Note de désactivation",
-        "deactivation_disabled_account": "Compte désactivé avec le dossier",
-        "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
-        "fiche_generated_at": "Fiche PDF générée le"
+        "invited_by": "Invitation envoyée par",
+        "secure_link_id": "Lien d'invitation",
+        "accepted_at": "Acceptée le",
+        "accepted_user_id": "Compte créé"
       },
-      "professional_public_profiles": {
-        "professional_id": "Professionnel",
-        "bio": "Présentation",
-        "approach": "Approche",
-        "public_email": "Courriel public",
-        "public_phone": "Téléphone public",
-        "photo_document_id": "Photo"
+      "signing_settings": {
+        "base_url": "Adresse de Documenso",
+        "expiry_days": "Délai d'expiration (jours)"
       },
-      "professional_matching_profiles": {
-        "professional_id": "Professionnel",
-        "accepting_new_clients": "Accepte de nouveaux clients",
-        "availability_periods": "Disponibilités générales",
-        "availability_note": "Note sur les disponibilités",
-        "min_client_age": "Âge minimum des clients",
-        "women_only": "Femmes seulement",
-        "new_client_places": "Places offertes",
-        "new_client_places_set_at": "Places offertes indiquées le"
+      "document_templates": {
+        "module_key": "Module",
+        "key": "Clé",
+        "title": "Titre",
+        "description": "Description",
+        "is_active": "Actif",
+        "view_permission": "Permission pour consulter",
+        "edit_permission": "Permission pour modifier"
       },
-      "professional_matching_notes": {
-        "professional_id": "Professionnel",
-        "note": "Bon à savoir"
+      "document_template_versions": {
+        "template_id": "Modèle",
+        "version": "Version",
+        "status": "Statut",
+        "body": "Contenu",
+        "variables": "Variables",
+        "signers": "Signataires",
+        "email_subject": "Objet du courriel",
+        "email_message": "Message du courriel",
+        "published_at": "Publiée le",
+        "published_by": "Publiée par",
+        "archived_at": "Archivée le"
       },
-      "professional_professions": {
-        "professional_id": "Professionnel",
-        "profession_title_id": "Titre",
-        "licence_number": "Numéro de permis",
-        "is_primary": "Titre principal"
+      "signature_requests": {
+        "module_key": "Module",
+        "purpose": "Usage",
+        "subject_type": "Type de sujet",
+        "subject_id": "Sujet",
+        "title": "Titre",
+        "template_version_id": "Version du modèle",
+        "idempotency_key": "Clé d'envoi",
+        "view_permission": "Permission pour consulter",
+        "status": "Statut",
+        "source_file_id": "Document envoyé",
+        "page_count": "Nombre de pages",
+        "envelope_id": "Enveloppe Documenso",
+        "superseded_envelope_ids": "Enveloppes remplacées",
+        "documenso_document_id": "Document Documenso (ancien)",
+        "superseded_document_ids": "Documents Documenso remplacés (ancien)",
+        "send_started_at": "Envoi commencé le",
+        "last_send_at": "Dernier envoi le",
+        "last_error": "Dernière erreur",
+        "sent_at": "Envoyée le",
+        "sent_by": "Envoyée par",
+        "viewed_at": "Consultée le",
+        "expires_at": "Expire le",
+        "expired_at": "Expirée le",
+        "rejected_at": "Refusée le",
+        "rejection_reason": "Raison du refus",
+        "cancelled_at": "Annulée le",
+        "cancelled_by": "Annulée par",
+        "completed_at": "Signée le",
+        "completed_event_at": "Signature signalée par Documenso le",
+        "signed_file_id": "PDF signé",
+        "signed_sha256": "Empreinte du PDF signé"
       },
-      "professional_clienteles": {
-        "professional_id": "Professionnel",
-        "clientele_id": "Clientèle",
-        "is_specialized": "Spécialisé"
+      "signature_request_signers": {
+        "request_id": "Demande de signature",
+        "role": "Rôle",
+        "signing_order": "Ordre de signature",
+        "name": "Nom",
+        "email": "Courriel",
+        "status": "Statut",
+        "documenso_recipient_id": "Destinataire Documenso",
+        "viewed_at": "Consulté le",
+        "signed_at": "Signé le",
+        "rejected_at": "Refusé le"
       },
-      "professional_motifs": {
-        "professional_id": "Professionnel",
-        "motif_id": "Motif"
+      "stored_files": {
+        "module_key": "Module",
+        "purpose": "Usage",
+        "subject_type": "Type de sujet",
+        "subject_id": "Sujet",
+        "bucket": "Espace de stockage",
+        "object_path": "Emplacement",
+        "original_name": "Nom du fichier",
+        "ext": "Extension",
+        "mime_type": "Type de fichier",
+        "size_bytes": "Taille (octets)",
+        "sha256": "Empreinte",
+        "status": "Statut",
+        "view_permission": "Permission pour consulter",
+        "owner_permission": "Permission du propriétaire",
+        "owner_profile_id": "Propriétaire",
+        "uploaded_by": "Téléversé par",
+        "confirmed_at": "Confirmé le",
+        "retain_until": "Conservé jusqu'au",
+        "deleted_at": "Supprimé le",
+        "deleted_by": "Supprimé par"
       },
-      "professional_languages": {
-        "professional_id": "Professionnel",
-        "language_id": "Langue"
-      },
-      "professional_payer_numbers": {
-        "professional_id": "Professionnel",
-        "payer_type": "Payeur",
-        "number": "Numéro"
-      },
-      "professional_private": {
-        "professional_id": "Professionnel",
-        "sin": "NAS",
-        "sin_last3": "NAS (3 derniers chiffres)",
-        "business_number": "Numéro d'entreprise (NE)",
-        "gst_number": "Numéro de TPS",
-        "qst_number": "Numéro de TVQ",
-        "bank_institution": "Numéro d'institution",
-        "bank_transit": "Numéro de transit",
-        "bank_account": "Numéro de compte",
-        "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
-        "key_version": "Version de la clé de chiffrement"
-      },
-      "compensation_rates": {
-        "kind": "Type",
-        "retention_pct": "Retenue (%)",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)"
-      },
-      "retention_grids": {
-        "title_id": "Profession",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
-      },
-      "retention_grid_tiers": {
-        "grid_id": "Grille",
-        "threshold_sessions": "Seuil (séances)",
-        "retention_pct": "Retenue (%)"
-      },
-      "retention_grid_prices": {
-        "grid_id": "Grille",
-        "duration": "Durée (min)",
-        "client_price_cents": "Prix client (¢)"
-      },
-      "professional_session_counts": {
-        "professional_id": "Professionnel",
-        "month": "Mois",
-        "sessions_50_60": "Séances de 50 ou 60 min",
-        "sessions_30": "Séances de 30 min",
-        "adjustment": "Ajustement (séances)",
-        "note": "Note"
-      },
-      "professional_retention": {
-        "professional_id": "Professionnel",
-        "retention_pct": "Retenue (%)",
-        "decision": "Décision",
-        "tier_threshold": "Palier (séances)",
-        "suggested_pct": "Taux suggéré (%)",
-        "sessions_total": "Séances cumulées",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
-      },
-      "professional_client_agreements": {
-        "professional_id": "Professionnel",
-        "client_label": "Référence du client",
-        "client_id": "Client",
-        "duration": "Durée (min)",
-        "professional_amount_cents": "Versé au professionnel (¢)",
-        "client_price_cents": "Prix client (¢)",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
+      "secure_links": {
+        "purpose": "Usage",
+        "subject_type": "Type de sujet",
+        "subject_id": "Sujet",
+        "scope": "Portée",
+        "token_hash": "Empreinte du lien",
+        "expires_at": "Expire le",
+        "max_uses": "Utilisations permises",
+        "use_count": "Utilisations",
+        "used_at": "Utilisé le",
+        "last_opened_at": "Dernière ouverture le",
+        "revoked_at": "Révoqué le",
+        "revoked_by": "Révoqué par"
       }
     },
     "actions": {
@@ -4504,16 +4757,56 @@
       "bootstrap": "Installation",
       "migration": "Mise à jour",
       "auth": "Connexion",
-      "system": "Système"
+      "system": "Système",
+      "job": "Tâche planifiée"
     },
     "values": {
       "empty": "(vide)",
       "yes": "Oui",
       "no": "Non",
       "redacted": "(masqué)",
-      "status": {
-        "active": "Actif",
-        "disabled": "Désactivé"
+      "enums": {
+        "profiles": {
+          "status": {
+            "active": "Actif",
+            "disabled": "Désactivé"
+          }
+        },
+        "staff_invitations": {
+          "status": {
+            "pending": "En attente",
+            "accepted": "Acceptée",
+            "revoked": "Révoquée"
+          }
+        },
+        "document_template_versions": {
+          "status": {
+            "draft": "Brouillon",
+            "published": "Publiée",
+            "archived": "Archivée"
+          }
+        },
+        "signature_request_signers": {
+          "status": {
+            "pending": "En attente",
+            "viewed": "Consulté",
+            "signed": "Signé",
+            "rejected": "Refusé"
+          },
+          "role": {
+            "professional": "Professionnel",
+            "clinic": "Clinique",
+            "client": "Client"
+          }
+        },
+        "stored_files": {
+          "status": {
+            "pending": "Téléversement en cours",
+            "ready": "Prêt",
+            "deleted": "Supprimé",
+            "purged": "Effacé"
+          }
+        }
       }
     },
     "filters": {

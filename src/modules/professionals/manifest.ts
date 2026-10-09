@@ -94,6 +94,8 @@ export const professionalsManifest: ModuleManifest = {
       load: () => import('./search').then((m) => m.searchProfessionals),
     },
   ],
+  // The Journal d'audit's names and values for the module's tables (gap audit V10): loaded with the journal.
+  audit: () => import('./lib/audit-labels').then((m) => m.professionalsAuditLabels),
   settingsSections: [
     {
       id: 'professions',

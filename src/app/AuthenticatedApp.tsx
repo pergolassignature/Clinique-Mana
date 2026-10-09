@@ -6,6 +6,7 @@ import type { Access } from '@/core/access/access'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { Forbidden, RequireAccess } from '@/core/access/guards'
 import { AccountPage } from '@/core/account/pages/AccountPage'
+import { ModuleAuditContext, type ModuleAuditSource } from '@/core/audit/module-labels'
 import { resolveEnabledModules } from '@/core/modules/resolve'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
 import { SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
@@ -70,6 +71,12 @@ export function AuthenticatedApp() {
   // The palette's record groups (⌘K): the enabled modules' providers this user may search.
   const searchProviders = useMemo(() => modules.flatMap((m) => m.search ?? []).filter((p) => can(p.permission)), [modules, can])
 
+  // The Journal d'audit's names for the enabled modules' tables (each loads with the journal).
+  const auditSources = useMemo(
+    () => modules.flatMap((m): ModuleAuditSource[] => (m.audit ? [{ key: m.key, labelKey: m.labelKey, load: m.audit }] : [])),
+    [modules],
+  )
+
   // Accueil's module cards this user may see (each loads its own chunk when it renders).
   const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter(shown)), [modules, shown])
 
@@ -117,7 +124,9 @@ export function AuthenticatedApp() {
             path="parametres/*"
             element={
               <RequireAnyAccess allowed={canOpenSettings}>
-                <SettingsLayout sections={settingsSections} />
+                <ModuleAuditContext.Provider value={auditSources}>
+                  <SettingsLayout sections={settingsSections} />
+                </ModuleAuditContext.Provider>
               </RequireAnyAccess>
             }
           />

@@ -7,6 +7,8 @@ export const auditKeys = {
   entriesAll: () => [...auditKeys.all, 'entries'] as const,
   entries: (filters: AuditFilters) => [...auditKeys.entriesAll(), filters] as const,
   actors: () => [...auditKeys.all, 'actors'] as const,
+  /** The enabled modules' labels (code, not data: loaded once per set of modules, never stale). */
+  moduleLabels: (moduleKeys: readonly string[]) => [...auditKeys.all, 'moduleLabels', moduleKeys] as const,
 }
 
 /**

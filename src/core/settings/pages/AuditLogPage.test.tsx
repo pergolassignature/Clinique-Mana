@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import type { AuditEntry } from '@/core/audit/api'
+import { ModuleAuditContext, type ModuleAuditSource } from '@/core/audit/module-labels'
 import { renderInSettingsSection } from '@/test/settings-section'
 import { AuditLogPage } from './AuditLogPage'
 
@@ -87,7 +88,24 @@ const SEED = entry({
 /** The app's defaults: queries are fresh for 2 minutes and kept 5 (App.tsx). */
 const appQueryClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 2 * 60_000, gcTime: 5 * 60_000 } } })
 
-async function renderPage({ pages = [[UPDATE, BANK_READ]] as AuditEntry[][], queryClient = appQueryClient() } = {}) {
+/** A module's audit labels, as AuthenticatedApp hands them over (`ModuleManifest.audit`). */
+const DEMANDES: ModuleAuditSource = {
+  key: 'demandes',
+  labelKey: 'modules.professionals.name',
+  load: async () => ({
+    tables: ['demandes', 'demande_notes'],
+    tableLabel: (table) => ({ demandes: 'Demandes', demande_notes: 'Notes des demandes' })[table],
+    fieldLabel: (table, column) => (table === 'demandes' && column === 'status' ? 'Statut de la demande' : undefined),
+    value: (table, column, value) => (table === 'demandes' && column === 'status' && value === 'open' ? 'Ouverte' : undefined),
+    sourceLabel: (source) => (source === 'import' ? 'Importation' : undefined),
+  }),
+}
+
+async function renderPage({
+  pages = [[UPDATE, BANK_READ]] as AuditEntry[][],
+  queryClient = appQueryClient(),
+  modules = [] as ModuleAuditSource[],
+} = {}) {
   for (const page of pages) mocks.api.fetchAuditEntries.mockResolvedValueOnce(page)
   mocks.api.fetchAuditEntries.mockResolvedValue([])
   mocks.api.fetchAuditActors.mockResolvedValue([
@@ -98,7 +116,11 @@ async function renderPage({ pages = [[UPDATE, BANK_READ]] as AuditEntry[][], que
     permissions: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }],
     modules: [{ key: 'professionals', name: 'Professionnels' }],
   })
-  const ui = () => <QueryClientProvider client={queryClient}>{renderInSettingsSection(<AuditLogPage />)}</QueryClientProvider>
+  const ui = () => (
+    <QueryClientProvider client={queryClient}>
+      <ModuleAuditContext.Provider value={modules}>{renderInSettingsSection(<AuditLogPage />)}</ModuleAuditContext.Provider>
+    </QueryClientProvider>
+  )
   const result = render(ui())
   await waitFor(() => expect(screen.queryByText(t('common.loading'))).not.toBeInTheDocument())
   return { ...result, rerenderPage: () => result.rerender(ui()), queryClient, ui }
@@ -236,6 +258,7 @@ describe('AuditLogPage', () => {
       'Utilisateurs',
       'Rôles attribués',
       'Exceptions de permissions',
+      'Invitations du personnel',
       'Rôles',
       'Permissions des rôles',
       'Modules',
@@ -247,6 +270,13 @@ describe('AuditLogPage', () => {
       'Expéditeur des courriels',
       'Modèles de courriel',
       'Versions des modèles de courriel',
+      'Réglages de la signature électronique',
+      'Modèles de documents',
+      'Versions des modèles de documents',
+      'Demandes de signature',
+      'Signataires des demandes de signature',
+      'Fichiers',
+      'Liens sécurisés',
     ])
     await user.selectOptions(filter('Section'), 'Taux de taxes')
     await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, table: 'tax_rates' }, null))
@@ -255,6 +285,30 @@ describe('AuditLogPage', () => {
     await waitFor(() =>
       expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ table: 'tax_rates', actor: 'a2', from: null }, null),
     )
+  })
+
+  it("lists each module's tables under its name, and reads its rows in French", async () => {
+    const user = userEvent.setup()
+    const IMPORTED = entry({
+      id: 40,
+      table_name: 'demandes',
+      record_id: 'd1',
+      action: 'update',
+      changed_fields: { status: { before: 'draft', after: 'open' } },
+      actor_id: null,
+      actor_name: null,
+      source: 'import',
+    })
+    await renderPage({ pages: [[IMPORTED]], modules: [DEMANDES] })
+    const group = within(filter('Section')).getByRole('group', { name: t('modules.professionals.name') })
+    expect(within(group).getAllByRole('option').map((o) => o.textContent)).toEqual(['Demandes', 'Notes des demandes'])
+    const [row] = rows()
+    expect(within(row!).getByText('Demandes')).toBeInTheDocument()
+    expect(within(row!).getAllByText('Importation')).not.toHaveLength(0)
+    await user.click(toggle('7 oct. 2026 à 14:30'))
+    expect(screen.getByText(`Statut de la demande${NB}: draft → Ouverte`)).toBeInTheDocument()
+    await user.selectOptions(filter('Section'), 'Notes des demandes')
+    await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, table: 'demande_notes' }, null))
   })
 
   it('starts each period at midnight in the clinic (America/Toronto), as an instant', async () => {
