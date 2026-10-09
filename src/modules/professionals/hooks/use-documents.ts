@@ -133,7 +133,7 @@ export function useDeleteDocument(feedback?: MutationFeedback) {
 }
 
 /** The toast after « Refuser »: whether the professional was told by email, and if not why (P4-451). */
-export function rejectToast(result: RejectResult, firstName: string): { kind: 'success' | 'warning'; message: string } {
+function rejectToast(result: RejectResult, firstName: string): { kind: 'success' | 'warning'; message: string } {
   if (result.emailed) return { kind: 'success', message: t(`${T}.rejectedEmailed`, { firstName }) }
   if (result.emailProblem === null) return { kind: 'success', message: t(`${T}.rejected`) }
   return { kind: 'warning', message: t(`${T}.rejectedNotEmailed`, { firstName }) }

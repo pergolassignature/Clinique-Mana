@@ -3,7 +3,7 @@ import { CircleAlert, CircleCheck, Clock } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 
-export type StatusIndicatorStatus = 'complete' | 'pending' | 'warning'
+type StatusIndicatorStatus = 'complete' | 'pending' | 'warning'
 
 const statuses = {
   complete: { Icon: CircleCheck, className: 'text-success', label: 'common.status.complete' },

@@ -22,7 +22,7 @@ export function matchesSearch(texts: readonly string[], words: readonly string[]
 }
 
 /** A half-open range `[start, end)` of UTF-16 indices in the original text. */
-export type TextRange = [start: number, end: number]
+type TextRange = [start: number, end: number]
 
 /**
  * Where the words appear in `text`, as ranges of the original text (merged, in order). The text

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ofName, t } from './index'
+import { t } from './index'
 
 describe('t', () => {
   it('returns the French text of a key', () => {
@@ -26,14 +26,5 @@ describe('t', () => {
     expect(t('nav.userMenu', { name: 'Hélène Roy' })).toBe('Menu de Hélène Roy')
     expect(t('modules.professionals.record.matching.places.help', { firstName: 'Aurélie' })).toMatch(/^Nombre de nouveaux clients qu'Aurélie peut accueillir/)
     expect(t('modules.professionals.submission.card.description', { firstName: 'Aurélie' })).toMatch(/^Ce qu'Aurélie a envoyé/)
-  })
-})
-
-describe('ofName', () => {
-  it('« d’ » before a vowel or a y, « de » otherwise (h included)', () => {
-    expect(ofName('Aurélie')).toBe("d'Aurélie")
-    expect(ofName('Isabelle')).toBe("d'Isabelle")
-    expect(ofName('Marie')).toBe('de Marie')
-    expect(ofName('Hugo')).toBe('de Hugo')
   })
 })

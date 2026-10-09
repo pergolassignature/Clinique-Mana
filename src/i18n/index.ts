@@ -43,11 +43,6 @@ function getNestedValue(obj: unknown, path: string): string {
 /** A name that takes « d' » / « qu' »: it starts with a vowel or a y. A h never elides (h muet ignored). */
 const ELIDING = /^[aeiouyàâäæéèêëîïôöœùûüÿ]/i
 
-/** « de » before a name: « d'Aurélie », « de Marie », « de Hélène ». */
-export function ofName(name: string): string {
-  return ELIDING.test(name) ? `d'${name}` : `de ${name}`
-}
-
 /** The placeholders that hold a person's name: « de {name} » and « que {firstName} » elide before a vowel. */
 const NAME_PLACEHOLDERS = new Set(['name', 'firstName', 'fullName'])
 
@@ -56,7 +51,7 @@ const NAME_PLACEHOLDERS = new Set(['name', 'firstName', 'fullName'])
  * (`t('nav.userMenu', { name: 'Camille' })`); a placeholder without a value stays as written.
  * « de » / « que » right before a name placeholder (`name`, `firstName`, `fullName`) elide when
  * the name starts with a vowel: « Fiche de {name} » → « Fiche d'Aurélie Essai », « Ce que
- * {firstName} a envoyé » → « Ce qu'Aurélie a envoyé » (`ofName`).
+ * {firstName} a envoyé » → « Ce qu'Aurélie a envoyé ».
  */
 export function t(key: TranslationKey, values?: Record<string, string>): string {
   const dictionary = translations[currentLocale]
@@ -73,8 +68,4 @@ export function t(key: TranslationKey, values?: Record<string, string>): string 
     if (before && NAME_PLACEHOLDERS.has(name) && ELIDING.test(value)) return `${before.trimEnd().slice(0, -1)}'${value}`
     return `${before ?? ''}${value}`
   })
-}
-
-export function useTranslation() {
-  return { t, locale: currentLocale }
 }

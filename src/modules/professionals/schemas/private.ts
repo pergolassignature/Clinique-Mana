@@ -26,7 +26,7 @@ const SIN = /^[0-9]{9}$/
 // --- Fiscalité ---------------------------------------------------------------------------------------
 
 // Type aliases (not interfaces): useSettingsForm's FlatFormValues needs an index signature.
-export type TaxNumbersFormValues = { businessNumber: string; gstNumber: string; qstNumber: string }
+type TaxNumbersFormValues = { businessNumber: string; gstNumber: string; qstNumber: string }
 
 /** Empty clears a number (`set_professional_tax_numbers`: blank clears). */
 export const taxNumbersSchema: z.ZodType<TaxNumbersInput, TaxNumbersFormValues> = z.object({

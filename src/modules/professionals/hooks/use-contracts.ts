@@ -63,13 +63,6 @@ export function prefetchProfessionalImageConsent(queryClient: QueryClient, id: s
   return queryClient.prefetchQuery(imageConsentQuery(id))
 }
 
-/** A form's card read: the contract's or the image consent's. */
-export function useSigningForm(form: SigningForm, id: string) {
-  const contract = useQuery({ ...contractQuery(id), enabled: form === 'service_contract' && id !== '' })
-  const consent = useQuery({ ...imageConsentQuery(id), enabled: form === 'image_consent' && id !== '' })
-  return form === 'image_consent' ? consent : contract
-}
-
 /** After a send, a sync or a refusal: the record (readiness, the card), the lists and the history. */
 function refreshAfterContract(queryClient: QueryClient, id: string) {
   return Promise.all([

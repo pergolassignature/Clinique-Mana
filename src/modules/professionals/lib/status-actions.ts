@@ -5,10 +5,10 @@ type StatusSubject = Pick<ProfessionalRecord, 'professional' | 'readiness'>
 type Can = (permission: string) => boolean
 
 /** « Activer », or « Réactiver » for an inactive file (P4-110). */
-export type ActivationKind = 'activate' | 'reactivate'
+type ActivationKind = 'activate' | 'reactivate'
 
 /** The status actions the record offers (4a.14), as `activate_professional` and `deactivate_professional` allow them. */
-export interface StatusActions {
+interface StatusActions {
   /** The header's teal action; null when the file is active, or incomplete without the override. */
   activate: ActivationKind | null
   /** « Désactiver » in the « … » menu: any status but inactive. */

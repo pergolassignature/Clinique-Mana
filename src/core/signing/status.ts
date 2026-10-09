@@ -2,7 +2,7 @@ import { t } from '@/i18n'
 import type { StatusTone } from '@/shared/ui/status-dot'
 
 /** `signature_requests.status`, in the order of its lifecycle, with the tone of its dot. */
-export const SIGNATURE_STATUSES = {
+const SIGNATURE_STATUSES = {
   draft: 'neutral',
   sent: 'neutral',
   viewed: 'neutral',
@@ -11,8 +11,8 @@ export const SIGNATURE_STATUSES = {
   cancelled: 'default',
   expired: 'warning',
 } as const satisfies Record<string, StatusTone>
-export type SignatureStatus = keyof typeof SIGNATURE_STATUSES
-export const isSignatureStatus = (status: string): status is SignatureStatus => Object.hasOwn(SIGNATURE_STATUSES, status)
+type SignatureStatus = keyof typeof SIGNATURE_STATUSES
+const isSignatureStatus = (status: string): status is SignatureStatus => Object.hasOwn(SIGNATURE_STATUSES, status)
 
 /**
  * The `last_error` of a draft whose send failed, when it has French words. `_shared/signing.ts`
@@ -34,7 +34,7 @@ const FAILURES = {
 } as const
 const isKnownFailure = (code: string): code is keyof typeof FAILURES => Object.hasOwn(FAILURES, code)
 
-export interface SignatureStatusLabel {
+interface SignatureStatusLabel {
   /** The French word for the state. */
   label: string
   tone: StatusTone

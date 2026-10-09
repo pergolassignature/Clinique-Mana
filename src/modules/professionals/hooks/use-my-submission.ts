@@ -8,7 +8,6 @@ import {
   fetchMySubmission,
   saveMySubmissionDraft,
   saveMySubmissionPrivate,
-  signMyConsent,
   submitMyProfile,
   type MySubmission,
   type SectionValues,
@@ -45,15 +44,6 @@ export function useSaveMyPrivate() {
   })
 }
 
-/** « Consentement »: the signature; resolves with the server's time (P4-336), then the submission is refetched. */
-export function useSignMyConsent() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ versionId, signerName }: { versionId: string; signerName: string }) => signMyConsent(versionId, signerName),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: professionalKeys.mySubmission() }),
-  })
-}
-
 /** « Envoyer mon profil » (`professionals-submit`); the submission is refetched (now `submitted`). */
 export function useSubmitMyProfile() {
   const queryClient = useQueryClient()
@@ -76,7 +66,7 @@ export type Collect = () => Record<string, unknown> | null
  * Refusals that say the questionnaire itself changed under the page (sent from another tab,
  * closed by the clinic, file deactivated): the page reloads the submission instead of a field error.
  */
-export const PAGE_HINTS: ReadonlySet<string> = new Set(['submitted', 'submission', 'status'])
+const PAGE_HINTS: ReadonlySet<string> = new Set(['submitted', 'submission', 'status'])
 
 /** A P0001 refusal (the database's French message, the field as HINT). */
 export const isRefusal = (error: unknown) => rpcErrorCode(error) === 'P0001'
@@ -217,7 +207,7 @@ export interface QuestionnaireAutosave {
 
 const OK: SaveOutcome = { ok: true }
 
-export interface AutosaveOptions {
+interface AutosaveOptions {
   /** The questionnaire was closed or sent elsewhere (`PAGE_HINTS`): the page explains it once reloaded. */
   onPageRefusal?: (hint: string, message: string) => void
 }

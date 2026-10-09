@@ -98,7 +98,7 @@ export function unknownEmailOutcome(): { label: string; detail: string } {
 export const INVITE_ACTIONS = ['send', 'resend', 'new_link'] as const
 export type InviteAction = (typeof INVITE_ACTIONS)[number]
 
-export interface OnboardingActions {
+interface OnboardingActions {
   /** « Envoyer l'invitation », « Renvoyer l'invitation » or « Envoyer un nouveau lien ». */
   invite: InviteAction | null
   /** « Révoquer l'invitation »: only while the link works. */

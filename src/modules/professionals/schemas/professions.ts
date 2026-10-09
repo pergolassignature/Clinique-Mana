@@ -107,7 +107,7 @@ export function toProfessionItems(professions: readonly ProfessionRow[]): Profes
 }
 
 /** A field of the editor's rows. */
-export type ProfessionErrorField = `items.${number}.titleId` | `items.${number}.licenceNumber`
+type ProfessionErrorField = `items.${number}.titleId` | `items.${number}.licenceNumber`
 
 /**
  * Where a refusal of `set_professional_professions` belongs: under the field its HINT names

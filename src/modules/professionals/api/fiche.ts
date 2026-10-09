@@ -46,7 +46,7 @@ export async function markFicheGenerated(id: string): Promise<void> {
   if (error) throw error
 }
 
-export interface FicheEmail {
+interface FicheEmail {
   professionalId: string
   /** The `professional_fiche` upload (`uploadFile`): the very file the person made. */
   fileId: string

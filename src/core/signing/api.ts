@@ -59,7 +59,7 @@ export type UnverifiedSignatureRequest = z.infer<typeof unverifiedSchema>
 
 /** `signing-test-connection`: Documenso answered, or its HTTP status when it refused. */
 const connectionSchema = z.union([z.object({ ok: z.literal(true) }), z.object({ ok: z.literal(false), status: z.number() })])
-export type ConnectionResult = z.infer<typeof connectionSchema>
+type ConnectionResult = z.infer<typeof connectionSchema>
 
 const testDocumentSchema = z.object({ request_id: z.string(), existing: z.boolean() })
 const syncSchema = z.object({ request_id: z.string(), outcome: z.string() })
@@ -84,7 +84,7 @@ export type SigningSettingsPatch = Partial<SigningSettings>
 
 const setResultSchema = z.object({ api_key_cleared: z.boolean() })
 /** What a save did besides storing the fields. */
-export type SetSigningSettingsResult = z.infer<typeof setResultSchema>
+type SetSigningSettingsResult = z.infer<typeof setResultSchema>
 
 /**
  * Saves only the fields given (`set_signing_settings` takes a patch: each card sends its own, so

@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
     fetchMySubmission: vi.fn(),
     saveMySubmissionDraft: vi.fn(),
     saveMySubmissionPrivate: vi.fn(),
-    signMyConsent: vi.fn(),
     submitMyProfile: vi.fn(),
     fetchMyProfessionalPrivate: vi.fn(),
   },

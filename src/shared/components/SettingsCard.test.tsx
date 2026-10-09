@@ -49,7 +49,7 @@ describe('SettingsCard', () => {
   it('renders the footer and submits its form', async () => {
     const onSubmit = vi.fn()
     render(card({ onSubmit }))
-    expect(screen.queryByText(t('common.readOnly'))).not.toBeInTheDocument()
+    expect(screen.queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
     expect(screen.getByRole('group')).toBeEnabled()
     await userEvent.click(screen.getByRole('button', { name: t('common.save') }))
     expect(onSubmit).toHaveBeenCalledOnce()
@@ -58,7 +58,7 @@ describe('SettingsCard', () => {
 
   it('read-only: no badge (the page shows one notice), no footer, fields read-only but enabled and focusable', async () => {
     render(card({ readOnly: true }))
-    expect(screen.queryByText(t('common.readOnly'))).not.toBeInTheDocument()
+    expect(screen.queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
     expect(screen.getByRole('group')).toBeEnabled()
     const input = screen.getByRole('textbox', { name: 'Nom' })

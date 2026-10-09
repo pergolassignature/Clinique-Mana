@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import type { ReadinessItemKey, ReadinessMissing, ReadinessWarning, RecordTab } from './constants'
+import type { ReadinessItemKey, ReadinessMissing, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
 import {
   emailFailureReason,
@@ -21,10 +21,6 @@ export function readinessItemLabel(key: ReadinessItemKey, done = true): string {
 /** What is missing, as the end of « Il manque … »: « un titre professionnel », « le numéro de permis »… */
 export function missingLabel(key: ReadinessMissing): string {
   return t(`modules.professionals.readiness.missing.${key}`)
-}
-
-export function warningLabel(key: ReadinessWarning): string {
-  return t(`modules.professionals.readiness.warnings.${key}`)
 }
 
 /** The tab where each gap is fixed (Aperçu links each missing part there). */
@@ -56,7 +52,7 @@ const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professi
 export const REVIEW_TAB: RecordTab = 'documents'
 
 /** Where the service contract is sent and followed (the card atop Documents, Task 4d.3). */
-export const CONTRACT_TAB: RecordTab = 'documents'
+const CONTRACT_TAB: RecordTab = 'documents'
 
 /**
  * Where the service contract stands, for « Prochaine action » (`contractProgress`, lib/contract.ts):
@@ -76,7 +72,7 @@ export type NextActionButton =
   | { kind: 'invite'; label: string; action: InviteAction }
   | { kind: 'copyLink'; label: string }
 
-export interface NextAction {
+interface NextAction {
   message: string
   /** At most one small outline button, only when the user may do what it leads to. */
   action: NextActionButton | null

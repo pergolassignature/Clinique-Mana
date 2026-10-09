@@ -24,7 +24,7 @@ export const jobKeys = {
  * After a run starts, the list and the runs reload once more after this delay: a function job runs
  * asynchronously (pg_net → Edge Function), so its run row may not exist yet at the first reload.
  */
-export const RUN_REFRESH_DELAY_MS = 4000
+const RUN_REFRESH_DELAY_MS = 4000
 
 /** The org's jobs. Always stale: a run may have finished since the page was last open. */
 export function useScheduledJobs() {
