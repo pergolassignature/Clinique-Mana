@@ -1238,6 +1238,12 @@
           "submission_approved": "Questionnaire approuvé",
           "documents": "Documents requis en règle"
         },
+        "pending": {
+          "matching_profile": "Profil de jumelage incomplet",
+          "account_created": "Compte pas encore créé",
+          "submission_approved": "Questionnaire pas encore approuvé",
+          "documents": "Documents requis incomplets"
+        },
         "missing": {
           "profession": "un titre professionnel",
           "licence": "le numéro de permis",

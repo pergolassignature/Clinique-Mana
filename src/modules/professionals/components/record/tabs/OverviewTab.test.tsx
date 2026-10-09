@@ -203,7 +203,8 @@ describe('OverviewTab — Dossier', () => {
   it('lists what is missing while not active, each part a link to its tab', () => {
     renderOverview()
     const dossier = card(t(`${O}.readiness.title`))
-    expect(within(dossier).getByText(t('modules.professionals.readiness.items.matching_profile'))).toBeInTheDocument()
+    expect(within(dossier).getByText(t('modules.professionals.readiness.pending.matching_profile'))).toBeInTheDocument()
+    expect(within(dossier).queryByText(t('modules.professionals.readiness.items.matching_profile'))).not.toBeInTheDocument()
     expect(within(dossier).getByRole('link', { name: t('modules.professionals.readiness.missing.clientele') })).toHaveAttribute('href', `${base}/jumelage`)
     expect(within(dossier).getByRole('link', { name: t('modules.professionals.readiness.missing.motif') })).toHaveAttribute('href', `${base}/jumelage`)
   })

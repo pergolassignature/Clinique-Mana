@@ -44,7 +44,7 @@ export function ReadinessCard({ record, onboarding, now }: ReadinessCardProps) {
               <p className="pb-1.5 text-sm text-muted-foreground">{t(`${R}.override`, { reason: professional.activationOverrideReason })}</p>
             )}
             {readiness.items.map((item) => (
-              <StatusIndicator key={item.key} status={item.done ? 'complete' : 'pending'} label={readinessItemLabel(item.key)} description={describe(item)} />
+              <StatusIndicator key={item.key} status={item.done ? 'complete' : 'pending'} label={readinessItemLabel(item.key, item.done)} description={describe(item)} />
             ))}
           </>
         )}

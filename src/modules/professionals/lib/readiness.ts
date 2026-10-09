@@ -5,8 +5,8 @@ import { invitationState, onboardingActionLabel, onboardingActions, shortDate, t
 import { activationLabel, statusActions } from './status-actions'
 
 /** « Profil de jumelage complet ». */
-export function readinessItemLabel(key: ReadinessItemKey): string {
-  return t(`modules.professionals.readiness.items.${key}`)
+export function readinessItemLabel(key: ReadinessItemKey, done = true): string {
+  return done ? t(`modules.professionals.readiness.items.${key}`) : t(`modules.professionals.readiness.pending.${key}`)
 }
 
 /** What is missing, as the end of « Il manque … »: « un titre professionnel », « le numéro de permis »… */

@@ -112,7 +112,7 @@ describe('ActivateDialog — override (incomplete file)', () => {
     renderActions(recordWithStatus('draft', false), 'admin')
     await userEvent.click(button(t('modules.professionals.record.actions.activate')))
 
-    const missing = t(`${A}.missing`, { item: 'Profil de jumelage complet', missing: 'une clientèle et un motif' })
+    const missing = t(`${A}.missing`, { item: 'Profil de jumelage incomplet', missing: 'une clientèle et un motif' })
     expect(dialog()).toHaveAccessibleDescription(expect.stringContaining(missing))
     expect(within(dialog()).getByText(t(`${A}.incomplete`))).toBeInTheDocument()
     expect(reasonField()).toHaveFocus()

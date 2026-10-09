@@ -161,8 +161,8 @@ function Missing({ record }: { record: ProfessionalRecord }) {
             .map((item) => (
               <li key={item.key}>
                 {item.missing.length
-                  ? t(`${A}.missing`, { item: readinessItemLabel(item.key), missing: listLabel(item.missing.map(missingLabel)) })
-                  : readinessItemLabel(item.key)}
+                  ? t(`${A}.missing`, { item: readinessItemLabel(item.key, false), missing: listLabel(item.missing.map(missingLabel)) })
+                  : readinessItemLabel(item.key, false)}
               </li>
             ))}
         </ul>
