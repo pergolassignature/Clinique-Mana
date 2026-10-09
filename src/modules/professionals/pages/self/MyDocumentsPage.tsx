@@ -10,6 +10,7 @@ import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import type { ProfessionalDocuments } from '../../api/documents'
 import { DocumentsPanel } from '../../components/record/DocumentsPanel'
+import { ConsentSigning } from '../../components/self/ConsentSigning'
 import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { useMyDocuments } from '../../hooks/use-documents'
 import { useMyProfessionalRecord } from '../../hooks/use-my-profile'
@@ -22,7 +23,8 @@ const M = 'modules.professionals.myDocuments'
 /**
  * « Mes documents » (`/mes-documents`, `professionals.self`, Task 4c.6): the professional's own
  * documents, in the tab's words (`DocumentsPanel`, viewer `self`): her required documents with
- * their state and end date, « Téléverser » on each (`professional_self_document`, attached to her
+ * their state and end date, « Téléverser » on each but the image consent, which she fills in and
+ * signs online (« Remplir et signer », `ConsentSigning`, P4-489) (`professional_self_document`, attached to her
  * own record only, always waiting for the clinic's review, P4-401), and her other documents,
  * read-only. Above, the insurance's banner (P4-454): expiring (within the insurance's reminder
  * window) or expired, unless a new proof already waits for review, which is said instead. Three
@@ -70,6 +72,7 @@ export function MyDocumentsPage() {
         can={SELF_PERMISSIONS}
         verifiedAtOnce={false}
         focusFallback={() => heading.current?.focus()}
+        typeExtra={(type) => (type.key === 'image_consent' ? <ConsentSigning back={{ returnTo: 'documents' }} variant="documents" /> : null)}
       />
     </div>
   )

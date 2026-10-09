@@ -79,6 +79,8 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
               key={entry.type.id}
               entry={entry}
               {...rowProps}
+              // The professional never uploads her image consent: she fills it in and signs it (P4-489).
+              can={viewer === 'self' && entry.type.key === 'image_consent' ? { ...can, upload: false } : can}
               onUpload={(button) => onUpload(entry.type, button)}
               extra={typeExtra?.(entry.type)}
             />

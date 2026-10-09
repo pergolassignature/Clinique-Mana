@@ -5051,6 +5051,7 @@ export type Database = {
         Returns: Json
       }
       get_my_access: { Args: never; Returns: Json }
+      get_my_image_consent: { Args: never; Returns: Json }
       get_my_professional_private: {
         Args: never
         Returns: {
@@ -5586,6 +5587,10 @@ export type Database = {
         Returns: Json
       }
       pii_health_check: { Args: never; Returns: boolean }
+      prepare_my_image_consent: {
+        Args: { p_action: string; p_actor: string; p_idempotency_key: string }
+        Returns: Json
+      }
       prepare_professional_contract: {
         Args: {
           p_action: string

@@ -241,6 +241,111 @@ $$;
 revoke all on function private.professional_signing_values_check(uuid, uuid, jsonb, text) from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
+-- What a request prints, once per key (shared by the staff's send and the professional's own)
+-- -----------------------------------------------------------------------------
+-- The snapshot of p_key (first write wins, P4-151): an existing one is re-checked (its version still
+-- published, else p_changed_message, HINT regenerate; its values still complete), else the
+-- published version, the file's values and its signer are written, under p_actor. Returns
+-- {idempotency_key, template_version_id, title, values, signers}. Refused: no published template
+-- (HINT template), an empty required value (HINT values).
+create function private.professional_image_consent_snapshot(p_org uuid, p_pid uuid, p_key text, p_actor uuid, p_changed_message text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_snapshot public.professional_contract_snapshots;
+  v_version uuid;
+  v_terms jsonb;
+  v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
+  v_prev_actor text := pg_catalog.current_setting('app.audit_actor', true);
+begin
+  select * into v_snapshot from public.professional_contract_snapshots s
+   where s.org_id = p_org and s.idempotency_key = p_key;
+  if v_snapshot.id is not null then
+    if not exists (select 1 from public.document_template_versions v
+                    join public.document_templates t on t.id = v.template_id
+                   where v.id = v_snapshot.template_version_id and v.status = 'published' and t.is_active) then
+      raise exception '%', p_changed_message using errcode = 'P0001', hint = 'regenerate';
+    end if;
+    perform private.professional_signing_values_check(p_org, v_snapshot.template_version_id, v_snapshot.template_values, 'Le consentement');
+  else
+    v_version := private.published_image_consent_version(p_org);
+    if v_version is null then
+      raise exception 'Aucun modèle de consentement publié. Publiez « Consentement au droit à l''image » dans Paramètres → Contrats et formulaires.'
+        using errcode = 'P0001', hint = 'template';
+    end if;
+    v_terms := private.professional_image_consent_terms(p_org, p_pid);
+    perform private.professional_signing_values_check(p_org, v_version, v_terms -> 'values', 'Le consentement');
+
+    perform pg_catalog.set_config('app.audit_source', 'rpc:prepare_professional_image_consent', true);
+    perform pg_catalog.set_config('app.audit_actor', p_actor::text, true);
+    insert into public.professional_contract_snapshots as s
+      (org_id, professional_id, idempotency_key, template_version_id, title, template_values, annexe, signers, created_by)
+    values
+      (p_org, p_pid, p_key, v_version, v_terms ->> 'title', v_terms -> 'values', '{}'::jsonb, v_terms -> 'signers', p_actor)
+    returning * into v_snapshot;
+    perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
+    perform pg_catalog.set_config('app.audit_actor', coalesce(v_prev_actor, ''), true);
+  end if;
+  return pg_catalog.jsonb_build_object(
+    'idempotency_key', v_snapshot.idempotency_key,
+    'template_version_id', v_snapshot.template_version_id,
+    'title', v_snapshot.title,
+    'values', v_snapshot.template_values,
+    'signers', v_snapshot.signers);
+end;
+$$;
+revoke all on function private.professional_image_consent_snapshot(uuid, uuid, text, uuid, text) from public, anon, authenticated, service_role;
+
+-- The published version of the clinic's « Consentement au droit à l'image », or null.
+create function private.published_image_consent_version(p_org uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select v.id
+    from public.document_templates t
+    join public.document_template_versions v on v.template_id = t.id and v.status = 'published'
+   where t.org_id = p_org and t.key = 'professionals.image_consent' and t.is_active
+$$;
+revoke all on function private.published_image_consent_version(uuid) from public, anon, authenticated, service_role;
+
+-- The last day the professional's image consent is in force on the clinic's today: a verified
+-- « Consentement droit à l'image » document (no end date: 2100-12-31) or the questionnaire's
+-- e-consent (before its withdrawal takes effect), as the readiness view counts them; null when none.
+create function private.professional_image_consent_valid_until(p_org uuid, p_pid uuid)
+returns date
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_today date;
+  v_doc date;
+  v_econsent date;
+  v_until date;
+begin
+  select (pg_catalog.now() at time zone o.timezone)::date into v_today from public.organizations o where o.id = p_org;
+  select max(coalesce(x.expires_on, date '2100-12-31')) into v_doc
+    from public.professional_documents x
+    join public.document_types t on t.org_id = x.org_id and t.id = x.document_type_id and t.key = 'image_consent'
+   where x.org_id = p_org and x.professional_id = p_pid and x.status = 'verified';
+  select max(case when k.withdrawal_effective_on is null then k.expires_on
+                  else least(k.expires_on, k.withdrawal_effective_on - 1) end) into v_econsent
+    from public.professional_consents k
+   where k.org_id = p_org and k.professional_id = p_pid;
+  v_until := greatest(v_doc, v_econsent);
+  return case when v_until >= v_today then v_until end;
+end;
+$fn$;
+revoke all on function private.professional_image_consent_valid_until(uuid, uuid) from public, anon, authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
 -- prepare_professional_image_consent (service role; the function's one read before a send)
 -- -----------------------------------------------------------------------------
 -- As prepare_professional_contract (its comment), with:
@@ -264,12 +369,8 @@ declare
   v_open public.signature_requests;
   v_key text;
   v_cancel jsonb;
-  v_snapshot public.professional_contract_snapshots;
-  v_version uuid;
-  v_terms jsonb;
+  v_snapshot jsonb;
   v_recipients jsonb;
-  v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
-  v_prev_actor text := pg_catalog.current_setting('app.audit_actor', true);
 begin
   if p_actor is null or p_id is null or p_action is null or p_action not in ('send', 'regenerate', 'resend')
      or (p_action <> 'resend' and coalesce(p_idempotency_key, '') !~ '^[A-Za-z0-9_-]{1,100}$') then
@@ -339,46 +440,10 @@ begin
                                               'status', v_open.status);
   end if;
 
-  select * into v_snapshot from public.professional_contract_snapshots s
-   where s.org_id = v_org and s.idempotency_key = v_key;
-  if v_snapshot.id is not null then
-    if not exists (select 1 from public.document_template_versions v
-                    join public.document_templates t on t.id = v.template_id
-                   where v.id = v_snapshot.template_version_id and v.status = 'published' and t.is_active) then
-      raise exception 'Le modèle du consentement a changé depuis cet envoi. Utilisez « Régénérer ».'
-        using errcode = 'P0001', hint = 'regenerate';
-    end if;
-    perform private.professional_signing_values_check(v_org, v_snapshot.template_version_id, v_snapshot.template_values, 'Le consentement');
-  else
-    select v.id into v_version
-      from public.document_templates t
-      join public.document_template_versions v on v.template_id = t.id and v.status = 'published'
-     where t.org_id = v_org and t.key = 'professionals.image_consent' and t.is_active;
-    if v_version is null then
-      raise exception 'Aucun modèle de consentement publié. Publiez « Consentement au droit à l''image » dans Paramètres → Contrats et formulaires.'
-        using errcode = 'P0001', hint = 'template';
-    end if;
-    v_terms := private.professional_image_consent_terms(v_org, p_id);
-    perform private.professional_signing_values_check(v_org, v_version, v_terms -> 'values', 'Le consentement');
+  v_snapshot := private.professional_image_consent_snapshot(v_org, p_id, v_key, p_actor,
+    'Le modèle du consentement a changé depuis cet envoi. Utilisez « Régénérer ».');
 
-    perform pg_catalog.set_config('app.audit_source', 'rpc:prepare_professional_image_consent', true);
-    perform pg_catalog.set_config('app.audit_actor', p_actor::text, true);
-    insert into public.professional_contract_snapshots as s
-      (org_id, professional_id, idempotency_key, template_version_id, title, template_values, annexe, signers, created_by)
-    values
-      (v_org, p_id, v_key, v_version, v_terms ->> 'title', v_terms -> 'values', '{}'::jsonb, v_terms -> 'signers', p_actor)
-    returning * into v_snapshot;
-    perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
-    perform pg_catalog.set_config('app.audit_actor', coalesce(v_prev_actor, ''), true);
-  end if;
-
-  return pg_catalog.jsonb_build_object(
-    'idempotency_key', v_snapshot.idempotency_key,
-    'template_version_id', v_snapshot.template_version_id,
-    'title', v_snapshot.title,
-    'values', v_snapshot.template_values,
-    'signers', v_snapshot.signers,
-    'cancel', v_cancel);
+  return v_snapshot || pg_catalog.jsonb_build_object('cancel', v_cancel);
 end;
 $$;
 revoke all on function public.prepare_professional_image_consent(uuid, uuid, text, text) from public, anon, authenticated, service_role;
@@ -769,5 +834,334 @@ begin
                             and r.id::text = a.record_id) rq on true
      order by a.id desc
      limit v_limit;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- The questionnaire's consent through Documenso (P4-487, P4-488; decided with Jonathan 2026-10-09)
+-- -----------------------------------------------------------------------------
+-- The « Consentement » step: what the professional sees (professionals.self, her own file only):
+-- {available: the clinic published the form, valid_until: the last day of the consent in force (a
+-- signed document or the e-consent) or null, request: her latest image-consent request {status,
+-- last_error, sent_at, completed_at, signed_at (her own signature)} or null}. Null without a file.
+create function public.get_my_image_consent()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_pid uuid;
+begin
+  v_pid := private.my_professional_id();
+  if v_pid is null then
+    return null;
+  end if;
+  return pg_catalog.jsonb_build_object(
+    'available', private.published_image_consent_version(v_org) is not null,
+    'valid_until', private.professional_image_consent_valid_until(v_org, v_pid),
+    'request', (select pg_catalog.jsonb_build_object(
+                         'status', r.status, 'last_error', r.last_error, 'sent_at', r.sent_at,
+                         'completed_at', r.completed_at,
+                         'signed_at', (select max(x.signed_at) from public.signature_request_signers x
+                                        where x.request_id = r.id and x.role = 'professional'))
+                  from public.signature_requests r
+                 where r.org_id = v_org and r.subject_type = 'professional' and r.subject_id = v_pid
+                   and r.purpose = 'professionals.image_consent'
+                 order by r.created_at desc, r.id desc
+                 limit 1));
+end;
+$$;
+revoke all on function public.get_my_image_consent() from public, anon, authenticated, service_role;
+grant execute on function public.get_my_image_consent() to authenticated;
+
+-- « Signer le consentement » and the return from the signing page (SERVICE ROLE, called by
+-- professionals-consent-sign with p_actor = the verified caller). The actor: an active member
+-- holding professionals.self (the module gate with it) whose account is linked to a file of her
+-- clinic; only that file.
+--   start  her open request (sent or viewed) → {resume: {request_id, envelope_id, recipient_id}}
+--          (the same request, never a second one: the function reads its signing token again);
+--          otherwise the snapshot to send (a live draft under its own key, else
+--          'professionals.image_consent:<file>:<p_idempotency_key>'), as
+--          prepare_professional_image_consent's send: {professional_id, idempotency_key,
+--          template_version_id, title, values, signers}. Refused (P0001, HINT): an inactive file
+--          (status), a consent already in force (signed), no published form (template), an empty
+--          value (values), an open request without a signing link yet (consent).
+--   sync   her latest image-consent request {sync: {request_id, status, envelope_id}} (null when
+--          none), for the function's syncRequest.
+create function public.prepare_my_image_consent(p_actor uuid, p_action text, p_idempotency_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid;
+  v_keys text[];
+  v_row public.professionals;
+  v_open public.signature_requests;
+  v_recipient text;
+  v_key text;
+  v_snapshot jsonb;
+begin
+  if p_actor is null or p_action is null or p_action not in ('start', 'sync')
+     or (p_action = 'start' and coalesce(p_idempotency_key, '') !~ '^[A-Za-z0-9_-]{1,100}$') then
+    raise exception 'Arguments invalides : acteur, action et clé attendus.' using errcode = '22023';
+  end if;
+  select p.org_id into v_org from public.profiles p where p.user_id = p_actor and p.status = 'active';
+  v_keys := private.permission_keys_for(p_actor);
+  if v_org is null or not (v_keys @> array['professionals.self']) then
+    raise exception 'Permission refusée : professionals.self' using errcode = '42501';
+  end if;
+  -- Locked (the module's order: the professional first); the service role has no clinic of its own,
+  -- so the actor's names it.
+  select * into v_row from public.professionals p where p.profile_id = p_actor and p.org_id = v_org for no key update;
+  if v_row.id is null then
+    raise exception 'Aucun dossier professionnel n''est lié à ce compte.' using errcode = 'P0001';
+  end if;
+
+  if p_action = 'sync' then
+    return pg_catalog.jsonb_build_object('sync', (
+      select pg_catalog.jsonb_build_object('request_id', r.id, 'status', r.status, 'envelope_id', r.envelope_id)
+        from public.signature_requests r
+       where r.org_id = v_org and r.subject_type = 'professional' and r.subject_id = v_row.id
+         and r.purpose = 'professionals.image_consent'
+       order by r.created_at desc, r.id desc
+       limit 1));
+  end if;
+
+  if v_row.status = 'inactive' then
+    raise exception 'Votre dossier est inactif : communiquez avec la clinique pour le réactiver.'
+      using errcode = 'P0001', hint = 'status';
+  end if;
+  if private.professional_image_consent_valid_until(v_org, v_row.id) is not null then
+    raise exception 'Votre consentement au droit à l''image est déjà signé.' using errcode = 'P0001', hint = 'signed';
+  end if;
+  if private.published_image_consent_version(v_org) is null then
+    raise exception 'La clinique n''a pas encore publié ce formulaire : elle vous l''enverra plus tard.'
+      using errcode = 'P0001', hint = 'template';
+  end if;
+
+  select * into v_open from public.signature_requests r
+   where r.org_id = v_org and r.subject_type = 'professional' and r.subject_id = v_row.id
+     and r.purpose = 'professionals.image_consent'
+     and (r.status in ('sent', 'viewed') or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'));
+  if v_open.status in ('sent', 'viewed') then
+    select x.documenso_recipient_id into v_recipient
+      from public.signature_request_signers x
+     where x.request_id = v_open.id and x.role = 'professional';
+    if v_open.envelope_id is null or v_recipient is null then
+      raise exception 'Le consentement vous a déjà été envoyé : ouvrez le lien reçu par courriel.'
+        using errcode = 'P0001', hint = 'consent';
+    end if;
+    return pg_catalog.jsonb_build_object('resume', pg_catalog.jsonb_build_object(
+      'request_id', v_open.id, 'envelope_id', v_open.envelope_id, 'recipient_id', v_recipient));
+  end if;
+
+  v_key := coalesce(v_open.idempotency_key, 'professionals.image_consent:' || v_row.id || ':' || p_idempotency_key);
+  v_snapshot := private.professional_image_consent_snapshot(v_org, v_row.id, v_key, p_actor,
+    'Le formulaire de consentement a changé depuis votre première tentative : la clinique vous l''enverra de nouveau.');
+  return v_snapshot || pg_catalog.jsonb_build_object('professional_id', v_row.id);
+end;
+$$;
+revoke all on function public.prepare_my_image_consent(uuid, text, text) from public, anon, authenticated, service_role;
+grant execute on function public.prepare_my_image_consent(uuid, text, text) to service_role;
+
+-- The questionnaire's completeness (*_professionals_onboarding.sql, P4-173), the consent section
+-- now complete when the file holds a consent in force (signed through Documenso), or the draft
+-- holds an e-consent of the current text signed before the switch, or the clinic has published no
+-- form (P4-487). The rest unchanged.
+create or replace function private.submission_gaps(p_sub public.professional_submissions)
+returns text[]
+language sql
+stable
+set search_path = ''
+as $$
+  with v as (select p_sub.submitted_values as j),
+  sp as (select s.* from public.professional_submission_private s
+          where s.submission_id = p_sub.id and s.org_id = p_sub.org_id),
+  pp as (select x.* from public.professional_private x
+          where x.professional_id = p_sub.professional_id and x.org_id = p_sub.org_id)
+  select coalesce(pg_catalog.array_agg(s.section order by s.ord), '{}')
+    from pg_catalog.unnest(private.submission_sections()) with ordinality as s(section, ord), v
+   where s.section = any (p_sub.requested_sections)
+     and not coalesce(case s.section
+       when 'personal' then
+         v.j #>> '{personal,personal_phone}' is not null and v.j #>> '{personal,address_line1}' is not null
+         and v.j #>> '{personal,city}' is not null and v.j #>> '{personal,province}' is not null
+         and v.j #>> '{personal,postal_code}' is not null
+       when 'professional' then pg_catalog.jsonb_array_length(coalesce(v.j #> '{professional,professions}', '[]')) > 0
+       when 'portrait' then v.j #>> '{portrait,bio}' is not null
+       when 'languages' then pg_catalog.jsonb_array_length(coalesce(v.j #> '{languages,language_ids}', '[]')) > 0
+       when 'clienteles' then pg_catalog.jsonb_array_length(coalesce(v.j #> '{clienteles,clienteles}', '[]')) > 0
+       when 'motifs' then pg_catalog.jsonb_array_length(coalesce(v.j #> '{motifs,motif_ids}', '[]')) > 0
+       when 'availability' then v.j ? 'availability'
+       when 'photo' then exists (
+         select 1 from public.stored_files f
+          where f.id = (v.j #>> '{photo,file_id}')::uuid and f.org_id = p_sub.org_id and f.status = 'ready'
+            and f.subject_type = 'professional_submission' and f.subject_id = p_sub.id
+            and (f.retain_until is null or f.retain_until > pg_catalog.now()))
+       when 'insurance' then (v.j #>> '{insurance,expires_on}')::date >= private.clinic_today() and exists (
+         select 1 from public.stored_files f
+          where f.id = (v.j #>> '{insurance,file_id}')::uuid and f.org_id = p_sub.org_id and f.status = 'ready'
+            and f.subject_type = 'professional_submission' and f.subject_id = p_sub.id
+            and (f.retain_until is null or f.retain_until > pg_catalog.now()))
+       when 'tax_bank' then exists (select 1 from sp)
+         and coalesce((select sp.bank_institution from sp), (select pp.bank_institution from pp)) is not null
+         and coalesce((select sp.bank_transit from sp), (select pp.bank_transit from pp)) is not null
+         and (exists (select 1 from sp where sp.bank_account is not null) or exists (select 1 from pp where pp.bank_account is not null))
+         and (not coalesce((private.professionals_setting(p_sub.org_id, 'collect_sin'))::boolean, false)
+              or exists (select 1 from sp where sp.sin is not null) or exists (select 1 from pp where pp.sin is not null))
+       -- P4-487: signed through Documenso (a consent in force on the file), or the e-consent of a
+       -- draft signed before the switch, or nothing to sign yet (no published form: the clinic
+       -- sends it later, never a block).
+       when 'consent' then (v.j #>> '{consent,consent_version_id}')::uuid
+                             = private.current_consent_version(p_sub.org_id, 'image_rights')
+                           or private.professional_image_consent_valid_until(p_sub.org_id, p_sub.professional_id) is not null
+                           or private.published_image_consent_version(p_sub.org_id) is null
+     end, false)
+$$;
+revoke all on function private.submission_gaps(public.professional_submissions) from public, anon, authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- The professional never uploads her image consent (P4-489, decided by Jonathan 2026-10-09)
+-- -----------------------------------------------------------------------------
+-- *_professionals_documents.sql's attach_professional_document (same signature and grants), with
+-- one refusal: a file of purpose professional_self_document for the type image_consent (« Le
+-- consentement se remplit et se signe en ligne. », HINT type). Staff still attach a paper consent.
+create or replace function public.attach_professional_document(
+  p_id uuid,
+  p_type_key text,
+  p_file_id uuid,
+  p_expires_on date default null,
+  p_metadata jsonb default '{}'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_self boolean;
+  v_purpose text;
+  v_row public.professionals;
+  v_type public.document_types;
+  v_file public.stored_files;
+  v_today date;
+  v_expires date;
+  v_metadata jsonb := '{}';
+  v_status text;
+  v_id uuid;
+  v_key text;
+  v_value text;
+begin
+  if private.has_permission('professionals.manage') then
+    v_self := false;
+    v_purpose := 'professional_document';
+  elsif private.has_permission('professionals.self') and p_id is not null and p_id = private.current_professional_id() then
+    v_self := true;
+    v_purpose := 'professional_self_document';
+  else
+    raise exception 'Permission refusée : professionals.manage' using errcode = '42501';
+  end if;
+  if p_id is null or p_type_key is null or p_file_id is null then
+    raise exception 'Professionnel, type et fichier requis.' using errcode = '22023';
+  end if;
+  if p_metadata is null or pg_catalog.jsonb_typeof(p_metadata) <> 'object' then
+    raise exception 'Métadonnées invalides.' using errcode = '22023';
+  end if;
+
+  perform private.lock_professional(p_id);
+  select * into v_row from public.professionals p where p.id = p_id and p.org_id = v_org;
+
+  select * into v_type from public.document_types t where t.org_id = v_org and t.key = p_type_key and t.is_active;
+  if not found then
+    raise exception 'Type de document inconnu.' using errcode = 'P0001', hint = 'type';
+  end if;
+  -- P4-489 (Jonathan, 2026-10-09): the professional fills in and signs her consent online (the
+  -- questionnaire, « Mes documents »), never uploads one; staff may still upload a paper one.
+  if v_self and v_type.key = 'image_consent' then
+    raise exception 'Le consentement se remplit et se signe en ligne.' using errcode = 'P0001', hint = 'type';
+  end if;
+
+  -- The file (attach_stored_file re-checks purpose, uploader, clinic, status and staging).
+  select * into v_file from public.stored_files f
+   where f.id = p_file_id and f.org_id = v_org and f.purpose = v_purpose and f.status = 'ready'
+     and (f.retain_until is null or f.retain_until > pg_catalog.now())
+     and (not v_self or f.uploaded_by = auth.uid())
+     and not exists (select 1 from public.professional_documents d where d.stored_file_id = f.id);
+  if not found then
+    raise exception 'Fichier introuvable. Téléversez-le de nouveau.' using errcode = 'P0001', hint = 'file';
+  end if;
+  if not (v_file.mime_type = any (v_type.accepted_mime)) then
+    raise exception 'Ce type de fichier n''est pas accepté pour ce document.' using errcode = 'P0001', hint = 'file';
+  end if;
+  if v_file.size_bytes > v_type.max_bytes then
+    raise exception 'Ce fichier dépasse la taille permise pour ce document (% Mo).',
+      pg_catalog.replace(pg_catalog.trim_scale(pg_catalog.round(v_type.max_bytes / 1048576.0, 1))::text, '.', ',')
+      using errcode = 'P0001', hint = 'file';
+  end if;
+
+  v_today := private.clinic_today();
+  if v_type.expiry_rule = 'none' then
+    if p_expires_on is not null then
+      raise exception 'Ce type de document n''a pas d''échéance.' using errcode = 'P0001', hint = 'expires_on';
+    end if;
+  else
+    v_expires := coalesce(p_expires_on, private.document_default_expiry(v_type.expiry_rule, v_today));
+    if v_expires < v_today or v_expires > date '2100-12-31' then
+      raise exception 'L''échéance doit être aujourd''hui ou plus tard.' using errcode = 'P0001', hint = 'expires_on';
+    end if;
+  end if;
+
+  for v_key, v_value in select e.key, e.value from pg_catalog.jsonb_each_text(p_metadata) e loop
+    if v_type.key <> 'insurance' or v_key not in ('insurer', 'policy_number')
+       or pg_catalog.jsonb_typeof(p_metadata -> v_key) not in ('string', 'null') then
+      raise exception 'Métadonnées invalides.' using errcode = '22023';
+    end if;
+    v_value := nullif(pg_catalog.btrim(v_value, E' \t\r\n'), '');
+    if v_value is not null then
+      if pg_catalog.char_length(v_value) > 120 or not private.is_tidy_text(v_value) then
+        raise exception 'L''assureur et le numéro de police comptent au plus 120 caractères, sans caractères invisibles.'
+          using errcode = 'P0001', hint = v_key;
+      end if;
+      v_metadata := v_metadata || pg_catalog.jsonb_build_object(v_key, v_value);
+    end if;
+  end loop;
+
+  if (select count(*) from public.professional_documents d where d.professional_id = p_id and d.org_id = v_org) >= 200 then
+    raise exception 'Ce dossier compte déjà 200 documents. Supprimez-en avant d''en ajouter.' using errcode = 'P0001';
+  end if;
+
+  v_status := case when not v_self and private.has_permission('professionals.documents.review')
+                        and v_row.profile_id is distinct from auth.uid()
+                   then 'verified' else 'pending' end;
+
+  -- The file now belongs to the professional: read with professionals.view, and by the provider
+  -- (owner branch) once they have an account.
+  perform private.attach_stored_file(p_file_id, array[v_purpose], 'professional', p_id, 'professionals.view',
+    v_row.profile_id, case when v_row.profile_id is not null then 'professionals.self' end,
+    case when v_self then auth.uid() end);
+
+  insert into public.professional_documents
+    (org_id, professional_id, document_type_id, stored_file_id, status, expires_on, metadata, uploaded_by, reviewed_by, reviewed_at)
+  values (v_org, p_id, v_type.id, p_file_id, v_status, v_expires, v_metadata, auth.uid(),
+          case when v_status = 'verified' then auth.uid() end,
+          case when v_status = 'verified' then pg_catalog.now() end)
+  returning id into v_id;
+
+  if v_status = 'verified' then
+    perform private.after_professional_documents_change(v_org, p_id);
+  else
+    perform private.notify(
+      v_org, 'professionals', 'professionals.document_to_review', 'normal', 'Document à vérifier',
+      v_row.first_name || ' ' || v_row.last_name || ' a téléversé un document : ' || v_type.name || '.',
+      '/professionnels/' || p_id || '/documents', 'professional_document', v_id,
+      'professionals.documents.review', null, 'document:' || v_id || ':uploaded', null);
+  end if;
+  return v_id;
 end;
 $$;

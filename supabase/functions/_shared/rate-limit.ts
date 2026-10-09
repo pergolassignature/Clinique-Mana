@@ -120,6 +120,16 @@ export const LIMITS = {
     windowSeconds: 10,
   },
   /**
+   * `professionals-consent-sign` « Signer le consentement », per caller
+   * (P4-488): each call may render the consent and call Documenso, or read a
+   * signing link again.
+   */
+  professionalConsentSignUser: {
+    bucket: 'professionals.consent_sign_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /**
    * `storage-upload`, per caller: each call creates a pending row and signs
    * an upload of up to the purpose's size cap.
    */

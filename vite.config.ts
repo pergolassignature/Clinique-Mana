@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import path from 'path'
 
@@ -37,8 +37,37 @@ function preloadInterLatin(): Plugin {
   }
 }
 
-export default defineConfig({
-  plugins: [react(), preloadInterLatin()],
+/** The origin of an `http(s)` URL, or null (an unset or malformed variable adds nothing). */
+function originOf(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The page may frame only itself, Supabase (« Aperçu » of a stored PDF: a signed storage URL) and
+ * the clinic's Documenso (the embedded signing of the image consent, P4-488), each origin from the
+ * build's environment (`VITE_SUPABASE_URL`, `VITE_DOCUMENSO_URL`), never hard-coded: a
+ * `Content-Security-Policy` meta with `frame-src` only (no other directive changes). Without
+ * `VITE_DOCUMENSO_URL` the embed is refused by the browser and the page falls back to the signing
+ * page itself. The sandboxed previews (`srcdoc`) are not fetched, so `frame-src` does not apply.
+ */
+function frameSources(env: Record<string, string>): Plugin {
+  const sources = ["'self'", originOf(env.VITE_SUPABASE_URL), originOf(env.VITE_DOCUMENSO_URL)].filter(Boolean)
+  return {
+    name: 'mana:frame-src',
+    transformIndexHtml: () => [
+      { tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: `frame-src ${sources.join(' ')}` }, injectTo: 'head-prepend' },
+    ],
+  }
+}
+
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), preloadInterLatin(), frameSources(loadEnv(mode, process.cwd(), 'VITE_'))],
   // Vite listens on localhost ([::1]); the app's single local origin is http://localhost:5173.
   server: { port: 5173, strictPort: true },
   resolve: {
@@ -64,4 +93,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

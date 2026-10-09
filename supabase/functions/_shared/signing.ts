@@ -146,6 +146,13 @@ export interface CreateSignatureRequestInput {
   /** One per user action (a double click returns the same request). */
   idempotencyKey: string
   sentBy: string | null
+  /**
+   * Signed in the app, not from an email (P4-488): the envelope is created
+   * with `distributionMethod: 'NONE'` and this redirect after signing, and
+   * the result carries each signer's signing token (`links`). Absent: the
+   * signers are emailed.
+   */
+  manual?: { redirectUrl: string }
   /** Only the built-in test document: already filled, with its invitation. */
   document?: PdfDocument
   email?: { subject: string; message: string }
@@ -153,7 +160,17 @@ export interface CreateSignatureRequestInput {
 
 /** The outcome; a thrown `SigningFailure` is an internal error (500). */
 export type CreateSignatureRequestResult =
-  | { ok: true; requestId: string; existing: boolean }
+  | {
+    ok: true
+    requestId: string
+    existing: boolean
+    /**
+     * `manual` only, for a request sent by this call: each signer's signing
+     * token by role. A credential: handed to its signer once, never stored,
+     * logged or reported.
+     */
+    links?: { role: string; token: string }[]
+  }
   | {
     ok: false
     code:
@@ -604,6 +621,7 @@ async function send(
   }
 
   let recipients: { role: string; recipient_id: string }[]
+  let links: { role: string; token: string }[] | undefined
   try {
     const created = await documenso.createEnvelope(rendered.bytes, {
       title: input.title,
@@ -621,7 +639,8 @@ async function send(
         subject: plan.email.subject,
         message: plan.email.message,
         language: 'fr',
-        distributionMethod: 'EMAIL',
+        distributionMethod: input.manual ? 'NONE' : 'EMAIL',
+        ...(input.manual && { redirectUrl: input.manual.redirectUrl }),
         signingOrder: plan.signers.length > 1 ? 'SEQUENTIAL' : 'PARALLEL',
         timezone: context.timezone,
         expiryDays: context.settings.expiry_days,
@@ -634,7 +653,16 @@ async function send(
       recipient_id: created.recipients[i].id,
     }))
     distributing = true
-    await documenso.distribute(envelopeId)
+    if (input.manual) {
+      const tokens = await documenso.distributeForSigning(envelopeId)
+      links = recipients.flatMap((r) => {
+        const token = tokens.find((x) => x.recipientId === r.recipient_id)
+          ?.token
+        return token ? [{ role: r.role, token }] : []
+      })
+    } else {
+      await documenso.distribute(envelopeId)
+    }
   } catch (error) {
     if (error instanceof DocumensoError) {
       envelopeId ??= error.envelopeId
@@ -672,5 +700,10 @@ async function send(
     await cancelAndMark('mark_sent_failed')
     throw new SigningFailure('mark_sent_failed', requestId)
   }
-  return { ok: true, requestId, existing: plan.existing }
+  return {
+    ok: true,
+    requestId,
+    existing: plan.existing,
+    ...(links && { links }),
+  }
 }

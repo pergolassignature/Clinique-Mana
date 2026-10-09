@@ -602,9 +602,10 @@ select throws_ok($$ select public.save_my_submission_draft('insurance', '{"file_
 select lives_ok($$ select public.save_my_submission_draft('insurance', jsonb_build_object('file_id', 'e0000000-0000-0000-0000-000000000002',
   'expires_on', ((current_date + 200))::text)) $$, 'the insurance');
 
--- Incomplete: tax_bank and consent are missing.
+-- Incomplete: tax_bank is missing. The consent is not a gap here: the clinic has published no
+-- Documenso form (P4-487, *_professionals_image_consent.sql; 071 covers a published one).
 select throws_ok($$ select public.submit_my_submission() $$, 'P0001', 'Certaines sections sont incomplètes.', 'submit refuses a gap');
-select is(private.test_error_detail($$ select public.submit_my_submission() $$), 'tax_bank,consent', '… naming the sections (DETAIL)');
+select is(private.test_error_detail($$ select public.submit_my_submission() $$), 'tax_bank', '… naming the sections (DETAIL)');
 
 -- The private step.
 select throws_ok($$ select public.save_my_submission_private('046 454 286', null, null, null, null, null, null) $$,

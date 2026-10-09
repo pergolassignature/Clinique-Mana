@@ -116,6 +116,12 @@ export const professionalKeys = {
   myRecord: () => [...professionalKeys.all, 'my-record'] as const,
   /** « Mes documents » (4c.6): the signed-in professional's documents. */
   myDocuments: () => [...professionalKeys.all, 'my-documents'] as const,
+  /**
+   * Her image consent step (`get_my_image_consent`, P4-487): states and dates only, never a signing
+   * link. A signature (the embed's completion, the return from the signing page) refetches it,
+   * `myDocuments()` and `mySubmission()`.
+   */
+  myImageConsent: () => [...professionalKeys.all, 'my-image-consent'] as const,
 }
 
 /** The nine lists (one cached payload, « Documents requis » included) and their usage counts. */

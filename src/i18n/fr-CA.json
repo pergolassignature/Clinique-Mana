@@ -3508,6 +3508,39 @@
           "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard."
         }
       },
+      "consentSign": {
+        "loadError": "Votre consentement n'a pas pu être chargé.",
+        "summary": "Ce formulaire autorise la clinique à utiliser votre photo professionnelle sur son site web, sur votre fiche et dans ses communications internes, pour 12 mois. Vous le lisez et le signez ici, en ligne.",
+        "sign": "Signer le consentement",
+        "fill": "Remplir et signer",
+        "renew": "Renouveler : remplir et signer",
+        "opening": "Préparation…",
+        "retry": "Réessayer",
+        "signedOn": "Signé le {date} · valide jusqu'au {until}",
+        "validUntil": "Consentement en vigueur jusqu'au {until}",
+        "notSignedYet": "Pas encore signé.",
+        "notPublished": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard. Vous pouvez envoyer votre profil sans attendre.",
+        "notPublishedDocuments": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard.",
+        "notPublishedShort": "À signer plus tard : la clinique vous enverra le formulaire.",
+        "frameTitle": "Signature du consentement au droit à l'image",
+        "loading": "Chargement de la page de signature…",
+        "fallback": "La page de signature ne s'affiche pas ici. Ouvrez-la pour signer : vous reviendrez ici ensuite.",
+        "openPage": "Ouvrir la page de signature",
+        "notShowing": "La signature ne s'affiche pas ?",
+        "openInPage": "Ouvrir dans une nouvelle page",
+        "close": "Fermer la page de signature",
+        "checking": "Vérification de la signature…",
+        "signedToast": "Consentement signé. Merci!",
+        "pendingCheck": "Signature reçue : elle sera confirmée dans quelques minutes.",
+        "errors": {
+          "generic": "Le consentement n'a pas pu être préparé. Réessayez dans quelques minutes.",
+          "provider": "Documenso ne répond pas pour le moment. Réessayez dans quelques minutes.",
+          "notConfigured": "La signature électronique n'est pas encore configurée par la clinique.",
+          "inProgress": "Une préparation est déjà en cours. Réessayez dans un instant.",
+          "rateLimited": "Trop de tentatives en peu de temps.",
+          "network": "Connexion impossible. Vérifiez votre connexion, puis réessayez."
+        }
+      },
       "imageConsent": {
         "loadError": "L'envoi du consentement n'a pas pu être chargé.",
         "heading": "Signature électronique (Documenso)",

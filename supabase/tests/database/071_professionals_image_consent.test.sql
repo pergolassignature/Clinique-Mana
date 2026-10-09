@@ -10,7 +10,7 @@
 -- keeping the signed file; the history.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(66);
+select plan(83);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -51,6 +51,14 @@ select function_privs_are('private', 'professional_image_consent_signed', array[
   'no client calls the completion trigger');
 select function_privs_are('private', 'seed_professionals_image_consent_template', array['uuid'], 'authenticated', array[]::text[],
   'no client calls the template seed');
+select function_privs_are('public', 'prepare_my_image_consent', array['uuid', 'text', 'text'], 'service_role', array['EXECUTE'],
+  'service_role may prepare the professional''s own consent');
+select function_privs_are('public', 'prepare_my_image_consent', array['uuid', 'text', 'text'], 'authenticated', array[]::text[],
+  'a client may not (the function names the actor)');
+select function_privs_are('public', 'get_my_image_consent', array[]::text[], 'authenticated', array['EXECUTE'],
+  'the professional reads her consent step');
+select function_privs_are('public', 'get_my_image_consent', array[]::text[], 'anon', array[]::text[],
+  'anon may not');
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a conseillère and a provider (linked
@@ -343,6 +351,81 @@ select is((select r.consent_ok from public.professionals_readiness r where r.pro
 reset role;
 select is((select f.status from public.stored_files f where f.id = 'f0000000-0000-0000-0000-000000000003'), 'ready',
   'the signed PDF stays: it is the signature''s own copy (Journal, ADR 0005)');
+
+-- =============================================================================
+-- The questionnaire's consent through Documenso (P4-487, P4-488): Nora (P3, the provider)
+-- =============================================================================
+select throws_ok($$ select public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000004', 'start', 's1') $$,
+  '42501', null, 'the conseillère (no professionals.self) is refused');
+select throws_ok($$ select public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000001', 'start', 's1') $$,
+  'P0001', 'Aucun dossier professionnel n''est lié à ce compte.', 'an account without a file is refused');
+select results_eq($$ select p ->> 'idempotency_key', (p ->> 'professional_id')::uuid, p -> 'signers' -> 0 ->> 'role', p -> 'signers' -> 0 ->> 'email'
+                       from (select public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000003', 'start', 's1') p) x $$,
+  $$ values ('professionals.image_consent:c0000000-0000-0000-0000-000000000003:s1'::text, 'c0000000-0000-0000-0000-000000000003'::uuid,
+             'professional'::text, 'provider@a.test'::text) $$,
+  'start: her own file only, the snapshot to send, herself as the signer');
+select set_config('test.r5', (select r.id::text from public.create_signature_request(jsonb_build_object(
+  'org_id', 'b0000000-0000-0000-0000-00000000000a', 'module_key', 'professionals', 'purpose', 'professionals.image_consent',
+  'template_version_id', current_setting('test.v1'), 'subject_type', 'professional', 'subject_id', 'c0000000-0000-0000-0000-000000000003',
+  'title', 'Consentement au droit à l''image — Nora Trois', 'view_permission', 'professionals.view',
+  'idempotency_key', 'professionals.image_consent:c0000000-0000-0000-0000-000000000003:s1',
+  'sent_by', 'a0000000-0000-0000-0000-000000000003',
+  'signers', '[{"role": "professional", "name": "Nora Trois", "email": "provider@a.test", "order": 1}]'::jsonb)) r), true);
+select is(public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000003', 'start', 's2') ->> 'idempotency_key',
+  'professionals.image_consent:c0000000-0000-0000-0000-000000000003:s1', 'a draft is resumed under its own key (never a second request)');
+-- One transaction makes now() constant: the new request is dated a minute later, as in real life.
+update public.signature_requests set status = 'sent', envelope_id = 'envelope_consentself', sent_at = now(), expires_at = now() + interval '7 days',
+       created_at = now() + interval '1 minute'
+ where id = current_setting('test.r5')::uuid;
+update public.signature_request_signers set documenso_recipient_id = '31' where request_id = current_setting('test.r5')::uuid;
+select is(public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000003', 'start', 's3'),
+  jsonb_build_object('resume', jsonb_build_object('request_id', current_setting('test.r5'), 'envelope_id', 'envelope_consentself', 'recipient_id', '31')),
+  'out for signature: the same request is resumed (its signing link read again)');
+select is(public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000003', 'sync', null) -> 'sync' ->> 'request_id',
+  current_setting('test.r5'), 'sync: her latest consent request');
+
+-- The step's read, and the questionnaire's gap.
+insert into public.professional_submissions (id, org_id, professional_id, kind, status, requested_sections)
+values ('e0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000003',
+        'update', 'draft', array['consent']);
+select is(private.submission_gaps((select s from public.professional_submissions s where s.id = 'e0000000-0000-0000-0000-000000000003')),
+  array['consent'], 'a published form not yet signed: the consent section is a gap');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select results_eq($$ select (c ->> 'available')::boolean, c -> 'valid_until', c -> 'request' ->> 'status' from (select public.get_my_image_consent() c) x $$,
+  $$ values (true, 'null'::jsonb, 'sent'::text) $$, 'her step: a form to sign, nothing in force, her request out');
+reset role;
+-- Signed (as the webhook would): in force, no gap, and a second start is refused.
+insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, view_permission,
+                                 original_name, mime_type, ext, size_bytes, sha256, status, confirmed_at)
+values ('f0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'signed-documents',
+        'b0000000-0000-0000-0000-00000000000a/core/' || current_setting('test.r5') || '/f0000000-0000-0000-0000-000000000005.pdf',
+        'core', 'signing_signed', 'signature_request', current_setting('test.r5')::uuid, 'professionals.view',
+        'Consentement signé.pdf', 'application/pdf', 'pdf', 1000, repeat('d', 64), 'ready', now());
+update public.signature_request_signers set status = 'signed', signed_at = now() where request_id = current_setting('test.r5')::uuid;
+select set_config('request.jwt.claims', '', true);
+select public.complete_signature_request(current_setting('test.r5')::uuid, 'f0000000-0000-0000-0000-000000000005', repeat('d', 64));
+select is(private.submission_gaps((select s from public.professional_submissions s where s.id = 'e0000000-0000-0000-0000-000000000003')),
+  array[]::text[], 'signed through Documenso: the consent section is complete');
+select is(private.test_error_hint($$ select public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000003', 'start', 's4') $$),
+  'signed', 'a consent in force: nothing to sign again (HINT signed)');
+-- No published form: never a block.
+update public.professional_documents set status = 'expired', expires_on = date '2020-01-01'
+ where signature_request_id = current_setting('test.r5')::uuid;
+update public.document_templates set is_active = false where id = current_setting('test.tpl')::uuid;
+select is(private.submission_gaps((select s from public.professional_submissions s where s.id = 'e0000000-0000-0000-0000-000000000003')),
+  array[]::text[], 'no published form: the consent section does not block the sending');
+select is(private.test_error_hint($$ select public.prepare_my_image_consent('a0000000-0000-0000-0000-000000000003', 'start', 's5') $$),
+  'template', 'and « Signer » says the clinic will send it later (HINT template)');
+update public.document_templates set is_active = true where id = current_setting('test.tpl')::uuid;
+
+-- The professional never uploads her consent (P4-489); staff may (a paper one).
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok($$ select public.attach_professional_document('c0000000-0000-0000-0000-000000000003', 'image_consent',
+                                                                'f0000000-0000-0000-0000-0000000000a1') $$,
+  'P0001', 'Le consentement se remplit et se signe en ligne.', '« Mes documents » refuses an uploaded consent');
+reset role;
 
 -- =============================================================================
 -- History (the admin)

@@ -25,7 +25,8 @@ const I = 'modules.professionals.imageConsent'
 
 /** The consent's card has no clinic signer and is read with professionals.view (P4-483). */
 const consentJson = (request: Record<string, unknown> | null) => {
-  const { clinic_signer: _signer, ...json } = contractJson(request === null ? null : { ...request, can_read: true })
+  const json = contractJson(request === null ? null : { ...request, can_read: true })
+  delete json.clinic_signer
   return json
 }
 

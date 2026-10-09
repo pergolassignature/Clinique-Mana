@@ -29,6 +29,21 @@ const mocks = vi.hoisted(() => ({
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   address: { fetchAddressSuggestions: vi.fn(), fetchPlaceAddress: vi.fn() },
   uploadFile: vi.fn(),
+  consentSign: { fetchMyImageConsent: vi.fn(), startConsentSigning: vi.fn(), syncMyConsent: vi.fn() },
+}))
+vi.mock('../../api/consent-sign', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/consent-sign')>()), ...mocks.consentSign }))
+// Documenso's embed: a frame that says it is ready, and « Signer » posts the completion.
+vi.mock('@documenso/embed-react', () => ({
+  EmbedSignDocument: ({ token, onDocumentReady, onDocumentCompleted }: { token: string; onDocumentReady?: () => void; onDocumentCompleted?: () => void }) => {
+    queueMicrotask(() => onDocumentReady?.())
+    return (
+      <div data-testid="documenso-frame" data-token={token}>
+        <button type="button" onClick={() => onDocumentCompleted?.()}>
+          Documenso : signer
+        </button>
+      </div>
+    )
+  },
 }))
 vi.mock('../../api/self', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/self')>()), ...mocks.self }))
 vi.mock('../../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/catalog')>()), ...mocks.catalog }))
@@ -111,6 +126,7 @@ beforeEach(() => {
   })
   mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(CATALOG)
   mocks.address.fetchAddressSuggestions.mockResolvedValue([])
+  mocks.consentSign.fetchMyImageConsent.mockResolvedValue({ available: true, validUntil: null, request: null })
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -236,20 +252,46 @@ describe('QuestionnairePage — steps', () => {
     expect(screen.queryByRole('textbox', { name: new RegExp(t(`${Q}.taxBank.sin`)) })).not.toBeInTheDocument()
   })
 
-  it('signs the consent only with the file’s name', async () => {
-    mocks.self.signMyConsent.mockResolvedValue(undefined)
+  it('signs the consent through Documenso inside the step, then reads « Signé le … » (P4-487, P4-488)', async () => {
+    mocks.consentSign.startConsentSigning.mockResolvedValue({
+      requestId: 'r1',
+      token: 'tok_1',
+      signingUrl: 'http://127.0.0.1:55390/sign/tok_1',
+      host: 'http://127.0.0.1:55390',
+    })
+    mocks.consentSign.syncMyConsent.mockResolvedValue('signed')
     renderPage('consentement')
     await stepTitle('consent')
-    await userEvent.click(screen.getByRole('checkbox', { name: t(`${Q}.consent.agree`) }))
-    const name = screen.getByRole('textbox', { name: required(t(`${Q}.consent.name`)) })
-    await userEvent.type(name, 'Félix Gauthie')
-    await userEvent.click(screen.getByRole('button', { name: t(`${Q}.consent.signAndContinue`) }))
-    expect(await screen.findByText(t(`${Q}.consent.nameMismatch`))).toBeInTheDocument()
-    expect(mocks.self.signMyConsent).not.toHaveBeenCalled()
-    await userEvent.type(name, 'r')
-    await userEvent.click(screen.getByRole('button', { name: t(`${Q}.consent.signAndContinue`) }))
-    expect(await stepTitle('review')).toBeInTheDocument()
-    expect(mocks.self.signMyConsent).toHaveBeenCalledWith('00000000-0000-4000-8000-00000000c001', 'Félix Gauthier')
+    expect(await screen.findByText(t('modules.professionals.consentSign.summary'))).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t('modules.professionals.consentSign.sign') }))
+    const frame = await screen.findByTestId('documenso-frame')
+    expect(frame).toHaveAttribute('data-token', 'tok_1')
+    expect(mocks.consentSign.startConsentSigning).toHaveBeenCalledWith(expect.any(String), { returnTo: 'questionnaire', returnStep: 'consentement' })
+    // The fallback link is always there, to the full signing page in this window.
+    expect(screen.getByRole('link', { name: t('modules.professionals.consentSign.openInPage') })).toHaveAttribute('href', 'http://127.0.0.1:55390/sign/tok_1')
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
+      available: true,
+      validUntil: '2027-10-08',
+      request: { status: 'signed', lastError: null, sentAt: '2026-10-08T16:00:00Z', completedAt: '2026-10-08T16:02:00Z', signedAt: '2026-10-08T16:02:00Z' },
+    })
+    await userEvent.click(within(frame).getByRole('button', { name: 'Documenso : signer' }))
+    expect(await screen.findByText(/^Signé le .* · valide jusqu'au 8 octobre 2027$/)).toBeInTheDocument()
+    expect(mocks.consentSign.syncMyConsent).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('documenso-frame')).not.toBeInTheDocument()
+  })
+
+  it('says why the consent cannot be prepared, and « Réessayer » asks again', async () => {
+    mocks.consentSign.startConsentSigning.mockRejectedValueOnce(new FunctionCallError('provider_error', 502, 'Documenso failed'))
+    renderPage('consentement')
+    await stepTitle('consent')
+    await userEvent.click(await screen.findByRole('button', { name: t('modules.professionals.consentSign.sign') }))
+    expect(await screen.findByText(t('modules.professionals.consentSign.errors.provider'))).toBeInTheDocument()
+    mocks.consentSign.startConsentSigning.mockResolvedValue({ requestId: 'r1', token: 'tok_1', signingUrl: 'http://x.test/sign/tok_1', host: 'http://x.test' })
+    await userEvent.click(screen.getByRole('button', { name: t('modules.professionals.consentSign.retry') }))
+    expect(await screen.findByTestId('documenso-frame')).toBeInTheDocument()
+    // The same key: a retry after a failure that may have sent something is the same request.
+    const [first, second] = mocks.consentSign.startConsentSigning.mock.calls.map((c) => c[0])
+    expect(second).toBe(first)
   })
 
   it('saves a picker at once and stays on the step (the sheet’s submit is not « Continuer »)', async () => {
@@ -665,24 +707,21 @@ describe('QuestionnairePage — motifs reserved to regulated titles (P4-335)', (
 })
 
 describe('QuestionnairePage — consent and review', () => {
-  it('shows the signature’s time as the database answers it', async () => {
-    mocks.self.signMyConsent.mockResolvedValue('2026-10-08T16:03:00.000+00:00')
+  it('no published form: the clinic sends it later, and the consent is no gap (P4-487)', async () => {
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({ available: false, validUntil: null, request: null })
     renderPage('consentement')
     await stepTitle('consent')
-    await userEvent.click(screen.getByRole('checkbox', { name: t(`${Q}.consent.agree`) }))
-    await userEvent.type(screen.getByRole('textbox', { name: required(t(`${Q}.consent.name`)) }), 'Felix Gauthier')
-    await userEvent.click(screen.getByRole('button', { name: t(`${Q}.consent.signAndContinue`) }))
-    await stepTitle('review')
-    expect(
-      screen.getByText(t(`${Q}.consent.signed`, { date: formatClinicDateTime('2026-10-08T16:03:00.000+00:00'), name: 'Felix Gauthier' })),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(t('modules.professionals.consentSign.notPublished'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('modules.professionals.consentSign.sign') })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t(`${Q}.actions.continue`) }))
+    expect(await stepTitle('review')).toBeInTheDocument()
   })
 
-  it('says sending waits for the clinic’s text when none is published', async () => {
-    current = mySubmission({ consent: null })
-    renderPage('consentement')
+  it('back from the signing page (?consentement=signe): synced at once', async () => {
+    mocks.consentSign.syncMyConsent.mockResolvedValue('signed')
+    renderPage('consentement&consentement=signe')
     await stepTitle('consent')
-    expect(screen.getByText(t(`${Q}.consent.none`))).toBeInTheDocument()
+    await waitFor(() => expect(mocks.consentSign.syncMyConsent).toHaveBeenCalledOnce())
   })
 
   it('reads « Signé (version n) » on a sent profile once the clinic published a newer text', async () => {

@@ -163,7 +163,13 @@ verify_jwt = false
 [functions.professionals-documents]
 verify_jwt = false
 
-# The service contract: « Préparer et envoyer », « Renvoyer », « Régénérer » (Task 4d.2; verifyAuth,
-# module professionals, professionals.contracts.send and professionals.compensation). Renders.
+# The service contract and the image consent: « Préparer et envoyer », « Renvoyer », « Régénérer »
+# (Task 4d.2, P4-483; verifyAuth, module professionals; the contract needs professionals.contracts.send
+# and professionals.compensation, the image consent professionals.manage). Renders.
 [functions.professionals-contract-send]
+verify_jwt = false
+
+# The professional signs her own image consent in the app (P4-487, P4-488; verifyAuth, module
+# professionals, professionals.self): returns her signing token once, and syncs on her return. Renders.
+[functions.professionals-consent-sign]
 verify_jwt = false
