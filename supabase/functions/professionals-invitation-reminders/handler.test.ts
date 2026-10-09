@@ -80,6 +80,7 @@ function harness(opts: {
     id: string,
   ) => { data?: unknown; error?: { code: string } } | undefined
   start?: RpcRoute
+  moduleEnabled?: boolean
   mailpit?: Responder
   env?: Record<string, string>
   /** Other service RPC routes (override the defaults). */
@@ -91,6 +92,7 @@ function harness(opts: {
       list_job_orgs: { data: [ORG_ID] },
       start_job_run: opts.start ?? { data: 'run-1' },
       finish_job_run: { data: null },
+      module_enabled_for_org: { data: opts.moduleEnabled ?? true },
       list_professional_invitations_to_remind_for_service: opts.list ??
         { data: opts.ids ?? [pid(1)] },
       reissue_professional_invitation_for_service: (args) =>
@@ -609,6 +611,25 @@ Deno.test('professionals-invitation-reminders: an abort before the re-issue rota
       ).find((a) => a.p_id === id)!.p_token_hash
       assertEquals(await hashToken(emailedToken(call.body)), hash)
     }
+  })
+})
+
+Deno.test('professionals-invitation-reminders: the module off for the clinic → the run fails module_disabled before any list, link or email (P4-471)', async () => {
+  await run(async () => {
+    const off = harness({ ids: [pid(1), pid(2)], moduleEnabled: false })
+    await captureConsole('error', async () => {
+      await off.handler(await jobRequest())
+    })
+    assertEquals(finished(off.service.calls), [['error', 'module_disabled']])
+    assertEquals(callsTo(off.service.calls, 'module_enabled_for_org'), [
+      { p_org_id: ORG_ID, p_key: 'professionals' },
+    ])
+    assertEquals(
+      callsTo(off.service.calls, 'list_professional_invitations_to_remind_for_service'),
+      [],
+    )
+    assertEquals(reissuedIds(off.service.calls), [])
+    assertEquals(off.http.calls, [])
   })
 })
 

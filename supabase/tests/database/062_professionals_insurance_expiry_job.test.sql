@@ -6,10 +6,11 @@
 -- a failed email tried again; verified documents past their day marked expired (audited as the
 -- job); the staff notices (texts, permission, dedupe, 60 days) and « documents requis
 -- manquants » (a count, closed at zero); a second run the same day sends and notifies nothing
--- twice; another clinic is never read; the module switched off.
+-- twice; an email never queued (deferred by the function) is due the next day; another clinic is
+-- never read; the module switched off.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(26);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin 01, provider 03 linked to P2), org B (admin 05).
@@ -247,6 +248,17 @@ select is((public.run_professionals_document_notices_for_service(current_setting
 reset role;
 select ok((select n.expires_at <= now() from public.notifications n where n.kind = 'professionals.documents_missing'),
   'the « documents requis manquants » notice is closed');
+
+-- An email the function deferred (its soft deadline, P4-470) was never queued: the next clinic
+-- day it is still due. Today's sends are taken out of the log as if they had been deferred.
+delete from public.email_log where org_id = current_setting('test.a')::uuid and created_at = now() and status = 'sent';
+set local role service_role;
+select set_config('test.run_next', public.run_professionals_document_notices_for_service(current_setting('test.a')::uuid,
+  current_setting('test.t')::date + 1)::text, true);
+reset role;
+select set_has($$ select x ->> 'professional_id' from jsonb_array_elements(current_setting('test.run_next')::jsonb -> 'emails') x $$,
+  $$ select x ->> 'professional_id' from jsonb_array_elements(current_setting('test.run1')::jsonb -> 'emails') x $$,
+  'an email never queued (deferred) is due again the next day');
 
 -- Another clinic: its own documents only; the module off: refused.
 set local role service_role;

@@ -17,16 +17,22 @@
  *    deduplicated against `email_log` (one per reminder step, the expiry, then
  *    weekly), so a re-run the same day sends nothing twice. The professional
  *    stays active (P4-1): nothing here changes a status.
- * 3. The emails, in batches of 25 (`Promise.all`), to the professional's own
+ * 3. The emails, in batches of 2 (`Promise.all`; P4-424, P4-470: the provider
+ *    takes about two requests a second), to the professional's own
  *    address as the RPC returned it, subject `professional` / id, button
  *    « Mes documents » (`APP_URL/mes-documents`, behind sign-in, no token).
  *    A setup failure (`not_configured`, `module_disabled`) ends the run
  *    `email_not_configured`; a provider outage or the clinic's daily quota
  *    (`provider_error`, `rate_limited`) ends it `emails_stopped_<code>` after
- *    the batch; a refused address is counted and the others go on. A missed
- *    email is due again the next day (the RPC's dedupe ignores failures).
+ *    the batch; a refused address is counted and the others go on. No batch
+ *    starts after SOFT_DEADLINE_MS: a started send keeps its own 30 s
+ *    (retries included) before `runJob`'s 60 s cut; the emails left are
+ *    `deferred`. A missed or deferred email is due again the next day (the
+ *    RPC's dedupe reads `email_log`, where a failure does not count and a
+ *    deferred email never was).
  * 4. The run's detail: counts only (`marked=… expiring=… expired=… missing=…
- *    emails=… sent=… failed=…`), never a name or an address (P4-410).
+ *    emails=… sent=… failed=…`, plus `deferred=…` when the soft deadline left
+ *    emails), never a name or an address (P4-410).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
@@ -45,8 +51,13 @@ import { reportError } from '../_shared/report.ts'
 const FN = 'professionals-insurance-expiry'
 export const JOB_KEY = 'professionals.insurance_expiry_notice'
 
-/** Sends in flight at once. */
-export const BATCH_SIZE = 25
+/** Sends in flight at once (the provider's ~2 requests a second, P4-424). */
+export const BATCH_SIZE = 2
+/**
+ * No new batch after this long in the clinic's run: a started send keeps its
+ * own 30 s (retries included) before `runJob`'s 60 s cut.
+ */
+export const SOFT_DEADLINE_MS = 25_000
 
 const TEMPLATES = [
   'professionals.document_expiring',
@@ -169,8 +180,14 @@ export async function noticeOrg(
 
   let sent = 0
   let failed = 0
+  let deferred = 0
+  const startedAt = deps.now().getTime()
   for (let start = 0; start < run.emails.length; start += BATCH_SIZE) {
     if (signal.aborted) stop('timeout')
+    if (deps.now().getTime() - startedAt >= SOFT_DEADLINE_MS) {
+      deferred = run.emails.length - start
+      break
+    }
     const failures = (await Promise.all(
       run.emails.slice(start, start + BATCH_SIZE).map(sendOne),
     )).filter((code): code is string => code !== null)
@@ -182,5 +199,6 @@ export async function noticeOrg(
     const fatal = failures.find((code) => BATCH_STOP_FAILURES.has(code))
     if (fatal) stop(`emails_stopped_${fatal}`)
   }
-  return `${counts} sent=${sent} failed=${failed}`
+  const detail = `${counts} sent=${sent} failed=${failed}`
+  return deferred > 0 ? `${detail} deferred=${deferred}` : detail
 }

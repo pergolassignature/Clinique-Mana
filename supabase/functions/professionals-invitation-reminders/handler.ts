@@ -6,6 +6,9 @@
  * the local hour reached), and logs each clinic's run.
  *
  * Per clinic (`perOrg`):
+ * 0. `requireModuleForOrg` (the run fails `module_disabled` when the module is
+ *    off: `start_job_run` already refuses it, this is the second gate, P4-471),
+ *    so nothing is revoked or re-issued for that clinic.
  * 1. `APP_URL` must give invitation links (else the run fails
  *    `app_url_invalid`, nothing issued).
  * 2. `list_professional_invitations_to_remind_for_service(org, 100)`: the files
@@ -64,6 +67,7 @@ import {
   hashToken,
   linkUrl,
 } from '../_shared/links.ts'
+import { requireModuleForOrg } from '../_shared/modules.ts'
 import { invitationValues } from '../_shared/professionals.ts'
 import { reportError } from '../_shared/report.ts'
 
@@ -135,6 +139,9 @@ export async function remindOrg(
   client: SupabaseClient,
   signal: AbortSignal,
 ): Promise<string> {
+  if (await requireModuleForOrg(client, orgId, 'professionals')) {
+    stop('module_disabled')
+  }
   const appUrl = deps.env('APP_URL')?.trim() ?? ''
   if (!appOrigin(appUrl)) stop('app_url_invalid')
 

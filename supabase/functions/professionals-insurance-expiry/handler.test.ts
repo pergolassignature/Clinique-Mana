@@ -1,5 +1,11 @@
 import { assert, assertEquals } from '@std/assert'
-import { BATCH_SIZE, createHandler, JOB_KEY } from './handler.ts'
+import {
+  BATCH_SIZE,
+  createHandler,
+  JOB_KEY,
+  noticeOrg,
+  SOFT_DEADLINE_MS,
+} from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { fakeFetch, type Responder } from '../_shared/testing/fake-fetch.ts'
 import {
@@ -139,7 +145,7 @@ function harness(opts: {
     serviceClient: () => service.client,
     userClient: () => new Response(null, { status: 500 }),
   }
-  return { handler: createHandler(deps), service, http }
+  return { handler: createHandler(deps), deps, service, http }
 }
 
 const run = (fn: () => Promise<void>) =>
@@ -290,7 +296,7 @@ Deno.test('professionals-insurance-expiry: module off, RPC failure, bad answer, 
   })
 })
 
-Deno.test('professionals-insurance-expiry: batches of 25 in parallel', async () => {
+Deno.test('professionals-insurance-expiry: batches of 2 in parallel (P4-424: the provider takes about 2 a second)', async () => {
   await run(async () => {
     const emails = Array.from({ length: 30 }, (_, i) => due(i + 1))
     let inFlight = 0
@@ -309,10 +315,41 @@ Deno.test('professionals-insurance-expiry: batches of 25 in parallel', async () 
     assertEquals(http.calls.length, 30)
     assert(peak <= BATCH_SIZE, `peak ${peak}`)
     assert(peak > 1, 'sends run in parallel')
+    assertEquals(BATCH_SIZE, 2)
     assertEquals(finished(service.calls), [[
       'ok',
       'marked=2 expiring=3 expired=1 missing=4 emails=30 sent=30 failed=0',
     ]])
+  })
+})
+
+Deno.test('professionals-insurance-expiry: no batch starts after the soft deadline; the emails left are counted deferred (P4-470)', async () => {
+  await run(async () => {
+    const emails = Array.from({ length: 30 }, (_, i) => due(i + 1))
+    const clock = fixedClock(NOW)
+    // Each send takes 7 s of the run: two batches of 2 (28 s) pass the deadline, no third starts.
+    const h = harness({
+      emails,
+      mailpit: () => {
+        clock.advance(7_000)
+        return new Response(JSON.stringify({ ID: 'm' }), { status: 200 })
+      },
+    })
+    assert(7_000 * BATCH_SIZE < SOFT_DEADLINE_MS)
+    assert(7_000 * BATCH_SIZE * 2 >= SOFT_DEADLINE_MS)
+    const detail = await noticeOrg(
+      { ...h.deps, now: clock.now },
+      ORG_ID,
+      h.service.client,
+      new AbortController().signal,
+    )
+    assertEquals(
+      detail,
+      `marked=2 expiring=3 expired=1 missing=4 emails=30 sent=${2 * BATCH_SIZE} failed=0 deferred=${30 - 2 * BATCH_SIZE}`,
+    )
+    assertEquals(h.http.calls.length, 2 * BATCH_SIZE)
+    // A deferred email is never queued: nothing in email_log, so the RPC answers it again tomorrow.
+    assertEquals(callsTo(h.service.calls, 'queue_email').length, 2 * BATCH_SIZE)
   })
 })
 
