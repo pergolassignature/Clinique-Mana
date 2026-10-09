@@ -410,11 +410,11 @@ describe('history — private data, actors, ids', () => {
       row('professionals', 'insert', { id: P, org_id: ORG, first_name: 'A', last_name: 'B', email: 'a@b.ca', created_by: IDS.admin, profile_id: IDS.admin }),
       junction('professional_motifs', 'motif_id', ORG),
       row('professional_professions', 'update', { licence_number: { before: '1', after: '2' } }, { recordId: `${P}:${ORG}` }),
-      row('professional_documents', 'insert', { id: ORG, stored_file_id: ORG }, { recordId: `${P}:${ORG}` }),
+      row('professional_future_things', 'insert', { id: ORG, stored_file_id: ORG }, { recordId: `${P}:${ORG}` }),
     ])
     expect(list.at(-1)?.sentence).toBe('a modifié une autre section du dossier')
     expect(printed(list)).not.toMatch(UUID)
-    expect(printed(list)).not.toContain('professional_documents')
+    expect(printed(list)).not.toContain('professional_future_things')
   })
 
   it('reads a consultation of a table it does not know as a consultation, without its name', () => {
@@ -768,5 +768,51 @@ describe('history — the service contract (Task 4d.1)', () => {
     expect(events([request('viewed')])).toEqual([])
     expect(events([row('signature_requests', 'insert', { status: 'draft' })])).toEqual([])
     expect(events([signer('pending', 'professional')])).toEqual([])
+  })
+})
+
+describe('history — the documents (4c.2)', () => {
+  const DOC = '00000000-0000-4000-8000-0000000d0c01'
+  const docRow = (action: HistoryEntry['action'], fields: Record<string, unknown>, over: Partial<HistoryEntry> = {}) =>
+    row('professional_documents', action, fields, { recordId: `${P}:${DOC}`, ...over })
+  const inserted = (extra: Record<string, unknown> = {}, over: Partial<HistoryEntry> = {}) =>
+    docRow('insert', { org_id: ORG, professional_id: P, document_type_id: IDS.photoType, status: 'verified', submission_id: null, signature_request_id: null, ...extra }, over)
+
+  it('an upload: « a téléversé le document « Photo professionnelle » », by staff or by the professional herself', () => {
+    expect(only([inserted()]).sentence).toBe('a téléversé le document « Photo professionnelle »')
+    const own = only([inserted({ status: 'pending' }, { actorName: 'Aurélie Essai', actorRole: 'provider' })])
+    expect(`${own.actor} ${own.sentence}`).toBe('Aurélie Essai a téléversé le document « Photo professionnelle »')
+  })
+
+  it('from the questionnaire’s approval, and the e-signed consent kept by the system', () => {
+    expect(only([inserted({ submission_id: '00000000-0000-4000-8000-00000000b0b0' })]).sentence).toBe('a ajouté le document « Photo professionnelle » depuis le questionnaire')
+    const kept = only([inserted({ signature_request_id: '00000000-0000-4000-8000-00000000c0c0' }, { actorId: null, actorName: null, actorRole: null })])
+    expect(kept.sentence).toBe('a conservé au dossier le document « Photo professionnelle » (consentement signé électroniquement)')
+  })
+
+  it('verified, refused with its reason, expired, a new end date, deleted; the type comes from the document’s own insert', () => {
+    const rows = [
+      docRow('delete', { document_type_id: IDS.insuranceType, status: 'expired' }),
+      docRow('update', { status: { before: 'verified', after: 'expired' } }),
+      docRow('update', { expires_on: { before: '2027-03-31', after: '2026-10-12' }, updated_at: { before: TX, after: TX } }),
+      docRow('update', { status: { before: 'pending', after: 'rejected' }, rejection_reason: { before: null, after: 'Photo floue' } }),
+      docRow('update', { status: { before: 'pending', after: 'verified' }, reviewed_by: { before: null, after: IDS.admin } }),
+      docRow('insert', { document_type_id: IDS.insuranceType, status: 'pending', submission_id: null }),
+    ].map((r, i) => ({ ...r, createdAt: `2026-10-08T14:3${i}:00+00:00` }))
+    expect(events(rows).map((e) => e.sentence)).toEqual([
+      "a supprimé le document « Preuve d'assurance responsabilité »",
+      "a noté que le document « Preuve d'assurance responsabilité » est échu",
+      "a modifié l'échéance du document « Preuve d'assurance responsabilité » au 12 oct. 2026",
+      "a refusé le document « Preuve d'assurance responsabilité » (raison : Photo floue)",
+      "a vérifié le document « Preuve d'assurance responsabilité »",
+      "a téléversé le document « Preuve d'assurance responsabilité »",
+    ])
+  })
+
+  it('an update whose document is not on screen reads « un document »; other updates say nothing', () => {
+    expect(only([docRow('update', { status: { before: 'pending', after: 'verified' } })]).sentence).toBe('a vérifié un document')
+    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' } })]).sentence).toBe("a modifié l'échéance d'un document au 1 nov. 2026")
+    expect(events([docRow('update', { metadata: { before: {}, after: { insurer: 'X' } } })])).toEqual([])
+    expect(printed(events([inserted()]))).not.toContain(t(`${H}.sentences.other`))
   })
 })

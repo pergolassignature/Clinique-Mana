@@ -142,6 +142,11 @@ export interface HistoryContext {
   titleByRow: ReadonlyMap<string, string>
   /** The professional's gender today: a title reads in their form (« a ajouté le titre Travailleuse sociale », P4-342). */
   gender: Gender | null
+  /**
+   * Document record id → its type id, from the rows that carry it (insert, delete): an update row
+   * names only what changed. Filled by `buildHistoryEvents`; absent → « un document ».
+   */
+  documentTypeByRow?: ReadonlyMap<string, string>
 }
 
 /** « Tout », « Modifications » (the record's changes), « Courriels » (the emails about the professional, Task 4b.3). */
@@ -500,6 +505,61 @@ function consentRow(entry: HistoryEntry): Described | null {
   return null
 }
 
+const DOCUMENTS_TABLE = 'professional_documents'
+
+/** Each document's type, from the rows that carry `document_type_id` (an insert or a delete). */
+function documentTypesByRow(rows: readonly HistoryEntry[]): Map<string, string> {
+  const types = new Map<string, string>()
+  for (const entry of rows) {
+    const typeId = entry.tableName === DOCUMENTS_TABLE ? fieldsOf(entry).document_type_id : undefined
+    if (typeof typeId === 'string') types.set(entry.recordId, typeId)
+  }
+  return types
+}
+
+/**
+ * A document's row (4c.2), as a plain sentence about the document type (« le document « CV » »):
+ * an upload (« a téléversé », by staff or by the professional herself), one added from the
+ * questionnaire's approval (`submission_id`) or kept from the e-signed consent
+ * (`signature_request_id`); an update that moves the end date (« a modifié l'échéance … au … ») or
+ * the status (verified, refused with its reason, expired); a deletion. Other updates (metadata,
+ * the photo's flag) say nothing.
+ */
+function documentRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.document`
+  const fields = fieldsOf(entry)
+  const typeId = typeof fields.document_type_id === 'string' ? fields.document_type_id : ctx.documentTypeByRow?.get(entry.recordId)
+  const type = typeId ? ctx.catalog.byId.documentTypes.get(typeId)?.name : undefined
+  const doc = type ? t(`${S}.named`, { type }) : t(`${S}.unnamed`)
+  const sentence = (key: 'uploaded' | 'fromQuestionnaire' | 'fromSignature' | 'verified' | 'rejectedNoReason' | 'expired' | 'deleted'): Described => ({
+    kind: 'change',
+    sentence: t(`${S}.${key}`, { doc }),
+    lines: [],
+  })
+  if (entry.action === 'insert') {
+    if (typeof fields.signature_request_id === 'string') return sentence('fromSignature')
+    if (typeof fields.submission_id === 'string') return sentence('fromQuestionnaire')
+    return sentence('uploaded')
+  }
+  if (entry.action === 'delete') return sentence('deleted')
+  if (entry.action !== 'update') return null
+  const expiry = pairOf(fields.expires_on)
+  if (expiry && typeof expiry.after === 'string' && DATE_ONLY.test(expiry.after)) {
+    const date = formatDateOnlyShort(expiry.after)
+    return { kind: 'change', sentence: type ? t(`${S}.expiry`, { type, date }) : t(`${S}.expiryUnnamed`, { date }), lines: [] }
+  }
+  const status = pairOf(fields.status)?.after
+  if (status === 'verified') return sentence('verified')
+  if (status === 'expired') return sentence('expired')
+  if (status === 'rejected') {
+    const reason = pairOf(fields.rejection_reason)?.after
+    return typeof reason === 'string' && reason.trim() !== ''
+      ? { kind: 'change', sentence: t(`${S}.rejected`, { doc, reason: reason.trim() }), lines: [] }
+      : sentence('rejectedNoReason')
+  }
+  return null
+}
+
 /** « a ajouté / modifié / retiré la note Bon à savoir »: that it changed, never what it says (P4-385). */
 function matchingNoteRow(entry: HistoryEntry): Described | null {
   const S = `${H}.sentences.matchingNote`
@@ -553,6 +613,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
       : null
   }
   if (entry.tableName === CONSENTS_TABLE) return consentRow(entry)
+  if (entry.tableName === DOCUMENTS_TABLE && entry.action !== 'read') return documentRow(ctx, entry)
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
   switch (entry.tableName) {
@@ -700,7 +761,8 @@ const isSetTable = (table: string): table is SetTable => Object.hasOwn(SET_TABLE
  * folded into « a créé le dossier »; every other row is its own event. A row with nothing to say
  * (a former primary title losing the flag) gives none.
  */
-export function buildHistoryEvents(rows: readonly HistoryEntry[], ctx: HistoryContext): HistoryEvent[] {
+export function buildHistoryEvents(rows: readonly HistoryEntry[], context: HistoryContext): HistoryEvent[] {
+  const ctx: HistoryContext = { ...context, documentTypeByRow: new Map([...documentTypesByRow(rows), ...(context.documentTypeByRow ?? [])]) }
   const creations = new Set(rows.filter((r) => r.tableName === 'professionals' && r.action === 'insert').map(transactionOf))
   // A dated row added or removed closes or reopens its neighbour in the same save (P4-145).
   const datedWrites = new Set(rows.filter((r) => isDatedTable(r.tableName) && r.action !== 'update').map((r) => `${transactionOf(r)}|${r.tableName}`))

@@ -1970,6 +1970,20 @@
               "cancelled": "a fermé la demande de mise à jour sans l'appliquer"
             }
           },
+          "document": {
+            "named": "le document « {type} »",
+            "unnamed": "un document",
+            "uploaded": "a téléversé {doc}",
+            "fromQuestionnaire": "a ajouté {doc} depuis le questionnaire",
+            "fromSignature": "a conservé au dossier {doc} (consentement signé électroniquement)",
+            "verified": "a vérifié {doc}",
+            "rejected": "a refusé {doc} (raison : {reason})",
+            "rejectedNoReason": "a refusé {doc}",
+            "expired": "a noté que {doc} est échu",
+            "expiry": "a modifié l'échéance du document « {type} » au {date}",
+            "expiryUnnamed": "a modifié l'échéance d'un document au {date}",
+            "deleted": "a supprimé {doc}"
+          },
           "consent": {
             "recorded": "a enregistré le consentement au droit à l'image",
             "withdrawn": "a enregistré le retrait du consentement au droit à l'image"
