@@ -402,7 +402,7 @@ describe('history — private data, actors, ids', () => {
     expect(actor({ actorId: null, actorName: null, source: 'migration:professionals_core' }).actor).toBe(t(`${H}.actors.migration`))
     expect(actor({ actorId: null, actorName: null, source: 'service' }).actor).toBe(t(`${H}.actors.system`))
     expect(actor({ actorId: null, actorName: null, source: 'bootstrap' })).toMatchObject({ actor: 'Le système', byPerson: false })
-    expect(actor({ actorName: null })).toMatchObject({ actor: "Une personne qui n'a plus accès", byPerson: false })
+    expect(actor({ actorName: null })).toMatchObject({ actor: 'Un compte supprimé', byPerson: false })
   })
 
   it('prints no UUID for any table, an unknown one included', () => {
@@ -807,6 +807,19 @@ describe('history — the documents (4c.2)', () => {
       "a vérifié le document « Preuve d'assurance responsabilité »",
       "a téléversé le document « Preuve d'assurance responsabilité »",
     ])
+  })
+
+  it('an update alone on its page names its type from the server (id, else the name for a type the catalogue lacks)', () => {
+    const verified = { status: { before: 'pending', after: 'verified' } }
+    expect(only([docRow('update', { ...verified, document_type_id: IDS.insuranceType, document_type_name: 'Ancien nom' })]).sentence).toBe(
+      "a vérifié le document « Preuve d'assurance responsabilité »",
+    )
+    expect(only([docRow('update', { ...verified, document_type_id: '00000000-0000-4000-8000-00000000dead', document_type_name: 'Diplôme' })]).sentence).toBe(
+      'a vérifié le document « Diplôme »',
+    )
+    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' }, document_type_name: 'Diplôme' })]).sentence).toBe(
+      "a modifié l'échéance du document « Diplôme » au 1 nov. 2026",
+    )
   })
 
   it('an update whose document is not on screen reads « un document »; other updates say nothing', () => {

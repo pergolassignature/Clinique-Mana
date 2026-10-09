@@ -10,7 +10,8 @@ import type { Onboarding, ProfessionalListRow } from '../api/parse'
 /**
  * The list's filters, with the URL as the source of truth (PS Hub `useCrmUrlState`): a reload, a
  * shared link or Back shows the same rows. Parameters are French: `q`, `statut`, `profession`,
- * `langue`, `clientele`, `motif` (repeatable), `nouveaux=1`, `surveiller=1`, `page`. Unknown or
+ * `langue`, `clientele`, `motif` (repeatable), `nouveaux=1`, `surveiller=1`,
+ * `documents=incomplets`, `page`. Unknown or
  * malformed values fall back to the defaults; ids the catalogue does not know are ignored when
  * filtering (a stale link shows everyone rather than no one).
  */
@@ -27,6 +28,8 @@ export interface ProfessionalsFilters {
   acceptingNewClients: boolean
   /** « À surveiller »: at least one watch flag. */
   watch: boolean
+  /** « Documents incomplets »: fewer required documents in order than required (`hasMissingDocuments`). */
+  documentsIncomplete: boolean
   /** 1-based. */
   page: number
 }
@@ -40,6 +43,7 @@ export const DEFAULT_FILTERS: ProfessionalsFilters = {
   motifIds: [],
   acceptingNewClients: false,
   watch: false,
+  documentsIncomplete: false,
   page: 1,
 }
 
@@ -57,7 +61,10 @@ const STATUS_PARAMS: Readonly<Record<DisplayStatus, string>> = {
 }
 const STATUS_BY_PARAM = new Map(DISPLAY_STATUSES.map((s) => [STATUS_PARAMS[s], s]))
 
-const PARAMS = ['q', 'statut', 'profession', 'langue', 'clientele', 'motif', 'nouveaux', 'surveiller', 'page'] as const
+const PARAMS = ['q', 'statut', 'profession', 'langue', 'clientele', 'motif', 'nouveaux', 'surveiller', 'documents', 'page'] as const
+
+/** The value of `documents` for « Documents incomplets ». */
+const DOCUMENTS_INCOMPLETE = 'incomplets'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const idParam = (value: string | null) => (value !== null && UUID.test(value) ? value.toLowerCase() : null)
@@ -75,6 +82,7 @@ export function parseProfessionalsFilters(params: URLSearchParams): Professional
     motifIds: motifIds.slice(0, MAX_SET_SIZE),
     acceptingNewClients: params.get('nouveaux') === '1',
     watch: params.get('surveiller') === '1',
+    documentsIncomplete: params.get('documents') === DOCUMENTS_INCOMPLETE,
     page: Number.isInteger(page) && page > 1 ? page : 1,
   }
 }
@@ -91,6 +99,7 @@ export function filtersToSearchParams(filters: ProfessionalsFilters, base: URLSe
   for (const id of filters.motifIds) params.append('motif', id)
   if (filters.acceptingNewClients) params.set('nouveaux', '1')
   if (filters.watch) params.set('surveiller', '1')
+  if (filters.documentsIncomplete) params.set('documents', DOCUMENTS_INCOMPLETE)
   if (filters.page > 1) params.set('page', String(filters.page))
   return params
 }
@@ -161,6 +170,11 @@ export function useProfessionalsFilters({ onChange }: { onChange?: (filters: Pro
   return { filters, setFilters, toggleMotif, setPage, reset, restore }
 }
 
+/** Whether some required document is not in order yet (none required: nothing is missing). */
+export function hasMissingDocuments(row: Pick<ProfessionalListRow, 'documentsDone' | 'documentsRequired'>): boolean {
+  return row.documentsRequired > 0 && row.documentsDone < row.documentsRequired
+}
+
 /** A known id, else null (no filter). */
 const known = (id: string | null, map: ReadonlyMap<string, unknown>) => (id !== null && map.has(id) ? id : null)
 
@@ -197,6 +211,7 @@ export function filterProfessionals(
     if (motifIds.length > 0 && !motifIds.some((id) => row.motifIds.includes(id))) return false
     if (filters.acceptingNewClients && !row.acceptingNewClients) return false
     if (filters.watch && watchFlags(row).length === 0) return false
+    if (filters.documentsIncomplete && !hasMissingDocuments(row)) return false
     if (words.length === 0) return true
     const haystack = haystacks.get(row) ?? ''
     return words.every((word) => haystack.includes(word))

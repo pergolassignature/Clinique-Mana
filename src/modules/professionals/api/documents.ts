@@ -145,6 +145,13 @@ export interface DocumentUploadInput {
    */
   self: boolean
   onStep?: (step: UploadStep) => void
+  /**
+   * A file an earlier try already uploaded, whose attach was refused on a field (a date, the
+   * insurer): attached again as is, never sent again (it stays staged a day, `retain_days` 1).
+   */
+  uploadedFileId?: string | null
+  /** Hears the stored file once uploaded, before the attach: what a retry passes as `uploadedFileId`. */
+  onUploaded?: (fileId: string) => void
 }
 
 /**
@@ -152,16 +159,22 @@ export interface DocumentUploadInput {
  * `storage-confirm`), subject the professional, then attaches it as a document of the type
  * (`attach_professional_document`: checks the type's files and size again, the date, the metadata;
  * verified at once for a reviewer on another's record, else pending). Resolves with the document id.
+ * With `uploadedFileId` (a retry after a field's refusal) only the attach runs.
  */
 export async function uploadProfessionalDocument(input: DocumentUploadInput): Promise<string> {
-  const { fileId } = await uploadFile({
-    purpose: input.self ? DOCUMENT_UPLOAD_PURPOSE.self : DOCUMENT_UPLOAD_PURPOSE.staff,
-    subjectType: 'professional',
-    subjectId: input.professionalId,
-    file: input.file,
-    mimeType: input.mimeType,
-    onStep: input.onStep,
-  })
+  let fileId = input.uploadedFileId ?? null
+  if (fileId === null) {
+    const uploaded = await uploadFile({
+      purpose: input.self ? DOCUMENT_UPLOAD_PURPOSE.self : DOCUMENT_UPLOAD_PURPOSE.staff,
+      subjectType: 'professional',
+      subjectId: input.professionalId,
+      file: input.file,
+      mimeType: input.mimeType,
+      onStep: input.onStep,
+    })
+    fileId = uploaded.fileId
+    input.onUploaded?.(fileId)
+  }
   const metadata: Record<string, string> = {}
   if (input.insurer) metadata.insurer = input.insurer
   if (input.policyNumber) metadata.policy_number = input.policyNumber

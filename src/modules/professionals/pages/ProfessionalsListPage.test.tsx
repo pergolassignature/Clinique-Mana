@@ -46,6 +46,8 @@ const HELENE = listRowFixture({
   motifIds: [IDS.deuil],
   matchingComplete: false,
   acceptingNewClients: false,
+  documentsDone: 1,
+  documentsRequired: 3,
 })
 const PAUL = listRowFixture({
   id: id(3),
@@ -297,6 +299,28 @@ describe('ProfessionalsListPage', () => {
     expect(screen.getByRole('option', { name: /Anxiété/ })).toHaveAttribute('aria-checked', 'true')
     await userEvent.click(screen.getByRole('checkbox', { name: t(`${L}.filters.watch`) }))
     await waitFor(() => expect(screen.getByText(t(`${L}.noMatch.title`))).toBeInTheDocument())
+  })
+
+  it('shows « Documents x / y » (the column, and under the status on a phone), said whole, and filters on « Documents incomplets »', async () => {
+    renderPage()
+    const helene = (await screen.findByRole('link', { name: 'Hélène Côté' })).closest('[role=row]') as HTMLElement
+    expect(within(table()).getByRole('columnheader', { name: t(`${L}.table.documents`) })).toBeInTheDocument()
+    const values = { done: '1', required: '3' }
+    // The visible text has no-break spaces around « / »; the matcher compares normalised spaces.
+    const spaced = (text: string) => text.replace(/\s+/g, ' ')
+    expect(within(helene).getByText(spaced(t(`${L}.table.documentsShort`, values)))).toBeInTheDocument()
+    expect(within(helene).getByText(spaced(t(`${L}.table.documentsCount`, values)))).toBeInTheDocument()
+    expect(within(helene).getAllByText('1 document requis sur 3 en règle')).toHaveLength(2)
+    const marie = screen.getByRole('link', { name: 'Marie Tremblay' }).closest('[role=row]') as HTMLElement
+    expect(within(marie).getAllByText('3 documents requis sur 3 en règle')).toHaveLength(2)
+
+    await userEvent.click(screen.getByRole('button', { name: t(`${L}.filters.button`) }))
+    await userEvent.click(await screen.findByRole('checkbox', { name: t(`${L}.filters.documentsIncomplete`) }))
+    await waitFor(() => expect(names()).toEqual(['Hélène Côté']))
+    expect(location()).toBe('/professionnels?documents=incomplets')
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(screen.getByRole('button', { name: t(`${L}.chips.remove`, { label: t(`${L}.filters.documentsIncomplete`) }) }))
+    await waitFor(() => expect(names()).toHaveLength(3))
   })
 
   it('says when nothing matches, and « Réinitialiser » shows everyone again', async () => {

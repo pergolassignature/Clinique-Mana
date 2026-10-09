@@ -5,7 +5,8 @@
  * `.asStream()`, for `download`), plus `auth.getUser` for a caller's
  * client (`verifyAuth`) and the `auth.admin` methods a service client uses
  * (`createUser`, `deleteUser`, `updateUserById`). The few table reads a
- * function makes (`from(t).select(…).eq(…).maybeSingle()`, see CLAUDE.md §7)
+ * function makes (`from(t).select(…).eq(…).maybeSingle()`, or `.in(…)` for
+ * `storage-sign`'s batch, see CLAUDE.md §7)
  * are routed by table, with their filters logged. Test-only: never deployed.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -29,11 +30,13 @@ export type StorageRoute = (
   ...args: unknown[]
 ) => FakeResult | Promise<FakeResult>
 
-/** A `from(table)` read: its select list, its `eq` filters, `maybeSingle`. */
+/** A `from(table)` read: its select list, its `eq` and `in` filters, `maybeSingle`. */
 export interface TableQuery {
   table: string
   columns: string
   eq: Record<string, unknown>
+  /** Present only when the read calls `.in(column, values)`. */
+  in?: Record<string, unknown[]>
   single: boolean
 }
 
@@ -120,6 +123,10 @@ export function fakeSupabase(
         },
         eq: (column: string, value: unknown) => {
           query.eq[column] = value
+          return builder
+        },
+        in: (column: string, values: unknown[]) => {
+          query.in = { ...query.in, [column]: values }
           return builder
         },
         maybeSingle: () => {

@@ -265,6 +265,48 @@ describe('Documents tab — upload', () => {
     expect(await within(dialog).findAllByText("L'échéance doit être aujourd'hui ou plus tard.")).toHaveLength(2)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
+
+  it('after the database refused the date, « Joindre ce fichier » attaches the same file with the corrected date, without sending it again', async () => {
+    const refusal = { code: 'P0001', message: "L'échéance doit être aujourd'hui ou plus tard.", hint: 'expires_on' }
+    mocks.documents.uploadProfessionalDocument.mockImplementationOnce(async (input: { onUploaded?: (id: string) => void }) => {
+      input.onUploaded?.(DOC_IDS.renewalFile)
+      throw refusal
+    })
+    mocks.documents.uploadProfessionalDocument.mockResolvedValueOnce(DOC_IDS.insuranceRenewal)
+    await openTab({ documents: documentsFixture({ documents: [PHOTO_JSON] }) })
+    await userEvent.click(screen.getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: INSURANCE }) }))
+    const dialog = await screen.findByRole('dialog')
+    chooseFile(pdf())
+    const attach = await within(dialog).findByRole('button', { name: t(`${D}.upload.attachKept`) })
+    expect(within(dialog).getByText(t(`${D}.upload.kept`, { name: 'assurance.pdf' }).replace(/\s+/g, ' '))).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: t(`${D}.upload.chooseAnother`) })).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText(new RegExp(t(`${D}.upload.expiresOn`))), { target: { value: '2027-06-30' } })
+    await userEvent.click(attach)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.documents.uploadProfessionalDocument).toHaveBeenCalledTimes(2)
+    expect(mocks.documents.uploadProfessionalDocument).toHaveBeenLastCalledWith(
+      expect.objectContaining({ typeKey: 'insurance', expiresOn: '2027-06-30', uploadedFileId: DOC_IDS.renewalFile }),
+    )
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${D}.toasts.uploaded`))
+  })
+
+  it('a kept file whose attach then fails for another reason is dropped, and the reason shown', async () => {
+    const refusal = { code: 'P0001', message: "L'échéance doit être aujourd'hui ou plus tard.", hint: 'expires_on' }
+    mocks.documents.uploadProfessionalDocument.mockImplementationOnce(async (input: { onUploaded?: (id: string) => void }) => {
+      input.onUploaded?.(DOC_IDS.renewalFile)
+      throw refusal
+    })
+    mocks.documents.uploadProfessionalDocument.mockRejectedValueOnce({ code: 'P0001', message: 'Ce fichier ne peut plus être joint : envoyez-le de nouveau.' })
+    await openTab({ documents: documentsFixture({ documents: [PHOTO_JSON] }) })
+    await userEvent.click(screen.getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: INSURANCE }) }))
+    const dialog = await screen.findByRole('dialog')
+    chooseFile(pdf())
+    await userEvent.click(await within(dialog).findByRole('button', { name: t(`${D}.upload.attachKept`) }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ce fichier ne peut plus être joint : envoyez-le de nouveau.')
+    expect(within(dialog).queryByRole('button', { name: t(`${D}.upload.attachKept`) })).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: t(`${D}.upload.choose`) })).toBeInTheDocument()
+  })
 })
 
 describe('Documents tab — review', () => {

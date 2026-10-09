@@ -140,6 +140,12 @@ describe('AuditLogPage', () => {
     expect(within(rows()[0]!).getAllByText('Création')[0]).toBeInTheDocument()
   })
 
+  it('shows « Compte supprimé » for an actor whose account no longer exists', async () => {
+    await renderPage({ pages: [[{ ...SEED, id: 11, actor_id: 'a-deleted', source: 'app' }]] })
+    expect(within(rows()[0]!).getAllByText('Compte supprimé')[0]).toBeInTheDocument()
+    expect(within(rows()[0]!).queryByText('Application')).not.toBeInTheDocument()
+  })
+
   it('expands an update into « Champ : avant → après » with French labels', async () => {
     const user = userEvent.setup()
     await renderPage()

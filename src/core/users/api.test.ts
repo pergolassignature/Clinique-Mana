@@ -5,10 +5,12 @@ import {
   clearPermissionOverrides,
   createRole,
   deleteRole,
+  deleteUserAccount,
   fetchOrgUsers,
   fetchRoleDefaults,
   fetchUserOverrides,
   inviteStaff,
+  isAccountRemovedError,
   listStaffInvitations,
   renameRole,
   resendInvitation,
@@ -343,5 +345,30 @@ describe('setUserStatus (the users-set-status function)', () => {
     const unban = new FunctionCallError('provider_error', 502, 'Account could not be re-enabled')
     invokeFunction.mockRejectedValue(unban)
     await expect(setUserStatus('u2', 'active')).rejects.toBe(unban)
+  })
+})
+
+describe('deleteUserAccount (the users-delete function)', () => {
+  it('deletes through users-delete only', async () => {
+    invokeFunction.mockResolvedValue({ status: 'deleted' })
+    await expect(deleteUserAccount('u2')).resolves.toBeUndefined()
+    expect(invokeFunction).toHaveBeenCalledExactlyOnceWith('users-delete', { user_id: 'u2' })
+    expect(mocks.rpc).not.toHaveBeenCalled()
+  })
+
+  it('passes the guards on as RPC errors; a failed Auth deletion stays a FunctionCallError marked account_removed', async () => {
+    const linked = "Ce compte est lié au dossier professionnel de Paule Pro. Désactivez d'abord ce dossier dans Professionnels (fin de la collaboration)."
+    invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, linked, { refusal: true }))
+    await expect(deleteUserAccount('u2')).rejects.toEqual({ code: 'P0001', message: linked })
+    invokeFunction.mockRejectedValue(new FunctionCallError('forbidden', 403, 'Forbidden'))
+    await expect(deleteUserAccount('u2')).rejects.toMatchObject({ code: '42501' })
+
+    const partial = new FunctionCallError('provider_error', 502, 'x', { account_removed: true })
+    invokeFunction.mockRejectedValue(partial)
+    const error: unknown = await deleteUserAccount('u2').catch((e: unknown) => e)
+    expect(error).toBe(partial)
+    expect(isAccountRemovedError(error)).toBe(true)
+    expect(isAccountRemovedError(new FunctionCallError('provider_error', 502, 'x'))).toBe(false)
+    expect(isAccountRemovedError({ code: 'P0001', message: linked })).toBe(false)
   })
 })

@@ -7,6 +7,7 @@ import {
   DEFAULT_FILTERS,
   filterProfessionals,
   filtersToSearchParams,
+  hasMissingDocuments,
   isDefaultFilters,
   paginate,
   parseProfessionalsFilters,
@@ -24,7 +25,7 @@ const filters = (overrides: Partial<ProfessionalsFilters> = {}): ProfessionalsFi
 describe('parseProfessionalsFilters', () => {
   it('reads every filter from the URL', () => {
     expect(
-      parse(`q=marie&statut=actif&profession=${IDS.psychologue}&langue=${IDS.en}&clientele=${IDS.couples}&motif=${IDS.anxiete}&motif=${IDS.deuil}&nouveaux=1&surveiller=1&page=3`),
+      parse(`q=marie&statut=actif&profession=${IDS.psychologue}&langue=${IDS.en}&clientele=${IDS.couples}&motif=${IDS.anxiete}&motif=${IDS.deuil}&nouveaux=1&surveiller=1&documents=incomplets&page=3`),
     ).toEqual({
       q: 'marie',
       status: 'active',
@@ -34,12 +35,13 @@ describe('parseProfessionalsFilters', () => {
       motifIds: [IDS.anxiete, IDS.deuil],
       acceptingNewClients: true,
       watch: true,
+      documentsIncomplete: true,
       page: 3,
     })
   })
 
   it('falls back to the defaults for unknown or malformed values', () => {
-    expect(parse('statut=pending&profession=psychologue&langue=&motif=x&motif=x&nouveaux=oui&surveiller=0&page=-2')).toEqual(DEFAULT_FILTERS)
+    expect(parse('statut=pending&profession=psychologue&langue=&motif=x&motif=x&nouveaux=oui&surveiller=0&documents=1&page=-2')).toEqual(DEFAULT_FILTERS)
     expect(parse('page=abc').page).toBe(1)
     expect(parse('page=2.5').page).toBe(1)
   })
@@ -56,9 +58,9 @@ describe('parseProfessionalsFilters', () => {
 
 describe('filtersToSearchParams', () => {
   it('round-trips, leaving defaults out', () => {
-    const value = filters({ q: 'é', status: 'in_review', motifIds: [IDS.anxiete, IDS.deuil], acceptingNewClients: true, page: 2 })
+    const value = filters({ q: 'é', status: 'in_review', motifIds: [IDS.anxiete, IDS.deuil], acceptingNewClients: true, documentsIncomplete: true, page: 2 })
     const params = filtersToSearchParams(value)
-    expect(params.toString()).toBe(`q=%C3%A9&statut=a-reviser&motif=${IDS.anxiete}&motif=${IDS.deuil}&nouveaux=1&page=2`)
+    expect(params.toString()).toBe(`q=%C3%A9&statut=a-reviser&motif=${IDS.anxiete}&motif=${IDS.deuil}&nouveaux=1&documents=incomplets&page=2`)
     expect(parseProfessionalsFilters(params)).toEqual(value)
     expect(filtersToSearchParams(DEFAULT_FILTERS).toString()).toBe('')
   })
@@ -127,6 +129,13 @@ describe('filterProfessionals', () => {
   it('filters on new clients and on « À surveiller »', () => {
     expect(ids({ acceptingNewClients: true })).toEqual([marie.id])
     expect(ids({ watch: true })).toEqual(['p2'])
+  })
+
+  it('filters on « Documents incomplets »: some required document not in order; none required is complete', () => {
+    const counts = (documentsDone: number, documentsRequired: number, id: string) => listRowFixture({ id, documentsDone, documentsRequired })
+    const docs = [counts(2, 3, 'missing'), counts(3, 3, 'complete'), counts(0, 0, 'none'), counts(0, 1, 'empty')]
+    expect(filterProfessionals(docs, filters({ documentsIncomplete: true }), CATALOG_VIEW).map((r) => r.id)).toEqual(['missing', 'empty'])
+    expect(hasMissingDocuments({ documentsDone: 3, documentsRequired: 3 })).toBe(false)
   })
 
   it('combines filters with « and »', () => {

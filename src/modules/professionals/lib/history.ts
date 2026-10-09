@@ -144,7 +144,9 @@ export interface HistoryContext {
   gender: Gender | null
   /**
    * Document record id → its type id, from the rows that carry it (insert, delete): an update row
-   * names only what changed. Filled by `buildHistoryEvents`; absent → « un document ».
+   * names only what changed. Filled by `buildHistoryEvents`. Since the gap audit every document
+   * row also carries `document_type_id` and `document_type_name` from the server; this map stays
+   * for rows written before (and « un document » for a row with neither).
    */
   documentTypeByRow?: ReadonlyMap<string, string>
 }
@@ -529,7 +531,10 @@ function documentRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   const S = `${H}.sentences.document`
   const fields = fieldsOf(entry)
   const typeId = typeof fields.document_type_id === 'string' ? fields.document_type_id : ctx.documentTypeByRow?.get(entry.recordId)
-  const type = typeId ? ctx.catalog.byId.documentTypes.get(typeId)?.name : undefined
+  // Every document row carries its type's name too (list_professional_history), for a type the
+  // catalogue no longer has.
+  const typeName = typeof fields.document_type_name === 'string' && fields.document_type_name.trim() !== '' ? fields.document_type_name : undefined
+  const type = (typeId ? ctx.catalog.byId.documentTypes.get(typeId)?.name : undefined) ?? typeName
   const doc = type ? t(`${S}.named`, { type }) : t(`${S}.unnamed`)
   const sentence = (key: 'uploaded' | 'fromQuestionnaire' | 'fromSignature' | 'verified' | 'rejectedNoReason' | 'expired' | 'deleted'): Described => ({
     kind: 'change',
@@ -739,7 +744,7 @@ function describeSet(catalog: CatalogView, batch: SetBatch): Pick<HistoryEvent, 
 // --- Assembly ----------------------------------------------------------------------------------------
 
 /**
- * The subject of the sentence: the person's name; « Une personne qui n'a plus accès » for an actor
+ * The subject of the sentence: the person's name; « Un compte supprimé » for an actor
  * id the clinic no longer names; else what wrote the row, by source (P4-104): `seed` and
  * `import…` → « L'importation », `migration:…` → « Une mise à jour du système », anything else
  * (`bootstrap`, `service`…) → « Le système ».

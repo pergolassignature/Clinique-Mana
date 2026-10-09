@@ -1,5 +1,5 @@
 import { assert, assertEquals } from '@std/assert'
-import { createHandler, READ_URL_SECONDS } from './handler.ts'
+import { createHandler, MAX_BATCH_FILES, READ_URL_SECONDS } from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import {
   type FakeResult,
@@ -51,6 +51,7 @@ const READY: Row = {
  */
 function underRls(rows: Row[]) {
   return (q: TableQuery): FakeResult => {
+    if (q.in) return batchUnderRls(rows, q)
     const visible = rows.filter((r) =>
       r.org_id === ORG_ID && r.status === 'ready' && r.permitted &&
       Object.entries(q.eq).every(([k, v]) => r[k as keyof Row] === v)
@@ -61,6 +62,18 @@ function underRls(rows: Row[]) {
       original_name,
     }))
     return { data: row ?? null }
+  }
+}
+
+/** The batch read (`.in('id', …)`): every visible row among the ids, `id, bucket, object_path`. */
+function batchUnderRls(rows: Row[], q: TableQuery): FakeResult {
+  const ids = q.in?.id ?? []
+  return {
+    data: rows.filter((r) =>
+      r.org_id === ORG_ID && r.status === 'ready' && r.permitted &&
+      ids.includes(r.id) &&
+      Object.entries(q.eq).every(([k, v]) => r[k as keyof Row] === v)
+    ).map(({ id, bucket, object_path }) => ({ id, bucket, object_path })),
   }
 }
 
@@ -87,6 +100,7 @@ function harness(opts: {
   rows?: Row[]
   lookup?: FakeResult
   sign?: StorageRoute
+  signMany?: StorageRoute
   limit?: RpcRoute
   env?: Record<string, string>
 } = {}) {
@@ -114,6 +128,14 @@ function harness(opts: {
               options as { download?: string },
             ),
           },
+        })),
+      createSignedUrls: opts.signMany ??
+        ((bucket, paths) => ({
+          data: (paths as string[]).map((path) => ({
+            error: null,
+            path,
+            signedUrl: signedUrlFor(bucket, path),
+          })),
         })),
     },
   })
@@ -356,5 +378,220 @@ Deno.test('storage-sign: the body is { file_id, download? } only; no bearer → 
     const preflight = await handler(new Request(URL_, { method: 'OPTIONS' }))
     assertEquals(preflight.status, 200)
     assertEquals(user.calls, [])
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Batch mode: { file_ids } (a list's photos)
+// -----------------------------------------------------------------------------
+
+const PHOTO = (n: number) =>
+  `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
+const photoRow = (n: number, over: Partial<Row> = {}): Row => ({
+  id: PHOTO(n),
+  org_id: ORG_ID,
+  status: 'ready',
+  permitted: true,
+  bucket: 'documents',
+  object_path: `${ORG_ID}/professionals/p${n}/${PHOTO(n)}.png`,
+  original_name: `Photo ${n}.png`,
+  ...over,
+})
+
+Deno.test('storage-sign batch: readable files → one URL each, one limit hit, one RLS read, one sign call per bucket', async () => {
+  await run(async () => {
+    const rows = [photoRow(1), photoRow(2), photoRow(3, { bucket: 'other' })]
+    const { handler, user, service } = harness({ rows })
+    const res = await handler(
+      post({ file_ids: [PHOTO(1), PHOTO(2), PHOTO(3)] }),
+    )
+    assertEquals(res.status, 200)
+    assertEquals(await res.json(), {
+      urls: {
+        [PHOTO(1)]: signedUrlFor('documents', rows[0].object_path),
+        [PHOTO(2)]: signedUrlFor('documents', rows[1].object_path),
+        [PHOTO(3)]: signedUrlFor('other', rows[2].object_path),
+      },
+      expires_at: '2026-10-08T15:05:00.000Z',
+    })
+    // The caller's client reads the rows: RLS decides each one.
+    assertEquals(user.tableCalls, [{
+      table: 'stored_files',
+      columns: 'id, bucket, object_path',
+      eq: { status: 'ready' },
+      in: { id: [PHOTO(1), PHOTO(2), PHOTO(3)] },
+      single: false,
+    }])
+    assertEquals(service.storageCalls, [
+      {
+        bucket: 'documents',
+        method: 'createSignedUrls',
+        args: [[rows[0].object_path, rows[1].object_path], 300],
+      },
+      {
+        bucket: 'other',
+        method: 'createSignedUrls',
+        args: [[rows[2].object_path], 300],
+      },
+    ])
+    // One hit on the caller's limit for the whole call.
+    assertEquals(service.calls.map((c) => [c.fn, c.args.p_bucket]), [
+      ['consume_rate_limit', 'storage.sign_user'],
+    ])
+  })
+})
+
+Deno.test('storage-sign batch: unreadable, another org, not ready or unknown files are left out, never an error, not reported', async () => {
+  await run(async () => {
+    const rows = [
+      photoRow(1),
+      photoRow(2, { permitted: false }),
+      photoRow(3, { org_id: OTHER_ORG }),
+      photoRow(4, { status: 'pending' }),
+    ]
+    const { handler, service } = harness({ rows })
+    const logged = await reports(async () => {
+      const res = await handler(
+        post({ file_ids: [PHOTO(1), PHOTO(2), PHOTO(3), PHOTO(4), PHOTO(5)] }),
+      )
+      assertEquals(res.status, 200)
+      assertEquals(Object.keys((await res.json()).urls), [PHOTO(1)])
+    })
+    assertEquals(logged, [])
+    assertEquals(service.storageCalls[0].args, [[rows[0].object_path], 300])
+
+    // Nothing readable: an empty answer, nothing signed.
+    const none = harness({ rows: [] })
+    const res = await none.handler(post({ file_ids: [PHOTO(1)] }))
+    assertEquals(res.status, 200)
+    assertEquals((await res.json()).urls, {})
+    assertEquals(none.service.storageCalls, [])
+  })
+})
+
+Deno.test('storage-sign batch: a missing object is left out and reported once with ids only; a failed lookup or bucket call → 500', async () => {
+  await run(async () => {
+    const rows = [photoRow(1), photoRow(2), photoRow(3)]
+    const missing = harness({
+      rows,
+      signMany: (bucket, paths) => ({
+        data: (paths as string[]).map((path, i) =>
+          i === 0
+            ? { error: null, path, signedUrl: signedUrlFor(bucket, path) }
+            : {
+              error:
+                'Either the object does not exist or you do not have access to it',
+              path,
+              signedUrl: null,
+            }
+        ),
+      }),
+    })
+    const logged = await reports(async () => {
+      const res = await missing.handler(
+        post({ file_ids: [PHOTO(1), PHOTO(2), PHOTO(3)] }),
+      )
+      assertEquals(res.status, 200)
+      assertEquals(Object.keys((await res.json()).urls), [PHOTO(1)])
+    })
+    assertEquals(logged, [{
+      fn: 'storage-sign',
+      code: 'object_missing',
+      ids: { org_id: ORG_ID, file_id: PHOTO(2) },
+    }])
+    assert(!JSON.stringify(logged).includes('.png'))
+
+    const cases: [string, Parameters<typeof harness>[0]][] = [
+      ['sign_failed', {
+        rows,
+        signMany: () => ({
+          error: Object.assign(new Error('down'), { status: 500 }),
+        }),
+      }],
+      ['file_lookup_failed', {
+        lookup: { error: { code: 'XX000', message: 'boom' } },
+      }],
+      ['unexpected_file_row', { lookup: { data: [{ bucket: 'x' }] } }],
+    ]
+    for (const [code, opts] of cases) {
+      const { handler } = harness(opts)
+      const logged = await reports(async () => {
+        assertEquals(
+          await errorOf(await handler(post({ file_ids: [PHOTO(1)] }))),
+          {
+            status: 500,
+            code: 'internal',
+            message: 'Files could not be signed',
+          },
+          code,
+        )
+      })
+      assertEquals(logged, [{
+        fn: 'storage-sign',
+        code,
+        ids: { org_id: ORG_ID },
+      }], code)
+    }
+  })
+})
+
+Deno.test('storage-sign batch: PUBLIC_API_URL replaces the origin; duplicates signed once; over the limit → 429 before any read', async () => {
+  await run(async () => {
+    const rows = [photoRow(1)]
+    const local = harness({
+      rows,
+      env: { PUBLIC_API_URL: 'http://127.0.0.1:55321' },
+    })
+    const res = await local.handler(
+      post({ file_ids: [PHOTO(1), PHOTO(1).toUpperCase()] }),
+    )
+    assertEquals((await res.json()).urls, {
+      [PHOTO(1)]: signedUrlFor('documents', rows[0].object_path).replace(
+        'http://kong:8000',
+        'http://127.0.0.1:55321',
+      ),
+    })
+    assertEquals(local.user.tableCalls[0].in, { id: [PHOTO(1)] })
+
+    const refused = harness({
+      rows,
+      limit: {
+        data: [{ allowed: false, hits: 121, retry_after_seconds: 600 }],
+      },
+    })
+    const limited = await refused.handler(post({ file_ids: [PHOTO(1)] }))
+    assertEquals(limited.status, 429)
+    assertEquals(refused.user.tableCalls, [])
+    assertEquals(refused.service.storageCalls, [])
+  })
+})
+
+Deno.test('storage-sign batch: the body is { file_ids } of 1 to 50 ids only', async () => {
+  await run(async () => {
+    const ids = Array.from({ length: MAX_BATCH_FILES + 1 }, (_, i) => PHOTO(i))
+    for (
+      const body of [
+        { file_ids: [] },
+        { file_ids: ['x'] },
+        { file_ids: ids },
+        { file_ids: [PHOTO(1)], download: true },
+        { file_ids: [PHOTO(1)], file_id: PHOTO(1) },
+        { file_ids: PHOTO(1) },
+      ]
+    ) {
+      const { handler, user, service } = harness()
+      assertEquals(
+        (await handler(post(body))).status,
+        400,
+        JSON.stringify(body).slice(0, 80),
+      )
+      assertEquals(user.tableCalls, [])
+      assertEquals(service.calls, [])
+    }
+    const { handler } = harness({ rows: [] })
+    assertEquals(
+      (await handler(post({ file_ids: ids.slice(0, MAX_BATCH_FILES) }))).status,
+      200,
+    )
   })
 })
