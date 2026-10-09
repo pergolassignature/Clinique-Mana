@@ -57,6 +57,7 @@
       "remove": "Retirer la spécialisation"
     },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
+    "backHome": "Retour à l'accueil",
     "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
     "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
     "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" },
@@ -210,7 +211,10 @@
       "no_role": "Aucun rôle n'est attribué à votre compte. Contactez la clinique.",
       "signOut": "Se déconnecter"
     },
-    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." },
+    "forbidden": {
+      "title": "Accès refusé",
+      "body": "Vous n'avez pas la permission d'ouvrir cette page. Si vous en avez besoin, demandez l'accès à un administrateur de la clinique."
+    },
     "customRole": "Rôle personnalisé"
   },
   "pageTitles": {
@@ -226,7 +230,11 @@
     "forbidden": "Accès refusé",
     "account": "Mon compte"
   },
-  "home": { "title": "Bienvenue", "body": "Ce qui demande votre attention s'affiche ici." },
+  "home": {
+    "title": "Bienvenue",
+    "body": "Ce qui demande votre attention s'affiche ici.",
+    "empty": { "title": "Rien ne demande votre attention pour l'instant.", "shortcuts": "Accès rapide" }
+  },
   "storage": {
     "dropzone": {
       "drop": "Glissez un fichier ici, ou",

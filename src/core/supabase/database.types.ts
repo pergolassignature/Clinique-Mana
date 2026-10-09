@@ -5291,6 +5291,23 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_document_template_versions: {
+        Args: { p_template_id: string }
+        Returns: {
+          archived_at: string
+          body: Json
+          created_at: string
+          email_message: string
+          email_subject: string
+          id: string
+          published_at: string
+          signers: Json
+          status: string
+          updated_at: string
+          variables: Json
+          version: number
+        }[]
+      }
       list_document_templates: {
         Args: { p_module_key?: string }
         Returns: {
@@ -5739,6 +5756,10 @@ export type Database = {
         }
         Returns: string
       }
+      refund_rate_limit: {
+        Args: { p_bucket: string; p_key_hash: string; p_window_seconds: number }
+        Returns: undefined
+      }
       register_system_file: {
         Args: {
           p_bucket: string
@@ -6096,10 +6117,6 @@ export type Database = {
       set_user_status: {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
-      }
-      sign_my_consent: {
-        Args: { p_signer_name: string; p_version_id: string }
-        Returns: string
       }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }

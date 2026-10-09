@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import type { AccessResult } from '@/core/access/access'
 import { accessKeys } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { uploadFile } from '@/core/storage/api'
@@ -32,7 +33,9 @@ export function useOrganization() {
  * Saves one settings card and resolves with the saved organization.
  *
  * Invalidates the organization and, when the patch touches `name` or `timezone`, the access
- * payload too: the shell shows the name and the clinic timezone comes from `get_my_access`.
+ * payload too: the shell shows the name and the clinic timezone comes from `get_my_access`. The
+ * saved values are written into the cached access first, so a failed refetch never leaves the
+ * old zone in effect.
  * The toasts live in the mutation options so the outcome shows even if the page unmounts first.
  */
 export function useUpdateOrganization(successMessage: string) {
@@ -48,6 +51,14 @@ export function useUpdateOrganization(successMessage: string) {
       )
       const invalidations = [queryClient.invalidateQueries({ queryKey: organizationKeys.all, refetchType: 'none' })]
       if (patch.name !== undefined || patch.timezone !== undefined) {
+        // The saved name and zone go into the cached access at once: AccessProvider applies the
+        // zone from it and the shell re-keys on it, so every screen follows the new zone without
+        // waiting for (or depending on) the refetch below, which may fail.
+        queryClient.setQueriesData<AccessResult>({ queryKey: accessKeys.all }, (cached) =>
+          cached && 'access' in cached
+            ? { access: { ...cached.access, org_name: saved.name, org_timezone: saved.timezone } }
+            : cached,
+        )
         invalidations.push(queryClient.invalidateQueries({ queryKey: accessKeys.all }))
       }
       // Awaited: the mutation stays pending until the fresh values are in the cache. A failed

@@ -124,7 +124,7 @@ Details of each function and of the shared services: [core doc, « Edge function
 
 ## 9. Timezone (IMPORTANT)
 
-Timestamps are stored in UTC (`timestamptz`); the clinic's timezone is `organizations.timezone` (default `America/Toronto`), applied by `AccessProvider` (`setClinicTimezone`).
+Timestamps are stored in UTC (`timestamptz`); the clinic's timezone is `organizations.timezone` (default `America/Toronto`), applied by `AccessProvider` (`setClinicTimezone`). A « Région » save writes the new zone into the cached access at once (`useUpdateOrganization`) and the signed-in shell is keyed on it (`AuthenticatedApp`), so every screen follows it without a reload; `useClinicDate` also re-reads the date when the zone changes.
 
 - **Never** `toLocaleDateString()`, `new Date(…)` comparisons or date-fns `format()` directly for user-facing dates. **Always** the utilities of `@/shared/lib/timezone`: `formatClinicDateShort`, `formatClinicDateFull`, `formatClinicTime`, `formatClinicDateTime`, `formatInClinicTimezone(date, pattern)`, `toClinicTime`, `isClinicToday`, `getClinicDateString`, `clinicTimeToUTC(date, time)` (form input → UTC for storage).
 - **Date-only fields** (`date`: birthday, expiry dates, …) are calendar dates: format them with `formatDateOnly` / `formatDateOnlyFull` / `formatDateOnlyShort`, **never** with a timezone conversion (`"2020-01-01"` would become 31 December).
