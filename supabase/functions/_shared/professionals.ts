@@ -148,7 +148,5 @@ export function professionalsRpcError(
   )
 }
 
-/** True for the SQLSTATEs `professionalsRpcError` answers as the caller's own (not reported). */
-export function isExpectedRpcError(error: RpcError): boolean {
-  return ['P0001', '42501', '22023'].includes(error.code ?? '')
-}
+// The SQLSTATEs `professionalsRpcError` answers as the caller's own (not reported).
+export { isExpectedRpcError } from './errors.ts'

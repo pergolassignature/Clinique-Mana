@@ -20,6 +20,22 @@ export class FunctionError extends Error {
 }
 
 /**
+ * The SQLSTATEs a user-facing RPC refuses with on purpose: P0001 (a French
+ * refusal), 42501 (not allowed), 22023 (an invalid argument). Answered by
+ * `rpcErrorResponse` without a report; any other code is reported.
+ */
+const EXPECTED_RPC_CODES: ReadonlySet<string> = new Set([
+  'P0001',
+  '42501',
+  '22023',
+])
+
+/** True for an RPC error with one of `EXPECTED_RPC_CODES` (the caller's own, not reported). */
+export function isExpectedRpcError(error: { code?: string | null }): boolean {
+  return EXPECTED_RPC_CODES.has(error.code ?? '')
+}
+
+/**
  * The answer for an RPC error, by SQLSTATE (plan « Error codes in SQL »):
  * P0001 → 400 `invalid_request` with the RPC's French message, flagged
  * `refusal: true` for the UI to show (`refusalResponse`); 42501 → 403 `forbidden`; 22023 → 400 `invalid_request` (its message

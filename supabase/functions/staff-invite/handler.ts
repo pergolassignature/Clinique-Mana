@@ -54,7 +54,11 @@ import {
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { isMailbox, sendTemplatedEmail } from '../_shared/email/send.ts'
-import { FunctionError, rpcErrorResponse } from '../_shared/errors.ts'
+import {
+  FunctionError,
+  isExpectedRpcError,
+  rpcErrorResponse,
+} from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
 import { generateToken, hashToken, linkUrl } from '../_shared/links.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
@@ -187,7 +191,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
 
     const rpcFailed = async (error: { code?: string; message?: string }) => {
-      if (!['P0001', '42501', '22023'].includes(error.code ?? '')) {
+      if (!isExpectedRpcError(error)) {
         await report('invite_failed')
       }
       return rpcErrorResponse(error, req)

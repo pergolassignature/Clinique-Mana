@@ -6,8 +6,7 @@
  * the error's kind (`name`), its code (a SQLSTATE, `PGRST…`, Auth's
  * `error_code`) and its HTTP status, each checked against a strict shape.
  */
-
-const SAFE_TOKEN = /^[A-Za-z0-9_.-]{1,64}$/
+import { SAFE_CODE as SAFE_TOKEN } from './patterns.ts'
 
 /** `name=… code=… status=…` from what the error carries, or `unknown`. */
 export function errorTag(error: unknown): string {
