@@ -62,9 +62,12 @@
 --   expired / missing (P4-406). The list gains documents_done, documents_required,
 --   insurance_status, insurance_expires_on. The clinic's today is computed per row from
 --   organizations.timezone, so the views answer the same for staff, providers and jobs.
--- * Retention (Loi 25): documents are the clinic's proof of coverage and consent for the period
---   of services; nothing purges them automatically in 4c (P4-411). Staged uploads never attached
---   are purged after a day (retain_days 1), rejected files after 30 days, deleted ones likewise.
+-- * Retention (Loi 25; P4-411, decided by Jonathan 2026-10-08, to revisit): documents are the
+--   clinic's proof of coverage and consent and are never deleted automatically, with no time limit,
+--   also after a collaboration ends (attach clears retain_until: storage-cleanup never touches an
+--   attached file). A refused file is soft-deleted at once and a deleted document's file likewise
+--   (storage-cleanup removes the object 30 days later); staged uploads never attached go after a
+--   day (retain_days 1).
 -- * Locks: the professional, then the document (every writer here), then the file
 --   (attach_stored_file / soft_delete_stored_file), as module RPCs attach files (core doc).
 -- * Audit: document_types and professional_documents are audited (no redaction: no personal data

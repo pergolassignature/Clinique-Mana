@@ -165,7 +165,7 @@ Migrations `20261009000253_professionals_documents` and `20261009000255_professi
 - **The questionnaire's photo and insurance** become verified documents when the submission is approved (trigger `professional_submissions_documents`, P4-400), which also closes « Profil à réviser ».
 - **Readiness** gains `documents` (P4-405); the list `documents_done`, `documents_required`, `insurance_status`, `insurance_expires_on`.
 - **Job** `professionals.insurance_expiry_notice` (06:00 clinic time, off by default): expires documents past their day, notifies `professionals.manage` (insurance expiring / expired, documents missing as a weekly count), emails the professional (J-7, the day after the last day, then weekly) — **the professional stays active** (P4-1).
-- **Retention:** no automatic purge of documents yet (P4-411, Mise en service).
+- **Retention (P4-411, Jonathan 2026-10-08, to revisit):** documents are never deleted automatically; they are kept with no time limit, also after a collaboration ends. A refused file is soft-deleted at once (P4-404); staff with `professionals.documents.delete` delete a document by hand. Only staged uploads never attached go after a day.
 
 ## Deactivation and the provider's account (P4-11)
 
