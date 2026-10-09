@@ -149,6 +149,9 @@ verify_jwt = false
 verify_jwt = false
 [functions.professionals-invitation-reminders]
 verify_jwt = false
+# Job professionals.insurance_expiry_notice (runJob verifies X-Job-Signature).
+[functions.professionals-insurance-expiry]
+verify_jwt = false
 # « Fiche PDF » → « Envoyer par courriel » (verifyAuth, module professionals).
 [functions.professionals-fiche]
 verify_jwt = false

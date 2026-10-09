@@ -22,7 +22,7 @@ const COLUMNS = {
     'deactivation_note', 'deactivation_disabled_account', 'activation_override_reason', 'created_at', 'created_by', 'updated_at',
     'fiche_generated_at',
   ],
-  professional_public_profiles: ['org_id', 'professional_id', 'bio', 'approach', 'public_email', 'public_phone', 'created_at', 'updated_at'],
+  professional_public_profiles: ['org_id', 'professional_id', 'bio', 'approach', 'public_email', 'public_phone', 'photo_document_id', 'created_at', 'updated_at'],
   professional_matching_profiles: [
     'org_id', 'professional_id', 'accepting_new_clients', 'availability_periods', 'availability_note', 'min_client_age', 'women_only',
     'new_client_places', 'new_client_places_set_at', 'created_at', 'updated_at',
@@ -54,6 +54,15 @@ const COLUMNS = {
   professional_client_agreements: [
     'id', 'org_id', 'professional_id', 'client_label', 'client_id', 'duration', 'professional_amount_cents', 'client_price_cents', 'effective_from',
     'effective_to', 'note', 'created_at', 'created_by',
+  ],
+  // 4c.2: « Documents requis » and the professionals' documents.
+  document_types: [
+    'id', 'org_id', 'key', 'name', 'is_system', 'required', 'expiry_rule', 'reminder_days', 'weekly_after_expiry', 'accepted_mime', 'max_bytes',
+    'sort_order', 'is_active', 'created_at', 'updated_at',
+  ],
+  professional_documents: [
+    'id', 'org_id', 'professional_id', 'document_type_id', 'stored_file_id', 'status', 'expires_on', 'metadata', 'uploaded_by', 'uploaded_at',
+    'reviewed_by', 'reviewed_at', 'rejection_reason', 'submission_id', 'created_at', 'updated_at',
   ],
 } as const
 

@@ -1235,7 +1235,8 @@
         "items": {
           "matching_profile": "Profil de jumelage complet",
           "account_created": "Compte créé (invitation acceptée)",
-          "submission_approved": "Questionnaire approuvé"
+          "submission_approved": "Questionnaire approuvé",
+          "documents": "Documents requis en règle"
         },
         "missing": {
           "profession": "un titre professionnel",
@@ -1243,7 +1244,12 @@
           "regulated_title": "un titre d'un ordre professionnel (motifs réservés)",
           "language": "une langue",
           "clientele": "une clientèle",
-          "motif": "un motif"
+          "motif": "un motif",
+          "photo": "la photo professionnelle",
+          "insurance": "la preuve d'assurance",
+          "insurance_expired": "une preuve d'assurance en vigueur",
+          "image_consent": "le consentement au droit à l'image",
+          "other_documents": "d'autres documents requis"
         },
         "warnings": {
           "login_email_mismatch": "Le courriel du dossier diffère du courriel de connexion."
@@ -1251,6 +1257,7 @@
         "nextAction": {
           "completeMatching": "Complétez le profil de jumelage.",
           "completeIdentity": "Complétez les titres et permis.",
+          "completeDocuments": "Il manque des documents requis.",
           "complete": "Compléter",
           "readyToActivate": "Le dossier est prêt à être activé.",
           "readyToReactivate": "Le dossier peut être réactivé.",
@@ -3388,7 +3395,9 @@
       "retention_grid_prices": "Prix des grilles de rétention",
       "professional_session_counts": "Séances des professionnels",
       "professional_retention": "Taux de retenue des professionnels",
-      "professional_client_agreements": "Ententes particulières"
+      "professional_client_agreements": "Ententes particulières",
+      "document_types": "Documents requis",
+      "professional_documents": "Documents des professionnels"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -3566,6 +3575,33 @@
         "requires_note": "Note requise",
         "disables_account": "Désactive le compte"
       },
+      "document_types": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "required": "Requis",
+        "expiry_rule": "Échéance",
+        "reminder_days": "Rappels (jours avant l'échéance)",
+        "weekly_after_expiry": "Rappel chaque semaine après l'échéance",
+        "accepted_mime": "Types de fichiers acceptés",
+        "max_bytes": "Taille maximale",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif"
+      },
+      "professional_documents": {
+        "professional_id": "Professionnel",
+        "document_type_id": "Type de document",
+        "stored_file_id": "Fichier",
+        "status": "Statut",
+        "expires_on": "Dernier jour de validité",
+        "metadata": "Renseignements du document",
+        "uploaded_by": "Téléversé par",
+        "uploaded_at": "Téléversé le",
+        "reviewed_by": "Vérifié par",
+        "reviewed_at": "Vérifié le",
+        "rejection_reason": "Raison du refus",
+        "submission_id": "Questionnaire"
+      },
       "professionals": {
         "profile_id": "Compte",
         "first_name": "Prénom",
@@ -3594,7 +3630,8 @@
         "bio": "Présentation",
         "approach": "Approche",
         "public_email": "Courriel public",
-        "public_phone": "Téléphone public"
+        "public_phone": "Téléphone public",
+        "photo_document_id": "Photo"
       },
       "professional_matching_profiles": {
         "professional_id": "Professionnel",

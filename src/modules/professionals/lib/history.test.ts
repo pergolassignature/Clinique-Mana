@@ -98,6 +98,10 @@ describe('history — the record row', () => {
     expect(events([row('professionals', 'update', { fiche_generated_at: { before: null, after: TX } })])).toEqual([])
   })
 
+  it('says nothing of the public profile’s photo link (the document rows tell it, 4c.2)', () => {
+    expect(events([row('professional_public_profiles', 'update', { photo_document_id: { before: null, after: 'd1' } })])).toEqual([])
+  })
+
   it('never shows a redacted value: only that the field changed', () => {
     const event = only([row('professionals', 'update', { city: '[redacted]' })])
     expect(event.sentence).toBe('a modifié la ville')

@@ -7,6 +7,7 @@ import {
   MOTIF_CATEGORY_ICONS,
   PAYER_TYPES,
   PROFESSIONAL_STATUSES,
+  READINESS_DOCUMENT_MISSING,
   READINESS_MISSING,
   RECORD_TABS,
   recordPath,
@@ -18,6 +19,7 @@ const read = (file: string) => readFileSync(path.join(root, 'supabase/migrations
 const REFERENCE = read('20261008082847_professionals_reference_data.sql')
 const CORE = read('20261008092451_professionals_core.sql')
 const LIFECYCLE = read('20261008100634_professionals_lifecycle.sql')
+const DOCUMENTS = read('20261009000253_professionals_documents.sql')
 
 /** The quoted values of a SQL list, e.g. `in ('a', 'b')`. */
 const quoted = (sql: string) => [...sql.matchAll(/'([^']+)'/g)].map((m) => m[1])
@@ -49,6 +51,11 @@ describe('constants mirror the SQL checks', () => {
   it('readiness gaps, in the order the RPC lists them', () => {
     const missing = section(LIFECYCLE, /'missing', pg_catalog\.to_jsonb\(pg_catalog\.array_remove\(array\[([\s\S]*?)\], null\)/)
     expect([...missing.matchAll(/then '([a-z_]+)'/g)].map((m) => m[1])).toEqual([...READINESS_MISSING])
+  })
+
+  it('document gaps, in the order the readiness view lists them (4c.2)', () => {
+    const missing = section(DOCUMENTS, /pg_catalog\.array_remove\(array\[([\s\S]*?)\]::text\[\], null\) as documents_missing/)
+    expect([...missing.matchAll(/'([a-z_]+)'/g)].map((m) => m[1])).toEqual([...READINESS_DOCUMENT_MISSING])
   })
 
   it('reference kinds are the eight list tables (no approaches, P4-240)', () => {

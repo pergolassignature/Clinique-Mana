@@ -1,7 +1,10 @@
 import { assertEquals } from '@std/assert'
 import {
   appPageUrl,
+  documentExpiryValues,
+  documentRejectedValues,
   invitationValues,
+  MY_DOCUMENTS_PATH,
   isExpectedRpcError,
   professionalDocumentsPath,
   professionalsRpcError,
@@ -13,20 +16,22 @@ import { withEnv } from './testing/env.ts'
 
 const MIGRATIONS = new URL('../../migrations/', import.meta.url)
 
-/** The `variables` paths a seeded template declares, from the migration text. */
+/**
+ * The `variables` paths a seeded template declares, from the text of the
+ * module's migration that seeds it (4b.1: onboarding; 4c.2: documents).
+ */
 async function declaredPaths(key: string): Promise<string[]> {
-  let text = ''
   for await (const entry of Deno.readDir(MIGRATIONS)) {
-    if (entry.name.endsWith('_professionals_onboarding.sql')) {
-      text = await Deno.readTextFile(new URL(entry.name, MIGRATIONS))
-    }
+    if (!/_professionals_[a-z_]+\.sql$/.test(entry.name)) continue
+    const text = await Deno.readTextFile(new URL(entry.name, MIGRATIONS))
+    const seeds = text.indexOf('insert into public.email_template_defaults')
+    const start = seeds < 0 ? -1 : text.indexOf(`('${key}', 'professionals',`, seeds)
+    if (start < 0) continue
+    const end = text.indexOf("'professionals.view')", start)
+    return [...text.slice(start, end).matchAll(/"path": "([a-z_.]+)"/g)]
+      .map((m) => m[1]).sort()
   }
-  const seeds = text.indexOf('insert into public.email_template_defaults')
-  const start = text.indexOf(`('${key}', 'professionals',`, seeds)
-  if (seeds < 0 || start < 0) throw new Error(`template ${key} not seeded`)
-  const end = text.indexOf("'professionals.view')", start)
-  return [...text.slice(start, end).matchAll(/"path": "([a-z_.]+)"/g)]
-    .map((m) => m[1]).sort()
+  throw new Error(`template ${key} not seeded`)
 }
 
 /** The dotted paths of a values object's leaves. */
@@ -64,6 +69,37 @@ Deno.test('professionals: each builder fills exactly the variables its template 
     clinic: { name: 'Clinique MANA' },
     invitation: { expires_at: '2026-10-15T15:00:00Z' },
   })
+
+  const expiry = documentExpiryValues({
+    firstName: 'Nadia',
+    clinicName: 'Clinique MANA',
+    expiresOn: '2027-03-31',
+  })
+  for (
+    const key of [
+      'professionals.document_expiring',
+      'professionals.document_expired',
+      'professionals.document_expired_reminder',
+    ]
+  ) {
+    assertEquals(leafPaths(expiry), await declaredPaths(key), key)
+  }
+  assertEquals(expiry, {
+    professional: { first_name: 'Nadia' },
+    clinic: { name: 'Clinique MANA' },
+    document: { expires_on: '2027-03-31' },
+  })
+  assertEquals(
+    leafPaths(
+      documentRejectedValues({
+        firstName: 'Nadia',
+        clinicName: 'Clinique MANA',
+        typeName: 'Photo professionnelle',
+        reason: 'La photo est floue.',
+      }),
+    ),
+    await declaredPaths('professionals.document_rejected'),
+  )
 })
 
 Deno.test('professionals: appPageUrl only on an accepted origin and a plain app path', () => {
@@ -87,6 +123,10 @@ Deno.test('professionals: appPageUrl only on an accepted origin and a plain app 
   ) {
     assertEquals(appPageUrl(appUrl, QUESTIONNAIRE_PATH), null, String(appUrl))
   }
+  assertEquals(
+    appPageUrl('https://app.cliniquemana.com', MY_DOCUMENTS_PATH),
+    'https://app.cliniquemana.com/mes-documents',
+  )
   for (
     const path of ['//evil.test', '/a?b', '/a#b', '/../x', 'mon-profil', '/A']
   ) {

@@ -214,12 +214,14 @@ export function sectionKeys(value: unknown): SubmissionSection[] {
 // --- Insurance and consent --------------------------------------------------------------------
 
 /**
- * The insurance's proposed expiry (the clinic's policies end on March 31): the next March 31 after
- * `today` (`yyyy-MM-dd`, clinic date). The provider can change it.
+ * The insurance's proposed expiry (the clinic's policies run April 1 – March 31; P4-412, decided
+ * by Jonathan): uploaded in January or February, this year's March 31; from March 1 on, the
+ * renewal for the period that starts next, so next year's March 31. `today` is the clinic date
+ * (`yyyy-MM-dd`). The same rule as SQL `private.next_march_31`. The provider can change it.
  */
 export function nextMarch31(today: string): string {
   const year = Number(today.slice(0, 4))
-  return today < `${year}-03-31` ? `${year}-03-31` : `${year + 1}-03-31`
+  return today < `${year}-03-01` ? `${year}-03-31` : `${year + 1}-03-31`
 }
 
 /**

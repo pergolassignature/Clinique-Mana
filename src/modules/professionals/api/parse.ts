@@ -9,6 +9,7 @@ import {
   PAYER_TYPES,
   PROFESSIONAL_STATUSES,
   READINESS_ITEMS,
+  READINESS_DOCUMENT_MISSING,
   READINESS_MISSING,
   READINESS_WARNINGS,
   SUBMISSION_KINDS,
@@ -246,7 +247,7 @@ const readinessShape = z.object({
   complete: z.boolean(),
   done: z.number(),
   total: z.number(),
-  items: z.array(z.object({ key: z.enum(READINESS_ITEMS), done: z.boolean(), missing: z.array(z.enum(READINESS_MISSING)) })),
+  items: z.array(z.object({ key: z.enum(READINESS_ITEMS), done: z.boolean(), missing: z.array(z.enum([...READINESS_MISSING, ...READINESS_DOCUMENT_MISSING])) })),
   warnings: z.array(z.enum(READINESS_WARNINGS)),
 })
 export type Readiness = z.output<typeof readinessShape>

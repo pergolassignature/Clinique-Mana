@@ -26,6 +26,12 @@ export const MISSING_TAB: Readonly<Record<ReadinessMissing, RecordTab>> = {
   language: 'jumelage',
   clientele: 'jumelage',
   motif: 'jumelage',
+  // « Documents » (Task 4c.3): no button until the tab is built (TAB_PERMISSION has no entry).
+  photo: 'documents',
+  insurance: 'documents',
+  insurance_expired: 'documents',
+  image_consent: 'documents',
+  other_documents: 'documents',
 }
 
 type Can = (permission: string) => boolean
@@ -131,7 +137,7 @@ function readinessStep({ readiness }: NextActionSubject, can: Can): NextAction |
   const tab = MISSING_TAB[firstGap]
   const permission = TAB_PERMISSION[tab]
   return {
-    message: t(tab === 'identite' ? `${N}.completeIdentity` : `${N}.completeMatching`),
+    message: t(tab === 'identite' ? `${N}.completeIdentity` : tab === 'documents' ? `${N}.completeDocuments` : `${N}.completeMatching`),
     action: permission && can(permission) ? { kind: 'tab', label: t(`${N}.complete`), tab } : null,
   }
 }
