@@ -192,7 +192,7 @@ describe('SignatorySettingsPage', () => {
       mocks.storage.signedFileUrl.mockResolvedValue({ url: 'https://x.test/s.png?token=t', expiresAt: '2026-10-08T12:05:00Z' })
       await renderPage({ organization: { ...testOrganization, signature_file_id: SIGNATURE_ID } })
       expect(card().compareDocumentPosition(signatureCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      expect(within(signatureCard()).getByText('Utilisée pour la signature de la clinique sur les documents.')).toBeInTheDocument()
+      expect(within(signatureCard()).getByText(t('settings.signatory.signature.description'))).toBeInTheDocument()
       expect(within(signatureCard()).getByRole('button', { name: t('settings.signatory.signature.replace') })).toHaveAccessibleDescription(
         // The limits come from UPLOAD_PURPOSES (checked against the migrations), not the text.
         /^PNG à fond transparent recommandé \(JPEG accepté\), 2 Mo et 4\s000 pixels de côté au plus\.$/,

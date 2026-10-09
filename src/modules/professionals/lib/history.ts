@@ -1,11 +1,12 @@
 import { t, type TranslationKey } from '@/i18n'
-import { fieldLabel } from '@/core/audit/labels'
+import { fieldLabel as auditFieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
 import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
 import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compensation'
 import type { SubjectEmail } from '../api/invitations'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
+import { professionalsAuditLabels } from './audit-labels'
 import { durationLabel, formatCents, formatPercent, formatSessions, monthLabel, sessionsLabel } from './compensation'
 import {
   PAYER_TYPES,
@@ -31,6 +32,10 @@ import { titleLabel } from './title-label'
  */
 
 const H = 'modules.professionals.history'
+
+const AUDIT_LABELS = [professionalsAuditLabels]
+/** A column's name, as the Journal d'audit says it: the module's labels, then core's shared ones (« Créé le »). */
+const fieldLabel = (table: string, column: string): string => auditFieldLabel(table, column, AUDIT_LABELS)
 
 /** What `private.audit_trigger` writes in place of a redacted column (Loi 25). */
 const REDACTED = '[redacted]'
@@ -602,6 +607,22 @@ function contractRow(entry: HistoryEntry): Described | null {
   return isOneOf(CONTRACT_STATUSES, status) ? { kind: 'change', sentence: t(`${S}.${status}`), lines: [] } : null
 }
 
+const PAPER_CONTRACT_TABLE = 'professional_paper_contracts'
+
+/**
+ * A service contract signed outside the app (P4-520, P4-526): « a téléversé un contrat de service
+ * signé hors application (signé le …) », its signature date a calendar date. « Remplacer » is a
+ * second upload; the rows are never updated nor deleted by the app.
+ */
+function paperContractRow(entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.paperContract`
+  if (entry.action !== 'insert') return null
+  const signedOn = fieldsOf(entry).signed_on
+  return typeof signedOn === 'string' && DATE_ONLY.test(signedOn)
+    ? { kind: 'change', sentence: t(`${S}.uploaded`, { date: formatDateOnlyShort(signedOn) }), lines: [] }
+    : { kind: 'change', sentence: t(`${S}.uploadedNoDate`), lines: [] }
+}
+
 /** One audit row of a table that is not a set, as a sentence and its details. */
 function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
   if (entry.tableName === PRIVATE_TABLE) {
@@ -621,6 +642,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.tableName === DOCUMENTS_TABLE && entry.action !== 'read') return documentRow(ctx, entry)
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
+  if (entry.tableName === PAPER_CONTRACT_TABLE) return paperContractRow(entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)

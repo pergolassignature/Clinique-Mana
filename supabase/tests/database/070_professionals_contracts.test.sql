@@ -7,7 +7,7 @@
 -- written once and never re-read, a draft resumed under its own key, a contract out refused,
 -- resend, regenerate and its double click, an inactive file, a signed contract); the card
 -- (get_professional_contract for the conseillère and the admin, another clinic, the provider);
--- readiness (contract_signed: the latest request only, the same for every reader, ready requires
+-- readiness (contract_signed: a signed request, the same for every reader, ready requires
 -- it); the history (status moves only).
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -392,10 +392,11 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select results_eq($$ select r.contract_signed, r.ready, r.ready = (r.matching_complete and r.account_created and r.submission_approved and r.contract_signed)
                        from public.professionals_readiness r where r.professional_id = 'c0000000-0000-0000-0000-000000000001' $$,
   $$ values (true, false, true) $$, 'signed: the item is done for the conseillère too; ready needs every item');
-select is(public.get_professional_contract('c0000000-0000-0000-0000-000000000001') -> 'request' -> 'signed_file_id', 'null'::jsonb,
+-- Signed, the request is the contract in force (`current`, P4-525).
+select is(public.get_professional_contract('c0000000-0000-0000-0000-000000000001') -> 'current' -> 'request' -> 'signed_file_id', 'null'::jsonb,
   'the conseillère never gets the signed file');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select is(public.get_professional_contract('c0000000-0000-0000-0000-000000000001') -> 'request' ->> 'signed_file_id',
+select is(public.get_professional_contract('c0000000-0000-0000-0000-000000000001') -> 'current' -> 'request' ->> 'signed_file_id',
   'f0000000-0000-0000-0000-000000000001', 'the admin does');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is((select count(*)::int from public.professionals_readiness r where r.contract_signed), 0, 'another clinic sees no signed contract of org A');
@@ -404,7 +405,8 @@ reset role;
 select is(private.test_error_hint($$ select public.prepare_professional_contract('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'regenerate', 'k5') $$),
   'contract', 'a signed contract cannot be regenerated (HINT contract)');
 
--- A later request that was rejected: only the latest counts (A10.9).
+-- A later request that was rejected: the signed contract stays in force (P4-522; before the
+-- renewal, P4-524, only the latest request counted, A10.9).
 insert into public.signature_requests (org_id, module_key, purpose, template_version_id, subject_type, subject_id, title, status,
                                        envelope_id, idempotency_key, view_permission, sent_at, rejected_at, created_at)
 values ('b0000000-0000-0000-0000-00000000000a', 'professionals', 'professionals.service_contract', current_setting('test.v1')::uuid,
@@ -412,8 +414,8 @@ values ('b0000000-0000-0000-0000-00000000000a', 'professionals', 'professionals.
         'contract-later', 'professionals.compensation', now(), now(), now() + interval '1 minute');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select is((select r.contract_signed from public.professionals_readiness r where r.professional_id = 'c0000000-0000-0000-0000-000000000001'), false,
-  'a later rejected request: not signed any more');
+select is((select r.contract_signed from public.professionals_readiness r where r.professional_id = 'c0000000-0000-0000-0000-000000000001'), true,
+  'a later rejected request never undoes a signed contract');
 reset role;
 delete from public.signature_requests where idempotency_key = 'contract-later';
 

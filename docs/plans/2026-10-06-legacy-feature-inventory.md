@@ -71,7 +71,7 @@
 - [x] Timeline grouped by date, relative time (full date on hover), actor or "Système", short event id, expandable JSON with shortened UUIDs + copy buttons, colour per action type, FR labels for 24 actions. — A2.18 · **4a.15** readable sentences from `audit_log`, no JSON or ids (D5).
 
 **Fiche PDF** (`utils/fiche-data.ts`, `components/fiche-pdf-document.tsx`)
-- [ ] One per profession title, file `{Name}_{Profession}.pdf`: clinic logo; photo (verified first, else newest) or initials; "{name}, {title lowercase}"; "Permis : {licence}"; bio + approach paragraphs or "Information à venir."; motifs grouped by category A–Z, "Autres" last; clientèle specialties by sort_order or "Tous types de clientèles"; **Honoraires** = prices of services assigned to that title (category or category-less prices) as `{$}/{min} min` longest → shortest, or "À confirmer"; clinic blurb, URL, phone (hardcoded 418 907-9754). — A2.19 · **4c.5** (P4-58 react-pdf in the browser, v2 P4-350 – P4-357; download and email; fees from the retention grid's client prices, P4-218; clinic contact from Settings; no blurb, P4-207). **Open:** the photo (`generate-fiche-pdf.ts` passes `photo: null`: the initials print in its slot, P4-202).
+- [x] One per profession title, file `{Name}_{Profession}.pdf`: clinic logo; photo (verified first, else newest) or initials; "{name}, {title lowercase}"; "Permis : {licence}"; bio + approach paragraphs or "Information à venir."; motifs grouped by category A–Z, "Autres" last; clientèle specialties by sort_order or "Tous types de clientèles"; **Honoraires** = prices of services assigned to that title (category or category-less prices) as `{$}/{min} min` longest → shortest, or "À confirmer"; clinic blurb, URL, phone (hardcoded 418 907-9754). — A2.19 · **4c.5** (P4-58 react-pdf in the browser, v2 P4-350 – P4-357; download and email; fees from the retention grid's client prices, P4-218; clinic contact from Settings; no blurb, P4-207). **Built:** the photo, the public profile's newest verified one, read with the Documents tab's query (`hooks/use-fiche.ts`, P4-202); the initials print in its slot only when there is none or it cannot be read.
 
 ### A3. Onboarding invite & questionnaire (`pages/invite.tsx`, `/invitation/$token`)
 - [x] Invite types: `onboarding`; `update_request` (choose any of 8 sections, select-all; current data copied into `pre_populated_data`; `parent_invite_id` = latest completed invite). Default expiry 7 days. — A3.1 → 4b.1–4b.3 (update requests without a link, P4-44). **Built:** onboarding by invitation; update requests by email without a link (all 11 sections selectable), or started by the professional from « Mon profil »; 7 days by default (Paramètres → Invitations). An open update can be closed (P4-421).
@@ -134,7 +134,6 @@
 ### Still open after Phase 4
 - A1.1: the list's « Documents 2 / 3 » column (4c follow-up).
 - A2.1: the record header's photo avatar (4c follow-up).
-- A2.19: the photo on the fiche PDF (initials print in its slot).
 - Owned by other modules: A2.17 Services → Services et tarifs; A8.1 Google Calendar → Rendez-vous.
 
 ---

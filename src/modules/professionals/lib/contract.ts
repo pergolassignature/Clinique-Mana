@@ -18,6 +18,9 @@ import type { ContractProgress } from './readiness'
  * - `sent`, `viewed` → « Synchroniser », « Renvoyer » (the signing email again), « Régénérer ».
  * - `signed` → « Télécharger le PDF signé », « Journal de signature ».
  * - `rejected`, `expired`, `cancelled`, `abandoned` → « Régénérer » (a new contract).
+ * Once a contract is in force (P4-522: signed through Documenso or on paper, `current`), the card
+ * reads the request at work (a renewal, P4-524): `none` then offers « Préparer un nouveau
+ * contrat » (`renew`), and the other states the same actions on the renewal.
  * Sending needs `professionals.contracts.send` and `professionals.compensation` (P4-436);
  * « Synchroniser » and the PDF need to read the request (`canRead`, P4-435).
  *
@@ -78,15 +81,16 @@ export function canSendForm(form: SigningForm, can: Can): boolean {
 }
 
 /** The card's buttons for a state, in order (module comment). */
-export function contractButtons(state: ContractState, request: ContractRequest | null, can: Can, form: SigningForm = 'service_contract'): ContractButton[] {
+export function contractButtons(state: ContractState, request: ContractRequest | null, can: Can, form: SigningForm = 'service_contract', inForce = false): ContractButton[] {
   const sender = canSendForm(form, can)
   const reader = request?.canRead === true
   const consent = form === 'image_consent'
   const send = (action: ContractAction, label: 'send' | 'retry' | 'regenerate' | 'resend' | 'renew'): ContractButton[] =>
-    sender ? [{ kind: 'action', action, label: consent ? t(`${C}.${label}`) : t(`${A}.${label === 'renew' ? 'send' : label}`) }] : []
+    sender ? [{ kind: 'action', action, label: consent ? t(`${C}.${label}`) : t(`${A}.${label}`) }] : []
   switch (state) {
     case 'none':
-      return send('send', 'send')
+      // A contract in force: « Préparer un nouveau contrat » (P4-524).
+      return inForce && !consent ? send('renew', 'renew') : send('send', 'send')
     case 'sending':
       return reader ? [{ kind: 'sync' }] : []
     case 'failed':
@@ -138,7 +142,8 @@ export function contractStateLabel(
  * signed) null.
  */
 export function contractProgress(contract: ProfessionalContract | null | undefined, now: number = Date.now()): ContractProgress | null {
-  if (!contract) return null
+  // A contract in force (P4-522): nothing to do, whatever a renewal's state.
+  if (!contract || contract.current !== null) return null
   const state = contractState(contract.request, now)
   if (state === 'sent' || state === 'viewed') {
     const next = contract.request?.signers.find((s) => s.signedAt === null && s.rejectedAt === null)
@@ -153,4 +158,21 @@ const ROLE = 'modules.professionals.contract.roles'
 /** « Professionnel », « Clinique », « Client » for a signer role; « Signataire » for any other (never the code). */
 export function signerRoleLabel(role: string): string {
   return role === 'professional' || role === 'clinic' || role === 'client' ? t(`${ROLE}.${role}`) : t(`${ROLE}.other`)
+}
+
+/** The earliest signature date of a paper contract (`record_professional_paper_contract`, P4-520). */
+export const PAPER_EARLIEST = '2000-01-01'
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * A paper contract's signature date, checked before the file goes anywhere: required, a real day,
+ * from 2000-01-01 to the clinic's `today` (both `YYYY-MM-DD`, compared as calendar dates).
+ */
+export function paperSignedOnError(value: string, today: string): string | null {
+  const date = value.trim()
+  const P = 'modules.professionals.contract.paper.errors'
+  if (!DATE_PATTERN.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) return t(`${P}.required`)
+  if (date > today) return t(`${P}.future`)
+  if (date < PAPER_EARLIEST) return t(`${P}.tooOld`)
+  return null
 }

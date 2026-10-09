@@ -15,7 +15,9 @@ import {
   sourceLabel,
   tableLabel,
 } from '@/core/audit/labels'
+import { useModuleAuditLabels } from '@/core/audit/module-labels'
 import { AUDIT_PERIODS, periodStartOn, type AuditPeriod } from '@/core/audit/period'
+import type { ModuleAuditLabels } from '@/core/modules/types'
 import { usePermissionCatalog } from '@/core/access/catalog'
 import { useOrgRoles } from '@/core/access/org-roles'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -72,11 +74,13 @@ function DetailLine({ line }: { line: AuditDetailLine }) {
 /**
  * Who wrote the entry: the actor's name (same org only); « Compte supprimé » for an actor id without a
  * profile any more (its account was deleted: only the id stays, Loi 25); else where it came from
- * (« Données de test »).
+ * (« Données de test », « Importation »).
  */
-function actorOf(entry: AuditEntry): string {
-  return entry.actor_name ?? (entry.actor_id ? t('audit.deletedAccount') : sourceLabel(entry.source))
+function actorOf(entry: AuditEntry, modules: readonly ModuleAuditLabels[]): string {
+  return entry.actor_name ?? (entry.actor_id ? t('audit.deletedAccount') : sourceLabel(entry.source, modules))
 }
+
+const NO_MODULES: readonly ModuleAuditLabels[] = []
 
 /**
  * Paramètres → Journal d'audit (`audit.view`, read only). Every change to the settings, newest
@@ -112,6 +116,9 @@ export function AuditLogPage() {
   // Custom role names (base roles have their label); the same query as the Rôles tab, refreshed by its changes.
   const { data: roles } = useOrgRoles()
   const entries = useMemo(() => data?.pages.flat() ?? [], [data])
+  // The enabled modules' names for their tables, columns, values and sources (one chunk each).
+  const moduleAudit = useModuleAuditLabels()
+  const moduleLabels = useMemo(() => moduleAudit?.map((module) => module.labels) ?? NO_MODULES, [moduleAudit])
   // Names for the ids and keys in the details; each falls back to the raw value while missing. A
   // deleted custom role keeps the last name its own rows on screen carry; a current one, its name.
   const lookups = useMemo<AuditLookups>(
@@ -120,8 +127,9 @@ export function AuditLogPage() {
       permissions: new Map(catalog?.permissions.map((permission) => [permission.key, permission.description])),
       modules: new Map(catalog?.modules.map((module) => [module.key, module.name])),
       roles: new Map([...roleNamesFromEntries(entries), ...(roles?.map((role): [string, string] => [role.key, role.name]) ?? [])]),
+      moduleLabels,
     }),
-    [actors, catalog, roles, entries],
+    [actors, catalog, roles, entries, moduleLabels],
   )
 
   // Once a « Charger plus » fetch settles: on the last page the button goes away, so its focus
@@ -158,7 +166,8 @@ export function AuditLogPage() {
   }, [emptyAfterFilter, view])
 
   let content
-  if (isPending) {
+  // Until the modules' labels are there, their rows would read in English: they come with the rows.
+  if (isPending || moduleAudit === undefined) {
     content = <Loading />
   } else if (isError && !data) {
     content = <LoadError message={t('audit.loadError')} retrying={isFetching} onRetry={() => void refetch()} />
@@ -196,8 +205,8 @@ export function AuditLogPage() {
               const open = expanded.has(entry.id)
               const detailsId = `${detailsIdPrefix}-${entry.id}`
               const date = formatClinicDateTime(entry.created_at)
-              const who = actorOf(entry)
-              const section = tableLabel(entry.table_name)
+              const who = actorOf(entry, moduleLabels)
+              const section = tableLabel(entry.table_name, moduleLabels)
               const action = actionLabel(entry.action)
               return (
                 <Fragment key={entry.id}>
@@ -302,6 +311,16 @@ export function AuditLogPage() {
                 <option key={name} value={name}>
                   {tableLabel(name)}
                 </option>
+              ))}
+              {/* Each enabled module's tables, under its name (`ModuleManifest.audit`). */}
+              {moduleAudit?.map(({ key, labelKey, labels }) => (
+                <optgroup key={key} label={t(labelKey)}>
+                  {labels.tables.map((name) => (
+                    <option key={name} value={name}>
+                      {tableLabel(name, moduleLabels)}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </Select>
           )}

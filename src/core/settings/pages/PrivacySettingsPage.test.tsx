@@ -62,6 +62,9 @@ describe('PrivacySettingsPage', () => {
       'Responsable de la protection des renseignements personnels',
       'Politique et conservation',
     ])
+    // Each card says what uses it today: the officer in the emails' footer, the policy and retention by nothing yet.
+    expect(screen.getByText(t('settings.privacy.officer.description'))).toBeInTheDocument()
+    expect(screen.getByText(t('settings.privacy.policy.description'))).toBeInTheDocument()
     expect(field('officerName')).toHaveValue('Julie Roy')
     expect(field('officerEmail')).toHaveValue('vie-privee@cliniquemana.com')
     expect(field('officerEmail')).toHaveAttribute('type', 'email')

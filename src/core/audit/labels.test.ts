@@ -15,42 +15,25 @@ import {
   type AuditDetailLine,
   type AuditLookups,
 } from './labels'
+import type { ModuleAuditLabels } from '@/core/modules/types'
 
-// The columns of every audited table the settings pages change, from the generated types (a new
-// column fails here until it has a French label).
-const COLUMNS: Record<(typeof AUDITED_TABLES)[number], string[]> = {
-  organizations: [
-    'address_line1', 'address_line2', 'city', 'country', 'created_at', 'currency', 'default_locale', 'email',
-    'gst_number', 'id', 'legal_name', 'name', 'neq', 'phone', 'postal_code', 'privacy_officer_email',
-    'privacy_officer_name', 'privacy_policy_url', 'province', 'qst_number', 'record_retention_years',
-    'signatory_name', 'signatory_title', 'timezone', 'updated_at', 'website',
-  ],
-  profiles: ['created_at', 'display_name', 'email', 'org_id', 'status', 'updated_at', 'user_id'],
-  user_roles: ['created_at', 'org_id', 'role', 'user_id'],
-  user_permission_overrides: ['created_at', 'created_by', 'granted', 'org_id', 'permission_key', 'user_id'],
-  roles: ['created_at', 'is_system', 'key', 'name', 'org_id'],
-  org_role_permissions: ['org_id', 'permission_key', 'role'],
-  org_modules: ['enabled', 'module_key', 'org_id', 'updated_at', 'updated_by'],
-  org_module_settings: ['module_key', 'org_id', 'settings', 'updated_at', 'updated_by'],
-  org_secrets: ['key', 'org_id', 'updated_at', 'updated_by', 'vault_secret_id', 'version'],
-  tax_rates: ['created_at', 'created_by', 'effective_from', 'effective_to', 'id', 'org_id', 'rate', 'tax'],
-  organization_bank_details: [
-    'account_last4', 'account_number', 'etransfer_email', 'institution_number', 'org_id', 'transit_number',
-    'updated_at', 'updated_by',
-  ],
-  org_scheduled_jobs: ['enabled', 'job_key', 'org_id', 'updated_at', 'updated_by'],
-  email_settings: ['from_address', 'from_name', 'org_id', 'reply_to', 'sending_domain', 'updated_at', 'updated_by'],
-  email_templates: ['body', 'button_label', 'key', 'org_id', 'subject', 'updated_at', 'updated_by', 'version'],
-  email_template_versions: ['key', 'last_version', 'org_id'],
+/** A module's labels, as its `ModuleManifest.audit` would load them. */
+const MODULE: ModuleAuditLabels = {
+  tables: ['demandes'],
+  tableLabel: (table) => (table === 'demandes' ? 'Demandes' : undefined),
+  fieldLabel: (table, column) => (table === 'demandes' && column === 'motif' ? 'Motif' : undefined),
+  value: (table, column, value) => (table === 'demandes' && column === 'status' && value === 'open' ? 'Ouverte' : undefined),
+  sourceLabel: (source) => (source === 'import' ? 'Importation' : undefined),
 }
 
 describe('tableLabel', () => {
   it('names each audited table in French, in the filter order', () => {
-    expect(AUDITED_TABLES.map(tableLabel)).toEqual([
+    expect(AUDITED_TABLES.map((table) => tableLabel(table))).toEqual([
       'Clinique',
       'Utilisateurs',
       'Rôles attribués',
       'Exceptions de permissions',
+      'Invitations du personnel',
       'Rôles',
       'Permissions des rôles',
       'Modules',
@@ -62,11 +45,24 @@ describe('tableLabel', () => {
       'Expéditeur des courriels',
       'Modèles de courriel',
       'Versions des modèles de courriel',
+      'Réglages de la signature électronique',
+      'Modèles de documents',
+      'Versions des modèles de documents',
+      'Demandes de signature',
+      'Signataires des demandes de signature',
+      'Fichiers',
+      'Liens sécurisés',
     ])
+  })
+
+  it('asks the modules for their own tables', () => {
+    expect(tableLabel('demandes', [MODULE])).toBe('Demandes')
+    expect(tableLabel('organizations', [MODULE])).toBe('Clinique')
   })
 
   it('falls back to the table name', () => {
     expect(tableLabel('demandes')).toBe('demandes')
+    expect(tableLabel('factures', [MODULE])).toBe('factures')
   })
 })
 
@@ -85,12 +81,10 @@ describe('fieldLabel', () => {
     expect(fieldLabel('user_roles', 'user_id')).toBe('Utilisateur')
   })
 
-  it('labels every column of every audited table', () => {
-    for (const [table, columns] of Object.entries(COLUMNS)) {
-      for (const column of columns) {
-        expect(fieldLabel(table, column), `${table}.${column}`).not.toBe(column)
-      }
-    }
+  it("asks the modules for their own columns, then the shared names", () => {
+    expect(fieldLabel('demandes', 'motif', [MODULE])).toBe('Motif')
+    expect(fieldLabel('demandes', 'created_at', [MODULE])).toBe('Créé le')
+    expect(fieldLabel('demandes', 'motif')).toBe('motif')
   })
 
   it('falls back to the column name (unknown column or table)', () => {
@@ -128,8 +122,22 @@ describe('sourceLabel', () => {
     expect(sourceLabel(source)).toBe(label)
   })
 
+  it.each([
+    ['job:professionals.invitation_reminders', 'Tâche planifiée'],
+    ['trigger:professional_image_consent_signed', 'Système'],
+    ['seed:professionals_reference', 'Mise à jour'],
+  ])('%s → %s', (source, label) => {
+    expect(sourceLabel(source)).toBe(label)
+  })
+
+  it("asks the modules for their own sources", () => {
+    expect(sourceLabel('import')).toBe('import')
+    expect(sourceLabel('import', [MODULE])).toBe('Importation')
+    expect(sourceLabel('app', [MODULE])).toBe('Application')
+  })
+
   it('falls back to the raw source', () => {
-    expect(sourceLabel('job:nightly')).toBe('job:nightly')
+    expect(sourceLabel('nightly')).toBe('nightly')
   })
 })
 
@@ -163,6 +171,10 @@ describe('formatAuditValue', () => {
     // A date-only column stays on its day.
     expect(formatAuditValue('2026-01-01', 'tax_rates', 'effective_from')).toBe('1 janv. 2026')
     expect(formatAuditValue('2026-01-01', 'tax_rates', 'effective_to')).toBe('1 janv. 2026')
+    // By the schema's naming, in any table: `*_on` is a date, `*_at` an instant.
+    expect(formatAuditValue('2027-03-31', 'professional_documents', 'expires_on')).toBe('31 mars 2027')
+    expect(formatAuditValue('2026-10-07T23:58:45Z', 'professional_documents', 'reviewed_at')).toBe('7 oct. 2026 à 19:58')
+    expect(formatAuditValue('2026-10-07T23:58:45Z', 'stored_files', 'retain_until')).toBe('7 oct. 2026 à 19:58')
   })
 
   it('shows a date-shaped value in any other column as text', () => {
@@ -302,6 +314,28 @@ describe('auditDetailLines', () => {
 })
 
 describe('auditValue', () => {
+  it("reads a module's values as the module says, before core's rules", () => {
+    expect(auditValue('demandes', 'status', 'open', { moduleLabels: [MODULE] })).toEqual({ text: 'Ouverte' })
+    expect(auditValue('demandes', 'status', 'open').text).toBe('open')
+    expect(auditValue('demandes', 'status', 'closed', { moduleLabels: [MODULE] }).text).toBe('closed')
+  })
+
+  it("names the statuses of core's tables", () => {
+    expect(auditValue('staff_invitations', 'status', 'accepted').text).toBe('Acceptée')
+    expect(auditValue('stored_files', 'status', 'ready').text).toBe('Prêt')
+    expect(auditValue('document_template_versions', 'status', 'published').text).toBe('Publiée')
+    expect(auditValue('signature_request_signers', 'role', 'clinic').text).toBe('Clinique')
+    expect(auditValue('signature_request_signers', 'status', 'signed').text).toBe('Signé')
+    expect(auditValue('signature_requests', 'status', 'signed').text).toBe(t('signing.status.signed'))
+    expect(auditValue('stored_files', 'status', 'lost').text).toBe('lost')
+  })
+
+  it('names the person in any `*_by` column, and the permission in any `*_permission` column', () => {
+    const lookups: AuditLookups = { people: new Map([['u1', 'Julie Roy']]), permissions: new Map([['professionals.view', 'Voir les professionnels']]) }
+    expect(auditValue('professional_documents', 'reviewed_by', 'u1', lookups)).toEqual({ text: 'Julie Roy', title: 'u1' })
+    expect(auditValue('stored_files', 'view_permission', 'professionals.view', lookups).text).toBe('Voir les professionnels')
+  })
+
   const lookups: AuditLookups = {
     modules: new Map([['professionals', 'Professionnels']]),
     permissions: new Map([['audit.view', "Consulter le journal d'audit"]]),
