@@ -243,8 +243,8 @@ describe('OverviewTab — À surveiller and Prochaine action', () => {
     expect(within(card(t(`${O}.watch.title`))).getByText(t(`${O}.watch.nothing`))).toBeInTheDocument()
   })
 
-  it('offers « Compléter » to whoever may edit the matching profile', () => {
-    renderOverview()
+  it('offers « Compléter » to whoever may edit the matching profile (a file with an account, P4-501)', () => {
+    renderOverview((r) => ({ ...r, professional: { ...r.professional, profileId: 'user-1' } }))
     const next = card(t(`${O}.nextAction.title`))
     expect(within(next).getByText(t('modules.professionals.readiness.nextAction.completeMatching'))).toBeInTheDocument()
     expect(within(next).getByRole('link', { name: t('modules.professionals.readiness.nextAction.complete') })).toHaveAttribute('href', `${base}/jumelage`)

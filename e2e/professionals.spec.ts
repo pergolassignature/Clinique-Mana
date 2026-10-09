@@ -62,10 +62,11 @@ test('the adjointe creates and matches a professional, the admin activates it, a
   await create.getByRole('checkbox', { name: "Envoyer l'invitation maintenant" }).click()
   await create.getByRole('button', { name: 'Créer', exact: true }).click()
 
-  // The record opens on Aperçu, with the matching profile still to complete.
+  // The record opens on Aperçu: no account yet, so the invitation comes first (P4-501); the
+  // matching profile still to complete stays listed in « Dossier ».
   await expect(page).toHaveURL(RECORD_URL)
   await expect(page.getByRole('heading', { level: 1, name: fullName })).toBeVisible()
-  await expect(page.getByText('Complétez le profil de jumelage.')).toBeVisible()
+  await expect(page.getByText("Rosalie n'a pas encore reçu d'invitation pour créer son accès et remplir son questionnaire.")).toBeVisible()
 
   // Jumelage: two clientèles (Adolescents ★) from 14 years old, three motifs, English. No approaches (P4-240).
   await openTab(page, 'Jumelage')
