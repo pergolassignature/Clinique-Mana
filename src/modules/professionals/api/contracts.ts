@@ -147,7 +147,7 @@ export type ContractAction = 'send' | 'regenerate' | 'resend'
 const sentPayload = z.object({ request_id: z.string() })
 
 /**
- * « Préparer et envoyer » / « Réessayer l'envoi » (`send`), « Régénérer », « Renvoyer ». One
+ * « Préparer le contrat » / « Réessayer l'envoi » (`send`), « Régénérer », « Renvoyer ». One
  * idempotency key per user action: the same key returns the same request. A refusal (P0001: no
  * published template, prices to configure, a contract already out…) comes back as an RPC refusal
  * with its HINT; a missing template value as the `FunctionCallError` (`missing_variable`, its
@@ -171,6 +171,53 @@ export async function sendProfessionalContract(
   const parsed = sentPayload.safeParse(data)
   if (!parsed.success) throw new FunctionCallError('internal', 200, 'Unexpected answer')
   return parsed.data.request_id
+}
+
+/** The actions a preview can show (« Renvoyer » sends the same PDF again: nothing to preview). */
+export type PreviewAction = Exclude<ContractAction, 'resend'>
+
+const previewPayload = z
+  .object({
+    pdf: z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/),
+    page_count: z.number().int().positive(),
+    title: z.string(),
+    template_version_id: z.string(),
+    signers: z.array(z.object({ role: z.string(), name: z.string(), order: z.number() })),
+    summary: z.array(z.object({ label: z.string(), value: z.string() })),
+  })
+  .transform((p) => ({
+    /** The PDF as it will be sent; lives in the dialog's state only, never in React Query. */
+    bytes: Uint8Array.from(atob(p.pdf), (c) => c.charCodeAt(0)),
+    pageCount: p.page_count,
+    title: p.title,
+    signers: p.signers,
+    /** The main values Annexe A prints (the contract's only). */
+    summary: p.summary,
+  }))
+export type SigningPreview = z.output<typeof previewPayload>
+
+/**
+ * « Préparer le contrat » (P4-502): the PDF `action` would send under `idempotencyKey`, rendered by
+ * the function's send path (the snapshot written for that key: the send with the same key prints
+ * it), with nothing sent. Errors as `sendProfessionalContract`.
+ */
+export async function previewProfessionalContract(
+  professionalId: string,
+  action: PreviewAction,
+  idempotencyKey: string,
+  form: SigningForm,
+  signal?: AbortSignal,
+): Promise<SigningPreview> {
+  let data: unknown
+  try {
+    const body = { professional_id: professionalId, action, idempotency_key: idempotencyKey, preview: true, ...(form === 'image_consent' && { form }) }
+    data = await invokeFunction(CONTRACT_FUNCTION, body, { signal })
+  } catch (error) {
+    throw error instanceof FunctionCallError && error.code === 'conflict' ? error : asRpcRefusal(error)
+  }
+  const parsed = previewPayload.safeParse(data)
+  if (!parsed.success) throw new FunctionCallError('internal', 200, 'Unexpected answer')
+  return parsed.data
 }
 
 // --- « Paramètres → Contrats et formulaires »: templates and versions -------------------------------

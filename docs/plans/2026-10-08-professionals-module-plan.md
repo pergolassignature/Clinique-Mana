@@ -457,6 +457,7 @@ Every decision is « déléguée — révisable ».
 | P4-495 | **The questionnaire's documents read « en attente », never « Manquant ».** `get_professional_documents.staged`; sent → « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » / « Dans le questionnaire à réviser (envoyé le …) »; her draft → « Ajouté à votre questionnaire, pas encore envoyé »; no upload offered to her meanwhile; « n en attente de vérification » next to the count. | Jonathan's test as a professional (2026-10-09). |
 | P4-496 | **No insurance reminder email while a sent questionnaire holds a new insurance.** Step 4 of `run_professionals_document_notices_for_service` skips it (file ready, last day not past); draft or sent back: emails resume; the staff notice stays. | Extends P4-408; « Mes documents » already thanked her. |
 | P4-497 | **Aperçu's questionnaire line reads an open update too.** « Mise à jour envoyée le …, à réviser. », « Mise à jour en cours : pas encore envoyée. ». | « Aucun questionnaire en cours. » while an update waited for review. |
+| P4-502 | **An exact preview before any send** (demandée par Jonathan, 2026-10-09). « Préparer le contrat », « Régénérer » and the consent's « Envoyer pour signature » show the PDF first (`preview: true` on `professionals-contract-send`: same prepare, same key, same renderer, nothing sent); the send reuses the key, so it prints the previewed snapshot. « Voir le contrat envoyé » shows a sent request's stored source. | What is previewed is what is sent. |
 
 ---
 

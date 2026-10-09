@@ -11,9 +11,10 @@
  *
  * 1. CORS; `POST` only; `verifyAuth` with the module `professionals`.
  * 2. Body `{ professional_id, action: 'send' | 'regenerate' | 'resend',
- *    idempotency_key, form? }` (`form`: `service_contract`, the default, or
- *    `image_consent`; the key a uuid the page draws per action and keeps
- *    until it succeeds). Nothing else is read from the body: the values, the
+ *    idempotency_key, form?, preview? }` (`form`: `service_contract`, the
+ *    default, or `image_consent`; the key a uuid the page draws per action and
+ *    keeps until it succeeds; `preview`: P4-502, below, never with `resend`).
+ *    Nothing else is read from the body: the values, the
  *    signers, the template version and the title come from the database.
  *    Then the form's permissions → 403 `forbidden` otherwise: the contract
  *    needs `professionals.contracts.send` and `professionals.compensation`
@@ -51,6 +52,20 @@
  *    verified document in the database (P4-485). Documenso sends the French
  *    signing email with the version's subject and message (P3-3); the expiry
  *    is « Signature électronique »'s. 200 `{ request_id, existing }`.
+ *
+ * **Preview** (`preview: true`, « Préparer le contrat », P4-502, asked by
+ * Jonathan): steps 1, 2 and 4 as the send, the same `action` and key (so the
+ * snapshot is written, first write wins, P4-434), then `renderSignaturePreview`
+ * (the send's own context, fill, images and renderer) and nothing else: no
+ * cancel (a `regenerate`'s `cancel` is ignored), no request, no stored file,
+ * no Documenso. Its own bucket, `LIMITS.professionalContractPreview` (30 an
+ * hour per caller), instead of step 3's. 200 `{ pdf (base64), page_count,
+ * title, template_version_id, signers: [{ role, name, order }], summary:
+ * [{ label, value }] }` (Annexe A's main values, the contract's only; never
+ * an address), `Cache-Control: no-store`. JSON rather than `application/pdf`:
+ * supabase-js `functions.invoke` reads an unknown type as text, which would
+ * corrupt the bytes, and the page needs the facts with them in one call.
+ * The send with the same key prints exactly this PDF. Refusals as the send's.
  *
  * The send does not follow the caller's connection (`req.signal` is not
  * passed), as `signing-test-document`. Every stored copy follows Phase 3's
@@ -91,8 +106,14 @@ import {
   orgSigning,
   type SigningFailure,
 } from '../_shared/signing-events.ts'
-import { createSignatureRequest } from '../_shared/signing.ts'
-import { annexeBlocks, annexeSchema } from './annexe.ts'
+import {
+  createSignatureRequest,
+  type CreateSignatureRequestInput,
+  type CreateSignatureRequestResult,
+  renderSignaturePreview,
+  type SignaturePreviewResult,
+} from '../_shared/signing.ts'
+import { annexeBlocks, annexeSchema, annexeSummary } from './annexe.ts'
 
 const FN = 'professionals-contract-send'
 /** The template's block placeholder for Annexe A (the seeded body, P4-433). */
@@ -130,7 +151,9 @@ const bodySchema = z.strictObject({
   form: z.enum(['service_contract', 'image_consent']).default(
     'service_contract',
   ),
-})
+  /** P4-502: render what `action` would send under this key; send nothing. */
+  preview: z.boolean().default(false),
+}).refine((b) => !(b.preview && b.action === 'resend'))
 
 const signerSchema = z.object({
   role: z.enum(['professional', 'clinic', 'client']),
@@ -167,6 +190,16 @@ export const NO_ENVELOPE =
   "Ce contrat n'a pas d'envoi Documenso à renvoyer : utilisez « Régénérer »."
 export const NO_RECIPIENT =
   "Personne n'attend ce courriel : utilisez « Synchroniser » pour mettre le contrat à jour."
+
+/** Base64 of the preview's PDF (in chunks: a spread of the whole PDF would overflow the stack). */
+export function toBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
+}
 
 const STATUS = {
   not_configured: 503,
@@ -209,7 +242,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }, deps.fetch)
 
     const limited = limitResponse(
-      await consume(service, LIMITS.professionalContractUser, [orgId, actor]),
+      await consume(
+        service,
+        input.preview
+          ? LIMITS.professionalContractPreview
+          : LIMITS.professionalContractUser,
+        [orgId, actor],
+      ),
       req,
     )
     if (limited) return limited
@@ -282,6 +321,50 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         return errorResponse('internal', 'Contract send failed', 500, req)
       }
       const contract = parsed.data
+      const signing: CreateSignatureRequestInput = {
+        orgId,
+        moduleKey: 'professionals',
+        purpose: form.purpose,
+        templateVersionId: contract.template_version_id,
+        subject: { type: 'professional', id: professionalId },
+        title: contract.title,
+        viewPermission: form.viewPermission,
+        values: contract.values,
+        ...(form.annexe && contract.annexe &&
+          { blocks: { [ANNEXE_PATH]: annexeBlocks(contract.annexe) } }),
+        signers: contract.signers,
+        idempotencyKey: contract.idempotency_key,
+        sentBy: actor,
+      }
+
+      if (input.preview) {
+        // P4-502: the snapshot written (first write wins), nothing cancelled,
+        // no request, no Documenso: the PDF this key will send.
+        const preview = await renderSignaturePreview(
+          { client: service },
+          signing,
+        )
+        if (!preview.ok) return failure(preview)
+        const answer = jsonResponse(
+          {
+            pdf: toBase64(preview.bytes),
+            page_count: preview.pageCount,
+            title: contract.title,
+            template_version_id: contract.template_version_id,
+            // Names only: an address never leaves in an answer.
+            signers: [...contract.signers]
+              .sort((a, b) => a.order - b.order)
+              .map(({ role, name, order }) => ({ role, name, order })),
+            summary: form.annexe && contract.annexe
+              ? annexeSummary(contract.annexe)
+              : [],
+          },
+          200,
+          req,
+        )
+        answer.headers.set('Cache-Control', 'no-store')
+        return answer
+      }
 
       if (contract.cancel) {
         const { request_id: requestId, envelope_id } = contract.cancel
@@ -326,21 +409,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         fetch: deps.fetch,
         reach,
         now: deps.now,
-      }, {
-        orgId,
-        moduleKey: 'professionals',
-        purpose: form.purpose,
-        templateVersionId: contract.template_version_id,
-        subject: { type: 'professional', id: professionalId },
-        title: contract.title,
-        viewPermission: form.viewPermission,
-        values: contract.values,
-        ...(form.annexe && contract.annexe &&
-          { blocks: { [ANNEXE_PATH]: annexeBlocks(contract.annexe) } }),
-        signers: contract.signers,
-        idempotencyKey: contract.idempotency_key,
-        sentBy: actor,
-      })
+      }, signing)
       if (result.ok) {
         return jsonResponse(
           { request_id: result.requestId, existing: result.existing },
@@ -348,6 +417,28 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           req,
         )
       }
+      return failure(result)
+    } catch (error) {
+      const { code, requestId } = error as Partial<SigningFailure>
+      await report(
+        typeof code === 'string' ? code : 'contract_send_failed',
+        requestId ? { signature_request_id: requestId } : {},
+      )
+      return errorResponse(
+        'internal',
+        'The contract could not be sent',
+        500,
+        req,
+      )
+    }
+
+    /** A send's or a preview's failure, as a status and a code. */
+    function failure(
+      result: Exclude<
+        CreateSignatureRequestResult | SignaturePreviewResult,
+        { ok: true }
+      >,
+    ): Response {
       switch (result.code) {
         case 'invalid_request':
           return refusalResponse(result.message, req)
@@ -382,18 +473,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
             req,
           )
       }
-    } catch (error) {
-      const { code, requestId } = error as Partial<SigningFailure>
-      await report(
-        typeof code === 'string' ? code : 'contract_send_failed',
-        requestId ? { signature_request_id: requestId } : {},
-      )
-      return errorResponse(
-        'internal',
-        'The contract could not be sent',
-        500,
-        req,
-      )
     }
 
     /** A Documenso failure of a resend or a cancel: the key refused, or Documenso failing. */

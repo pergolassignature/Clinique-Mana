@@ -3553,7 +3553,8 @@
           "pdfNote": "Le certificat et le journal de Documenso se téléchargent à part, avec « Télécharger le certificat et le journal »."
         },
         "actions": {
-          "send": "Préparer et envoyer",
+          "send": "Préparer le contrat",
+          "viewSent": "Voir le contrat envoyé",
           "retry": "Réessayer l'envoi",
           "regenerate": "Régénérer",
           "resend": "Renvoyer le courriel",
@@ -3599,7 +3600,27 @@
           "inProgress": "Un envoi est déjà en cours pour ce contrat.",
           "rateLimited": "Trop d'envois en peu de temps.",
           "network": "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
-          "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard."
+          "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard.",
+          "previewFailed": "L'aperçu n'a pas pu être préparé. Réessayez dans un moment."
+        },
+        "preview": {
+          "title": "Aperçu du contrat de {firstName}",
+          "sentTitle": "Contrat envoyé à {firstName}",
+          "description": "Le PDF tel que {firstName} le recevra. Rien n'est envoyé avant « Envoyer pour signature ».",
+          "sentDescription": "Le PDF envoyé pour signature, tel que Documenso l'a reçu.",
+          "loading": "Préparation du PDF…",
+          "loadingSent": "Chargement du PDF…",
+          "sentLoadFailed": "Le PDF envoyé n'a pas pu être ouvert. Réessayez dans un moment.",
+          "frameTitle": "Aperçu du PDF",
+          "pages": "Pages",
+          "version": "Version du modèle",
+          "signers": "Signataires",
+          "annexe": "Annexe A : valeurs principales",
+          "openTab": "Ouvrir le PDF dans un nouvel onglet",
+          "frozen": "Cet aperçu est figé : si le dossier change avant l'envoi, c'est ce PDF qui est envoyé. « Rafraîchir l'aperçu » reprend les données d'aujourd'hui.",
+          "refresh": "Rafraîchir l'aperçu",
+          "regenerateNote": "À l'envoi, le contrat en cours, s'il y en a un, est annulé et remplacé par celui-ci.",
+          "send": "Envoyer pour signature à {firstName}"
         }
       },
       "consentSign": {
@@ -3658,7 +3679,8 @@
           "resend": "Renvoyer le courriel",
           "renew": "Envoyer un nouveau consentement",
           "pdf": "Télécharger le consentement signé",
-          "pdfLabel": "Télécharger le consentement signé de {firstName}"
+          "pdfLabel": "Télécharger le consentement signé de {firstName}",
+          "viewSent": "Voir le formulaire envoyé"
         },
         "confirm": {
           "send": {
@@ -3691,6 +3713,12 @@
           "missingVariable": "Le consentement ne peut pas être préparé : « {label} » est vide. Complétez le dossier ou les paramètres, puis réessayez.",
           "missingVariableUnknown": "Le consentement ne peut pas être préparé : une information requise par le modèle est vide.",
           "inProgress": "Un envoi est déjà en cours pour ce consentement."
+        },
+        "preview": {
+          "title": "Aperçu du consentement de {firstName}",
+          "sentTitle": "Consentement envoyé à {firstName}",
+          "regenerateNote": "À l'envoi, le consentement en cours, s'il y en a un, est annulé et remplacé par celui-ci.",
+          "send": "Envoyer pour signature à {firstName}"
         }
       },
       "sectionChecklist": {

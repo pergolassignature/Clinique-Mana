@@ -87,7 +87,7 @@ describe('contractStateLabel: the professional signed, the clinic not yet', () =
 })
 
 describe('contractButtons (P4-436: sending needs contracts.send and compensation)', () => {
-  it('offers « Préparer et envoyer » for no contract', () => {
+  it('offers « Préparer le contrat » for no contract', () => {
     expect(words('none', parsedRequest())).toEqual([t(`${A}.send`)])
   })
 

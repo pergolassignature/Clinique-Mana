@@ -12,7 +12,7 @@ import { renderRecordTab } from '../../test/record-tab'
 import { ContractCard } from './ContractCard'
 
 const mocks = vi.hoisted(() => ({
-  contracts: { fetchProfessionalContract: vi.fn(), sendProfessionalContract: vi.fn() },
+  contracts: { fetchProfessionalContract: vi.fn(), sendProfessionalContract: vi.fn(), previewProfessionalContract: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn() },
   sync: vi.fn(),
   documentDownloadUrl: vi.fn(),
@@ -39,6 +39,25 @@ vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 afterEach(() => vi.clearAllMocks())
+// jsdom has no blob URLs (and would fetch one in the iframe): the preview's PDF is shown through one (P4-502).
+const blobUrls = { create: vi.fn(() => 'about:blank#pdf'), revoke: vi.fn() }
+Object.assign(URL, { createObjectURL: blobUrls.create, revokeObjectURL: blobUrls.revoke })
+
+const P = 'modules.professionals.contract.preview'
+/** What the function answers to a preview, parsed (`previewProfessionalContract`). */
+const PREVIEW = {
+  bytes: new Uint8Array([37, 80, 68, 70]),
+  pageCount: 9,
+  title: 'Contrat de service — Marie Tremblay',
+  signers: [
+    { role: 'professional', name: 'Marie Tremblay', order: 1 },
+    { role: 'clinic', name: 'Dominique Exemple', order: 2 },
+  ],
+  summary: [
+    { label: 'Profession', value: 'Psychologue' },
+    { label: 'Rencontre 50 min', value: '175 $ facturés au client · 126 $ versés au professionnel (avant taxes)' },
+  ],
+}
 
 const C = 'modules.professionals.contract'
 const A = `${C}.actions`
@@ -57,17 +76,74 @@ const button = (name: string) => screen.queryByRole('button', { name })
 const DATE = /\d{1,2} \S+ 2026/
 
 describe('ContractCard (Task 4d.3)', () => {
-  it('no contract: « Aucun contrat », then « Préparer et envoyer » after a confirmation naming the version', async () => {
+  it('no contract: « Préparer le contrat » shows the PDF first, then sends it with the previewed key (P4-502)', async () => {
+    mocks.contracts.previewProfessionalContract.mockResolvedValue(PREVIEW)
     mocks.contracts.sendProfessionalContract.mockResolvedValue(REQUEST_ID)
     await openCard(contractJson(null))
     expect(screen.getByText(t(`${C}.state.none`))).toBeInTheDocument()
     expect(screen.getByText(t(`${C}.none`, { firstName: 'Marie' }))).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: t(`${A}.send`) }))
-    const dialog = await screen.findByRole('alertdialog', { name: t(`${C}.confirm.send.title`, { firstName: 'Marie' }) })
-    expect(dialog).toHaveTextContent(t(`${C}.confirm.send.body`, { firstName: 'Marie', version: '2' }))
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${C}.confirm.send.action`) }))
-    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'send', expect.any(String), 'service_contract'))
+    const dialog = await screen.findByRole('dialog', { name: t(`${P}.title`, { firstName: 'Marie' }) })
+    expect(await within(dialog).findByTitle(t(`${P}.frameTitle`))).toHaveAttribute('src', 'about:blank#pdf')
+    expect(dialog).toHaveTextContent(`${t(`${P}.pages`)}9`)
+    expect(dialog).toHaveTextContent(`${t(`${P}.version`)}2`)
+    expect(dialog).toHaveTextContent('Professionnel : Marie Tremblay')
+    expect(dialog).toHaveTextContent('Clinique : Dominique Exemple')
+    expect(dialog).toHaveTextContent('175 $ facturés au client · 126 $ versés au professionnel (avant taxes)')
+    expect(dialog).toHaveTextContent(t(`${P}.frozen`))
+    expect(mocks.contracts.sendProfessionalContract).not.toHaveBeenCalled()
+    const [, action, key, form] = mocks.contracts.previewProfessionalContract.mock.calls[0]!
+    expect([action, form]).toEqual(['send', 'service_contract'])
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.send`, { firstName: 'Marie' }) }))
+    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'send', key, 'service_contract'))
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.toasts.send`, { firstName: 'Marie' })))
+    // Closed: the PDF's blob URL is revoked.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(blobUrls.revoke).toHaveBeenCalledWith('about:blank#pdf')
+  })
+
+  it('« Rafraîchir l’aperçu » draws a new key; « Annuler » sends nothing', async () => {
+    mocks.contracts.previewProfessionalContract.mockResolvedValue(PREVIEW)
+    await openCard(contractJson(null))
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.send`) }))
+    const dialog = await screen.findByRole('dialog')
+    await within(dialog).findByTitle(t(`${P}.frameTitle`))
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.refresh`) }))
+    await waitFor(() => expect(mocks.contracts.previewProfessionalContract).toHaveBeenCalledTimes(2))
+    const [first, second] = mocks.contracts.previewProfessionalContract.mock.calls.map((c) => c[2])
+    expect(second).not.toEqual(first)
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.contracts.sendProfessionalContract).not.toHaveBeenCalled()
+  })
+
+  it('a refusal shows in the preview, before anything is sent', async () => {
+    mocks.contracts.previewProfessionalContract.mockRejectedValue({ code: 'P0001', message: 'Aucune grille de rémunération pour ce titre.', hint: 'pricing' })
+    await openCard(contractJson(null))
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.send`) }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Aucune grille de rémunération pour ce titre.')).toBeInTheDocument()
+    const sendButton = within(dialog).getByRole('button', { name: t(`${P}.send`, { firstName: 'Marie' }) })
+    expect(sendButton).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(sendButton)
+    expect(mocks.contracts.sendProfessionalContract).not.toHaveBeenCalled()
+  })
+
+  it('« Voir le contrat envoyé »: the stored source PDF, for its readers only', async () => {
+    mocks.fetchStoredFile.mockResolvedValue(new Uint8Array([37, 80, 68, 70]))
+    await openCard(contractJson(requestJson({ source_file_id: SOURCE_FILE, page_count: 9 })))
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.viewSent`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${P}.sentTitle`, { firstName: 'Marie' }) })
+    expect(await within(dialog).findByTitle(t(`${P}.frameTitle`))).toBeInTheDocument()
+    expect(mocks.fetchStoredFile).toHaveBeenCalledWith(SOURCE_FILE, expect.anything())
+    expect(dialog).toHaveTextContent(`${t(`${P}.pages`)}9`)
+    expect(within(dialog).queryByRole('button', { name: t(`${P}.send`, { firstName: 'Marie' }) })).not.toBeInTheDocument()
+    expect(mocks.contracts.previewProfessionalContract).not.toHaveBeenCalled()
+  })
+
+  it('« Voir le contrat envoyé » is hidden without a readable source', async () => {
+    await openCard(contractJson(requestJson({ source_file_id: SOURCE_FILE, can_read: false })))
+    expect(button(t(`${A}.viewSent`))).toBeNull()
   })
 
   it('without a published template: says so with a link to « Contrats », and the send does nothing', async () => {
@@ -111,14 +187,18 @@ describe('ContractCard (Task 4d.3)', () => {
     await waitFor(() => expect(mocks.sync).toHaveBeenCalledExactlyOnceWith(REQUEST_ID))
   })
 
-  it('« Régénérer » warns that the contract out is cancelled', async () => {
+  it('« Régénérer » previews first and warns that the contract out is cancelled', async () => {
+    mocks.contracts.previewProfessionalContract.mockResolvedValue(PREVIEW)
     mocks.contracts.sendProfessionalContract.mockResolvedValue(REQUEST_ID)
     await openCard(contractJson(requestJson()))
     await userEvent.click(screen.getByRole('button', { name: t(`${A}.regenerate`) }))
-    const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent(t(`${C}.confirm.regenerate.body`, { firstName: 'Marie', version: '2' }))
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${C}.confirm.regenerate.action`) }))
-    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'regenerate', expect.any(String), 'service_contract'))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(t(`${P}.regenerateNote`))
+    await within(dialog).findByTitle(t(`${P}.frameTitle`))
+    const key = mocks.contracts.previewProfessionalContract.mock.calls[0]![2]
+    expect(mocks.contracts.previewProfessionalContract.mock.calls[0]![1]).toBe('regenerate')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.send`, { firstName: 'Marie' }) }))
+    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'regenerate', key, 'service_contract'))
   })
 
   it('« Renvoyer » names the next signer: the clinic once the professional has signed', async () => {
@@ -142,10 +222,13 @@ describe('ContractCard (Task 4d.3)', () => {
   })
 
   it('a failed send shows its reason in the card', async () => {
+    mocks.contracts.previewProfessionalContract.mockResolvedValue(PREVIEW)
     mocks.contracts.sendProfessionalContract.mockRejectedValue(new FunctionCallError('missing_variable', 400, 'x', { label: 'Adresse du professionnel' }))
     await openCard(contractJson(null))
     await userEvent.click(screen.getByRole('button', { name: t(`${A}.send`) }))
-    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t(`${C}.confirm.send.action`) }))
+    const dialog = await screen.findByRole('dialog')
+    await within(dialog).findByTitle(t(`${P}.frameTitle`))
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.send`, { firstName: 'Marie' }) }))
     expect(await screen.findByText(t(`${C}.errors.missingVariable`, { label: 'Adresse du professionnel' }))).toBeInTheDocument()
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })

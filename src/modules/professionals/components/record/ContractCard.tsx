@@ -27,6 +27,7 @@ import { formTextRoot, useProfessionalContract, useSendContract, useSyncContract
 import { contractButtons, contractState, contractStateLabel, signerRoleLabel, type ContractState } from '../../lib/contract'
 import { RefusalAlert } from '../compensation/DatedRowParts'
 import { useRecordData } from './record-context'
+import { SigningPreviewDialog, type PreviewSource } from './SigningPreviewDialog'
 
 const C = 'modules.professionals.contract'
 
@@ -106,6 +107,8 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
   const F = formTextRoot(form)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<ContractAction | null>(null)
+  // P4-502: « Préparer le contrat », « Régénérer » and « Voir le contrat envoyé » open the PDF first.
+  const [preview, setPreview] = useState<PreviewSource | null>(null)
   const [journal, setJournal] = useState(false)
   const journalId = useId()
   const opener = useRef<HTMLButtonElement | null>(null)
@@ -135,8 +138,24 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
 
   const confirm = (action: ContractAction) => {
     setRefusal(null)
-    setConfirming(action)
+    if (action === 'resend') setConfirming(action)
+    else setPreview({ kind: 'prepare', action, key: send.previewKey(action) })
   }
+  const closePreview = () => {
+    if (preview?.kind === 'prepare') send.releaseKey(preview.action)
+    setPreview(null)
+  }
+  const sendPreviewed = () => {
+    if (preview?.kind !== 'prepare') return
+    send.run(preview.action, recipientOf(preview.action))
+    setPreview(null)
+  }
+  // « Voir le contrat envoyé »: the source PDF the send stored, while it waits for signatures, for
+  // its readers only (the request's view permission; storage-sign decides again).
+  const sentSource =
+    (state === 'sent' || state === 'viewed') && request?.canRead && request.sourceFileId
+      ? { fileId: request.sourceFileId, pageCount: request.pageCount, signers: request.signers }
+      : null
   const run = () => {
     if (confirming === null) return
     const action = confirming
@@ -237,7 +256,7 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
         />
       )}
 
-      {(buttons.some((b) => b.kind !== 'pdf') || state === 'signed') && (
+      {(buttons.some((b) => b.kind !== 'pdf') || state === 'signed' || sentSource) && (
         <div className="flex flex-wrap gap-2">
           {buttons.map((button) => {
             if (button.kind === 'pdf') return null
@@ -276,6 +295,19 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
               </Button>
             )
           })}
+          {sentSource && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={(event) => {
+                opener.current = event.currentTarget
+                setPreview({ kind: 'sent', ...sentSource })
+              }}
+            >
+              {t(`${F}.actions.viewSent`)}
+            </Button>
+          )}
           {state === 'signed' && request && (
             <Button type="button" size="sm" variant="outline" aria-expanded={journal} aria-controls={journal ? journalId : undefined} onClick={() => setJournal((open) => !open)}>
               {journal ? t(`${C}.actions.hideJournal`) : t(`${C}.actions.journal`)}
@@ -283,6 +315,27 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
           )}
         </div>
       )}
+
+      <SigningPreviewDialog
+        form={form}
+        professionalId={professional.id}
+        firstName={professional.firstName}
+        version={preview?.kind === 'sent' ? (request?.templateVersion ?? null) : contract.publishedVersion}
+        source={preview}
+        onClose={closePreview}
+        onSend={sendPreviewed}
+        onRefresh={() => preview?.kind === 'prepare' && setPreview({ ...preview, key: send.previewKey(preview.action, true) })}
+        onFailed={() => preview?.kind === 'prepare' && send.releaseKey(preview.action)}
+        note={
+          form === 'image_consent' && state === 'signed'
+            ? t('modules.professionals.imageConsent.confirm.renew.body', { firstName: professional.firstName, version: String(contract.publishedVersion ?? '') })
+            : undefined
+        }
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          opener.current?.focus()
+        }}
+      />
 
       <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
         <AlertDialogContent

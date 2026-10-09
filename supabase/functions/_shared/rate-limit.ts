@@ -109,6 +109,16 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `professionals-contract-send` « Préparer le contrat » (the preview,
+   * P4-502), per caller: each call renders a PDF but sends nothing, so it
+   * has its own budget and never spends the sends'.
+   */
+  professionalContractPreview: {
+    bucket: 'professionals.contract_preview',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
    * `professionals-contract-send` « Renvoyer », per file (org + professional),
    * whoever clicks (P4-478): each call has Documenso email the signer again,
    * so a double click, or two colleagues at once, would email her twice.

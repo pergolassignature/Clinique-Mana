@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import { moduleErrorMessage } from '@/core/modules/errors'
 import { syncSignatureRequest } from '@/core/signing/api'
 import { syncOutcomeText } from '@/core/signing/hooks'
 import { FunctionCallError } from '@/core/supabase/functions'
@@ -21,7 +22,7 @@ import {
   type SigningForm,
 } from '../api/contracts'
 import { contractTemplateKeys, isContractKey, professionalKeys } from './keys'
-import { showMutationError, type MutationFeedback } from './mutation-feedback'
+import { functionErrorMessage, showMutationError, type MutationFeedback } from './mutation-feedback'
 import { refreshProfessionalHistory } from './use-professional-record'
 
 const T = 'modules.professionals.contract.toasts'
@@ -117,7 +118,7 @@ function keepsKey(error: unknown): boolean {
 }
 
 /**
- * « Préparer et envoyer », « Réessayer l'envoi », « Renvoyer », « Régénérer »: `run(action)` draws
+ * « Préparer le contrat », « Réessayer l'envoi », « Renvoyer », « Régénérer »: `run(action)` draws
  * an idempotency key per action and keeps it until that action succeeds, so a retry after a
  * failure that may have sent something is the same request (P4-434), and a double click one
  * request; after a missing value or a refusal, the next try draws a new key (`keepsKey`). Toasts
@@ -126,6 +127,8 @@ function keepsKey(error: unknown): boolean {
 export function useSendContract(professionalId: string, firstName: string, feedback?: MutationFeedback, form: SigningForm = 'service_contract') {
   const queryClient = useQueryClient()
   const keys = useRef<Partial<Record<ContractAction, string>>>({})
+  // Keys a send was tried with: kept when a preview is closed (a retry resumes that work).
+  const tried = useRef(new Set<string>())
   const F = formTextRoot(form)
   const mutation = useMutation({
     mutationFn: ({ action, key }: { action: ContractAction; key: string; recipient: string }) => sendProfessionalContract(professionalId, action, key, form),
@@ -145,9 +148,34 @@ export function useSendContract(professionalId: string, firstName: string, feedb
   /** `recipient`: who « Renvoyer » writes to (the next signer); the professional otherwise. */
   const run = (action: ContractAction, recipient: string = firstName) => {
     keys.current[action] ??= crypto.randomUUID()
+    tried.current.add(keys.current[action])
     mutation.mutate({ action, key: keys.current[action], recipient })
   }
-  return { run, isPending: mutation.isPending, pendingAction: mutation.isPending ? mutation.variables?.action : undefined }
+  /**
+   * P4-502: the key a preview renders under, which `run(action)` then sends with, so what was
+   * previewed is what is sent (the snapshot per key). `fresh` (« Rafraîchir l'aperçu ») draws a
+   * new one: a new snapshot of today's data.
+   */
+  const previewKey = (action: ContractAction, fresh = false) => {
+    if (fresh) delete keys.current[action]
+    keys.current[action] ??= crypto.randomUUID()
+    return keys.current[action]
+  }
+  /** A preview closed without sending, or refused: its key is dropped, unless a send was tried with it. */
+  const releaseKey = (action: ContractAction) => {
+    const key = keys.current[action]
+    if (key !== undefined && !tried.current.has(key)) delete keys.current[action]
+  }
+  return { run, previewKey, releaseKey, isPending: mutation.isPending, pendingAction: mutation.isPending ? mutation.variables?.action : undefined }
+}
+
+/**
+ * The French text of a failed preview (P4-502), shown in the dialog before anything is sent: a
+ * refusal (P0001) as the database wrote it, a missing value with its label, the function's own
+ * failures in words, anything else as « L'aperçu n'a pas pu être préparé » (reported).
+ */
+export function previewErrorMessage(error: unknown, form: SigningForm): string {
+  return contractErrorMessage(error, form) ?? functionErrorMessage(error) ?? moduleErrorMessage(error, t(`${E}.previewFailed`), 'professionals')
 }
 
 /** « Synchroniser » (core `signing-sync`, the caller's read): the outcome in words, then the record again. */
