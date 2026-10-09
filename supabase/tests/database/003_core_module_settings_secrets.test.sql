@@ -121,7 +121,7 @@ select functions_are('public', array[
   'get_professional_account_status', 'set_professional_matching_note',
   'save_document_type', 'attach_professional_document', 'verify_professional_document', 'reject_professional_document',
   'set_professional_document_expiry', 'delete_professional_document', 'get_professional_documents',
-  'run_professionals_document_notices_for_service',
+  'run_professionals_document_notices_for_service', 'cancel_professional_submission',
   'get_consent_versions', 'save_consent_draft', 'publish_consent_version', 'discard_consent_draft',
   'get_professional_document_rejection_for_service'
 ], 'public schema exposes exactly the intended RPCs');

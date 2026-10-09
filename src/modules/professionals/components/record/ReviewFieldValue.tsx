@@ -9,6 +9,7 @@ import type { Gender, SubmissionField } from '../../lib/constants'
 import { summarizeMotifs } from '../../lib/motif-summary'
 import { clienteleDiff, clienteleRefs, idList, idsDiff, isLongText, plainValueText, type SetField } from '../../lib/submission-review'
 import { submittedProfessions } from '../../schemas/questionnaire'
+import { useImageRetry } from '../use-image-retry'
 import { CategoryNames, Disclosure, type NamedGroup } from './MotifsSummary'
 
 const V = 'modules.professionals.submission.values'
@@ -178,16 +179,17 @@ export function SetValue({ field, value, ctx }: { field: SetField; value: unknow
 export function FileProposal({ field, value }: { field: 'photo' | 'insurance'; value: unknown }) {
   const fileId = text(value, 'file_id')
   const preview = useSignedFileUrl(fileId, { refresh: field === 'insurance' })
+  const image = useImageRetry(fileId, preview.data?.url, preview.refetch)
   if (!fileId) return <NotIndicated />
   if (field === 'photo') {
     return (
       <div className="flex items-center gap-3">
-        {preview.data ? (
-          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} onError={() => void preview.refetch()} className="size-16 shrink-0 rounded-full border border-border object-cover" />
+        {preview.data && !image.dead ? (
+          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} onError={image.onError} className="size-16 shrink-0 rounded-full border border-border object-cover" />
         ) : (
           <div aria-hidden className="size-16 shrink-0 rounded-full bg-muted" />
         )}
-        <p>{preview.isError ? t(`${V}.fileUnavailable`) : t(`${V}.photoSent`)}</p>
+        <p>{preview.isError || image.dead ? t(`${V}.fileUnavailable`) : t(`${V}.photoSent`)}</p>
       </div>
     )
   }

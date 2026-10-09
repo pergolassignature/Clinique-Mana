@@ -14,6 +14,7 @@ import { prefetchSubmissionReview, useProfessionalSubmissions } from '../../hook
 import { listLabel } from '../../lib/display'
 import { sectionLabel } from '../../lib/onboarding'
 import { submissionKindLabel, submissionState, submissionStateLabel, submissionStateTone } from '../../lib/submission-review'
+import { CancelSubmissionDialog } from './CancelSubmissionDialog'
 import { useRecordData } from './record-context'
 import { focusAfterClose } from './status-dialog'
 import { SubmissionReviewSheet } from './SubmissionReviewSheet'
@@ -24,13 +25,15 @@ const C = 'modules.professionals.submission.card'
  * « Questionnaire et mises à jour » (Documents tab, Task 4b.5): the file's submissions, newest
  * first (`professionals.view`), each with its state in words and its dates in the clinic's time.
  * A submission waiting for review offers « Réviser » to reviewers (`professionals.review`), except
- * on their own file (P4-304: the database refuses it, so the button is not offered).
+ * on their own file (P4-304: the database refuses it, so the button is not offered). An open update
+ * offers « Fermer la demande » to those who ask for updates (`professionals.invite`, P4-421).
  */
 export function SubmissionsCard() {
   const { record, focusHeading } = useRecordData()
   const { professional } = record
   const submissions = useProfessionalSubmissions(professional.id)
   const [open, setOpen] = useState<string | null>(null)
+  const [closing, setClosing] = useState<string | null>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
   return (
     <Card className="min-w-0">
@@ -59,6 +62,10 @@ export function SubmissionsCard() {
                   opener.current = button
                   setOpen(row.id)
                 }}
+                onCancel={(button) => {
+                  opener.current = button
+                  setClosing(row.id)
+                }}
               />
             ))}
           </ul>
@@ -67,6 +74,13 @@ export function SubmissionsCard() {
           <SubmissionReviewSheet
             submissionId={open}
             onClose={() => setOpen(null)}
+            onCloseAutoFocus={(event) => focusAfterClose(event, [opener.current], focusHeading)}
+          />
+        )}
+        {closing !== null && (
+          <CancelSubmissionDialog
+            submissionId={closing}
+            onClose={() => setClosing(null)}
             onCloseAutoFocus={(event) => focusAfterClose(event, [opener.current], focusHeading)}
           />
         )}
@@ -84,7 +98,9 @@ function datesLine(row: SubmissionRow): string {
   const parts: string[] = []
   if (row.submittedAt) parts.push(t(`${C}.sentOn.${kind}`, { date: formatClinicDateShort(row.submittedAt) }))
   else parts.push(t(`${C}.startedOn.${kind}`, { date: formatClinicDateShort(row.createdAt) }))
-  if (row.reviewedAt) {
+  // The decision's date only where it is the current one: approved, or sent back and not re-sent
+  // (a closed submission keeps an earlier return's date, which would read as its last event).
+  if (row.reviewedAt && (row.status === 'approved' || submissionState(row) === 'returned')) {
     const date = formatClinicDateShort(row.reviewedAt)
     const by = row.reviewedByName
     if (row.status === 'approved') parts.push(by ? t(`${C}.appliedOnBy.${kind}`, { date, name: by }) : t(`${C}.appliedOn.${kind}`, { date }))
@@ -96,7 +112,15 @@ function datesLine(row: SubmissionRow): string {
   return parts.join(' · ')
 }
 
-function SubmissionItem({ row, onReview }: { row: SubmissionRow; onReview: (button: HTMLButtonElement) => void }) {
+function SubmissionItem({
+  row,
+  onReview,
+  onCancel,
+}: {
+  row: SubmissionRow
+  onReview: (button: HTMLButtonElement) => void
+  onCancel: (button: HTMLButtonElement) => void
+}) {
   const { record } = useRecordData()
   const { can } = useAccess()
   const { user_id } = useReadyAccess()
@@ -104,6 +128,7 @@ function SubmissionItem({ row, onReview }: { row: SubmissionRow; onReview: (butt
   const state = submissionState(row)
   const ownFile = record.professional.profileId === user_id
   const reviewable = state === 'to_review' && can('professionals.review')
+  const closable = row.kind === 'update' && (row.status === 'draft' || row.status === 'submitted') && can('professionals.invite')
   const prefetch = () => void prefetchSubmissionReview(queryClient, row.id)
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -132,18 +157,26 @@ function SubmissionItem({ row, onReview }: { row: SubmissionRow; onReview: (butt
         )}
         {reviewable && ownFile && <p className="text-xs text-muted-foreground">{t(`${C}.ownFile`)}</p>}
       </div>
-      {reviewable && !ownFile && (
-        <Button
-          type="button"
-          size="sm"
-          className="self-start"
-          onPointerEnter={prefetch}
-          onFocus={prefetch}
-          onClick={(event) => onReview(event.currentTarget)}
-          aria-label={t(`${C}.reviewLabel`, { kind: submissionKindLabel(row.kind) })}
-        >
-          {t(`${C}.review`)}
-        </Button>
+      {((reviewable && !ownFile) || closable) && (
+        <div className="flex flex-wrap gap-2 self-start">
+          {closable && (
+            <Button type="button" size="sm" variant="outline" onClick={(event) => onCancel(event.currentTarget)}>
+              {t(`${C}.cancel`)}
+            </Button>
+          )}
+          {reviewable && !ownFile && (
+            <Button
+              type="button"
+              size="sm"
+              onPointerEnter={prefetch}
+              onFocus={prefetch}
+              onClick={(event) => onReview(event.currentTarget)}
+              aria-label={t(`${C}.reviewLabel`, { kind: submissionKindLabel(row.kind) })}
+            >
+              {t(`${C}.review`)}
+            </Button>
+          )}
+        </div>
       )}
     </li>
   )

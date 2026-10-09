@@ -82,7 +82,7 @@ export function ProfileSectionSummary({ section, values, catalog, gender }: Prof
         <Rows
           rows={[
             { label: t(`${L}.personal.phone`), value: text(values, 'personal_phone') && formatPhone(text(values, 'personal_phone')) },
-            { label: t(`${L}.personal.address`), value: street || place ? [street, place].filter(Boolean).join(' — ') : null },
+            { label: t(`${L}.personal.address`), value: street || place ? [street, place].filter(Boolean).join(', ') : null },
           ]}
         />
       )
@@ -107,7 +107,7 @@ export function ProfileSectionSummary({ section, values, catalog, gender }: Prof
                   </ul>
                 ) : null,
             },
-            { label: t(`${L}.professional.years`), value: typeof years === 'number' ? t(`${R}.years`, { count: String(years) }) : null },
+            { label: t(`${L}.professional.years`), value: typeof years === 'number' ? t(years <= 1 ? `${R}.year` : `${R}.years`, { count: String(years) }) : null },
           ]}
         />
       )

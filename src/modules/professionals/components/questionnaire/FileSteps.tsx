@@ -13,6 +13,7 @@ import { Input } from '@/shared/ui/input'
 import { isRefusal } from '../../hooks/use-my-submission'
 import { nextMarch31, sectionFileId } from '../../lib/questionnaire'
 import { insuranceSchema, type InsuranceValues } from '../../schemas/questionnaire'
+import { useImageRetry } from '../use-image-retry'
 import { StepActions, StepAlert, StepForm } from './StepParts'
 import { refusalTarget, useStepForm, type StepContext } from './use-step-form'
 
@@ -88,6 +89,7 @@ function RemoveFileButton({
 export function PhotoStep({ ctx }: { ctx: StepContext }) {
   const fileId = sectionFileId(ctx.autosave.answered, 'photo')
   const preview = useSignedFileUrl(fileId)
+  const image = useImageRetry(fileId, preview.data?.url, preview.refetch)
   const [pending, setPending] = useState(false)
   const [alert, setAlert] = useState<string | null>(null)
   const dropzoneButton = useRef<HTMLButtonElement>(null)
@@ -113,8 +115,8 @@ export function PhotoStep({ ctx }: { ctx: StepContext }) {
     <StepForm onSubmit={(event) => void onSubmit(event)} busy={pending} className="space-y-4">
       {fileId ? (
         <div className="flex items-center gap-4">
-          {preview.data ? (
-            <img src={preview.data.url} alt={t(`${F}.photoAlt`)} onError={() => void preview.refetch()} className="size-24 shrink-0 rounded-full border border-border object-cover" />
+          {preview.data && !image.dead ? (
+            <img src={preview.data.url} alt={t(`${F}.photoAlt`)} onError={image.onError} className="size-24 shrink-0 rounded-full border border-border object-cover" />
           ) : (
             <div aria-hidden className="size-24 shrink-0 rounded-full bg-muted" />
           )}
