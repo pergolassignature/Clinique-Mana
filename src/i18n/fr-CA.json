@@ -27,7 +27,6 @@
     "loading": "Chargement…",
     "retry": "Réessayer",
     "close": "Fermer",
-    "readOnly": "Lecture seule",
     "readOnlyNotice": {
       "title": "Lecture seule",
       "body": "Seule l'administration peut modifier ces informations."
@@ -1902,7 +1901,6 @@
         }
       },
       "history": {
-        "title": "Historique du dossier",
         "filter": {
           "label": "Afficher",
           "all": "Tout",
@@ -2414,7 +2412,6 @@
         },
         "delete": "Supprimer",
         "deleting": "Suppression…",
-        "history": "Historique",
         "from": "À partir du",
         "note": "Note",
         "noteHelp": "Facultative, sur une ligne.",
