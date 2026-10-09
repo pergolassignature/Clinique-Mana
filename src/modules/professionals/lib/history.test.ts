@@ -809,6 +809,19 @@ describe('history — the documents (4c.2)', () => {
     ])
   })
 
+  it('an update alone on its page names its type from the server (id, else the name for a type the catalogue lacks)', () => {
+    const verified = { status: { before: 'pending', after: 'verified' } }
+    expect(only([docRow('update', { ...verified, document_type_id: IDS.insuranceType, document_type_name: 'Ancien nom' })]).sentence).toBe(
+      "a vérifié le document « Preuve d'assurance responsabilité »",
+    )
+    expect(only([docRow('update', { ...verified, document_type_id: '00000000-0000-4000-8000-00000000dead', document_type_name: 'Diplôme' })]).sentence).toBe(
+      'a vérifié le document « Diplôme »',
+    )
+    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' }, document_type_name: 'Diplôme' })]).sentence).toBe(
+      "a modifié l'échéance du document « Diplôme » au 1 nov. 2026",
+    )
+  })
+
   it('an update whose document is not on screen reads « un document »; other updates say nothing', () => {
     expect(only([docRow('update', { status: { before: 'pending', after: 'verified' } })]).sentence).toBe('a vérifié un document')
     expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' } })]).sentence).toBe("a modifié l'échéance d'un document au 1 nov. 2026")
