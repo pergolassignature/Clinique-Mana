@@ -125,7 +125,9 @@ export function nextAction(
   if (noAccount && invitation && state === 'expired') {
     return { message: t(`${N}.invitationExpired`, { date: shortDate(invitation.expiresAt, now) }), action: inviteButton }
   }
-  const gap = readinessStep(record, can)
+  // The checklist's order: the file's own gaps (identity, matching) before the invitation; the
+  // documents after the onboarding, which collects the photo and the insurance itself.
+  const gap = readinessStep(record, can, (key) => key !== 'documents')
   if (gap) return gap
   if (noAccount && invitation && state === 'revoked') return { message: t(`${N}.invitationRevoked`, { firstName }), action: inviteButton }
   if (noAccount && invitation && state === 'used') {
@@ -144,6 +146,8 @@ export function nextAction(
   if (submission?.status === 'draft') {
     return { message: t(submission.kind === 'onboarding' ? `${N}.questionnaireInProgress` : `${N}.updateInProgress`, { firstName }), action: null }
   }
+  const documentsGap = readinessStep(record, can)
+  if (documentsGap) return documentsGap
   const contractItem = readiness.items.find((i) => i.key === 'contract_signed')
   if (!readiness.complete && contractItem && !contractItem.done && readiness.items.every((i) => i === contractItem || i.done)) {
     const message =
@@ -158,10 +162,10 @@ export function nextAction(
   return activationStep(record, can)
 }
 
-/** The first gap's tab (identity gaps come first in the RPC's order); null without one. */
-function readinessStep({ readiness }: NextActionSubject, can: Can): NextAction | null {
+/** The first gap's tab among the items `include` keeps (identity gaps come first in the RPC's order); null without one. */
+function readinessStep({ readiness }: NextActionSubject, can: Can, include: (key: ReadinessItemKey) => boolean = () => true): NextAction | null {
   // Items without `missing` keys (account, questionnaire) are the onboarding's: not a tab's gap.
-  const firstGap = readiness.complete ? undefined : readiness.items.flatMap((i) => (i.done ? [] : i.missing))[0]
+  const firstGap = readiness.complete ? undefined : readiness.items.flatMap((i) => (i.done || !include(i.key) ? [] : i.missing))[0]
   if (!firstGap) return null
   const tab = MISSING_TAB[firstGap]
   const permission = TAB_PERMISSION[tab]

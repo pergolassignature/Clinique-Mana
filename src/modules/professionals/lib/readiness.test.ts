@@ -131,6 +131,18 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     expect(nextAction(onboardingFile(null, 'draft'), null, can('professionals.manage'), NOW).action).toBeNull()
   })
 
+  it('missing documents wait for the onboarding, which collects them: the invitation comes first', () => {
+    const file = onboardingFile(null, 'draft')
+    const withDocs = { ...file, readiness: { ...file.readiness, items: [...file.readiness.items, { key: 'documents' as const, done: false, missing: ['photo', 'insurance'] as ReadinessMissing[] }] } }
+    expect(nextAction(withDocs, null, can(...INVITE), NOW).message).toBe(t(`${N}.notInvited`, { firstName: 'Marie' }))
+    // Account created, no questionnaire under way: the documents are the next step.
+    const onboarded = { ...withDocs, professional: { ...withDocs.professional, profileId: 'user-1' } }
+    expect(nextAction(onboarded, null, can(...INVITE), NOW)).toEqual({
+      message: t(`${N}.completeDocuments`),
+      action: { kind: 'tab', label: t(`${N}.complete`), tab: 'documents' },
+    })
+  })
+
   it('an expired link comes before the matching gaps, with « Envoyer un nouveau lien »', () => {
     const gaps = { ...withReadiness(['motif'], 'invited') }
     expect(nextAction(gaps, invitation('expired'), can(...INVITE), NOW)).toEqual({
