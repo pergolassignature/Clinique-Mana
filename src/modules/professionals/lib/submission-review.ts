@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
+import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone } from '@/shared/lib/format'
 import type { StatusTone } from '@/shared/ui/status-dot'
 import type { SpecializedRef } from '../api/parse'
@@ -130,11 +130,6 @@ export function clienteleDiff(current: unknown, submitted: unknown): ClienteleDi
 }
 
 // --- Plain values in words -----------------------------------------------------------------------
-
-const provinceName = (code: string) => {
-  const option = PROVINCE_OPTIONS.find((o) => o.value === code)
-  return option ? t(option.labelKey) : code
-}
 
 const yesNo = (value: boolean) => t(value ? `${S}.values.yes` : `${S}.values.no`)
 

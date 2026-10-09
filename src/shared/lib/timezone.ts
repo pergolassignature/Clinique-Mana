@@ -3,7 +3,7 @@
 // All dates in the database are stored as UTC (timestamptz)
 // The clinic operates in a specific timezone (default: America/Toronto for EST/EDT)
 
-import { parseISO, format } from 'date-fns'
+import { format, isValid, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { getClinicTimezone } from './clinic-timezone'
@@ -202,6 +202,12 @@ export function formatDateOnlyFull(dateStr: string | null | undefined): string {
 export function formatDateOnlyShort(dateStr: string | null | undefined): string {
   return formatDateOnly(dateStr, 'd MMM yyyy')
 }
+
+/** A date-only `yyyy-MM-dd` string (what `<input type="date">` gives). Digits as `[0-9]`, as in SQL. */
+const DATE_ONLY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
+
+/** A `yyyy-MM-dd` string naming a real calendar day (parseISO refuses 2027-02-30). */
+export const isCalendarDate = (value: string) => DATE_ONLY.test(value) && isValid(parseISO(value))
 
 /**
  * A date-only `yyyy-MM-dd` string moved by `days` (negative: earlier), as a calendar date. Computed

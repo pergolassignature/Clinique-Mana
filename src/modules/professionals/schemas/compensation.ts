@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { t, type TranslationKey } from '@/i18n'
-import { isCalendarDate } from '@/core/settings/tax/schemas'
+import { isCalendarDate } from '@/shared/lib/timezone'
 import { formatDateOnlyShort, shiftCalendarDay } from '@/shared/lib/timezone'
 import { DURATIONS, type AgreementInput, type Decision, type Duration, type GridInput, type RateInput } from '../api/compensation'
 import { parseDollars, parsePercent, parseSessions } from '../lib/compensation'

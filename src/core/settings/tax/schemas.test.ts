@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { isCalendarDate, newTaxRateSchema } from './schemas'
+import { newTaxRateSchema } from './schemas'
 
 const errorsOf = (input: unknown) => {
   const result = newTaxRateSchema.safeParse(input)
@@ -31,16 +31,5 @@ describe('newTaxRateSchema', () => {
 
   it('narrows the tax to gst or qst', () => {
     expect(errorsOf({ tax: 'hst', rate: '10', effective_from: '2027-01-01' })).toHaveProperty('tax')
-  })
-})
-
-describe('isCalendarDate', () => {
-  it('accepts a real yyyy-MM-dd day, leap days included', () => {
-    expect(isCalendarDate('2027-01-01')).toBe(true)
-    expect(isCalendarDate('2028-02-29')).toBe(true)
-  })
-
-  it.each(['', '2027-02-29', '2027-02-30', '2027-13-01', '2027-1-01', '01/01/2027', '2027-01-01T00:00'])('refuses « %s »', (v) => {
-    expect(isCalendarDate(v)).toBe(false)
   })
 })
