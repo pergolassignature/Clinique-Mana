@@ -1,11 +1,12 @@
 import { t, type TranslationKey } from '@/i18n'
-import { fieldLabel } from '@/core/audit/labels'
+import { fieldLabel as auditFieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
 import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
 import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compensation'
 import type { SubjectEmail } from '../api/invitations'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
+import { professionalsAuditLabels } from './audit-labels'
 import { durationLabel, formatCents, formatPercent, formatSessions, monthLabel, sessionsLabel } from './compensation'
 import {
   PAYER_TYPES,
@@ -31,6 +32,10 @@ import { titleLabel } from './title-label'
  */
 
 const H = 'modules.professionals.history'
+
+const AUDIT_LABELS = [professionalsAuditLabels]
+/** A column's name, as the Journal d'audit says it: the module's labels, then core's shared ones (« Créé le »). */
+const fieldLabel = (table: string, column: string): string => auditFieldLabel(table, column, AUDIT_LABELS)
 
 /** What `private.audit_trigger` writes in place of a redacted column (Loi 25). */
 const REDACTED = '[redacted]'

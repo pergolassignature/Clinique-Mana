@@ -20,6 +20,7 @@ export function PrivacySettingsPage() {
           <OrganizationCard
             organization={organization}
             title={t('settings.privacy.officer.title')}
+            description={t('settings.privacy.officer.description')}
             schema={privacyOfficerSchema}
             toFormValues={toPrivacyOfficerFormValues}
             firstField="privacy_officer_name"
@@ -40,6 +41,7 @@ export function PrivacySettingsPage() {
           <OrganizationCard
             organization={organization}
             title={t('settings.privacy.policy.title')}
+            description={t('settings.privacy.policy.description')}
             schema={privacyPolicySchema}
             toFormValues={toPrivacyPolicyFormValues}
             firstField="privacy_policy_url"

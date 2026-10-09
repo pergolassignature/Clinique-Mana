@@ -484,8 +484,8 @@ describe('history — retention (P4-193)', () => {
     ])
     expect(event.sentence).toBe(`a appliqué le taux suggéré de 27,5${NBSP}% dès le 1 nov. 2026`)
     expect(event.lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_retention.sessions_total'), value: '55,5' },
-      { kind: 'value', field: t('audit.fields.professional_retention.suggested_pct'), value: `27,5${NBSP}%` },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_retention.sessions_total'), value: '55,5' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_retention.suggested_pct'), value: `27,5${NBSP}%` },
     ])
   })
 
@@ -497,7 +497,7 @@ describe('history — retention (P4-193)', () => {
       `a maintenu le taux à 30${NBSP}% au palier de 0 séance, dès le 1 sept. 2026`,
     )
     expect(only([rate('insert', { retention_pct: 26, decision: 'custom', effective_from: '2026-09-01', note: 'Entente' })]).lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_retention.note'), value: 'Entente' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_retention.note'), value: 'Entente' },
     ])
     expect(only([rate('delete', { retention_pct: 26, decision: 'custom', effective_from: '2026-09-01' })]).sentence).toBe(`a supprimé le taux de 26${NBSP}% (dès le 1 sept. 2026)`)
   })
@@ -506,12 +506,12 @@ describe('history — retention (P4-193)', () => {
     const set = only([months('insert', { month: '2026-09-01', sessions_50_60: 20, sessions_30: 4, adjustment: 0, note: null })])
     expect(set.sentence).toBe('a saisi les séances de septembre 2026')
     expect(set.lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_session_counts.sessions_50_60'), value: '20' },
-      { kind: 'value', field: t('audit.fields.professional_session_counts.sessions_30'), value: '4' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_session_counts.sessions_50_60'), value: '20' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_session_counts.sessions_30'), value: '4' },
     ])
     const changed = only([months('update', { sessions_30: { before: 4, after: 6 } })])
     expect(changed.sentence).toBe('a modifié les séances d’un mois')
-    expect(changed.lines).toEqual([{ kind: 'change', field: t('audit.fields.professional_session_counts.sessions_30'), before: '4', after: '6' }])
+    expect(changed.lines).toEqual([{ kind: 'change', field: t('modules.professionals.audit.fields.professional_session_counts.sessions_30'), before: '4', after: '6' }])
     expect(only([months('delete', { month: '2026-09-01', sessions_50_60: 20 })]).sentence).toBe('a retiré les séances de septembre 2026')
   })
 
@@ -541,7 +541,7 @@ describe('history — retention (P4-193)', () => {
     const event = only([agreement('update', { effective_to: { before: null, after: '2027-03-01' } })])
     expect(event.sentence).toBe('a modifié une entente particulière')
     expect(event.lines).toEqual([
-      { kind: 'change', field: t('audit.fields.professional_client_agreements.effective_to'), before: t('audit.values.empty'), after: '1 mars 2027' },
+      { kind: 'change', field: t('modules.professionals.audit.fields.professional_client_agreements.effective_to'), before: t('audit.values.empty'), after: '1 mars 2027' },
     ])
   })
 
