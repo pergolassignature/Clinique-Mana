@@ -68,6 +68,17 @@ describe('typeDocuments', () => {
     expect(typeDocuments(insurance, documentsFixture({ today: '2027-04-01' }))).toMatchObject({ kind: 'expired', until: '2027-03-31' })
   })
 
+  it('a verified document without a date does not count for a type with a rule (as the readiness view)', () => {
+    expect(typeDocuments(type('insurance'), documentsFixture({ documents: [documentJson({ expires_on: null })] })).kind).toBe('expired')
+    expect(typeDocuments(type('photo'), documentsFixture()).kind).toBe('valid')
+  })
+
+  it('the image consent: the later of the document’s last day and the e-consent’s', () => {
+    const doc = documentJson({ id: DOC_IDS.cv, type_id: IDS.consentType, type_key: 'image_consent', expires_on: '2027-01-31' })
+    expect(typeDocuments(type('image_consent'), documentsFixture({ documents: [doc] })).until).toBe('2027-10-08')
+    expect(typeDocuments(type('image_consent'), documentsFixture({ documents: [doc], consent: null })).until).toBe('2027-01-31')
+  })
+
   it('counts the latest last day, keeps a renewal apart, and the rest as older', () => {
     const data = documentsFixture({
       documents: [

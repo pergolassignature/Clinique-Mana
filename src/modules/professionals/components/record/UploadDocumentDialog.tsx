@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { rpcErrorHint } from '@/core/modules/errors'
 import { uploadErrorMessage } from '@/core/storage/errors'
 import { FileDropzone } from '@/shared/components/FileDropzone'
@@ -61,6 +62,9 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({})
   const dateInput = useRef<HTMLInputElement>(null)
   const upload = useUploadDocument()
+  const { can } = useAccess()
+  // An admin who practises uploads to her own file as staff (still pending): the RPC checks `.manage` first (P4-464).
+  const selfPurpose = self && !can('professionals.manage')
   const busy = upload.isPending
   const withExpiry = type !== null && type.expiryRule !== 'none'
   const insurance = type?.key === 'insurance'
@@ -100,7 +104,7 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
         expiresOn: withExpiry ? expiresOn.trim() : null,
         insurer: insurance ? insurer.trim() || null : null,
         policyNumber: insurance ? policyNumber.trim() || null : null,
-        self,
+        self: selfPurpose,
         onStep,
       })
     } catch (error) {

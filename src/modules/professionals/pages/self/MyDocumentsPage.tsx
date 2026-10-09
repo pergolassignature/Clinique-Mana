@@ -83,7 +83,7 @@ function InsuranceBanner({ data, catalog }: { data: ProfessionalDocuments; catal
   if (!banner) return null
   if (banner.kind === 'renewal_pending') {
     return (
-      <Alert role="status">
+      <Alert>
         <Info aria-hidden />
         <AlertDescription className="text-foreground">{t(`${M}.banners.renewalPending`)}</AlertDescription>
       </Alert>
@@ -91,7 +91,8 @@ function InsuranceBanner({ data, catalog }: { data: ProfessionalDocuments; catal
   }
   const expired = banner.kind === 'expired'
   return (
-    <Alert variant={expired ? 'destructive' : 'warning'} role="alert">
+    // No live role: it shows on load, and a screen reader would announce it at every visit.
+    <Alert variant={expired ? 'destructive' : 'warning'}>
       {expired ? <CircleAlert aria-hidden /> : <TriangleAlert aria-hidden />}
       <AlertTitle>{t(expired ? `${M}.banners.expiredTitle` : `${M}.banners.expiringTitle`)}</AlertTitle>
       <AlertDescription className="text-foreground">

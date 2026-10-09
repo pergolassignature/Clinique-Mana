@@ -59,19 +59,22 @@ describe('MyDocumentsPage — banners by the clinic’s date', () => {
     renderPage()
     await loaded()
     expect(screen.getByRole('heading', { level: 1, name: t(`${M}.pageTitle`) })).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(t(`${M}.banners.expiredTitle`))).not.toBeInTheDocument()
+    expect(screen.queryByText(t(`${M}.banners.expiringTitle`))).not.toBeInTheDocument()
   })
 
   it('expiring within the reminder window: « Votre assurance expire le 31 mars 2027 »', async () => {
     renderPage(documentsFixture({ today: '2027-03-26' }))
     await loaded()
-    expect(screen.getByRole('alert')).toHaveTextContent(t(`${M}.banners.expiring`, { date: '31 mars 2027' }))
+    expect(screen.getByText(t(`${M}.banners.expiring`, { date: '31 mars 2027' }))).toBeInTheDocument()
+    // Shown on load: no live role, so a screen reader does not announce it at every visit.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('expired: asks for the new proof to keep receiving new clients', async () => {
     renderPage(documentsFixture({ today: '2027-04-01' }))
     await loaded()
-    expect(screen.getByRole('alert')).toHaveTextContent(t(`${M}.banners.expired`))
+    expect(screen.getByText(t(`${M}.banners.expired`))).toBeInTheDocument()
   })
 
   it('a new proof already sent: a thank-you, never the warning', async () => {
@@ -82,7 +85,7 @@ describe('MyDocumentsPage — banners by the clinic’s date', () => {
       }),
     )
     await loaded()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(t(`${M}.banners.expired`))).not.toBeInTheDocument()
     expect(screen.getByText(t(`${M}.banners.renewalPending`))).toBeInTheDocument()
   })
 })
@@ -104,10 +107,10 @@ describe('MyDocumentsPage — her own documents', () => {
     const photo = screen.getByRole('region', { name: 'Photo professionnelle' })
     expect(photo).toHaveTextContent(t(`${M}.rejectedNote`))
     expect(photo).toHaveTextContent('Raison : Photo floue.')
-    expect(screen.queryByRole('button', { name: /^(Vérifier|Refuser)/ })).not.toBeInTheDocument()
-    // « … » holds « Télécharger » only.
-    await userEvent.click(within(insurance).getByRole('button', { name: /^Autres actions/ }))
-    expect((await screen.findAllByRole('menuitem')).map((item) => item.textContent)).toEqual([t(`${D}.actions.download`)])
+    expect(screen.queryByRole('button', { name: /^(Vérifier|Refuser|Autres actions)/ })).not.toBeInTheDocument()
+    // Her file's two actions, side by side (no « … » holding one item).
+    expect(within(insurance).getByRole('button', { name: /^Aperçu : / })).toBeInTheDocument()
+    expect(within(insurance).getByRole('button', { name: /^Télécharger : / })).toBeInTheDocument()
   })
 
   it('« Téléverser » sends to her own record, as her own upload (always reviewed by the clinic)', async () => {
@@ -128,6 +131,27 @@ describe('MyDocumentsPage — her own documents', () => {
     )
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${D}.toasts.uploadedSelf`))
     expect(invalidated()).toContainEqual(professionalKeys.myDocuments())
+  })
+
+  it('an admin who practises uploads to her own file as staff (the RPC checks professionals.manage first, P4-464)', async () => {
+    mocks.documents.uploadProfessionalDocument.mockResolvedValue(DOC_IDS.insuranceRenewal)
+    mocks.documents.fetchMyDocuments.mockResolvedValue(documentsFixture({ documents: [PHOTO_JSON] }))
+    const { queryClient } = setupQueryClient()
+    render(
+      renderWithContexts(
+        <QueryClientProvider client={queryClient}>
+          <MyDocumentsPage />
+        </QueryClientProvider>,
+        { path: '/mes-documents', access: { access: accessForRole('admin', { has_professional_file: true }) } },
+      ),
+    )
+    await loaded()
+    await userEvent.click(screen.getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: INSURANCE }) }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(t(`${D}.upload.reviewedLaterSelf`))).toBeInTheDocument()
+    const file = new File([new TextEncoder().encode('%PDF-1.7\n')], 'assurance.pdf', { type: 'application/pdf' })
+    fireEvent.change(dialog.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } })
+    await waitFor(() => expect(mocks.documents.uploadProfessionalDocument).toHaveBeenCalledWith(expect.objectContaining({ self: false, professionalId: IDS.professional })))
   })
 
   it('an account without a professional file: says so', async () => {

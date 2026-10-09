@@ -75,8 +75,12 @@ export interface TypeDocuments {
   older: ProfessionalDocument[]
 }
 
-/** A verified document, unexpired on `today`. */
-const isValid = (d: ProfessionalDocument, today: string) => d.status === 'verified' && (d.expiresOn === null || d.expiresOn >= today)
+/**
+ * A verified document, unexpired on `today`. For a type with a rule a document without a date does
+ * not count (its type got a rule after it was verified), as the readiness view's `max(expires_on)`.
+ */
+const isValid = (d: ProfessionalDocument, today: string, rule: DocumentExpiryRule = 'none') =>
+  d.status === 'verified' && (d.expiresOn === null ? rule === 'none' : d.expiresOn >= today)
 
 /**
  * The state of one type on the clinic's `today`: valid (or expiring within the type's largest
@@ -94,13 +98,17 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
       : reviewed.reduce<ProfessionalDocument | null>((best, d) => (best === null || (d.expiresOn ?? '') > (best.expiresOn ?? '') ? d : best), null)
   const pending = docs.find((d) => d.status === 'pending') ?? null
   const rejected = pending === null && docs[0]?.status === 'rejected' ? docs[0] : null
+  // The payload holds the latest e-consent only (the view takes the latest valid one of all: the
+  // same unless a newer one ends sooner, a case the questionnaire does not produce).
   const consent = type.key === 'image_consent' && data.consent && consentLastDay(data.consent) >= today ? data.consent : null
   const older = docs.filter((d) => d !== current && d !== pending && d !== rejected)
 
   let kind: DocumentStateKind
   let until: string | null = null
-  if (current && isValid(current, today)) {
-    until = current.expiresOn
+  if (current && isValid(current, today, type.expiryRule)) {
+    // The image consent: the later of the document's last day and the e-consent's.
+    const consentUntil = consent ? consentLastDay(consent) : null
+    until = consentUntil !== null && current.expiresOn !== null && consentUntil > current.expiresOn ? consentUntil : current.expiresOn
     const window = reminderWindow(type)
     kind = until !== null && window > 0 && daysBetween(today, until) <= window ? 'expiring' : 'valid'
   } else if (consent) {

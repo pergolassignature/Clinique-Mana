@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import { notificationKeys } from '@/core/notifications/hooks'
 import { previewErrorMessage } from '@/core/storage/errors'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { toast } from '@/shared/ui/sonner'
@@ -50,19 +51,32 @@ export function useConsentVersions() {
   return useQuery({ queryKey: professionalsSettingsKeys.consents(), queryFn: () => fetchConsentVersions(), staleTime: 60_000 })
 }
 
+/**
+ * The versions as the database holds them now (refetched, never the cache), for the checks before
+ * a save or a publish (P4-463): a colleague's edit since the page loaded is said, never overwritten
+ * nor published unseen.
+ */
+export function fetchCurrentConsentVersions(queryClient: QueryClient) {
+  return queryClient.fetchQuery({ queryKey: professionalsSettingsKeys.consents(), queryFn: () => fetchConsentVersions(), staleTime: 0 })
+}
+
 // --- Document changes ----------------------------------------------------------------------------
 
 /**
  * After any change to a professional's documents, made or refused: the record (its documents and
- * readiness), the lists (« Documents 2 / 3 », the insurance's state), the history's first page and
- * « Utilisé par » of « Documents requis » (see `keys.ts`). The provider's own: « Mes documents ».
+ * readiness), the lists (« Documents 2 / 3 », the insurance's state), the history's first page,
+ * « Utilisé par » of « Documents requis » (see `keys.ts`), « Mes documents » (an admin who practises
+ * sees her file both ways) and the notices (the SQL closes « Document à vérifier »; the bell and
+ * « À surveiller » follow at once instead of at the next poll). Queries not on screen are only
+ * marked stale.
  */
-function refreshAfterDocumentChange(queryClient: QueryClient, professionalId: string, self: boolean) {
-  if (self) return queryClient.invalidateQueries({ queryKey: professionalKeys.myDocuments() })
+function refreshAfterDocumentChange(queryClient: QueryClient, professionalId: string) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: professionalKeys.record(professionalId) }),
+    queryClient.invalidateQueries({ queryKey: professionalKeys.myDocuments() }),
     queryClient.invalidateQueries({ queryKey: professionalKeys.lists() }),
     queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() }),
+    queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
     refreshProfessionalHistory(queryClient, professionalId),
   ])
 }
@@ -75,7 +89,7 @@ export function useUploadDocument() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: DocumentUploadInput) => uploadProfessionalDocument(input),
-    onSettled: (_data, _error, { professionalId, self }) => refreshAfterDocumentChange(queryClient, professionalId, self),
+    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId),
   })
 }
 
@@ -91,7 +105,7 @@ export function useVerifyDocument(feedback?: MutationFeedback) {
     mutationFn: ({ documentId, expiresOn }: DocumentVariables & { expiresOn: string | null }) => verifyProfessionalDocument(documentId, expiresOn),
     onSuccess: () => toast.success(t(`${T}.verified`)),
     onError: (error) => showMutationError(queryClient, error, feedback),
-    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId, false),
+    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId),
   })
 }
 
@@ -102,7 +116,7 @@ export function useSetDocumentExpiry(feedback?: MutationFeedback) {
     mutationFn: ({ documentId, expiresOn }: DocumentVariables & { expiresOn: string }) => setProfessionalDocumentExpiry(documentId, expiresOn),
     onSuccess: () => toast.success(t(`${T}.redated`)),
     onError: (error) => showMutationError(queryClient, error, feedback),
-    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId, false),
+    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId),
   })
 }
 
@@ -113,7 +127,7 @@ export function useDeleteDocument(feedback?: MutationFeedback) {
     mutationFn: ({ documentId }: DocumentVariables) => deleteProfessionalDocument(documentId),
     onSuccess: () => toast.success(t(`${T}.deleted`)),
     onError: (error) => showMutationError(queryClient, error, feedback),
-    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId, false),
+    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId),
   })
 }
 
@@ -135,7 +149,7 @@ export function useRejectDocument(feedback?: MutationFeedback) {
       else toast.warning(message)
     },
     onError: (error) => showMutationError(queryClient, error, feedback),
-    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId, false),
+    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId),
   })
 }
 

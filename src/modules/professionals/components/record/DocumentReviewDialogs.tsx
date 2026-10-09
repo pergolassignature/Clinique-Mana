@@ -74,7 +74,17 @@ interface ReviewDialogFrameProps {
 function ReviewDialogFrame({ title, description, pending, refusal, confirmLabel, pendingLabel, destructive = false, onConfirm, onClose, onCloseAutoFocus, children }: ReviewDialogFrameProps) {
   return (
     <AlertDialog open onOpenChange={(open) => !open && !pending && onClose()}>
-      <AlertDialogContent aria-busy={pending || undefined} onCloseAutoFocus={onCloseAutoFocus}>
+      <AlertDialogContent
+        aria-busy={pending || undefined}
+        // Focus starts on the field to fill (the date, the reason), else on « Annuler ».
+        onOpenAutoFocus={(event) => {
+          const field = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>('input, textarea')
+          if (!field) return
+          event.preventDefault()
+          field.focus()
+        }}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <form
           noValidate
           className="grid gap-4"

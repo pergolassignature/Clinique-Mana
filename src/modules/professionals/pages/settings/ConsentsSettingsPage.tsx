@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { createContext, useContext, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { rpcErrorHint } from '@/core/modules/errors'
+import { moduleErrorMessage, rpcErrorHint } from '@/core/modules/errors'
 import { useSettingsSection } from '@/core/settings/section-context'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -22,10 +23,13 @@ import { Textarea } from '@/shared/ui/textarea'
 import type { ConsentVersion, ConsentVersions } from '../../api/documents'
 import { RefusalAlert } from '../../components/compensation/DatedRowParts'
 import { DialogCancel, DialogRefusal } from '../../components/record/StatusDialogParts'
-import { useConsentVersions, useDiscardConsentDraft, usePublishConsentVersion, useSaveConsentDraft } from '../../hooks/use-documents'
+import { fetchCurrentConsentVersions, useConsentVersions, useDiscardConsentDraft, usePublishConsentVersion, useSaveConsentDraft } from '../../hooks/use-documents'
 import { tidyText } from '../../schemas/text'
 
 const C = 'modules.professionals.settings.consents'
+
+/** Where focus goes when the button that opened a dialog is gone (the page's heading). */
+const FocusFallback = createContext<() => void>(() => undefined)
 
 const draftSchema = z.object({
   title: tidyText({ max: 200, requiredMessage: t(`${C}.draft.titleRequired`), tooLongMessage: t(`${C}.draft.titleTooLong`) }),
@@ -62,9 +66,18 @@ function versionMeta(version: ConsentVersion): string {
 export function ConsentsSettingsPage() {
   const { readOnly } = useSettingsSection()
   const versions = useConsentVersions()
+  const heading = useRef<HTMLDivElement>(null)
   let content
   if (versions.isPending) content = <Loading />
-  else if (!versions.data) content = <LoadError message={t(`${C}.loadError`)} retrying={versions.isFetching} onRetry={() => void versions.refetch()} />
+  else if (!versions.data) {
+    content = (
+      <LoadError
+        message={moduleErrorMessage(versions.error, t(`${C}.loadError`), 'professionals')}
+        retrying={versions.isFetching}
+        onRetry={() => void versions.refetch()}
+      />
+    )
+  }
   else {
     const data = versions.data
     content = (
@@ -76,11 +89,15 @@ export function ConsentsSettingsPage() {
     )
   }
   return (
-    <div className="max-w-form space-y-5">
-      <PageHeader title={t(`${C}.title`)} description={t(`${C}.description`)} />
-      {readOnly && <ReadOnlyNotice />}
-      {content}
-    </div>
+    <FocusFallback.Provider value={() => heading.current?.focus()}>
+      <div className="max-w-form space-y-5">
+        <div ref={heading} tabIndex={-1} className="outline-none">
+          <PageHeader title={t(`${C}.title`)} description={t(`${C}.description`)} />
+        </div>
+        {readOnly && <ReadOnlyNotice />}
+        {content}
+      </div>
+    </FocusFallback.Provider>
   )
 }
 
@@ -118,7 +135,6 @@ function DraftCard({ data, readOnly }: { data: ConsentVersions; readOnly: boolea
   const [starting, setStarting] = useState(false)
   const draft = data.draft
   const version = nextVersion(data)
-  const newButton = useRef<HTMLButtonElement>(null)
   if (readOnly) {
     if (!draft) return null
     return (
@@ -135,7 +151,7 @@ function DraftCard({ data, readOnly }: { data: ConsentVersions; readOnly: boolea
         title={t(`${C}.newVersion`)}
         description={t(`${C}.newVersionHelp`)}
         footer={
-          <Button ref={newButton} type="button" variant="outline" onClick={() => setStarting(true)}>
+          <Button type="button" variant="outline" onClick={() => setStarting(true)}>
             {t(`${C}.newVersion`)}
           </Button>
         }
@@ -145,8 +161,9 @@ function DraftCard({ data, readOnly }: { data: ConsentVersions; readOnly: boolea
     )
   }
   return (
+    // One key for « new » and its saved draft: the first save does not remount the form (focus stays).
     <DraftForm
-      key={draft?.id ?? 'new'}
+      key="draft"
       draft={draft}
       version={version}
       initial={draft ? { title: draft.title, body: draft.body } : { title: data.current?.title ?? '', body: data.current?.body ?? '' }}
@@ -174,6 +191,9 @@ function DraftForm({
   const [dialog, setDialog] = useState<'publish' | 'discard' | null>(null)
   const publishButton = useRef<HTMLButtonElement>(null)
   const discardButton = useRef<HTMLButtonElement>(null)
+  const queryClient = useQueryClient()
+  const focusFallback = useContext(FocusFallback)
+  const [checking, setChecking] = useState(false)
   const save = useSaveConsentDraft({
     onErrorMessage: (message, error) => {
       const hint = rpcErrorHint(error)
@@ -186,8 +206,32 @@ function DraftForm({
   useUnsavedChanges(form.formState.isDirty)
   const { errors } = form.formState
 
-  const submit = form.handleSubmit((values) => {
+  /**
+   * The draft as the database holds it now (P4-463): a draft written or published by a colleague
+   * since this page loaded is said, and the page shows it, instead of being overwritten or
+   * published unseen. Null when it is still the one on screen.
+   */
+  const changedElsewhere = async (): Promise<string | null> => {
+    setChecking(true)
+    try {
+      const fresh = await fetchCurrentConsentVersions(queryClient)
+      const same = draft === null ? fresh.draft === null : fresh.draft?.id === draft.id && fresh.draft.updatedAt === draft.updatedAt
+      if (same) return null
+      // Show what the database holds now (the page re-renders with the refetched versions).
+      const shown = fresh.draft ?? fresh.current
+      form.reset({ title: shown?.title ?? '', body: shown?.body ?? '' })
+      return t(`${C}.draft.changedElsewhere`)
+    } catch (error) {
+      return moduleErrorMessage(error, t(`${C}.loadError`), 'professionals')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const submit = form.handleSubmit(async (values) => {
     setRefusal(null)
+    const changed = await changedElsewhere()
+    if (changed) return setRefusal(changed)
     save.mutate(values, {
       onSuccess: () => {
         form.reset(values)
@@ -200,7 +244,7 @@ function DraftForm({
     <SettingsCard
       title={t(`${C}.draft.title`, { version: String(version) })}
       description={t(`${C}.draft.description`)}
-      pending={save.isPending}
+      pending={save.isPending || checking}
       onSubmit={(event) => void submit(event)}
       footer={
         <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -218,8 +262,11 @@ function DraftForm({
               ref={publishButton}
               type="button"
               variant={dirty ? 'outline' : 'default'}
-              onClick={() => {
-                if (form.formState.isDirty) setRefusal(t(`${C}.draft.unsavedBeforePublish`))
+              onClick={async () => {
+                setRefusal(null)
+                if (form.formState.isDirty) return setRefusal(t(`${C}.draft.unsavedBeforePublish`))
+                const changed = await changedElsewhere()
+                if (changed) setRefusal(changed)
                 else setDialog('publish')
               }}
             >
@@ -240,17 +287,20 @@ function DraftForm({
         {refusal && <RefusalAlert message={refusal} />}
       </div>
       {draft && dialog === 'publish' && (
-        <ConfirmVersionDialog kind="publish" draft={draft} onClose={() => setDialog(null)} onCloseAutoFocus={(event) => focusIfConnected(event, publishButton.current)} />
+        <ConfirmVersionDialog kind="publish" draft={draft} onClose={() => setDialog(null)} onCloseAutoFocus={(event) => focusAfter(event, publishButton.current, focusFallback)} />
       )}
-      {draft && dialog === 'discard' && <ConfirmVersionDialog kind="discard" draft={draft} onClose={() => setDialog(null)} onCloseAutoFocus={() => undefined} />}
+      {draft && dialog === 'discard' && (
+        <ConfirmVersionDialog kind="discard" draft={draft} onClose={() => setDialog(null)} onCloseAutoFocus={(event) => focusAfter(event, discardButton.current, focusFallback)} />
+      )}
     </SettingsCard>
   )
 }
 
-function focusIfConnected(event: Event, element: HTMLElement | null) {
-  if (!element?.isConnected) return
+/** Back to the button that opened the dialog, else (published, discarded: it is gone) the page's heading. */
+function focusAfter(event: Event, element: HTMLElement | null, fallback: () => void) {
   event.preventDefault()
-  element.focus()
+  if (element?.isConnected) element.focus()
+  else fallback()
 }
 
 /** « Publier la version n » or « Supprimer le brouillon », after a confirmation that says what happens. */

@@ -98,6 +98,18 @@ describe('ConsentsSettingsPage', () => {
     await waitFor(() => expect(mocks.api.discardConsentDraft).toHaveBeenCalledWith(DRAFT.id))
   })
 
+  it('a draft changed by a colleague since the page loaded is said and shown, never published unseen (P4-463)', async () => {
+    mocks.api.fetchConsentVersions.mockResolvedValue(versions({ draft: DRAFT }))
+    renderProfessionalsSettingsPage(<ConsentsSettingsPage />, { sectionId: 'consents' })
+    await screen.findByRole('heading', { name: t(`${C}.current.title`) })
+    mocks.api.fetchConsentVersions.mockResolvedValue(versions({ draft: { ...DRAFT, body: 'Texte de la collègue.', updatedAt: '2026-10-09T12:00:00+00:00' } }))
+    await userEvent.click(screen.getByRole('button', { name: t(`${C}.draft.publish`, { version: '2' }) }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.draft.changedElsewhere`))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: new RegExp(`^${t(`${C}.draft.body`)}`) })).toHaveValue('Texte de la collègue.')
+    expect(mocks.api.publishConsentVersion).not.toHaveBeenCalled()
+  })
+
   it('a refused text shows under its field (HINT body)', async () => {
     mocks.api.saveConsentDraft.mockRejectedValue({ code: 'P0001', message: 'Le texte du consentement est obligatoire.', hint: 'body' })
     await renderPage(versions({ draft: DRAFT }))

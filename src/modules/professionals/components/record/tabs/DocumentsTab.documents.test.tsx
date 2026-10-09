@@ -175,9 +175,9 @@ describe('Documents tab — actions by permission', () => {
     await openTab({ documents: pending(), record: { ...own, professional: { ...own.professional, profileId: 'u1' } } })
     expect(screen.getByText(t(`${D}.ownFile`))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^(Vérifier|Refuser) : / })).not.toBeInTheDocument()
-    await userEvent.click(within(card(INSURANCE)).getByRole('button', { name: /^Autres actions/ }))
-    await screen.findByRole('menuitem', { name: t(`${D}.actions.download`) })
-    expect(screen.queryByRole('menuitem', { name: t(`${D}.actions.delete`) })).not.toBeInTheDocument()
+    // Aperçu and Télécharger only, side by side: no « … » (no Supprimer, no Modifier l'échéance).
+    expect(within(card(INSURANCE)).getByRole('button', { name: /^Télécharger : / })).toBeInTheDocument()
+    expect(within(card(INSURANCE)).queryByRole('button', { name: /^Autres actions/ })).not.toBeInTheDocument()
   })
 })
 
@@ -273,6 +273,8 @@ describe('Documents tab — review', () => {
     await userEvent.click(within(card(INSURANCE)).getByRole('button', { name: /^Refuser : / }))
     const dialog = await screen.findByRole('alertdialog', { name: t(`${D}.reject.title`, { type: INSURANCE }) })
     expect(dialog).toHaveTextContent(t(`${D}.reject.emailed`, { firstName: 'Marie' }))
+    // Focus starts on the reason.
+    await waitFor(() => expect(within(dialog).getByRole('textbox', { name: new RegExp(t(`${D}.reject.reason`)) })).toHaveFocus())
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${D}.reject.confirm`) }))
     expect(within(dialog).getByText(t(`${D}.reject.reasonRequired`))).toBeInTheDocument()
     expect(mocks.documents.rejectProfessionalDocument).not.toHaveBeenCalled()

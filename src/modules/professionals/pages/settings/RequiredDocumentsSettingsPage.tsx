@@ -27,7 +27,12 @@ const COLUMNS: ReferenceColumn<'document_types'>[] = [
   {
     id: 'files',
     header: t(`${R}.files`),
-    cell: (row) => t(`${R}.filesSummary`, { types: mimeListLabel(row.acceptedMime), size: megabytesLabel(row.maxBytes) }),
+    // Every type the purposes accept reads « Tous les types », not six names.
+    cell: (row) =>
+      t(`${R}.filesSummary`, {
+        types: row.acceptedMime.length === DOCUMENT_MIME_TYPES.length ? t(`${R}.allFiles`) : mimeListLabel(row.acceptedMime),
+        size: megabytesLabel(row.maxBytes),
+      }),
     className: 'max-md:hidden',
   },
 ]

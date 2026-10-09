@@ -83,6 +83,8 @@ export function DocumentRow({ document, type, today, viewer, firstName, can, lab
   if (actions.includes('preview')) inline.push('preview')
   else if (actions.includes('download')) inline.push('download')
   if (document.status === 'pending') inline.push(...actions.filter((a) => a === 'verify' || a === 'reject'))
+  // A menu holding « Télécharger » alone (a reader, the professional) is a button of its own.
+  if (actions.length - inline.length === 1 && actions.includes('download') && !inline.includes('download')) inline.splice(1, 0, 'download')
   const menu = actions.filter((a) => !inline.includes(a))
   const name = t(`${D}.actions.documentName`, { type: type?.name ?? '', state })
 
@@ -108,9 +110,9 @@ export function DocumentRow({ document, type, today, viewer, firstName, can, lab
           </span>
         </p>
         <p className="text-xs text-muted-foreground">{[uploadedLine(document, viewer, firstName), reviewed].filter(Boolean).join(' · ')}</p>
-        {meta.length > 0 && <p className="text-xs text-muted-foreground">{meta.join(' · ')}</p>}
+        {meta.length > 0 && <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{meta.join(' · ')}</p>}
         {document.status === 'rejected' && document.rejectionReason && (
-          <p className="mt-1 whitespace-pre-line border-l-2 border-border pl-2 text-sm text-foreground">
+          <p className="mt-1 whitespace-pre-line border-l-2 border-border pl-2 text-sm text-foreground [overflow-wrap:anywhere]">
             <span className="text-muted-foreground">{t(`${D}.lines.reason`)} </span>
             {document.rejectionReason}
           </p>

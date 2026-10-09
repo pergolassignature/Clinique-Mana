@@ -2569,6 +2569,7 @@
           "remindersOnlyInsurance": "Les rappels par courriel ne s'appliquent qu'à la preuve d'assurance.",
           "files": "Fichiers acceptés",
           "filesSummary": "{types} · {size}",
+          "allFiles": "Tous les types",
           "photoFilesHelp": "La photo figure sur la fiche : JPEG ou PNG seulement.",
           "maxBytes": "Taille maximale"
         },
@@ -2598,6 +2599,7 @@
             "publish": "Publier la version {version}",
             "discard": "Supprimer le brouillon",
             "unsavedBeforePublish": "Enregistrez le brouillon avant de le publier.",
+            "changedElsewhere": "Le brouillon a changé depuis l'ouverture de la page : la version à jour est affichée. Relisez-la, puis recommencez.",
             "titleRequired": "Le titre est obligatoire.",
             "titleTooLong": "Le titre ne peut pas dépasser 200 caractères.",
             "bodyRequired": "Le texte du consentement est obligatoire.",

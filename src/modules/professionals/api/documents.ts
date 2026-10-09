@@ -134,7 +134,11 @@ export interface DocumentUploadInput {
   /** Insurance only: the insurer and the policy number, when typed. */
   insurer?: string | null
   policyNumber?: string | null
-  /** The provider's own upload (`professional_self_document`), else staff's (`professional_document`). */
+  /**
+   * The provider's own upload (`professional_self_document`), else staff's (`professional_document`).
+   * Whoever holds `professionals.manage` uploads as staff, also on her own file (an admin who
+   * practises): `attach_professional_document` checks `.manage` first (P4-464).
+   */
   self: boolean
   onStep?: (step: UploadStep) => void
 }
