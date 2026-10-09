@@ -1928,6 +1928,10 @@
             "deleted": "a supprimé le profil de jumelage"
           },
           "invitationLinkCopied": "a copié le lien d'invitation (sans courriel)",
+          "paperContract": {
+            "uploaded": "a téléversé un contrat de service signé hors application (signé le {date})",
+            "uploadedNoDate": "a téléversé un contrat de service signé hors application"
+          },
           "matchingNote": {
             "added": "a ajouté la note Bon à savoir",
             "changed": "a modifié la note Bon à savoir",
@@ -3562,9 +3566,56 @@
           "journal": "Journal de signature",
           "hideJournal": "Masquer le journal",
           "pdf": "Télécharger le contrat signé",
-          "pdfLabel": "Télécharger le contrat signé de {firstName}"
+          "pdfLabel": "Télécharger le contrat signé de {firstName}",
+          "renew": "Préparer un nouveau contrat",
+          "uploadPaper": "Téléverser un contrat signé",
+          "replacePaper": "Remplacer",
+          "replacePaperLabel": "Remplacer le contrat signé hors application de {firstName}",
+          "openPaper": "Aperçu",
+          "openPaperLabel": "Aperçu du contrat signé hors application le {date}",
+          "downloadPaper": "Télécharger",
+          "downloadPaperLabel": "Télécharger le contrat signé hors application le {date}"
+        },
+        "inForce": {
+          "title": "Contrat en vigueur",
+          "paper": "Signé hors application le {date}",
+          "uploaded": "Téléversé le {date} par {name}",
+          "uploadedNoName": "Téléversé le {date}",
+          "paperDocument": "Contrat signé hors application"
+        },
+        "renewal": {
+          "title": "Nouveau contrat",
+          "help": "Le contrat signé actuel reste en vigueur jusqu'à la signature du nouveau."
+        },
+        "previous": {
+          "show": "Contrats précédents ({count})",
+          "hide": "Masquer les contrats précédents",
+          "label": "Contrats précédents",
+          "signed": "Signé électroniquement le {date}",
+          "paper": "Signé hors application le {date}"
+        },
+        "paper": {
+          "title": "Téléverser un contrat signé",
+          "replaceTitle": "Remplacer le contrat signé hors application",
+          "description": "Le contrat de service que {firstName} a signé hors de l'application, en PDF. Il compte comme un contrat signé.",
+          "replaceNote": "Le contrat actuel passe dans « Contrats précédents » : il reste au dossier.",
+          "signedOn": "Date de signature",
+          "signedOnHelp": "Le jour où le contrat a été signé, au plus tard aujourd'hui.",
+          "dateFirst": "Indiquez la date de signature, puis choisissez le PDF.",
+          "choose": "Choisir le PDF",
+          "hint": "PDF, {size} au plus.",
+          "errors": {
+            "required": "Indiquez la date de signature.",
+            "future": "La date de signature ne peut pas être dans le futur.",
+            "tooOld": "La date de signature doit être le 1er janvier 2000 ou plus tard."
+          }
         },
         "confirm": {
+          "renew": {
+            "title": "Préparer un nouveau contrat pour {firstName} ?",
+            "body": "Le contrat signé actuel reste en vigueur jusqu'à la signature du nouveau. Le nouveau contrat est préparé avec la version {version} du modèle et les honoraires en vigueur aujourd'hui ; vous le verrez avant de l'envoyer à {firstName}.",
+            "action": "Voir le nouveau contrat"
+          },
           "send": {
             "title": "Envoyer le contrat à {firstName} ?",
             "body": "Le contrat est préparé avec la version {version} du modèle et les honoraires de {firstName} en vigueur aujourd'hui, puis envoyé par courriel pour signature électronique.",
@@ -3584,7 +3635,10 @@
         "toasts": {
           "send": "Contrat envoyé à {firstName} pour signature.",
           "regenerate": "Nouveau contrat envoyé à {firstName}.",
+          "renew": "Nouveau contrat envoyé à {firstName}. Le contrat signé actuel reste en vigueur jusqu'à sa signature.",
           "resend": "Courriel de signature renvoyé à {firstName}.",
+          "paperRecorded": "Contrat signé hors application ajouté au dossier.",
+          "paperReplaced": "Contrat remplacé : l'ancien est dans « Contrats précédents ».",
           "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
           "draftSaved": "Brouillon enregistré.",
           "published": "Version publiée : les prochains envois l'utiliseront.",
@@ -3618,6 +3672,7 @@
           "frozen": "Cet aperçu est figé : si le dossier change avant l'envoi, c'est ce PDF qui est envoyé. « Rafraîchir l'aperçu » reprend les données d'aujourd'hui.",
           "refresh": "Rafraîchir l'aperçu",
           "regenerateNote": "À l'envoi, le contrat en cours, s'il y en a un, est annulé et remplacé par celui-ci.",
+          "inForceNote": "Le contrat signé actuel reste en vigueur jusqu'à la signature du nouveau.",
           "send": "Envoyer pour signature à {firstName}"
         }
       },

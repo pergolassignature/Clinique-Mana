@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
+import { uploadFile } from '@/core/storage/api'
 import { FunctionCallError, invokeFunction } from '@/core/supabase/functions'
+import type { UploadStep } from '@/shared/lib/files'
 import { asRpcRefusal } from './function-errors'
 import { parseRpc } from './parse'
 
@@ -100,6 +102,42 @@ const requestPayload = z
   }))
 export type ContractRequest = z.output<typeof requestPayload>
 
+/** A paper contract's file (the stored PDF), only to compensation readers. */
+const paperFilePayload = z
+  .object({ id: z.string(), name: z.string(), mime_type: z.string(), size_bytes: z.number() })
+  .transform((f) => ({ id: f.id, name: f.name, mimeType: f.mime_type, sizeBytes: f.size_bytes }))
+
+/**
+ * A contract that is or was in force (P4-522): a Documenso request that was signed, or a paper
+ * contract signed outside the app (P4-520: its signature date, a calendar date, who uploaded it
+ * and when; the file only when `canRead`).
+ */
+const inForcePayload = z.union([
+  z.object({ kind: z.literal('signed'), request: requestPayload }).transform((c) => ({ kind: 'signed' as const, request: c.request })),
+  z
+    .object({
+      kind: z.literal('paper'),
+      id: z.string(),
+      signed_on: z.string(),
+      created_at: z.string(),
+      uploaded_by_name: z.string().nullable(),
+      can_read: z.boolean(),
+      file: paperFilePayload.nullable(),
+    })
+    .transform((c) => ({
+      kind: 'paper' as const,
+      id: c.id,
+      /** `YYYY-MM-DD`: format with `formatDateOnly*`, never through a timezone. */
+      signedOn: c.signed_on,
+      uploadedAt: c.created_at,
+      uploadedByName: c.uploaded_by_name,
+      canRead: c.can_read,
+      file: c.file,
+    })),
+])
+export type ContractInForce = z.output<typeof inForcePayload>
+export type PaperContract = Extract<ContractInForce, { kind: 'paper' }>
+
 export const contractPayload = z
   .object({
     template: z
@@ -114,14 +152,24 @@ export const contractPayload = z
     // The contract's only (the image consent is signed by the professional alone).
     clinic_signer: z.boolean().default(false),
     request: requestPayload.nullable(),
+    // The service contract's only (P4-525); the image consent's card has neither.
+    current: inForcePayload.nullable().default(null),
+    previous: z.array(inForcePayload).default([]),
   })
   .transform((c) => ({
     /** The published version that a send would use; null when nothing is published (or no template). */
     publishedVersion: c.template?.published_version ?? null,
     /** Settings « Signataire » has a name and an address: the clinic signs second. */
     clinicSigner: c.clinic_signer,
-    /** The latest request of the form, or null. */
+    /**
+     * The request at work: the latest one of the form; for the contract, once one is in force,
+     * only a request made after it (a renewal), else null.
+     */
     request: c.request,
+    /** The service contract in force (a signed request or a paper contract), or null. */
+    current: c.current,
+    /** The earlier contracts in force, newest first, never deleted. */
+    previous: c.previous,
   }))
 export type ProfessionalContract = z.output<typeof contractPayload>
 
@@ -142,7 +190,8 @@ export async function fetchProfessionalImageConsent(id: string): Promise<Profess
 // --- Sending (professionals-contract-send) -------------------------------------------------------
 
 export const CONTRACT_FUNCTION = 'professionals-contract-send'
-export type ContractAction = 'send' | 'regenerate' | 'resend'
+/** `renew`: « Préparer un nouveau contrat » on a contract in force (the service contract's only, P4-524). */
+export type ContractAction = 'send' | 'renew' | 'regenerate' | 'resend'
 
 const sentPayload = z.object({ request_id: z.string() })
 
@@ -218,6 +267,45 @@ export async function previewProfessionalContract(
   const parsed = previewPayload.safeParse(data)
   if (!parsed.success) throw new FunctionCallError('internal', 200, 'Unexpected answer')
   return parsed.data
+}
+
+// --- « Contrat signé hors application » (P4-520) ------------------------------------------------
+
+/** The paper contract's upload purpose (`upload_purposes`: PDF, 20 Mo, read with `.compensation`). */
+export const PAPER_CONTRACT_PURPOSE = 'professional_contract'
+export const PAPER_CONTRACT_MAX_BYTES = 20_971_520
+export const PAPER_CONTRACT_MIME = ['application/pdf'] as const
+
+export interface PaperContractInput {
+  professionalId: string
+  file: File
+  mimeType: string
+  /** `YYYY-MM-DD`, the day it was signed (not in the future). */
+  signedOn: string
+  onStep?: (step: UploadStep) => void
+}
+
+/**
+ * « Téléverser un contrat signé » / « Remplacer »: the PDF through the storage pipeline (subject
+ * the professional), then `record_professional_paper_contract` (both contract permissions, the
+ * date, the file, no request open). Resolves with the paper contract's id.
+ */
+export async function recordPaperContract(input: PaperContractInput): Promise<string> {
+  const { fileId } = await uploadFile({
+    purpose: PAPER_CONTRACT_PURPOSE,
+    subjectType: 'professional',
+    subjectId: input.professionalId,
+    file: input.file,
+    mimeType: input.mimeType,
+    onStep: input.onStep,
+  })
+  const { data, error } = await supabase.rpc('record_professional_paper_contract', {
+    p_id: input.professionalId,
+    p_file_id: fileId,
+    p_signed_on: input.signedOn,
+  })
+  if (error) throw error
+  return parseRpc(z.string(), data)
 }
 
 // --- « Paramètres → Contrats et formulaires »: templates and versions -------------------------------

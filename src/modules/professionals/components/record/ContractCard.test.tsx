@@ -1,18 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import type { FixtureRole } from '@/test/role-fixtures'
 import { IDS } from '../../test/fixtures'
 import { pageCountOf, pdfWithPages } from '@/core/signing/test/pdf-fixture'
-import { contractJson, parsedContract, REQUEST_ID, requestJson, SIGNED_FILE, SIGNED_REQUEST, SOURCE_FILE } from '../../test/fixtures-contract'
+import {
+  contractJson,
+  PAPER_FILE,
+  PAPER_ID,
+  paperJson,
+  parsedContract,
+  REQUEST_ID,
+  requestJson,
+  SIGNED_FILE,
+  SIGNED_REQUEST,
+  signedInForceJson,
+  SOURCE_FILE,
+} from '../../test/fixtures-contract'
 import { recordFixture } from '../../test/fixtures-domain'
 import { renderRecordTab } from '../../test/record-tab'
 import { ContractCard } from './ContractCard'
 
 const mocks = vi.hoisted(() => ({
-  contracts: { fetchProfessionalContract: vi.fn(), sendProfessionalContract: vi.fn(), previewProfessionalContract: vi.fn() },
+  contracts: { fetchProfessionalContract: vi.fn(), sendProfessionalContract: vi.fn(), previewProfessionalContract: vi.fn(), recordPaperContract: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn() },
   sync: vi.fn(),
   documentDownloadUrl: vi.fn(),
@@ -325,7 +337,8 @@ describe('ContractCard (Task 4d.3)', () => {
     expect(screen.getByText(/^Envoyé le .+ · Refusé le .+$/)).toBeInTheDocument()
     expect(screen.getByText(t(`${C}.reason`))).toBeInTheDocument()
     expect(screen.getByText('Le taux ne correspond pas.')).toBeInTheDocument()
-    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${A}.regenerate`)])
+    // Nothing at work: a contract signed on paper may be recorded instead (P4-521).
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${A}.regenerate`), t(`${A}.uploadPaper`)])
   })
 
   it('a failed draft offers « Réessayer l’envoi » (the same request) and « Régénérer », and says which to use', async () => {
@@ -345,5 +358,114 @@ describe('ContractCard (Task 4d.3)', () => {
     await openCard(contractJson(requestJson({ status: 'draft', sent_at: null, last_error: null, send_started_at: new Date().toISOString() })))
     expect(screen.getByText(t(`${C}.state.sending`))).toBeInTheDocument()
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${A}.sync`)])
+  })
+})
+
+describe('ContractCard: a contract in force, its renewal, a paper contract (P4-520 – P4-525)', () => {
+  const pdf = () => new File(['%PDF-1.4 contrat signé'], 'contrat.pdf', { type: 'application/pdf' })
+  const fileInput = (dialog: HTMLElement) => dialog.querySelector('input[type="file"]') as HTMLInputElement
+
+  it('a paper contract in force: its date as written, who uploaded it, its PDF, « Préparer un nouveau contrat » and « Remplacer »', async () => {
+    await openCard(contractJson(null, { current: paperJson() }))
+    expect(screen.getByRole('heading', { name: t(`${C}.inForce.title`) })).toBeInTheDocument()
+    // A calendar date, never shifted by a timezone (CLAUDE.md §9).
+    expect(screen.getByText(/^Signé hors application le 1 mai 2023$/)).toBeInTheDocument()
+    expect(screen.getByText(/^Téléversé le .+ par Admin A$/)).toBeInTheDocument()
+    expect(screen.queryByText(t(`${C}.state.none`))).toBeNull()
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
+      t(`${A}.openPaper`),
+      t(`${A}.downloadPaper`),
+      t(`${A}.renew`),
+      t(`${A}.replacePaper`),
+    ])
+    expect(screen.getByRole('button', { name: t(`${A}.replacePaperLabel`, { firstName: 'Marie' }) })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.downloadPaperLabel`, { date: '1 mai 2023' }) }))
+    await waitFor(() => expect(mocks.documentDownloadUrl).toHaveBeenCalledExactlyOnceWith(PAPER_FILE))
+  })
+
+  it('the conseillère reads that a paper contract is in force, never its file, and has no action', async () => {
+    await openCard(contractJson(null, { current: paperJson({ can_read: false, file: null }) }), { role: 'counselor' })
+    expect(screen.getByText(/^Signé hors application le 1 mai 2023$/)).toBeInTheDocument()
+    expect(screen.getByText(t(`${C}.restricted`))).toBeInTheDocument()
+    expect(screen.queryAllByRole('button')).toEqual([])
+  })
+
+  it('a renewal out for signature: the signed contract stays in force above « Nouveau contrat », whose actions are the renewal’s', async () => {
+    await openCard(contractJson(requestJson({ id: 'renewal' }), { current: signedInForceJson() }))
+    expect(screen.getByRole('heading', { name: t(`${C}.inForce.title`) })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: t(`${C}.renewal.title`) })).toBeInTheDocument()
+    expect(screen.getByText(t(`${C}.renewal.help`))).toBeInTheDocument()
+    expect(screen.getByText('Signé')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })).toBeInTheDocument()
+    expect(button(t(`${A}.sync`))).not.toBeNull()
+    expect(button(t(`${A}.resend`))).not.toBeNull()
+    expect(button(t(`${A}.regenerate`))).not.toBeNull()
+    // One live contract: no other new contract, no paper upload while the renewal is out.
+    expect(button(t(`${A}.renew`))).toBeNull()
+    expect(button(t(`${A}.uploadPaper`))).toBeNull()
+  })
+
+  it('« Préparer un nouveau contrat » says the signed one stays in force, then previews and sends `renew` (P4-524)', async () => {
+    mocks.contracts.previewProfessionalContract.mockResolvedValue(PREVIEW)
+    mocks.contracts.sendProfessionalContract.mockResolvedValue(REQUEST_ID)
+    await openCard(contractJson(null, { current: signedInForceJson() }))
+    expect(button(t(`${A}.uploadPaper`))).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.renew`) }))
+    const confirm = await screen.findByRole('alertdialog', { name: t(`${C}.confirm.renew.title`, { firstName: 'Marie' }) })
+    expect(confirm).toHaveTextContent("Le contrat signé actuel reste en vigueur jusqu'à la signature du nouveau.")
+    expect(mocks.contracts.previewProfessionalContract).not.toHaveBeenCalled()
+    await userEvent.click(within(confirm).getByRole('button', { name: t(`${C}.confirm.renew.action`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${P}.title`, { firstName: 'Marie' }) })
+    await within(dialog).findByTitle(t(`${P}.frameTitle`))
+    expect(dialog).toHaveTextContent(t(`${P}.inForceNote`))
+    const [, action, key] = mocks.contracts.previewProfessionalContract.mock.calls[0]!
+    expect(action).toBe('renew')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.send`, { firstName: 'Marie' }) }))
+    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'renew', key, 'service_contract'))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.toasts.renew`, { firstName: 'Marie' })))
+  })
+
+  it('« Contrats précédents »: folded, then each earlier contract with its PDF', async () => {
+    await openCard(contractJson(null, { current: signedInForceJson(), previous: [paperJson({ id: 'old-paper' })] }))
+    expect(screen.queryByRole('list', { name: t(`${C}.previous.label`) })).toBeNull()
+    const toggle = screen.getByRole('button', { name: t(`${C}.previous.show`, { count: '1' }) })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(toggle)
+    const list = screen.getByRole('list', { name: t(`${C}.previous.label`) })
+    expect(within(list).getByText(/^Signé hors application le 1 mai 2023$/)).toBeInTheDocument()
+    expect(within(list).getByRole('button', { name: t(`${A}.openPaperLabel`, { date: '1 mai 2023' }) })).toBeInTheDocument()
+  })
+
+  it('« Téléverser un contrat signé »: the date first (never in the future), then the PDF, recorded with its date', async () => {
+    mocks.contracts.recordPaperContract.mockResolvedValue(PAPER_ID)
+    await openCard(contractJson(null))
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.uploadPaper`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${C}.paper.title`) })
+    // No date: nothing is sent, the field says why.
+    await userEvent.upload(fileInput(dialog), pdf())
+    expect(await within(dialog).findAllByText(t(`${C}.paper.errors.required`))).not.toHaveLength(0)
+    const date = within(dialog).getByLabelText(new RegExp(t(`${C}.paper.signedOn`)))
+    fireEvent.change(date, { target: { value: '2999-01-01' } })
+    await userEvent.upload(fileInput(dialog), pdf())
+    expect(await within(dialog).findAllByText(t(`${C}.paper.errors.future`))).not.toHaveLength(0)
+    expect(mocks.contracts.recordPaperContract).not.toHaveBeenCalled()
+    fireEvent.change(date, { target: { value: '2023-05-01' } })
+    await userEvent.upload(fileInput(dialog), pdf())
+    await waitFor(() => expect(mocks.contracts.recordPaperContract).toHaveBeenCalledTimes(1))
+    expect(mocks.contracts.recordPaperContract.mock.calls[0]![0]).toMatchObject({ professionalId: IDS.professional, signedOn: '2023-05-01', mimeType: 'application/pdf' })
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.toasts.paperRecorded`)))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('« Remplacer » says the current one goes to « Contrats précédents »', async () => {
+    await openCard(contractJson(null, { current: paperJson() }))
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.replacePaperLabel`, { firstName: 'Marie' }) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${C}.paper.replaceTitle`) })
+    expect(dialog).toHaveTextContent(t(`${C}.paper.replaceNote`))
+  })
+
+  it('without the pay permission, no paper upload (P4-521)', async () => {
+    await openCard(contractJson(null), { role: 'admin_assistant', permissions: ['professionals.view', 'professionals.manage', 'professionals.contracts.send'] })
+    expect(button(t(`${A}.uploadPaper`))).toBeNull()
   })
 })

@@ -43,8 +43,8 @@ beforeEach(() => {
   mocks.submissions.fetchSubmissionReview.mockResolvedValue(submissionReview())
   mocks.private.fetchProfessionalPrivate.mockResolvedValue({ bankAccountLast4: '4567', sinLast3: null })
   mocks.documents.fetchProfessionalDocuments.mockResolvedValue(documentsFixture())
-  mocks.contracts.fetchProfessionalContract.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null })
-  mocks.contracts.fetchProfessionalImageConsent.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null })
+  mocks.contracts.fetchProfessionalContract.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null, current: null, previous: [] })
+  mocks.contracts.fetchProfessionalImageConsent.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null, current: null, previous: [] })
 })
 afterEach(() => vi.clearAllMocks())
 

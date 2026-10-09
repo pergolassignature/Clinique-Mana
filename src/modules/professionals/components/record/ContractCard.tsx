@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
@@ -7,7 +7,7 @@ import { SignedDocumentDownloads } from '@/core/signing/components/SignedDocumen
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
-import { formatClinicDateShort } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnlyShort } from '@/shared/lib/timezone'
 import { useNow } from '@/shared/lib/use-now'
 import { cn } from '@/shared/lib/utils'
 import {
@@ -22,10 +22,13 @@ import {
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { StatusDot } from '@/shared/ui/status-dot'
-import type { ContractAction, ContractRequest, ContractSigner, ProfessionalContract, SigningForm } from '../../api/contracts'
+import type { ContractAction, ContractInForce, ContractRequest, ContractSigner, PaperContract, ProfessionalContract, SigningForm } from '../../api/contracts'
 import { formTextRoot, useProfessionalContract, useSendContract, useSyncContract } from '../../hooks/use-contracts'
-import { contractButtons, contractState, contractStateLabel, signerRoleLabel, type ContractState } from '../../lib/contract'
+import { useDocumentDownload } from '../../hooks/use-documents'
+import { canSendForm, contractButtons, contractState, contractStateLabel, signerRoleLabel, type ContractState } from '../../lib/contract'
 import { RefusalAlert } from '../compensation/DatedRowParts'
+import { DocumentPreview } from './DocumentPreview'
+import { PaperContractDialog } from './PaperContractDialog'
 import { useRecordData } from './record-context'
 import { SigningPreviewDialog, type PreviewSource } from './SigningPreviewDialog'
 
@@ -38,6 +41,12 @@ const C = 'modules.professionals.contract'
  * sees the state (`get_professional_contract`, `professionals.view`); only those who may read the
  * contract (`professionals.compensation`: it prints the pay, P4-435) open the signed PDF or
  * synchronise, and only senders (`professionals.contracts.send` with `.compensation`) send.
+ *
+ * Once a contract is in force (P4-522: signed through Documenso, or on paper and uploaded, P4-520)
+ * the card shows it first (« Contrat en vigueur »), then the request at work under « Nouveau
+ * contrat » (a renewal, P4-524: the signed one stays in force until the new one is signed), then
+ * « Contrats précédents » (P4-523), each with its PDF for compensation readers. The paper contract
+ * is staff-only: « Mes documents » never shows a contract (P4-527).
  */
 export function ContractCard() {
   const { record } = useRecordData()
@@ -59,10 +68,204 @@ export function ContractCard() {
             onRetry={() => void contract.refetch()}
           />
         ) : contract.data === null ? null : (
-          <SigningBody form="service_contract" contract={contract.data} />
+          <ServiceContractBody contract={contract.data} />
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/** States in which nothing is at work: a paper contract may be recorded (P4-521). */
+const SETTLED: readonly ContractState[] = ['none', 'rejected', 'expired', 'cancelled', 'abandoned']
+
+/** The service contract: the contract in force, the request at work, the previous contracts (P4-525). */
+function ServiceContractBody({ contract }: { contract: ProfessionalContract }) {
+  const { record } = useRecordData()
+  const { professional } = record
+  const { can } = useAccess()
+  const now = useNow(60_000)
+  const [paperDialog, setPaperDialog] = useState(false)
+  const opener = useRef<HTMLButtonElement | null>(null)
+  const inForceId = useId()
+  const renewalId = useId()
+  const { current, previous, request } = contract
+  const sender = canSendForm('service_contract', can)
+  // « Téléverser un contrat signé » when nothing is in force, « Remplacer » a paper one; never while
+  // a contract is being sent or waits for a signature (one live contract, P4-521).
+  const paperAction =
+    sender && SETTLED.includes(contractState(request, now)) && (current === null || current.kind === 'paper') ? (current === null ? 'upload' : 'replace') : null
+  const paperButton = paperAction && (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      aria-label={paperAction === 'replace' ? t(`${C}.actions.replacePaperLabel`, { firstName: professional.firstName }) : undefined}
+      onClick={(event) => {
+        opener.current = event.currentTarget
+        setPaperDialog(true)
+      }}
+    >
+      {paperAction === 'upload' ? t(`${C}.actions.uploadPaper`) : t(`${C}.actions.replacePaper`)}
+    </Button>
+  )
+
+  return (
+    <div className="space-y-5">
+      {current === null ? (
+        <SigningBody form="service_contract" contract={contract} extraActions={paperButton} />
+      ) : (
+        <>
+          <section aria-labelledby={inForceId} className="space-y-2">
+            <h4 id={inForceId} className="text-sm font-semibold text-foreground">
+              {t(`${C}.inForce.title`)}
+            </h4>
+            {current.kind === 'signed' ? <SigningBody form="service_contract" contract={{ ...contract, request: current.request }} /> : <PaperContractView paper={current} />}
+          </section>
+          {(request !== null || sender) && (
+            <section aria-labelledby={request !== null ? renewalId : undefined} className="space-y-2 border-t border-border-light pt-4">
+              {request !== null && (
+                <>
+                  <h4 id={renewalId} className="text-sm font-semibold text-foreground">
+                    {t(`${C}.renewal.title`)}
+                  </h4>
+                  <p className="text-xs text-muted-foreground">{t(`${C}.renewal.help`)}</p>
+                </>
+              )}
+              <SigningBody form="service_contract" contract={contract} inForce extraActions={paperButton} />
+            </section>
+          )}
+        </>
+      )}
+      {previous.length > 0 && <PreviousContracts previous={previous} />}
+      {paperDialog && (
+        <PaperContractDialog
+          professionalId={professional.id}
+          firstName={professional.firstName}
+          replace={current?.kind === 'paper'}
+          onClose={() => setPaperDialog(false)}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            opener.current?.focus()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * A paper contract (P4-520): « Signé hors application le … » (a calendar date), who uploaded it
+ * and when, then « Aperçu » and « Télécharger » for compensation readers (a URL signed at each
+ * press, P4-455); the others read why not.
+ */
+function PaperContractView({ paper, compact = false }: { paper: PaperContract; compact?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const opener = useRef<HTMLButtonElement | null>(null)
+  const download = useDocumentDownload()
+  const date = formatDateOnlyShort(paper.signedOn)
+  const uploaded = formatClinicDateShort(paper.uploadedAt)
+  return (
+    <div className="space-y-2">
+      <div className="space-y-0.5">
+        <p className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+          {!compact && <StatusDot tone="success" />}
+          {t(compact ? `${C}.previous.paper` : `${C}.inForce.paper`, { date })}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {paper.uploadedByName ? t(`${C}.inForce.uploaded`, { date: uploaded, name: paper.uploadedByName }) : t(`${C}.inForce.uploadedNoName`, { date: uploaded })}
+        </p>
+      </div>
+      {paper.file ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-label={t(`${C}.actions.openPaperLabel`, { date })}
+            onClick={(event) => {
+              opener.current = event.currentTarget
+              setOpen(true)
+            }}
+          >
+            {t(`${C}.actions.openPaper`)}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-label={t(`${C}.actions.downloadPaperLabel`, { date })}
+            aria-disabled={download.isPending || undefined}
+            className={softDisabledClasses}
+            onClick={ignoreWhenInactive(download.isPending, () => download.mutate(paper.file!.id))}
+          >
+            {t(`${C}.actions.downloadPaper`)}
+          </Button>
+        </div>
+      ) : (
+        !paper.canRead && <p className="text-xs text-muted-foreground">{t(`${C}.restricted`)}</p>
+      )}
+      {open && paper.file && (
+        <DocumentPreview
+          file={paper.file}
+          typeName={t(`${C}.inForce.paperDocument`)}
+          onClose={() => setOpen(false)}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            opener.current?.focus()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** « Contrats précédents (n) » (P4-523): folded; each earlier contract with its PDF, never deleted. */
+function PreviousContracts({ previous }: { previous: readonly ContractInForce[] }) {
+  const { record } = useRecordData()
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  return (
+    <div className="space-y-2 border-t border-border-light pt-4">
+      <Button type="button" size="sm" variant="ghost" aria-expanded={open} aria-controls={open ? listId : undefined} onClick={() => setOpen((value) => !value)}>
+        {open ? t(`${C}.previous.hide`) : t(`${C}.previous.show`, { count: String(previous.length) })}
+      </Button>
+      {open && (
+        <ul id={listId} aria-label={t(`${C}.previous.label`)} className="divide-y divide-border-light border-y border-border-light">
+          {previous.map((entry) => (
+            <li key={entry.kind === 'signed' ? entry.request.id : entry.id} className="space-y-2 py-3">
+              {entry.kind === 'paper' ? (
+                <PaperContractView paper={entry} compact />
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-foreground">
+                    {t(`${C}.previous.signed`, { date: entry.request.completedAt ? formatClinicDateShort(entry.request.completedAt) : '' })}
+                    {entry.request.templateVersion != null && (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">{t(`${C}.version`, { version: String(entry.request.templateVersion) })}</span>
+                    )}
+                  </p>
+                  {entry.request.canRead && entry.request.signedFileId ? (
+                    <SignedDocumentDownloads
+                      key={entry.request.signedFileId}
+                      files={{
+                        title: entry.request.title,
+                        completedAt: entry.request.completedAt,
+                        signedFileId: entry.request.signedFileId,
+                        sourceFileId: entry.request.sourceFileId,
+                        pageCount: entry.request.pageCount,
+                      }}
+                      documentLabel={t(`${C}.actions.pdf`)}
+                      documentAriaLabel={t(`${C}.actions.pdfLabel`, { firstName: record.professional.firstName })}
+                    />
+                  ) : (
+                    !entry.request.canRead && <p className="text-xs text-muted-foreground">{t(`${C}.restricted`)}</p>
+                  )}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -100,7 +303,19 @@ function signerProgress(signer: ContractSigner): string {
  * required-document card, P4-485): the words come from the form's own root (`formTextRoot`) where
  * they name the document, from the contract's where they do not.
  */
-export function SigningBody({ form, contract }: { form: SigningForm; contract: ProfessionalContract }) {
+export function SigningBody({
+  form,
+  contract,
+  inForce = false,
+  extraActions = null,
+}: {
+  form: SigningForm
+  contract: ProfessionalContract
+  /** The service contract has a contract in force: `request` is a renewal, or null (« Préparer un nouveau contrat », P4-524). */
+  inForce?: boolean
+  /** More buttons in the actions' row (« Téléverser un contrat signé », « Remplacer », P4-521). */
+  extraActions?: ReactNode
+}) {
   const { record } = useRecordData()
   const { professional } = record
   const { can } = useAccess()
@@ -119,11 +334,13 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
   const now = useNow(60_000)
   const state = contractState(request, now)
   const status = contractStateLabel(request, now, form)
-  const buttons = contractButtons(state, request, can, form)
+  const buttons = contractButtons(state, request, can, form, inForce)
+  // A contract in force and nothing at work: no state to tell, only « Préparer un nouveau contrat ».
+  const idle = inForce && request === null
   // The confirmation's words; the image consent's renewal after a signature has its own.
   const confirmText = (action: ContractAction, part: 'title' | 'body' | 'action', values?: Record<string, string>) =>
     form === 'image_consent'
-      ? t(`modules.professionals.imageConsent.confirm.${state === 'signed' ? 'renew' : action}.${part}`, values)
+      ? t(`modules.professionals.imageConsent.confirm.${state === 'signed' || action === 'renew' ? 'renew' : action}.${part}`, values)
       : t(`${C}.confirm.${action}.${part}`, values)
   // The signed PDF's downloads (core, P4-500): the document, the certificate and journal, the sealed
   // proof; the image consent's once signed and readable (its renewal is the card's action).
@@ -138,7 +355,8 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
 
   const confirm = (action: ContractAction) => {
     setRefusal(null)
-    if (action === 'resend') setConfirming(action)
+    // « Renvoyer » sends at once; « Préparer un nouveau contrat » says first that the signed one stays (P4-524).
+    if (action === 'resend' || action === 'renew') setConfirming(action)
     else setPreview({ kind: 'prepare', action, key: send.previewKey(action) })
   }
   const closePreview = () => {
@@ -159,12 +377,14 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
   const run = () => {
     if (confirming === null) return
     const action = confirming
-    send.run(action, recipientOf(action))
     setConfirming(null)
+    if (action === 'renew') setPreview({ kind: 'prepare', action, key: send.previewKey(action) })
+    else send.run(action, recipientOf(action))
   }
 
   return (
     <div className="space-y-3">
+      {!idle && (
       <div className="space-y-0.5">
         <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
           <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
@@ -188,6 +408,7 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
           </p>
         )}
       </div>
+      )}
 
       {request !== null && request.signers.length > 0 && state !== 'none' && (
         <ul aria-label={t(`${C}.signersLabel`)} className="divide-y divide-border-light border-y border-border-light text-sm">
@@ -213,7 +434,7 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
           ) : null}
         </p>
       )}
-      {form === 'service_contract' && sends && !noTemplate && state === 'none' && !contract.clinicSigner && (
+      {form === 'service_contract' && sends && !noTemplate && state === 'none' && !inForce && !contract.clinicSigner && (
         <p className="text-xs text-muted-foreground">{t(`${C}.noClinicSigner`)}</p>
       )}
       {form === 'service_contract' && state === 'signed' && !request?.canRead && <p className="text-xs text-muted-foreground">{t(`${C}.restricted`)}</p>}
@@ -256,7 +477,7 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
         />
       )}
 
-      {(buttons.some((b) => b.kind !== 'pdf') || state === 'signed' || sentSource) && (
+      {(buttons.some((b) => b.kind !== 'pdf') || state === 'signed' || sentSource || extraActions) && (
         <div className="flex flex-wrap gap-2">
           {buttons.map((button) => {
             if (button.kind === 'pdf') return null
@@ -275,7 +496,7 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
                 </Button>
               )
             }
-            const primary = button.action === 'send' && !(form === 'image_consent' && state === 'signed')
+            const primary = (button.action === 'send' || button.action === 'renew') && !(form === 'image_consent' && state === 'signed')
             const unavailable = noTemplate && button.action !== 'resend'
             return (
               <Button
@@ -313,6 +534,7 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
               {journal ? t(`${C}.actions.hideJournal`) : t(`${C}.actions.journal`)}
             </Button>
           )}
+          {extraActions}
         </div>
       )}
 
@@ -329,7 +551,9 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
         note={
           form === 'image_consent' && state === 'signed'
             ? t('modules.professionals.imageConsent.confirm.renew.body', { firstName: professional.firstName, version: String(contract.publishedVersion ?? '') })
-            : undefined
+            : inForce
+              ? t(`${C}.preview.inForceNote`)
+              : undefined
         }
         onCloseAutoFocus={(event) => {
           event.preventDefault()

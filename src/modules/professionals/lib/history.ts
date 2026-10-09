@@ -597,6 +597,22 @@ function contractRow(entry: HistoryEntry): Described | null {
   return isOneOf(CONTRACT_STATUSES, status) ? { kind: 'change', sentence: t(`${S}.${status}`), lines: [] } : null
 }
 
+const PAPER_CONTRACT_TABLE = 'professional_paper_contracts'
+
+/**
+ * A service contract signed outside the app (P4-520, P4-526): « a téléversé un contrat de service
+ * signé hors application (signé le …) », its signature date a calendar date. « Remplacer » is a
+ * second upload; the rows are never updated nor deleted by the app.
+ */
+function paperContractRow(entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.paperContract`
+  if (entry.action !== 'insert') return null
+  const signedOn = fieldsOf(entry).signed_on
+  return typeof signedOn === 'string' && DATE_ONLY.test(signedOn)
+    ? { kind: 'change', sentence: t(`${S}.uploaded`, { date: formatDateOnlyShort(signedOn) }), lines: [] }
+    : { kind: 'change', sentence: t(`${S}.uploadedNoDate`), lines: [] }
+}
+
 /** One audit row of a table that is not a set, as a sentence and its details. */
 function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
   if (entry.tableName === PRIVATE_TABLE) {
@@ -616,6 +632,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.tableName === DOCUMENTS_TABLE && entry.action !== 'read') return documentRow(ctx, entry)
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
+  if (entry.tableName === PAPER_CONTRACT_TABLE) return paperContractRow(entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)
