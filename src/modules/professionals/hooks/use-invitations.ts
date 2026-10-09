@@ -6,6 +6,7 @@ import { retryInText } from '@/shared/lib/retry-after'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { toast } from '@/shared/ui/sonner'
 import {
+  copyProfessionalInvitationLink,
   fetchInvitationStates,
   fetchProfessionalEmails,
   fetchProfessionalOnboarding,
@@ -76,9 +77,11 @@ export type EmailAbout = { kind: 'invitation' } | { kind: 'update'; firstName: s
 
 /**
  * Why the email did not leave, and what to do (the toast's second line).
- * - An invitation: « Utilisez « Renvoyer l'invitation » dans un moment. » only where re-sending can
- *   help: a refused address must be corrected first (the cause says where), an unconfigured
- *   sender or a module switched off fails again until someone acts; a sending limit says when.
+ * - An invitation: the link exists (P4-490). « Utilisez « Renvoyer l'invitation » dans un moment. »
+ *   only where re-sending can help: a refused address must be corrected first (the cause says
+ *   where), an unconfigured sender or a module switched off fails again until someone acts; a
+ *   sending limit says when. Except for a refused address (the link is bound to it, P4-300), it
+ *   ends with « Copier le lien d'invitation », to hand it over another way (P4-491).
  * - An update request stays open whatever the cause, and has no re-send (P4-267): every cause
  *   ends with how the professional learns of it (« La demande reste ouverte : prévenez {Prénom}
  *   … »). A refused address is corrected by the professional in « Mon compte » (an account
@@ -92,9 +95,11 @@ export function emailProblemText({ code, retryAfter }: EmailProblem, about: Emai
     return `${cause} ${t(`${I}.emailAdvice.update`, { firstName })}`
   }
   const cause = t(`${I}.emailProblems.${known}`)
-  if (known === 'rate_limited') return `${cause} ${retryInText(retryAfter)}`
-  if (known === 'invalid_request' || known === 'not_configured' || known === 'module_disabled') return cause
-  return `${cause} ${t(`${I}.emailAdvice.invitation`)}`
+  if (known === 'invalid_request') return cause
+  const copy = t(`${I}.emailAdvice.copyLink`)
+  if (known === 'rate_limited') return `${cause} ${retryInText(retryAfter)} ${copy}`
+  if (known === 'not_configured' || known === 'module_disabled') return `${cause} ${copy}`
+  return `${cause} ${t(`${I}.emailAdvice.invitation`)} ${copy}`
 }
 
 // --- Actions -------------------------------------------------------------------------------------
@@ -177,6 +182,21 @@ export function useRequestUpdate(feedback?: MutationFeedback) {
       } else toast.success(t(`${I}.toasts.updateSent`, { email }))
     },
     onError: (error) => onActionError(queryClient, error, feedback, t(`${I}.errors.updateFailed`)),
+    onSettled: (_data, _error, { id }) => refreshAfterAction(queryClient, id),
+  })
+}
+
+/**
+ * « Copier le lien d'invitation » (P4-491): the link lives in the dialog's state only. `gcTime: 0`
+ * and the dialog resets the mutation once it holds the link, so no cache keeps it. The record, the
+ * lists and the history are refreshed (the previous link was revoked, the copy is audited).
+ */
+export function useCopyInvitationLink(feedback?: MutationFeedback) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => copyProfessionalInvitationLink(id),
+    gcTime: 0,
+    onError: (error) => onActionError(queryClient, error, feedback, t(`${I}.errors.copyFailed`)),
     onSettled: (_data, _error, { id }) => refreshAfterAction(queryClient, id),
   })
 }

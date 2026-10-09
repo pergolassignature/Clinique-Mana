@@ -118,7 +118,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     }
   }
   const invitation = (state: InvitationInfo['state'], extra: Partial<InvitationInfo> = {}): Onboarding => ({
-    invitation: { state, sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: null, usedAt: null, ...extra },
+    invitation: { state, sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: null, usedAt: null, delivery: 'email', emailStatus: 'sent', emailError: null, ...extra },
     submission: null,
     onboardingApproved: false,
   })
@@ -168,6 +168,39 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
       message: t(`${N}.invitationExpired`, { date: '8 oct.' }),
       action: { kind: 'invite', label: 'Envoyer un nouveau lien', action: 'new_link' },
     })
+  })
+
+  it('an invitation email that did not leave says so and why, with « Renvoyer » and « Copier le lien » (P4-490)', () => {
+    const failed = invitation('sent', { emailStatus: null, emailError: 'not_configured' })
+    expect(nextAction(onboardingFile(), failed, can(...INVITE), NOW)).toEqual({
+      message:
+        "Le courriel d'invitation du 8 oct. n'est pas parti : Marie n'a pas reçu son lien. La clinique n'a pas encore configuré l'envoi de courriels (Paramètres → Courriels).",
+      action: { kind: 'invite', label: "Renvoyer l'invitation", action: 'resend' },
+      secondary: { kind: 'copyLink', label: "Copier le lien d'invitation" },
+    })
+    // Before the matching gaps, as an expired link.
+    expect(nextAction(withReadiness(['motif'], 'invited'), failed, can(...INVITE), NOW).message).toMatch(/^Le courriel d'invitation du 8 oct\. n'est pas parti/)
+    const bounced = nextAction(onboardingFile(), invitation('sent', { emailStatus: 'bounced' }), can(...INVITE), NOW)
+    expect(bounced.message).toMatch(/n'est pas parti.*L'adresse a refusé le courriel\.$/)
+    // Without professionals.invite: the sentence, no button.
+    const reader = nextAction(onboardingFile(), failed, can('professionals.manage', 'professionals.matching'), NOW)
+    expect([reader.action, reader.secondary]).toEqual([null, null])
+    expect(reader.message).toMatch(/^Le courriel d'invitation du 8 oct\. n'est pas parti/)
+  })
+
+  it('never « Invitation envoyée » without an email: copied, sending, unknown', () => {
+    expect(nextAction(onboardingFile(), invitation('sent', { delivery: 'copied', emailStatus: null }), can(...INVITE), NOW)).toEqual({
+      message: "Lien d'invitation copié le 8 oct. : Marie n'a pas encore créé son accès.",
+      action: null,
+    })
+    const justNow = invitation('sent', { emailStatus: null, sentAt: new Date(NOW - 1000).toISOString() })
+    expect(nextAction(onboardingFile(), justNow, can(...INVITE), NOW)).toEqual({ message: "L'invitation de Marie est en cours d'envoi.", action: null })
+    const unknown = nextAction(onboardingFile(), invitation('sent', { emailStatus: 'failed', emailError: 'provider_unavailable' }), can(...INVITE), NOW)
+    expect(unknown.message).toBe(`Invitation du 8 oct. : ${t('email.failure.unknownOutcome')}. ${t('email.failure.unknownOutcomeHint')}`)
+    expect(unknown.secondary).toEqual({ kind: 'copyLink', label: "Copier le lien d'invitation" })
+    expect(nextAction(onboardingFile(), invitation('sent', { emailStatus: 'delivered' }), can(...INVITE), NOW).message).toBe(
+      "Invitation envoyée le 8 oct. : Marie n'a pas encore créé son accès.",
+    )
   })
 
   it('matching gaps come before an invitation not yet sent', () => {

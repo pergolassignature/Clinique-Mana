@@ -62,7 +62,7 @@ export function MyProfilePage() {
   }
   if (!record.data) {
     return (
-      <div className="mx-auto max-w-form space-y-2">
+      <div className="w-full max-w-form space-y-2">
         <PageHeader level={1} title={t(`${P}.pageTitle`)} />
         <EmptyState title={t(`${P}.noFile.title`)} body={t(`${P}.noFile.body`)} />
       </div>
@@ -78,7 +78,7 @@ function MyProfile({ record, submission, catalog }: { record: MyProfessionalReco
   const title = primary ? catalog.byId.titles.get(primary.titleId) : undefined
   const summary = (section: ProfileSection) => <ProfileSectionSummary section={section} values={values[section]} catalog={catalog} gender={professional.gender} />
   return (
-    <div className="mx-auto max-w-form space-y-5">
+    <div className="w-full max-w-form space-y-5">
       <PageHeader
         level={1}
         title={t(`${P}.pageTitle`)}

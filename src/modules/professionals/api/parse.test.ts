@@ -253,10 +253,27 @@ describe('onboardingPayload', () => {
         onboarding_approved: false,
       }),
     ).toEqual({
-      invitation: { state: 'opened', sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: '2026-10-09T10:00:00Z', usedAt: null },
+      invitation: { state: 'opened', sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: '2026-10-09T10:00:00Z', usedAt: null, delivery: 'email', emailStatus: null, emailError: null },
       submission: { id: 's1', kind: 'onboarding', status: 'draft', submittedAt: null },
       onboardingApproved: false,
     })
+    expect(
+      parseRpc(onboardingPayload, {
+        invitation: {
+          state: 'sent', sent_at: '2026-10-08T14:00:00Z', expires_at: '2026-10-15T14:00:00Z', opened_at: null, used_at: null,
+          delivery: 'copied', email_status: null, email_error: null,
+        },
+        submission: null,
+        onboarding_approved: false,
+      })?.invitation,
+    ).toMatchObject({ delivery: 'copied', emailStatus: null, emailError: null })
+    expect(
+      parseRpc(onboardingPayload, {
+        invitation: { state: 'sent', sent_at: 'x', expires_at: 'x', opened_at: null, used_at: null, delivery: 'email', email_status: 'failed', email_error: 'provider_unavailable' },
+        submission: null,
+        onboarding_approved: false,
+      })?.invitation,
+    ).toMatchObject({ delivery: 'email', emailStatus: 'failed', emailError: 'provider_unavailable' })
     expect(parseRpc(onboardingPayload, null)).toBeNull()
     expect(parseRpc(onboardingPayload, { invitation: null, submission: null, onboarding_approved: true })).toEqual({ invitation: null, submission: null, onboardingApproved: true })
   })
@@ -295,7 +312,7 @@ describe('invitationStateRowPayload', () => {
       onboarding_approved: true,
     })
     expect(full.onboarding).toEqual({
-      invitation: { state: 'sent', sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: null, usedAt: null },
+      invitation: { state: 'sent', sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: null, usedAt: null, delivery: 'email', emailStatus: null, emailError: null },
       submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-09T14:00:00Z' },
       onboardingApproved: true,
     })

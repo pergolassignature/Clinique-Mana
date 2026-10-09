@@ -8,16 +8,19 @@ const UPDATE = { kind: 'update', firstName: 'Marie' } as const
 const ADVICE = "La demande reste ouverte : dites à Marie qu'une mise à jour l'attend dans son questionnaire."
 
 describe('emailProblemText', () => {
-  it('an invitation: « Renvoyer » advised only where it can help', () => {
+  it('an invitation: « Renvoyer » advised only where it can help, « Copier le lien » unless the address was refused (P4-491)', () => {
+    const copy = t(`${O}.emailAdvice.copyLink`)
     expect(emailProblemText({ code: 'provider_error', retryAfter: null }, { kind: 'invitation' })).toBe(
-      `${t(`${O}.emailProblems.provider_error`)} ${t(`${O}.emailAdvice.invitation`)}`,
+      `${t(`${O}.emailProblems.provider_error`)} ${t(`${O}.emailAdvice.invitation`)} ${copy}`,
     )
     expect(emailProblemText({ code: 'invalid_request', retryAfter: null }, { kind: 'invitation' })).toBe(
       "Le service d'envoi a refusé cette adresse. Corrigez-la dans l'onglet « Identité et permis », puis utilisez « Envoyer l'invitation ».",
     )
-    expect(emailProblemText({ code: 'not_configured', retryAfter: null }, { kind: 'invitation' })).toBe(t(`${O}.emailProblems.not_configured`))
+    expect(emailProblemText({ code: 'not_configured', retryAfter: null }, { kind: 'invitation' })).toBe(
+      `La clinique n'a pas encore configuré l'envoi de courriels (Paramètres → Courriels). ${copy}`,
+    )
     expect(emailProblemText({ code: 'rate_limited', retryAfter: 2700 }, { kind: 'invitation' })).toBe(
-      `${t(`${O}.emailProblems.rate_limited`)} Réessayez dans environ 45 minutes.`,
+      `${t(`${O}.emailProblems.rate_limited`)} Réessayez dans environ 45 minutes. ${copy}`,
     )
   })
 

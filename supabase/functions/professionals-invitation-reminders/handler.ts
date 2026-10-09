@@ -22,7 +22,9 @@
  *    the rule under the file's lock and issues the link for the original
  *    inviter, bound to the file's address like every invitation, P4-300;
  *    null → skipped), then `professionals.invite_reminder` to the address
- *    the RPC returned, with the new link. The previous link is revoked by the
+ *    the RPC returned, with the new link (a send that is not even queued is
+ *    stamped on the link's delivery, P4-490; a copied link is never due,
+ *    P4-493). The previous link is revoked by the
  *    re-issue: its raw token is gone, so a reminder always carries a new one.
  *    Once the link has rotated, the send is never aborted (no signal: the
  *    email is the only way the new link reaches the professional), as
@@ -89,6 +91,7 @@ const idsSchema = z.array(z.guid()).max(MAX_PER_RUN)
 
 /** `reissue_professional_invitation_for_service`'s answer. */
 const reissuedSchema = z.object({
+  link_id: z.guid(),
   email: z.string(),
   first_name: z.string(),
   expires_at: z.string(),
@@ -159,6 +162,23 @@ export async function remindOrg(
       deps.fetch,
     )
 
+  /**
+   * Records on the re-issued link why its reminder was not queued, so the
+   * record says « Le courriel d'invitation n'est pas parti » (P4-490). Best
+   * effort: a failure here is reported only.
+   */
+  const stampFailure = async (
+    linkId: string,
+    code: string,
+    professionalId: string,
+  ) => {
+    const { error } = await client.rpc(
+      'record_professional_invitation_email_failure_for_service',
+      { p_org: orgId, p_link_id: linkId, p_code: code },
+    )
+    if (error) await report('email_failure_stamp_failed', professionalId)
+  }
+
   const remindOne = async (professionalId: string): Promise<Outcome> => {
     // In memory only: the token goes into the email, its hash to the RPC.
     const token = generateToken()
@@ -204,12 +224,16 @@ export async function remindOrg(
       if (!SETUP_FAILURES.has(result.code)) {
         await report(`reminder_email_${result.code}`, professionalId)
       }
+      if (result.emailLogId === null) {
+        await stampFailure(row.data.link_id, result.code, professionalId)
+      }
       return { kind: 'failed', code: result.code }
     } catch (error) {
       // The send path reports its own failures before throwing them.
       if (!(error instanceof FunctionError)) {
         await report('unexpected', professionalId)
       }
+      await stampFailure(row.data.link_id, 'internal', professionalId)
       return { kind: 'failed', code: 'internal' }
     }
   }
