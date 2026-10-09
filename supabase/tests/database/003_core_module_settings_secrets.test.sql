@@ -117,6 +117,7 @@ select functions_are('public', array[
   'get_professional_submission_notice_for_service',
   'set_user_preference', 'delete_user_preference',
   'mark_professional_fiche_generated', 'get_professional_fiche_upload', 'get_professional_public_fees',
+  'list_professional_submissions', 'get_my_professional_record',
   'get_professional_account_status', 'set_professional_matching_note'
 ], 'public schema exposes exactly the intended RPCs');
 

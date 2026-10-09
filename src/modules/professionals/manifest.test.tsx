@@ -5,6 +5,7 @@ import { matchPath, Route, Routes } from 'react-router-dom'
 import { t } from '@/i18n'
 import { coreSettingsSections } from '@/core/settings/sections'
 import { renderWithContexts } from '@/test/contexts'
+import { accessForRole } from '@/test/role-fixtures'
 import { professionalsManifest } from './index'
 import { professionalRecordPage } from './manifest'
 
@@ -14,21 +15,34 @@ describe('professionalsManifest', () => {
   it('uses the English module key and French URLs', () => {
     expect(professionalsManifest.key).toBe('professionals')
     expect(professionalsManifest.dependsOn).toEqual([])
-    expect(professionalsManifest.nav).toMatchObject({ path: '/professionnels', permission: 'professionals.view' })
+    expect(professionalsManifest.nav).toEqual([
+      expect.objectContaining({ path: '/professionnels', permission: 'professionals.view', order: 10 }),
+      // « Mon profil » right after Accueil, for an account linked to a file (P4-376).
+      expect.objectContaining({ path: '/mon-profil', permission: 'professionals.self', order: 5 }),
+    ])
+    const [, myProfile] = [professionalsManifest.nav ?? []].flat()
+    const [card] = professionalsManifest.homeCards ?? []
+    for (const item of [myProfile, card]) {
+      expect(item?.shownWhen?.(accessForRole('provider'))).toBe(true)
+      expect(item?.shownWhen?.(accessForRole('admin'))).toBe(false)
+      expect(item?.shownWhen?.(accessForRole('admin', { has_professional_file: true }))).toBe(true)
+    }
     expect(professionalsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['professionnels', 'professionals.view'],
       ['professionnels/:id/:onglet?', 'professionals.view'],
       ['professionnels/revision-mensuelle', 'professionals.compensation'],
+      ['mon-profil', 'professionals.self'],
       ['mon-profil/questionnaire', 'professionals.self'],
     ])
+    expect(professionalsManifest.homeCards?.map((c) => [c.id, c.permission])).toEqual([['professionals-profile', 'professionals.self']])
   })
 
   it('has route paths relative to the app root', () => {
     for (const route of professionalsManifest.routes) expect(route.path.startsWith('/')).toBe(false)
   })
 
-  it('code-splits every route and section (each can be preloaded)', () => {
-    for (const page of [...professionalsManifest.routes, ...sections].map((x) => x.component)) {
+  it('code-splits every route, section and Accueil card (each can be preloaded)', () => {
+    for (const page of [...professionalsManifest.routes, ...sections, ...(professionalsManifest.homeCards ?? [])].map((x) => x.component)) {
       expect(typeof page.preload).toBe('function')
       expect(typeof page.isLoaded).toBe('function')
     }

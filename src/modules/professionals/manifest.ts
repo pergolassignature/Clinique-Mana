@@ -1,10 +1,14 @@
-import { Compass, FileText, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import { CircleUser, Compass, FileText, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
 
+
+/** « Mon profil » and Accueil's card: an account linked to a professional file (P4-376). */
+const hasProfessionalFile = (access: Access) => access.has_professional_file
 
 /** The record page, also preloaded by the list (row hover or focus). */
 export const professionalRecordPage = lazyPage(() => import('./pages/ProfessionalRecordPage'), 'ProfessionalRecordPage')
@@ -23,7 +27,19 @@ export const professionalsManifest: ModuleManifest = {
   key: 'professionals',
   labelKey: 'modules.professionals.name',
   dependsOn: [],
-  nav: { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', order: 10 },
+  nav: [
+    { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', order: 10 },
+    // The professional's own file (Task 4b.5), right after Accueil, for an account linked to a file
+    // (P4-376): admins hold professionals.self by default without one; an admin who practises keeps it.
+    {
+      path: '/mon-profil',
+      labelKey: 'modules.professionals.myProfile.nav',
+      icon: CircleUser,
+      permission: 'professionals.self',
+      shownWhen: hasProfessionalFile,
+      order: 5,
+    },
+  ],
   routes: [
     { path: 'professionnels', permission: 'professionals.view', component: lazyPage(() => import('./pages/ProfessionalsListPage'), 'ProfessionalsListPage') },
     // The tab is a URL segment: apercu, jumelage… (RECORD_TABS)
@@ -35,12 +51,24 @@ export const professionalsManifest: ModuleManifest = {
       permission: 'professionals.compensation',
       component: lazyPage(() => import('./pages/RetentionReviewPage'), 'RetentionReviewPage'),
     },
+    // « Mon profil » (4b.5): the professional's own file, read-only, and « Mettre mon profil à jour ».
+    { path: 'mon-profil', permission: 'professionals.self', component: lazyPage(() => import('./pages/self/MyProfilePage'), 'MyProfilePage') },
     // The provider's questionnaire (4b.4): where an accepted invitation lands (P4-266) and where an
-    // update request leads. No nav item: « Mon profil » (4b.5) and Accueil link to it.
+    // update request leads. No nav item of its own: « Mon profil » and Accueil link to it.
     {
       path: 'mon-profil/questionnaire',
       permission: 'professionals.self',
       component: lazyPage(() => import('./pages/self/QuestionnairePage'), 'QuestionnairePage'),
+    },
+  ],
+  // Accueil « Complétez votre profil » (P4-319): the professional's open questionnaire, if any. Only
+  // for an account linked to a file: an admin without one never reads a questionnaire (P4-376).
+  homeCards: [
+    {
+      id: 'professionals-profile',
+      permission: 'professionals.self',
+      shownWhen: hasProfessionalFile,
+      component: lazyPage(() => import('./components/self/ProfileHomeCard'), 'ProfileHomeCard'),
     },
   ],
   settingsSections: [

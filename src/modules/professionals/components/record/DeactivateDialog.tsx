@@ -16,7 +16,7 @@ import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
 import { professionalCatalogKeys, professionalKeys } from '../../hooks/keys'
 import { useDeactivateProfessional } from '../../hooks/use-professional-mutations'
-import { fullName } from '../../lib/display'
+import { fullName, noteReadableText } from '../../lib/display'
 import { isLiveInvitation } from '../../lib/onboarding'
 import { deactivateSchema, type DeactivateValues } from '../../schemas/status'
 import { useRecordData } from './record-context'
@@ -127,7 +127,7 @@ export function DeactivateDialog({ onClose, onCloseAutoFocus }: StatusDialogProp
               )}
             </div>
           </div>
-          <FormField label={t(`${D}.note`)} required={reason?.requiresNote ?? false} error={errors.note?.message}>
+          <FormField label={t(`${D}.note`)} required={reason?.requiresNote ?? false} help={noteReadableText(professional.firstName)} error={errors.note?.message}>
             {(control) => <Textarea {...control} {...form.register('note')} rows={3} className="min-h-0" />}
           </FormField>
         </fieldset>

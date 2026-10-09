@@ -24,7 +24,7 @@ insert into public.professionals (id, org_id, profile_id, first_name, last_name,
 insert into public.professional_public_profiles (org_id, professional_id) values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002');
 insert into public.professional_matching_profiles (org_id, professional_id) values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002');
 select private.create_professional_submission('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002',
-  'update', array['consent'], null);
+  'update', array['consent'], null, null);
 select set_config('test.v1', (select c.id::text from public.consent_versions c
                                where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'image_rights' and c.version = 1), true);
 

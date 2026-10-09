@@ -44,4 +44,11 @@ describe('query keys', () => {
     startsWith(professionalKeys.emails('p1'), professionalKeys.history('p1'))
     expect(professionalKeys.onboarding('p1')).not.toEqual(professionalKeys.onboarding('p2'))
   })
+
+  it('nest a file’s submissions under its record; the review and « Mon profil » apart (Task 4b.5)', () => {
+    startsWith(professionalKeys.submissions('p1'), professionalKeys.record('p1'))
+    startsWith(professionalKeys.submissionReview('s1'), professionalKeys.all)
+    expect(professionalKeys.submissionReview('s1').slice(0, 3)).not.toEqual(professionalKeys.record('s1'))
+    expect(professionalKeys.myRecord()).not.toEqual(professionalKeys.mySubmission())
+  })
 })

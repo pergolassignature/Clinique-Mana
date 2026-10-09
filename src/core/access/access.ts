@@ -17,6 +17,11 @@ const accessSchema = z.object({
   permissions: z.array(z.string()),
   /** The org's enabled module keys (empty unless the profile is active). */
   modules: z.array(z.string()),
+  /**
+   * The account is linked to a professional file of its clinic (P4-376): « Mon profil » and
+   * Accueil's « Complétez votre profil » follow it (an admin who practises keeps them).
+   */
+  has_professional_file: z.boolean(),
 })
 
 export type Access = z.infer<typeof accessSchema> & { role: AppRole }

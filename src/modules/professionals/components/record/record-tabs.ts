@@ -46,6 +46,12 @@ async function prefetchCompensationTab(queryClient: QueryClient, id: string, can
   ])
 }
 
+/** Documents: the file's submissions (« Questionnaire et mises à jour », Task 4b.5); the hooks ship in the tab's chunk. */
+async function prefetchDocumentsTab(queryClient: QueryClient, id: string): Promise<void> {
+  const { prefetchProfessionalSubmissions } = await import('../../hooks/use-submissions')
+  await prefetchProfessionalSubmissions(queryClient, id)
+}
+
 /** Historique: its first page (its compensation rows need no other list, P4-193) and the emails (4b.3). */
 async function prefetchHistoryTab(queryClient: QueryClient, id: string): Promise<void> {
   await Promise.all([prefetchProfessionalHistory(queryClient, id), prefetchProfessionalEmails(queryClient, id)])
@@ -54,13 +60,14 @@ async function prefetchHistoryTab(queryClient: QueryClient, id: string): Promise
 /**
  * The record's tabs, in P4-13's order. Aperçu, the landing tab of nearly every visit, ships in the
  * page's chunk (P4-72): a separate chunk would always load after the page's, one more round trip.
- * « Documents » arrives with 4c.
+ * « Documents » holds the submissions' review (Task 4b.5) until 4c adds the documents.
  */
 export const RECORD_TAB_DEFS: readonly RecordTabDef[] = [
   { tab: 'apercu', panel: OverviewTab, visible: always },
   { tab: 'jumelage', panel: lazyPage(() => import('./tabs/MatchingTab'), 'MatchingTab'), visible: always },
   { tab: 'profil-public', panel: lazyPage(() => import('./tabs/PublicProfileTab'), 'PublicProfileTab'), visible: always },
   { tab: 'identite', panel: lazyPage(() => import('./tabs/IdentityTab'), 'IdentityTab'), visible: always },
+  { tab: 'documents', panel: lazyPage(() => import('./tabs/DocumentsTab'), 'DocumentsTab'), visible: always, prefetch: prefetchDocumentsTab },
   {
     tab: 'remuneration',
     panel: lazyPage(() => import('./tabs/CompensationTab'), 'CompensationTab'),

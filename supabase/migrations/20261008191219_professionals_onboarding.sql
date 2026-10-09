@@ -397,6 +397,9 @@ create table public.professional_submissions (
   submitted_values jsonb not null default '{}',
   -- The onboarding invitation's current link; null for an update, or once the link is purged.
   secure_link_id uuid,
+  -- Who started it (Task 4b.5, P4-375): the inviter for an onboarding, the staff member who asked
+  -- for an update, or the professional who started her own; null once that account is removed.
+  requested_by uuid,
   -- When the provider last saved the private step (professional_submission_private): the history
   -- reads it as « Renseignements fiscaux ou bancaires transmis » without any value (P4-178).
   private_saved_at timestamptz,
@@ -416,6 +419,8 @@ create table public.professional_submissions (
   constraint professional_submissions_secure_link_fkey foreign key (secure_link_id)
     references public.secure_links (id) on delete set null,
   constraint professional_submissions_reviewed_by_fkey foreign key (reviewed_by)
+    references public.profiles (user_id) on delete set null,
+  constraint professional_submissions_requested_by_fkey foreign key (requested_by)
     references public.profiles (user_id) on delete set null,
   constraint professional_submissions_kind_check check (kind in ('onboarding', 'update')),
   -- cancelled: closed without review (invitation revoked, file deactivated, account removed, P4-301).
@@ -455,6 +460,8 @@ create index professional_submissions_secure_link_idx on public.professional_sub
   where secure_link_id is not null;
 create index professional_submissions_reviewed_by_idx on public.professional_submissions (reviewed_by)
   where reviewed_by is not null;
+create index professional_submissions_requested_by_idx on public.professional_submissions (requested_by)
+  where requested_by is not null;
 
 revoke all on public.professional_submissions from anon, authenticated;
 grant select on public.professional_submissions to authenticated;
@@ -1267,8 +1274,10 @@ as $$
 $$;
 
 -- Creates a submission with its prefill (the requested sections of the snapshot) and returns its id.
+-- p_by: who started it (the inviter, the staff member asking for an update, or the professional
+-- herself), always named by the caller (P4-375).
 create function private.create_professional_submission(
-  p_org uuid, p_id uuid, p_kind text, p_sections text[], p_link uuid)
+  p_org uuid, p_id uuid, p_kind text, p_sections text[], p_link uuid, p_by uuid)
 returns uuid
 language plpgsql
 set search_path = ''
@@ -1277,12 +1286,12 @@ declare
   v_snapshot jsonb := private.professional_submission_snapshot(p_org, p_id);
   v_id uuid;
 begin
-  insert into public.professional_submissions (org_id, professional_id, kind, requested_sections, prefill, secure_link_id)
+  insert into public.professional_submissions (org_id, professional_id, kind, requested_sections, prefill, secure_link_id, requested_by)
   values (p_org, p_id, p_kind, p_sections,
           coalesce((select pg_catalog.jsonb_object_agg(e.key, e.value)
                       from pg_catalog.jsonb_each(v_snapshot) e
                      where e.key = any (p_sections)), '{}'),
-          p_link)
+          p_link, p_by)
   returning id into v_id;
   return v_id;
 end;
@@ -1291,7 +1300,7 @@ $$;
 revoke all on function
   private.professional_submission_snapshot(uuid, uuid),
   private.canonical_professions(jsonb),
-  private.create_professional_submission(uuid, uuid, text, text[], uuid)
+  private.create_professional_submission(uuid, uuid, text, text[], uuid, uuid)
 from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
@@ -2152,7 +2161,7 @@ begin
     -- An account-less file cannot hold another open submission; refuse rather than guess.
     raise exception 'Une soumission est déjà en cours.' using errcode = 'P0001', hint = 'submission';
   else
-    v_sub := private.create_professional_submission(v_org, p_id, 'onboarding', private.submission_sections(), v_link);
+    v_sub := private.create_professional_submission(v_org, p_id, 'onboarding', private.submission_sections(), v_link, p_actor);
   end if;
 
   select l.expires_at into v_expires from public.secure_links l where l.id = v_link;
@@ -2219,7 +2228,7 @@ begin
               where s.professional_id = p_id and s.org_id = v_org and s.status in ('draft', 'submitted')) then
     raise exception 'Une soumission est déjà en cours.' using errcode = 'P0001', hint = 'submission';
   end if;
-  v_sub := private.create_professional_submission(v_org, p_id, 'update', v_sections, null);
+  v_sub := private.create_professional_submission(v_org, p_id, 'update', v_sections, null, auth.uid());
   return pg_catalog.jsonb_build_object('submission_id', v_sub, 'email', v_row.email, 'first_name', v_row.first_name);
 end;
 $$;
@@ -2777,7 +2786,7 @@ begin
               where s.professional_id = v_pid and s.org_id = v_org and s.status in ('draft', 'submitted')) then
     raise exception 'Une soumission est déjà en cours.' using errcode = 'P0001', hint = 'submission';
   end if;
-  return private.create_professional_submission(v_org, v_pid, 'update', v_sections, null);
+  return private.create_professional_submission(v_org, v_pid, 'update', v_sections, null, auth.uid());
 end;
 $$;
 
@@ -2865,10 +2874,14 @@ begin
                when 'plain' then nullif(v_sub.submitted_values -> x.section -> x.field, 'null'::jsonb)
                when 'set' then v_sub.submitted_values -> x.section -> x.field
                when 'file' then v_sub.submitted_values -> x.section
+               -- is_latest: still the latest published text (apply refuses it otherwise, P4-305), so the
+               -- sheet can say so before « Appliquer » (P4-378).
                when 'consent' then v_sub.submitted_values -> 'consent'
                                    || pg_catalog.jsonb_build_object('version', (
                                         select cv.version from public.consent_versions cv
-                                         where cv.org_id = v_org and cv.id = (v_sub.submitted_values #>> '{consent,consent_version_id}')::uuid))
+                                         where cv.org_id = v_org and cv.id = (v_sub.submitted_values #>> '{consent,consent_version_id}')::uuid),
+                                      'is_latest', (v_sub.submitted_values #>> '{consent,consent_version_id}')::uuid
+                                                   is not distinct from private.current_consent_version(v_org, 'image_rights'))
              end as sub,
              (x.field = any (v_available)) as available
         from private.submission_fields() x
@@ -2951,7 +2964,7 @@ begin
                       else private.encrypt_pii(private.decrypt_pii(s.sin, s.key_version), v_version) end;
   exception when sqlstate '39000' or sqlstate '55000' then
     raise exception 'Les renseignements transmis ne peuvent pas être lus avec la clé de cet environnement.'
-      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel saisira ces renseignements de nouveau.';
+      using errcode = 'P0001', hint = 'Renvoyez le profil au professionnel : il saisira ces renseignements de nouveau.';
   end;
 
   begin
@@ -3064,11 +3077,11 @@ begin
   if 'consent' = any (v_fields)
      and (v_values #>> '{consent,consent_version_id}')::uuid is distinct from private.current_consent_version(v_org, 'image_rights') then
     raise exception 'Le texte du consentement a changé depuis la signature.'
-      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel signera la nouvelle version.';
+      using errcode = 'P0001', hint = 'Renvoyez le profil au professionnel : il signera la nouvelle version.';
   end if;
   if 'insurance' = any (v_fields) and (v_values #>> '{insurance,expires_on}')::date < private.clinic_today() then
     raise exception 'Cette assurance est échue depuis l''envoi du profil.'
-      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel joindra une preuve en vigueur.';
+      using errcode = 'P0001', hint = 'Renvoyez le profil au professionnel : il joindra une preuve en vigueur.';
   end if;
   perform pg_catalog.set_config('app.audit_source', 'rpc:apply_professional_submission', true);
 
