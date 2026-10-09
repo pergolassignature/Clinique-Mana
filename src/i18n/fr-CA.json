@@ -322,7 +322,7 @@
     "downloads": {
       "groupLabel": "Téléchargements du document signé",
       "certificate": "Télécharger le certificat et le journal",
-      "sealed": "PDF complet scellé (preuve)",
+      "sealed": "Télécharger le PDF complet scellé (preuve)",
       "sealedHelp": "Seul le PDF complet scellé porte la signature numérique de Documenso : c'est la preuve à conserver.",
       "working": "Préparation…",
       "noCertificate": "Ce PDF signé ne contient ni certificat ni journal de signature.",
