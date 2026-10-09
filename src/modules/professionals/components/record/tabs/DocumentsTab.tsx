@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
@@ -18,7 +19,8 @@ const D = 'modules.professionals.documents'
  * documents » (`DocumentsPanel`). Actions by permission: Téléverser (`professionals.manage`),
  * Vérifier / Refuser / Modifier l'échéance (`professionals.documents.review`), Supprimer
  * (`professionals.documents.delete`); the review and the deletion are not offered on one's own
- * record (P4-401: the database refuses them, HINT `document`), which says so.
+ * record (P4-401: the database refuses them, HINT `document`), which says so. A required document
+ * the questionnaire to review holds links up to its card (« Voir le questionnaire à réviser », P4-495).
  */
 export function DocumentsTab() {
   const { record, catalog, focusHeading } = useRecordData()
@@ -26,6 +28,12 @@ export function DocumentsTab() {
   const { user_id } = useReadyAccess()
   const { professional } = record
   const documents = useProfessionalDocuments(professional.id)
+  const submissionsId = useId()
+  const showReview = () => {
+    const card = document.getElementById(submissionsId)
+    card?.scrollIntoView?.({ block: 'start' })
+    card?.focus({ preventScroll: true })
+  }
   const ownFile = professional.profileId !== null && professional.profileId === user_id
   const permissions = {
     upload: can('professionals.manage'),
@@ -36,7 +44,7 @@ export function DocumentsTab() {
   return (
     <div className="max-w-form space-y-4">
       <ContractCard />
-      <SubmissionsCard />
+      <SubmissionsCard id={submissionsId} />
       {documents.isPending ? (
         <Loading />
       ) : !documents.data ? (
@@ -59,6 +67,7 @@ export function DocumentsTab() {
             can={permissions}
             verifiedAtOnce={can('professionals.documents.review') && !ownFile}
             focusFallback={focusHeading}
+            onShowReview={showReview}
           />
         </>
       )}

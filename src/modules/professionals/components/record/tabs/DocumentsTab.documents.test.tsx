@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { professionalCatalogKeys, professionalKeys } from '../../../hooks/keys'
 import { IDS } from '../../../test/fixtures'
-import { CONSENT_JSON, CV_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON } from '../../../test/fixtures-documents'
+import { CONSENT_JSON, CV_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../../test/fixtures-documents'
 import { recordFixture } from '../../../test/fixtures-domain'
 import { renderRecordTab } from '../../../test/record-tab'
 import { DocumentsTab } from './DocumentsTab'
@@ -103,7 +103,34 @@ describe('Documents tab — states by the clinic’s date', () => {
     expect(card(PHOTO)).toHaveTextContent('Raison : Photo floue.')
     expect(stateOf(CONSENT)).toBe(t(`${D}.state.missing`))
     expect(card(CONSENT)).not.toHaveTextContent('Signé électroniquement')
-    expect(screen.getByText(t(`${D}.required.summary`, { done: '0', total: '3' }))).toBeInTheDocument()
+    // The one waiting is said next to the count (P4-495).
+    expect(screen.getByText('Documents requis en règle : 0 sur 3 · 1 en attente de vérification')).toBeInTheDocument()
+  })
+
+  it('sent with the questionnaire: « Dans le questionnaire à réviser », a link up to it, never « Manquant » (P4-495)', async () => {
+    const user = userEvent.setup()
+    const staged = [
+      stagedJson(),
+      stagedJson({ type_key: 'insurance', kind: 'insurance' }),
+      stagedJson({ type_key: 'image_consent', kind: 'consent' }),
+    ]
+    await openTab({ documents: documentsFixture({ documents: [], consent: null, staged }) })
+    expect(stateOf(PHOTO)).toBe('Dans le questionnaire à réviser (envoyé le 08 oct. 2026)')
+    expect(stateOf(INSURANCE)).toBe('Dans le questionnaire à réviser (envoyé le 08 oct. 2026)')
+    expect(stateOf(CONSENT)).toBe('Signé dans le questionnaire à réviser (envoyé le 08 oct. 2026)')
+    expect(card(PHOTO)).not.toHaveTextContent(t(`${D}.lines.none`))
+    expect(screen.getByText('Documents requis en règle : 0 sur 3 · 3 en attente de vérification')).toBeInTheDocument()
+    // Staff keep « Téléverser ».
+    expect(within(card(PHOTO)).getByRole('button', { name: `Téléverser : ${PHOTO}` })).toBeInTheDocument()
+    // « Voir le questionnaire à réviser » brings « Questionnaire et mises à jour » into focus.
+    await user.click(within(card(INSURANCE)).getByRole('button', { name: t(`${D}.lines.showReview`) }))
+    expect(document.activeElement).toHaveTextContent(t('modules.professionals.submission.card.title'))
+  })
+
+  it('a draft not sent: staff read the card as is', async () => {
+    await openTab({ documents: documentsFixture({ documents: [], consent: null, staged: [stagedJson({ status: 'draft', submitted_at: null })] }) })
+    expect(stateOf(PHOTO)).toBe(t(`${D}.state.missing`))
+    expect(within(card(PHOTO)).queryByRole('button', { name: t(`${D}.lines.showReview`) })).not.toBeInTheDocument()
   })
 
   it('a renewal waiting under a valid insurance reads « Nouveau document », and older ones fold away', async () => {

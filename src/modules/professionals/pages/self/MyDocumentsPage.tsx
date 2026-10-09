@@ -25,7 +25,8 @@ const M = 'modules.professionals.myDocuments'
  * their state and end date, « Téléverser » on each (`professional_self_document`, attached to her
  * own record only, always waiting for the clinic's review, P4-401), and her other documents,
  * read-only. Above, the insurance's banner (P4-454): expiring (within the insurance's reminder
- * window) or expired, unless a new proof already waits for review, which is said instead. Three
+ * window) or expired, unless a new proof already waits for review (uploaded, or sent with her
+ * questionnaire) or sits in her questionnaire not sent yet, which is said instead (P4-495). Three
  * requests in one tick: her documents, her record (her name) and the catalogue (the types).
  * An inactive file may still upload (P4-11).
  */
@@ -81,11 +82,13 @@ const SELF_PERMISSIONS = { upload: true, review: false, delete: false } as const
 function InsuranceBanner({ data, catalog }: { data: ProfessionalDocuments; catalog: CatalogView }) {
   const banner = insuranceBanner(catalog.documentTypes, data)
   if (!banner) return null
-  if (banner.kind === 'renewal_pending') {
+  if (banner.kind === 'renewal_pending' || banner.kind === 'in_questionnaire') {
     return (
       <Alert>
         <Info aria-hidden />
-        <AlertDescription className="text-foreground">{t(`${M}.banners.renewalPending`)}</AlertDescription>
+        <AlertDescription className="text-foreground">
+          {t(banner.kind === 'renewal_pending' ? `${M}.banners.renewalPending` : `${M}.banners.inQuestionnaire`)}
+        </AlertDescription>
       </Alert>
     )
   }

@@ -440,6 +440,7 @@ Every decision is « déléguée — révisable ».
 | P4-477 | **Fiche email status codes.** A 22023 from the upload lookup → 400 `invalid_request`; a thrown `FunctionError` keeps its code's status (`functionErrorResponse`). | A bad id read as a reported 500; an unknown template as a 500. |
 | P4-478 | **One « Renvoyer » per contract every 10 s.** `LIMITS.professionalContractResend` (org + professional), before the database; the second press answers 429. | A double click emailed the signer twice. |
 | P4-479 | **« Télécharger le PDF signé » signs at the press.** `useDocumentDownload` (as P4-455), never on render nor every 240 s. | `storage-sign` allows 120 an hour per person. |
+| P4-495 | **The questionnaire's documents read « en attente », never « Manquant ».** `get_professional_documents.staged`; sent → « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » / « Dans le questionnaire à réviser (envoyé le …) »; her draft → « Ajouté à votre questionnaire, pas encore envoyé »; no upload offered to her meanwhile; « n en attente de vérification » next to the count. | Jonathan's test as a professional (2026-10-09). |
 
 ---
 

@@ -4,7 +4,7 @@ import { t } from '@/i18n'
 import { formatClinicDateShort, formatDateOnly } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { StatusDot } from '@/shared/ui/status-dot'
-import { typeStateLabel, typeStateTone, type DocumentPermissions, type DocumentViewer, type TypeDocuments } from '../../lib/documents'
+import { stagedInDraft, typeCardTone, typeStateLabel, uploadOffered, type DocumentPermissions, type DocumentViewer, type TypeDocuments } from '../../lib/documents'
 import { DocumentRow, type DocumentRowProps } from './DocumentRow'
 
 const D = 'modules.professionals.documents'
@@ -19,6 +19,8 @@ interface RequiredDocumentCardProps {
   onAction: DocumentRowProps['onAction']
   /** « Téléverser » / « Remplacer » for this type (the upload dialog, its type fixed). */
   onUpload: (opener: HTMLButtonElement) => void
+  /** Staff: « Voir le questionnaire à réviser », for a type the questionnaire holds (P4-495). */
+  onShowReview?: () => void
 }
 
 /**
@@ -28,15 +30,22 @@ interface RequiredDocumentCardProps {
  * for review (« Nouveau document »), the one that counts, the latest refusal with its reason. For
  * the image consent, the e-consent in force (« Signé électroniquement le … par … »). Older
  * documents fold under « Voir les documents précédents (n) ». « Téléverser » (« Remplacer » once a
- * document counts) for whoever may upload.
+ * document counts) for whoever may upload. While the open questionnaire holds the type (P4-495):
+ * « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » (her side)
+ * or « Dans le questionnaire à réviser (envoyé le …) » with a link to the review (staff), never
+ * « Manquant »; in her draft, « Ajouté à votre questionnaire, pas encore envoyé ». She is not
+ * offered an upload then (the questionnaire's review settles it).
  */
-export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onAction, onUpload }: RequiredDocumentCardProps) {
+export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onAction, onUpload, onShowReview }: RequiredDocumentCardProps) {
   const titleId = useId()
   const [showOlder, setShowOlder] = useState(false)
   const { type, kind, current, pending, rejected, consent, older } = entry
   const replace = current !== null || consent !== null
   const rowProps = { type, today, viewer, firstName, can, onAction }
-  const empty = !current && !pending && !rejected && !consent
+  const self = viewer === 'self'
+  // The questionnaire holds it: its state line says so, not « Aucun document pour l'instant ».
+  const inQuestionnaire = kind === 'submitted' || (self && stagedInDraft(entry))
+  const empty = !current && !pending && !rejected && !consent && !inQuestionnaire
 
   return (
     <section aria-labelledby={titleId} className="min-w-0 rounded-lg border border-border bg-card p-4 text-card-foreground">
@@ -46,11 +55,16 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
             {type.name}
           </h4>
           <p data-type-state className="inline-flex items-center gap-1.5 text-sm text-foreground">
-            <StatusDot tone={typeStateTone(kind)} />
-            {typeStateLabel(entry, viewer === 'self')}
+            <StatusDot tone={typeCardTone(entry, self)} />
+            {typeStateLabel(entry, self)}
           </p>
+          {!self && kind === 'submitted' && onShowReview && (
+            <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={onShowReview}>
+              {t(`${D}.lines.showReview`)}
+            </Button>
+          )}
         </div>
-        {can.upload && (
+        {uploadOffered(entry, viewer, can) && (
           <Button
             type="button"
             size="sm"
