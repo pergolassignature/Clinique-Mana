@@ -63,14 +63,11 @@ export interface ComposeInput {
 }
 
 /**
- * The email to send, or why it could not be composed.
- *
- * Hand-off to Task 3.8 (the send path):
- * - `unknown_variable` is reported to callers as `missing_variable` (the
- *   template refers to a value the catalogue does not provide);
- * - `invalid_timezone` means `organizations.timezone` is not a known IANA
- *   name: a configuration error (`server_misconfigured`);
- * - `get_email_context` must return the template's `why_line` (`whyLine`).
+ * The email to send, or why it could not be composed. The send path reports
+ * `unknown_variable` as `missing_variable` (the template refers to a value
+ * the catalogue does not provide) and `invalid_timezone`
+ * (`organizations.timezone` is not a known IANA name) as
+ * `server_misconfigured`.
  */
 export type ComposeResult =
   | { ok: true; subject: string; html: string; text: string }
