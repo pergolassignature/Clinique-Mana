@@ -52,7 +52,7 @@ export function prefetchProfessionalContract(queryClient: QueryClient, id: strin
 const imageConsentQuery = (id: string) =>
   queryOptions({ queryKey: professionalKeys.imageConsent(id), queryFn: () => fetchProfessionalImageConsent(id), staleTime: 30_000 })
 
-/** The image consent's signing state (Documents → « Consentement droit à l'image », P4-484). */
+/** The image consent's signing state (Documents → « Consentement droit à l'image », P4-485). */
 export function useProfessionalImageConsent(id: string) {
   return useQuery({ ...imageConsentQuery(id), enabled: id !== '' })
 }

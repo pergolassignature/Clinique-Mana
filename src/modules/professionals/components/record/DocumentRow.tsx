@@ -44,7 +44,7 @@ export interface DocumentRowProps {
 /** Who sent it and when, in the viewer's words. */
 function uploadedLine(document: ProfessionalDocument, viewer: DocumentViewer, firstName: string): string {
   const date = formatClinicDateShort(document.uploadedAt)
-  // A consent signed through Documenso (P4-484): when she signed, not who uploaded.
+  // A consent signed through Documenso (P4-485): when she signed, not who uploaded.
   if (document.signatureRequestId !== null) return t(`${D}.lines.signedElectronically`, { date })
   if (viewer === 'self') return t(document.uploadedBySelf ? `${D}.lines.uploadedByYou` : `${D}.lines.uploadedForYou`, { date })
   return document.uploadedBySelf ? t(`${D}.lines.uploadedByProfessional`, { date, firstName }) : t(`${D}.lines.uploadedByClinic`, { date })

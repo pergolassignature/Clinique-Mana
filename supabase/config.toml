@@ -164,7 +164,7 @@ verify_jwt = false
 verify_jwt = false
 
 # The service contract and the image consent: « Préparer et envoyer », « Renvoyer », « Régénérer »
-# (Task 4d.2, P4-483; verifyAuth, module professionals; the contract needs professionals.contracts.send
+# (Task 4d.2, P4-484; verifyAuth, module professionals; the contract needs professionals.contracts.send
 # and professionals.compensation, the image consent professionals.manage). Renders.
 [functions.professionals-contract-send]
 verify_jwt = false

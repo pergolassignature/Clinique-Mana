@@ -3,7 +3,7 @@
 -- =============================================================================
 -- Asked:   Jonathan, 2026-10-09: « Consentement droit à l'image », a second form made in
 --          Paramètres and sent through Documenso, with the old app's text.
--- Plan:    docs/plans/2026-10-08-professionals-module-plan.md, decisions P4-480 … P4-489
+-- Plan:    docs/plans/2026-10-08-professionals-module-plan.md, decisions P4-481 … P4-489
 -- Needs:   Phase 3 signing (…_core_signing.sql, …_core_signing_function_support.sql,
 --          …_core_signing_envelope.sql), the documents of 4c (…_professionals_documents.sql) and
 --          the service contract of 4d (…_professionals_contracts.sql: its snapshot table, its
@@ -11,7 +11,7 @@
 -- Rules:   docs/standards/database-conventions.md
 --
 -- Key choices
--- * The template (P4-480): one `professionals.image_consent` « Consentement au droit à l'image » per
+-- * The template (P4-481): one `professionals.image_consent` « Consentement au droit à l'image » per
 --   clinic (view professionals.view, edit professionals.settings), a DRAFT version 1 built from the
 --   legacy questionnaire's consent v1 (_legacy/src/pages/invite.tsx, CONSENT_TEXT: « Formulaire de
 --   consentement au droit à l'image », sections 1–5, 12 months renewed automatically, 3 months'
@@ -21,16 +21,16 @@
 --   signature), and initials nothing (a short form). Nothing is published (Mise en service).
 --   Seeded like the contract: directly, for every clinic and by a trigger for new ones.
 -- * prepare_professional_image_consent (SERVICE ROLE, p_actor, called by
---   professionals-contract-send with `form: image_consent`, P4-482): the contract's flow without
+--   professionals-contract-send with `form: image_consent`, P4-483): the contract's flow without
 --   Annexe A or pay, so its own RPC rather than a branch in prepare_professional_contract. The
---   actor needs professionals.manage (P4-483: not a pay document, so no .compensation and no
+--   actor needs professionals.manage (P4-484: not a pay document, so no .compensation and no
 --   .contracts.send); one consent out at a time per file (send, resend, regenerate as the
---   contract); a signed consent may be sent again (a renewal, P4-485), unlike the contract. The
+--   contract); a signed consent may be sent again (a renewal, P4-486), unlike the contract. The
 --   snapshot reuses professional_contract_snapshots (« what a request prints », per key: values,
 --   signers, the version; annexe '{}').
--- * Requests carry view_permission professionals.view (P4-483): the PDF holds no pay, so every
+-- * Requests carry view_permission professionals.view (P4-484): the PDF holds no pay, so every
 --   reader of the file reads the request, its signed PDF and « Synchroniser ».
--- * The signed consent becomes a document (P4-484): an AFTER UPDATE OF status trigger on core's
+-- * The signed consent becomes a document (P4-485): an AFTER UPDATE OF status trigger on core's
 --   signature_requests (as profiles_sync_professional_email on profiles) creates, when a request of
 --   purpose professionals.image_consent becomes signed, a VERIFIED « Consentement droit à
 --   l'image » professional_documents row on the signed PDF that core's capture stored
@@ -45,9 +45,14 @@
 --   reject_professional_document refuses it, HINT status) and deleting it keeps the file
 --   (delete_professional_document soft-deletes only uploaded files); get_professional_documents
 --   says which documents came from a signature (`signature_request_id`).
--- * The questionnaire's e-consent stays (P4-486): both satisfy consent_ok. The questionnaire
---   collects the first consent of a new professional; Documenso serves the files that never fill
---   one (the imported professionals) and the renewal every 12 months.
+-- * The questionnaire signs through Documenso too (P4-487, decided with Jonathan 2026-10-09):
+--   prepare_my_image_consent (service role, for professionals-consent-sign) gives the professional
+--   her own request, sent without an email and signed inside the app (P4-488); get_my_image_consent
+--   is her step's state; private.submission_gaps counts a consent in force, never blocks without a
+--   published form. The in-app e-consent (typed name) is retired as the questionnaire's path:
+--   existing professional_consents rows, and a draft already signed, stay valid until they expire.
+-- * The professional never uploads her image consent (P4-489, decided by Jonathan 2026-10-09):
+--   attach_professional_document refuses it from « Mes documents »; staff may attach a paper one.
 -- * History: list_professional_history also returns the consent's status moves, and every
 --   signature row names its purpose (`purpose` beside a signer's `role`), so the page words each.
 -- * Every statement is scoped to the actor's or the caller's clinic; messages never repeat a value.
@@ -349,9 +354,9 @@ revoke all on function private.professional_image_consent_valid_until(uuid, uuid
 -- prepare_professional_image_consent (service role; the function's one read before a send)
 -- -----------------------------------------------------------------------------
 -- As prepare_professional_contract (its comment), with:
---   * the actor holding professionals.manage (P4-483);
+--   * the actor holding professionals.manage (P4-484);
 --   * the template `professionals.image_consent`, no Annexe A (no block placeholder, no terms);
---   * `send` after a signed consent: a new request (the renewal, P4-485);
+--   * `send` after a signed consent: a new request (the renewal, P4-486);
 --   * key 'professionals.image_consent:<id>:<p_idempotency_key>'; HINT `consent` where the contract
 --     says `contract`.
 -- Returns {idempotency_key, template_version_id, title, values, signers, cancel} for send and
@@ -513,7 +518,7 @@ revoke all on function public.get_professional_image_consent(uuid) from public, 
 grant execute on function public.get_professional_image_consent(uuid) to authenticated;
 
 -- -----------------------------------------------------------------------------
--- The signed consent becomes a document (P4-484)
+-- The signed consent becomes a document (P4-485)
 -- -----------------------------------------------------------------------------
 alter table public.professional_documents
   add column signature_request_id uuid,
@@ -597,7 +602,7 @@ create trigger signature_requests_professional_image_consent
 -- Reviewer actions on a signed consent (same signatures and grants as *_professionals_documents.sql)
 -- -----------------------------------------------------------------------------
 -- « Refuser »: as before, but a document made from a signature is refused (its file is the
--- signature's own copy, never soft-deleted; P4-484).
+-- signature's own copy, never soft-deleted; P4-485).
 create or replace function public.reject_professional_document(p_doc_id uuid, p_reason text)
 returns void
 language plpgsql

@@ -140,13 +140,13 @@ describe('helpers', () => {
   })
 })
 
-describe('the image consent (P4-480 – P4-486)', () => {
+describe('the image consent (P4-481 – P4-486)', () => {
   const I = 'modules.professionals.imageConsent.actions'
   const MANAGE = ['professionals.view', 'professionals.manage']
   const consentWords = (state: ContractState, keys: string[], request = parsedRequest()) =>
     contractButtons(state, request, can(keys), 'image_consent').map((b) => (b.kind === 'action' ? b.label : b.kind))
 
-  it('is sent by whoever manages the file, not by the contract senders (P4-483)', () => {
+  it('is sent by whoever manages the file, not by the contract senders (P4-484)', () => {
     expect(consentWords('none', MANAGE)).toEqual([t(`${I}.send`)])
     expect(consentWords('none', ALL)).toEqual([])
     expect(consentWords('sent', MANAGE)).toEqual(['sync', t(`${I}.resend`), t(`${I}.regenerate`)])

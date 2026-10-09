@@ -116,7 +116,7 @@ function versionLabel(version: TemplateVersion): string {
  * and a live preview; « Publier » (confirmed: « Les prochains envois utiliseront cette
  * version. ») is offered once the draft is saved, without the validation line and, for a template
  * that declares Annexe A (`pricing.annexe_a`: the service contract; the image consent has none,
- * P4-480), with Annexe A's table. Without a draft, « Nouvelle version » copies the published one. Read-only without the
+ * P4-481), with Annexe A's table. Without a draft, « Nouvelle version » copies the published one. Read-only without the
  * template's edit permission.
  */
 export function TemplateEditor({ template, readOnly }: { template: ContractTemplate; readOnly: boolean }) {

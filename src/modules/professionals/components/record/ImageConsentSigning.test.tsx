@@ -23,7 +23,7 @@ afterEach(() => vi.clearAllMocks())
 
 const I = 'modules.professionals.imageConsent'
 
-/** The consent's card has no clinic signer and is read with professionals.view (P4-483). */
+/** The consent's card has no clinic signer and is read with professionals.view (P4-484). */
 const consentJson = (request: Record<string, unknown> | null) => {
   const json = contractJson(request === null ? null : { ...request, can_read: true })
   delete json.clinic_signer
@@ -38,7 +38,7 @@ async function open(json: Record<string, unknown> | null, { role = 'admin', perm
   await waitFor(() => expect(screen.queryByText(t('common.loading'))).not.toBeInTheDocument())
 }
 
-describe('ImageConsentSigning (P4-480 – P4-486)', () => {
+describe('ImageConsentSigning (P4-481 – P4-486)', () => {
   it('nothing sent: « Envoyer pour signature » after a confirmation, sent as the image consent', async () => {
     mocks.contracts.sendProfessionalContract.mockResolvedValue(REQUEST_ID)
     await open(consentJson(null))

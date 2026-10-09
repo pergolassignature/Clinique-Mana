@@ -251,7 +251,7 @@ export function documentActions(document: ProfessionalDocument, type: Pick<Docum
   if (document.file && isPreviewable(document.file.mimeType)) actions.push('preview')
   if (document.file) actions.push('download')
   if (can.review && document.status === 'pending') actions.push('verify')
-  // A consent signed through Documenso is never refused: its file is the signature's copy (P4-484).
+  // A consent signed through Documenso is never refused: its file is the signature's copy (P4-485).
   if (can.review && document.signatureRequestId === null && (document.status === 'pending' || document.status === 'verified')) actions.push('reject')
   if (can.review && type !== undefined && type.expiryRule !== 'none' && document.status !== 'rejected') actions.push('redate')
   if (can.delete) actions.push('delete')

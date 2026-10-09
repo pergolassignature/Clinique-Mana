@@ -167,7 +167,7 @@ insert into public.organizations (id, name, timezone) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A', 'America/Toronto'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B', 'America/Toronto');
 -- Professionnels seeds « Contrat de service » (4d.1) and « Consentement au droit à l'image »
--- (P4-480) as drafts in every new clinic: these tests list their own templates only.
+-- (P4-481) as drafts in every new clinic: these tests list their own templates only.
 delete from public.document_templates where key in ('professionals.service_contract', 'professionals.image_consent');
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',         'admin@a.test',    'active'),

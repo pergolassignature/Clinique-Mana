@@ -48,7 +48,7 @@ function publicationLabel(template: ContractTemplate): string {
 }
 
 /**
- * Paramètres → Contrats et formulaires (Task 4d.3, A5.7; P4-481): the module's document templates
+ * Paramètres → Contrats et formulaires (Task 4d.3, A5.7; P4-482): the module's document templates
  * (« Contrat de service », « Consentement au droit à l'image ») with a status filter and a search, the selected one's editor (`TemplateEditor`), and the
  * clinic's signer from « Signataire ». Seen with `professionals.manage` or `.settings`, changed
  * with `professionals.settings` (the template's edit permission; read-only otherwise, one notice).

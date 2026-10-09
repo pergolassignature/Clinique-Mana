@@ -9,7 +9,7 @@ import { useRecordData } from './record-context'
 const I = 'modules.professionals.imageConsent'
 
 /**
- * « Consentement droit à l'image » sent through Documenso (P4-480 – P4-486), inside that type's
+ * « Consentement droit à l'image » sent through Documenso (P4-481 – P4-486), inside that type's
  * required-document card on the Documents tab: the latest request's state in words (« Envoyé le … »,
  * « Signé le … »), its signer, and « Envoyer pour signature », « Renvoyer le courriel »,
  * « Régénérer », « Synchroniser », « Envoyer un nouveau consentement » for whoever manages the

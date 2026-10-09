@@ -154,9 +154,10 @@ test('the adjointe invites a professional, who completes the questionnaire, and 
   await main.getByRole('textbox', { name: /^Numéro de compte/ }).fill('7654321')
   await continueTo(page, 'Consentement')
 
-  await main.getByRole('checkbox', { name: "J'ai lu et j'accepte ce consentement." }).click()
-  await main.getByRole('textbox', { name: /^Votre nom complet/ }).fill(fullName)
-  await continueTo(page, 'Révision et envoi', 'Signer et continuer')
+  // Consentement: signed through Documenso once the clinic publishes the form (P4-487); the seed's is
+  // a draft, so the step says it comes later and never blocks the sending.
+  await expect(main.getByText(/^La clinique n'a pas encore publié ce formulaire/)).toBeVisible()
+  await continueTo(page, 'Révision et envoi')
 
   // Révision: every step complete, then « Envoyer mon profil ».
   await expect(main.getByText('Toutes les étapes sont complètes. Vérifiez vos réponses, puis envoyez votre profil.')).toBeVisible()

@@ -130,7 +130,7 @@ describe('documentActions', () => {
     expect(documentActions(word, type('cv'), ALL)).toEqual(['download', 'reject', 'delete'])
   })
 
-  it('a consent signed through Documenso is never refused (its file is the signature’s copy, P4-484)', () => {
+  it('a consent signed through Documenso is never refused (its file is the signature’s copy, P4-485)', () => {
     const signed = doc({ type_id: IDS.consentType, signature_request_id: '00000000-0000-4000-8000-00000000c501' })
     expect(signed.signatureRequestId).toBe('00000000-0000-4000-8000-00000000c501')
     expect(documentActions(signed, type('image_consent'), ALL)).toEqual(['preview', 'download', 'redate', 'delete'])

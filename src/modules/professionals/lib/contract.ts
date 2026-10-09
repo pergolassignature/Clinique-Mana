@@ -21,9 +21,9 @@ import type { ContractProgress } from './readiness'
  * Sending needs `professionals.contracts.send` and `professionals.compensation` (P4-436);
  * « Synchroniser » and the PDF need to read the request (`canRead`, P4-435).
  *
- * The image consent (P4-480 – P4-486) has the same states, with two differences: sending needs
- * `professionals.manage` (P4-483), and once signed it offers « Envoyer un nouveau consentement »
- * (the renewal, P4-485) instead of the PDF, which its document row opens (P4-484).
+ * The image consent (P4-481 – P4-486) has the same states, with two differences: sending needs
+ * `professionals.manage` (P4-484), and once signed it offers « Envoyer un nouveau consentement »
+ * (the renewal, P4-486) instead of the PDF, which its document row opens (P4-485).
  */
 export type ContractState =
   | 'none'

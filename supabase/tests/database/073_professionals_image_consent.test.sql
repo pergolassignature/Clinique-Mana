@@ -1,5 +1,5 @@
 -- The image consent sent through Documenso (migration *_professionals_image_consent.sql,
--- decisions P4-480 …). Covers: privileges; the template seeded per clinic (draft v1, nothing
+-- decisions P4-481 …). Covers: privileges; the template seeded per clinic (draft v1, nothing
 -- published, the banner line, no initials, the professional as the only signer) and for a new
 -- clinic; the printed values; prepare_professional_image_consent (professionals.manage, arguments,
 -- no published template, the snapshot, a draft resumed under its own key, one out at a time,

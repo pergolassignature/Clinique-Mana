@@ -96,7 +96,7 @@ function signerProgress(signer: ContractSigner): string {
 
 /**
  * A form's signing state and actions (the contract's card; the image consent's part of its
- * required-document card, P4-484): the words come from the form's own root (`formTextRoot`) where
+ * required-document card, P4-485): the words come from the form's own root (`formTextRoot`) where
  * they name the document, from the contract's where they do not.
  */
 export function SigningBody({ form, contract }: { form: SigningForm; contract: ProfessionalContract }) {

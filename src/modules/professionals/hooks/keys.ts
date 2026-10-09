@@ -47,7 +47,7 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | discarded (« Consentements »)            |                                                                |
  * | a contract or an image consent sent,     | `record(id)` (its `contract(id)` / `imageConsent(id)` and the  |
  * | re-sent, regenerated or synchronised     | documents too: readiness follows them), `lists()`,             |
- * | (4d.3, P4-484)                           | `history(id)` (first page)                                     |
+ * | (4d.3, P4-485)                           | `history(id)` (first page)                                     |
  * | a fiche emailed (4c.5)                   | `history(id)` (first page, its `emails(id)` too)               |
  * | a contract template's version saved,     | `contractTemplateKeys.all` (the list and the versions), and    |
  * | published or archived (4d.3)             | for a publication every signing card alone (`isContractKey`,   |
@@ -82,7 +82,7 @@ export const professionalKeys = {
    * record refresh refreshes it (a signed contract completes the readiness).
    */
   contract: (id: string) => [...professionalKeys.record(id), 'contract'] as const,
-  /** The image consent's signing card (`get_professional_image_consent`, P4-484): the same rule. */
+  /** The image consent's signing card (`get_professional_image_consent`, P4-485): the same rule. */
   imageConsent: (id: string) => [...professionalKeys.record(id), 'image-consent'] as const,
   /** One submission's review (`get_submission_review`), read when its sheet opens; dropped once decided. */
   submissionReview: (submissionId: string) => [...professionalKeys.all, 'submission-review', submissionId] as const,

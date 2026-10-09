@@ -14,7 +14,7 @@ const D = 'modules.professionals.documents'
 
 /**
  * « Documents » (P4-13, Tasks 4b.5, 4c.3, 4d.3): « Contrat de service » first (`ContractCard`, A5.1),
- * the image consent's Documenso signing inside its required card (`ImageConsentSigning`, P4-484;
+ * the image consent's Documenso signing inside its required card (`ImageConsentSigning`, P4-485;
  * its own card when the clinic made the type optional),
  * then « Questionnaire et mises à jour » (where a submission is reviewed, `REVIEW_TAB`), then the
  * documents themselves (`get_professional_documents`, one read): « Documents requis » and « Autres

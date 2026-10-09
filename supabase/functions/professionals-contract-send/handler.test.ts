@@ -80,7 +80,7 @@ const version = {
   email_message: 'Bonjour {{professional.full_name}}',
 }
 
-/** The image consent's published version: no Annexe A, the professional alone (P4-480). */
+/** The image consent's published version: no Annexe A, the professional alone (P4-481). */
 const CONSENT_VERSION_ID = '00000000-0000-4000-8000-0000000000e2'
 const CONSENT_KEY = `professionals.image_consent:${PRO}:${KEY}`
 const consentVersion = {
@@ -640,7 +640,7 @@ Deno.test('professionals-contract-send: an unexpected answer from the database �
   })
 })
 
-// --- The image consent (form `image_consent`, P4-480 – P4-486) ----------------------------------
+// --- The image consent (form `image_consent`, P4-481 – P4-486) ----------------------------------
 
 const consentPost = (action = 'send') =>
   post({
@@ -677,7 +677,7 @@ Deno.test('professionals-contract-send: image consent → its own prepare RPC, p
     assertEquals(
       row.view_permission,
       'professionals.view',
-      'no pay in it (P4-483)',
+      'no pay in it (P4-484)',
     )
     assertEquals(row.idempotency_key, CONSENT_KEY)
     assertEquals(row.signers.map((x) => x.role), ['professional'])

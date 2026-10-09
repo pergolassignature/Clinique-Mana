@@ -8,7 +8,7 @@ import { parseRpc } from './parse'
  * The forms a professional signs through Documenso (function `professionals-contract-send`): the
  * service contract (Batch 4d; *_professionals_contracts.sql: its card `get_professional_contract`,
  * sent with `professionals.contracts.send` and `professionals.compensation`) and the image consent
- * (P4-480 – P4-486; *_professionals_image_consent.sql: its card `get_professional_image_consent`,
+ * (P4-481 – P4-486; *_professionals_image_consent.sql: its card `get_professional_image_consent`,
  * sent with `professionals.manage`), both read with `professionals.view`; and « Paramètres →
  * Contrats et formulaires »: the module's document templates and their versions (core signing
  * RPCs, the template's edit permission). Every function throws the PostgREST error unchanged, or
@@ -80,7 +80,7 @@ const requestPayload = z
     expiresAt: r.expires_at,
     /**
      * The caller holds the request's view permission (`professionals.compensation` for the
-     * contract, P4-435; `professionals.view` for the image consent, P4-483).
+     * contract, P4-435; `professionals.view` for the image consent, P4-484).
      */
     canRead: r.can_read,
     /** Only when `canRead`. */

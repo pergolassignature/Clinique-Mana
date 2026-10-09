@@ -29,7 +29,7 @@ export interface DocumentsPanelProps {
   verifiedAtOnce: boolean
   /** Where focus goes when the button that opened a dialog is gone (the page's heading). */
   focusFallback: () => void
-  /** Extra content of a required type's card (the record's image-consent signing, P4-484). */
+  /** Extra content of a required type's card (the record's image-consent signing, P4-485). */
   typeExtra?: (type: DocumentType) => ReactNode
 }
 

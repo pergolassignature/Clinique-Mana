@@ -3,7 +3,7 @@
  * `*_professionals_image_consent.sql`,
  * `private.professionals_image_consent_template()`) renders: every
  * placeholder is declared, the professional is the only signer, nothing is
- * initialled, and the signature lands on the last page (P4-480).
+ * initialled, and the signature lands on the last page (P4-481).
  */
 import { assert, assertEquals } from '@std/assert'
 import { PLACEHOLDER_SOURCE, type TemplateVariable } from '../_shared/format.ts'

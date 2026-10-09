@@ -19,7 +19,7 @@ interface RequiredDocumentCardProps {
   onAction: DocumentRowProps['onAction']
   /** « Téléverser » / « Remplacer » for this type (the upload dialog, its type fixed). */
   onUpload: (opener: HTMLButtonElement) => void
-  /** Below the state: the image consent's Documenso signing on the record (P4-484). */
+  /** Below the state: the image consent's Documenso signing on the record (P4-485). */
   extra?: ReactNode
 }
 

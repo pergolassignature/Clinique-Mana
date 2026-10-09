@@ -60,15 +60,9 @@ export function useConsentSigning(back: SigningReturn) {
       ]),
     [queryClient],
   )
-  const sync = useMutation({
-    mutationFn: syncMyConsent,
-    onSuccess: (outcome) => {
-      if (outcome === 'signed') toast.success(t(`${S}.signedToast`))
-      else toast.info(t(`${S}.pendingCheck`))
-    },
-    onError: () => toast.info(t(`${S}.pendingCheck`)),
-    onSettled: () => refresh(),
-  })
+  // Plain state, not a mutation: the return from the signing page starts it from an effect, and its
+  // « Vérification… » must end with the request whatever React does with the effect.
+  const [checking, setChecking] = useState(false)
 
   const open = useCallback(async () => {
     setError(null)
@@ -86,17 +80,26 @@ export function useConsentSigning(back: SigningReturn) {
     }
   }, [mutateAsync, reset])
 
-  const { mutate: runSync } = sync
   const completed = useCallback(() => {
     setLink(null)
-    runSync()
-  }, [runSync])
+    setChecking(true)
+    syncMyConsent()
+      .then((outcome) => {
+        if (outcome === 'signed') toast.success(t(`${S}.signedToast`))
+        else toast.info(t(`${S}.pendingCheck`))
+      })
+      .catch(() => toast.info(t(`${S}.pendingCheck`)))
+      .finally(() => {
+        setChecking(false)
+        void refresh()
+      })
+  }, [refresh])
 
   return {
     link,
     error,
     opening: start.isPending,
-    checking: sync.isPending,
+    checking,
     open,
     completed,
     close: useCallback(() => setLink(null), []),

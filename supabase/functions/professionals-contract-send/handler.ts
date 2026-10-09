@@ -1,5 +1,5 @@
 /**
- * `professionals-contract-send` (Task 4d.2, design §3.8, A5; P4-482): « Préparer
+ * `professionals-contract-send` (Task 4d.2, design §3.8, A5; P4-483): « Préparer
  * et envoyer », « Réessayer l'envoi », « Renvoyer » and « Régénérer » on a
  * professional's form to sign: the service contract, or the image consent
  * (« Consentement au droit à l'image »). This function renders
@@ -18,7 +18,7 @@
  *    Then the form's permissions → 403 `forbidden` otherwise: the contract
  *    needs `professionals.contracts.send` and `professionals.compensation`
  *    (it prints the professional's pay, P4-436), the image consent
- *    `professionals.manage` (P4-483).
+ *    `professionals.manage` (P4-484).
  * 3. One hit on `LIMITS.professionalContractUser` (30 an hour per caller,
  *    both forms); `resend` also takes `LIMITS.professionalContractResend`
  *    (one per file and form every 10 s, P4-478), so a double click emails the
@@ -45,10 +45,10 @@
  *    here (502 `provider_error`): never two live contracts.
  * 7. `createSignatureRequest` (the form's purpose, subject `professional`,
  *    the form's view permission: `professionals.compensation` for the
- *    contract (P4-435), `professionals.view` for the consent (P4-483); the
+ *    contract (P4-435), `professionals.view` for the consent (P4-484); the
  *    snapshot's values, and for the contract Annexe A's blocks for the block
  *    placeholder `pricing.annexe_a`, P4-433). A signed image consent becomes a
- *    verified document in the database (P4-484). Documenso sends the French
+ *    verified document in the database (P4-485). Documenso sends the French
  *    signing email with the version's subject and message (P3-3); the expiry
  *    is « Signature électronique »'s. 200 `{ request_id, existing }`.
  *
@@ -101,7 +101,7 @@ export const PURPOSE = 'professionals.service_contract'
 /** P4-435: the contract prints the pay. */
 export const VIEW_PERMISSION = 'professionals.compensation'
 
-/** The forms this function sends (P4-482): a closed list, never a purpose from the body. */
+/** The forms this function sends (P4-483): a closed list, never a purpose from the body. */
 export const FORMS = {
   service_contract: {
     purpose: PURPOSE,
@@ -114,7 +114,7 @@ export const FORMS = {
   image_consent: {
     purpose: 'professionals.image_consent',
     prepare: 'prepare_professional_image_consent',
-    /** P4-483: not a pay document; whoever manages the file's documents. */
+    /** P4-484: not a pay document; whoever manages the file's documents. */
     permissions: ['professionals.manage'],
     viewPermission: 'professionals.view',
     annexe: false,
