@@ -56,7 +56,7 @@ const ivacError = (error: unknown) => (rpcErrorCode(error) === 'P0001' && rpcErr
 export function IdentityTab() {
   const readOnly = !useAccess().can('professionals.manage')
   return (
-    <div className="max-w-form space-y-4">
+    <div className="max-w-form space-y-5">
       {readOnly && <ReadOnlyNotice body={t(`${I}.readOnly`)} />}
       <ProfessionalCard
         title={t(`${I}.identity.title`)}

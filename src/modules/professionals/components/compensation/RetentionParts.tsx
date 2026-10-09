@@ -77,14 +77,17 @@ export function PayTable({ pay, upcomingFrom = null, caption }: { pay: readonly 
               {durationLabel(line.duration)}
             </th>
             <td className={`${cell} text-muted-foreground`}>{formatCents(line.clientPriceCents)}</td>
-            <td className={`${cell} font-medium`}>{line.appliedCents === null ? '—' : formatCents(line.appliedCents)}</td>
-            {upcoming && <td className={`${cell} font-medium`}>{line.upcomingCents === null ? '—' : formatCents(line.upcomingCents)}</td>}
+            <td className={`${cell} font-medium`}>{line.appliedCents === null ? <NoRate /> : formatCents(line.appliedCents)}</td>
+            {upcoming && <td className={`${cell} font-medium`}>{line.upcomingCents === null ? <NoRate /> : formatCents(line.upcomingCents)}</td>}
           </tr>
         ))}
       </tbody>
     </table>
   )
 }
+
+/** No rate in force: said in words, never a dash (« il faut toujours être clair »). */
+const NoRate = () => <span className="whitespace-nowrap font-normal text-muted-foreground">{t('modules.professionals.record.compensation.retention.noRate')}</span>
 
 const C = `${W}.decision.pay`
 

@@ -59,7 +59,7 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
     <section aria-labelledby={titleId} className="min-w-0 rounded-lg border border-border bg-card p-4 text-card-foreground">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 space-y-0.5">
-          <h4 id={titleId} className="text-base font-semibold tracking-tight text-foreground">
+          <h4 id={titleId} className="text-base font-semibold text-foreground">
             {type.name}
           </h4>
           <p data-type-state className="inline-flex items-center gap-1.5 text-sm text-foreground">
