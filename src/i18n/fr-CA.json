@@ -700,7 +700,7 @@
       },
       "unverified": {
         "title": "Demandes non vérifiées",
-        "description": "Ces demandes n'ont pas pu être vérifiées auprès de Documenso depuis plus de 6 heures. Si l'une d'elles a été signée, le document n'existe peut-être que sur la VM Documenso, qui n'est pas sauvegardée. Si toutes les demandes en cours sont ici, vérifiez la connexion : l'adresse, la clé d'API ou l'instance n'est peut-être pas la bonne.",
+        "description": "Ces demandes n'ont pas pu être vérifiées auprès de Documenso depuis plus de 6 heures. Si l'une d'elles a été signée, le document n'existe peut-être que sur le serveur de signature (Documenso), qui n'est pas sauvegardé. Si toutes les demandes en cours sont ici, vérifiez la connexion : l'adresse, la clé d'API ou l'instance n'est peut-être pas la bonne.",
         "loadError": "Impossible de charger les demandes non vérifiées.",
         "hiddenTitle": "Demande du module {module} (vous ne pouvez pas la consulter)",
         "lastSuccess": "Dernière vérification réussie",

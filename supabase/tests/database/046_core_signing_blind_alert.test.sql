@@ -32,7 +32,7 @@ create extension if not exists pgtap with schema extensions;
 select plan(35);
 
 select ok((select description like '%aucun passage réussi, demande qui ne peut pas être vérifiée, ou module désactivé%'
-                  and description like '%n''est pas sauvegardée%'
+                  and description like '%n''est pas sauvegardé%'
              from public.scheduled_jobs where key = 'core.signing_unsaved_alert'),
   'the job''s description names the blind cases and keeps the reason');
 
