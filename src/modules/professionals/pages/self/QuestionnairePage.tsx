@@ -169,10 +169,16 @@ function SentProfile({ submission, catalog }: { submission: MySubmission; catalo
  * personnels » on one line), 2rem apart from the form column (`--form-max` at most, narrower only when
  * the window is), and the header and the alerts above as wide as both. Every width is fixed, none
  * follows the step's content: `w-full` keeps the page from shrinking to it.
+ *
+ * From `lg` the page, its columns and the step's column also grow to the bottom of the window (the
+ * shell's content column does), so the step's action bar stands at the same height on every step
+ * (`StepActions`). The list sticks under the topbar (48 px) with the page's 24 px margin.
  */
 const QUESTIONNAIRE_LAYOUT = {
-  page: 'w-full max-w-form space-y-5 lg:max-w-[calc(15rem+2rem+var(--form-max))]',
-  columns: 'grid gap-5 lg:grid-cols-[15rem_minmax(0,var(--form-max))] lg:gap-8',
+  page: 'w-full max-w-form space-y-5 lg:flex lg:max-w-[calc(15rem+2rem+var(--form-max))] lg:flex-1 lg:flex-col',
+  columns: 'grid gap-5 lg:flex-1 lg:grid-cols-[15rem_minmax(0,var(--form-max))] lg:gap-8',
+  steps: 'lg:sticky lg:top-[calc(3rem+1.5rem)] lg:self-start',
+  step: 'min-w-0 lg:flex lg:flex-col',
 } as const
 
 /** The steps saved only on « Continuer »: leaving them with typed values asks first (P4-332). */
@@ -347,10 +353,10 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
       )}
       {refused.length > 0 && <RefusedAlert refused={refused} messages={autosave.state.refused} onSelect={leaveTo} />}
       <div className={QUESTIONNAIRE_LAYOUT.columns}>
-        <div className="lg:sticky lg:top-4 lg:self-start">
+        <div className={QUESTIONNAIRE_LAYOUT.steps}>
           <QuestionnaireNav steps={steps} current={step} incomplete={incomplete} refused={refused} onSelect={leaveTo} />
         </div>
-        <section aria-labelledby="questionnaire-step-title" className="min-w-0">
+        <section aria-labelledby="questionnaire-step-title" className={QUESTIONNAIRE_LAYOUT.step}>
           <header className="mb-5 space-y-1">
             <p className="hidden text-xs text-muted-foreground lg:block">
               {t(`${Q}.stepOf`, { current: String(index + 1), total: String(steps.length) })}

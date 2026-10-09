@@ -160,6 +160,14 @@
     scroll-behavior: smooth;
   }
 
+  /* The questionnaire's action bar sticks to the bottom of the window from `lg` (StepActions, 73 px
+     tall): a field reached with Tab, or scrolled into view, stops above it with a little room. */
+  @media (min-width: 1024px) {
+    html:has([data-questionnaire-actions]) {
+      scroll-padding-bottom: 6rem;
+    }
+  }
+
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
