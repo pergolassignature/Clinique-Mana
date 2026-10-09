@@ -132,7 +132,7 @@ export function Topbar({
           aria-keyshortcuts={isApplePlatform() ? 'Meta+K' : 'Control+K'}
           aria-haspopup="dialog"
           // A search field from `sm`; on a phone an icon button like the bell next to it (no border, 16 px icon).
-          className={`flex h-10 w-10 items-center justify-center gap-2 rounded-md border border-border bg-card text-sm text-subtle transition-colors duration-120 hover:border-border-strong max-sm:border-transparent max-sm:bg-transparent max-sm:text-muted-foreground max-sm:hover:border-transparent max-sm:hover:bg-muted max-sm:hover:text-foreground sm:w-auto sm:min-w-[200px] sm:justify-start sm:pl-2 sm:pr-1.5 md:h-7 ${focusRing}`}
+          className={`flex h-10 w-10 items-center justify-center gap-2 rounded-md border border-border bg-card text-sm text-muted-foreground transition-colors duration-120 hover:border-border-strong max-sm:border-transparent max-sm:bg-transparent max-sm:text-muted-foreground max-sm:hover:border-transparent max-sm:hover:bg-muted max-sm:hover:text-foreground sm:w-auto sm:min-w-[200px] sm:justify-start sm:pl-2 sm:pr-1.5 md:h-7 ${focusRing}`}
         >
           <Search className="h-4 w-4 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden />
           <span className="hidden flex-1 text-left sm:inline">{t('nav.search')}</span>

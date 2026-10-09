@@ -95,7 +95,9 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
               title={t('nav.logout')}
               className={cn(
                 `flex shrink-0 items-center justify-center rounded-md text-subtle transition-colors duration-120 hover:bg-ink/5 hover:text-foreground ${focusRing} disabled:pointer-events-none disabled:opacity-50`,
-                touch ? 'h-10 w-10' : '-mr-1 p-1',
+                // 28 px (WCAG 2.5.8: 24 at least), pulled into the row's padding so the role line
+                // keeps its width (« Adjointe administrative » fits).
+                touch ? 'h-10 w-10' : '-ml-1 -mr-2 h-7 w-7',
               )}
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden />
