@@ -201,7 +201,7 @@ function HistoryDaySection({ label, entries, latestInvitationEmail }: { label: s
   )
 }
 
-/** Who sent it: the person, « Une personne qui n'a plus accès », or the system (the reminders job). */
+/** Who sent it: the person, « Un compte supprimé » (a sender id without a profile), or the system (the reminders job). */
 function emailActor(email: SubjectEmail): { actor: string; byPerson: boolean } {
   if (email.sentByName) return { actor: email.sentByName, byPerson: true }
   return { actor: t(email.sentBy ? `${H}.actors.unknown` : `${H}.actors.system`), byPerson: false }

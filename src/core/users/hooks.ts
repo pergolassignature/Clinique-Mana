@@ -12,10 +12,12 @@ import {
   clearPermissionOverrides,
   createRole,
   deleteRole,
+  deleteUserAccount,
   fetchOrgUsers,
   fetchRoleDefaults,
   fetchUserOverrides,
   inviteStaff,
+  isAccountRemovedError,
   listStaffInvitations,
   renameRole,
   resendInvitation,
@@ -197,6 +199,38 @@ export function useSetUserStatus() {
         toast.error(t('settings.users.sheet.status.reenableFailed'))
       } else {
         onUserMutationError(queryClient, error)
+      }
+    },
+  })
+  return mutation
+}
+
+/**
+ * « Supprimer le compte » (`users-delete`). Success: the list is refetched (the person leaves it, so
+ * the sheet closes) and a toast confirms. When only the Auth deletion failed (`account_removed`),
+ * she has already left the app: the list is refetched too, and a warning stays until closed with
+ * « Réessayer » (the same call finishes it, even once the sheet has closed). Any other failure is
+ * left to the dialog, which shows it inline and stays open; a `42501` also refreshes the caller's
+ * access.
+ */
+export function useDeleteUserAccount() {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: ({ userId }: { userId: string; name: string }) => deleteUserAccount(userId),
+    onSuccess: async (_data, { userId, name }) => {
+      queryClient.removeQueries({ queryKey: userKeys.overrides(userId) })
+      await queryClient.invalidateQueries({ queryKey: userKeys.list() })
+      toast.success(t('settings.users.sheet.delete.deleted', { name }))
+    },
+    onError: (error, variables) => {
+      if (isAccountRemovedError(error)) {
+        void queryClient.invalidateQueries({ queryKey: userKeys.list() })
+        toast.warning(t('settings.users.sheet.delete.signinNotDeleted', { name: variables.name }), {
+          duration: Infinity,
+          action: { label: t('common.retry'), onClick: () => mutation.mutate(variables) },
+        })
+      } else {
+        refreshAccessOnRefusal(queryClient, error)
       }
     },
   })

@@ -56,6 +56,7 @@ import {
   stateForSwitch,
   type PermissionOverride,
 } from '../permissions'
+import { DeleteAccountSection } from './DeleteAccountSection'
 import { permissionGroupName } from './group-name'
 
 const SECTION_TITLE = 'text-base font-semibold tracking-tight'
@@ -184,6 +185,7 @@ function UserSheetContent({ user, onRoleDirtyChange }: { user: OrgUser; onRoleDi
         <RoleSection user={user} locked={lock !== null} callerIsAdmin={callerIsAdmin} onDirtyChange={onRoleDirtyChange} />
         <StatusSection user={user} locked={lock !== null} callerIsAdmin={callerIsAdmin} />
         <PermissionsSection user={user} locked={lock !== null} callerIsAdmin={callerIsAdmin} />
+        {lock === null && <DeleteAccountSection user={user} />}
       </SheetBody>
     </>
   )

@@ -402,7 +402,7 @@ describe('history — private data, actors, ids', () => {
     expect(actor({ actorId: null, actorName: null, source: 'migration:professionals_core' }).actor).toBe(t(`${H}.actors.migration`))
     expect(actor({ actorId: null, actorName: null, source: 'service' }).actor).toBe(t(`${H}.actors.system`))
     expect(actor({ actorId: null, actorName: null, source: 'bootstrap' })).toMatchObject({ actor: 'Le système', byPerson: false })
-    expect(actor({ actorName: null })).toMatchObject({ actor: "Une personne qui n'a plus accès", byPerson: false })
+    expect(actor({ actorName: null })).toMatchObject({ actor: 'Un compte supprimé', byPerson: false })
   })
 
   it('prints no UUID for any table, an unknown one included', () => {
