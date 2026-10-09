@@ -205,9 +205,25 @@ describe('listRowPayload', () => {
       updatedAt: '2026-10-08T12:00:00+00:00',
       insuranceStatus: null,
       insuranceExpiresOn: null,
+      documentsDone: 3,
+      documentsRequired: 3,
+      photoFileId: null,
       // Joined by the list page from list_professional_invitation_states (P4-270).
       onboarding: null,
     })
+  })
+
+  it('reads the photo’s stored file, null without one', () => {
+    expect(parseRpc(listRowPayload, { ...LIST_ROW_JSON, photo_file_id: IDS.professional }).photoFileId).toBe(IDS.professional)
+    expect(parseRpc(listRowPayload, { ...LIST_ROW_JSON, photo_file_id: null }).photoFileId).toBeNull()
+  })
+
+  it('reads the documents counts, 0 / 0 when absent', () => {
+    const without: Record<string, unknown> = { ...LIST_ROW_JSON }
+    delete without.documents_done
+    delete without.documents_required
+    expect(parseRpc(listRowPayload, without)).toMatchObject({ documentsDone: 0, documentsRequired: 0 })
+    expect(parseRpc(listRowPayload, { ...LIST_ROW_JSON, documents_done: 1, documents_required: 4 })).toMatchObject({ documentsDone: 1, documentsRequired: 4 })
   })
 
   it('reads the insurance columns (4c.2) for « À surveiller »', () => {

@@ -2215,6 +2215,7 @@
           "motifsEmpty": "Aucun motif ne correspond.",
           "acceptingNewClients": "Accepte de nouveaux clients",
           "watch": "À surveiller",
+          "documentsIncomplete": "Documents incomplets",
           "archived": "{name} (archivé)"
         },
         "chips": {
@@ -2236,7 +2237,13 @@
           "languages": "Langues",
           "status": "Statut",
           "watch": "À surveiller",
-          "nothingToWatch": "Rien à surveiller"
+          "nothingToWatch": "Rien à surveiller",
+          "documents": "Documents",
+          "documentsCount": "Documents {done} / {required}",
+          "documentsShort": "{done} / {required}",
+          "documentsLabelOne": "{done} document requis sur {required} en règle",
+          "documentsLabelOther": "{done} documents requis sur {required} en règle",
+          "documentsNone": "Aucun document requis"
         },
         "footer": {
           "countOne": "{shown} sur {total} professionnel",
@@ -3439,6 +3446,9 @@
           "insurer": "Assureur",
           "policyNumber": "Numéro de police",
           "choose": "Choisir le fichier",
+          "chooseAnother": "Choisir un autre fichier",
+          "kept": "Le fichier « {name} » est déjà envoyé. Corrigez le champ indiqué, puis joignez-le au dossier.",
+          "attachKept": "Joindre ce fichier",
           "hint": "{types}, {size} au plus.",
           "verifiedAtOnce": "Le document sera marqué vérifié dès son téléversement.",
           "reviewedLater": "Le document attendra la vérification d'une autre personne autorisée.",
@@ -4088,6 +4098,7 @@
           "submit": "Envoyer mon profil",
           "submitting": "Envoi…",
           "notAnswered": "Non indiqué",
+          "addressNone": "Non indiquée",
           "notSigned": "Pas encore signé.",
           "signedVersion": "Signé (version {version}) le {date} par {name}.",
           "yes": "Oui",

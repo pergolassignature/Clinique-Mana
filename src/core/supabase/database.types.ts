@@ -4786,6 +4786,7 @@ export type Database = {
           matching_complete: boolean | null
           motif_ids: string[] | null
           org_id: string | null
+          photo_file_id: string | null
           primary_licence_number: string | null
           primary_title_id: string | null
           ready: boolean | null
@@ -5521,6 +5522,7 @@ export type Database = {
           matching_complete: boolean | null
           motif_ids: string[] | null
           org_id: string | null
+          photo_file_id: string | null
           primary_licence_number: string | null
           primary_title_id: string | null
           ready: boolean | null
