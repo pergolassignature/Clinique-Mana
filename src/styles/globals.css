@@ -187,19 +187,6 @@
 }
 
 @layer components {
-  /* Shimmer sweep for dashboard skeleton blocks */
-  .shimmer {
-    @apply relative overflow-hidden;
-    background: linear-gradient(
-      90deg,
-      theme('colors.muted.DEFAULT') 0%,
-      theme('colors.card.DEFAULT') 50%,
-      theme('colors.muted.DEFAULT') 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 2s linear infinite;
-  }
-
   /* Focus ring utility: 2px white gap + 2px solid teal */
   .focus-ring {
     @apply shadow-focus outline-none;
@@ -210,16 +197,6 @@
   /* Aligned figures for tables, amounts and inputs */
   .tabular {
     font-variant-numeric: tabular-nums;
-  }
-
-  /* Hide scrollbar but keep functionality */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
   }
 }
 
