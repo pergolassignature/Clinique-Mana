@@ -5291,6 +5291,23 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_document_template_versions: {
+        Args: { p_template_id: string }
+        Returns: {
+          archived_at: string
+          body: Json
+          created_at: string
+          email_message: string
+          email_subject: string
+          id: string
+          published_at: string
+          signers: Json
+          status: string
+          updated_at: string
+          variables: Json
+          version: number
+        }[]
+      }
       list_document_templates: {
         Args: { p_module_key?: string }
         Returns: {

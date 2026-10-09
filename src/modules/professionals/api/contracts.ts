@@ -305,13 +305,9 @@ export const versionPayload = z
   }))
 export type TemplateVersion = z.output<typeof versionPayload>
 
-/** A template's versions, newest first (RLS: the template's view permission). */
+/** A template's versions, newest first (core's `list_document_template_versions`: the template's view permission). */
 export async function fetchTemplateVersions(templateId: string): Promise<TemplateVersion[]> {
-  const { data, error } = await supabase
-    .from('document_template_versions')
-    .select('id, version, status, body, variables, signers, email_subject, email_message, created_at, updated_at, published_at, archived_at')
-    .eq('template_id', templateId)
-    .order('version', { ascending: false })
+  const { data, error } = await supabase.rpc('list_document_template_versions', { p_template_id: templateId })
   if (error) throw error
   return parseRpc(z.array(versionPayload), data)
 }
