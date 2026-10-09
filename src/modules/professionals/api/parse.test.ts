@@ -219,7 +219,9 @@ describe('listRowPayload', () => {
   })
 
   it('reads the documents counts, 0 / 0 when absent', () => {
-    const { documents_done: _done, documents_required: _required, ...without } = LIST_ROW_JSON
+    const without: Record<string, unknown> = { ...LIST_ROW_JSON }
+    delete without.documents_done
+    delete without.documents_required
     expect(parseRpc(listRowPayload, without)).toMatchObject({ documentsDone: 0, documentsRequired: 0 })
     expect(parseRpc(listRowPayload, { ...LIST_ROW_JSON, documents_done: 1, documents_required: 4 })).toMatchObject({ documentsDone: 1, documentsRequired: 4 })
   })
