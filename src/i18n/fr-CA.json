@@ -224,7 +224,7 @@
     "forbidden": "Accès refusé",
     "account": "Mon compte"
   },
-  "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
+  "home": { "title": "Bienvenue", "body": "Ce qui demande votre attention s'affiche ici." },
   "storage": {
     "dropzone": {
       "drop": "Glissez un fichier ici, ou",
