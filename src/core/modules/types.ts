@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { TranslationKey } from '@/i18n'
 import type { LazyPage } from '@/shared/lib/lazy-page'
+import type { BadgeProps } from '@/shared/ui/badge'
 
 export interface ModuleRoute {
   /** RELATIVE to the app root (no leading slash): 'professionnels' or 'professionnels/:id'. */
@@ -39,6 +40,42 @@ export interface ModuleHomeCard {
   shownWhen?: (access: Access) => boolean
   /** A lazyPage(): Accueil does not load the module's code for users who cannot see the card. */
   component: LazyPage
+}
+
+/** One record the global search (⌘K) found. */
+export interface ModuleSearchResult {
+  /** Unique within its provider (React key, cmdk value). */
+  id: string
+  title: string
+  /** One muted line under the title (« Psychologue · OPQ 12345-08 »). */
+  subtitle?: string
+  /** ABSOLUTE path the result opens: '/professionnels/<id>'. */
+  href: string
+  /** Defaults to the provider's icon. */
+  icon?: LucideIcon
+  /** A status, as in the module's own list. */
+  badge?: { label: string; tone: NonNullable<BadgeProps['variant']> }
+}
+
+/** A module's search: results for the query, cancelled through `signal` when the query changes. */
+export type ModuleSearchFn = (query: string, signal: AbortSignal) => Promise<ModuleSearchResult[]>
+
+/**
+ * A group of records in the global search (⌘K « Rechercher… »). The palette asks every provider of
+ * the enabled modules whose permission the user holds, once the query has `minChars` characters;
+ * a disabled module or a missing permission contributes nothing. Core never imports the module:
+ * `load` brings its search code (API, labels) in its own chunk, only when the palette searches.
+ */
+export interface ModuleSearchProvider {
+  /** Stable English identifier, unique across modules: 'professionals' (React key, query key). */
+  id: string
+  /** The group's heading: « Professionnels ». */
+  labelKey: TranslationKey
+  icon: LucideIcon
+  permission: string
+  /** Characters (spaces aside) before the provider is asked; 2 when omitted. */
+  minChars?: number
+  load: () => Promise<ModuleSearchFn>
 }
 
 export type SettingsGroup = 'clinique' | 'plateforme' | 'modules' | 'compte'
@@ -79,6 +116,8 @@ export interface ModuleManifest {
   routes: ModuleRoute[]
   /** Cards on Accueil, in this order, between the greeting and the important notices. */
   homeCards?: readonly ModuleHomeCard[]
+  /** Its record groups in the global search (⌘K), in this order. */
+  search?: readonly ModuleSearchProvider[]
   /** The shell adds `moduleKey: key` to each (AuthenticatedApp). */
   settingsSections: Omit<SettingsSection, 'moduleKey'>[]
 }

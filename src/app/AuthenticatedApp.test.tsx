@@ -12,7 +12,13 @@ import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/sha
 import { AuthenticatedApp } from './AuthenticatedApp'
 import { ALL_MODULES } from './modules'
 
-const mocks = vi.hoisted(() => ({ captureException: vi.fn(), accountMounts: 0, mySubmission: null as unknown, mySubmissionReads: 0 }))
+const mocks = vi.hoisted(() => ({
+  captureException: vi.fn(),
+  accountMounts: 0,
+  mySubmission: null as unknown,
+  mySubmissionReads: 0,
+  searchProfessionalsRows: vi.fn(),
+}))
 // The topbar bell (and Accueil) read the caller's notices: none here, and no network.
 vi.mock('@/core/notifications/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/notifications/api')>()),
@@ -29,6 +35,12 @@ vi.mock('@/modules/professionals/api/self', async (importOriginal) => ({
     mocks.mySubmissionReads += 1
     return mocks.mySubmission
   },
+}))
+
+// The palette's professionals group (⌘K) reads search_professionals: one row, and no network.
+vi.mock('@/modules/professionals/api/search', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/modules/professionals/api/search')>()),
+  searchProfessionalsRows: mocks.searchProfessionalsRows,
 }))
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.
@@ -93,6 +105,7 @@ afterEach(() => {
   mocks.captureException.mockReset()
   mocks.mySubmission = null
   mocks.mySubmissionReads = 0
+  mocks.searchProfessionalsRows.mockReset()
 })
 
 const adminLike: Access = accessForRole('admin', { display_name: 'Camille Admin', modules: ['professionals'] })
@@ -383,6 +396,49 @@ describe('AuthenticatedApp', () => {
     await userEvent.click(button)
     expect(signOut).toHaveBeenCalledTimes(1)
     expect(button).toBeDisabled()
+  })
+})
+
+// The global search (⌘K): the enabled modules' record groups, for whoever holds their permission.
+describe('AuthenticatedApp — global search', () => {
+  const searchFor = async (query: string) => {
+    await userEvent.keyboard('{Control>}k{/Control}')
+    const dialog = await screen.findByRole('dialog', { name: t('nav.palette.title') })
+    await userEvent.type(within(dialog).getByRole('combobox'), query)
+    return dialog
+  }
+  const OLIVIER = {
+    id: 'p9', firstName: 'Olivier', lastName: 'Bergeron', displayStatus: 'preparing',
+    titleLabel: 'Psychologue', orderAcronym: 'OPQ', licenceNumber: '22222-11',
+  }
+
+  it('finds a professional for staff who read the list, and opens the record', async () => {
+    mocks.searchProfessionalsRows.mockResolvedValue([OLIVIER])
+    render(appAt('/accueil', accessForRole('counselor', { display_name: 'Conseillère', modules: ['professionals'] })))
+    const dialog = await searchFor('olivier')
+    const group = await within(dialog).findByRole('group', { name: t('modules.professionals.name') })
+    const option = within(group).getByRole('option')
+    expect(option).toHaveTextContent('Olivier Bergeron')
+    expect(option).toHaveTextContent('Psychologue · OPQ 22222-11')
+    expect(option).toHaveTextContent(t('modules.professionals.status.preparing'))
+    expect(mocks.searchProfessionalsRows).toHaveBeenCalledWith('olivier', expect.any(AbortSignal))
+  })
+
+  it('never searches professionals for the provider: « Mon profil » is her only entry', async () => {
+    render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'], has_professional_file: true })))
+    const dialog = await searchFor('profil')
+    expect(within(dialog).getAllByRole('option').map((o) => o.textContent)).toEqual([t('modules.professionals.myProfile.nav')])
+    await new Promise((r) => setTimeout(r, 300))
+    expect(mocks.searchProfessionalsRows).not.toHaveBeenCalled()
+    expect(within(dialog).queryByRole('group', { name: t('modules.professionals.name') })).not.toBeInTheDocument()
+  })
+
+  it('asks nothing of a disabled module', async () => {
+    render(appAt('/accueil', { ...adminLike, modules: [] }))
+    const dialog = await searchFor('olivier')
+    await new Promise((r) => setTimeout(r, 300))
+    expect(mocks.searchProfessionalsRows).not.toHaveBeenCalled()
+    expect(within(dialog).getByRole('combobox')).toHaveAttribute('placeholder', t('nav.palette.placeholder'))
   })
 })
 

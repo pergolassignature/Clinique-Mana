@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { useDebouncedValue } from '@/shared/lib/use-debounced-value'
 import { toast } from '@/shared/ui/sonner'
 import {
   EMAIL_LOG_PAGE_SIZE,
@@ -62,16 +63,6 @@ function hash(text: string): string {
   h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)
-}
-
-/** `value`, updated only once it has not changed for `delay` ms (the first value at once). */
-function useDebouncedValue<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(id)
-  }, [value, delay])
-  return debounced
 }
 
 /** The sender of the caller's org. Fresh for a minute, so a refetch does not re-sync a card being typed in. */

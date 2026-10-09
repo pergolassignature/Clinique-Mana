@@ -14,11 +14,14 @@
     "expand": "Agrandir le menu",
     "breadcrumb": "Fil d'Ariane",
     "search": "Rechercher…",
-    "searchLabel": "Rechercher une page",
+    "searchLabel": "Rechercher",
     "palette": {
-      "title": "Aller à une page",
+      "title": "Rechercher",
       "placeholder": "Rechercher une page…",
-      "empty": "Aucun résultat.",
+      "placeholderRecords": "Rechercher une page, un nom, un courriel, un numéro…",
+      "empty": "Aucun résultat pour « {query} ».",
+      "searching": "Recherche…",
+      "searchFailed": "La recherche dans « {group} » n'a pas abouti. Réessayez.",
       "pages": "Pages",
       "escape": "Échap"
     }

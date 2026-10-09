@@ -95,6 +95,7 @@ const findPalette = () => screen.findByRole('dialog', { name: t('nav.palette.tit
 const queryPalette = () => screen.queryByRole('dialog', { name: t('nav.palette.title') })
 const findSheet = () => screen.findByRole('dialog', { name: t('nav.menu') })
 const querySheet = () => screen.queryByRole('dialog', { name: t('nav.menu') })
+const plain = (text: string) => text.replace(/\u00a0/g, ' ')
 const CTRL_K = '{Control>}k{/Control}'
 const CMD_K = '{Meta>}k{/Meta}'
 
@@ -546,7 +547,7 @@ describe('AppShell — command palette', () => {
     const dialog = await findPalette()
     await userEvent.type(within(dialog).getByRole('combobox'), 'mon-compte')
     expect(within(dialog).queryAllByRole('option')).toHaveLength(0)
-    expect(within(dialog).getByText(t('nav.palette.empty'))).toBeInTheDocument()
+    expect(within(dialog).getByText(plain(t('nav.palette.empty', { query: 'mon-compte' })))).toBeInTheDocument()
   })
 
   it('asks before leaving unsaved changes; « Rester » stays with focus on the search button', async () => {
