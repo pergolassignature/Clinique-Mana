@@ -230,6 +230,23 @@ describe('OverviewTab — Dossier', () => {
   })
 })
 
+describe('OverviewTab — an inactive file (P4-510)', () => {
+  it('says why and since when on « Dossier », with the note', () => {
+    renderOverview((r) => ({
+      ...r,
+      professional: { ...r.professional, status: 'inactive', statusChangedAt: '2026-10-03T14:00:00Z', deactivationReasonId: IDS.other, deactivationNote: 'Retour prévu en janvier.' },
+    }))
+    const dossier = card(t(`${O}.readiness.title`))
+    expect(within(dossier).getByText(t('modules.professionals.watch.inactiveSinceFor', { date: '3 oct. 2026', reason: 'Autre' }))).toBeInTheDocument()
+    expect(within(dossier).getByText(t(`${O}.readiness.inactiveNote`, { note: 'Retour prévu en janvier.' }))).toBeInTheDocument()
+  })
+
+  it('an active file says nothing of the kind', () => {
+    renderOverview()
+    expect(screen.queryByText(/^Inactif depuis/)).not.toBeInTheDocument()
+  })
+})
+
 describe('OverviewTab — À surveiller and Prochaine action', () => {
   it('links each flag to the tab that settles it', () => {
     renderOverview((r) => ({ ...r, readiness: { ...r.readiness, warnings: ['login_email_mismatch'] } }))

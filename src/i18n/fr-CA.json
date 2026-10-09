@@ -1338,8 +1338,10 @@
         "invitation_unknown": "Invitation : résultat inconnu",
         "matching_incomplete": "Profil de jumelage incomplet",
         "login_email_mismatch": "Courriel de connexion différent",
-        "insurance_expiring": "Assurance expire le {date}",
-        "insurance_expired": "Assurance expirée depuis le {date}"
+        "insurance_expiring": "Assurance expire bientôt : valide jusqu'au {date}",
+        "insurance_expired": "Assurance expirée : valide jusqu'au {date}",
+        "inactiveSince": "Inactif depuis le {date}",
+        "inactiveSinceFor": "Inactif depuis le {date} · {reason}"
       },
       "onboarding": {
         "actions": {
@@ -1826,6 +1828,7 @@
             "title": "Dossier",
             "complete": "Dossier complet",
             "override": "Activé sans dossier complet : {reason}",
+            "inactiveNote": "Note : {note}",
             "missing": "Il manque :",
             "questionnaireDocuments": "Les documents envoyés avec le questionnaire compteront une fois celui-ci approuvé."
           },

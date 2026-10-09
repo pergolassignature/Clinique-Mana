@@ -47,7 +47,16 @@ const HELENE = listRowFixture({
   matchingComplete: false,
   acceptingNewClients: false,
 })
-const PAUL = listRowFixture({ id: id(3), firstName: 'Paul', lastName: 'Gagnon', email: 'paul@exemple.ca', status: 'inactive', primaryLicenceNumber: '54321' })
+const PAUL = listRowFixture({
+  id: id(3),
+  firstName: 'Paul',
+  lastName: 'Gagnon',
+  email: 'paul@exemple.ca',
+  status: 'inactive',
+  statusChangedAt: '2026-10-03T14:00:00Z',
+  deactivationReasonId: IDS.leave,
+  primaryLicenceNumber: '54321',
+})
 const ROWS = [HELENE, PAUL, MARIE]
 
 function renderPage({ path = '/professionnels', role = 'admin_assistant' as FixtureRole } = {}) {
@@ -108,6 +117,14 @@ describe('ProfessionalsListPage', () => {
     expect(screen.getByText('3 résultats')).toBeInTheDocument()
     expect(screen.getByText('3 sur 3 professionnels')).toBeInTheDocument()
     expect(screen.getByText('Page 1 sur 1')).toBeInTheDocument()
+  })
+
+  it('an inactive file: « Inactif depuis le … · {raison} » in « À surveiller » (P4-510)', async () => {
+    renderPage()
+    await waitFor(() => expect(names()).toContain('Paul Gagnon'))
+    const paul = screen.getByRole('link', { name: 'Paul Gagnon' }).closest('[role=row]') as HTMLElement
+    expect(within(paul).getByText(t('modules.professionals.watch.inactiveSinceFor', { date: '3 oct. 2026', reason: 'Congé' }))).toBeInTheDocument()
+    expect(within(paul).queryByText(t(`${L}.table.nothingToWatch`))).not.toBeInTheDocument()
   })
 
   it('names each title in the professional\'s form, the title\'s name without a gender (P4-342)', async () => {

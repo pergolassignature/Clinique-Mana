@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { INVITATION_UNANSWERED_DAYS, recordWatchSubject, WATCH_TAB, watchFlags, type WatchSubject } from './watch'
+import { inactiveLabel, INVITATION_UNANSWERED_DAYS, recordWatchSubject, WATCH_TAB, watchFlags, type WatchSubject } from './watch'
 import type { InvitationInfo, Onboarding } from '../api/parse'
-import { listRowFixture, recordFixture } from '../test/fixtures-domain'
+import { CATALOG, CATALOG_VIEW, listRowFixture, recordFixture } from '../test/fixtures-domain'
 
 const subject = (overrides: Partial<WatchSubject> = {}): WatchSubject => ({
   status: 'active',
@@ -151,17 +151,19 @@ describe('recordWatchSubject', () => {
 })
 
 describe('watchFlags: the insurance (4c, P4-406)', () => {
-  it('expiring: « Assurance expire le … », its last valid day, danger, after the review', () => {
+  it('expiring: « Assurance expire bientôt : valide jusqu’au … », its last valid day, danger, after the review (P4-511)', () => {
     const waiting: Onboarding = { invitation: null, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' }, onboardingApproved: true }
     expect(watchFlags(subject({ insuranceStatus: 'expiring', insuranceExpiresOn: '2026-10-12', onboarding: waiting }), NOW)).toEqual([
       { key: 'update_to_review', label: 'Mise à jour à réviser', tone: 'muted' },
-      { key: 'insurance_expiring', label: 'Assurance expire le 12 oct. 2026', tone: 'danger' },
+      { key: 'insurance_expiring', label: t('modules.professionals.watch.insurance_expiring', { date: '12 oct. 2026' }), tone: 'danger' },
     ])
   })
 
-  it('expired: « Assurance expirée depuis le … », the day after its last valid day, first of all', () => {
+  it('expired: « Assurance expirée : valide jusqu’au … », its last valid day as the Documents tab says it (P4-456, P4-511), first of all', () => {
     const flags = watchFlags(subject({ insuranceStatus: 'expired', insuranceExpiresOn: '2026-10-05', matchingComplete: false }), NOW)
-    expect(flags[0]).toEqual({ key: 'insurance_expired', label: 'Assurance expirée depuis le 6 oct. 2026', tone: 'danger' })
+    expect(flags[0]).toEqual({ key: 'insurance_expired', label: t('modules.professionals.watch.insurance_expired', { date: '5 oct. 2026' }), tone: 'danger' })
+    expect(flags[0]?.label).toContain('5 oct. 2026')
+    expect(flags[0]?.label).not.toContain('6 oct.')
     expect(flags.map((f) => f.key)).toEqual(['insurance_expired', 'matching_incomplete'])
   })
 
@@ -170,6 +172,15 @@ describe('watchFlags: the insurance (4c, P4-406)', () => {
     expect(watchFlags(subject({ insuranceStatus: 'missing', insuranceExpiresOn: null }), NOW)).toEqual([])
     expect(watchFlags(subject({ insuranceStatus: 'expired', insuranceExpiresOn: null }), NOW)).toEqual([])
     expect(watchFlags(subject({ status: 'inactive', insuranceStatus: 'expired', insuranceExpiresOn: '2026-10-05' }), NOW)).toEqual([])
+  })
+
+  it('an inactive file: « Inactif depuis le … · {raison} » instead of a flag (P4-510)', () => {
+    const reason = CATALOG.deactivationReasons[0]
+    if (!reason) throw new Error('no reason')
+    const row = { status: 'inactive' as const, statusChangedAt: '2026-10-03T14:00:00Z', deactivationReasonId: reason.id }
+    expect(inactiveLabel(row, CATALOG_VIEW)).toBe(t('modules.professionals.watch.inactiveSinceFor', { date: '3 oct. 2026', reason: reason.name }))
+    expect(inactiveLabel({ ...row, deactivationReasonId: null }, CATALOG_VIEW)).toBe(t('modules.professionals.watch.inactiveSince', { date: '3 oct. 2026' }))
+    expect(inactiveLabel({ ...row, status: 'active' }, CATALOG_VIEW)).toBeNull()
   })
 
   it('both flags open « Documents »', () => {
