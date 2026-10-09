@@ -97,6 +97,22 @@ describe('uploadProfessionalDocument', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('attach_professional_document', expect.objectContaining({ p_expires_on: null, p_metadata: {} }))
   })
 
+  it('says the stored file before attaching; a retry with it only attaches (nothing sent again)', async () => {
+    mocks.uploadFile.mockResolvedValue({ fileId: DOC_IDS.renewalFile })
+    const refusal = { code: 'P0001', message: "L'échéance doit être aujourd'hui ou plus tard.", hint: 'expires_on' }
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: refusal })
+    const onUploaded = vi.fn()
+    const input = { professionalId: IDS.professional, typeKey: 'insurance', file, mimeType: 'application/pdf', self: false }
+    await expect(uploadProfessionalDocument({ ...input, expiresOn: '2020-01-01', onUploaded })).rejects.toBe(refusal)
+    expect(onUploaded).toHaveBeenCalledExactlyOnceWith(DOC_IDS.renewalFile)
+
+    ok(DOC_IDS.insuranceRenewal)
+    await expect(uploadProfessionalDocument({ ...input, expiresOn: '2027-03-31', uploadedFileId: DOC_IDS.renewalFile, onUploaded })).resolves.toBe(DOC_IDS.insuranceRenewal)
+    expect(mocks.uploadFile).toHaveBeenCalledOnce()
+    expect(onUploaded).toHaveBeenCalledOnce()
+    expect(mocks.rpc).toHaveBeenLastCalledWith('attach_professional_document', expect.objectContaining({ p_file_id: DOC_IDS.renewalFile, p_expires_on: '2027-03-31' }))
+  })
+
   it('a failed upload never attaches', async () => {
     mocks.uploadFile.mockRejectedValue(new FunctionCallError('rate_limited', 429, 'Too many'))
     await expect(uploadProfessionalDocument({ professionalId: IDS.professional, typeKey: 'cv', file, mimeType: 'application/pdf', expiresOn: null, self: false })).rejects.toBeInstanceOf(FunctionCallError)
