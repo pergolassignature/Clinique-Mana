@@ -12,8 +12,11 @@ import { showMutationError, type MutationFeedback } from './mutation-feedback'
  * restriction, archiving) also refreshes every professional query (see `keys.ts`).
  */
 
-/** Lists whose saved rules feed readiness: a title's order (licence), a motif's restriction. */
-const READINESS_KINDS: ReadonlySet<ReferenceKind> = new Set(['profession_titles', 'motifs'])
+/**
+ * Lists whose saved rules feed readiness: a title's order (licence), a motif's restriction, a
+ * document type's « Requis » and expiry rule (« Documents requis », 4c.3).
+ */
+const READINESS_KINDS: ReadonlySet<ReferenceKind> = new Set(['profession_titles', 'motifs', 'document_types'])
 
 /** Variables of `useSaveReference`: a kind and its input, kept together for type safety. */
 export type SaveReferenceVariables = { [K in ReferenceKind]: { kind: K; input: ReferenceInput<K> } }[ReferenceKind]

@@ -1394,13 +1394,6 @@
       },
       "record": {
         "loadError": "Le dossier n'a pas pu être chargé.",
-        "documents": {
-          "files": {
-            "title": "Documents",
-            "emptyTitle": "Les documents arrivent bientôt.",
-            "emptyBody": "L'assurance, la photo et le contrat s'afficheront ici, avec leurs dates d'échéance."
-          }
-        },
         "notFound": {
           "title": "Professionnel introuvable",
           "body": "Ce dossier n'existe pas ou vous n'y avez pas accès.",
@@ -2261,6 +2254,11 @@
         "languageCode": "Code de langue : deux lettres (ISO 639-1).",
         "clienteleKind": "Cette clientèle garde son type (groupe d'âge ou non).",
         "otherReasonNote": "La raison « Autre » demande toujours une note.",
+        "reminderDays": "Jusqu'à trois nombres de jours, de 1 à 90, séparés par des virgules.",
+        "remindersNeedExpiry": "Les rappels demandent une échéance.",
+        "acceptedMime": "Choisissez au moins un type de fichier.",
+        "photoMime": "La photo doit être une image JPEG ou PNG : elle figure sur la fiche.",
+        "maxBytes": "La taille maximale va de 100 Ko à 10 Mo.",
         "nameTaken": {
           "professional_orders": "Un ordre porte déjà ce nom (il est peut-être archivé).",
           "profession_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
@@ -2269,7 +2267,8 @@
           "motif_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
           "motifs": "Un motif porte déjà ce nom (il est peut-être archivé).",
           "languages": "Une langue porte déjà ce nom (elle est peut-être archivée).",
-          "deactivation_reasons": "Une raison porte déjà ce nom (elle est peut-être archivée)."
+          "deactivation_reasons": "Une raison porte déjà ce nom (elle est peut-être archivée).",
+          "document_types": "Un type de document porte déjà ce nom (il est peut-être archivé)."
         }
       },
       "compensation": {
@@ -2534,6 +2533,96 @@
           "yes": "Oui",
           "no": "Non",
           "system": "Raison par défaut : ne peut pas être archivée."
+        },
+        "requiredDocuments": {
+          "title": "Documents requis",
+          "description": "Les documents demandés aux professionnels, leur date d'échéance et les fichiers acceptés.",
+          "add": "Ajouter un type de document",
+          "createTitle": "Ajouter un type de document",
+          "editTitle": "Modifier le type de document",
+          "system": "Suivi par l'application : ne peut pas être archivé. Vous pouvez le rendre facultatif.",
+          "required": "Requis",
+          "requiredHelp": "Le dossier n'est complet que lorsque ce document est valide.",
+          "yes": "Oui",
+          "no": "Non",
+          "expiry": "Échéance",
+          "expiryHelp": "La date proposée au téléversement ; elle reste modifiable.",
+          "rules": {
+            "none": "Aucune",
+            "next_march_31": "31 mars suivant",
+            "months_12": "12 mois"
+          },
+          "ruleOptions": {
+            "none": "Aucune échéance",
+            "next_march_31": "Le 31 mars suivant (en janvier et février : le 31 mars de l'année)",
+            "months_12": "12 mois après le téléversement"
+          },
+          "reminders": "Rappels",
+          "remindersNone": "Aucun",
+          "remindersBefore": "{days} jours avant",
+          "remindersBeforeOne": "1 jour avant",
+          "remindersWeekly": "chaque semaine après",
+          "reminderDays": "Rappels avant l'échéance (en jours)",
+          "reminderDaysHelp": "Jusqu'à trois nombres de 1 à 90, séparés par des virgules (par exemple « 30, 7 »). Laissez vide pour aucun rappel.",
+          "weekly": "Rappel chaque semaine après l'échéance",
+          "weeklyHelp": "Un courriel par semaine tant qu'aucune nouvelle preuve n'est vérifiée.",
+          "remindersOnlyInsurance": "Les rappels par courriel ne s'appliquent qu'à la preuve d'assurance.",
+          "files": "Fichiers acceptés",
+          "filesSummary": "{types} · {size}",
+          "photoFilesHelp": "La photo figure sur la fiche : JPEG ou PNG seulement.",
+          "maxBytes": "Taille maximale"
+        },
+        "consents": {
+          "title": "Consentements",
+          "description": "Le texte du consentement au droit à l'image que les professionnels signent dans leur questionnaire.",
+          "loadError": "Les versions du consentement n'ont pas pu être chargées.",
+          "current": {
+            "title": "Version en vigueur",
+            "description": "Le texte que signent les professionnels. Les consentements déjà signés gardent leur version.",
+            "none": "Aucune version publiée.",
+            "noneBody": "Les professionnels ne peuvent pas signer le consentement tant qu'aucune version n'est publiée.",
+            "meta": "Version {version} · publiée le {date}",
+            "metaBy": "Version {version} · publiée le {date} par {name}",
+            "signedNone": "Aucune signature",
+            "signedOne": "1 signature",
+            "signedOther": "{count} signatures"
+          },
+          "draft": {
+            "title": "Brouillon de la version {version}",
+            "description": "Pas encore publié : les professionnels signent toujours la version en vigueur.",
+            "titleField": "Titre",
+            "body": "Texte",
+            "bodyHelp": "Le texte exact que le professionnel lira et signera.",
+            "save": "Enregistrer le brouillon",
+            "saving": "Enregistrement…",
+            "publish": "Publier la version {version}",
+            "discard": "Supprimer le brouillon",
+            "unsavedBeforePublish": "Enregistrez le brouillon avant de le publier.",
+            "titleRequired": "Le titre est obligatoire.",
+            "titleTooLong": "Le titre ne peut pas dépasser 200 caractères.",
+            "bodyRequired": "Le texte du consentement est obligatoire.",
+            "bodyTooLong": "Le texte ne peut pas dépasser 20 000 caractères."
+          },
+          "newVersion": "Nouvelle version",
+          "newVersionHelp": "Un brouillon commence à partir du texte en vigueur. Rien ne change pour les professionnels avant sa publication.",
+          "cancelNew": "Annuler",
+          "publishDialog": {
+            "title": "Publier la version {version} ?",
+            "body": "Dès maintenant, les nouvelles signatures utiliseront ce texte. Les consentements déjà signés gardent leur version ; un questionnaire signé avec l'ancienne version et pas encore envoyé demandera de signer de nouveau.",
+            "confirm": "Publier la version {version}",
+            "pending": "Publication…"
+          },
+          "discardDialog": {
+            "title": "Supprimer le brouillon ?",
+            "body": "Le texte du brouillon sera perdu. La version en vigueur ne change pas.",
+            "confirm": "Supprimer le brouillon",
+            "pending": "Suppression…"
+          },
+          "previous": {
+            "title": "Versions précédentes",
+            "show": "Afficher le texte",
+            "hide": "Masquer le texte"
+          }
         },
         "invitations": {
           "title": "Invitations",
@@ -2977,6 +3066,165 @@
           "confirm": "Fermer la demande",
           "closing": "Fermeture…"
         }
+      },
+      "documents": {
+        "or": "ou",
+        "loadError": "Les documents n'ont pas pu être chargés.",
+        "required": {
+          "title": "Documents requis",
+          "summary": "Documents requis en règle : {done} sur {total}",
+          "none": "La clinique ne demande aucun document pour l'instant."
+        },
+        "ownFile": "C'est votre propre dossier : une autre personne autorisée vérifie, refuse ou supprime vos documents.",
+        "state": {
+          "validUntil": "Valide jusqu'au {date}",
+          "verified": "Vérifié",
+          "expiring": "Expire le {date}",
+          "expiredOn": "Expiré : valide jusqu'au {date}",
+          "expired": "Expiré",
+          "pending": "À vérifier",
+          "pendingSelf": "En attente de vérification par la clinique",
+          "rejected": "Refusé",
+          "missing": "Manquant"
+        },
+        "lines": {
+          "uploadedByClinic": "Téléversé le {date} par la clinique",
+          "uploadedByProfessional": "Téléversé le {date} par {firstName}",
+          "uploadedByYou": "Téléversé le {date} par vous",
+          "uploadedForYou": "Téléversé le {date} par la clinique",
+          "verifiedBy": "Vérifié le {date} par {name}",
+          "verifiedOn": "Vérifié le {date}",
+          "rejectedBy": "Refusé le {date} par {name}",
+          "rejectedOn": "Refusé le {date}",
+          "reason": "Raison :",
+          "insurer": "Assureur : {value}",
+          "policy": "N° de police : {value}",
+          "fileGone": "Le fichier a été retiré.",
+          "consent": "Signé électroniquement le {date} par {name} (version {version})",
+          "consentWithdrawn": "Retrait demandé : il prend effet le {date}.",
+          "newPending": "Nouveau document",
+          "none": "Aucun document pour l'instant."
+        },
+        "older": {
+          "show": "Voir les documents précédents ({count})",
+          "hide": "Masquer les documents précédents"
+        },
+        "actions": {
+          "upload": "Téléverser",
+          "uploadLabel": "Téléverser : {type}",
+          "replace": "Remplacer",
+          "replaceLabel": "Remplacer : {type}",
+          "uploadOther": "Téléverser un document",
+          "preview": "Aperçu",
+          "download": "Télécharger",
+          "downloading": "Téléchargement…",
+          "verify": "Vérifier",
+          "reject": "Refuser",
+          "redate": "Modifier l'échéance",
+          "delete": "Supprimer",
+          "more": "Autres actions : {name}",
+          "documentName": "{type}, {state}"
+        },
+        "others": {
+          "title": "Autres documents",
+          "description": "CV, diplômes, attestations et tout autre document du dossier.",
+          "empty": "Aucun autre document."
+        },
+        "upload": {
+          "title": "Téléverser : {type}",
+          "titleAny": "Téléverser un document",
+          "description": "Le document s'ajoute au dossier de {name}.",
+          "descriptionSelf": "Le document s'ajoute à votre dossier.",
+          "type": "Type de document",
+          "typePlaceholder": "Choisissez un type",
+          "expiresOn": "Valide jusqu'au",
+          "expiresOnHelp": "Le dernier jour où le document est valide. La date proposée suit la règle du type : corrigez-la si le document en indique une autre.",
+          "insurer": "Assureur",
+          "policyNumber": "Numéro de police",
+          "choose": "Choisir le fichier",
+          "hint": "{types}, {size} au plus.",
+          "verifiedAtOnce": "Le document sera marqué vérifié dès son téléversement.",
+          "reviewedLater": "Le document attendra la vérification d'une autre personne autorisée.",
+          "reviewedLaterSelf": "La clinique vérifiera le document avant qu'il compte dans votre dossier.",
+          "chooseTypeFirst": "Choisissez d'abord le type de document.",
+          "dateRequired": "Indiquez le dernier jour de validité.",
+          "dateInvalid": "Cette date n'est pas valide.",
+          "datePast": "La date doit être aujourd'hui ou plus tard.",
+          "dateTooFar": "La date ne peut pas dépasser le 31 décembre 2100.",
+          "fieldTooLong": "120 caractères au plus."
+        },
+        "verify": {
+          "title": "Vérifier : {type}",
+          "body": "Confirmez que le document est lisible, complet et au nom de {name}.",
+          "expiresOn": "Valide jusqu'au",
+          "expiresOnHelp": "Corrigez la date si le document en indique une autre.",
+          "pastNote": "Cette date est passée : le document sera marqué expiré.",
+          "confirm": "Vérifier le document",
+          "pending": "Vérification…"
+        },
+        "reject": {
+          "title": "Refuser : {type}",
+          "reason": "Raison du refus",
+          "emailed": "{firstName} recevra cette raison par courriel et pourra téléverser un nouveau document.",
+          "notEmailed": "La clinique a téléversé ce document : aucun courriel n'est envoyé.",
+          "fileRemoved": "Le fichier sera retiré du dossier ; la raison reste visible.",
+          "reasonRequired": "Indiquez pourquoi le document est refusé.",
+          "reasonTooLong": "La raison compte au plus 1000 caractères.",
+          "confirm": "Refuser le document",
+          "pending": "Refus…"
+        },
+        "redate": {
+          "title": "Modifier l'échéance : {type}",
+          "body": "Le changement est inscrit à l'historique du dossier.",
+          "confirm": "Enregistrer l'échéance",
+          "pending": "Enregistrement…"
+        },
+        "delete": {
+          "title": "Supprimer ce document ?",
+          "body": "{type} : le document et son fichier seront retirés du dossier de {name}. Cette action ne peut pas être annulée ; l'historique en garde la trace.",
+          "confirm": "Supprimer le document",
+          "pending": "Suppression…"
+        },
+        "preview": {
+          "description": "{file} · {size}",
+          "frameTitle": "Aperçu de {file}",
+          "imageAlt": "Aperçu : {type}",
+          "notPreviewable": "Ce type de fichier ne s'affiche pas ici : téléchargez-le.",
+          "fallback": "Si l'aperçu ne s'affiche pas, téléchargez le fichier.",
+          "downloadFailed": "Le fichier n'a pas pu être téléchargé. Réessayez dans un instant."
+        },
+        "toasts": {
+          "uploaded": "Document téléversé et vérifié.",
+          "uploadedPending": "Document téléversé. Il attend une vérification.",
+          "uploadedSelf": "Document envoyé. La clinique le vérifiera.",
+          "verified": "Document vérifié.",
+          "redated": "Échéance enregistrée.",
+          "deleted": "Document supprimé.",
+          "rejected": "Document refusé.",
+          "rejectedEmailed": "Document refusé. {firstName} a reçu un courriel avec la raison.",
+          "rejectedNotEmailed": "Document refusé, mais le courriel n'a pas pu être envoyé. Prévenez {firstName} directement.",
+          "draftSaved": "Brouillon enregistré.",
+          "published": "Nouvelle version publiée.",
+          "draftDiscarded": "Brouillon supprimé."
+        }
+      },
+      "myDocuments": {
+        "nav": "Mes documents",
+        "pageTitle": "Mes documents",
+        "description": "Les documents que la clinique garde à votre dossier, et ce qu'il reste à envoyer.",
+        "loadError": "Vos documents n'ont pas pu être chargés.",
+        "noFile": {
+          "title": "Aucun dossier de professionnel n'est lié à votre compte.",
+          "body": "Cette page sert aux professionnels de la clinique."
+        },
+        "banners": {
+          "expiringTitle": "Votre assurance arrive à échéance",
+          "expiring": "Votre assurance expire le {date}. Téléversez la nouvelle preuve dès que possible.",
+          "expiredTitle": "Votre assurance est expirée",
+          "expired": "Votre assurance est expirée. Téléversez la nouvelle preuve pour continuer à recevoir de nouveaux clients.",
+          "renewalPending": "Merci : votre nouvelle preuve d'assurance attend la vérification de la clinique."
+        },
+        "rejectedNote": "La clinique a refusé ce document. Téléversez-en un nouveau."
       },
       "myProfile": {
         "nav": "Mon profil",

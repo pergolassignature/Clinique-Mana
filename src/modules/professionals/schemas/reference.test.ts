@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { referenceSchema, referenceSchemas, toReferenceFormValues } from './reference'
+import { parseReminderDays, referenceSchema, referenceSchemas, toReferenceFormValues } from './reference'
 import { CATALOG } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import { errorAt } from '../test/schema-helpers'
@@ -178,5 +178,52 @@ describe('toReferenceFormValues', () => {
     expect(referenceSchemas.professional_orders.parse(toReferenceFormValues('professional_orders', CATALOG.orders[0]!))).toMatchObject({ acronym: 'OPQ' })
     expect(referenceSchemas.profession_titles.parse(toReferenceFormValues('profession_titles', CATALOG.titles[0]!))).toMatchObject({ orderId: IDS.opq })
     expect(referenceSchemas.motif_categories.parse(toReferenceFormValues('motif_categories', CATALOG.motifCategories[0]!))).toMatchObject({ icon: 'Brain' })
+  })
+})
+
+describe('document_types (« Documents requis », P4-402)', () => {
+  const docTypes = CATALOG.documentTypes
+  const row = (key: string) => docTypes.find((x) => x.key === key)!
+  const schema = (key: string | null) => referenceSchema('document_types', { rows: docTypes, current: key ? row(key) : null })
+  const values = (key: string | null) => toReferenceFormValues('document_types', key ? row(key) : null)
+
+  it('reads « Rappels » as up to three days of 1–90, distinct, largest first', () => {
+    expect(parseReminderDays('')).toEqual([])
+    expect(parseReminderDays('7, 30')).toEqual([30, 7])
+    expect(parseReminderDays('30 7 7')).toEqual([30, 7])
+    expect(parseReminderDays('1, 2, 3, 4')).toBeNull()
+    expect(parseReminderDays('0')).toBeNull()
+    expect(parseReminderDays('91')).toBeNull()
+    expect(parseReminderDays('7.5')).toBeNull()
+  })
+
+  it('round-trips the insurance, its reminders kept', () => {
+    expect(schema('insurance').parse(values('insurance'))).toEqual({
+      name: "Preuve d'assurance responsabilité",
+      required: true,
+      expiryRule: 'next_march_31',
+      reminderDays: [7],
+      weeklyAfterExpiry: true,
+      acceptedMime: ['application/pdf', 'image/jpeg', 'image/png'],
+      maxBytes: 10_485_760,
+    })
+  })
+
+  it('reminders are the insurance’s only, and need an end date', () => {
+    // Another type never sends reminders, whatever was typed.
+    expect(schema('cv').parse({ ...values('cv'), reminderDays: '7', weeklyAfterExpiry: true })).toMatchObject({ reminderDays: [], weeklyAfterExpiry: false })
+    expect(errorAt(schema('insurance'), { ...values('insurance'), reminderDays: '120' }, 'reminderDays')).toBe(V('modules.professionals.validation.reminderDays'))
+    expect(errorAt(schema('insurance'), { ...values('insurance'), expiryRule: 'none' }, 'expiryRule')).toBe(V('modules.professionals.validation.remindersNeedExpiry'))
+  })
+
+  it('at least one file type; the photo JPEG or PNG only; a size of 100 Ko – 10 Mo', () => {
+    expect(errorAt(schema('cv'), { ...values('cv'), acceptedMime: [] }, 'acceptedMime')).toBe(V('modules.professionals.validation.acceptedMime'))
+    expect(errorAt(schema('photo'), { ...values('photo'), acceptedMime: ['image/jpeg', 'application/pdf'] }, 'acceptedMime')).toBe(V('modules.professionals.validation.photoMime'))
+    expect(errorAt(schema('cv'), { ...values('cv'), maxBytes: '1000' }, 'maxBytes')).toBe(V('modules.professionals.validation.maxBytes'))
+  })
+
+  it('a new type: optional, no end date, every file type, 10 Mo; its name not one already taken', () => {
+    expect(values(null)).toMatchObject({ required: false, expiryRule: 'none', reminderDays: '', maxBytes: '10485760' })
+    expect(errorAt(schema(null), { ...values(null), name: 'cv' }, 'name')).toBe(V('modules.professionals.validation.nameTaken.document_types'))
   })
 })

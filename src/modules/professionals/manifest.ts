@@ -1,4 +1,4 @@
-import { CircleUser, Compass, FileText, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import { CircleUser, Compass, FileCheck, FileText, GraduationCap, HandCoins, Languages, Send, ShieldCheck, Tags, UserMinus, Users } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -112,6 +112,24 @@ export const professionalsManifest: ModuleManifest = {
       icon: UserMinus,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/DeactivationReasonsSettingsPage'), 'DeactivationReasonsSettingsPage'),
+    },
+    {
+      // The document types a file holds (Task 4c.3): read like the lists, changed with `professionals.settings`.
+      id: 'required-documents',
+      path: 'documents-requis',
+      labelKey: 'modules.professionals.settings.requiredDocuments.title',
+      icon: FileCheck,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/RequiredDocumentsSettingsPage'), 'RequiredDocumentsSettingsPage'),
+    },
+    {
+      // The image consent's versions (Task 4c.3, P4-452): read by the lists' readers, changed with `professionals.settings`.
+      id: 'consents',
+      path: 'consentements',
+      labelKey: 'modules.professionals.settings.consents.title',
+      icon: ShieldCheck,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/ConsentsSettingsPage'), 'ConsentsSettingsPage'),
     },
     {
       // What the fiche given to clients shows (P4-353): read like the lists, changed with `professionals.settings`.

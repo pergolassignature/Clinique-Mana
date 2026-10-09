@@ -6,6 +6,7 @@ import { professionalKeys } from '../../../hooks/keys'
 import { IDS } from '../../../test/fixtures'
 import { recordFixture } from '../../../test/fixtures-domain'
 import { INSURANCE_FILE, REVIEW_CHANGED_FIELDS, SUBMISSION_ID, SUBMISSIONS_JSON, submissionReview, submissionReviewWithFields } from '../../../test/fixtures-review'
+import { documentsFixture } from '../../../test/fixtures-documents'
 import { renderRecordTab } from '../../../test/record-tab'
 import { DocumentsTab } from './DocumentsTab'
 
@@ -19,11 +20,13 @@ const mocks = vi.hoisted(() => ({
     cancelProfessionalSubmission: vi.fn(),
   },
   private: { fetchProfessionalPrivate: vi.fn() },
+  documents: { fetchProfessionalDocuments: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/record')>()), ...mocks.record }))
 vi.mock('../../../api/submissions', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/submissions')>()), ...mocks.submissions }))
 vi.mock('../../../api/private', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/private')>()), ...mocks.private }))
+vi.mock('../../../api/documents', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/documents')>()), ...mocks.documents }))
 vi.mock('@/core/storage/hooks', () => ({ useSignedFileUrl: () => ({ data: { url: 'https://files.test/x' }, isError: false, refetch: vi.fn() }) }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -36,6 +39,7 @@ const F = 'modules.professionals.submission.fields'
 beforeEach(() => {
   mocks.submissions.fetchSubmissionReview.mockResolvedValue(submissionReview())
   mocks.private.fetchProfessionalPrivate.mockResolvedValue({ bankAccountLast4: '4567', sinLast3: null })
+  mocks.documents.fetchProfessionalDocuments.mockResolvedValue(documentsFixture())
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -80,12 +84,15 @@ async function openSheet(options: TabOptions & { summary?: string } = {}) {
   return { ...rendered, sheet }
 }
 
+/** « Questionnaire et mises à jour »'s list (the documents have lists of their own). */
+const submissionsList = () => screen.getByRole('list', { name: t(`${C}.title`) })
+
 const applyAll = () => screen.getByRole('button', { name: t(`${S}.apply`, { count: String(REVIEW_CHANGED_FIELDS.length) }) })
 
 describe('« Questionnaire et mises à jour »', () => {
   it('lists the submissions newest first, each with its state in words and its dates in the clinic’s time', async () => {
     await openTab()
-    const items = within(screen.getByRole('list')).getAllByRole('listitem')
+    const items = within(submissionsList()).getAllByRole('listitem')
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent(t('modules.professionals.submission.kinds.onboarding'))
     expect(items[0]).toHaveTextContent(t('modules.professionals.submission.states.onboarding.to_review'))
@@ -107,7 +114,7 @@ describe('« Questionnaire et mises à jour »', () => {
         { status: 'cancelled', reviewed_at: null, reviewed_by_name: null, applied_count: null },
       ]),
     })
-    const [first, second] = within(screen.getByRole('list')).getAllByRole('listitem') as HTMLElement[]
+    const [first, second] = within(submissionsList()).getAllByRole('listitem') as HTMLElement[]
     expect(first).toHaveTextContent(t(`${C}.origin.clinic`))
     expect(first).toHaveTextContent('Renvoyée au professionnel')
     expect(first).toHaveTextContent('Renvoyée le 08 oct. 2026 par Julie Adjointe')
@@ -122,7 +129,7 @@ describe('« Questionnaire et mises à jour »', () => {
         { kind: 'onboarding', status: 'submitted' },
       ]),
     })
-    const [update, onboarding] = within(screen.getByRole('list')).getAllByRole('listitem') as [HTMLElement, HTMLElement]
+    const [update, onboarding] = within(submissionsList()).getAllByRole('listitem') as [HTMLElement, HTMLElement]
     expect(within(onboarding).queryByRole('button', { name: t(`${C}.cancel`) })).not.toBeInTheDocument()
     await userEvent.click(within(update).getByRole('button', { name: t(`${C}.cancel`) }))
     const confirm = await screen.findByRole('alertdialog', { name: t('modules.professionals.submission.cancelDialog.title', { name: 'Marie Tremblay' }) })
@@ -141,7 +148,7 @@ describe('« Questionnaire et mises à jour »', () => {
     await openTab({
       list: listed([{ status: 'draft', submitted_at: '2026-10-08T14:00:00+00:00', reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.' }]),
     })
-    const first = within(screen.getByRole('list')).getAllByRole('listitem')[0] as HTMLElement
+    const first = within(submissionsList()).getAllByRole('listitem')[0] as HTMLElement
     expect(first).toHaveTextContent('Renvoyé au professionnel')
     expect(first).toHaveTextContent('Précisez vos langues.')
     expect(within(first).queryByRole('button')).not.toBeInTheDocument()

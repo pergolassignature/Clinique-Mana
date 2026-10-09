@@ -46,10 +46,13 @@ async function prefetchCompensationTab(queryClient: QueryClient, id: string, can
   ])
 }
 
-/** Documents: the file's submissions (« Questionnaire et mises à jour », Task 4b.5); the hooks ship in the tab's chunk. */
+/**
+ * Documents: the file's submissions (« Questionnaire et mises à jour », Task 4b.5) and its documents
+ * (Task 4c.3), in parallel; the hooks ship in the tab's chunk.
+ */
 async function prefetchDocumentsTab(queryClient: QueryClient, id: string): Promise<void> {
-  const { prefetchProfessionalSubmissions } = await import('../../hooks/use-submissions')
-  await prefetchProfessionalSubmissions(queryClient, id)
+  const [submissions, documents] = await Promise.all([import('../../hooks/use-submissions'), import('../../hooks/use-documents')])
+  await Promise.all([submissions.prefetchProfessionalSubmissions(queryClient, id), documents.prefetchProfessionalDocuments(queryClient, id)])
 }
 
 /** Historique: its first page (its compensation rows need no other list, P4-193) and the emails (4b.3). */
@@ -60,7 +63,7 @@ async function prefetchHistoryTab(queryClient: QueryClient, id: string): Promise
 /**
  * The record's tabs, in P4-13's order. Aperçu, the landing tab of nearly every visit, ships in the
  * page's chunk (P4-72): a separate chunk would always load after the page's, one more round trip.
- * « Documents » holds the submissions' review (Task 4b.5) until 4c adds the documents.
+ * « Documents » holds the submissions' review (Task 4b.5), then the documents (Task 4c.3).
  */
 export const RECORD_TAB_DEFS: readonly RecordTabDef[] = [
   { tab: 'apercu', panel: OverviewTab, visible: always },
