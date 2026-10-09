@@ -34,8 +34,8 @@
 --   professionals.documents.review, P4-401), the provider attaches to their own record
 --   (pending, a notice to the reviewers). professionals.documents.review verifies, rejects and
 --   corrects a date; professionals.documents.delete deletes (soft-deletes the file). Nobody
---   verifies a document of their own record (as P4-304). Inactive files keep « Mes documents »
---   (P4-11): the provider may upload while inactive.
+--   verifies, rejects, redates or deletes a document of their own record (as P4-304). Inactive
+--   files keep « Mes documents » (P4-11): the provider may upload while inactive.
 -- * A rejected document's file is soft-deleted at once (Loi 25: a wrong file, possibly someone
 --   else's data, is not kept; core storage-cleanup purges it 30 days later). The row keeps the
 --   reason for the provider (P4-404).
@@ -846,7 +846,7 @@ begin
 end;
 $$;
 
--- Nobody verifies, refuses or redates a document of their own record (as P4-304).
+-- Nobody verifies, refuses, redates or deletes a document of their own record (as P4-304).
 create function private.assert_not_own_document(p_pid uuid)
 returns void
 language plpgsql
@@ -1141,7 +1141,9 @@ end;
 $$;
 
 -- « Supprimer » (professionals.documents.delete): the row is deleted (the audit keeps it: P4-36)
--- and its file soft-deleted (core storage-cleanup purges the object 30 days later).
+-- and its file soft-deleted (core storage-cleanup purges the object 30 days later). Not on one's
+-- own record: deleting one's own expired insurance would turn « expirée » (a confirmation in
+-- Demandes, P4-1) into « manquante ».
 create function public.delete_professional_document(p_doc_id uuid)
 returns void
 language plpgsql
@@ -1156,6 +1158,7 @@ begin
     raise exception 'Permission refusée : professionals.documents.delete' using errcode = '42501';
   end if;
   v_doc := private.lock_professional_document(p_doc_id);
+  perform private.assert_not_own_document(v_doc.professional_id);
 
   delete from public.professional_documents d where d.professional_id = v_doc.professional_id and d.id = v_doc.id;
   perform private.soft_delete_stored_file(v_doc.stored_file_id, auth.uid());

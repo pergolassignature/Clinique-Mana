@@ -10,7 +10,7 @@
 -- expire_notifications; audit and history.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(116);
+select plan(117);
 
 -- The HINT of the error p_sql raises (null when none): throws_ok checks code and message only.
 create function private.test_error_hint(p_sql text) returns text
@@ -396,6 +396,8 @@ select throws_ok($$ select public.delete_professional_document(current_setting('
   'the adjointe cannot delete');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select lives_ok($$ select public.delete_professional_document(current_setting('test.d_del')::uuid) $$, 'the admin deletes');
+select throws_ok($$ select public.delete_professional_document(current_setting('test.d_own')::uuid) $$,
+  'P0001', 'Vous ne pouvez pas réviser vos propres documents.', 'nobody deletes a document of their own record');
 reset role;
 select results_eq($$ select (select count(*)::int from public.professional_documents where id = current_setting('test.d_del')::uuid),
                             (select status from public.stored_files where id = 'e0000000-0000-0000-0000-000000000008') $$,
