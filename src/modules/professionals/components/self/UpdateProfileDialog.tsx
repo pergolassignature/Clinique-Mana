@@ -7,6 +7,7 @@ import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { useStartMyProfileUpdate } from '../../hooks/use-my-profile'
+import { SUBMISSION_SECTIONS } from '../../lib/constants'
 import { QUESTIONNAIRE_PATH } from '../../lib/my-profile'
 import { DialogRefusal } from '../record/StatusDialogParts'
 import { SectionChecklist } from '../SectionChecklist'
@@ -15,13 +16,13 @@ import { useSectionChoice } from '../use-section-choice'
 const U = 'modules.professionals.myProfile.update'
 
 /**
- * « Mettre mon profil à jour » (Task 4b.5, P4-275): the sections to revise, at least one; « Commencer
+ * « Mettre mon profil à jour » (Task 4b.5, P4-275): the sections to revise, every one ticked at first, at least one; « Commencer
  * la mise à jour » opens an update submission and goes to the questionnaire. Nothing on the file
  * changes before the clinic's review, and the dialog says so. A refusal (one already open, the file
  * inactive) stays here.
  */
 export function UpdateProfileDialog({ onClose, onCloseAutoFocus }: { onClose: () => void; onCloseAutoFocus?: (event: Event) => void }) {
-  const choice = useSectionChoice()
+  const choice = useSectionChoice(SUBMISSION_SECTIONS)
   const start = useStartMyProfileUpdate()
   const navigate = useNavigate()
   const [refusal, setRefusal] = useState<string | null>(null)

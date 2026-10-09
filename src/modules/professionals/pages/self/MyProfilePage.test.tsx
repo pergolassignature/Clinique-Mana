@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import { SUBMISSION_SECTIONS } from '../../lib/constants'
 import { renderWithContexts } from '@/test/contexts'
 import { LocationProbe } from '@/test/LocationProbe'
 import { accessForRole } from '@/test/role-fixtures'
@@ -116,11 +117,24 @@ describe('MyProfilePage', () => {
     expect(screen.queryByText(/Rémunération|Retenue|rétention/i)).not.toBeInTheDocument()
   })
 
-  it('« Mettre mon profil à jour »: the sections, at least one, then the questionnaire', async () => {
+  it('« Mettre mon profil à jour »: every section ticked at first, all in one click', async () => {
+    mocks.self.startMyProfileUpdate.mockResolvedValue('sub-1')
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: t(`${Q}.update.action`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${P}.update.title`) })
+    for (const box of within(dialog).getAllByRole('checkbox')) expect(box).toBeChecked()
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.update.confirm`) }))
+    await waitFor(() => expect(mocks.self.startMyProfileUpdate).toHaveBeenCalledExactlyOnceWith([...SUBMISSION_SECTIONS]))
+  })
+
+  it('« Mettre mon profil à jour »: « Tout décocher », at least one, then the questionnaire', async () => {
     mocks.self.startMyProfileUpdate.mockResolvedValue('sub-1')
     const { invalidated } = renderPage()
     await userEvent.click(await screen.findByRole('button', { name: t(`${Q}.update.action`) }))
     const dialog = await screen.findByRole('dialog', { name: t(`${P}.update.title`) })
+    await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.sectionChecklist.noneLabel') }))
+    for (const box of within(dialog).getAllByRole('checkbox')) expect(box).not.toBeChecked()
+    expect(within(dialog).getByRole('button', { name: t('modules.professionals.sectionChecklist.allLabel') })).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.update.confirm`) }))
     expect(within(dialog).getByRole('alert')).toHaveTextContent(t(`${P}.update.required`))
     expect(mocks.self.startMyProfileUpdate).not.toHaveBeenCalled()
@@ -138,7 +152,6 @@ describe('MyProfilePage', () => {
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: t(`${Q}.update.action`) }))
     const dialog = await screen.findByRole('dialog')
-    await userEvent.click(within(dialog).getByRole('checkbox', { name: t('modules.professionals.onboarding.sections.motifs') }))
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.update.confirm`) }))
     expect(await within(dialog).findByText('Une soumission est déjà en cours.')).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/mon-profil')

@@ -3529,6 +3529,10 @@
           "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard."
         }
       },
+      "sectionChecklist": {
+        "allLabel": "Tout cocher",
+        "noneLabel": "Tout décocher"
+      },
       "myProfile": {
         "nav": "Mon profil",
         "pageTitle": "Mon profil",
