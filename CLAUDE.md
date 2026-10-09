@@ -89,7 +89,7 @@ supabase/
   tests/database/ pgTAP, one file per migration + 000_invariants
   seed.sql        LOCAL ONLY (also the local Vault secrets for pg_net and the fake Resend / Documenso secrets)
 scripts/          check-entry-chunk, build-pdfmake, build-pdf-fonts, build-auth-templates, fake-documenso.ts, send-test-webhook.mjs (local signed Resend events), with-db-lock.sh (the shared local DB token), pii-health-check.sh (staging PII key check, run by workflows), import-professionals.mjs (CSV import, dry run by default)
-e2e/              Playwright (local stack only, seed logins, own dev server on 5190): smoke, professionals
+e2e/              Playwright (local stack only, seed logins, own dev server on 5190): smoke, professionals, onboarding (needs the functions served with 5190 in ALLOWED_ORIGINS; reads Mailpit's API)
 ```
 
 ## 5. Module rules (design §6.2)
