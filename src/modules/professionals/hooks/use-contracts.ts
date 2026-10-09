@@ -18,7 +18,7 @@ import {
   type ContractAction,
   type DraftContent,
 } from '../api/contracts'
-import { contractTemplateKeys, professionalKeys } from './keys'
+import { contractTemplateKeys, isContractKey, professionalKeys } from './keys'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
 import { refreshProfessionalHistory } from './use-professional-record'
 
@@ -30,9 +30,13 @@ const E = 'modules.professionals.contract.errors'
 const contractQuery = (id: string) =>
   queryOptions({ queryKey: professionalKeys.contract(id), queryFn: () => fetchProfessionalContract(id), staleTime: 30_000 })
 
-/** The record's contract card (Documents tab); refetched on focus, so it follows a signature made elsewhere. */
-export function useProfessionalContract(id: string) {
-  return useQuery({ ...contractQuery(id), enabled: id !== '' })
+/**
+ * The record's contract card (Documents tab); refetched on focus, so it follows a signature made
+ * elsewhere. « Prochaine action » reads it too, only when the contract is the file's last gap
+ * (`enabled`).
+ */
+export function useProfessionalContract(id: string, enabled = true) {
+  return useQuery({ ...contractQuery(id), enabled: enabled && id !== '' })
 }
 
 /** Documents' hover or focus: the card with the tab's chunk. */
@@ -159,7 +163,7 @@ export function useTemplateMutations(feedback?: MutationFeedback) {
   const refresh = (cards: boolean) =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: contractTemplateKeys.all }),
-      cards && queryClient.invalidateQueries({ queryKey: professionalKeys.contracts() }),
+      cards && queryClient.invalidateQueries({ queryKey: professionalKeys.all, predicate: (query) => isContractKey(query.queryKey) }),
     ])
   const onError = (error: unknown) => showMutationError(queryClient, error, feedback)
   const create = useMutation({

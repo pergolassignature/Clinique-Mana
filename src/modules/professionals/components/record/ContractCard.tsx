@@ -8,6 +8,7 @@ import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
+import { useNow } from '@/shared/lib/use-now'
 import { cn } from '@/shared/lib/utils'
 import {
   AlertDialog,
@@ -105,8 +106,10 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
   const send = useSendContract(professional.id, professional.firstName, { onErrorMessage: (message) => setRefusal(message) })
   const sync = useSyncContract(professional.id)
   const { request } = contract
-  const state = contractState(request)
-  const status = contractStateLabel(request)
+  // A minute is enough: a send that died shows its retry once its claim is 10 minutes old.
+  const now = useNow(60_000)
+  const state = contractState(request, now)
+  const status = contractStateLabel(request, now)
   const buttons = contractButtons(state, request, can)
   const sends = buttons.some((b) => b.kind === 'action')
   const noTemplate = sends && contract.publishedVersion === null
@@ -178,6 +181,7 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
       )}
       {sends && !noTemplate && state === 'none' && !contract.clinicSigner && <p className="text-xs text-muted-foreground">{t(`${C}.noClinicSigner`)}</p>}
       {state === 'signed' && !request?.canRead && <p className="text-xs text-muted-foreground">{t(`${C}.restricted`)}</p>}
+      {state === 'failed' && sends && <p className="text-xs text-muted-foreground">{t(`${C}.failedHelp`)}</p>}
 
       {refusal && <RefusalAlert message={refusal} />}
 

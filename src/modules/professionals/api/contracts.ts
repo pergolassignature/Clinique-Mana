@@ -43,6 +43,8 @@ const requestPayload = z
     last_error: z.string().nullable(),
     template_version: z.number().nullable(),
     created_at: z.string(),
+    send_started_at: z.string().nullable(),
+    last_send_at: z.string().nullable(),
     sent_at: z.string().nullable(),
     viewed_at: z.string().nullable(),
     completed_at: z.string().nullable(),
@@ -61,6 +63,9 @@ const requestPayload = z
     lastError: r.last_error,
     templateVersion: r.template_version,
     createdAt: r.created_at,
+    /** The send claim (core `begin_signature_request_send`): set while a send runs. */
+    sendStartedAt: r.send_started_at,
+    lastSendAt: r.last_send_at,
     sentAt: r.sent_at,
     viewedAt: r.viewed_at,
     completedAt: r.completed_at,

@@ -177,8 +177,22 @@ describe('ContractCard (Task 4d.3)', () => {
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${A}.regenerate`)])
   })
 
-  it('a failed draft offers « Réessayer l’envoi » (the same request) and « Régénérer »', async () => {
+  it('a failed draft offers « Réessayer l’envoi » (the same request) and « Régénérer », and says which to use', async () => {
     await openCard(contractJson(requestJson({ status: 'draft', sent_at: null, last_error: 'provider_error' })))
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${A}.retry`), t(`${A}.regenerate`)])
+    expect(screen.getByText(t(`${C}.failedHelp`))).toBeInTheDocument()
+  })
+
+  it('a send that died without a word (its claim older than 10 minutes) is shown failed, with its buttons', async () => {
+    await openCard(contractJson(requestJson({ status: 'draft', sent_at: null, last_error: null, send_started_at: '2026-01-01T12:00:00+00:00' })))
+    expect(screen.getByText(t(`${C}.state.stalled`))).toBeInTheDocument()
+    expect(screen.getByText(t(`${C}.state.stalledDetail`))).toBeInTheDocument()
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${A}.retry`), t(`${A}.regenerate`)])
+  })
+
+  it('a send under way (a fresh claim) only synchronises', async () => {
+    await openCard(contractJson(requestJson({ status: 'draft', sent_at: null, last_error: null, send_started_at: new Date().toISOString() })))
+    expect(screen.getByText(t(`${C}.state.sending`))).toBeInTheDocument()
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${A}.sync`)])
   })
 })

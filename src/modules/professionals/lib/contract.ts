@@ -1,7 +1,8 @@
 import { t } from '@/i18n'
 import { signatureStatusLabel } from '@/core/signing/status'
 import type { StatusTone } from '@/shared/ui/status-dot'
-import type { ContractAction, ContractRequest } from '../api/contracts'
+import type { ContractAction, ContractRequest, ProfessionalContract } from '../api/contracts'
+import type { ContractProgress } from './readiness'
 
 /**
  * The contract card's states and actions (Task 4d.3, A5.1, A10.9), pure. The words of a request's
@@ -9,9 +10,11 @@ import type { ContractAction, ContractRequest } from '../api/contracts'
  * and the settings never disagree.
  *
  * - `none`: no contract yet → « Préparer et envoyer ».
- * - `sending`: a draft whose send runs (no error yet) → « Synchroniser » only.
- * - `failed`: a draft whose send failed → « Réessayer l'envoi » (the same request, P4-434) and
- *   « Régénérer ».
+ * - `sending`: a draft whose send runs (no error yet, its claim younger than `STALE_SEND_MS`)
+ *   → « Synchroniser » only.
+ * - `failed`: a draft whose send failed, or whose send died without a word (its claim older than
+ *   `STALE_SEND_MS`: a fresh claim would still answer 409, so offering a retry is safe) →
+ *   « Réessayer l'envoi » (the same request, P4-434) and « Régénérer ».
  * - `sent`, `viewed` → « Synchroniser », « Renvoyer » (the signing email again), « Régénérer ».
  * - `signed` → « Voir le PDF signé », « Journal de signature ».
  * - `rejected`, `expired`, `cancelled`, `abandoned` → « Régénérer » (a new contract).
@@ -30,11 +33,20 @@ export type ContractState =
   | 'cancelled'
   | 'abandoned'
 
-export function contractState(request: ContractRequest | null): ContractState {
+/** `_shared/signing.ts` STALE_SEND_MS: a send claim older than this no longer holds the request. */
+export const STALE_SEND_MS = 10 * 60_000
+
+/** A draft without an error whose send claim (or creation) is older than `STALE_SEND_MS`. */
+function sendDied(request: ContractRequest, now: number): boolean {
+  const since = Date.parse(request.sendStartedAt ?? request.lastSendAt ?? request.createdAt)
+  return Number.isFinite(since) && now - since > STALE_SEND_MS
+}
+
+export function contractState(request: ContractRequest | null, now: number = Date.now()): ContractState {
   if (request === null) return 'none'
   switch (request.status) {
     case 'draft':
-      if (request.lastError === null) return 'sending'
+      if (request.lastError === null) return sendDied(request, now) ? 'failed' : 'sending'
       return request.lastError === 'abandoned' ? 'abandoned' : 'failed'
     case 'sent':
     case 'viewed':
@@ -83,11 +95,32 @@ export function contractButtons(state: ContractState, request: ContractRequest |
 
 const S = 'modules.professionals.contract.state'
 
-/** The state in words and its tone: core's label, « Aucun contrat » when there is none. */
-export function contractStateLabel(request: ContractRequest | null): { label: string; tone: StatusTone; detail: string | null } {
+/**
+ * The state in words and its tone: core's label, « Aucun contrat » when there is none, « Envoi en
+ * cours » while a send runs, « L'envoi n'a pas abouti » once a send died without a word.
+ */
+export function contractStateLabel(request: ContractRequest | null, now: number = Date.now()): { label: string; tone: StatusTone; detail: string | null } {
   if (request === null) return { label: t(`${S}.none`), tone: 'default', detail: null }
-  if (request.status === 'draft' && request.lastError === null) return { label: t(`${S}.sending`), tone: 'neutral', detail: null }
+  if (request.status === 'draft' && request.lastError === null) {
+    return sendDied(request, now) ? { label: t(`${S}.stalled`), tone: 'error', detail: t(`${S}.stalledDetail`) } : { label: t(`${S}.sending`), tone: 'neutral', detail: null }
+  }
   return signatureStatusLabel(request.status, request.lastError)
+}
+
+/**
+ * « Prochaine action »'s view of the card: nothing out → to send; out → waiting for the first
+ * signer who has neither signed nor refused (by name); otherwise (not loaded, a send running,
+ * signed) null.
+ */
+export function contractProgress(contract: ProfessionalContract | null | undefined, now: number = Date.now()): ContractProgress | null {
+  if (!contract) return null
+  const state = contractState(contract.request, now)
+  if (state === 'sent' || state === 'viewed') {
+    const next = contract.request?.signers.find((s) => s.signedAt === null && s.rejectedAt === null)
+    return next ? { kind: 'awaiting', name: next.name } : null
+  }
+  if (state === 'sending' || state === 'signed') return null
+  return { kind: 'to_send' }
 }
 
 /** « Le contrat est signé » is what readiness counts (P4-435: the latest request only). */
@@ -95,7 +128,7 @@ export const isContractSigned = (request: ContractRequest | null) => request?.st
 
 const ROLE = 'modules.professionals.contract.roles'
 
-/** « Professionnel(le) », « Clinique » for a signer role. */
+/** « Professionnel », « Clinique », « Client » for a signer role; « Signataire » for any other (never the code). */
 export function signerRoleLabel(role: string): string {
-  return role === 'professional' || role === 'clinic' || role === 'client' ? t(`${ROLE}.${role}`) : role
+  return role === 'professional' || role === 'clinic' || role === 'client' ? t(`${ROLE}.${role}`) : t(`${ROLE}.other`)
 }

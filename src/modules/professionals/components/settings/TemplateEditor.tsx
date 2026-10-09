@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useDeferredValue, useMemo, useRef, useState, type FormEvent } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
@@ -186,6 +186,12 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
   const { save, publish, archive } = useTemplateMutations({ onErrorMessage: (message) => setRefusal(message) })
   const dirty = editable && draft !== null && initial !== null && JSON.stringify(draft) !== JSON.stringify(initial)
   useUnsavedChanges(dirty)
+  // The preview follows the typing at React's pace: a keystroke never waits for the whole page.
+  const deferred = useDeferredValue(draft)
+  const preview = useMemo(
+    () => (base && deferred ? previewHtml(bodyOf(deferred, base), Object.fromEntries(version.variables.map((v) => [v.path, sampleText(v)])), previewText()) : ''),
+    [base, deferred, version.variables],
+  )
 
   if (base === null || draft === null) return <RefusalAlert message={t(`${N}.unreadable`)} />
 
@@ -196,7 +202,6 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
   const banner = hasValidationBanner(draft.markup)
   const annexe = hasAnnexePlaceholder(draft.markup)
   const pending = save.isPending || publish.isPending || archive.isPending
-  const samples = Object.fromEntries(version.variables.map((v) => [v.path, sampleText(v)]))
   const publishBlocked = dirty ? t(`${N}.publishBlocked.unsaved`) : banner ? t(`${N}.publishBlocked.banner`) : !annexe ? t(`${N}.publishBlocked.annexe`, { placeholder: ANNEXE_PLACEHOLDER }) : null
 
   const onSave = (event: FormEvent<HTMLFormElement>) => {
@@ -334,7 +339,7 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
         <iframe
           title={t(`${N}.preview.frameTitle`)}
           sandbox=""
-          srcDoc={previewHtml(body, samples, previewText())}
+          srcDoc={preview}
           className="h-[36rem] w-full rounded-md border border-border bg-card"
         />
       </SettingsCard>

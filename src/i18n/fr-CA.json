@@ -1239,6 +1239,9 @@
           "documents": "Documents requis en règle",
           "contract_signed": "Contrat de service signé"
         },
+        "pending": {
+          "contract_signed": "Contrat de service pas encore signé"
+        },
         "missing": {
           "profession": "un titre professionnel",
           "licence": "le numéro de permis",
@@ -1274,6 +1277,8 @@
           "updateInProgress": "Une demande de mise à jour est en cours : {firstName} ne l'a pas encore envoyée.",
           "awaitingQuestionnaire": "Le questionnaire de {firstName} n'a pas encore été approuvé.",
           "contractToSign": "Le dossier de {firstName} est complet, sauf le contrat de service : il reste à l'envoyer ou à le faire signer.",
+          "contractToSend": "Contrat de service à envoyer : le dossier de {firstName} est complet, sauf ce contrat.",
+          "contractAwaiting": "En attente de la signature de {name} : le contrat de service a été envoyé.",
           "openContract": "Voir le contrat",
           "reviewOnboarding": "{firstName} a envoyé son questionnaire le {date} : il attend votre révision.",
           "reviewOnboardingUndated": "{firstName} a envoyé son questionnaire. Il attend votre révision.",
@@ -3130,7 +3135,9 @@
         "loadError": "Le contrat n'a pas pu être chargé.",
         "state": {
           "none": "Aucun contrat",
-          "sending": "Envoi en cours"
+          "sending": "Envoi en cours",
+          "stalled": "L'envoi n'a pas abouti",
+          "stalledDetail": "L'envoi s'est arrêté sans réponse de Documenso. Réessayez l'envoi ou régénérez le contrat."
         },
         "version": "Modèle, version {version}",
         "none": "Aucun contrat de service n'a encore été envoyé à {firstName}.",
@@ -3155,10 +3162,12 @@
         "roles": {
           "professional": "Professionnel",
           "clinic": "Clinique",
-          "client": "Client"
+          "client": "Client",
+          "other": "Signataire"
         },
         "noTemplate": "Aucun modèle de contrat publié : publiez « Contrat de service » avant d'envoyer.",
         "noTemplateLink": "Ouvrir Paramètres → Contrats",
+        "failedHelp": "« Réessayer l'envoi » renvoie le contrat tel qu'il a été préparé. Si le dossier a changé depuis (adresse, signataire, rémunération), corrigez-le, puis utilisez « Régénérer ».",
         "noClinicSigner": "Seul le professionnel signera : aucun signataire de la clinique n'est configuré (Paramètres → Signataire).",
         "restricted": "Le PDF signé est réservé aux personnes qui gèrent la rémunération : il contient les montants versés.",
         "journal": {

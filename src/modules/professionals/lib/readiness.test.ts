@@ -216,7 +216,19 @@ describe('nextAction with the service contract (Task 4d.3)', () => {
     return { ...record, readiness: { ...record.readiness, complete: items.every((i) => i.done), items } }
   }
 
-  it('only the contract left: says so, with a link to Documents, where it is sent', () => {
+  it('only the contract left: « à envoyer » or « en attente de la signature de … », with a link to Documents', () => {
+    const link = { kind: 'tab', label: t(`${N}.openContract`), tab: 'documents' }
+    expect(nextAction(contractFile(false), null, can('professionals.view'), NOW, null, { kind: 'to_send' })).toEqual({
+      message: 'Contrat de service à envoyer : le dossier de Marie est complet, sauf ce contrat.',
+      action: link,
+    })
+    expect(nextAction(contractFile(false), null, can('professionals.view'), NOW, null, { kind: 'awaiting', name: 'Dominique Exemple' })).toEqual({
+      message: 'En attente de la signature de Dominique Exemple : le contrat de service a été envoyé.',
+      action: link,
+    })
+  })
+
+  it('only the contract left, its card not loaded: one sentence for both', () => {
     expect(nextAction(contractFile(false), null, can('professionals.view'), NOW)).toEqual({
       message: t(`${N}.contractToSign`, { firstName: 'Marie' }),
       action: { kind: 'tab', label: t(`${N}.openContract`), tab: 'documents' },
@@ -227,7 +239,8 @@ describe('nextAction with the service contract (Task 4d.3)', () => {
     expect(nextAction(contractFile(false, false), null, can('professionals.view'), NOW).message).not.toBe(t(`${N}.contractToSign`, { firstName: 'Marie' }))
   })
 
-  it('names the item', () => {
+  it('names the item, and its pending label exists', () => {
     expect(readinessItemLabel('contract_signed')).toBe('Contrat de service signé')
+    expect(t('modules.professionals.readiness.pending.contract_signed')).toBe('Contrat de service pas encore signé')
   })
 })

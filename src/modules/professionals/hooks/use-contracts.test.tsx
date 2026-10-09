@@ -126,15 +126,21 @@ describe('useSyncContract', () => {
 })
 
 describe('useTemplateMutations', () => {
-  it('a save refreshes the templates only; a publication every contract card too', async () => {
-    const { wrapper, invalidated } = setupQueryClient()
+  it('a save refreshes the templates only; a publication every contract card too, never the records around them', async () => {
+    const { queryClient, wrapper, invalidated } = setupQueryClient()
+    queryClient.setQueryData(professionalKeys.record(IDS.professional), { id: IDS.professional })
+    queryClient.setQueryData(professionalKeys.contract(IDS.professional), null)
+    queryClient.setQueryData(professionalKeys.submissions(IDS.professional), [])
     mocks.api.updateTemplateVersion.mockResolvedValue(undefined)
     mocks.api.publishTemplateVersion.mockResolvedValue(undefined)
     const { result } = renderHook(() => useTemplateMutations(), { wrapper })
     await act(() => result.current.save.mutateAsync({ versionId: DRAFT_ID, content: { body: {}, variables: [], signers: [], emailSubject: 'a', emailMessage: '' } }))
     await waitFor(() => expect(invalidated()).toEqual([contractTemplateKeys.all]))
     await act(() => result.current.publish.mutateAsync(DRAFT_ID))
-    await waitFor(() => expect(invalidated()).toEqual([contractTemplateKeys.all, contractTemplateKeys.all, professionalKeys.contracts()]))
+    await waitFor(() => expect(queryClient.getQueryState(professionalKeys.contract(IDS.professional))?.isInvalidated).toBe(true))
+    expect(invalidated()).toEqual([contractTemplateKeys.all, contractTemplateKeys.all, professionalKeys.all])
+    expect(queryClient.getQueryState(professionalKeys.record(IDS.professional))?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(professionalKeys.submissions(IDS.professional))?.isInvalidated).toBe(false)
     expect(mocks.toast.success).toHaveBeenLastCalledWith(t('modules.professionals.contract.toasts.published'))
   })
 })

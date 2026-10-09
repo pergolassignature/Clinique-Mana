@@ -50,6 +50,13 @@ export const REVIEW_TAB: RecordTab = 'documents'
 export const CONTRACT_TAB: RecordTab = 'documents'
 
 /**
+ * Where the service contract stands, for « Prochaine action » (`contractProgress`, lib/contract.ts):
+ * nothing out (to send, again or for the first time), or out and waiting for a signer. Null when the
+ * card is not loaded or in between (a send running): the sentence then names both.
+ */
+export type ContractProgress = { kind: 'to_send' } | { kind: 'awaiting'; name: string }
+
+/**
  * The button of « Prochaine action »: a link to a tab (the one that fixes a gap, or the review's),
  * the activation dialog, or the invitation's confirmation (`InvitationDialog`).
  */
@@ -81,10 +88,18 @@ const N = 'modules.professionals.readiness.nextAction'
  * 5. no account and no live link: « Envoyer l'invitation » (never invited, the link revoked, or
  *    used by an account that has since been removed: each says which);
  * 6. waiting for the professional: the link sent (or opened), or the questionnaire being filled in;
- * 7. only the service contract left to sign (4d.3): « Voir le contrat » (Documents, where it is sent);
+ * 7. only the service contract left (4d.3): « Contrat de service à envoyer » or « En attente de la
+ *    signature de … » (`contract`), else both in one sentence; « Voir le contrat » (Documents);
  * 8. a complete file: « Activer » (the header's dialog, P4-74), or nothing to do once active.
  */
-export function nextAction(record: NextActionSubject, onboarding: Onboarding | null, can: Can, now: number, viewerId: string | null = null): NextAction {
+export function nextAction(
+  record: NextActionSubject,
+  onboarding: Onboarding | null,
+  can: Can,
+  now: number,
+  viewerId: string | null = null,
+  contract: ContractProgress | null = null,
+): NextAction {
   const { professional, readiness } = record
   const firstName = professional.firstName
   const submission = onboarding?.submission ?? null
@@ -129,9 +144,15 @@ export function nextAction(record: NextActionSubject, onboarding: Onboarding | n
   if (submission?.status === 'draft') {
     return { message: t(submission.kind === 'onboarding' ? `${N}.questionnaireInProgress` : `${N}.updateInProgress`, { firstName }), action: null }
   }
-  const contract = readiness.items.find((i) => i.key === 'contract_signed')
-  if (!readiness.complete && contract && !contract.done && readiness.items.every((i) => i === contract || i.done)) {
-    return { message: t(`${N}.contractToSign`, { firstName }), action: { kind: 'tab', label: t(`${N}.openContract`), tab: CONTRACT_TAB } }
+  const contractItem = readiness.items.find((i) => i.key === 'contract_signed')
+  if (!readiness.complete && contractItem && !contractItem.done && readiness.items.every((i) => i === contractItem || i.done)) {
+    const message =
+      contract?.kind === 'awaiting'
+        ? t(`${N}.contractAwaiting`, { name: contract.name })
+        : contract?.kind === 'to_send'
+          ? t(`${N}.contractToSend`, { firstName })
+          : t(`${N}.contractToSign`, { firstName })
+    return { message, action: { kind: 'tab', label: t(`${N}.openContract`), tab: CONTRACT_TAB } }
   }
   if (!readiness.complete) return { message: t(`${N}.awaitingQuestionnaire`, { firstName }), action: null }
   return activationStep(record, can)

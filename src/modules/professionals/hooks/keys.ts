@@ -41,7 +41,8 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | a contract sent, re-sent, regenerated or | `record(id)` (its `contract(id)` too: readiness follows the    |
  * | synchronised (4d.3)                      | contract), `lists()`, `history(id)` (first page)               |
  * | a contract template's version saved,     | `contractTemplateKeys.all` (the list and the versions), and    |
- * | published or archived (4d.3)             | every `contract(…)` for a publication (« Aucun modèle publié ») |
+ * | published or archived (4d.3)             | for a publication every `contract(…)` alone (`isContractKey`,  |
+ * |                                          | « Aucun modèle publié »), never the records around them        |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
  */
@@ -72,8 +73,6 @@ export const professionalKeys = {
    * record refresh refreshes it (a signed contract completes the readiness).
    */
   contract: (id: string) => [...professionalKeys.record(id), 'contract'] as const,
-  /** Every record's contract card: a template published or retired changes what each one offers. */
-  contracts: () => [...professionalKeys.all, 'record'] as const,
   /** One submission's review (`get_submission_review`), read when its sheet opens; dropped once decided. */
   submissionReview: (submissionId: string) => [...professionalKeys.all, 'submission-review', submissionId] as const,
   history: (id: string) => [...professionalKeys.all, 'history', id] as const,
@@ -122,6 +121,10 @@ export const compensationTermsKeys = {
   kinds: () => [...compensationTermsKeys.all, 'kinds'] as const,
   terms: () => [...compensationTermsKeys.all, 'terms'] as const,
 }
+
+/** Every record's contract card (`professionalKeys.contract(id)`), and nothing else of the records. */
+export const isContractKey = (queryKey: readonly unknown[]) =>
+  queryKey.length === 4 && queryKey[0] === professionalKeys.all[0] && queryKey[1] === 'record' && queryKey[3] === 'contract'
 
 /** « Paramètres → Contrats » (Task 4d.3): the module's document templates and each one's versions. */
 export const contractTemplateKeys = {

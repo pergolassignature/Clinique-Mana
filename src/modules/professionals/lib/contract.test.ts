@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import { parsedRequest, SIGNED_FILE } from '../test/fixtures-contract'
-import { contractButtons, contractState, contractStateLabel, isContractSigned, signerRoleLabel, type ContractState } from './contract'
+import { parsedContract, contractJson, requestJson } from '../test/fixtures-contract'
+import { contractButtons, contractProgress, contractState, contractStateLabel, isContractSigned, signerRoleLabel, STALE_SEND_MS, type ContractState } from './contract'
 
 const A = 'modules.professionals.contract.actions'
 const ALL = ['professionals.view', 'professionals.contracts.send', 'professionals.compensation']
@@ -19,9 +20,52 @@ describe('contractState', () => {
   })
 
   it('splits a draft: sending (no error yet), failed (an error), abandoned', () => {
-    expect(contractState(parsedRequest({ status: 'draft' }))).toBe('sending')
+    expect(contractState(parsedRequest({ status: 'draft' }), Date.parse('2026-10-08T14:00:00Z'))).toBe('sending')
     expect(contractState(parsedRequest({ status: 'draft', lastError: 'provider_error' }))).toBe('failed')
     expect(contractState(parsedRequest({ status: 'draft', lastError: 'abandoned' }))).toBe('abandoned')
+  })
+})
+
+describe('a send that died (review of 4d)', () => {
+  const claimed = Date.parse('2026-10-08T14:00:00Z')
+  const draft = parsedRequest({ status: 'draft', sendStartedAt: '2026-10-08T14:00:00Z' })
+
+  it('a draft without an error is « Envoi en cours » while its claim is fresh, then failed', () => {
+    expect(contractState(draft, claimed + STALE_SEND_MS)).toBe('sending')
+    expect(contractState(draft, claimed + STALE_SEND_MS + 1)).toBe('failed')
+    expect(contractStateLabel(draft, claimed + 60_000).label).toBe(t('modules.professionals.contract.state.sending'))
+    expect(contractStateLabel(draft, claimed + STALE_SEND_MS + 1)).toEqual({
+      label: t('modules.professionals.contract.state.stalled'),
+      tone: 'error',
+      detail: t('modules.professionals.contract.state.stalledDetail'),
+    })
+  })
+
+  it('then offers the failed state’s retry and regenerate', () => {
+    expect(words(contractState(draft, claimed + STALE_SEND_MS + 1), draft)).toEqual([t(`${A}.retry`), t(`${A}.regenerate`)])
+  })
+
+  it('without a claim, the last send or the creation dates it', () => {
+    const unclaimed = parsedRequest({ status: 'draft', sendStartedAt: null, lastSendAt: null, createdAt: '2026-10-08T14:00:00Z' })
+    expect(contractState(unclaimed, claimed + STALE_SEND_MS + 1)).toBe('failed')
+  })
+})
+
+describe('contractProgress (« Prochaine action »)', () => {
+  it('nothing out: to send; out: waiting for the first signer who has not signed; signed or unknown: null', () => {
+    expect(contractProgress(parsedContract(contractJson(null)))).toEqual({ kind: 'to_send' })
+    expect(contractProgress(parsedContract(contractJson(requestJson({ status: 'rejected' }))))).toEqual({ kind: 'to_send' })
+    expect(contractProgress(parsedContract(contractJson(requestJson())))).toEqual({ kind: 'awaiting', name: 'Marie Tremblay' })
+    const proSigned = requestJson({
+      status: 'viewed',
+      signers: [
+        { role: 'professional', name: 'Marie Tremblay', status: 'signed', signing_order: 1, viewed_at: null, signed_at: '2026-10-09T13:05:00+00:00', rejected_at: null },
+        { role: 'clinic', name: 'Dominique Exemple', status: 'pending', signing_order: 2, viewed_at: null, signed_at: null, rejected_at: null },
+      ],
+    })
+    expect(contractProgress(parsedContract(contractJson(proSigned)))).toEqual({ kind: 'awaiting', name: 'Dominique Exemple' })
+    expect(contractProgress(parsedContract(contractJson(requestJson({ status: 'signed' }))))).toBeNull()
+    expect(contractProgress(undefined)).toBeNull()
   })
 })
 
@@ -44,6 +88,7 @@ describe('contractButtons (P4-436: sending needs contracts.send and compensation
   it('only synchronises while a send runs', () => {
     expect(words('sending')).toEqual(['sync'])
   })
+
 
   it('regenerates a refused, expired, cancelled or abandoned contract', () => {
     for (const state of ['rejected', 'expired', 'cancelled', 'abandoned'] as const) expect(words(state)).toEqual([t(`${A}.regenerate`)])
@@ -73,7 +118,7 @@ describe('contractButtons (P4-436: sending needs contracts.send and compensation
 describe('contractStateLabel', () => {
   it('« Aucun contrat » without a request, « Envoi en cours » for a draft without an error', () => {
     expect(contractStateLabel(null).label).toBe(t('modules.professionals.contract.state.none'))
-    expect(contractStateLabel(parsedRequest({ status: 'draft' })).label).toBe(t('modules.professionals.contract.state.sending'))
+    expect(contractStateLabel(parsedRequest({ status: 'draft' }), Date.parse('2026-10-08T14:00:00Z')).label).toBe(t('modules.professionals.contract.state.sending'))
   })
 
   it('uses core’s words otherwise, so the card and « Signature électronique » agree', () => {
@@ -88,9 +133,9 @@ describe('helpers', () => {
     expect(isContractSigned(null)).toBe(false)
   })
 
-  it('names the signer roles in French, an unknown role as is', () => {
+  it('names the signer roles in French, never the code', () => {
     expect(signerRoleLabel('professional')).toBe('Professionnel')
     expect(signerRoleLabel('clinic')).toBe('Clinique')
-    expect(signerRoleLabel('witness')).toBe('witness')
+    expect(signerRoleLabel('witness')).toBe('Signataire')
   })
 })
