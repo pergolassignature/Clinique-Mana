@@ -7,17 +7,18 @@ The one scale for every screen. The tokens live in `src/styles/globals.css` (`--
 - **Inter Variable**, self-hosted (`@fontsource-variable/inter`, decision #25/#29: no Google request, Loi 25). One variable file per subset (weights 100–900 in one file); French text only ever downloads the **latin** subset (~48 kB), which the build preloads (`preloadInterLatin`, `vite.config.ts`). `font-display: swap`.
 - Weights used: **400** (body), **500** (labels, emphasis, active tab, buttons), **600** (headings, figures). Never 300 or 700+.
 - Rendering: `antialiased` on `body`; figures in tables, amounts, dates and counters are **tabular** (`tabular` utility; `TableCell`, `Input` and `NavTab` counts already have it).
+- OpenType features (measured in the browser, 2026-10-09): the self-hosted build has `tnum`, `frac`, `calt`, but **not** the design system's `cv02 cv03 cv04 cv11 ss01` (nor `zero`, `case`): setting them changes nothing, so don't.
 
 ## 2. Type scale
 
-Each role is a **recipe**: use exactly these classes. Line-height comes with the size token: never add `leading-*` to a scale size, never use `text-[13px]`-style arbitrary sizes (the lint guard refuses them).
+Each role is a **recipe**: use exactly these classes. Line-height comes with the size token: never add `leading-*` to a scale size (`leading-none` on a one-line badge or initials is fine). `npm run lint` (`scripts/check-design-tokens.sh`) refuses arbitrary sizes (`text-[13px]`), arbitrary line heights (`leading-[22px]`) and the weights off the scale (`font-bold`, `font-light`…); a deliberate exception carries `design-tokens: allow` and its reason on the same line.
 
 | Role | Size / line-height | Weight | Tracking | Classes | Shared component |
 |---|---|---|---|---|---|
-| Display (big figure) | 24 / 32 | 600 | −0.01em | `text-2xl font-semibold tracking-tight tabular` | — |
-| H1 page title | 20 / 28 | 600 | −0.01em | `text-xl font-semibold tracking-tight` | `PageHeader`, settings title, record header |
-| H2 section, dialog and sheet title | 16 / 24 | 600 | 0 | `text-lg font-semibold` | `DialogTitle`, `SheetTitle`, `AlertDialogTitle`, `FullPageMessage` |
-| H3 card title | 14 / 20 | 600 | 0 | `text-base font-semibold` | `CardTitle`, `SettingsCard` |
+| H1 page title | 20 / 28 | 600 | −0.01em | `text-xl font-semibold tracking-tight` | `PageHeader level={1}`, « Paramètres », record header |
+| Figure (a number in a stat card) | 20 / 28 | 600 | 0 | `text-xl font-semibold tabular` | — |
+| H2 section, dialog and sheet title | 16 / 24 | 600 | 0 | `text-lg font-semibold` | `PageHeader` (level 2: a settings section), `DialogTitle`, `SheetTitle`, `AlertDialogTitle`, `FullPageMessage` |
+| H3 card title | 14 / 20 | 600 | −0.01em | `text-base font-semibold tracking-tight` | `CardTitle`, `SettingsCard` |
 | H4 group inside a card | 13 / 18 | 600 | 0 | `text-sm font-semibold` | — |
 | Body | 13 / 18 | 400 | 0 | `text-sm` (the `body` default: often nothing to add) | `Table`, `Alert`, `EmptyState` |
 | Body emphasis, label, button | 13 / 18 | 500 | 0 | `text-sm font-medium` | `Label`, `Button`, `AlertTitle` |
@@ -26,7 +27,8 @@ Each role is a **recipe**: use exactly these classes. Line-height comes with the
 
 Rules:
 
-- **Tracking** only on H1 and display (`tracking-tight`) and on overlines (`tracking-wide`). Not on card titles, section titles or body.
+- **Tracking** only on H1 and card titles (`tracking-tight`, as the handoff's `--type-page-title` / `--type-card-title`) and on overlines (`tracking-wide`). Not on section, dialog or sheet titles, nor on body text.
+- **One exception to the scale**: the initials of a 24 px avatar are 10 px (`Avatar size="sm"`, as the handoff). Nothing else goes under 11 px.
 - **Colours of text**: body `text-foreground`; informative secondary text `text-muted-foreground` (#6B6B6E, 5.3:1). `text-subtle` (#8E8E92, 3.3:1) is for placeholders, disabled text, separators and icons only, never for a sentence someone must read (decision #30).
 - **Form fields** are 16 px on phones and 13 px from `sm` (decision #30, `fieldClasses`): don't override the size of an `Input`, `Select` or `Textarea`.
 - **French typography**: a narrow no-break space (U+202F) before `: ; ? !` and inside « » in `fr-CA.json`; `160,00 $`, `100 %` with a no-break space. Dates and amounts through `@/shared/lib/timezone` and `@/shared/lib/format`.
@@ -74,9 +76,9 @@ Rules:
 | `text-[13px]`, `text-[13px] leading-5` | `text-sm` |
 | `text-[12px]`, `text-[11px]`, `text-[10px]` | `text-xs`, `text-2xs` (10 px is not on the scale) |
 | `leading-5`, `leading-6`… next to a scale size | nothing: the size carries its line-height |
-| a card title with `tracking-tight`, or `text-sm`/`text-lg` | `text-base font-semibold` (or use `CardTitle` / `SettingsCard`) |
+| a card title without `tracking-tight`, or in `text-sm`/`text-lg` | `text-base font-semibold tracking-tight` (or use `CardTitle` / `SettingsCard`) |
 | a page title not `text-xl font-semibold tracking-tight` | `PageHeader`, or that recipe |
-| section title inside a page (`h2` over cards) | `text-lg font-semibold`, or `text-base font-semibold` when it heads a list in a card-sized column (Accueil) |
+| section title inside a page (`h2` over cards, a questionnaire step) | `text-lg font-semibold`, no tracking |
 | help or caption in `text-subtle` | `text-muted-foreground` |
 | hand-made label + input + error | `FormField` |
 | `space-y-2`/`space-y-4` between form fields | `space-y-3` (or `gap-3`) |
