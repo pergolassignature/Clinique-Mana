@@ -421,6 +421,9 @@ insert into public.user_permission_overrides (user_id, org_id, permission_key, g
   ('a3000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000003a', 'professionals.view', false);
 insert into public.org_modules (org_id, module_key, enabled)
 values ('b0000000-0000-0000-0000-00000000003a', 'professionals', true);
+-- Org M gets its own seeded « Contrat de service » (4d.1): replaced here too.
+delete from public.document_templates
+ where org_id = 'b0000000-0000-0000-0000-00000000003a' and key = 'professionals.service_contract';
 insert into public.document_templates (id, org_id, key, module_key, title, view_permission, edit_permission)
 values ('d0000000-0000-0000-0000-00000000003a', 'b0000000-0000-0000-0000-00000000003a', 'professionals.service_contract',
         'professionals', 'Contrat', 'professionals.view', 'professionals.manage');

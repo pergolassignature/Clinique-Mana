@@ -262,6 +262,9 @@ select results_eq($$ select p ->> 'idempotency_key', p -> 'cancel', (p -> 'annex
 
 -- The function closed it and sent the new one; a double click on « Régénérer » is the same action.
 select ok(public.cancel_signature_request(current_setting('test.r1')::uuid, 'a0000000-0000-0000-0000-000000000001'), 'the old request is cancelled');
+-- One transaction makes now() constant: the first request is dated a minute earlier, as two sends
+-- are in real life, so « the latest request » never falls to the ids' random order.
+update public.signature_requests set created_at = now() - interval '1 minute' where id = current_setting('test.r1')::uuid;
 select set_config('test.r2', (select r.id::text from public.create_signature_request(jsonb_build_object(
   'org_id', 'b0000000-0000-0000-0000-00000000000a', 'module_key', 'professionals', 'purpose', 'professionals.service_contract',
   'template_version_id', current_setting('test.v1'), 'subject_type', 'professional', 'subject_id', 'c0000000-0000-0000-0000-000000000001',
@@ -312,9 +315,9 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select r.contract_signed from public.professionals_readiness r where r.professional_id = 'c0000000-0000-0000-0000-000000000001'), false,
   'out for signature: not signed');
-select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'items' -> 3,
-  '{"key": "contract_signed", "done": false, "missing": []}'::jsonb, 'the fourth readiness item');
-select is((public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') ->> 'total')::int, 4, 'four items');
+select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'items' -> 4,
+  '{"key": "contract_signed", "done": false, "missing": []}'::jsonb, 'the last readiness item, after 4c''s documents');
+select is((public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') ->> 'total')::int, 5, 'five items');
 reset role;
 
 -- Signed (the webhook stored the PDF: complete_signature_request).
@@ -400,8 +403,10 @@ select is_empty($$ select 1 from public.list_professional_history('c0000000-0000
 select is_empty($$ select 1 from public.list_professional_history('c0000000-0000-0000-0000-000000000002', null, 200) h
                     where h.table_name = 'signature_requests' $$,
   'another professional''s history holds none of it');
+-- The contract's rows only: the file's own insert rightly shows her email.
 select is_empty($$ select 1 from public.list_professional_history('c0000000-0000-0000-0000-000000000001', null, 200) h
-                    where h.changed_fields::text ~ '(Pia Un|pia@exemple)' $$,
+                    where h.table_name in ('signature_requests', 'signature_request_signers')
+                      and h.changed_fields::text ~ '(Pia Un|pia@exemple)' $$,
   'no title, name or address in those rows');
 reset role;
 
