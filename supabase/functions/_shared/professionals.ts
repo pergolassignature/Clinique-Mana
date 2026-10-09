@@ -45,6 +45,41 @@ export function submissionReceivedValues(input: {
   return { professional: { full_name: input.fullName } }
 }
 
+/** The provider's « Mes documents » (Task 4c.6): the document emails' button, behind sign-in. */
+export const MY_DOCUMENTS_PATH = '/mes-documents'
+
+/**
+ * `professionals.document_expiring`, `professionals.document_expired` and
+ * `professionals.document_expired_reminder` (Task 4c.4). `expiresOn` is the
+ * date-only last valid day (`yyyy-MM-dd`): the template declares it `kind:
+ * date`, so it is printed as written, never shifted by a time zone.
+ */
+export function documentExpiryValues(input: {
+  firstName: string
+  clinicName: string
+  expiresOn: string
+}): Record<string, unknown> {
+  return {
+    professional: { first_name: input.firstName },
+    clinic: { name: input.clinicName },
+    document: { expires_on: input.expiresOn },
+  }
+}
+
+/** `professionals.document_rejected` (sent by Task 4c.3's function after `reject_professional_document`). */
+export function documentRejectedValues(input: {
+  firstName: string
+  clinicName: string
+  typeName: string
+  reason: string
+}): Record<string, unknown> {
+  return {
+    professional: { first_name: input.firstName },
+    clinic: { name: input.clinicName },
+    document: { type_name: input.typeName, rejection_reason: input.reason },
+  }
+}
+
 /** An app path the module builds (no `//`, query, fragment or dot segment). */
 const APP_PATH = /^\/(?:[a-z0-9-]+\/)*[a-z0-9-]*$/
 

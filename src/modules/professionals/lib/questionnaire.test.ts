@@ -170,10 +170,16 @@ describe('completeness (private.submission_gaps, P4-173)', () => {
 })
 
 describe('insurance and consent', () => {
-  it('proposes the next March 31', () => {
+  it('proposes the end of the coming policy period: this March 31 in January and February, else next year’s (P4-412)', () => {
     expect(nextMarch31('2026-10-08')).toBe('2027-03-31')
+    expect(nextMarch31('2027-01-01')).toBe('2027-03-31')
     expect(nextMarch31('2027-01-15')).toBe('2027-03-31')
+    expect(nextMarch31('2027-02-28')).toBe('2027-03-31')
+    expect(nextMarch31('2028-02-29')).toBe('2028-03-31')
+    expect(nextMarch31('2027-03-01')).toBe('2028-03-31')
     expect(nextMarch31('2027-03-31')).toBe('2028-03-31')
+    expect(nextMarch31('2027-04-01')).toBe('2028-03-31')
+    expect(nextMarch31('2027-12-31')).toBe('2028-03-31')
   })
 
   it('compares the typed name with the file’s, accents, case and spaces aside', () => {

@@ -6,8 +6,8 @@
 --          P4-430 … P4-449)
 -- Needs:   Phase 3 signing (…_core_signing.sql, …_core_signing_function_support.sql,
 --          …_core_signing_envelope.sql), the retention program (…_professionals_compensation_private.sql),
---          the onboarding readiness and history (…_professionals_onboarding.sql,
---          …_professionals_places_and_note.sql)
+--          the readiness of 4b and 4c (…_professionals_onboarding.sql, …_professionals_documents.sql)
+--          and the history (…_professionals_places_and_note.sql, …_professionals_documents.sql)
 -- Rules:   docs/standards/database-conventions.md
 --
 -- Key choices
@@ -53,8 +53,8 @@
 --   the request), and readiness reads private.professional_signed_contracts() (definer, the
 --   caller's clinic, filtered like professional_login_email_mismatches), so `ready` is the same for
 --   every reader.
--- * Readiness (P4-73's rule, as 4b): `contract_signed` is appended to professionals_readiness and
---   `ready` requires it: the professional's latest service-contract request is `signed` (rejected,
+-- * Readiness (as 4b and 4c): `contract_signed` is appended to 4c's professionals_readiness and
+--   `ready` requires it, after the documents: the professional's latest service-contract request is `signed` (rejected,
 --   expired, cancelled and abandoned do not count, A10.9). get_professional_readiness gains the item.
 -- * History: list_professional_history also returns the audit rows of the professional's contract
 --   requests and their signers (by subject, one lookup), only the rows that move a status: « envoyé »,
@@ -696,12 +696,16 @@ $$;
 revoke all on function private.professional_signed_contracts() from public, anon, authenticated, service_role;
 grant execute on function private.professional_signed_contracts() to authenticated;
 
--- Same columns and joins as *_professionals_onboarding.sql, then contract_signed; `ready` requires it.
+-- Same columns and joins as *_professionals_documents.sql (4c.2: the documents and the insurance),
+-- then contract_signed; `ready` requires it.
 create or replace view public.professionals_readiness with (security_invoker = true) as
 select r.professional_id, r.org_id, r.has_profession, r.licences_ok, r.restricted_motifs_ok, r.has_language,
        r.has_clientele, r.has_motif, r.matching_complete, r.email_matches_login,
-       (r.matching_complete and r.account_created and r.submission_approved and r.contract_signed) as ready,
-       r.account_created, r.submission_approved, r.contract_signed
+       (r.matching_complete and r.account_created and r.submission_approved and r.documents_ok
+        and r.contract_signed) as ready,
+       r.account_created, r.submission_approved,
+       r.photo_ok, r.insurance_ok, r.consent_ok, r.documents_ok, r.documents_done, r.documents_required,
+       r.documents_missing, r.insurance_status, r.insurance_expires_on, r.contract_signed
   from (
     select p.id as professional_id,
            p.org_id,
@@ -718,6 +722,20 @@ select r.professional_id, r.org_id, r.has_profession, r.licences_ok, r.restricte
            (em.id is null)                                                     as email_matches_login,
            (p.profile_id is not null)                                          as account_created,
            (sa.professional_id is not null)                                    as submission_approved,
+           coalesce(dc.photo_ok, false)                                        as photo_ok,
+           coalesce(dc.insurance_ok, false)                                    as insurance_ok,
+           coalesce(dc.consent_ok, false)                                      as consent_ok,
+           (coalesce(dc.required_done, 0) = coalesce(dc.required_n, 0))        as documents_ok,
+           coalesce(dc.required_done, 0)::int                                  as documents_done,
+           coalesce(dc.required_n, 0)::int                                     as documents_required,
+           pg_catalog.array_remove(array[
+             case when dc.photo_missing then 'photo' end,
+             case when dc.insurance_missing then
+               case when dc.insurance_expires_on is null then 'insurance' else 'insurance_expired' end end,
+             case when dc.consent_missing then 'image_consent' end,
+             case when dc.other_missing then 'other_documents' end]::text[], null) as documents_missing,
+           coalesce(dc.insurance_status, 'missing')                            as insurance_status,
+           dc.insurance_expires_on,
            (sc.id is not null)                                                 as contract_signed
       from public.professionals p
       left join (select x.professional_id,
@@ -739,9 +757,60 @@ select r.professional_id, r.org_id, r.has_profession, r.licences_ok, r.restricte
                   where x.kind = 'onboarding' and x.status = 'approved') sa on sa.professional_id = p.id
       left join private.professional_login_email_mismatches() as em(id) on em.id = p.id
       left join private.professional_signed_contracts() as sc(id) on sc.id = p.id
+      -- One row per professional and active type of the clinic: satisfied or not, on the clinic's
+      -- today; then one row per professional (grouped once per statement).
+      left join (
+        select s.professional_id,
+               count(*) filter (where s.required) as required_n,
+               count(*) filter (where s.required and s.ok) as required_done,
+               bool_or(s.key = 'photo' and s.ok) as photo_ok,
+               bool_or(s.key = 'insurance' and s.ok) as insurance_ok,
+               bool_or(s.key = 'image_consent' and s.ok) as consent_ok,
+               bool_or(s.key = 'photo' and s.required and not s.ok) as photo_missing,
+               bool_or(s.key = 'insurance' and s.required and not s.ok) as insurance_missing,
+               bool_or(s.key = 'image_consent' and s.required and not s.ok) as consent_missing,
+               bool_or(not s.is_system and s.required and not s.ok) as other_missing,
+               max(s.last_known) filter (where s.key = 'insurance') as insurance_expires_on,
+               max(s.insurance_status) filter (where s.key = 'insurance') as insurance_status
+          from (
+            select x.id as professional_id, t.key, t.is_system, t.required,
+                   (case when t.expiry_rule = 'none' then coalesce(d.any_verified, false)
+                         else coalesce(d.valid_until >= x.today, false) end
+                    or (t.key = 'image_consent' and coalesce(k.valid_until >= x.today, false))) as ok,
+                   d.last_known,
+                   case when t.key <> 'insurance' then null
+                        when t.expiry_rule = 'none' then case when coalesce(d.any_verified, false) then 'valid' else 'missing' end
+                        when d.valid_until >= x.today then
+                          case when t.max_days > 0 and d.valid_until - x.today <= t.max_days then 'expiring' else 'valid' end
+                        when d.last_known is not null then 'expired'
+                        else 'missing'
+                   end as insurance_status
+              from (select p2.id, p2.org_id, (pg_catalog.now() at time zone o.timezone)::date as today
+                      from public.professionals p2
+                      join public.organizations o on o.id = p2.org_id) x
+              join (select dt.*, coalesce((select max(n) from pg_catalog.unnest(dt.reminder_days) n), 0) as max_days
+                      from public.document_types dt where dt.is_active) t on t.org_id = x.org_id
+              left join (select y.professional_id, y.document_type_id,
+                                bool_or(y.status = 'verified') as any_verified,
+                                max(y.expires_on) filter (where y.status = 'verified') as valid_until,
+                                max(y.expires_on) filter (where y.status in ('verified', 'expired')) as last_known
+                           from public.professional_documents y
+                          group by y.professional_id, y.document_type_id) d
+                     on d.professional_id = x.id and d.document_type_id = t.id
+              -- An e-consent is in force until its last day, or the day before its withdrawal takes effect.
+              left join (select z.professional_id,
+                                max(case when z.withdrawal_effective_on is null then z.expires_on
+                                         else least(z.expires_on, z.withdrawal_effective_on - 1) end) as valid_until
+                           from public.professional_consents z
+                          group by z.professional_id) k
+                     on t.key = 'image_consent' and k.professional_id = x.id
+          ) s
+         group by s.professional_id
+      ) dc on dc.professional_id = p.id
   ) r;
 
--- {complete, done, total, items, warnings}: the onboarding's three items, then contract_signed.
+-- {complete, done, total, items, warnings}: 4c.2's four items (matching, account, questionnaire,
+-- documents), then contract_signed.
 create or replace function public.get_professional_readiness(p_id uuid)
 returns jsonb
 language sql
@@ -750,8 +819,9 @@ set search_path = ''
 as $$
   select pg_catalog.jsonb_build_object(
            'complete', r.ready,
-           'done', r.matching_complete::int + r.account_created::int + r.submission_approved::int + r.contract_signed::int,
-           'total', 4,
+           'done', r.matching_complete::int + r.account_created::int + r.submission_approved::int + r.documents_ok::int
+                   + r.contract_signed::int,
+           'total', 5,
            'items', pg_catalog.jsonb_build_array(
              pg_catalog.jsonb_build_object(
                'key', 'matching_profile',
@@ -765,6 +835,8 @@ as $$
                  case when not r.has_motif then 'motif' end], null))),
              pg_catalog.jsonb_build_object('key', 'account_created', 'done', r.account_created, 'missing', '[]'::jsonb),
              pg_catalog.jsonb_build_object('key', 'submission_approved', 'done', r.submission_approved, 'missing', '[]'::jsonb),
+             pg_catalog.jsonb_build_object('key', 'documents', 'done', r.documents_ok,
+                                           'missing', pg_catalog.to_jsonb(r.documents_missing)),
              pg_catalog.jsonb_build_object('key', 'contract_signed', 'done', r.contract_signed, 'missing', '[]'::jsonb)),
            'warnings', pg_catalog.to_jsonb(pg_catalog.array_remove(array[
              case when not r.email_matches_login then 'login_email_mismatch' end], null)))

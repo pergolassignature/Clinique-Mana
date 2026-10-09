@@ -241,8 +241,9 @@ Deno.test('professionals-invite: send → service create with the verified actor
     assert(sent.Text.includes('Bonjour Nadia'))
     assert(sent.Text.includes('15 octobre 2026'))
     assert(sent.Text.includes(`${APP}/invitation#t=`))
-    // A first sending: the 60 s same-address limit.
-    assert(buckets(service.calls).includes('emails.same_address'))
+    // Every invitation email is explicit (P4-425): the double-click guard,
+    // never the 60 s same-address limit (« Révoquer » then « Envoyer »).
+    assert(!buckets(service.calls).includes('emails.same_address'))
     // The file's guard, then the caller's limit, before the link is issued.
     assertEquals(buckets(service.calls).slice(0, 2), [
       'professionals.invite_file',

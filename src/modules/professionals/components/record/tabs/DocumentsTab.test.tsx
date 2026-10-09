@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     fetchSubmissionReview: vi.fn(),
     applyProfessionalSubmission: vi.fn(),
     rejectProfessionalSubmission: vi.fn(),
+    cancelProfessionalSubmission: vi.fn(),
   },
   private: { fetchProfessionalPrivate: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -113,6 +114,29 @@ describe('« Questionnaire et mises à jour »', () => {
     expect(second).toHaveTextContent('Fermée sans être appliquée')
   })
 
+  it('« Fermer la demande » closes an open update after a confirmation (P4-421); never on the onboarding', async () => {
+    mocks.submissions.cancelProfessionalSubmission.mockResolvedValue(undefined)
+    await openTab({
+      list: listed([
+        { kind: 'update', status: 'draft', submitted_at: null, requested_sections: ['languages'], started_by_professional: false },
+        { kind: 'onboarding', status: 'submitted' },
+      ]),
+    })
+    const [update, onboarding] = within(screen.getByRole('list')).getAllByRole('listitem') as [HTMLElement, HTMLElement]
+    expect(within(onboarding).queryByRole('button', { name: t(`${C}.cancel`) })).not.toBeInTheDocument()
+    await userEvent.click(within(update).getByRole('button', { name: t(`${C}.cancel`) }))
+    const confirm = await screen.findByRole('alertdialog', { name: t('modules.professionals.submission.cancelDialog.title', { name: 'Marie Tremblay' }) })
+    await userEvent.click(within(confirm).getByRole('button', { name: t('modules.professionals.submission.cancelDialog.confirm') }))
+    await waitFor(() => expect(mocks.submissions.cancelProfessionalSubmission).toHaveBeenCalledWith(SUBMISSIONS_JSON[0]?.id))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.submission.toasts.cancelled', { firstName: 'Marie' }))
+  })
+
+  it('« Fermer la demande » is not offered to the conseillère (no professionals.invite)', async () => {
+    await openTab({ role: 'counselor', list: listed([{ kind: 'update', status: 'submitted', requested_sections: ['languages'] }]) })
+    expect(screen.queryByRole('button', { name: t(`${C}.cancel`) })).not.toBeInTheDocument()
+  })
+
   it('shows the note of a profile sent back', async () => {
     await openTab({
       list: listed([{ status: 'draft', submitted_at: '2026-10-08T14:00:00+00:00', reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.' }]),
@@ -141,6 +165,18 @@ describe('« Questionnaire et mises à jour »', () => {
 })
 
 describe('SubmissionReviewSheet', () => {
+  it('asks before closing with a typed « Renvoyer » note, and keeps it on « Continuer la note »', async () => {
+    const { sheet } = await openSheet()
+    await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.return`) }))
+    await userEvent.type(within(sheet).getByRole('textbox', { name: new RegExp(t(`${S}.noteLabel`, { firstName: 'Marie' })) }), 'Précisez vos langues.')
+    await userEvent.keyboard('{Escape}')
+    const ask = await screen.findByRole('alertdialog', { name: t(`${S}.discardNote.title`) })
+    await userEvent.click(within(ask).getByRole('button', { name: t(`${S}.discardNote.keep`) }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('dialog', { name: t(`${S}.title`, { name: 'Marie Tremblay' }) })).toBeInTheDocument()
+    expect(within(sheet).getByRole('textbox', { name: new RegExp(t(`${S}.noteLabel`, { firstName: 'Marie' })) })).toHaveValue('Précisez vos langues.')
+  })
+
   it('shows each changed field as « Actuel / Proposé », checked, and folds the unchanged ones', async () => {
     const { sheet } = await openSheet()
     const phone = within(sheet).getByRole('checkbox', { name: t(`${F}.personal_phone`) })

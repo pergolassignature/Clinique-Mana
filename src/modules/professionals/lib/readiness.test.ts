@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import { MISSING_TAB, missingLabel, nextAction, readinessItemLabel, warningLabel } from './readiness'
-import { READINESS_MISSING } from './constants'
+import { READINESS_DOCUMENT_MISSING, READINESS_MISSING } from './constants'
 import { recordFixture } from '../test/fixtures-domain'
 import type { InvitationInfo, Onboarding, ProfessionalRecord } from '../api/parse'
 import type { ReadinessMissing } from './constants'
@@ -32,6 +32,14 @@ describe('labels', () => {
 
   it('sends every gap to the tab that fixes it', () => {
     expect(READINESS_MISSING.map((m) => MISSING_TAB[m])).toEqual(['identite', 'identite', 'identite', 'jumelage', 'jumelage', 'jumelage'])
+    expect(READINESS_DOCUMENT_MISSING.map((m) => MISSING_TAB[m])).toEqual(['documents', 'documents', 'documents', 'documents', 'documents'])
+  })
+
+  it('names the documents item and its gaps (4c.2)', () => {
+    expect(readinessItemLabel('documents')).toBe('Documents requis en règle')
+    expect(missingLabel('insurance')).toBe('la preuve d\'assurance')
+    expect(missingLabel('insurance_expired')).toBe('une preuve d\'assurance en vigueur')
+    for (const key of READINESS_DOCUMENT_MISSING) expect(missingLabel(key)).not.toContain('modules.professionals')
   })
 })
 
@@ -45,6 +53,13 @@ describe('nextAction', () => {
       { message: T('modules.professionals.readiness.nextAction.completeMatching'), action: { kind: 'tab', label: T('modules.professionals.readiness.nextAction.complete'), tab: 'jumelage' } },
     ],
     ['matching gaps, read-only: the sentence alone', ['motif'], 'draft', [], { message: T('modules.professionals.readiness.nextAction.completeMatching'), action: null }],
+    [
+      'document gaps: the sentence, no button until « Documents » is built (4c.3)',
+      ['photo', 'insurance_expired'],
+      'draft',
+      ['professionals.manage', 'professionals.matching'],
+      { message: T('modules.professionals.readiness.nextAction.completeDocuments'), action: null },
+    ],
     [
       'identity gaps first → Identité et permis, for a manager',
       ['licence', 'motif'],

@@ -195,8 +195,11 @@ select set_eq($$ select key || ':' || recipient_mode || ':' || allows_attachment
                   where module_key = 'professionals' $$,
   array['professionals.invite:subject:false:professionals.view', 'professionals.invite_reminder:subject:false:professionals.view',
         'professionals.profile_update:subject:false:professionals.view', 'professionals.submission_received:subject:false:professionals.view',
-        'professionals.fiche:free:true:professionals.view'],
-  'the four onboarding email templates, and the fiche''s (054)');
+        'professionals.fiche:free:true:professionals.view',
+        'professionals.document_rejected:subject:false:professionals.view', 'professionals.document_expiring:subject:false:professionals.view',
+        'professionals.document_expired:subject:false:professionals.view',
+        'professionals.document_expired_reminder:subject:false:professionals.view'],
+  'the four onboarding email templates, the fiche''s (054) and the four documents ones (061)');
 select is_empty($$ select key from public.email_template_defaults
                     where module_key = 'professionals'
                       and (subject || body || coalesce(button_label, '')) ~* '(diagnostic|trouble|patient|th[ée]rapie)' $$,
@@ -214,7 +217,8 @@ select ok((select body like '%vous autorisez Org A à utiliser%' and body like '
 -- =============================================================================
 -- Privileges (as postgres)
 -- =============================================================================
-select table_privs_are('public', 'professional_submissions', 'authenticated', array['SELECT'], 'authenticated: select only on submissions');
+select table_privs_are('public', 'professional_submissions', 'authenticated', array[]::text[],
+  'authenticated: no table-wide select on submissions (columns without answers only, P4-420)');
 select table_privs_are('public', 'professional_submissions', 'anon', array[]::text[], 'anon: nothing on submissions');
 select table_privs_are('public', 'professional_submission_private', 'authenticated', array[]::text[], 'authenticated: nothing on the private answers');
 select table_privs_are('public', 'professional_submission_private', 'anon', array[]::text[], 'anon: nothing on the private answers');
@@ -854,10 +858,11 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is(public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account'), '1234567', 'the admin reveals the applied account');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid) -> 'items',
   '[{"key": "matching_profile", "done": true, "missing": []}, {"key": "account_created", "done": true, "missing": []},
-    {"key": "submission_approved", "done": true, "missing": []}, {"key": "contract_signed", "done": false, "missing": []}]'::jsonb,
-  'readiness: matching, account, questionnaire; the contract (4d.1) still to sign');
+    {"key": "submission_approved", "done": true, "missing": []}, {"key": "documents", "done": false, "missing": ["insurance"]},
+    {"key": "contract_signed", "done": false, "missing": []}]'::jsonb,
+  'readiness: matching, account, questionnaire; of the documents (4c.2), the approved photo and e-consent count, the insurance (not chosen) is missing; the contract (4d.1) still to sign');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid) - 'items',
-  '{"complete": false, "done": 3, "total": 4, "warnings": []}'::jsonb, 'the onboarding''s three items are done');
+  '{"complete": false, "done": 3, "total": 5, "warnings": []}'::jsonb, 'the file waits for its insurance and its contract');
 select results_eq($$ select r.account_created, r.submission_approved, r.ready from public.professionals_readiness r
                       where r.professional_id in (current_setting('test.p5')::uuid, current_setting('test.p2')::uuid) order by r.professional_id $$,
   $$ values (true, false, false), (false, false, false) $$, 'P2 (account, no questionnaire) and P5 (neither) are not ready');
@@ -878,8 +883,8 @@ select set_eq($$ select distinct h.table_name from public.list_professional_hist
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select results_eq($$ select g.bank_account_last4, g.bank_institution, g.sin_last3 from public.get_my_professional_private() g $$,
   $$ values ('4567'::text, '815'::text, null::text) $$, 'get_my_professional_private: masks of her own row');
-select is((select count(*)::int from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid), 1,
-  'she reads her consent');
+select is((select count(*)::int from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid), 0,
+  'she reads no consent row through the table (P4-420: a re-linked account must not read the previous signer''s name)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is((select count(*)::int from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid), 0,
   'another provider does not');

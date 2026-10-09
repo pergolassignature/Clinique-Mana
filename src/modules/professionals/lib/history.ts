@@ -58,6 +58,8 @@ const TECHNICAL = new Set([
   'fiche_generated_at',
   // The day the places offered were declared: stamped with the number (P4-382), which says it.
   'new_client_places_set_at',
+  // The public profile's photo (4c.2): set by the documents' own rows, which tell the story.
+  'photo_document_id',
 ])
 /** Free texts: shown in the details only, never inside a sentence. */
 const LONG_TEXT = new Set(['bio', 'approach', 'availability_note', 'deactivation_note', 'activation_override_reason'])

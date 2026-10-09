@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CircleAlert, CircleCheck, MessageSquareText } from 'lucide-react'
 import { t } from '@/i18n'
@@ -206,9 +206,22 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
   const navigating = useRef(false)
   const index = steps.indexOf(step)
   const { flushAll, retry } = autosave
+  // « Enregistrer le brouillon »: one function for the page's life, so the steps' actions do not
+  // re-render after every save.
+  const draftAction = useCallback(() => void flushAll(), [flushAll])
   const confirmLeave = useConfirmLeave()
   const isDirty = useContext(UnsavedChangesContext)?.isDirty
   useUnsavedChanges(autosave.state.failed)
+  // An edit not sent yet (its 2.5 s delay, or a save in flight): closing or reloading the tab asks
+  // first, since the pagehide flush is best effort. In-app links need no question: the pending save
+  // still goes once the page is left.
+  const unsent = autosave.state.scheduled || autosave.state.saving
+  useEffect(() => {
+    if (!unsent) return
+    const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [unsent])
 
   const goTo = (next: QuestionnaireStep) => {
     if (next === step) return
@@ -335,7 +348,7 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
               </div>
             )}
           </header>
-          <DraftActionContext.Provider value={step === 'review' || savesOnContinue ? null : () => void flushAll()}>
+          <DraftActionContext.Provider value={step === 'review' || savesOnContinue ? null : draftAction}>
             {onFile.loading && step === 'tax_bank' ? (
               <Loading />
             ) : (

@@ -435,6 +435,68 @@ export type Database = {
           },
         ]
       }
+      document_types: {
+        Row: {
+          accepted_mime: string[]
+          created_at: string
+          expiry_rule: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          max_bytes: number
+          name: string
+          org_id: string
+          reminder_days: number[]
+          required: boolean
+          sort_order: number
+          updated_at: string
+          weekly_after_expiry: boolean
+        }
+        Insert: {
+          accepted_mime: string[]
+          created_at?: string
+          expiry_rule?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          max_bytes: number
+          name: string
+          org_id: string
+          reminder_days?: number[]
+          required?: boolean
+          sort_order?: number
+          updated_at?: string
+          weekly_after_expiry?: boolean
+        }
+        Update: {
+          accepted_mime?: string[]
+          created_at?: string
+          expiry_rule?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          max_bytes?: number
+          name?: string
+          org_id?: string
+          reminder_days?: number[]
+          required?: boolean
+          sort_order?: number
+          updated_at?: string
+          weekly_after_expiry?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_types_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_log: {
         Row: {
           attachment_count: number
@@ -1815,6 +1877,64 @@ export type Database = {
           },
         ]
       }
+      professional_documents: {
+        Row: {
+          created_at: string
+          document_type_id: string
+          expires_on: string | null
+          id: string
+          metadata: Json
+          org_id: string
+          professional_id: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          stored_file_id: string
+          submission_id: string | null
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_type_id: string
+          expires_on?: string | null
+          id?: string
+          metadata?: Json
+          org_id: string
+          professional_id: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          stored_file_id: string
+          submission_id?: string | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_type_id?: string
+          expires_on?: string | null
+          id?: string
+          metadata?: Json
+          org_id?: string
+          professional_id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          stored_file_id?: string
+          submission_id?: string | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_documents_professional_fkey"
       professional_contract_snapshots: {
         Row: {
           annexe: Json
@@ -1871,6 +1991,7 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "professional_documents_professional_fkey"
             foreignKeyName: "professional_contract_snapshots_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
@@ -1878,6 +1999,7 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "professional_documents_professional_fkey"
             foreignKeyName: "professional_contract_snapshots_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
@@ -1885,6 +2007,7 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "professional_documents_professional_fkey"
             foreignKeyName: "professional_contract_snapshots_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
@@ -1892,6 +2015,39 @@ export type Database = {
             referencedColumns: ["org_id", "professional_id"]
           },
           {
+            foreignKeyName: "professional_documents_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_documents_stored_file_fkey"
+            columns: ["stored_file_id"]
+            isOneToOne: true
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_documents_submission_fkey"
+            columns: ["professional_id", "submission_id"]
+            isOneToOne: false
+            referencedRelation: "professional_submissions"
+            referencedColumns: ["professional_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_documents_type_fkey"
+            columns: ["org_id", "document_type_id"]
+            isOneToOne: false
+            referencedRelation: "document_types"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
             foreignKeyName: "professional_contract_snapshots_version_fkey"
             columns: ["template_version_id", "org_id"]
             isOneToOne: false
@@ -2426,6 +2582,7 @@ export type Database = {
           bio: string | null
           created_at: string
           org_id: string
+          photo_document_id: string | null
           professional_id: string
           public_email: string | null
           public_phone: string | null
@@ -2436,6 +2593,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           org_id: string
+          photo_document_id?: string | null
           professional_id: string
           public_email?: string | null
           public_phone?: string | null
@@ -2446,12 +2604,20 @@ export type Database = {
           bio?: string | null
           created_at?: string
           org_id?: string
+          photo_document_id?: string | null
           professional_id?: string
           public_email?: string | null
           public_phone?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "professional_public_profiles_photo_fkey"
+            columns: ["professional_id", "photo_document_id"]
+            isOneToOne: false
+            referencedRelation: "professional_documents"
+            referencedColumns: ["professional_id", "id"]
+          },
           {
             foreignKeyName: "professional_public_profiles_professional_fkey"
             columns: ["org_id", "professional_id"]
@@ -4469,12 +4635,16 @@ export type Database = {
           clientele_ids: string[] | null
           created_at: string | null
           deactivation_reason_id: string | null
+          documents_done: number | null
+          documents_required: number | null
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null
           gender: string | null
           has_account: boolean | null
           id: string | null
+          insurance_expires_on: string | null
+          insurance_status: string | null
           language_ids: string[] | null
           last_name: string | null
           matching_complete: boolean | null
@@ -4507,15 +4677,24 @@ export type Database = {
       professionals_readiness: {
         Row: {
           account_created: boolean | null
+          consent_ok: boolean | null
+          documents_done: number | null
+          documents_missing: string[] | null
+          documents_ok: boolean | null
+          documents_required: number | null
           contract_signed: boolean | null
           email_matches_login: boolean | null
           has_clientele: boolean | null
           has_language: boolean | null
           has_motif: boolean | null
           has_profession: boolean | null
+          insurance_expires_on: string | null
+          insurance_ok: boolean | null
+          insurance_status: string | null
           licences_ok: boolean | null
           matching_complete: boolean | null
           org_id: string | null
+          photo_ok: boolean | null
           professional_id: string | null
           ready: boolean | null
           restricted_motifs_ok: boolean | null
@@ -4581,9 +4760,23 @@ export type Database = {
         }[]
       }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
+      attach_professional_document: {
+        Args: {
+          p_expires_on?: string
+          p_file_id: string
+          p_id: string
+          p_metadata?: Json
+          p_type_key: string
+        }
+        Returns: string
+      }
       begin_signature_request_send: {
         Args: { p_id: string; p_org_id: string; p_stale_after: string }
         Returns: boolean
+      }
+      cancel_professional_submission: {
+        Args: { p_submission_id: string }
+        Returns: undefined
       }
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
@@ -4771,6 +4964,10 @@ export type Database = {
         Args: { p_row_id: string }
         Returns: undefined
       }
+      delete_professional_document: {
+        Args: { p_doc_id: string }
+        Returns: undefined
+      }
       delete_professional_retention: {
         Args: { p_row_id: string }
         Returns: undefined
@@ -4856,6 +5053,7 @@ export type Database = {
         Args: { p_id: string; p_on?: string }
         Returns: Json
       }
+      get_professional_documents: { Args: { p_id?: string }; Returns: Json }
       get_professional_contract: { Args: { p_id: string }; Returns: Json }
       get_professional_fiche_upload: {
         Args: { p_file_id: string; p_id: string }
@@ -5142,12 +5340,16 @@ export type Database = {
           clientele_ids: string[] | null
           created_at: string | null
           deactivation_reason_id: string | null
+          documents_done: number | null
+          documents_required: number | null
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null
           gender: string | null
           has_account: boolean | null
           id: string | null
+          insurance_expires_on: string | null
+          insurance_status: string | null
           language_ids: string[] | null
           last_name: string | null
           matching_complete: boolean | null
@@ -5411,6 +5613,10 @@ export type Database = {
         Args: { p_id: string; p_org: string; p_token_hash: string }
         Returns: Json
       }
+      reject_professional_document: {
+        Args: { p_doc_id: string; p_reason: string }
+        Returns: undefined
+      }
       reject_professional_submission: {
         Args: { p_note: string; p_submission_id: string }
         Returns: undefined
@@ -5452,6 +5658,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_staff_invitation: { Args: { p_id: string }; Returns: undefined }
+      run_professionals_document_notices_for_service: {
+        Args: { p_org: string; p_today?: string }
+        Returns: Json
+      }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
       save_clientele: {
         Args: {
@@ -5468,6 +5678,19 @@ export type Database = {
           p_id: string
           p_name: string
           p_requires_note: boolean
+        }
+        Returns: string
+      }
+      save_document_type: {
+        Args: {
+          p_accepted_mime?: string[]
+          p_expiry_rule?: string
+          p_id: string
+          p_max_bytes?: number
+          p_name: string
+          p_reminder_days?: number[]
+          p_required?: boolean
+          p_weekly_after_expiry?: boolean
         }
         Returns: string
       }
@@ -5625,6 +5848,10 @@ export type Database = {
           is_specialized: boolean
         }[]
       }
+      set_professional_document_expiry: {
+        Args: { p_doc_id: string; p_expires_on: string }
+        Returns: undefined
+      }
       set_professional_email: {
         Args: { p_email: string; p_id: string }
         Returns: undefined
@@ -5727,6 +5954,10 @@ export type Database = {
           p_signers: Json
           p_variables: Json
         }
+        Returns: undefined
+      }
+      verify_professional_document: {
+        Args: { p_doc_id: string; p_expires_on?: string }
         Returns: undefined
       }
     }

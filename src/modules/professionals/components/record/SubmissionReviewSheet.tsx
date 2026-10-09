@@ -9,6 +9,15 @@ import { useClinicDate } from '@/shared/lib/use-clinic-date'
 import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import { Button } from '@/shared/ui/button'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { FormField } from '@/shared/ui/form-field'
@@ -60,10 +69,13 @@ export function SubmissionReviewSheet({ submissionId, onClose, onCloseAutoFocus 
   const review = useSubmissionReview(submissionId)
   // While a decision is being saved the sheet stays open (Échap, the overlay and the X wait).
   const [busy, setBusy] = useState(false)
+  // A note typed for « Renvoyer » and not sent: closing asks first (§8, the sheet's own form).
+  const [noteTyped, setNoteTyped] = useState(false)
+  const [askDiscard, setAskDiscard] = useState(false)
   const data = review.data
   const name = fullName(record.professional)
   return (
-    <Sheet open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Sheet open onOpenChange={(open) => !open && !busy && (noteTyped ? setAskDiscard(true) : onClose())}>
       <SheetContent className="sm:max-w-[720px]" aria-busy={busy || undefined} onCloseAutoFocus={onCloseAutoFocus}>
         <SheetHeader>
           <SheetTitle>{t(`${S}.title`, { name })}</SheetTitle>
@@ -88,8 +100,22 @@ export function SubmissionReviewSheet({ submissionId, onClose, onCloseAutoFocus 
             <p className="text-sm text-muted-foreground">{t(`${S}.gone`)}</p>
           </SheetBody>
         ) : (
-          <ReviewContent key={data.submission.id} review={data} onClose={onClose} onBusyChange={setBusy} />
+          <ReviewContent key={data.submission.id} review={data} onClose={onClose} onBusyChange={setBusy} onNoteTyped={setNoteTyped} />
         )}
+        <AlertDialog open={askDiscard} onOpenChange={setAskDiscard}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t(`${S}.discardNote.title`)}</AlertDialogTitle>
+              <AlertDialogDescription>{t(`${S}.discardNote.body`, { firstName: record.professional.firstName })}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t(`${S}.discardNote.keep`)}</AlertDialogCancel>
+              <Button variant="destructive" onClick={onClose}>
+                {t(`${S}.discardNote.confirm`)}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   )
@@ -106,7 +132,17 @@ interface Refusal {
 /** HINTs that say the submission is no longer this reviewer's to decide (P4-304, decided or closed meanwhile). */
 const FINAL_HINTS = new Set(['status', 'submission'])
 
-function ReviewContent({ review, onClose, onBusyChange }: { review: SubmissionReview; onClose: () => void; onBusyChange: (busy: boolean) => void }) {
+function ReviewContent({
+  review,
+  onClose,
+  onBusyChange,
+  onNoteTyped,
+}: {
+  review: SubmissionReview
+  onClose: () => void
+  onBusyChange: (busy: boolean) => void
+  onNoteTyped: (typed: boolean) => void
+}) {
   const { record, catalog } = useRecordData()
   const { can } = useAccess()
   const { professional } = record
@@ -198,6 +234,7 @@ function ReviewContent({ review, onClose, onBusyChange }: { review: SubmissionRe
             setRefusal(null)
             setMode('decide')
           }}
+          onNoteTyped={onNoteTyped}
           onSend={(note) =>
             run(() => back.mutateAsync({ professionalId: professional.id, submissionId: review.submission.id, note, firstName: professional.firstName }))
           }
@@ -213,7 +250,7 @@ function ReviewContent({ review, onClose, onBusyChange }: { review: SubmissionRe
               </p>
             )}
             {waiting && changed.length > 0 && !refusal?.final && (
-              <p className="text-xs text-muted-foreground">{t(`${S}.checkedCount`, { checked: String(toApply.length), total: String(changed.length) })}</p>
+              <p className="text-xs text-muted-foreground">{t(toApply.length === 1 ? `${S}.checkedCountOne` : `${S}.checkedCount`, { checked: String(toApply.length), total: String(changed.length) })}</p>
             )}
           </div>
           <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row">
@@ -419,7 +456,7 @@ function ChangedValue({ field, ctx, masks }: { field: ReviewField; ctx: ValueCon
 /** An unchanged field: the file's value, and whether the professional confirmed it or left it unanswered. */
 function UnchangedValue({ field, ctx }: { field: ReviewField; ctx: ValueContext }) {
   const key = field.field
-  const status = <span className="text-muted-foreground"> — {t(field.answered ? `${V}.confirmed` : `${V}.notAnswered`)}</span>
+  const status = <span className="text-muted-foreground"> ({t(field.answered ? `${V}.confirmed` : `${V}.notAnswered`).toLowerCase()})</span>
   if (field.kind === 'private' || field.kind === 'file') {
     return <span className="text-muted-foreground">{t(field.answered ? `${V}.confirmed` : `${V}.notSent`)}</span>
   }
@@ -446,14 +483,19 @@ interface ReturnFormProps {
   onBack: () => void
   onSend: (note: string) => void
   onClose: () => void
+  /** Whether a note is typed (the sheet asks before closing); false again when the form leaves. */
+  onNoteTyped: (typed: boolean) => void
 }
 
 /**
  * « Renvoyer au professionnel »: the note is required (1–1000 characters, P4-170). The professional
  * reads it on top of her questionnaire; no email is sent, and the sheet says so.
  */
-function ReturnForm({ firstName, pending, refusal, onBack, onSend, onClose }: ReturnFormProps) {
+function ReturnForm({ firstName, pending, refusal, onBack, onSend, onClose, onNoteTyped }: ReturnFormProps) {
   const [note, setNote] = useState('')
+  const typed = note.trim() !== ''
+  useEffect(() => onNoteTyped(typed), [onNoteTyped, typed])
+  useEffect(() => () => onNoteTyped(false), [onNoteTyped])
   const [error, setError] = useState<string | null>(null)
   const length = [...note.trim()].length
   const field = useRef<HTMLTextAreaElement>(null)
