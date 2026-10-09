@@ -239,8 +239,9 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
             menuButtonRef={menuButtonRef}
             searchButtonRef={searchButtonRef}
           />
-          <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-6">
-            <div className="mx-auto flex w-full max-w-content flex-col gap-5">{children}</div>
+          {/* The content column fills the window's height, so a page may grow to its bottom (`flex-1`). */}
+          <main id={MAIN_ID} tabIndex={-1} className="flex min-w-0 flex-1 flex-col p-4 outline-none md:p-6">
+            <div className="mx-auto flex w-full max-w-content flex-1 flex-col gap-5">{children}</div>
           </main>
         </div>
 

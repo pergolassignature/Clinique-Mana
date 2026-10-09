@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
+import { SignedDocumentDownloads } from '@/core/signing/components/SignedDocumentDownloads'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -23,7 +24,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { StatusDot } from '@/shared/ui/status-dot'
 import type { ContractAction, ContractRequest, ContractSigner, ProfessionalContract, SigningForm } from '../../api/contracts'
 import { formTextRoot, useProfessionalContract, useSendContract, useSyncContract } from '../../hooks/use-contracts'
-import { useDocumentDownload } from '../../hooks/use-documents'
 import { contractButtons, contractState, contractStateLabel, signerRoleLabel, type ContractState } from '../../lib/contract'
 import { RefusalAlert } from '../compensation/DatedRowParts'
 import { useRecordData } from './record-context'
@@ -122,6 +122,10 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
     form === 'image_consent'
       ? t(`modules.professionals.imageConsent.confirm.${state === 'signed' ? 'renew' : action}.${part}`, values)
       : t(`${C}.confirm.${action}.${part}`, values)
+  // The signed PDF's downloads (core, P4-500): the document, the certificate and journal, the sealed
+  // proof; the image consent's once signed and readable (its renewal is the card's action).
+  const signedFiles =
+    request?.signedFileId && (buttons.some((b) => b.kind === 'pdf') || (form === 'image_consent' && state === 'signed' && request.canRead)) ? request : null
   const sends = buttons.some((b) => b.kind === 'action')
   const noTemplate = sends && contract.publishedVersion === null
   const pending = send.isPending || sync.isPending
@@ -214,10 +218,29 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
         </div>
       )}
 
-      {(buttons.length > 0 || state === 'signed') && (
+      {signedFiles && (
+        <SignedDocumentDownloads
+          key={signedFiles.signedFileId}
+          files={{
+            title: signedFiles.title,
+            completedAt: signedFiles.completedAt,
+            signedFileId: signedFiles.signedFileId!,
+            sourceFileId: signedFiles.sourceFileId,
+            pageCount: signedFiles.pageCount,
+          }}
+          documentLabel={form === 'image_consent' ? t('modules.professionals.imageConsent.actions.pdf') : t(`${C}.actions.pdf`)}
+          documentAriaLabel={
+            form === 'image_consent'
+              ? t('modules.professionals.imageConsent.actions.pdfLabel', { firstName: professional.firstName })
+              : t(`${C}.actions.pdfLabel`, { firstName: professional.firstName })
+          }
+        />
+      )}
+
+      {(buttons.some((b) => b.kind !== 'pdf') || state === 'signed') && (
         <div className="flex flex-wrap gap-2">
           {buttons.map((button) => {
-            if (button.kind === 'pdf') return <SignedPdfLink key="pdf" fileId={request!.signedFileId!} firstName={professional.firstName} />
+            if (button.kind === 'pdf') return null
             if (button.kind === 'sync') {
               return (
                 <Button
@@ -290,26 +313,5 @@ export function SigningBody({ form, contract }: { form: SigningForm; contract: P
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
-}
-
-/**
- * « Télécharger le PDF signé »: the stored copy through a new 5-minute URL signed at each press
- * (`useDocumentDownload`, P4-455), never on render nor kept fresh by a timer (storage-sign allows
- * 120 an hour, P4-479).
- */
-function SignedPdfLink({ fileId, firstName }: { fileId: string; firstName: string }) {
-  const download = useDocumentDownload()
-  return (
-    <Button
-      type="button"
-      size="sm"
-      aria-label={t(`${C}.actions.pdfLabel`, { firstName })}
-      aria-disabled={download.isPending || undefined}
-      className={softDisabledClasses}
-      onClick={ignoreWhenInactive(download.isPending, () => download.mutate(fileId))}
-    >
-      {t(`${C}.actions.pdf`)}
-    </Button>
   )
 }

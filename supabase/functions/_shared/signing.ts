@@ -47,7 +47,8 @@
  *    in signing order, each with its role's fields inline: a box whose role
  *    has no signer here is left out; French; the expiry) → `distribute`.
  * 7. `mark_signature_request_sent` (recipients keyed by role, expiry = now +
- *    `expiry_days`).
+ *    `expiry_days`, the rendered page count: N, where Documenso's certificate
+ *    pages start in the signed PDF, P4-500).
  *
  * A failure from step 4 on marks the draft (`mark_signature_request_failed`
  * with a code, and the envelope id once known), which releases the claim,
@@ -695,6 +696,7 @@ async function send(
     p_source_file_id: sourceFileId,
     p_signer_recipients: recipients,
     p_expires_at: expiresAt.toISOString(),
+    p_page_count: rendered.pageCount,
   })
   if (sent.error) {
     await cancelAndMark('mark_sent_failed')

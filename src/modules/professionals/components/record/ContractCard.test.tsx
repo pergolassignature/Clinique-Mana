@@ -5,7 +5,8 @@ import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import type { FixtureRole } from '@/test/role-fixtures'
 import { IDS } from '../../test/fixtures'
-import { contractJson, parsedContract, REQUEST_ID, requestJson, SIGNED_FILE, SIGNED_REQUEST } from '../../test/fixtures-contract'
+import { pageCountOf, pdfWithPages } from '@/core/signing/test/pdf-fixture'
+import { contractJson, parsedContract, REQUEST_ID, requestJson, SIGNED_FILE, SIGNED_REQUEST, SOURCE_FILE } from '../../test/fixtures-contract'
 import { recordFixture } from '../../test/fixtures-domain'
 import { renderRecordTab } from '../../test/record-tab'
 import { ContractCard } from './ContractCard'
@@ -15,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   record: { fetchProfessionalRecord: vi.fn() },
   sync: vi.fn(),
   documentDownloadUrl: vi.fn(),
+  fetchStoredFile: vi.fn(),
+  saveBlob: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../api/contracts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/contracts')>()), ...mocks.contracts }))
@@ -23,6 +26,14 @@ vi.mock('@/core/signing/api', async (importOriginal) => ({ ...(await importOrigi
 vi.mock('../../api/documents', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/documents')>()),
   documentDownloadUrl: (...args: unknown[]) => mocks.documentDownloadUrl(...args),
+}))
+vi.mock('@/core/storage/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/storage/api')>()),
+  fetchStoredFile: (...args: unknown[]) => mocks.fetchStoredFile(...args),
+}))
+vi.mock('@/shared/lib/files', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/shared/lib/files')>()),
+  saveBlob: (...args: unknown[]) => mocks.saveBlob(...args),
 }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -139,15 +150,36 @@ describe('ContractCard (Task 4d.3)', () => {
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
 
-  it('signed: « Signé le … », the stored PDF through a signed URL, and the signing journal', async () => {
+  it('signed: « Signé le … », the contract alone, the certificate and journal, the sealed proof, and the signing journal (P4-500)', async () => {
+    // The sealed PDF: the 7-page contract, then 3 pages of Documenso.
+    const stored: Record<string, Uint8Array> = { [SIGNED_FILE]: await pdfWithPages(10) }
+    mocks.fetchStoredFile.mockImplementation((id: string) => Promise.resolve(stored[id]))
     await openCard(contractJson(SIGNED_REQUEST))
     expect(screen.getByText('Signé')).toBeInTheDocument()
     expect(screen.getByText(/^Envoyé le .+ · Signé le .+$/)).toBeInTheDocument()
-    // Signed at the press, never on render nor every few minutes (storage-sign: 120 an hour, P4-455).
-    const pdf = screen.getByRole('button', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })
-    expect(mocks.documentDownloadUrl).not.toHaveBeenCalled()
-    await userEvent.click(pdf)
-    await waitFor(() => expect(mocks.documentDownloadUrl).toHaveBeenCalledExactlyOnceWith(SIGNED_FILE))
+    expect(screen.getByText(t('signing.downloads.sealedHelp'), { exact: false })).toBeInTheDocument()
+    // Read at the press, never on render nor every few minutes (storage-sign: 120 an hour, P4-455).
+    const contract = screen.getByRole('button', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })
+    expect(contract).toHaveTextContent('Télécharger le contrat signé')
+    expect(mocks.fetchStoredFile).not.toHaveBeenCalled()
+    await userEvent.click(contract)
+    await waitFor(() => expect(mocks.saveBlob).toHaveBeenCalledTimes(1))
+    expect(mocks.fetchStoredFile).toHaveBeenCalledExactlyOnceWith(SIGNED_FILE)
+    const [blob, name] = mocks.saveBlob.mock.calls[0] as [Blob, string]
+    expect(name).toBe('Contrat de service - Marie Tremblay - signé le 2026-10-09.pdf')
+    expect(await pageCountOf(new Uint8Array(await blob.arrayBuffer()))).toBe(7)
+
+    await userEvent.click(screen.getByRole('button', { name: t('signing.downloads.certificate') }))
+    await waitFor(() => expect(mocks.saveBlob).toHaveBeenCalledTimes(2))
+    const [certificate, certificateName] = mocks.saveBlob.mock.calls[1] as [Blob, string]
+    expect(certificateName).toBe('Contrat de service - Marie Tremblay - certificat et journal de signature.pdf')
+    expect(await pageCountOf(new Uint8Array(await certificate.arrayBuffer()))).toBe(3)
+
+    await userEvent.click(screen.getByRole('button', { name: t('signing.downloads.sealed') }))
+    await waitFor(() => expect(mocks.saveBlob).toHaveBeenCalledTimes(3))
+    const [sealed, sealedName] = mocks.saveBlob.mock.calls[2] as [Blob, string]
+    expect(sealedName).toBe('Contrat de service - Marie Tremblay - complet scellé.pdf')
+    expect(await pageCountOf(new Uint8Array(await sealed.arrayBuffer()))).toBe(10)
     expect(button(t(`${A}.regenerate`))).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: t(`${A}.journal`) }))
     expect(screen.getByText(t(`${C}.journal.title`))).toBeInTheDocument()
@@ -160,7 +192,39 @@ describe('ContractCard (Task 4d.3)', () => {
     expect(screen.getByText('Signé')).toBeInTheDocument()
     expect(screen.getByText(t(`${C}.restricted`))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t(`${A}.pdfLabel`, { firstName: 'Marie' }) })).toBeNull()
-    expect(mocks.documentDownloadUrl).not.toHaveBeenCalled()
+    expect(button(t('signing.downloads.sealed'))).toBeNull()
+    expect(mocks.fetchStoredFile).not.toHaveBeenCalled()
+  })
+
+  it('a sealed PDF without certificate pages: the certificate download is disabled with its reason', async () => {
+    const stored: Record<string, Uint8Array> = { [SIGNED_FILE]: await pdfWithPages(7) }
+    mocks.fetchStoredFile.mockImplementation((id: string) => Promise.resolve(stored[id]))
+    await openCard(contractJson(SIGNED_REQUEST))
+    const certificate = screen.getByRole('button', { name: t('signing.downloads.certificate') })
+    await userEvent.click(certificate)
+    expect(await screen.findByText(t('signing.downloads.noCertificate'))).toBeInTheDocument()
+    expect(mocks.toast.warning).toHaveBeenCalledWith(t('signing.downloads.noCertificate'))
+    expect(certificate).toHaveAttribute('aria-disabled', 'true')
+    expect(certificate).toHaveAccessibleDescription(t('signing.downloads.noCertificate'))
+    expect(mocks.saveBlob).not.toHaveBeenCalled()
+  })
+
+  it('an earlier contract (no page count): N is the stored source file’s page count', async () => {
+    const stored: Record<string, Uint8Array> = { [SIGNED_FILE]: await pdfWithPages(15), [SOURCE_FILE]: await pdfWithPages(7) }
+    mocks.fetchStoredFile.mockImplementation((id: string) => Promise.resolve(stored[id]))
+    await openCard(contractJson({ ...SIGNED_REQUEST, page_count: null }))
+    await userEvent.click(screen.getByRole('button', { name: t('signing.downloads.certificate') }))
+    await waitFor(() => expect(mocks.saveBlob).toHaveBeenCalledTimes(1))
+    const [certificate] = mocks.saveBlob.mock.calls[0] as [Blob, string]
+    expect(await pageCountOf(new Uint8Array(await certificate.arrayBuffer()))).toBe(8)
+  })
+
+  it('N unknown (no page count, no source file): only the sealed PDF, with the reason', async () => {
+    await openCard(contractJson({ ...SIGNED_REQUEST, page_count: null, source_file_id: null }))
+    expect(button(t(`${A}.pdfLabel`, { firstName: 'Marie' }))).toBeNull()
+    expect(button(t('signing.downloads.certificate'))).toBeNull()
+    expect(screen.getByRole('button', { name: t('signing.downloads.sealed') })).toBeInTheDocument()
+    expect(screen.getByText(t('signing.downloads.cannotSplit'))).toBeInTheDocument()
   })
 
   it('the adjointe (no contracts.send, no compensation) cannot send', async () => {

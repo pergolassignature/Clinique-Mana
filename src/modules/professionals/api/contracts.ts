@@ -58,7 +58,10 @@ const requestPayload = z
     expired_at: z.string().nullable(),
     expires_at: z.string().nullable(),
     can_read: z.boolean(),
+    title: z.string().nullable(),
     signed_file_id: z.string().nullable(),
+    source_file_id: z.string().nullable(),
+    page_count: z.number().int().positive().nullable(),
     rejection_reason: z.string().nullable(),
     signers: z.array(signerPayload),
   })
@@ -83,8 +86,14 @@ const requestPayload = z
      * contract, P4-435; `professionals.view` for the image consent, P4-484).
      */
     canRead: r.can_read,
+    /** « Contrat de service — Prénom Nom », only when `canRead`: the downloads' names. */
+    title: r.title,
     /** Only when `canRead`. */
     signedFileId: r.signed_file_id,
+    /** The PDF that was sent, only when `canRead`: its pages are N when `pageCount` is null. */
+    sourceFileId: r.source_file_id,
+    /** N, the contract's own pages (recorded at send; null before P4-500), only when `canRead`. */
+    pageCount: r.page_count,
     /** The signer's reason, only when `canRead`. */
     rejectionReason: r.rejection_reason,
     signers: r.signers,

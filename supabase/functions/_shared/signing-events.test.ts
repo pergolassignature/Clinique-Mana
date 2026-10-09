@@ -357,6 +357,7 @@ Deno.test('storeSignedPdf: download → register (request view permission) → u
     id: row.id,
     envelopeId: row.envelope_id!,
     viewPermission: 'professionals.view',
+    title: 'Contrat de service — Olivier Bergeron',
   })
   assertEquals(rpcNames(supabase), [
     'register_system_file',
@@ -373,6 +374,11 @@ Deno.test('storeSignedPdf: download → register (request view permission) → u
   assertEquals(register.p_sha256, sha256Hex(signed))
   assertEquals(register.p_size_bytes, signed.length)
   assert(!String(register.p_original_name).includes('@'))
+  // Named from the request's title, never « Document signé » (P4-500).
+  assertEquals(
+    register.p_original_name,
+    'Contrat de service - Olivier Bergeron - complet scellé.pdf',
+  )
   const upload = supabase.storageCalls[0]
   assertEquals(upload.bucket, 'signed-documents')
   assertEquals(upload.args[2], {
@@ -487,6 +493,9 @@ Deno.test('syncRequest: a lost completion → events applied, signed PDF stored'
     assertEquals(await syncRequest(ctx, row, { settleDrafts: false }), 'signed')
     assertEquals(db.requests.get(row.id)!.status, 'signed')
     assert(rpcNames(supabase).includes('get_signing_request'))
+    // The stored file is named from the request's title (get_signing_request).
+    const signed = db.files.get(db.requests.get(row.id)!.signed_file_id!)!
+    assertEquals(signed.original_name, 'Document test - complet scellé.pdf')
     // One envelope read: its item id goes straight to the download.
     assertEquals(
       fake.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`),
@@ -685,6 +694,12 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → cl
     const done = s.db.requests.get(row.id)!
     assertEquals(done.status, 'signed')
     assertEquals(done.source_file_id, 'f-src')
+    // Recovered: no page count was recorded (the browser counts the source's pages).
+    assertEquals(done.page_count, null)
+    assertEquals(
+      s.db.files.get(done.signed_file_id!)!.original_name,
+      'Document test - complet scellé.pdf',
+    )
     assertEquals(s.db.files.get('f-src')!.retain_until, null)
     assertEquals(
       s.fake.calls.filter((c) =>
