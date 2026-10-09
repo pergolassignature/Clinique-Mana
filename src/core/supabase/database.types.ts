@@ -5756,6 +5756,10 @@ export type Database = {
         }
         Returns: string
       }
+      refund_rate_limit: {
+        Args: { p_bucket: string; p_key_hash: string; p_window_seconds: number }
+        Returns: undefined
+      }
       register_system_file: {
         Args: {
           p_bucket: string

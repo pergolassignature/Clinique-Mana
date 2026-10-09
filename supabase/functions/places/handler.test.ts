@@ -60,6 +60,7 @@ function harness(opts: {
   env?: Record<string, string | undefined>
   fetch?: typeof fetch
   limit?: RpcRoute
+  refund?: RpcRoute
   access?: Record<string, unknown> | null
   now?: () => number
   timeoutMs?: number
@@ -77,6 +78,7 @@ function harness(opts: {
     rpc: {
       consume_rate_limit: opts.limit ??
         { data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }] },
+      refund_rate_limit: opts.refund ?? { data: null },
     },
   })
   const env: Record<string, string | undefined> = {
@@ -485,7 +487,7 @@ Deno.test('places: rate limited → 429 with Retry-After, Google not called; lim
   })
 })
 
-Deno.test('places: the org ceiling (places.org) refused → 429 with its Retry-After; down → 503; Google not called', async () => {
+Deno.test("places: the org ceiling (places.org) refused → 429 with its Retry-After, the caller's hit given back; down → 503; Google not called", async () => {
   await run(async () => {
     const route = (org: { allowed: boolean } | 'down'): RpcRoute => (args) => {
       if (args.p_bucket === 'places.user') {
@@ -502,6 +504,18 @@ Deno.test('places: the org ceiling (places.org) refused → 429 with its Retry-A
     assertEquals((await res.json()).error.code, 'rate_limited')
     assertEquals(res.headers.get('Retry-After'), '900')
     assertEquals(full.google.calls, [])
+    // The caller's hit is given back: the clinic's refusal costs no one's own quota.
+    assertEquals(
+      full.service.calls.map((c) => [c.fn, c.args.p_bucket]),
+      [
+        ['consume_rate_limit', 'places.user'],
+        ['consume_rate_limit', 'places.org'],
+        ['refund_rate_limit', 'places.user'],
+      ],
+    )
+    const [userHit, , refunded] = full.service.calls
+    assertEquals(refunded.args.p_key_hash, userHit.args.p_key_hash)
+    assertEquals(refunded.args.p_window_seconds, 3_600)
 
     const down = harness({ limit: route('down') })
     await captureConsole('error', async () => {
@@ -515,8 +529,10 @@ Deno.test('places: the org ceiling (places.org) refused → 429 with its Retry-A
       )
     })
     assertEquals(down.google.calls, [])
+    // The org's limiter down: the caller's hit is given back too.
+    assertEquals(down.service.calls.at(-1)?.fn, 'refund_rate_limit')
 
-    // The caller's own limit refused: the org's bucket is not touched.
+    // The caller's own limit refused: the org's bucket is not touched, nothing is given back.
     const user = harness({
       limit: { data: [{ allowed: false, hits: 601, retry_after_seconds: 60 }] },
     })

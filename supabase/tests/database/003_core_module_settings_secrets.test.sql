@@ -77,7 +77,7 @@ select functions_are('public', array[
   'clear_permission_overrides',
   'set_role_permission', 'create_role', 'rename_role', 'delete_role',
   'list_audit_entries', 'list_audit_actors',
-  'consume_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at',
+  'consume_rate_limit', 'refund_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at',
   'list_job_orgs', 'start_job_run', 'finish_job_run',
   'list_scheduled_jobs', 'list_scheduled_job_runs', 'set_scheduled_job_enabled', 'run_scheduled_job_now',
   'set_email_sender', 'set_email_sending_domain', 'list_email_templates', 'save_email_template', 'reset_email_template',
