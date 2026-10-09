@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
+import { SignedDocumentDownloads } from '@/core/signing/components/SignedDocumentDownloads'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -23,7 +24,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { StatusDot } from '@/shared/ui/status-dot'
 import type { ContractAction, ContractRequest, ContractSigner, ProfessionalContract } from '../../api/contracts'
 import { useProfessionalContract, useSendContract, useSyncContract } from '../../hooks/use-contracts'
-import { useDocumentDownload } from '../../hooks/use-documents'
 import { contractButtons, contractState, contractStateLabel, signerRoleLabel, type ContractState } from '../../lib/contract'
 import { RefusalAlert } from '../compensation/DatedRowParts'
 import { useRecordData } from './record-context'
@@ -111,6 +111,8 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
   const state = contractState(request, now)
   const status = contractStateLabel(request, now)
   const buttons = contractButtons(state, request, can)
+  // The signed PDF's downloads (core, P4-500): the contract, the certificate and journal, the sealed proof.
+  const signedFiles = buttons.some((b) => b.kind === 'pdf') && request?.signedFileId ? request : null
   const sends = buttons.some((b) => b.kind === 'action')
   const noTemplate = sends && contract.publishedVersion === null
   const pending = send.isPending || sync.isPending
@@ -200,10 +202,25 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
         </div>
       )}
 
-      {(buttons.length > 0 || state === 'signed') && (
+      {signedFiles && (
+        <SignedDocumentDownloads
+          key={signedFiles.signedFileId}
+          files={{
+            title: signedFiles.title,
+            completedAt: signedFiles.completedAt,
+            signedFileId: signedFiles.signedFileId!,
+            sourceFileId: signedFiles.sourceFileId,
+            pageCount: signedFiles.pageCount,
+          }}
+          documentLabel={t(`${C}.actions.pdf`)}
+          documentAriaLabel={t(`${C}.actions.pdfLabel`, { firstName: professional.firstName })}
+        />
+      )}
+
+      {(buttons.some((b) => b.kind !== 'pdf') || state === 'signed') && (
         <div className="flex flex-wrap gap-2">
           {buttons.map((button) => {
-            if (button.kind === 'pdf') return <SignedPdfLink key="pdf" fileId={request!.signedFileId!} firstName={professional.firstName} />
+            if (button.kind === 'pdf') return null
             if (button.kind === 'sync') {
               return (
                 <Button
@@ -276,26 +293,5 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
-}
-
-/**
- * « Télécharger le PDF signé »: the stored copy through a new 5-minute URL signed at each press
- * (`useDocumentDownload`, P4-455), never on render nor kept fresh by a timer (storage-sign allows
- * 120 an hour, P4-479).
- */
-function SignedPdfLink({ fileId, firstName }: { fileId: string; firstName: string }) {
-  const download = useDocumentDownload()
-  return (
-    <Button
-      type="button"
-      size="sm"
-      aria-label={t(`${C}.actions.pdfLabel`, { firstName })}
-      aria-disabled={download.isPending || undefined}
-      className={softDisabledClasses}
-      onClick={ignoreWhenInactive(download.isPending, () => download.mutate(fileId))}
-    >
-      {t(`${C}.actions.pdf`)}
-    </Button>
   )
 }

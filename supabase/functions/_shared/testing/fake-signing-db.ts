@@ -40,6 +40,8 @@ export interface FakeSignatureRequest {
   documenso_document_id: null
   envelope_id: string | null
   source_file_id: string | null
+  /** N, the sent document's pages (`mark_signature_request_sent`'s `p_page_count`). */
+  page_count: number | null
   signed_file_id: string | null
   signed_sha256: string | null
   last_error: string | null
@@ -71,6 +73,8 @@ export interface FakeStoredFile {
   view_permission: string | null
   sha256: string
   size_bytes: number
+  /** `register_system_file`'s `p_original_name`. */
+  original_name: string
   status: 'ready' | 'deleted'
   retain_until: string | null
   created_at: string
@@ -202,6 +206,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       documenso_document_id: null,
       envelope_id: null,
       source_file_id: null,
+      page_count: null,
       signed_file_id: null,
       signed_sha256: null,
       last_error: null,
@@ -235,6 +240,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       view_permission: 'settings.integrations_manage',
       sha256: 'c'.repeat(64),
       size_bytes: 1000,
+      original_name: 'Document.pdf',
       status: 'ready',
       retain_until: new Date(now().getTime() + DAY_MS).toISOString(),
       created_at: iso(),
@@ -423,6 +429,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           'settings.integrations_manage',
         sha256: String(a.p_sha256),
         size_bytes: Number(a.p_size_bytes),
+        original_name: String(a.p_original_name),
       })
       return { data: [{ file_id: file.id, object_path: file.object_path }] }
     },
@@ -457,6 +464,12 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         !recipients.every((e) => r.signers.some((s) => s.role === e.role))
       ) return E22023
       if (!(String(a.p_expires_at) > iso())) return E22023
+      const pageCount = a.p_page_count ?? null
+      if (
+        pageCount !== null &&
+        !(Number.isInteger(pageCount) && Number(pageCount) >= 1 &&
+          Number(pageCount) <= 10000)
+      ) return E22023
       const envelopeId = envelopeArg(a.p_envelope_id)
       if (!envelopeId) return E22023
       if (envelopeTaken(r, envelopeId)) return E23505
@@ -473,6 +486,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         ),
         envelope_id: envelopeId,
         source_file_id: source.id,
+        page_count: pageCount as number | null,
         sent_at: iso(),
         expires_at: a.p_expires_at,
         last_error: null,
@@ -644,6 +658,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           id: r.id,
           module_key: r.module_key,
           purpose: r.purpose,
+          title: r.title,
           status: r.status,
           view_permission: r.view_permission,
           documenso_document_id: r.documenso_document_id,

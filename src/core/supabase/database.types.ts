@@ -3819,6 +3819,7 @@ export type Database = {
           last_send_at: string | null
           module_key: string
           org_id: string
+          page_count: number | null
           purpose: string
           rejected_at: string | null
           rejection_reason: string | null
@@ -3855,6 +3856,7 @@ export type Database = {
           last_send_at?: string | null
           module_key: string
           org_id: string
+          page_count?: number | null
           purpose: string
           rejected_at?: string | null
           rejection_reason?: string | null
@@ -3891,6 +3893,7 @@ export type Database = {
           last_send_at?: string | null
           module_key?: string
           org_id?: string
+          page_count?: number | null
           purpose?: string
           rejected_at?: string | null
           rejection_reason?: string | null
@@ -5560,6 +5563,7 @@ export type Database = {
           p_envelope_id: string
           p_expires_at: string
           p_id: string
+          p_page_count?: number
           p_signer_recipients: Json
           p_source_file_id: string
         }

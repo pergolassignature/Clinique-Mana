@@ -292,6 +292,8 @@ Deno.test('createSignatureRequest: the happy path, in order', async () => {
     assertEquals(row.envelope_id, E1)
     assertEquals(row.documenso_document_id, null)
     assertEquals(row.expires_at, '2026-10-15T12:00:00.000Z')
+    // N, the rendered page count: where the certificate pages start (P4-500).
+    assertEquals(row.page_count, 2)
     const source = s.db.files.get(row.source_file_id!)!
     assertEquals(source.purpose, 'signing_source')
     assertEquals(source.view_permission, 'professionals.view')

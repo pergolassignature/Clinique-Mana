@@ -17,7 +17,8 @@
  *   signing order for a draft (never by address).
  * - **The signed PDF** is downloaded (streamed, capped at the bucket's
  *   20 MB), sniffed, hashed, registered (`register_system_file`, purpose
- *   `signing_signed`, the request's view permission), uploaded to its own
+ *   `signing_signed`, the request's view permission, named from its title:
+ *   `sealedPdfFileName`, P4-500), uploaded to its own
  *   path (`upsert: false`: a retry registers a new file), then
  *   `complete_signature_request`. A failed upload discards the registered
  *   row (`discard_system_file`).
@@ -69,6 +70,7 @@ import {
 } from './documenso.ts'
 import type { PerOrg } from './jobs.ts'
 import { type ErrorReport, reportError, type ReportIds } from './report.ts'
+import { sealedPdfFileName } from './signing-file-name.ts'
 import { sha256Hex, sniff } from './storage.ts'
 
 /** A failure with a safe code (`runJob` records it; webhooks fail the claim with it). */
@@ -290,6 +292,8 @@ export async function applyEvents(
 const signingRequestSchema = z.object({
   id: z.string(),
   module_key: z.string(),
+  /** Names the stored signed PDF (P4-500); it names the person: never logged. */
+  title: z.string().nullish(),
   status: z.string(),
   last_error: z.string().nullable(),
   view_permission: z.string(),
@@ -521,6 +525,8 @@ export async function storeSignedPdf(
     id: string
     envelopeId: string
     viewPermission: string
+    /** The request's title: the stored file's name (`sealedPdfFileName`). */
+    title?: string | null
     /** From the `get` the caller just made (no second read); absent, read. */
     itemId?: string | null
   },
@@ -536,7 +542,7 @@ export async function storeSignedPdf(
     purpose: 'signing_signed',
     requestId: request.id,
     viewPermission: request.viewPermission,
-    name: 'Document signé.pdf',
+    name: sealedPdfFileName(request.title),
     bytes,
   }, { register: 'signed_register_failed', upload: 'signed_upload_failed' })
   const completed = await client.rpc('complete_signature_request', {
@@ -679,6 +685,7 @@ export async function syncRequest(
       id: row.id,
       envelopeId,
       viewPermission: request.view_permission,
+      title: request.title,
       itemId: state.itemId,
     })
     return 'signed'
@@ -837,6 +844,7 @@ export async function recoverCompletedDraft(
     id: row.id,
     envelopeId,
     viewPermission: request.view_permission,
+    title: request.title,
     itemId: state.itemId,
   })
   return 'signed'
