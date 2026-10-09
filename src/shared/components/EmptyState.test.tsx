@@ -32,4 +32,12 @@ describe('EmptyState', () => {
     rerender(<EmptyState title="Aucune entrée ne correspond" />)
     expect(screen.getByText('Aucune entrée ne correspond')).not.toHaveAttribute('aria-hidden')
   })
+
+  it('pads 24 px above and below on a page, nothing inside a card (inCard), where the card spaces it', () => {
+    const { container, rerender } = render(<EmptyState title="Aucun document" />)
+    expect(container.firstElementChild).toHaveClass('py-6')
+    rerender(<EmptyState title="Aucun document" inCard />)
+    expect(container.firstElementChild).not.toHaveClass('py-6')
+    expect(screen.getByText('Aucun document')).toBeInTheDocument()
+  })
 })

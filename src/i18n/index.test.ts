@@ -84,4 +84,3 @@ describe('t and French spacing', () => {
     expect(left).toEqual([])
   })
 })
-
