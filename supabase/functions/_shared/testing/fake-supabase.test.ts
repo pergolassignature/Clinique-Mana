@@ -144,3 +144,21 @@ Deno.test('fakeSupabase: from(table) reads are routed by table, with columns and
   ])
   assertThrows(() => client.from('profiles'), Error, 'fake: no table profiles')
 })
+
+Deno.test('fakeSupabase: an .in() filter is logged beside the eq filters', async () => {
+  const { client, tableCalls } = fakeSupabase({
+    tables: {
+      stored_files: (q) => ({ data: (q.in?.id ?? []).map((id) => ({ id })) }),
+    },
+  })
+  const found = await client.from('stored_files').select('id')
+    .in('id', ['f1', 'f2']).eq('status', 'ready')
+  assertEquals(found.data, [{ id: 'f1' }, { id: 'f2' }])
+  assertEquals(tableCalls, [{
+    table: 'stored_files',
+    columns: 'id',
+    eq: { status: 'ready' },
+    in: { id: ['f1', 'f2'] },
+    single: false,
+  }])
+})

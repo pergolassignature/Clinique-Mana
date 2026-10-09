@@ -22,6 +22,14 @@
  *    browser cannot), the URL's origin is replaced by it; on hosted projects
  *    `SUPABASE_URL` is already public and the variable stays unset.
  *
+ * **Batch mode** (`{ file_ids: [...] }`, 1 to 50 distinct ids; a list's photos,
+ * one call for the visible rows instead of one per row): the same steps for every
+ * id at once. One hit on the same limit per call, whatever the count. The
+ * caller's RLS read of the `ready` rows decides each file; an unreadable id, or a
+ * ready row whose object is missing (reported once per call), is left out, never
+ * an error: 200 `{ urls: { <file_id>: <url> }, expires_at }` (possibly empty).
+ * Inline URLs only (no `download`), signed per bucket with `createSignedUrls`.
+ *
  * Nothing logs the file's name or path: reports carry the org and file ids.
  *
  * Status mapping: 200 `{ url, expires_at }`; 400 `invalid_request` (body);
@@ -30,7 +38,9 @@
  * missing, reported); 405; 413; 429 `rate_limited` with `Retry-After`; 503
  * `not_configured` (the limiter is down); 500 `internal` (the lookup or the
  * signing failed, reported) or `server_misconfigured` (`PUBLIC_API_URL` is
- * not an http(s) URL, reported).
+ * not an http(s) URL, reported). Batch mode: 200 `{ urls, expires_at }`
+ * (unreadable or missing files left out, never 404), the same 400 to 503
+ * otherwise.
  */
 import { z } from 'zod'
 import {
@@ -50,9 +60,30 @@ const FN = 'storage-sign'
 /** The lifetime of a read URL, in seconds (P3-33). */
 export const READ_URL_SECONDS = 300
 
-const bodySchema = z.strictObject({
+/** The most files one batch call signs. */
+export const MAX_BATCH_FILES = 50
+
+const singleSchema = z.strictObject({
   file_id: z.guid(),
   download: z.boolean().optional(),
+})
+
+const batchSchema = z.strictObject({
+  file_ids: z.array(z.guid()).min(1).max(MAX_BATCH_FILES),
+})
+
+const bodySchema = z.union([singleSchema, batchSchema])
+
+const batchRowSchema = z.object({
+  id: z.guid(),
+  bucket: z.string().min(1),
+  object_path: z.string().min(1),
+})
+
+const signedEntrySchema = z.object({
+  path: z.string().nullable().optional(),
+  signedUrl: z.string().nullable().optional(),
+  error: z.unknown().optional(),
 })
 
 const rowSchema = z.object({
@@ -89,6 +120,51 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const service = deps.serviceClient()
     if (service instanceof Response) return service
 
+    const origin = publicOrigin(deps.env('PUBLIC_API_URL'))
+    if (origin === null) {
+      await reportError(
+        {
+          fn: FN,
+          code: 'public_api_url_invalid',
+          ids: {
+            org_id: auth.access.org_id,
+            ...('file_id' in input && { file_id: input.file_id }),
+          },
+        },
+        deps.fetch,
+      )
+      return errorResponse(
+        'server_misconfigured',
+        'Server misconfigured',
+        500,
+        req,
+      )
+    }
+    const publicUrl = (url: string) => {
+      if (!origin) return url
+      const parsed = new URL(url)
+      return `${origin}${parsed.pathname}${parsed.search}`
+    }
+
+    const limited = limitResponse(
+      await consume(service, LIMITS.storageSignUser, [
+        auth.access.org_id,
+        auth.user.id,
+      ]),
+      req,
+    )
+    if (limited) return limited
+
+    if ('file_ids' in input) {
+      return await signBatch(deps, req, {
+        client: auth.client,
+        service,
+        orgId: auth.access.org_id,
+        fileIds: [...new Set(input.file_ids.map((id) => id.toLowerCase()))],
+        publicUrl,
+      })
+    }
+
     const orgId = auth.access.org_id
     const fileId = input.file_id
     const report = (code: string) =>
@@ -102,23 +178,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const notFound = () =>
       errorResponse('not_found', 'File not found', 404, req)
-
-    const origin = publicOrigin(deps.env('PUBLIC_API_URL'))
-    if (origin === null) {
-      await report('public_api_url_invalid')
-      return errorResponse(
-        'server_misconfigured',
-        'Server misconfigured',
-        500,
-        req,
-      )
-    }
-
-    const limited = limitResponse(
-      await consume(service, LIMITS.storageSignUser, [orgId, auth.user.id]),
-      req,
-    )
-    if (limited) return limited
 
     const found = await auth.client.from('stored_files')
       .select('bucket, object_path, original_name')
@@ -147,15 +206,101 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return await fail('sign_failed')
     }
 
-    let url = signed.data.signedUrl
-    if (origin) {
-      const parsed = new URL(url)
-      url = `${origin}${parsed.pathname}${parsed.search}`
-    }
     return jsonResponse(
-      { url, expires_at: expiresAt.toISOString() },
+      {
+        url: publicUrl(signed.data.signedUrl),
+        expires_at: expiresAt.toISOString(),
+      },
       200,
       req,
     )
   }
+}
+
+type Client = Exclude<ReturnType<Deps['serviceClient']>, Response>
+
+/**
+ * Batch mode: the caller's readable `ready` rows among `fileIds`, signed per
+ * bucket. What cannot be read or signed is left out of `urls`; only a failed
+ * lookup, an unexpected row or a failed bucket call fails the call (500).
+ */
+async function signBatch(
+  deps: Deps,
+  req: Request,
+  { client, service, orgId, fileIds, publicUrl }: {
+    client: Client
+    service: Client
+    orgId: string
+    fileIds: string[]
+    publicUrl: (url: string) => string
+  },
+): Promise<Response> {
+  const report = (code: string, fileId?: string) =>
+    reportError(
+      {
+        fn: FN,
+        code,
+        ids: { org_id: orgId, ...(fileId && { file_id: fileId }) },
+      },
+      deps.fetch,
+    )
+  const fail = async (code: string) => {
+    await report(code)
+    return errorResponse('internal', 'Files could not be signed', 500, req)
+  }
+
+  const found = await client.from('stored_files')
+    .select('id, bucket, object_path')
+    .in('id', fileIds)
+    .eq('status', 'ready')
+  if (found.error) return await fail('file_lookup_failed')
+  const rows = z.array(batchRowSchema).safeParse(found.data ?? [])
+  if (!rows.success) return await fail('unexpected_file_row')
+
+  // One `createSignedUrls` per bucket (today all photos share one).
+  const byBucket = new Map<string, Map<string, string>>()
+  for (const row of rows.data) {
+    if (!fileIds.includes(row.id)) continue
+    const paths = byBucket.get(row.bucket) ?? new Map<string, string>()
+    paths.set(row.object_path, row.id)
+    byBucket.set(row.bucket, paths)
+  }
+
+  const expiresAt = new Date(deps.now().getTime() + READ_URL_SECONDS * 1000)
+  const signed = await Promise.all(
+    [...byBucket].map(async ([bucket, paths]) => ({
+      paths,
+      result: await service.storage.from(bucket).createSignedUrls(
+        [...paths.keys()],
+        READ_URL_SECONDS,
+      ),
+    })),
+  )
+
+  const urls: Record<string, string> = {}
+  let missing: string | undefined
+  for (const { paths, result } of signed) {
+    if (result.error || !Array.isArray(result.data)) {
+      return await fail('sign_failed')
+    }
+    for (const datum of result.data) {
+      const entry = signedEntrySchema.safeParse(datum)
+      const fileId = entry.success && entry.data.path
+        ? paths.get(entry.data.path)
+        : undefined
+      if (!entry.success || !fileId) continue
+      if (entry.data.error || !entry.data.signedUrl) {
+        missing ??= fileId
+        continue
+      }
+      urls[fileId] = publicUrl(entry.data.signedUrl)
+    }
+  }
+  if (missing) await report('object_missing', missing)
+
+  return jsonResponse(
+    { urls, expires_at: expiresAt.toISOString() },
+    200,
+    req,
+  )
 }

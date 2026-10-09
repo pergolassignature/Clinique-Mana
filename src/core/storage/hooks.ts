@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useState } from 'react'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/core/auth/auth-context'
 import { FunctionCallError } from '@/core/supabase/functions'
-import { signedFileUrl } from './api'
+import { SIGN_BATCH_MAX, signedFileUrl, signedFileUrls } from './api'
 
 /** Read URLs live 300 s (P3-33): one is stale after 240 s, before it expires. */
 const SIGNED_URL_REFRESH_MS = 240_000
@@ -10,7 +11,12 @@ export const storageKeys = {
   all: ['storage'] as const,
   /** Per user as well as per file: a URL signed for one user is never served to the next (#10). */
   signedUrl: (userId: string, fileId: string) => [...storageKeys.all, 'signedUrl', userId, fileId] as const,
+  /** One batch of `useSignedFileUrls` (sorted ids), per user too. */
+  signedUrls: (userId: string, fileIds: readonly string[]) => [...storageKeys.all, 'signedUrls', userId, fileIds.join(',')] as const,
 }
+
+/** A 4xx (not readable: 404; 120 an hour: 429) is shown, not retried; anything else once. */
+const retrySigning = (failures: number, error: unknown) => failures < 1 && !(error instanceof FunctionCallError && error.status >= 400 && error.status < 500)
 
 interface SignedFileUrlOptions {
   /**
@@ -40,6 +46,72 @@ export function useSignedFileUrl(fileId: string | null, { refresh = false }: Sig
     staleTime: SIGNED_URL_REFRESH_MS,
     refetchInterval: refresh ? SIGNED_URL_REFRESH_MS : false,
     gcTime: 30_000,
-    retry: (failures, error) => failures < 1 && !(error instanceof FunctionCallError && error.status >= 400 && error.status < 500),
+    retry: retrySigning,
   })
+}
+
+const EMPTY_URLS: ReadonlyMap<string, string> = new Map()
+
+/**
+ * The batches `ids` are signed in: the batches already asked for are kept while one of their ids
+ * is still wanted, and only the new ids form new batches (sorted, ≤ SIGN_BATCH_MAX). Rows coming
+ * into view add a batch of their own instead of signing every visible row again.
+ */
+function useStableBatches(ids: readonly string[]): readonly (readonly string[])[] {
+  const wanted = [...new Set(ids)].sort()
+  const key = wanted.join(',')
+  const [state, setState] = useState<{ key: string; batches: readonly (readonly string[])[] }>({ key: '', batches: [] })
+  if (state.key === key) return state.batches
+  const keep = new Set(wanted)
+  const kept = state.batches.filter((batch) => batch.some((id) => keep.has(id)))
+  const covered = new Set(kept.flat())
+  const fresh = wanted.filter((id) => !covered.has(id))
+  const batches = [...kept]
+  for (let i = 0; i < fresh.length; i += SIGN_BATCH_MAX) batches.push(fresh.slice(i, i + SIGN_BATCH_MAX))
+  // Adjusting state while rendering (React's documented pattern): the next render reads it back.
+  setState({ key, batches })
+  return batches
+}
+
+/**
+ * Read URLs for many stored files (a list's photos), signed in batches of ≤ 50 by one
+ * `storage-sign` call each (its batch mode): the per-user limit (120 an hour) counts a call, not a
+ * file. `urls` maps each readable file to its URL; an unreadable one is absent (the caller shows
+ * its fallback). Same lifetimes as `useSignedFileUrl`: fresh 240 s, dropped 30 s after its last
+ * use, keyed by the signed-in user. Pass only the ids actually shown (e.g. the rows in view): a
+ * new id adds one batch, the ones already signed are not asked for again.
+ *
+ * `refetchFor(fileId)` asks for a new URL for that file's batch (an image whose URL expired); a
+ * batch already being fetched is joined, not restarted, so several images failing at once make
+ * one call.
+ */
+export function useSignedFileUrls(fileIds: readonly string[]): {
+  urls: ReadonlyMap<string, string>
+  refetchFor: (fileId: string) => Promise<{ isError: boolean }>
+} {
+  const userId = useAuth().session?.user.id ?? 'anonymous'
+  const queryClient = useQueryClient()
+  const batches = useStableBatches(fileIds)
+  const results = useQueries({
+    queries: batches.map((batch) => ({
+      queryKey: storageKeys.signedUrls(userId, batch),
+      queryFn: ({ signal }: { signal: AbortSignal }) => signedFileUrls(batch, { signal }),
+      staleTime: SIGNED_URL_REFRESH_MS,
+      gcTime: 30_000,
+      retry: retrySigning,
+    })),
+  })
+  const urls = new Map<string, string>()
+  for (const result of results) for (const [id, url] of result.data?.urls ?? EMPTY_URLS) urls.set(id, url)
+  const refetchFor = useCallback(
+    async (fileId: string) => {
+      const batch = batches.find((ids) => ids.includes(fileId))
+      if (!batch) return { isError: true }
+      const queryKey = storageKeys.signedUrls(userId, batch)
+      await queryClient.refetchQueries({ queryKey, exact: true }, { cancelRefetch: false })
+      return { isError: queryClient.getQueryState(queryKey)?.status === 'error' }
+    },
+    [batches, queryClient, userId],
+  )
+  return { urls, refetchFor }
 }

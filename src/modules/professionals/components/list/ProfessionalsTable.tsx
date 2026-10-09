@@ -1,9 +1,8 @@
-import { memo, useEffect, useRef, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
-import { initialsOf } from '@/shared/lib/format'
+import { useSignedFileUrls } from '@/core/storage/hooks'
 import { cn } from '@/shared/lib/utils'
-import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
 import { Skeleton } from '@/shared/ui/skeleton'
 import type { ProfessionalListRow } from '../../api/parse'
@@ -14,6 +13,9 @@ import { hasMissingDocuments } from '../../lib/filters'
 import { displayStatus } from '../../lib/onboarding'
 import { titleLabel } from '../../lib/title-label'
 import { watchFlags } from '../../lib/watch'
+import { ProfessionalAvatar } from '../ProfessionalAvatar'
+import { useImageRetry } from '../use-image-retry'
+import { useRowsInView } from './use-rows-in-view'
 
 const T = 'modules.professionals.list.table'
 
@@ -59,8 +61,18 @@ interface ProfessionalsTableProps {
  * The list in a Card (padding 0): a grid table (ARIA roles) so each row can be one link, an `<a>`
  * stretched over the row from the name (Ctrl-click opens a tab; the link is the row's only tab
  * stop and is named by the professional).
+ *
+ * Photos: only the rows that have come into view (`useRowsInView`) have theirs signed, in one
+ * `storage-sign` batch per scroll (`useSignedFileUrls`), never one call per row (120 an hour per
+ * person). Initials while it loads, without a photo, or when it cannot be read.
  */
 export function ProfessionalsTable({ rows, catalog, onPrefetch, footer }: ProfessionalsTableProps) {
+  const { seen, observe } = useRowsInView()
+  const photoIds = useMemo(
+    () => (rows ?? []).flatMap((row) => (row.photoFileId !== null && seen.has(row.id) ? [row.photoFileId] : [])),
+    [rows, seen],
+  )
+  const photos = useSignedFileUrls(photoIds)
   return (
     <div className="container-inline rounded-lg border border-border bg-card">
       <div role="table" aria-label={t(`${T}.label`)} aria-busy={rows === null || undefined} className="text-sm">
@@ -89,7 +101,17 @@ export function ProfessionalsTable({ rows, catalog, onPrefetch, footer }: Profes
         <div role="rowgroup">
           {rows === null || !catalog
             ? Array.from({ length: 6 }, (_, i) => <SkeletonRow key={i} />)
-            : rows.map((row) => <ProfessionalRow key={row.id} row={row} catalog={catalog} onPrefetch={onPrefetch} />)}
+            : rows.map((row) => (
+                <ProfessionalRow
+                  key={row.id}
+                  row={row}
+                  catalog={catalog}
+                  onPrefetch={onPrefetch}
+                  observe={observe}
+                  photoUrl={row.photoFileId ? photos.urls.get(row.photoFileId) : undefined}
+                  refetchPhoto={photos.refetchFor}
+                />
+              ))}
         </div>
       </div>
       {footer}
@@ -101,10 +123,18 @@ const ProfessionalRow = memo(function ProfessionalRow({
   row,
   catalog,
   onPrefetch,
+  observe,
+  photoUrl,
+  refetchPhoto,
 }: {
   row: ProfessionalListRow
   catalog: CatalogView
   onPrefetch: (id: string) => void
+  /** Tells the table when the row comes into view (its photo is signed then). */
+  observe: (id: string) => (element: HTMLElement | null) => (() => void) | undefined
+  /** The photo's signed URL once the row has been in view; undefined before, or without one. */
+  photoUrl: string | undefined
+  refetchPhoto: (fileId: string) => Promise<{ isError: boolean }>
 }) {
   const name = fullName(row)
   const title = row.primaryTitleId ? catalog.byId.titles.get(row.primaryTitleId) : undefined
@@ -116,8 +146,11 @@ const ProfessionalRow = memo(function ProfessionalRow({
   const hover = useRef<ReturnType<typeof setTimeout>>(undefined)
   const cancelHover = () => clearTimeout(hover.current)
   useEffect(() => cancelHover, [])
+  const rowRef = useMemo(() => observe(row.id), [observe, row.id])
+  const photo = useImageRetry(row.photoFileId, photoUrl, () => (row.photoFileId ? refetchPhoto(row.photoFileId) : Promise.resolve({ isError: true })))
   return (
     <div
+      ref={rowRef}
       role="row"
       onMouseEnter={() => {
         cancelHover()
@@ -127,9 +160,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
       className={cn(GRID, 'relative min-h-10 items-center border-t border-border transition-colors duration-120 hover:bg-card-hover')}
     >
       <div role="rowheader" className={cn(CELL, 'flex items-center gap-2.5')}>
-        <Avatar size="sm" aria-hidden>
-          <AvatarFallback className="text-muted-foreground">{initialsOf(name)}</AvatarFallback>
-        </Avatar>
+        <ProfessionalAvatar name={name} url={photo.dead ? null : photoUrl} size="sm" onImageError={photo.onError} />
         <div className="min-w-0">
           <Link
             to={recordPath(row.id)}

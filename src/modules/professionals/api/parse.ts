@@ -480,6 +480,8 @@ export const listRowPayload = z
     // « Documents 2 / 3 » (inventory A1.1): the required documents in order, out of the required ones.
     documents_done: z.number().int().nullish(),
     documents_required: z.number().int().nullish(),
+    // The verified photo's stored file (null without one, or unreadable): signed in batches for the visible rows.
+    photo_file_id: z.string().nullish(),
   })
   .transform((r) => ({
     id: r.id,
@@ -506,6 +508,7 @@ export const listRowPayload = z
     insuranceExpiresOn: r.insurance_expires_on ?? null,
     documentsDone: r.documents_done ?? 0,
     documentsRequired: r.documents_required ?? 0,
+    photoFileId: r.photo_file_id ?? null,
     /**
      * Not a column of the view: the list joins `list_professional_invitation_states` in memory
      * (`withOnboarding`, P4-270); null until then, and for a file without link or submission.

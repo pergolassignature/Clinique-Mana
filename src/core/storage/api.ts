@@ -21,6 +21,10 @@ const preparedSchema = z.object({
 })
 
 const signedSchema = z.object({ url: z.url(), expires_at: z.string().min(1) })
+const signedBatchSchema = z.object({ urls: z.record(z.string(), z.url()), expires_at: z.string().min(1) })
+
+/** The most files one `storage-sign` batch call signs (its `MAX_BATCH_FILES`). */
+export const SIGN_BATCH_MAX = 50
 
 /** The longest name `stored_files.original_name` takes. */
 const MAX_NAME = 200
@@ -113,6 +117,18 @@ export async function uploadFile({ purpose, subjectType, subjectId, file, mimeTy
 export async function signedFileUrl(fileId: string, { download = false, ...options }: InvokeOptions & { download?: boolean } = {}): Promise<{ url: string; expiresAt: string }> {
   const data = signedSchema.parse(await invokeFunction('storage-sign', { file_id: fileId, ...(download && { download: true }) }, options))
   return { url: data.url, expiresAt: data.expires_at }
+}
+
+/**
+ * 5-minute read URLs for up to SIGN_BATCH_MAX stored files in one `storage-sign` call (its batch
+ * mode, `{ file_ids }`): a list's photos count once against the 120-an-hour limit, not once per
+ * row. Inline URLs only. A file the caller cannot read (or whose object is gone) is simply absent
+ * from `urls`, never an error.
+ */
+export async function signedFileUrls(fileIds: readonly string[], options: InvokeOptions = {}): Promise<{ urls: ReadonlyMap<string, string>; expiresAt: string }> {
+  if (fileIds.length === 0 || fileIds.length > SIGN_BATCH_MAX) throw new RangeError(`signedFileUrls takes 1 to ${SIGN_BATCH_MAX} files`)
+  const data = signedBatchSchema.parse(await invokeFunction('storage-sign', { file_ids: fileIds }, options))
+  return { urls: new Map(Object.entries(data.urls)), expiresAt: data.expires_at }
 }
 
 /** The stored file could not be read through its signed URL (the network, or storage answered an error). */
