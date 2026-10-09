@@ -129,13 +129,18 @@ describe('completeness (private.submission_gaps, P4-173)', () => {
     expect(sectionComplete('insurance', ctx({ answered: { insurance: { expires_on: '2027-03-31' } } }))).toBe(false)
   })
 
-  it('needs the private step saved, institution and transit and an account (entered or on file), the SIN while collected', () => {
+  it('needs the private step saved, a deposit whole or empty (entered or on file, P4-480), the SIN while collected', () => {
     const row = { bankInstitution: '815', bankTransit: '30000', bankAccountLast4: '4567', sinLast3: null }
     expect(sectionComplete('tax_bank', ctx())).toBe(false)
     expect(sectionComplete('tax_bank', ctx({ privateRow: row }))).toBe(true)
     expect(sectionComplete('tax_bank', ctx({ privateRow: row, collectSin: true }))).toBe(false)
     expect(sectionComplete('tax_bank', ctx({ privateRow: row, collectSin: true, onFile: { hasSin: true, hasBankAccount: false } }))).toBe(true)
     const kept = { bankInstitution: null, bankTransit: null, bankAccountLast4: null, sinLast3: null }
+    expect(sectionComplete('tax_bank', ctx({ privateRow: kept }))).toBe(true)
+    expect(sectionComplete('tax_bank', ctx({ privateRow: { ...kept, bankInstitution: '815' } }))).toBe(false)
+    expect(sectionComplete('tax_bank', ctx({ privateRow: { ...kept, bankInstitution: '815', bankTransit: '30000' } }))).toBe(false)
+    expect(sectionComplete('tax_bank', ctx({ privateRow: { ...kept, bankAccountLast4: '4567' } }))).toBe(false)
+    expect(sectionComplete('tax_bank', ctx({ privateRow: kept, collectSin: true }))).toBe(false)
     expect(sectionComplete('tax_bank', ctx({ privateRow: kept, onFile: { hasSin: false, hasBankAccount: true } }))).toBe(false)
     expect(
       sectionComplete('tax_bank', ctx({ privateRow: kept, onFile: { hasSin: false, hasBankAccount: true }, onFilePrivate: { bankInstitution: '815', bankTransit: '30000' } })),
