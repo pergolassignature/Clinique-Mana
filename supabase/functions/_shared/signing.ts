@@ -82,7 +82,7 @@ import {
   type RenderedPdf,
 } from './pdf/model.ts'
 import { renderPdf } from './pdf/render.ts'
-import { fillTemplate, fillTexts } from './pdf/template.ts'
+import { type BlockValues, fillTemplate, fillTexts } from './pdf/template.ts'
 import { reportError } from './report.ts'
 import {
   claimDraft,
@@ -136,6 +136,12 @@ export interface CreateSignatureRequestInput {
   viewPermission: string
   /** Template values; `clinic.*` comes from the clinic's identity. */
   values: Record<string, unknown>
+  /**
+   * Blocks for the template's block placeholders, by variable path (P4-433:
+   * a professional's Annexe A tables). Built by the module from its own
+   * data, never from a request body.
+   */
+  blocks?: BlockValues
   signers: RequestSigner[]
   /** One per user action (a double click returns the same request). */
   idempotencyKey: string
@@ -153,9 +159,15 @@ export type CreateSignatureRequestResult =
     code:
       | 'not_configured'
       | 'module_disabled'
-      | 'missing_variable'
       | 'provider_error'
     requestId: string | null
+  }
+  | {
+    ok: false
+    code: 'missing_variable'
+    requestId: null
+    /** The template variable without a value (its path and French label). */
+    variable: { path: string; label: string } | null
   }
   | { ok: false; code: 'invalid_request'; message: string; requestId: null }
   | {
@@ -224,7 +236,7 @@ function prepareDocument(
     document: PdfDocument
     email: { subject: string; message: string }
   }
-  | { ok: false; code: string } {
+  | { ok: false; code: string; path?: string } {
   if (input.document) {
     return {
       ok: true,
@@ -241,6 +253,7 @@ function prepareDocument(
     version.variables,
     values,
     context.timezone,
+    input.blocks,
   )
   const email = fillTexts(
     {
@@ -250,9 +263,22 @@ function prepareDocument(
     version.variables,
     values,
     context.timezone,
+    input.blocks,
   )
-  if (!body.ok) return { ok: false, code: body.code }
-  if (!email.ok) return { ok: false, code: email.code }
+  if (!body.ok) {
+    return {
+      ok: false,
+      code: body.code,
+      path: 'path' in body ? body.path : undefined,
+    }
+  }
+  if (!email.ok) {
+    return {
+      ok: false,
+      code: email.code,
+      path: 'path' in email ? email.path : undefined,
+    }
+  }
   return { ok: true, document: body.document, email: email.texts }
 }
 
@@ -308,7 +334,17 @@ export async function createSignatureRequest(
   const prepared = prepareDocument(input, context)
   if (!prepared.ok) {
     if (prepared.code === 'missing_variable') {
-      return { ok: false, code: 'missing_variable', requestId: null }
+      const variable = context.version?.variables.find((v) =>
+        v.path === prepared.path
+      )
+      return {
+        ok: false,
+        code: 'missing_variable',
+        requestId: null,
+        variable: variable
+          ? { path: variable.path, label: variable.label }
+          : null,
+      }
     }
     throw new SigningFailure(prepared.code)
   }

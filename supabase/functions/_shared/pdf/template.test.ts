@@ -177,3 +177,53 @@ Deno.test('fillTexts: fills plain strings (the signing email) under the same rul
     { ok: false, code: 'missing_variable', path: 'a' },
   )
 })
+
+Deno.test('fillTemplate: a paragraph holding only a block placeholder becomes the given blocks (P4-433)', () => {
+  const doc: PdfDocument = {
+    title: 'Contrat',
+    footer: { text: 'Pied' },
+    blocks: [
+      { type: 'heading', level: 1, text: 'Annexe A' },
+      { type: 'paragraph', runs: [{ text: ' {{ pricing.annexe_a }} ' }] },
+      { type: 'paragraph', runs: [{ text: 'Voir {{pricing.annexe_a}}.' }] },
+      { type: 'paragraph', runs: [{ text: '{{clinic.name}}' }] },
+    ],
+  }
+  const table = {
+    type: 'table' as const,
+    columns: [{ label: '{{clinic.name}}', width: 1 }],
+    rows: [['{{professional.name}}']],
+  }
+  const result = fillTemplate(
+    doc,
+    [v('pricing.annexe_a'), v('clinic.name')],
+    { clinic: { name: 'Clinique MANA' } },
+    TORONTO,
+    { 'pricing.annexe_a': [table, { type: 'pageBreak' }] },
+  )
+  assert(result.ok)
+  assertEquals(result.document.blocks, [
+    { type: 'heading', level: 1, text: 'Annexe A' },
+    // Inserted as built: never filled (a value is never read as a placeholder).
+    table,
+    { type: 'pageBreak' },
+    // Inside a sentence the placeholder is text: its value, or empty.
+    { type: 'paragraph', runs: [{ text: 'Voir .' }] },
+    // A placeholder of a path without blocks stays an ordinary paragraph.
+    { type: 'paragraph', runs: [{ text: 'Clinique MANA' }] },
+  ])
+  // The same body without blocks: the required value is missing.
+  assertEquals(
+    fillTemplate(doc, [v('pricing.annexe_a'), v('clinic.name')], {
+      clinic: { name: 'X' },
+    }, TORONTO),
+    { ok: false, code: 'missing_variable', path: 'pricing.annexe_a' },
+  )
+  // Its path must still be declared.
+  assertEquals(
+    fillTemplate(doc, [v('clinic.name')], { clinic: { name: 'X' } }, TORONTO, {
+      'pricing.annexe_a': [],
+    }),
+    { ok: false, code: 'unknown_variable', path: 'pricing.annexe_a' },
+  )
+})

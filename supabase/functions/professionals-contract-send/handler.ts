@@ -1,0 +1,346 @@
+/**
+ * `professionals-contract-send` (Task 4d.2, design §3.8, A5): « Préparer et
+ * envoyer », « Réessayer l'envoi », « Renvoyer » and « Régénérer » on a
+ * professional's service contract. This function renders
+ * (`_shared/signing.ts`), so it carries pdfmake (ADR 0008).
+ *
+ * 1. CORS; `POST` only; `verifyAuth` with the module `professionals` and
+ *    `professionals.contracts.send`; the caller must also hold
+ *    `professionals.compensation` (the contract prints the professional's pay,
+ *    P4-436) → 403 `forbidden` otherwise.
+ * 2. Body `{ professional_id, action: 'send' | 'regenerate' | 'resend',
+ *    idempotency_key }` (a uuid the page draws per action and keeps until it
+ *    succeeds). Nothing else is read from the body: the values, the signers,
+ *    the template version and the title come from the database.
+ * 3. One hit on `LIMITS.professionalContractUser` (30 an hour per caller).
+ * 4. `prepare_professional_contract` with the **service** client, `p_actor` =
+ *    the caller `verifyAuth` verified: it re-checks her, then answers the
+ *    request key (the open draft's own for `send`: a failed send is retried
+ *    as the same request), the published version, the title, the values, the
+ *    Annexe A terms and the signers of the snapshot (written once per key,
+ *    P4-151), and for `regenerate` the open request to close first. P0001 →
+ *    400 with its French message and its HINT as `field` (`template`,
+ *    `pricing`, `profession`, `contract`, `status`, `regenerate`); 42501 →
+ *    403; 22023 → 400.
+ * 5. `resend`: Documenso `redistribute` to the next signer of the open request
+ *    (the link renewed). 200 `{ request_id }`.
+ * 6. `regenerate` with an open request: its Documenso envelope cancelled
+ *    first (a pending one cancelled, a draft deleted, E-8), then
+ *    `cancel_signature_request(p_id, p_by)`. A failed Documenso cancel stops
+ *    here (502 `provider_error`): never two live contracts.
+ * 7. `createSignatureRequest` (purpose `professionals.service_contract`,
+ *    subject `professional`, view permission `professionals.compensation`
+ *    (P4-435), the snapshot's values, and Annexe A's blocks for the block
+ *    placeholder `pricing.annexe_a`, P4-433). Documenso sends the French
+ *    signing email with the version's subject and message (P3-3); the expiry
+ *    is « Signature électronique »'s. 200 `{ request_id, existing }`.
+ *
+ * The send does not follow the caller's connection (`req.signal` is not
+ * passed), as `signing-test-document`. Every stored copy follows Phase 3's
+ * capture: the source PDF before the send, the signed PDF on completion (the
+ * webhook, then the hourly reconcile), so a Documenso id is never the only
+ * copy (ADR 0005 « Pas de sauvegarde »).
+ *
+ * Status codes: 200; 400 `invalid_request` (body, a P0001 refusal, 22023) or
+ * `missing_variable` (a value the template requires is empty: `variable` is
+ * its path, `label` its French label); 401 / 403 / 503 from `verifyAuth`;
+ * 403 `forbidden` (no `professionals.compensation`, 42501); 405; 409
+ * `conflict` (« Un envoi est déjà en cours. »); 413; 429; 502
+ * `provider_error` (Documenso failed; the same key sends again); 503
+ * `not_configured` (no Documenso address or key, the key refused, the
+ * limiter down); 500 `internal` (reported with the org, professional and
+ * request ids). Nothing logs or answers an address.
+ */
+import { z } from 'zod'
+import {
+  errorResponse,
+  handleCors,
+  jsonResponse,
+  refusalResponse,
+  verifyAuth,
+} from '../_shared/auth.ts'
+import type { Deps } from '../_shared/deps.ts'
+import { DocumensoError } from '../_shared/documenso.ts'
+import { readJson } from '../_shared/http.ts'
+import {
+  isExpectedRpcError,
+  professionalsRpcError,
+  type RpcError,
+} from '../_shared/professionals.ts'
+import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
+import { reportError } from '../_shared/report.ts'
+import {
+  documensoReach,
+  orgSigning,
+  type SigningFailure,
+} from '../_shared/signing-events.ts'
+import { createSignatureRequest } from '../_shared/signing.ts'
+import { annexeBlocks, annexeSchema } from './annexe.ts'
+
+const FN = 'professionals-contract-send'
+/** The template's block placeholder for Annexe A (the seeded body, P4-433). */
+export const ANNEXE_PATH = 'pricing.annexe_a'
+export const PURPOSE = 'professionals.service_contract'
+/** P4-435: the contract prints the pay. */
+export const VIEW_PERMISSION = 'professionals.compensation'
+
+const bodySchema = z.strictObject({
+  // guid, not uuid: seed and fixture ids are not RFC 4122 variants.
+  professional_id: z.guid(),
+  action: z.enum(['send', 'regenerate', 'resend']),
+  idempotency_key: z.guid(),
+})
+
+const signerSchema = z.object({
+  role: z.enum(['professional', 'clinic', 'client']),
+  name: z.string(),
+  email: z.string(),
+  order: z.number().int(),
+})
+
+const preparedSchema = z.object({
+  idempotency_key: z.string(),
+  template_version_id: z.string(),
+  title: z.string(),
+  values: z.record(z.string(), z.unknown()),
+  annexe: annexeSchema,
+  signers: z.array(signerSchema).min(1),
+  cancel: z.object({
+    request_id: z.string(),
+    envelope_id: z.string().nullable(),
+    status: z.string(),
+  }).nullable(),
+})
+
+const resendSchema = z.object({
+  resend: z.object({
+    request_id: z.string(),
+    envelope_id: z.string().nullable(),
+    recipient_ids: z.array(z.string()),
+  }),
+})
+
+const STATUS = {
+  not_configured: 503,
+  module_disabled: 403,
+  provider_error: 502,
+} as const
+
+/** The contract handler; see the module comment. */
+export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
+  return async (req) => {
+    const preflight = handleCors(req)
+    if (preflight) return preflight
+    if (req.method !== 'POST') {
+      return errorResponse('invalid_request', 'Method not allowed', 405, req)
+    }
+    const auth = await verifyAuth(
+      req,
+      { module: 'professionals', permission: 'professionals.contracts.send' },
+      deps.userClient,
+    )
+    if (auth instanceof Response) return auth
+    if (!auth.access.permissions.includes(VIEW_PERMISSION)) {
+      return errorResponse('forbidden', 'Forbidden', 403, req)
+    }
+    const input = await readJson(req, bodySchema)
+    if (input instanceof Response) return input
+    const service = deps.serviceClient()
+    if (service instanceof Response) return service
+
+    const { org_id: orgId, user_id: actor } = auth.access
+    const professionalId = input.professional_id
+    const report = (code: string, ids: Record<string, string> = {}) =>
+      reportError({
+        fn: FN,
+        code,
+        ids: { org_id: orgId, professional_id: professionalId, ...ids },
+      }, deps.fetch)
+
+    const limited = limitResponse(
+      await consume(service, LIMITS.professionalContractUser, [orgId, actor]),
+      req,
+    )
+    if (limited) return limited
+
+    const prepared = await service.rpc('prepare_professional_contract', {
+      p_actor: actor,
+      p_id: professionalId,
+      p_action: input.action,
+      p_idempotency_key: input.idempotency_key,
+    })
+    if (prepared.error) {
+      const error = prepared.error as RpcError
+      if (!isExpectedRpcError(error)) await report('prepare_failed')
+      return professionalsRpcError(error, req)
+    }
+
+    const reach = documensoReach(deps)
+    const documenso = async () =>
+      (await orgSigning(service, orgId, deps.fetch, reach))?.documenso ?? null
+
+    try {
+      if (input.action === 'resend') {
+        const parsed = resendSchema.safeParse(prepared.data)
+        if (!parsed.success) {
+          await report('prepare_invalid')
+          return errorResponse('internal', 'Contract resend failed', 500, req)
+        }
+        const { request_id: requestId, envelope_id, recipient_ids } =
+          parsed.data.resend
+        const client = await documenso()
+        if (!client) {
+          return errorResponse(
+            'not_configured',
+            'Signing not configured',
+            503,
+            req,
+          )
+        }
+        if (envelope_id) {
+          try {
+            await client.redistribute(envelope_id, recipient_ids)
+          } catch (error) {
+            return providerFailure(error, requestId)
+          }
+        }
+        return jsonResponse({ request_id: requestId }, 200, req)
+      }
+
+      const parsed = preparedSchema.safeParse(prepared.data)
+      if (!parsed.success) {
+        await report('prepare_invalid')
+        return errorResponse('internal', 'Contract send failed', 500, req)
+      }
+      const contract = parsed.data
+
+      if (contract.cancel) {
+        const { request_id: requestId, envelope_id } = contract.cancel
+        if (envelope_id) {
+          const client = await documenso()
+          if (!client) {
+            return errorResponse(
+              'not_configured',
+              'Signing not configured',
+              503,
+              req,
+            )
+          }
+          try {
+            // Pending → cancelled; a draft → deleted (E-8, read back after a 400).
+            await client.cancel(envelope_id)
+          } catch (error) {
+            return providerFailure(error, requestId)
+          }
+        }
+        const cancelled = await service.rpc('cancel_signature_request', {
+          p_id: requestId,
+          p_by: actor,
+        })
+        if (cancelled.error) {
+          const error = cancelled.error as RpcError
+          if (error.code === 'P0001' && error.message) {
+            return refusalResponse(error.message, req)
+          }
+          await report('cancel_failed', { signature_request_id: requestId })
+          return errorResponse(
+            'internal',
+            'Contract regenerate failed',
+            500,
+            req,
+          )
+        }
+      }
+
+      const result = await createSignatureRequest({
+        client: service,
+        fetch: deps.fetch,
+        reach,
+        now: deps.now,
+      }, {
+        orgId,
+        moduleKey: 'professionals',
+        purpose: PURPOSE,
+        templateVersionId: contract.template_version_id,
+        subject: { type: 'professional', id: professionalId },
+        title: contract.title,
+        viewPermission: VIEW_PERMISSION,
+        values: contract.values,
+        blocks: { [ANNEXE_PATH]: annexeBlocks(contract.annexe) },
+        signers: contract.signers,
+        idempotencyKey: contract.idempotency_key,
+        sentBy: actor,
+      })
+      if (result.ok) {
+        return jsonResponse(
+          { request_id: result.requestId, existing: result.existing },
+          200,
+          req,
+        )
+      }
+      switch (result.code) {
+        case 'invalid_request':
+          return refusalResponse(result.message, req)
+        case 'send_in_progress':
+          return errorResponse('conflict', result.message, 409, req)
+        case 'missing_variable':
+          return jsonResponse(
+            {
+              error: {
+                code: 'missing_variable',
+                message: 'A template value is missing',
+                ...(result.variable &&
+                  {
+                    variable: result.variable.path,
+                    label: result.variable.label,
+                  }),
+              },
+            },
+            400,
+            req,
+          )
+        default:
+          return jsonResponse(
+            {
+              error: {
+                code: result.code,
+                message: 'The contract could not be sent',
+              },
+              ...(result.requestId && { request_id: result.requestId }),
+            },
+            STATUS[result.code],
+            req,
+          )
+      }
+    } catch (error) {
+      const { code, requestId } = error as Partial<SigningFailure>
+      await report(
+        typeof code === 'string' ? code : 'contract_send_failed',
+        requestId ? { signature_request_id: requestId } : {},
+      )
+      return errorResponse(
+        'internal',
+        'The contract could not be sent',
+        500,
+        req,
+      )
+    }
+
+    /** A Documenso failure of a resend or a cancel: the key refused, or Documenso failing. */
+    function providerFailure(error: unknown, requestId: string): Response {
+      if (!(error instanceof DocumensoError)) throw error
+      const refused = error.code === 'not_configured'
+      return jsonResponse(
+        {
+          error: {
+            code: refused ? 'not_configured' : 'provider_error',
+            message: 'Documenso failed',
+          },
+          request_id: requestId,
+        },
+        refused ? 503 : 502,
+        req,
+      )
+    }
+  }
+}

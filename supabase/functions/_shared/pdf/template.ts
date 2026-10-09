@@ -13,7 +13,17 @@
  * - the model has no markup, so nothing is escaped, but control characters
  *   in values (line breaks included) become spaces;
  * - values are inserted in a single pass: a value is never read as a
- *   placeholder.
+ *   placeholder;
+ * - **block placeholders** (P4-433): a paragraph whose only run is exactly one
+ *   placeholder (`{{pricing.annexe_a}}`, surrounding spaces allowed) whose
+ *   path is a key of `blocks` is replaced by those blocks, which the caller
+ *   built (tables, headings: what a text value cannot hold, such as one row
+ *   per tier). They are inserted after filling, never filled themselves (the
+ *   single-pass rule), and the renderer validates them with the rest. Such a
+ *   path still has to be a declared variable (the database checks every
+ *   placeholder); when `blocks` holds it, a missing value is not
+ *   `missing_variable`: anywhere else in the text it reads as its value, or
+ *   empty.
  *
  * pdfmake-free: callers render the result with `render.ts`, which validates it.
  */
@@ -76,6 +86,19 @@ function mapTexts(
   }
 }
 
+/** Blocks a caller builds for a block placeholder, by variable path (module comment). */
+export type BlockValues = Readonly<Record<string, readonly Block[]>>
+
+const LONE_PLACEHOLDER = new RegExp(`^\\s*${PLACEHOLDER_SOURCE}\\s*$`)
+
+/** The path of a paragraph that is a block placeholder of `blocks`, else null. */
+function blockPath(block: Block, blocks: BlockValues): string | null {
+  if (block.type !== 'paragraph' || block.runs.length !== 1) return null
+  const match = LONE_PLACEHOLDER.exec(block.runs[0].text)
+  const path = match?.[1].trim()
+  return path !== undefined && Object.hasOwn(blocks, path) ? path : null
+}
+
 /** The failures shared by `fillTemplate` and `fillTexts`. */
 type FillError =
   | { ok: false; code: 'missing_variable' | 'unknown_variable'; path: string }
@@ -90,6 +113,7 @@ function prepare(
   variables: TemplateVariable[],
   values: Record<string, unknown>,
   timezone: string,
+  blockPaths: ReadonlySet<string> = new Set(),
 ): { ok: true; fill: (text: string) => string } | FillError {
   if (!isValidTimeZone(timezone)) return { ok: false, code: 'invalid_timezone' }
 
@@ -113,7 +137,7 @@ function prepare(
     )
     if (formatted !== null) {
       resolved.set(variable.path, formatted.replace(CONTROL, ' '))
-    } else if (variable.required) {
+    } else if (variable.required && !blockPaths.has(variable.path)) {
       return { ok: false, code: 'missing_variable', path: variable.path }
     } else resolved.set(variable.path, '')
   }
@@ -124,12 +148,16 @@ function prepare(
   }
 }
 
-/** Fills `body` with `values` (module comment). The body is not mutated. */
+/**
+ * Fills `body` with `values`, then puts `blocks` in place of their block
+ * placeholders (module comment). The body is not mutated.
+ */
 export function fillTemplate(
   body: PdfDocument,
   variables: TemplateVariable[],
   values: Record<string, unknown>,
   timezone: string,
+  blocks: BlockValues = {},
 ): FillResult {
   const prepared = prepare(
     (visit) =>
@@ -140,23 +168,37 @@ export function fillTemplate(
     variables,
     values,
     timezone,
+    new Set(Object.keys(blocks)),
   )
-  return prepared.ok
-    ? { ok: true, document: mapTexts(body, prepared.fill) }
-    : prepared
+  if (!prepared.ok) return prepared
+  const document = mapTexts(body, prepared.fill)
+  return {
+    ok: true,
+    document: {
+      ...document,
+      // mapTexts keeps the blocks' order: each is matched with its unfilled self.
+      blocks: document.blocks.flatMap((block, i) => {
+        const path = blockPath(body.blocks[i], blocks)
+        return path === null ? [block] : blocks[path].map((b) => ({ ...b }))
+      }),
+    },
+  }
 }
 
 /**
  * Fills plain strings (a version's Documenso email subject and message,
  * whose placeholders the database checks like the body's) under the same
  * rules as `fillTemplate`. The strings themselves keep their line breaks;
- * control characters are removed from values only.
+ * control characters are removed from values only. A path of `blocks` (the
+ * body's block placeholders) is never `missing_variable` here either: in a
+ * text it reads as its value, or empty.
  */
 export function fillTexts<K extends string>(
   texts: Record<K, string>,
   variables: TemplateVariable[],
   values: Record<string, unknown>,
   timezone: string,
+  blocks: BlockValues = {},
 ): { ok: true; texts: Record<K, string> } | FillError {
   const entries = Object.entries(texts) as [K, string][]
   const prepared = prepare(
@@ -164,6 +206,7 @@ export function fillTexts<K extends string>(
     variables,
     values,
     timezone,
+    new Set(Object.keys(blocks)),
   )
   if (!prepared.ok) return prepared
   return {

@@ -771,6 +771,26 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       r.expired_at = iso()
       return { data: true }
     },
+    // Phase 4 (a contract replaced): sent or viewed → cancelled, a live draft → abandoned; a
+    // request Documenso completed → P0001; already closed → false.
+    cancel_signature_request: (a) => {
+      const r = requests.get(String(a.p_id))
+      if (!r) return E22023
+      if (r.status === 'signed' || r.completed_event_at !== null) {
+        return P0001(
+          'Ce document a déjà été signé : la demande ne peut plus être annulée.',
+        )
+      }
+      if (r.status === 'sent' || r.status === 'viewed') {
+        r.status = 'cancelled'
+        return { data: true }
+      }
+      if (r.status === 'draft' && r.last_error !== 'abandoned') {
+        r.last_error = 'abandoned'
+        return { data: true }
+      }
+      return { data: false }
+    },
     claim_webhook_event: (a) => {
       const key = `${a.p_provider}:${a.p_event_id}`
       const found = events.get(key)
