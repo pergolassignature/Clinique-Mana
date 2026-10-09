@@ -1,5 +1,5 @@
 import type { SectionValues } from '../api/self'
-import type { ProfessionalRecord } from '../api/parse'
+import type { MyProfessionalRecord, ProfessionalRecord } from '../api/parse'
 import type { SubmissionSection } from './constants'
 
 /**
@@ -18,7 +18,7 @@ export const MY_PROFILE_PATH = '/mon-profil'
  * The record as `private.professional_submission_snapshot` writes it (20261008191219): the same keys
  * and shapes as a submission's prefill, for the sections the record itself holds.
  */
-export function recordSectionValues(record: ProfessionalRecord) {
+export function recordSectionValues(record: MyProfessionalRecord) {
   const { professional: p, publicProfile: pub, matchingProfile: m } = record
   return {
     personal: {

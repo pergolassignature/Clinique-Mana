@@ -83,12 +83,13 @@ describe('plainValueText', () => {
 
 describe('submissionState', () => {
   it.each([
-    [{ status: 'draft', decisionNote: null, appliedCount: null }, 'in_progress'],
-    [{ status: 'draft', decisionNote: 'Précisez vos langues.', appliedCount: null }, 'returned'],
-    [{ status: 'submitted', decisionNote: null, appliedCount: null }, 'to_review'],
-    [{ status: 'approved', decisionNote: null, appliedCount: 4 }, 'applied'],
-    [{ status: 'approved', decisionNote: null, appliedCount: 0 }, 'approved_unchanged'],
-    [{ status: 'cancelled', decisionNote: null, appliedCount: null }, 'cancelled'],
+    [{ status: 'draft', returned: false, appliedCount: null }, 'in_progress'],
+    // `returned` (P4-474): sent back with a note, which only reviewers read.
+    [{ status: 'draft', returned: true, appliedCount: null }, 'returned'],
+    [{ status: 'submitted', returned: false, appliedCount: null }, 'to_review'],
+    [{ status: 'approved', returned: false, appliedCount: 4 }, 'applied'],
+    [{ status: 'approved', returned: false, appliedCount: 0 }, 'approved_unchanged'],
+    [{ status: 'cancelled', returned: false, appliedCount: null }, 'cancelled'],
   ] as const)('%o reads %s', (row, state) => {
     expect(submissionState(row)).toBe(state)
     for (const kind of ['onboarding', 'update'] as const) expect(submissionStateLabel(state, kind)).not.toMatch(/^modules\./)

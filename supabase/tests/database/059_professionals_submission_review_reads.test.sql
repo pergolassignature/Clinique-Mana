@@ -2,7 +2,8 @@
 -- *_professionals_submission_review_reads.sql, plan Phase 4 Task 4b.5). Covers: privileges of the
 -- two RPCs; list_professional_submissions (newest first, no answers, the reviewer's name without
 -- users.view, the count of fields applied, who started each one, another clinic's file empty,
--- professionals.view required); get_my_professional_record (the provider's own record, its gender,
+-- professionals.view required; the sent-back note for professionals.review only, redacted from the
+-- audit); get_my_professional_record (the provider's own record, its gender,
 -- the clinic's two notes on her row as on the record, null without a linked file,
 -- professionals.self required); the provider reads both notes on her own row and nothing of
 -- another's (P4-373, Loi 25); get_my_submission's gender and started_by_me (in place in
@@ -12,7 +13,7 @@
 -- get_my_access().has_professional_file (P4-376). Apply's hints are executed in 051 (P4-369).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(38);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin 01, conseillère 02, provider 03 linked to P1, provider 05
@@ -94,8 +95,12 @@ select is(public.list_professional_submissions('c0000000-0000-0000-0000-00000000
   'the reviewer is named without users.view');
 select is((public.list_professional_submissions('c0000000-0000-0000-0000-000000000001') -> 2 ->> 'applied_count')::int, 2,
   'the number of fields applied');
-select is(public.list_professional_submissions('c0000000-0000-0000-0000-000000000001') -> 0 ->> 'decision_note', 'Précisez vos langues.',
-  'the note of a profile sent back');
+select is(public.list_professional_submissions('c0000000-0000-0000-0000-000000000001') -> 0 ->> 'decision_note', null,
+  'never the note of a profile sent back without professionals.review (P4-420, P4-474)');
+select results_eq(
+  $$ select (e ->> 'returned')::boolean from jsonb_array_elements(public.list_professional_submissions('c0000000-0000-0000-0000-000000000001')) e $$,
+  $$ values (true), (false), (false) $$,
+  '… only that it was sent back with a note (« Renvoyé »)');
 select results_eq(
   $$ select (e ->> 'started_by_professional')::boolean from jsonb_array_elements(public.list_professional_submissions('c0000000-0000-0000-0000-000000000001')) e $$,
   $$ values (true), (false), (false) $$,
@@ -113,6 +118,8 @@ select throws_ok($$ select public.get_my_professional_record() $$, '42501', 'Per
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(public.get_my_professional_record() #>> '{professional,id}', 'c0000000-0000-0000-0000-000000000001', 'the provider reads her own record');
 select is(public.get_my_professional_record() #>> '{professional,gender}', 'female', '… with her gender (the titles'' form)');
+select ok(not (public.get_my_professional_record() ? 'readiness'),
+  '… without readiness: her permissions would read her image consent and contract as missing (P4-473)');
 select is(public.get_my_professional_record() #>> '{professional,deactivation_note}', 'Note interne de la clinique',
   '… and the clinic''s deactivation note, as on her row (Loi 25, P4-373)');
 select is(public.get_my_professional_record() #>> '{professional,activation_override_reason}', 'Activée avant la fin du questionnaire',
@@ -167,11 +174,20 @@ select is((select s.requested_by from public.professional_submissions s
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.list_professional_submissions('c0000000-0000-0000-0000-000000000001') -> 0 ->> 'decision_note', 'Précisez vos langues.',
+  'a reviewer (professionals.review) reads the note of a profile sent back');
 select is(public.get_my_professional_record(), null::jsonb, 'an admin without a linked file: no record');
 select is((public.get_my_access() ->> 'has_professional_file')::boolean, false, '… and her access says no file is linked');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is(public.list_professional_submissions('c0000000-0000-0000-0000-000000000001'), '[]'::jsonb, 'org B''s admin lists nothing of org A');
 reset role;
+
+-- The note stays out of the audit (Historique, read with professionals.view): redacted (P4-474).
+update public.professional_submissions set decision_note = 'Ajoutez une langue.' where id = 'd0000000-0000-0000-0000-000000000003';
+select is((select a.changed_fields ->> 'decision_note' from public.audit_log a
+            where a.table_name = 'professional_submissions' and a.record_id like '%d0000000-0000-0000-0000-000000000003%'
+            order by a.id desc limit 1),
+  '[redacted]', 'the audit redacts the sent-back note');
 
 select * from finish();
 rollback;

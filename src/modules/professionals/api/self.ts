@@ -3,7 +3,7 @@ import { supabase } from '@/core/supabase/client'
 import { invokeFunction } from '@/core/supabase/functions'
 import { GENDERS, type SubmissionSection } from '../lib/constants'
 import { SUBMISSION_SECTIONS } from '../lib/questionnaire'
-import { parseRpc, recordPayload, type ProfessionalRecord } from './parse'
+import { myRecordPayload, parseRpc, type MyProfessionalRecord } from './parse'
 import { sqlArgs } from './sql-args'
 
 /**
@@ -191,13 +191,13 @@ export async function submitMyProfile(): Promise<void> {
 
 /**
  * The caller's own record (`get_my_professional_record`): the record bundle of
- * `get_professional_record`, the clinic's notes on the file blanked (P4-366); null when no file is
+ * `get_professional_record` without readiness (P4-473); null when no file is
  * linked to the account.
  */
-export async function fetchMyProfessionalRecord(): Promise<ProfessionalRecord | null> {
+export async function fetchMyProfessionalRecord(): Promise<MyProfessionalRecord | null> {
   const { data, error } = await supabase.rpc('get_my_professional_record')
   if (error) throw error
-  return parseRpc(recordPayload, data)
+  return parseRpc(myRecordPayload, data)
 }
 
 /**

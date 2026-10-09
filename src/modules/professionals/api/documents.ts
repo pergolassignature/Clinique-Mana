@@ -66,7 +66,8 @@ const consentPayload = z
   .object({
     id: z.string(),
     version: z.number(),
-    signer_name: z.string(),
+    /** Staff only: null for the provider (P4-420, P4-472: a re-linked account would read the previous holder's). */
+    signer_name: z.string().nullable(),
     signed_at: z.string(),
     expires_on: z.string(),
     withdrawn_at: z.string().nullable(),

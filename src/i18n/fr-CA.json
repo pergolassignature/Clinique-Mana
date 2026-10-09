@@ -3261,6 +3261,7 @@
           "policy": "N° de police : {value}",
           "fileGone": "Le fichier a été retiré.",
           "consent": "Signé électroniquement le {date} par {name} (version {version})",
+          "consentNoName": "Signé électroniquement le {date} (version {version})",
           "consentWithdrawn": "Retrait demandé : il prend effet le {date}.",
           "newPending": "Nouveau document",
           "none": "Aucun document pour l'instant."

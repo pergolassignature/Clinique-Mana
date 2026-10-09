@@ -60,6 +60,7 @@ function listed(over: Record<string, unknown>[] = []) {
     reviewedAt: r.reviewed_at,
     reviewedByName: r.reviewed_by_name,
     decisionNote: r.decision_note,
+    returned: r.returned,
     appliedCount: r.applied_count,
     startedByProfessional: r.started_by_professional,
   }))
@@ -114,7 +115,7 @@ describe('« Questionnaire et mises à jour »', () => {
   it('an update the clinic asked for says so; an update sent back or closed agrees with « la mise à jour »', async () => {
     await openTab({
       list: listed([
-        { kind: 'update', status: 'draft', requested_sections: ['languages'], started_by_professional: false, reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.' },
+        { kind: 'update', status: 'draft', requested_sections: ['languages'], started_by_professional: false, reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.', returned: true },
         { status: 'cancelled', reviewed_at: null, reviewed_by_name: null, applied_count: null },
       ]),
     })
@@ -150,12 +151,23 @@ describe('« Questionnaire et mises à jour »', () => {
 
   it('shows the note of a profile sent back', async () => {
     await openTab({
-      list: listed([{ status: 'draft', submitted_at: '2026-10-08T14:00:00+00:00', reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.' }]),
+      list: listed([{ status: 'draft', submitted_at: '2026-10-08T14:00:00+00:00', reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: 'Précisez vos langues.', returned: true }]),
     })
     const first = within(submissionsList()).getAllByRole('listitem')[0] as HTMLElement
     expect(first).toHaveTextContent('Renvoyé au professionnel')
     expect(first).toHaveTextContent('Précisez vos langues.')
     expect(within(first).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('the conseillère reads that a profile was sent back, never the note (professionals.review only, P4-474)', async () => {
+    await openTab({
+      role: 'counselor',
+      list: listed([{ status: 'draft', submitted_at: '2026-10-08T14:00:00+00:00', reviewed_at: '2026-10-08T16:00:00+00:00', reviewed_by_name: 'Julie Adjointe', decision_note: null, returned: true }]),
+    })
+    const first = within(submissionsList()).getAllByRole('listitem')[0] as HTMLElement
+    expect(first).toHaveTextContent('Renvoyé au professionnel')
+    expect(first).toHaveTextContent('Renvoyé le 08 oct. 2026 par Julie Adjointe')
+    expect(first).not.toHaveTextContent(t(`${C}.note`))
   })
 
   it('offers « Réviser » to reviewers only, never on their own file (P4-304)', async () => {

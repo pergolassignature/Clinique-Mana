@@ -283,34 +283,43 @@ export type Readiness = z.output<typeof readinessShape>
 export type ReadinessItem = Readiness['items'][number]
 
 
+/** The record bundle without readiness (`get_my_professional_record` leaves it out, P4-473). */
+const recordShape = z.object({
+  professional: professionalPayload,
+  public_profile: publicProfileRowPayload,
+  matching_profile: matchingProfileRowPayload,
+  matching_note: matchingNotePayload,
+  professions: z.array(professionRowPayload),
+  clienteles: z.array(specializedRefPayload),
+  motif_ids: z.array(z.string()),
+  language_ids: z.array(z.string()),
+  payer_numbers: z.array(payerNumberPayload),
+})
+const recordFields = (r: z.output<typeof recordShape>) => ({
+  professional: r.professional,
+  publicProfile: r.public_profile,
+  matchingProfile: r.matching_profile,
+  matchingNote: r.matching_note,
+  professions: r.professions,
+  clienteles: r.clienteles,
+  motifIds: r.motif_ids,
+  languageIds: r.language_ids,
+  payerNumbers: r.payer_numbers,
+})
+
 /** `get_professional_record`: the record page in one payload, null when the caller cannot read it. */
-export const recordPayload = z
-  .object({
-    professional: professionalPayload,
-    public_profile: publicProfileRowPayload,
-    matching_profile: matchingProfileRowPayload,
-    matching_note: matchingNotePayload,
-    professions: z.array(professionRowPayload),
-    clienteles: z.array(specializedRefPayload),
-    motif_ids: z.array(z.string()),
-    language_ids: z.array(z.string()),
-    payer_numbers: z.array(payerNumberPayload),
-    readiness: readinessShape,
-  })
-  .transform((r) => ({
-    professional: r.professional,
-    publicProfile: r.public_profile,
-    matchingProfile: r.matching_profile,
-    matchingNote: r.matching_note,
-    professions: r.professions,
-    clienteles: r.clienteles,
-    motifIds: r.motif_ids,
-    languageIds: r.language_ids,
-    payerNumbers: r.payer_numbers,
-    readiness: r.readiness,
-  }))
+export const recordPayload = recordShape
+  .extend({ readiness: readinessShape })
+  .transform((r) => ({ ...recordFields(r), readiness: r.readiness }))
   .nullable()
 export type ProfessionalRecord = NonNullable<z.output<typeof recordPayload>>
+
+/**
+ * `get_my_professional_record`: « Mon profil »'s own record, without readiness: computed with the
+ * provider's permissions it would read her image consent and contract as missing (P4-473).
+ */
+export const myRecordPayload = recordShape.transform(recordFields).nullable()
+export type MyProfessionalRecord = NonNullable<z.output<typeof myRecordPayload>>
 
 // --- Onboarding (get_professional_onboarding, list_professional_invitation_states) ---------------
 

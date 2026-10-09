@@ -18,6 +18,12 @@ describe('fetchProfessionalSubmissions', () => {
     expect(rows[1]).toMatchObject({ kind: 'update', status: 'approved', reviewedByName: 'Julie Adjointe', appliedCount: 1, requestedSections: ['motifs'] })
   })
 
+  it('reads « sent back » apart from its note, which only reviewers get (P4-474)', async () => {
+    mocks.rpc.mockResolvedValue({ data: [{ ...SUBMISSIONS_JSON[0], status: 'draft', decision_note: null, returned: true }], error: null })
+    const [row] = await fetchProfessionalSubmissions(IDS.professional)
+    expect(row).toMatchObject({ status: 'draft', decisionNote: null, returned: true })
+  })
+
   it('refuses an unknown status', async () => {
     mocks.rpc.mockResolvedValue({ data: [{ ...SUBMISSIONS_JSON[0], status: 'rejected' }], error: null })
     await expect(fetchProfessionalSubmissions(IDS.professional)).rejects.toThrow(UNEXPECTED_SHAPE)

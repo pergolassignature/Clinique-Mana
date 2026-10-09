@@ -10,7 +10,7 @@
 -- expire_notifications; audit and history.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(122);
+select plan(124);
 
 -- The HINT of the error p_sql raises (null when none): throws_ok checks code and message only.
 create function private.test_error_hint(p_sql text) returns text
@@ -443,6 +443,24 @@ select is(public.get_professional_documents() ->> 'professional_id', 'c0000000-0
 select is((select x ->> 'reviewed_by_name' from jsonb_array_elements(public.get_professional_documents() -> 'documents') x), null,
   'the provider does not get the reviewer''s name');
 select is(public.get_professional_documents('c0000000-0000-0000-0000-000000000001'), null, 'never another professional''s');
+-- P4-472: her e-consent without the signer's name (a re-linked account would read the previous
+-- holder's, P4-420); staff read it.
+reset role;
+insert into public.professional_consents (org_id, professional_id, consent_version_id, signer_name, signed_at, expires_on)
+select current_setting('test.a')::uuid, 'c0000000-0000-0000-0000-000000000002', v.id, 'Ancienne Titulaire', now() - interval '2 days',
+       current_setting('test.today')::date + 300
+  from public.consent_versions v where v.org_id = current_setting('test.a')::uuid order by v.version desc limit 1;
+set local role authenticated;
+select ok((public.get_professional_documents() -> 'consent' ->> 'signer_name') is null
+          and (public.get_professional_documents() -> 'consent' ->> 'version') is not null,
+  'the provider reads her consent''s version and dates, never the signer''s name');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is(public.get_professional_documents('c0000000-0000-0000-0000-000000000002') #>> '{consent,signer_name}', 'Ancienne Titulaire',
+  'staff read the signer''s name');
+reset role;
+delete from public.professional_consents where professional_id = 'c0000000-0000-0000-0000-000000000002';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is((select count(*)::int from public.professional_documents), 1, 'RLS: the provider sees their own document only');
 select is((select count(*)::int from public.stored_files where id = 'e0000000-0000-0000-0000-000000000004'), 1,
   'the provider reads their attached file (storage-sign''s check)');

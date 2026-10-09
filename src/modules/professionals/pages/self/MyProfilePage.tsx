@@ -12,7 +12,7 @@ import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
-import type { ProfessionalRecord } from '../../api/parse'
+import type { MyProfessionalRecord } from '../../api/parse'
 import type { MySubmission } from '../../api/self'
 import { ProfileSectionSummary, type ProfileSection } from '../../components/questionnaire/SectionSummary'
 import { UpdateProfileDialog } from '../../components/self/UpdateProfileDialog'
@@ -71,7 +71,7 @@ export function MyProfilePage() {
   return <MyProfile record={record.data} submission={submission.data ?? null} catalog={catalog.data as CatalogView} />
 }
 
-function MyProfile({ record, submission, catalog }: { record: ProfessionalRecord; submission: MySubmission | null; catalog: CatalogView }) {
+function MyProfile({ record, submission, catalog }: { record: MyProfessionalRecord; submission: MySubmission | null; catalog: CatalogView }) {
   const { professional } = record
   const values = recordSectionValues(record)
   const primary = primaryProfession(record)
@@ -137,7 +137,7 @@ function ProfileCard({ title, description, children }: { title: string; descript
  * (with the clinic's note when it sent the profile back), wait for the review of what was sent, or
  * « Mettre mon profil à jour ». An inactive file offers nothing (P4-303) and says whom to ask.
  */
-function QuestionnaireCard({ record, submission }: { record: ProfessionalRecord; submission: MySubmission | null }) {
+function QuestionnaireCard({ record, submission }: { record: MyProfessionalRecord; submission: MySubmission | null }) {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const action = profileAction(record.professional.status, submission)

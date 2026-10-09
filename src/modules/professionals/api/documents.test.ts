@@ -16,7 +16,7 @@ import {
 } from './documents'
 import { UNEXPECTED_SHAPE } from './parse'
 import { IDS } from '../test/fixtures'
-import { DOC_IDS, documentJson, documentsJson } from '../test/fixtures-documents'
+import { CONSENT_JSON, DOC_IDS, documentJson, documentsJson } from '../test/fixtures-documents'
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), invokeFunction: vi.fn(), uploadFile: vi.fn(), signedFileUrl: vi.fn() }))
 vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc } }))
@@ -46,6 +46,12 @@ describe('fetchProfessionalDocuments / fetchMyDocuments', () => {
       file: { id: DOC_IDS.insuranceFile, name: 'assurance-2026.pdf', mimeType: 'application/pdf', sizeBytes: 245_760 },
     })
     expect(data?.consent?.signerName).toBe('Marie Tremblay')
+  })
+
+  it('the provider’s own consent comes without the signer’s name (null, P4-472)', async () => {
+    ok(documentsJson({ consent: { ...CONSENT_JSON, signer_name: null } }))
+    const data = await fetchMyDocuments()
+    expect(data?.consent).toMatchObject({ version: 1, signerName: null, signedAt: CONSENT_JSON.signed_at })
   })
 
   it('« Mes documents » asks for her own record (no id); null without a file', async () => {

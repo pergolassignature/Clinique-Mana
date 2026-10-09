@@ -475,9 +475,11 @@ create policy professional_submissions_select_self on public.professional_submis
 
 create trigger professional_submissions_set_updated_at before update on public.professional_submissions
   for each row execute function private.set_updated_at();
--- The answers hold the phone and the address, redacted from professionals' own audit (Loi 25).
+-- The answers hold the phone and the address, redacted from professionals' own audit (Loi 25); so
+-- is the reviewer's sent-back note, an answer too (P4-420, P4-474: Historique is read with
+-- professionals.view).
 create trigger professional_submissions_audit after insert or update or delete on public.professional_submissions
-  for each row execute function private.audit_trigger('prefill', 'submitted_values');
+  for each row execute function private.audit_trigger('prefill', 'submitted_values', 'decision_note');
 
 -- -----------------------------------------------------------------------------
 -- professional_submission_private (P4-38; conventions §8)

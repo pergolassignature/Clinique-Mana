@@ -190,13 +190,13 @@ const STATE_TONE: Readonly<Record<SubmissionState, StatusTone>> = {
 
 /**
  * Where a submission stands, in words: a draft is with the professional (sent back when it carries
- * the reviewer's note), a sent one waits for the review, an approved one was applied (or approved
+ * the reviewer's note: `returned`, since only reviewers read the note, P4-474), a sent one waits for the review, an approved one was applied (or approved
  * without a change), a cancelled one was closed without review (P4-301).
  */
-export function submissionState(row: Pick<SubmissionRow, 'status' | 'decisionNote' | 'appliedCount'>): SubmissionState {
+export function submissionState(row: Pick<SubmissionRow, 'status' | 'returned' | 'appliedCount'>): SubmissionState {
   switch (row.status) {
     case 'draft':
-      return row.decisionNote ? 'returned' : 'in_progress'
+      return row.returned ? 'returned' : 'in_progress'
     case 'submitted':
       return 'to_review'
     case 'approved':

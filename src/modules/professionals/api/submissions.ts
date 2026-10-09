@@ -30,6 +30,7 @@ const submissionRowPayload = z
     reviewed_at: z.string().nullable(),
     reviewed_by_name: z.string().nullable(),
     decision_note: z.string().nullable(),
+    returned: z.boolean(),
     applied_count: z.number().nullable(),
     started_by_professional: z.boolean(),
   })
@@ -43,8 +44,10 @@ const submissionRowPayload = z
     reviewedAt: r.reviewed_at,
     /** Null when nobody reviewed it, or the reviewer's account is gone. */
     reviewedByName: r.reviewed_by_name,
-    /** The note of a profile sent back (a draft again), else null. */
+    /** The note of a profile sent back (a draft again): reviewers only (professionals.review), else null (P4-474). */
     decisionNote: r.decision_note,
+    /** It carries a sent-back note, whoever reads the list (« Renvoyé », P4-474). */
+    returned: r.returned,
     /** Fields applied on approval; null until then. */
     appliedCount: r.applied_count,
     /** The professional started it herself (« Mettre mon profil à jour »); otherwise the clinic asked (P4-375). */

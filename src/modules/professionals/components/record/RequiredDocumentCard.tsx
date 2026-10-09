@@ -66,7 +66,11 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
       </div>
       {consent && (
         <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-          <p>{t(`${D}.lines.consent`, { date: formatClinicDateShort(consent.signedAt), name: consent.signerName, version: String(consent.version) })}</p>
+          <p>
+            {consent.signerName
+              ? t(`${D}.lines.consent`, { date: formatClinicDateShort(consent.signedAt), name: consent.signerName, version: String(consent.version) })
+              : t(`${D}.lines.consentNoName`, { date: formatClinicDateShort(consent.signedAt), version: String(consent.version) })}
+          </p>
           {consent.withdrawalEffectiveOn && <p>{t(`${D}.lines.consentWithdrawn`, { date: formatDateOnly(consent.withdrawalEffectiveOn) })}</p>}
         </div>
       )}

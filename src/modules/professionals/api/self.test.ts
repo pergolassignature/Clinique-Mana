@@ -144,6 +144,8 @@ describe('« Mon profil »', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('get_my_professional_record')
     expect(record?.professional).toMatchObject({ firstName: 'Marie', gender: 'female' })
     expect(record?.motifIds).toEqual(RECORD_JSON.motif_ids)
+    // No readiness in her own record: her permissions cannot compute it (P4-473).
+    expect(record).not.toHaveProperty('readiness')
   })
 
   it('answers null when no file is linked to the account', async () => {

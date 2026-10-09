@@ -13,13 +13,17 @@
 --   Definer for the reviewer's name: `profiles` is readable with users.view only, and the
 --   conseillère reads the record without it. Never the answers (`prefill`, `submitted_values`):
 --   the review sheet reads them through get_submission_review, with professionals.review. The
---   sent-back note is staff content (the provider reads it in her own questionnaire).
+--   sent-back note (`decision_note`) is an answer too (P4-420): only for professionals.review, null
+--   otherwise; `returned` says a draft carries one (« Renvoyé »), P4-474. The provider reads it in
+--   her own questionnaire (get_my_submission).
 --   `started_by_professional`: the submission's `requested_by` is the file's own account (she
 --   started this update from « Mon profil »); otherwise the clinic asked (P4-375).
 -- * `get_my_professional_record()`: « Mon profil » (professionals.self) in one request, without
 --   knowing the file's id: get_professional_record of private.current_professional_id(), invoker
 --   (the record's own RLS applies: the provider reads her row and its sets), null when no file is
---   linked to the account (an admin who holds professionals.self by default). The clinic's notes on
+--   linked to the account (an admin who holds professionals.self by default). Without `readiness`
+--   (P4-473): computed with the provider's permissions it reads her image consent and contract as
+--   missing, and « Mon profil » does not show it. The clinic's notes on
 --   her row (`deactivation_note`, `activation_override_reason`) come as on the record: the
 --   professional may read what is written about her on her own row (Loi 25 right of access, 4a's
 --   self policy), and staff are told so under both fields (P4-373, amends P4-366). « Mon profil »
@@ -43,6 +47,7 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.current_user_org_id();
+  v_review boolean := private.has_permission('professionals.review');
 begin
   if not private.has_permission('professionals.view') then
     raise exception 'Permission refusée : professionals.view' using errcode = '42501';
@@ -51,7 +56,8 @@ begin
     select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
              'id', s.id, 'kind', s.kind, 'status', s.status, 'requested_sections', s.requested_sections,
              'created_at', s.created_at, 'submitted_at', s.submitted_at, 'reviewed_at', s.reviewed_at,
-             'reviewed_by_name', pr.display_name, 'decision_note', s.decision_note,
+             'reviewed_by_name', pr.display_name, 'decision_note', case when v_review then s.decision_note end,
+             'returned', s.decision_note is not null,
              'applied_count', pg_catalog.cardinality(s.applied_fields),
              'started_by_professional', coalesce(s.requested_by = p.profile_id, false))
            order by s.created_at desc, s.id desc)
@@ -75,7 +81,7 @@ begin
   if not private.has_permission('professionals.self') then
     raise exception 'Permission refusée : professionals.self' using errcode = '42501';
   end if;
-  return public.get_professional_record(private.current_professional_id());
+  return public.get_professional_record(private.current_professional_id()) - 'readiness';
 end;
 $$;
 

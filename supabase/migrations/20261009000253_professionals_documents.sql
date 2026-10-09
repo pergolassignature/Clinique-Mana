@@ -1176,7 +1176,9 @@ $$;
 -- The Documents tab and « Mes documents » in one payload: staff with professionals.view for any
 -- professional of the clinic; the provider for their own record (p_id null = their own). Null
 -- when the caller cannot read it. Newest first; `file` is null once the file is gone (rejected,
--- deleted); `reviewed_by_name` for staff only; `consent` is the latest e-consent; `photo` the
+-- deleted); `reviewed_by_name` for staff only; `consent` is the latest e-consent, its
+-- `signer_name` for staff only (P4-472: the provider never reads that table, P4-420, and a file
+-- re-linked to another account would show the previous holder's name); `photo` the
 -- public profile's photo (document and file ids, for storage-sign). `today` is the clinic's date
 -- (cards compare expires_on with it, never with the browser's).
 create function public.get_professional_documents(p_id uuid default null)
@@ -1226,7 +1228,7 @@ begin
        where d.professional_id = v_pid and d.org_id = v_org), '[]'::jsonb),
     'consent', (
       select pg_catalog.jsonb_build_object(
-               'id', k.id, 'version', cv.version, 'signer_name', k.signer_name, 'signed_at', k.signed_at,
+               'id', k.id, 'version', cv.version, 'signer_name', case when v_staff then k.signer_name end, 'signed_at', k.signed_at,
                'expires_on', k.expires_on, 'withdrawn_at', k.withdrawn_at, 'withdrawal_effective_on', k.withdrawal_effective_on)
         from public.professional_consents k
         join public.consent_versions cv on cv.org_id = k.org_id and cv.id = k.consent_version_id

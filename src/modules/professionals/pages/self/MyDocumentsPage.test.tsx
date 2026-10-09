@@ -8,7 +8,7 @@ import { accessForRole } from '@/test/role-fixtures'
 import type { ProfessionalDocuments } from '../../api/documents'
 import { professionalKeys } from '../../hooks/keys'
 import { IDS } from '../../test/fixtures'
-import { DOC_IDS, documentJson, documentsFixture, PHOTO_JSON } from '../../test/fixtures-documents'
+import { CONSENT_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON } from '../../test/fixtures-documents'
 import { CATALOG, recordFixture } from '../../test/fixtures-domain'
 import { setupQueryClient } from '../../test/query-client'
 import { MyDocumentsPage } from './MyDocumentsPage'
@@ -91,6 +91,14 @@ describe('MyDocumentsPage — banners by the clinic’s date', () => {
 })
 
 describe('MyDocumentsPage — her own documents', () => {
+  it('her e-consent reads its date and version without a signer’s name (the RPC gives none to the provider, P4-472)', async () => {
+    renderPage(documentsFixture({ consent: { ...CONSENT_JSON, signer_name: null } }))
+    await loaded()
+    const consent = screen.getByRole('region', { name: "Consentement droit à l'image" })
+    expect(consent).toHaveTextContent('Signé électroniquement le 08 oct. 2026 (version 1)')
+    expect(consent).not.toHaveTextContent(' par ')
+  })
+
   it('in her words; no review, no deletion', async () => {
     renderPage(
       documentsFixture({
