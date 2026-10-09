@@ -3640,6 +3640,10 @@
           "inProgress": "Un envoi est déjà en cours pour ce consentement."
         }
       },
+      "sectionChecklist": {
+        "allLabel": "Tout cocher",
+        "noneLabel": "Tout décocher"
+      },
       "myProfile": {
         "nav": "Mon profil",
         "pageTitle": "Mon profil",
