@@ -82,6 +82,18 @@ export const professionalsManifest: ModuleManifest = {
       component: lazyPage(() => import('./components/self/ProfileHomeCard'), 'ProfileHomeCard'),
     },
   ],
+  // The global search (⌘K): name, email, licence and IVAC number. Staff who read the list only:
+  // the provider (professionals.self) finds « Mon profil » among the pages, never a record.
+  search: [
+    {
+      id: 'professionals',
+      labelKey: 'modules.professionals.name',
+      icon: Users,
+      permission: 'professionals.view',
+      minChars: 2,
+      load: () => import('./search').then((m) => m.searchProfessionals),
+    },
+  ],
   settingsSections: [
     {
       id: 'professions',

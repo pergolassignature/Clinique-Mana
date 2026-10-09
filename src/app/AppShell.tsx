@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { UserRound } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
+import type { ModuleSearchProvider } from '@/core/modules/types'
 import { ShellCrumbProvider } from '@/shared/lib/shell-crumb'
 import { useConfirmLeave } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
@@ -42,14 +43,23 @@ const isNativeClick = (event: MouseEvent) =>
 
 /**
  * The signed-in layout (design system « Ossature »): sidebar 220 px (56 collapsed, remembered),
- * a 48 px topbar (the banner) with the breadcrumb, ⌘K page search and the user menu, and the page
+ * a 48 px topbar (the banner) with the breadcrumb, ⌘K search (pages and records) and the user menu, and the page
  * (padding 24, content max 1120, sections 20 apart). Below md the sidebar becomes a sheet opened
  * from the topbar; on a tablet (md to lg) it starts as the 56 px rail (useSidebarCollapsed). Every way out of the page — sidebar and breadcrumb links, the palette,
  * « Mon compte » and « Se déconnecter » — goes through the unsaved-changes guard (Task 2.3).
  * The palette and the sheet give focus back to where it was when they close. A detail page names
  * itself in the breadcrumb through `useShellCrumb` (ShellCrumbProvider).
  */
-export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; children: ReactNode }) {
+export function AppShell({
+  navItems,
+  searchProviders,
+  children,
+}: {
+  navItems: ShellNavItem[]
+  /** The palette's record groups: the enabled modules' providers whose permission the user holds. */
+  searchProviders?: readonly ModuleSearchProvider[]
+  children: ReactNode
+}) {
   const { signOut } = useAuth()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -270,6 +280,7 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
           pages={palettePages}
+          searchProviders={searchProviders}
           onSelect={choosePalettePage}
           onCloseAutoFocus={onPaletteClosed}
           contentRef={paletteRef}

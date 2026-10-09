@@ -5919,6 +5919,19 @@ export type Database = {
         }
         Returns: string
       }
+      search_professionals: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          display_status: string
+          first_name: string
+          id: string
+          last_name: string
+          licence_number: string
+          order_acronym: string
+          status: string
+          title_label: string
+        }[]
+      }
       set_bank_details: {
         Args: {
           p_account_number: string
