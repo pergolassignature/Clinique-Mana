@@ -1,7 +1,16 @@
 import { t } from '@/i18n'
 import type { ReadinessItemKey, ReadinessMissing, ReadinessWarning, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
-import { invitationState, onboardingActionLabel, onboardingActions, shortDate, type InviteAction } from './onboarding'
+import {
+  emailFailureReason,
+  invitationEmail,
+  invitationState,
+  onboardingActionLabel,
+  onboardingActions,
+  shortDate,
+  unknownEmailOutcome,
+  type InviteAction,
+} from './onboarding'
 import { activationLabel, statusActions } from './status-actions'
 
 /** « Profil de jumelage complet ». */
@@ -58,17 +67,21 @@ export type ContractProgress = { kind: 'to_send' } | { kind: 'awaiting'; name: s
 
 /**
  * The button of « Prochaine action »: a link to a tab (the one that fixes a gap, or the review's),
- * the activation dialog, or the invitation's confirmation (`InvitationDialog`).
+ * the activation dialog, the invitation's confirmation (`InvitationDialog`), or « Copier le lien
+ * d'invitation » (`CopyInvitationLinkDialog`, P4-491).
  */
 export type NextActionButton =
   | { kind: 'tab'; label: string; tab: RecordTab }
   | { kind: 'activate'; label: string }
   | { kind: 'invite'; label: string; action: InviteAction }
+  | { kind: 'copyLink'; label: string }
 
 export interface NextAction {
   message: string
   /** At most one small outline button, only when the user may do what it leads to. */
   action: NextActionButton | null
+  /** A second button, beside it: « Copier le lien d'invitation » when the email did not leave. */
+  secondary?: NextActionButton | null
 }
 
 type NextActionSubject = Pick<ProfessionalRecord, 'professional' | 'readiness'>
@@ -87,7 +100,9 @@ const N = 'modules.professionals.readiness.nextAction'
  *    invitation left with the creation);
  * 5. no account and no live link: « Envoyer l'invitation » (never invited, the link revoked, or
  *    used by an account that has since been removed: each says which);
- * 6. waiting for the professional: the link sent (or opened), or the questionnaire being filled in;
+ * 6. waiting for the professional: the link sent (or opened, or copied), or the questionnaire being
+ *    filled in; a link whose email did not leave says so and why, with « Renvoyer l'invitation »
+ *    and « Copier le lien d'invitation » (P4-490); an unknown outcome says « Résultat inconnu »;
  * 7. only the service contract left (4d.3): « Contrat de service à envoyer » or « En attente de la
  *    signature de … » (`contract`), else both in one sentence; « Voir le contrat » (Documents);
  * 8. a complete file: « Activer » (the header's dialog, P4-74), or nothing to do once active.
@@ -116,7 +131,7 @@ export function nextAction(
   }
   if (professional.status === 'inactive') return readinessStep(record, can) ?? activationStep(record, can)
 
-  const { invite } = onboardingActions(professional, onboarding, can, now)
+  const { invite, copyLink } = onboardingActions(professional, onboarding, can, now)
   const inviteButton: NextActionButton | null = invite ? { kind: 'invite', label: onboardingActionLabel(invite), action: invite } : null
   const invitation = onboarding?.invitation ?? null
   // As of `now`: a link past its expiry reads expired before the next refetch.
@@ -135,12 +150,29 @@ export function nextAction(
   }
   if (noAccount && !invitation) return { message: t(`${N}.notInvited`, { firstName }), action: inviteButton }
   if (noAccount && invitation) {
-    return {
-      message:
-        state === 'opened' && invitation.openedAt
-          ? t(`${N}.invitationOpened`, { firstName, date: shortDate(invitation.openedAt, now) })
-          : t(`${N}.invitationSent`, { firstName, date: shortDate(invitation.sentAt, now) }),
-      action: null,
+    const date = shortDate(invitation.sentAt, now)
+    if (state === 'opened' && invitation.openedAt) {
+      return { message: t(`${N}.invitationOpened`, { firstName, date: shortDate(invitation.openedAt, now) }), action: null }
+    }
+    const email = invitationEmail(invitation, now)
+    const copyButton: NextActionButton | null = copyLink ? { kind: 'copyLink', label: onboardingActionLabel('copyLink') } : null
+    switch (email.kind) {
+      case 'copied':
+        return { message: t(`${N}.invitationCopied`, { firstName, date }), action: null }
+      case 'pending':
+        return { message: t(`${N}.invitationSending`, { firstName }), action: null }
+      case 'unknown': {
+        const { label, detail } = unknownEmailOutcome()
+        return { message: t(`${N}.invitationUnknown`, { firstName, date, outcome: label, detail }), action: null, secondary: copyButton }
+      }
+      case 'failed':
+        return {
+          message: `${t(`${N}.invitationNotSent`, { firstName, date })} ${emailFailureReason(email.reason)}`,
+          action: inviteButton,
+          secondary: copyButton,
+        }
+      case 'sent':
+        return { message: t(`${N}.invitationSent`, { firstName, date }), action: null }
     }
   }
   if (submission?.status === 'draft') {

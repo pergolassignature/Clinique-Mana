@@ -1277,6 +1277,10 @@
           "invitationUsedNoAccount": "{firstName} a créé son accès avec le lien d'invitation le {date}, mais ce compte n'existe plus.",
           "invitationSent": "Invitation envoyée le {date} : {firstName} n'a pas encore créé son accès.",
           "invitationOpened": "{firstName} a ouvert le lien d'invitation le {date}, mais n'a pas encore créé son accès.",
+          "invitationCopied": "Lien d'invitation copié le {date} : {firstName} n'a pas encore créé son accès.",
+          "invitationSending": "L'invitation de {firstName} est en cours d'envoi.",
+          "invitationNotSent": "Le courriel d'invitation du {date} n'est pas parti : {firstName} n'a pas reçu son lien.",
+          "invitationUnknown": "Invitation du {date} : {outcome}. {detail}",
           "questionnaireInProgress": "{firstName} n'a pas encore envoyé son questionnaire. Il apparaîtra ici, à réviser, dès son envoi.",
           "updateInProgress": "Une demande de mise à jour est en cours : {firstName} ne l'a pas encore envoyée.",
           "awaitingQuestionnaire": "Le questionnaire de {firstName} n'a pas encore été approuvé.",
@@ -1300,6 +1304,8 @@
         "update_to_review": "Mise à jour à réviser",
         "invitation_expired": "Invitation expirée",
         "invitation_unanswered": "Invitation sans réponse depuis {count} jours",
+        "invitation_not_sent": "Courriel d'invitation non parti",
+        "invitation_unknown": "Invitation : résultat inconnu",
         "matching_incomplete": "Profil de jumelage incomplet",
         "login_email_mismatch": "Courriel de connexion différent"
       },
@@ -1309,7 +1315,8 @@
           "resend": "Renvoyer l'invitation",
           "new_link": "Envoyer un nouveau lien",
           "revoke": "Révoquer l'invitation",
-          "requestUpdate": "Demander une mise à jour"
+          "requestUpdate": "Demander une mise à jour",
+          "copyLink": "Copier le lien d'invitation"
         },
         "sections": {
           "personal": "Renseignements personnels",
@@ -1330,7 +1337,17 @@
           "opened": "Invitation envoyée le {sent} · ouverte le {opened} · expire le {expires}",
           "expired": "Lien expiré le {expires} : envoyez un nouveau lien.",
           "used": "Invitation acceptée le {used}",
-          "revoked": "Invitation révoquée : le lien ne fonctionne plus."
+          "revoked": "Invitation révoquée : le lien ne fonctionne plus.",
+          "notSent": "Courriel d'invitation non parti · lien créé le {sent}, expire le {expires}",
+          "copied": "Lien d'invitation copié le {sent} · expire le {expires}",
+          "pending": "Envoi de l'invitation en cours · expire le {expires}",
+          "unknown": "Invitation du {sent} : {outcome} · expire le {expires}"
+        },
+        "emailFailure": {
+          "not_configured": "La clinique n'a pas encore configuré l'envoi de courriels (Paramètres → Courriels).",
+          "refused": "L'adresse a refusé le courriel.",
+          "rate_limited": "La limite d'envoi de courriels était atteinte.",
+          "other": "L'envoi a échoué."
         },
         "questionnaire": {
           "afterInvitation": "S'ouvre quand l'invitation est acceptée.",
@@ -1346,15 +1363,15 @@
           },
           "resend": {
             "title": "Renvoyer l'invitation à {name} ?",
-            "body": "Un nouveau lien sera envoyé à {email}. Le lien envoyé le {sent} ne fonctionnera plus."
+            "body": "Un nouveau lien sera envoyé à {email}. Le lien du {sent} ne fonctionnera plus."
           },
           "new_link": {
             "title": "Envoyer un nouveau lien à {name} ?",
-            "body": "Le lien envoyé le {sent} a expiré le {expires} : un nouveau lien sera envoyé à {email}."
+            "body": "Le lien du {sent} a expiré le {expires} : un nouveau lien sera envoyé à {email}."
           },
           "revoke": {
             "title": "Révoquer l'invitation de {name} ?",
-            "body": "Le lien envoyé à {email} ne fonctionnera plus.",
+            "body": "Le lien d'invitation de {firstName} ne fonctionnera plus.",
           "closesQuestionnaire": "Le questionnaire envoyé sera fermé sans être appliqué.",
           "inviteAgain": "Vous pourrez inviter {firstName} de nouveau.",
             "backToDraft": "Le dossier redeviendra « À inviter »."
@@ -1363,6 +1380,20 @@
           "validForOther": "Le lien sera valide {count} jours.",
           "sending": "Envoi…",
           "revoking": "Révocation…"
+        },
+        "copyLink": {
+          "title": "Copier le lien d'invitation de {name} ?",
+          "body": "Un nouveau lien sera créé pour {firstName}, sans courriel : vous le lui transmettez vous-même (texto, votre propre courriel…).",
+          "previous": "Le lien du {sent} ne fonctionnera plus.",
+          "confirm": "Créer le lien",
+          "creating": "Création…",
+          "readyTitle": "Lien d'invitation de {name}",
+          "warning": "Ce lien permet de créer l'accès de {firstName}. Ne le transmettez qu'à cette personne. Il expire le {date}.",
+          "once": "Le lien ne sera plus affiché une fois cette fenêtre fermée : pour en obtenir un autre, créez-en un nouveau.",
+          "label": "Lien d'invitation",
+          "copy": "Copier",
+          "copied": "Lien copié",
+          "copyFailed": "La copie n'a pas fonctionné : sélectionnez le lien et copiez-le vous-même."
         },
         "requestUpdate": {
           "title": "Demander une mise à jour à {name}",
@@ -1375,13 +1406,13 @@
         "toasts": {
           "sent": "Invitation envoyée à {email}.",
           "sentExpires": "Invitation envoyée à {email}. Le lien expire le {date}.",
-          "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé.",
+          "createdNotSent": "Le lien d'invitation a été créé, mais le courriel n'est pas parti.",
           "revoked": "Invitation révoquée. Le lien ne fonctionne plus.",
           "updateSent": "Demande de mise à jour envoyée à {email}.",
           "updateNotSent": "Demande créée, mais le courriel n'a pas pu être envoyé."
         },
         "emailProblems": {
-          "not_configured": "L'envoi de courriels n'est pas encore configuré pour la clinique.",
+          "not_configured": "La clinique n'a pas encore configuré l'envoi de courriels (Paramètres → Courriels).",
           "rate_limited": "Limite d'envoi de courriels atteinte.",
           "provider_error": "Le service d'envoi n'a pas répondu.",
           "invalid_request": "Le service d'envoi a refusé cette adresse. Corrigez-la dans l'onglet « Identité et permis », puis utilisez « Envoyer l'invitation ».",
@@ -1391,6 +1422,7 @@
         },
         "emailAdvice": {
           "invitation": "Utilisez « Renvoyer l'invitation » dans un moment.",
+          "copyLink": "Pour le transmettre autrement (texto, votre propre courriel), utilisez « Copier le lien d'invitation ».",
           "update": "La demande reste ouverte : dites à {firstName} qu'une mise à jour l'attend dans son questionnaire."
         },
         "errors": {
@@ -1400,6 +1432,7 @@
           "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
           "unavailable": "Le service est momentanément indisponible. Réessayez dans un instant.",
           "sendFailed": "L'invitation n'a pas pu être envoyée. Réessayez dans un instant.",
+          "copyFailed": "Le lien d'invitation n'a pas pu être créé. Réessayez dans un instant.",
           "revokeFailed": "L'invitation n'a pas pu être révoquée. Réessayez dans un instant.",
           "updateFailed": "La demande de mise à jour n'a pas pu être envoyée. Réessayez dans un instant."
         }
@@ -1867,6 +1900,7 @@
             "created": "a créé le profil de jumelage",
             "deleted": "a supprimé le profil de jumelage"
           },
+          "invitationLinkCopied": "a copié le lien d'invitation (sans courriel)",
           "matchingNote": {
             "added": "a ajouté la note Bon à savoir",
             "changed": "a modifié la note Bon à savoir",

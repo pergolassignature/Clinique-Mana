@@ -323,14 +323,38 @@ export type MyProfessionalRecord = NonNullable<z.output<typeof myRecordPayload>>
 
 // --- Onboarding (get_professional_onboarding, list_professional_invitation_states) ---------------
 
-/** The invitation link that matters (A2.5): its state and times (timestamps, clinic timezone for display). */
+/**
+ * The invitation link that matters (A2.5): its state and times (timestamps, clinic timezone for
+ * display), and how it was handed over (P4-490): `email` with its latest invitation email
+ * (`email_log`'s status and error code, or, with no email row, the failure the function met before
+ * queueing it), or `copied` (« Copier le lien d'invitation », no email). `lib/onboarding.ts`
+ * `invitationEmail` reads them: never « envoyée » without an email.
+ */
 export interface InvitationInfo {
   state: (typeof INVITATION_STATES)[number]
   sentAt: string
   expiresAt: string
   openedAt: string | null
   usedAt: string | null
+  delivery: (typeof INVITATION_DELIVERIES)[number]
+  emailStatus: string | null
+  emailError: string | null
 }
+
+/** `professional_invitation_deliveries.method`. */
+export const INVITATION_DELIVERIES = ['email', 'copied'] as const
+
+/** The delivery columns (absent from a database older than P4-490: an emailed link without news). */
+const deliveryShape = {
+  delivery: z.enum(INVITATION_DELIVERIES).nullish(),
+  email_status: z.string().nullish(),
+  email_error: z.string().nullish(),
+}
+const deliveryOf = (r: { delivery?: (typeof INVITATION_DELIVERIES)[number] | null; email_status?: string | null; email_error?: string | null }) => ({
+  delivery: r.delivery ?? 'email',
+  emailStatus: r.email_status ?? null,
+  emailError: r.email_error ?? null,
+})
 
 /** The file's open submission (at most one): the onboarding questionnaire or an update request. */
 export interface OpenSubmission {
@@ -358,8 +382,9 @@ const invitationPayload = z
     expires_at: z.string(),
     opened_at: z.string().nullable(),
     used_at: z.string().nullable(),
+    ...deliveryShape,
   })
-  .transform((r): InvitationInfo => ({ state: r.state, sentAt: r.sent_at, expiresAt: r.expires_at, openedAt: r.opened_at, usedAt: r.used_at }))
+  .transform((r): InvitationInfo => ({ state: r.state, sentAt: r.sent_at, expiresAt: r.expires_at, openedAt: r.opened_at, usedAt: r.used_at, ...deliveryOf(r) }))
 
 const openSubmissionPayload = z
   .object({ id: z.string(), kind: z.enum(SUBMISSION_KINDS), status: z.enum(OPEN_SUBMISSION_STATUSES), submitted_at: z.string().nullable() })
@@ -389,13 +414,14 @@ export const invitationStateRowPayload = z
     submission_status: z.enum(OPEN_SUBMISSION_STATUSES).nullable(),
     submitted_at: z.string().nullable(),
     onboarding_approved: z.boolean(),
+    ...deliveryShape,
   })
   .transform((r): { professionalId: string; onboarding: Onboarding } => ({
     professionalId: r.professional_id,
     onboarding: {
       invitation:
         r.state && r.sent_at && r.expires_at
-          ? { state: r.state, sentAt: r.sent_at, expiresAt: r.expires_at, openedAt: r.opened_at, usedAt: r.used_at }
+          ? { state: r.state, sentAt: r.sent_at, expiresAt: r.expires_at, openedAt: r.opened_at, usedAt: r.used_at, ...deliveryOf(r) }
           : null,
       submission:
         r.submission_id && r.submission_kind && r.submission_status

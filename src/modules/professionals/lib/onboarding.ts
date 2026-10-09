@@ -1,5 +1,6 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { t } from '@/i18n'
+import { emailStatusLabel } from '@/core/email/status'
 import { formatInClinicTimezone, getClinicDateString } from '@/shared/lib/timezone'
 import type { InvitationInfo, Onboarding, Professional } from '../api/parse'
 import type { DisplayStatus, InvitationState, ProfessionalStatus, SubmissionSection } from './constants'
@@ -42,6 +43,55 @@ export function isLiveInvitation(invitation: InvitationInfo | null | undefined, 
 }
 
 /**
+ * Where the link's handover stands (P4-490), so that no screen says « envoyée » for an email that
+ * did not leave:
+ * - `copied`: « Copier le lien d'invitation » (P4-491), no email expected;
+ * - `sent`: its invitation (or reminder) email was queued, sent or delivered (« complained »: it
+ *   arrived);
+ * - `unknown`: `failed` + `provider_unavailable`, « Résultat inconnu » (`emailStatusLabel`);
+ * - `failed`: bounced, failed, or never queued (the function's stamp: `not_configured`, …); also
+ *   no email at all once EMAIL_PENDING_MS have passed (the function never finished);
+ * - `pending`: no email yet, the link issued less than EMAIL_PENDING_MS ago (the send is running).
+ */
+export type InvitationEmail =
+  | { kind: 'copied' | 'sent' | 'unknown' | 'pending' }
+  | { kind: 'failed'; reason: InvitationEmailFailure }
+export type InvitationEmailFailure = 'not_configured' | 'refused' | 'rate_limited' | 'other'
+
+/** How long a link may wait for its email before it reads « pas parti ». */
+export const EMAIL_PENDING_MS = 2 * 60_000
+
+const SENT_STATUSES: ReadonlySet<string> = new Set(['queued', 'sent', 'delivered', 'delivery_delayed', 'complained'])
+
+/** The link's handover at `now` (see InvitationEmail). */
+export function invitationEmail(invitation: InvitationInfo, now: number = Date.now()): InvitationEmail {
+  if (invitation.delivery === 'copied') return { kind: 'copied' }
+  const { emailStatus: status, emailError: code } = invitation
+  if (status !== null) {
+    if (SENT_STATUSES.has(status)) return { kind: 'sent' }
+    if (status === 'failed' && code === 'provider_unavailable') return { kind: 'unknown' }
+    if (status === 'bounced' || code === 'invalid_recipient') return { kind: 'failed', reason: 'refused' }
+    return status === 'failed' ? { kind: 'failed', reason: 'other' } : { kind: 'unknown' }
+  }
+  if (code === 'not_configured' || code === 'module_disabled') return { kind: 'failed', reason: 'not_configured' }
+  if (code === 'invalid_recipient') return { kind: 'failed', reason: 'refused' }
+  if (code === 'rate_limited') return { kind: 'failed', reason: 'rate_limited' }
+  if (code !== null) return { kind: 'failed', reason: 'other' }
+  return now - Date.parse(invitation.sentAt) < EMAIL_PENDING_MS ? { kind: 'pending' } : { kind: 'failed', reason: 'other' }
+}
+
+/** Why the email did not leave, in one plain sentence (« La clinique n'a pas encore configuré … »). */
+export function emailFailureReason(reason: InvitationEmailFailure): string {
+  return t(`${O}.emailFailure.${reason}`)
+}
+
+/** « Résultat inconnu » and its hint, as every email status reads (`emailStatusLabel`). */
+export function unknownEmailOutcome(): { label: string; detail: string } {
+  const { label, detail } = emailStatusLabel('failed', 'provider_unavailable')
+  return { label, detail: detail ?? '' }
+}
+
+/**
  * The three ways to email a link (P4-260: each issues a new link and revokes the previous one):
  * a first invitation (or after a revocation), again while the link works, or after it expired.
  */
@@ -55,9 +105,11 @@ export interface OnboardingActions {
   revoke: boolean
   /** « Demander une mise à jour »: an account, and no submission open (one at a time). */
   requestUpdate: boolean
+  /** « Copier le lien d'invitation » (P4-491): whenever an invitation can be sent (no account yet). */
+  copyLink: boolean
 }
 
-const NO_ACTIONS: OnboardingActions = { invite: null, revoke: false, requestUpdate: false }
+const NO_ACTIONS: OnboardingActions = { invite: null, revoke: false, requestUpdate: false, copyLink: false }
 
 /**
  * What the record offers, as `professionals-invite` allows it (`professionals.invite`): nothing
@@ -71,14 +123,14 @@ export function onboardingActions(
   now: number = Date.now(),
 ): OnboardingActions {
   if (!can('professionals.invite') || professional.status === 'inactive') return NO_ACTIONS
-  if (professional.profileId !== null) return { invite: null, revoke: false, requestUpdate: !onboarding?.submission }
+  if (professional.profileId !== null) return { invite: null, revoke: false, requestUpdate: !onboarding?.submission, copyLink: false }
   const state = invitationState(onboarding?.invitation, now)
-  if (state === 'sent' || state === 'opened') return { invite: 'resend', revoke: true, requestUpdate: false }
-  return { invite: state === 'expired' ? 'new_link' : 'send', revoke: false, requestUpdate: false }
+  if (state === 'sent' || state === 'opened') return { invite: 'resend', revoke: true, requestUpdate: false, copyLink: true }
+  return { invite: state === 'expired' ? 'new_link' : 'send', revoke: false, requestUpdate: false, copyLink: true }
 }
 
 /** The menu's and the buttons' words: they say exactly what the click does. */
-export function onboardingActionLabel(action: InviteAction | 'revoke' | 'requestUpdate'): string {
+export function onboardingActionLabel(action: InviteAction | 'revoke' | 'requestUpdate' | 'copyLink'): string {
   return t(`${O}.actions.${action}`)
 }
 
@@ -105,14 +157,19 @@ export function clinicDaysSince(iso: string, now: number): number {
  * The invitation in one line (A2.5), for Aperçu: « Invitation envoyée le 8 oct. · ouverte le 9 oct.
  * · expire le 15 oct. », « Lien expiré le 15 oct. : envoyez un nouveau lien. », « Invitation
  * acceptée le 9 oct. », « Invitation révoquée : le lien ne fonctionne plus. », or « Aucune
- * invitation envoyée. ».
+ * invitation envoyée. ». A link not yet opened says how it was handed over (P4-490): « Lien copié
+ * le … », « Courriel d'invitation non parti … », « Envoi en cours », « Résultat inconnu ».
  */
 export function invitationLine(invitation: InvitationInfo | null, now: number): string {
   if (!invitation) return t(`${O}.invitation.none`)
   const d = (iso: string) => shortDate(iso, now)
   switch (invitationState(invitation, now) ?? invitation.state) {
-    case 'sent':
-      return t(`${O}.invitation.sent`, { sent: d(invitation.sentAt), expires: d(invitation.expiresAt) })
+    case 'sent': {
+      const values = { sent: d(invitation.sentAt), expires: d(invitation.expiresAt) }
+      const email = invitationEmail(invitation, now)
+      if (email.kind === 'unknown') return t(`${O}.invitation.unknown`, { ...values, outcome: unknownEmailOutcome().label })
+      return t(`${O}.invitation.${email.kind === 'sent' ? 'sent' : email.kind === 'failed' ? 'notSent' : email.kind}`, values)
+    }
     case 'opened':
       return t(`${O}.invitation.opened`, {
         sent: d(invitation.sentAt),

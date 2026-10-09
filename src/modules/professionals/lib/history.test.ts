@@ -689,6 +689,16 @@ describe('history — emails in the timeline (Task 4b.3)', () => {
   })
 })
 
+describe('history — the invitation link copied (P4-491)', () => {
+  const delivery = (action: HistoryEntry['action'], fields: Record<string, unknown>) => row('professional_invitation_deliveries', action, fields)
+
+  it('a copy is an event; an emailed link and a stamped failure are not (the emails have their own timeline)', () => {
+    expect(only([delivery('insert', { method: 'copied', link_id: 'l1' })]).sentence).toBe("a copié le lien d'invitation (sans courriel)")
+    expect(events([delivery('insert', { method: 'email', link_id: 'l2' })])).toEqual([])
+    expect(events([delivery('update', { email_failure: { before: null, after: 'not_configured' } })])).toEqual([])
+  })
+})
+
 describe('history — the questionnaire (Task 4b.3)', () => {
   const S = 'modules.professionals.history.sentences.submission'
   const submission = (action: HistoryEntry['action'], fields: Record<string, unknown>) => row('professional_submissions', action, fields)

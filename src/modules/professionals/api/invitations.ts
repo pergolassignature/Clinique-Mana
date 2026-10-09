@@ -8,8 +8,9 @@ import { invitationStateRowPayload, onboardingPayload, parseRpc, UNEXPECTED_SHAP
 
 /**
  * The onboarding of a file (Task 4b.3): its states (4b.1's read RPCs) and the actions, all through
- * `professionals-invite` (4b.2): the browser never sees an invitation token, and never learns the
- * link (P4-260). Throws a function's refusal as the RPC error it passes on (`{ code: 'P0001',
+ * `professionals-invite` (4b.2). The browser sees an invitation link only from « Copier le lien
+ * d'invitation » (P4-491, Jonathan reverses P4-260): once, in that answer, kept in the dialog's
+ * state and never cached. Throws a function's refusal as the RPC error it passes on (`{ code: 'P0001',
  * message, hint }`), so `moduleErrorMessage` and `rpcErrorHint` read it as for an RPC called
  * directly; anything else stays a `FunctionCallError`.
  */
@@ -45,6 +46,13 @@ const createdId = (error: unknown, key: 'professional_id' | 'submission_id'): st
 const problemOf = (error: FunctionCallError): EmailProblem => ({ code: error.code, retryAfter: error.retryAfter })
 
 const invitationAnswer = z.object({ ok: z.literal(true), expires_at: z.string() })
+const copyAnswer = z.object({ ok: z.literal(true), url: z.string().startsWith('http'), expires_at: z.string() })
+
+/** « Copier le lien d'invitation »: the new link (the previous one revoked, no email) and its expiry. */
+export interface CopiedInvitationLink {
+  url: string
+  expiresAt: string
+}
 const updateAnswer = z.object({ ok: z.literal(true), submission_id: z.string() })
 
 /**
@@ -60,6 +68,20 @@ export async function sendProfessionalInvitation(id: string, action: InviteActio
     return { expiresAt: answer.data.expires_at, emailProblem: null }
   } catch (error) {
     if (createdId(error, 'professional_id') && error instanceof FunctionCallError) return { expiresAt: null, emailProblem: problemOf(error) }
+    throw asRpcRefusal(error)
+  }
+}
+
+/**
+ * « Copier le lien d'invitation » (P4-491): a new link for the file, the live one revoked, no email.
+ * The URL is returned once; the caller keeps it in component state only (never a query cache).
+ */
+export async function copyProfessionalInvitationLink(id: string): Promise<CopiedInvitationLink> {
+  try {
+    const answer = copyAnswer.safeParse(await invokeFunction(FUNCTION, { action: 'copy_link', professional_id: id }))
+    if (!answer.success) throw new Error(UNEXPECTED_SHAPE)
+    return { url: answer.data.url, expiresAt: answer.data.expires_at }
+  } catch (error) {
     throw asRpcRefusal(error)
   }
 }
