@@ -29,14 +29,17 @@ export interface FicheRequest {
   fees: readonly PublicFee[]
   /** The clinic's render options (Paramètres → Fiche PDF, P4-353). */
   options: FicheOptions
+  /** The professional's photo (the newest verified one, P4-202); null or unreadable → the initials. */
+  photoFileId?: string | null
 }
 
 /** Renders the fiche as a PDF Blob, in the browser. */
-export async function renderFichePdf({ record, catalog, titleId, organization, fees, options }: FicheRequest): Promise<Blob> {
-  const [canDraw, logo, brandLogo] = await Promise.all([
+export async function renderFichePdf({ record, catalog, titleId, organization, fees, options, photoFileId = null }: FicheRequest): Promise<Blob> {
+  const [canDraw, logo, brandLogo, photo] = await Promise.all([
     loadFicheFonts(),
     storedImageDataUrl(organization.logo_file_id),
     bundledImageDataUrl(MANA_LOGO_URL),
+    storedImageDataUrl(photoFileId),
   ])
   const content = buildFicheContent({
     record,
@@ -45,8 +48,7 @@ export async function renderFichePdf({ record, catalog, titleId, organization, f
     clinic: { name: organization.name, phone: organization.phone, email: organization.email, website: organization.website },
     logo,
     brandLogo,
-    // The photo comes with 4c's documents (P4-202).
-    photo: null,
+    photo,
     fees,
     generatedOn: formatInClinicTimezone(new Date(), 'd MMMM yyyy'),
     options,

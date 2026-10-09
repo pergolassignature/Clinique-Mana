@@ -15,6 +15,7 @@ import { fetchPublicFees, markFicheGenerated, sendFicheEmail } from '../api/fich
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
 import { ficheFileName, ficheProfession } from '../lib/fiche'
+import { documentsQuery } from './use-documents'
 import { refreshProfessionalHistory } from './use-professional-record'
 import { professionalsSettingsQuery } from './use-professionals-settings'
 
@@ -44,7 +45,7 @@ export interface FicheTarget {
  * (never one that shows what the clinic chose to hide).
  */
 export async function renderFiche(queryClient: QueryClient, { record, catalog, titleId }: FicheTarget): Promise<{ blob: Blob; fileName: string }> {
-  const [{ renderFichePdf }, organization, settings, fees] = await Promise.all([
+  const [{ renderFichePdf }, organization, settings, fees, photoFileId] = await Promise.all([
     loadRenderer(),
     // The same entry as Settings' cards: fresh for a minute, so a fiche made right after an edit of
     // the clinic's identity in another tab may wait that long to show it.
@@ -53,13 +54,19 @@ export async function renderFiche(queryClient: QueryClient, { record, catalog, t
     queryClient.fetchQuery({ ...professionalsSettingsQuery, staleTime: 60_000 }),
     // The title the content prints (two titles: the chosen one), so the fees follow it (P4-218).
     fetchPublicFees(record.professional.id, ficheProfession(record, titleId)?.titleId ?? null),
+    // The photo (P4-202): the public profile's, the newest verified one, from the Documents tab's
+    // read (cached 30 s). Unreadable → no photo: the initials take its place, never a failed fiche.
+    queryClient
+      .fetchQuery(documentsQuery(record.professional.id))
+      .then((documents) => documents?.photo?.fileId ?? null)
+      .catch(() => null),
   ])
   const options = {
     showProContact: settings.ficheShowProContact,
     showClinicFooter: settings.ficheShowClinicFooter,
     showClosing: settings.ficheShowClosing,
   }
-  const blob = await renderFichePdf({ record, catalog, titleId, organization, fees, options })
+  const blob = await renderFichePdf({ record, catalog, titleId, organization, fees, options, photoFileId })
   return { blob, fileName: ficheFileName(record.professional) }
 }
 
