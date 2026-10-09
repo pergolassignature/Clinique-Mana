@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { withoutControlChars } from '@/core/settings/organization/schemas'
+import { withoutControlChars } from '@/shared/lib/field-schemas'
 import type { SigningSettings } from './api'
 
 /**

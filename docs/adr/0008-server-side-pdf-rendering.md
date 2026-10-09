@@ -38,6 +38,8 @@ Contracts (sent to Documenso) and the Phase 4c fiche must be rendered on the ser
 | Vendored module | `vendor/pdfmake.js` 1.18 MB; `fonts.ts` 346 KB |
 
 ## Decision
+> **Scope (amended 2026-10-08, P4-58):** this renderer is for documents sent to Documenso (contracts). The professional's fiche follows PS Hub's base instead: `@react-pdf/renderer` in the browser (professionals plan, Task 4c.5).
+
 **Adopt pdfmake 0.3.11.** Every criterion passed in the spike, and still holds as built: (a) the one missing glyph, U+202F, is mapped to U+00A0 (fr-CA `Intl` produces U+00A0 anyway); (b) warm 153 ms, worst cold render 246 ms; (c) 2.18 MB uploaded; (d) deterministic.
 - **Vendored, not an npm import.** pdfmake is **not** in `supabase/functions/deno.json` or `deno.lock`. The spike showed that the edge-runtime bundler embeds every npm package of the shared lock in **every** function, so a function that only used supabase-js went from 0.93 to 7.37 MB uploaded. Instead:
   - `npm run build:pdfmake` (`scripts/build-pdfmake.ts`) pre-bundles pdfmake's Node build into one minified ES module, `_shared/pdf/vendor/pdfmake.js`, with `deno bundle --minify`. The npm resolution is pinned by `scripts/build-pdfmake.lock` (`--frozen`), and the output is byte-identical to the npm build.

@@ -294,6 +294,8 @@ Reference lists are **per clinic** (D3). A trigger on `organizations` insert see
 
 ### 3.6 Compensation and the programme de reconnaissance
 
+> **Superseded (2026-10-08):** the clinic's program replaced this model: retention grids per profession, cumulative sessions, dated applied rates and client agreements. See the plan's « The retention program » (P4-180–P4-194). The text below is the original design.
+
 Legacy contract clause 3.1 sets the clinic's share as a % of fees by service type, and clause 3.5 defines the recognition program:
 - « 0,50 $/50 min et 0,25 $/30 min pour chaque tranche de 50 rendez-vous réalisés jusqu'à concurrence de 25 % »;
 - 3.5.1: a demarche ended after the first session does not count;

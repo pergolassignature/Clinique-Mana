@@ -10,6 +10,7 @@ import {
   lastDocumensoEventAt,
   lastSigningTest,
   listDocumentTemplates,
+  listUnverifiedSignatureRequests,
   sendSigningTestDocument,
   setSigningSettings,
   syncSignatureRequest,
@@ -25,6 +26,7 @@ export const signingKeys = {
   lastEvent: () => [...signingKeys.all, 'last-event', 'documenso'] as const,
   lastTest: (userId: string) => [...signingKeys.all, 'last-test', userId] as const,
   templates: () => [...signingKeys.all, 'templates'] as const,
+  unverified: () => [...signingKeys.all, 'unverified'] as const,
 }
 
 /** The address and expiry. Fresh for a minute, so a refetch does not re-sync a card being typed in. */
@@ -67,6 +69,15 @@ export function useLastDocumensoEvent() {
 export function useLastSigningTest(enabled: boolean) {
   const { user_id: userId } = useReadyAccess()
   return useQuery({ queryKey: signingKeys.lastTest(userId), queryFn: () => lastSigningTest(userId), enabled, staleTime: 0 })
+}
+
+/**
+ * The requests no read reaches (« Demandes non vérifiées »). Only with
+ * `settings.integrations_manage` (`enabled`): the RPC refuses anyone else. Refetched on focus and
+ * after « Actualiser l'état » (it invalidates `all`).
+ */
+export function useUnverifiedSignatureRequests(enabled: boolean) {
+  return useQuery({ queryKey: signingKeys.unverified(), queryFn: listUnverifiedSignatureRequests, enabled, staleTime: 0 })
 }
 
 /** The document templates (« Modèles de documents »). */

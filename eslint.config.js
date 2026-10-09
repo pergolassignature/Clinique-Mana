@@ -63,16 +63,32 @@ const ENTRY_FILES = {
     'src/shared/ui/read-only-context.ts',
     'src/shared/ui/sonner.tsx',
   ],
-  app: ['src/app/App.tsx', 'src/app/modules.ts', 'src/app/public-pages.ts', 'src/app/route-preload.ts'],
+  app: ['src/app/App.tsx', 'src/app/modules.ts', 'src/app/public-pages.ts', 'src/app/query-client.ts', 'src/app/route-preload.ts'],
   // A module's public index and manifest are read at boot (ALL_MODULES); its pages are lazy.
   modules: ['src/modules/*/index.ts', 'src/modules/*/manifest.ts'],
   other: ['src/main.tsx', 'src/i18n/index.ts'],
 }
 const restrict = (...patternSets) => ({ 'no-restricted-imports': ['error', { patterns: patternSets.flat() }] })
+
+// The PDF renderer (react-pdf, its fonts) is a chunk of its own, loaded on demand (P4-58): only
+// the professionals module's `pdf/` folder imports it, and other files reach that folder through a
+// dynamic import() (or a type-only import), never a static one that would pull it into their chunk.
+const PDF_MESSAGE = 'The PDF renderer loads on demand: import @react-pdf only inside src/modules/professionals/pdf/, and that folder only with import() or `import type`.'
+const PDF_RESTRICTIONS = {
+  '@typescript-eslint/no-restricted-imports': [
+    'error',
+    {
+      patterns: [
+        { group: ['@react-pdf/*'], message: PDF_MESSAGE },
+        { regex: '(^|/)pdf/', allowTypeImports: true, message: PDF_MESSAGE },
+      ],
+    },
+  ],
+}
 const TESTS = ['**/*.test.{ts,tsx}']
 
 export default tseslint.config(
-  { ignores: ['dist', '_legacy', 'supabase/functions', 'src/core/supabase/database.types.ts'] },
+  { ignores: ['dist', '_legacy', 'supabase/functions', 'src/core/supabase/database.types.ts', 'playwright-report', 'test-results'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
@@ -83,6 +99,19 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
+  },
+  // Node scripts (scripts/*.mjs, with their Vitest tests): plain JavaScript, Node globals.
+  {
+    files: ['scripts/**/*.mjs'],
+    ...js.configs.recommended,
+    languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: globals.node },
+  },
+  // Playwright runs in Node, not in the browser.
+  {
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    languageOptions: { globals: globals.node },
+    // A fixture's `use(value)` is Playwright's, not React's `use` hook.
+    rules: { 'react-hooks/rules-of-hooks': 'off' },
   },
   // shadcn primitives export their variants (buttonVariants, badgeVariants, toast) next to the component.
   {
@@ -110,4 +139,5 @@ export default tseslint.config(
   { files: ENTRY_FILES.app, ignores: TESTS, rules: restrict(APP_LAYERS, ENTRY_RESTRICTIONS) },
   { files: ENTRY_FILES.modules, ignores: TESTS, rules: restrict(MODULE_LAYERS, ENTRY_RESTRICTIONS) },
   { files: ENTRY_FILES.other, ignores: TESTS, rules: restrict(ENTRY_RESTRICTIONS) },
+  { files: ['src/**/*.{ts,tsx}'], ignores: ['src/modules/professionals/pdf/**', ...TESTS], rules: PDF_RESTRICTIONS },
 )

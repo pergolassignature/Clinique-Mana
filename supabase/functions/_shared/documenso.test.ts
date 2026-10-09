@@ -1034,6 +1034,52 @@ Deno.test('get: another envelope in the answer than the one asked → provider_e
   assertEquals([error.code, error.status], ['provider_error', 200])
 })
 
+Deno.test('unusableRead: true only for a 2xx to an envelope read that is no envelope (a page, another envelope, over 1 MB), never for a download or a create', async () => {
+  const page = () =>
+    new Response('<html>Bienvenue</html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    })
+  for (
+    const responder of [
+      page,
+      json(200, envelopeBody({ id: 'envelope_aaaaaaaaaaaaaaab' })),
+      json(200, envelopeBody({ status: 'ARCHIVED' })),
+    ]
+  ) {
+    const { fetch } = fakeFetch({ [GET_E]: responder })
+    const error = await assertRejects(
+      () => client(fetch).get(E),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status, error.unusableRead], [
+      'provider_error',
+      200,
+      true,
+    ])
+  }
+  const notPdf = fakeFetch({ [DOWNLOAD]: page })
+  const download = await assertRejects(
+    () => client(notPdf.fetch).downloadSigned(E, ITEM),
+    DocumensoError,
+  )
+  assertEquals([download.status, download.unusableRead], [200, false])
+  const created = fakeFetch({ [CREATE]: page })
+  const create = await assertRejects(
+    () => client(created.fetch).createEnvelope(PDF, input()),
+    DocumensoError,
+  )
+  assertEquals([create.status, create.unusableRead], [200, false])
+  const missing = fakeFetch({
+    [GET_E]: json(404, { message: 'Envelope not found', code: 'NOT_FOUND' }),
+  })
+  const gone = await assertRejects(
+    () => client(missing.fetch).get(E),
+    DocumensoError,
+  )
+  assertEquals(gone.unusableRead, false)
+})
+
 Deno.test("get: notFound is true only for a 404 with Documenso's NOT_FOUND body (E-14)", async () => {
   const cases = [
     [

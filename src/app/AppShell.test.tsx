@@ -10,10 +10,11 @@ import type { Access } from '@/core/access/access'
 import type { AuthContextValue } from '@/core/auth/auth-context'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { AppShell, type ShellNavItem } from './AppShell'
-import { SIDEBAR_COLLAPSED_KEY } from './shell/use-sidebar-collapsed'
+import { SIDEBAR_COLLAPSED_KEY, TABLET_QUERY } from './shell/use-sidebar-collapsed'
 
 const mocks = vi.hoisted(() => ({ fetchOrgRoles: vi.fn() }))
 // The topbar bell (and Accueil) read the caller's notices: none here, and no network.
@@ -49,15 +50,31 @@ function DirtyForm() {
   return null
 }
 
+/** A detail page naming itself in the breadcrumb, inside a layout that sets its own title. */
+function DetailPage({ name }: { name: string }) {
+  usePageTitle(name, { crumb: true })
+  return null
+}
+function Layout({ children }: { children: ReactNode }) {
+  usePageTitle(t('modules.professionals.name'))
+  return children
+}
+
 const shellAt = (
   path: string,
-  { dirty = false, auth = {}, access = assistant }: { dirty?: boolean; auth?: Partial<AuthContextValue>; access?: Access } = {},
+  {
+    dirty = false,
+    auth = {},
+    access = assistant,
+    page = null,
+  }: { dirty?: boolean; auth?: Partial<AuthContextValue>; access?: Access; page?: ReactNode } = {},
 ) =>
   renderWithContexts(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <UnsavedChangesProvider>
         <AppShell navItems={navItems}>
           {dirty && <DirtyForm />}
+          {page}
           <Location />
           <button type="button">Bouton de la page</button>
         </AppShell>
@@ -209,6 +226,56 @@ describe('AppShell — sidebar', () => {
     await userEvent.click(screen.getByRole('button', { name: t('nav.collapse') }))
     expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
   })
+
+  // jsdom has no matchMedia: a viewport answering the hook's tablet query (md to lg).
+  describe('on a tablet', () => {
+    let tablet = true
+    const listeners = new Set<() => void>()
+    const resize = (toTablet: boolean) => {
+      tablet = toTablet
+      act(() => listeners.forEach((listener) => listener()))
+    }
+    beforeEach(() => {
+      tablet = true
+      listeners.clear()
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        get matches() {
+          return query === TABLET_QUERY ? tablet : false
+        },
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }))
+    })
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      localStorage.removeItem(SIDEBAR_COLLAPSED_KEY)
+    })
+
+    it('starts as the rail, whatever the desktop choice, with the links still named', () => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, 'false')
+      render(shellAt('/accueil'))
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+      expect(screen.getByRole('button', { name: t('nav.expand') })).toBeInTheDocument()
+      expect(within(mainNav()).getByRole('link', { name: t('nav.home') })).toHaveAttribute('title', t('nav.home'))
+    })
+
+    it('expands on demand without changing the desktop choice, and is the rail again after leaving the tablet range', async () => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, 'true')
+      render(shellAt('/accueil'))
+      await userEvent.click(screen.getByRole('button', { name: t('nav.expand') }))
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'false')
+      expect(localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe('true')
+
+      // Wider: the desktop choice (collapsed) applies; back to a tablet: the rail.
+      resize(false)
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+      await userEvent.click(screen.getByRole('button', { name: t('nav.expand') }))
+      expect(localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe('false')
+      resize(true)
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+    })
+  })
 })
 
 describe('AppShell — sign-out', () => {
@@ -262,6 +329,52 @@ describe('AppShell — topbar', () => {
   it('shows no title for a page it does not know', () => {
     render(shellAt('/nulle-part'))
     expect(screen.queryByRole('navigation', { name: t('nav.breadcrumb') })).not.toBeInTheDocument()
+  })
+
+  it("adds a detail page's crumb after the nav page, which links back", async () => {
+    render(shellAt('/professionnels/p1', { page: <DetailPage name="Marie Tremblay" /> }))
+    expect(await within(breadcrumb()).findByText('Marie Tremblay')).toHaveAttribute('aria-current', 'page')
+    const back = within(breadcrumb()).getByRole('link', { name: t('modules.professionals.name') })
+    expect(back).toHaveAttribute('href', '/professionnels')
+    expect(back).not.toHaveAttribute('aria-current')
+    expect(document.title).toBe('Marie Tremblay · Clinique MANA')
+  })
+
+  it('follows the crumb when the page renames itself', async () => {
+    const { rerender } = render(shellAt('/professionnels/p1', { page: <DetailPage name="Marie Tremblay" /> }))
+    await within(breadcrumb()).findByText('Marie Tremblay')
+    rerender(shellAt('/professionnels/p1', { page: <DetailPage name="Marie Roy" /> }))
+    expect(await within(breadcrumb()).findByText('Marie Roy')).toHaveAttribute('aria-current', 'page')
+    expect(within(breadcrumb()).queryByText('Marie Tremblay')).not.toBeInTheDocument()
+  })
+
+  it('clears the crumb when the detail page unmounts', async () => {
+    const { rerender } = render(shellAt('/professionnels/p1', { page: <DetailPage name="Marie Tremblay" /> }))
+    await within(breadcrumb()).findByText('Marie Tremblay')
+    rerender(shellAt('/professionnels/p1'))
+    await waitFor(() => expect(within(breadcrumb()).queryByText('Marie Tremblay')).not.toBeInTheDocument())
+    expect(within(breadcrumb()).getByText(t('modules.professionals.name'))).toHaveAttribute('aria-current', 'page')
+    expect(within(breadcrumb()).queryAllByRole('link')).toHaveLength(0)
+  })
+
+  it('keeps the crumb when a layout around the page sets only its own title', async () => {
+    render(
+      shellAt('/professionnels/p1', {
+        page: (
+          <Layout>
+            <DetailPage name="Marie Tremblay" />
+          </Layout>
+        ),
+      }),
+    )
+    expect(await within(breadcrumb()).findByText('Marie Tremblay')).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('keeps the parent link and links the sub-page when a settings detail page adds a crumb', async () => {
+    render(shellAt('/parametres/modules/x', { page: <DetailPage name="Détail" /> }))
+    expect(await within(breadcrumb()).findByText('Détail')).toHaveAttribute('aria-current', 'page')
+    expect(within(breadcrumb()).getByRole('link', { name: t('nav.settings') })).toHaveAttribute('href', '/parametres')
+    expect(within(breadcrumb()).getByRole('link', { name: t('settings.sections.modules') })).toHaveAttribute('href', '/parametres/modules')
   })
 
   it('names the user menu after the user, with the name, the role and two entries', async () => {

@@ -35,6 +35,7 @@
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "cancel": "Annuler",
+    "listFilter": { "label": "Afficher", "option": "{label} ({count})", "active": "Actifs", "archived": "Archivés", "all": "Tous" },
     "form": { "required": "(requis)" },
     "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
     "toast": { "region": "Notifications", "close": "Fermer la notification" },
@@ -48,6 +49,10 @@
       "body": "Vos modifications seront perdues.",
       "stay": "Rester",
       "leave": "Quitter sans enregistrer"
+    },
+    "star": {
+      "add": "Marquer comme spécialisé",
+      "remove": "Retirer la spécialisation"
     },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
     "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
@@ -308,9 +313,27 @@
       "failed": "Échec de l'envoi",
       "providerUnavailable": "Le service de signature n'a pas répondu.",
       "providerRefused": "Le service de signature a refusé la clé d'API.",
-      "providerInvalidRequest": "Documenso a refusé le document (sujet ou message trop long, ou adresse en double)."
+      "providerInvalidRequest": "Documenso a refusé le document (sujet ou message trop long, ou adresse en double).",
+      "providerNotFound": "Le document est introuvable dans le service de signature (supprimé, ou connexion à une autre instance).",
+      "providerRejected": "Le service de signature a refusé la demande.",
+      "providerUnreachable": "Le service de signature est injoignable."
     },
     "errorCode": "Code : {code}"
+  },
+  "address": {
+    "line1Placeholder": "Commencez à saisir l'adresse",
+    "line2Placeholder": "App. 4, bureau 210",
+    "suggestions": {
+      "label": "Adresses suggérées",
+      "countOne": "1 adresse suggérée. Flèches pour parcourir, Entrée pour choisir.",
+      "countMany": "{count} adresses suggérées. Flèches pour parcourir, Entrée pour choisir.",
+      "manual": "Saisir manuellement",
+      "manualOn": "Saisie manuelle : plus de suggestions dans ce champ tant qu'il n'est pas vidé.",
+      "filled": "Adresse remplie. Vérifiez la ville, la province et le code postal.",
+      "partial": "Seule la rue a pu être remplie. Complétez la ville, la province et le code postal.",
+      "unreadable": "L'adresse choisie n'a pas pu être lue. Complétez les champs à la main.",
+      "attribution": "Google Maps"
+    }
   },
   "settings": {
     "title": "Paramètres",
@@ -652,6 +675,27 @@
           "orphanCompleted": "Documenso indique un document signé qui n'a pas pu être rattaché à cette demande."
         }
       },
+      "unverified": {
+        "title": "Demandes non vérifiées",
+        "description": "Ces demandes n'ont pas pu être vérifiées auprès de Documenso depuis plus de 6 heures. Si l'une d'elles a été signée, le document n'existe peut-être que sur la VM Documenso, qui n'est pas sauvegardée. Si toutes les demandes en cours sont ici, vérifiez la connexion : l'adresse, la clé d'API ou l'instance n'est peut-être pas la bonne.",
+        "loadError": "Impossible de charger les demandes non vérifiées.",
+        "hiddenTitle": "Demande du module {module} (vous ne pouvez pas la consulter)",
+        "lastSuccess": "Dernière vérification réussie",
+        "failingSince": "En échec depuis",
+        "reason": "Raison",
+        "never": "Jamais",
+        "failures": {
+          "none": "Pas encore reprise par le suivi des signatures",
+          "provider_not_found": "Document introuvable dans Documenso (supprimé, ou connexion à une autre instance ou équipe)",
+          "provider_rejected": "Documenso a refusé la demande",
+          "provider_unreachable": "Documenso est injoignable",
+          "provider_invalid_request": "Documenso a refusé le document (sujet ou message trop long, ou adresse en double)",
+          "provider_error": "Documenso a répondu par une erreur ou une réponse inattendue",
+          "not_configured": "Connexion incomplète, ou clé d'API refusée par Documenso",
+          "signing_foreign_document": "Documenso contient un autre document sous ce numéro (autre instance ?)",
+          "other": "Erreur technique (code {code})"
+        }
+      },
       "templates": {
         "description": "Les documents que les modules envoient à signer. La version publiée d'un modèle est celle qui est envoyée.",
         "empty": "Aucun modèle de document pour le moment.",
@@ -694,7 +738,7 @@
         "neq": "NEQ",
         "neqHelp": "Numéro d'entreprise du Québec, 10 chiffres.",
         "addressLine1": "Adresse",
-        "addressLine2": "Complément",
+        "addressLine2": "Appartement ou bureau",
         "city": "Ville",
         "province": "Province",
         "provincePlaceholder": "Choisir une province…",
@@ -1126,7 +1170,2705 @@
     }
   },
   "modules": {
-    "professionals": { "name": "Professionnels", "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu." }
+    "professionals": {
+      "name": "Professionnels",
+      "status": {
+        "draft": "À inviter",
+        "invited": "Invité",
+        "in_review": "À réviser",
+        "preparing": "En préparation",
+        "active": "Actif",
+        "inactive": "Inactif"
+      },
+      "gender": {
+        "female": "Femme",
+        "male": "Homme",
+        "unspecified": "Autre / non précisé"
+      },
+      "periods": {
+        "am": "Matin",
+        "pm": "Après-midi",
+        "end_of_day": "Fin de journée",
+        "evening": "Soir",
+        "weekend": "Fin de semaine"
+      },
+      "otherCategory": "Sans catégorie",
+      "icons": {
+        "Brain": "Cerveau",
+        "Users": "Personnes",
+        "AlertTriangle": "Avertissement",
+        "Briefcase": "Porte-documents",
+        "GraduationCap": "Toque de diplômé",
+        "Fingerprint": "Empreinte digitale",
+        "Shield": "Bouclier",
+        "Leaf": "Feuille",
+        "Heart": "Cœur",
+        "Activity": "Pouls",
+        "Star": "Étoile",
+        "Zap": "Éclair",
+        "Cloud": "Nuage",
+        "Sun": "Soleil",
+        "Moon": "Lune",
+        "Home": "Maison",
+        "Target": "Cible",
+        "Compass": "Boussole",
+        "Sparkles": "Étincelles",
+        "MessageCircle": "Bulle de dialogue"
+      },
+      "display": {
+        "withAges": "{name} ({ages})",
+        "withMinAge": "{name} ({age} {unit} et plus)",
+        "minClientAge": "Âge minimum : {age} {unit}",
+        "womenOnly": "Femmes seulement",
+        "ages": {
+          "range": "{min} à {max} {unit}",
+          "single": "{age} {unit}",
+          "from": "{min} {unit} et plus",
+          "all": "Tous les âges",
+          "underOne": "Moins de 1 an",
+          "none": "Sans âge",
+          "year": "an",
+          "years": "ans"
+        }
+      },
+      "readiness": {
+        "items": {
+          "matching_profile": "Profil de jumelage complet",
+          "account_created": "Compte créé (invitation acceptée)",
+          "submission_approved": "Questionnaire approuvé",
+          "documents": "Documents requis en règle",
+          "contract_signed": "Contrat de service signé"
+        },
+        "pending": {
+          "matching_profile": "Profil de jumelage incomplet",
+          "account_created": "Compte pas encore créé",
+          "submission_approved": "Questionnaire pas encore approuvé",
+          "documents": "Documents requis incomplets",
+          "contract_signed": "Contrat de service pas encore signé"
+        },
+        "missing": {
+          "profession": "un titre professionnel",
+          "licence": "le numéro de permis",
+          "regulated_title": "un titre d'un ordre professionnel (motifs réservés)",
+          "language": "une langue",
+          "clientele": "une clientèle",
+          "motif": "un motif",
+          "photo": "la photo professionnelle",
+          "insurance": "la preuve d'assurance",
+          "insurance_expired": "une preuve d'assurance en vigueur",
+          "image_consent": "le consentement au droit à l'image",
+          "other_documents": "d'autres documents requis"
+        },
+        "warnings": {
+          "login_email_mismatch": "Le courriel du dossier diffère du courriel de connexion."
+        },
+        "nextAction": {
+          "completeMatching": "Complétez le profil de jumelage.",
+          "completeIdentity": "Complétez les titres et permis.",
+          "completeDocuments": "Il manque des documents requis.",
+          "complete": "Compléter",
+          "readyToActivate": "Le dossier est prêt à être activé.",
+          "readyToReactivate": "Le dossier peut être réactivé.",
+          "nothingToDo": "Rien à faire. Le dossier est complet.",
+          "reactivateIncomplete": "Le dossier peut être réactivé, même s'il reste des éléments à compléter.",
+          "notInvited": "{firstName} n'a pas encore reçu d'invitation pour créer son accès et remplir son questionnaire.",
+          "invitationExpired": "Le lien d'invitation a expiré le {date} sans être utilisé.",
+          "invitationRevoked": "L'invitation de {firstName} a été révoquée : son lien ne fonctionne plus.",
+          "invitationUsedNoAccount": "{firstName} a créé son accès avec le lien d'invitation le {date}, mais ce compte n'existe plus.",
+          "invitationSent": "Invitation envoyée le {date} : {firstName} n'a pas encore créé son accès.",
+          "invitationOpened": "{firstName} a ouvert le lien d'invitation le {date}, mais n'a pas encore créé son accès.",
+          "questionnaireInProgress": "{firstName} n'a pas encore envoyé son questionnaire. Il apparaîtra ici, à réviser, dès son envoi.",
+          "updateInProgress": "Une demande de mise à jour est en cours : {firstName} ne l'a pas encore envoyée.",
+          "awaitingQuestionnaire": "Le questionnaire de {firstName} n'a pas encore été approuvé.",
+          "contractToSign": "Le dossier de {firstName} est complet, sauf le contrat de service : il reste à l'envoyer ou à le faire signer.",
+          "contractToSend": "Contrat de service à envoyer : le dossier de {firstName} est complet, sauf ce contrat.",
+          "contractAwaiting": "En attente de la signature de {name} : le contrat de service a été envoyé.",
+          "openContract": "Voir le contrat",
+          "reviewOnboarding": "{firstName} a envoyé son questionnaire le {date} : il attend votre révision.",
+          "reviewOnboardingUndated": "{firstName} a envoyé son questionnaire. Il attend votre révision.",
+          "reviewUpdate": "{firstName} a envoyé une mise à jour de son profil le {date} : elle attend votre révision.",
+          "reviewUpdateUndated": "{firstName} a envoyé une mise à jour de son profil. Elle attend votre révision.",
+          "reviewOwnOnboarding": "Vous avez envoyé votre questionnaire le {date} : une autre personne autorisée doit le réviser.",
+          "reviewOwnOnboardingUndated": "Vous avez envoyé votre questionnaire. Une autre personne autorisée doit le réviser.",
+          "reviewOwnUpdate": "Vous avez envoyé une mise à jour de votre profil le {date} : une autre personne autorisée doit la réviser.",
+          "reviewOwnUpdateUndated": "Vous avez envoyé une mise à jour de votre profil. Une autre personne autorisée doit la réviser.",
+          "review": "Réviser le profil"
+        }
+      },
+      "watch": {
+        "submission_to_review": "Dossier à réviser",
+        "update_to_review": "Mise à jour à réviser",
+        "invitation_expired": "Invitation expirée",
+        "invitation_unanswered": "Invitation sans réponse depuis {count} jours",
+        "matching_incomplete": "Profil de jumelage incomplet",
+        "login_email_mismatch": "Courriel de connexion différent"
+      },
+      "onboarding": {
+        "actions": {
+          "send": "Envoyer l'invitation",
+          "resend": "Renvoyer l'invitation",
+          "new_link": "Envoyer un nouveau lien",
+          "revoke": "Révoquer l'invitation",
+          "requestUpdate": "Demander une mise à jour"
+        },
+        "sections": {
+          "personal": "Renseignements personnels",
+          "professional": "Profil professionnel",
+          "portrait": "Portrait",
+          "languages": "Langues",
+          "clienteles": "Clientèles",
+          "motifs": "Motifs",
+          "availability": "Disponibilités générales",
+          "photo": "Photo",
+          "insurance": "Assurance",
+          "tax_bank": "Fiscalité et banque",
+          "consent": "Consentement"
+        },
+        "invitation": {
+          "none": "Aucune invitation envoyée.",
+          "sent": "Invitation envoyée le {sent} · expire le {expires}",
+          "opened": "Invitation envoyée le {sent} · ouverte le {opened} · expire le {expires}",
+          "expired": "Lien expiré le {expires} : envoyez un nouveau lien.",
+          "used": "Invitation acceptée le {used}",
+          "revoked": "Invitation révoquée : le lien ne fonctionne plus."
+        },
+        "questionnaire": {
+          "afterInvitation": "S'ouvre quand l'invitation est acceptée.",
+          "inProgress": "En cours : pas encore envoyé.",
+          "none": "Aucun questionnaire en cours.",
+          "submitted": "Envoyé le {date}, à réviser.",
+          "submittedUndated": "Envoyé, à réviser."
+        },
+        "dialog": {
+          "send": {
+            "title": "Envoyer l'invitation à {name} ?",
+            "body": "Un courriel sera envoyé à {email} avec un lien pour créer son accès et remplir son questionnaire."
+          },
+          "resend": {
+            "title": "Renvoyer l'invitation à {name} ?",
+            "body": "Un nouveau lien sera envoyé à {email}. Le lien envoyé le {sent} ne fonctionnera plus."
+          },
+          "new_link": {
+            "title": "Envoyer un nouveau lien à {name} ?",
+            "body": "Le lien envoyé le {sent} a expiré le {expires} : un nouveau lien sera envoyé à {email}."
+          },
+          "revoke": {
+            "title": "Révoquer l'invitation de {name} ?",
+            "body": "Le lien envoyé à {email} ne fonctionnera plus.",
+          "closesQuestionnaire": "Le questionnaire envoyé sera fermé sans être appliqué.",
+          "inviteAgain": "Vous pourrez inviter {firstName} de nouveau.",
+            "backToDraft": "Le dossier redeviendra « À inviter »."
+          },
+          "validForOne": "Le lien sera valide {count} jour.",
+          "validForOther": "Le lien sera valide {count} jours.",
+          "sending": "Envoi…",
+          "revoking": "Révocation…"
+        },
+        "requestUpdate": {
+          "title": "Demander une mise à jour à {name}",
+          "body": "{firstName} recevra un courriel à {email} pour revoir les sections choisies. Rien ne change dans le dossier avant votre révision.",
+          "legend": "Sections à revoir",
+          "required": "Choisissez au moins une section.",
+          "confirm": "Envoyer la demande",
+          "sending": "Envoi…"
+        },
+        "toasts": {
+          "sent": "Invitation envoyée à {email}.",
+          "sentExpires": "Invitation envoyée à {email}. Le lien expire le {date}.",
+          "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé.",
+          "revoked": "Invitation révoquée. Le lien ne fonctionne plus.",
+          "updateSent": "Demande de mise à jour envoyée à {email}.",
+          "updateNotSent": "Demande créée, mais le courriel n'a pas pu être envoyé."
+        },
+        "emailProblems": {
+          "not_configured": "L'envoi de courriels n'est pas encore configuré pour la clinique.",
+          "rate_limited": "Limite d'envoi de courriels atteinte.",
+          "provider_error": "Le service d'envoi n'a pas répondu.",
+          "invalid_request": "Le service d'envoi a refusé cette adresse. Corrigez-la dans l'onglet « Identité et permis », puis utilisez « Envoyer l'invitation ».",
+          "invalid_request_update": "Le service d'envoi a refusé l'adresse du dossier. {firstName} a un compte : c'est dans « Mon compte » que cette adresse se modifie (il n'y a pas d'invitation à renvoyer).",
+          "module_disabled": "Le module Professionnels est désactivé pour la clinique.",
+          "other": "Le courriel n'a pas pu être envoyé."
+        },
+        "emailAdvice": {
+          "invitation": "Utilisez « Renvoyer l'invitation » dans un moment.",
+          "update": "La demande reste ouverte : dites à {firstName} qu'une mise à jour l'attend dans son questionnaire."
+        },
+        "errors": {
+          "rateLimited": "Trop de demandes en peu de temps.",
+          "moduleDisabled": "Le module Professionnels est désactivé pour la clinique.",
+          "network": "Le service est injoignable. Vérifiez votre connexion et réessayez.",
+          "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
+          "unavailable": "Le service est momentanément indisponible. Réessayez dans un instant.",
+          "sendFailed": "L'invitation n'a pas pu être envoyée. Réessayez dans un instant.",
+          "revokeFailed": "L'invitation n'a pas pu être révoquée. Réessayez dans un instant.",
+          "updateFailed": "La demande de mise à jour n'a pas pu être envoyée. Réessayez dans un instant."
+        }
+      },
+      "record": {
+        "loadError": "Le dossier n'a pas pu être chargé.",
+        "notFound": {
+          "title": "Professionnel introuvable",
+          "body": "Ce dossier n'existe pas ou vous n'y avez pas accès.",
+          "back": "Retour à la liste"
+        },
+        "tabs": {
+          "label": "Sections du dossier",
+          "apercu": "Aperçu",
+          "jumelage": "Jumelage",
+          "profil-public": "Profil public",
+          "identite": "Identité et permis",
+          "documents": "Documents",
+          "remuneration": "Rémunération et fiscalité",
+          "historique": "Historique"
+        },
+        "compensation": {
+          "privacyNote": "Chaque affichage est inscrit à l'historique du dossier.",
+          "updated": "Renseignements modifiés le {date} par {name}.",
+          "updatedNoName": "Renseignements modifiés le {date}.",
+          "loadError": "Les conditions de rémunération n'ont pas pu être chargées.",
+          "privateLoadError": "Les renseignements fiscaux et bancaires n'ont pas pu être chargés.",
+          "stale": "Ces renseignements ont été modifiés entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
+          "taxNumbers": {
+            "title": "Fiscalité",
+            "description": "Les numéros inscrits sur les factures du professionnel. Laissez un champ vide pour le retirer.",
+            "businessNumber": "Numéro d'entreprise (NE)",
+            "businessNumberHelp": "9 chiffres",
+            "gst": "Numéro de TPS",
+            "gstHelp": "Exemple : 123456789 RT 0001",
+            "qst": "Numéro de TVQ",
+            "qstHelp": "Exemple : 1234567890 TQ 0001",
+            "saved": "Numéros enregistrés."
+          },
+          "sin": {
+            "title": "Numéro d'assurance sociale (NAS)",
+            "label": "NAS",
+            "masked": "NAS masqué, se terminant par {last3}",
+            "notCollected": "Non recueilli",
+            "notCollectedHelp": "La collecte du NAS est désactivée.",
+            "collectionOff": "La collecte du NAS est désactivée : le NAS enregistré peut être affiché ou retiré, mais pas remplacé.",
+            "none": "Aucun NAS enregistré.",
+            "add": "Saisir le NAS",
+            "replace": "Remplacer",
+            "replaceLabel": "Remplacer le NAS",
+            "remove": "Retirer",
+            "removeLabel": "Retirer le NAS",
+            "removeTitle": "Retirer le NAS ?",
+            "removeBody": "Le NAS se terminant par {last3} sera retiré du dossier.",
+            "removeBodyOff": "Le NAS se terminant par {last3} sera retiré du dossier. La collecte du NAS étant désactivée, il ne pourra pas être saisi de nouveau.",
+            "removing": "Retrait…",
+            "removed": "NAS retiré.",
+            "show": "Afficher",
+            "showLabel": "Afficher le NAS",
+            "revealing": "Affichage…",
+            "revealingLabel": "Affichage du NAS…",
+            "hide": "Masquer",
+            "hideLabel": "Masquer le NAS",
+            "dialog": {
+              "addTitle": "Saisir le NAS",
+              "replaceTitle": "Remplacer le NAS",
+              "description": "Le NAS est chiffré dès l'enregistrement. Il ne sera ensuite affiché qu'à la demande.",
+              "field": "NAS",
+              "help": "9 chiffres, avec ou sans espaces."
+            },
+            "saved": "NAS enregistré."
+          },
+          "bank": {
+            "title": "Banque",
+            "description": "Le compte où le professionnel reçoit ses paiements.",
+            "noAccount": "Aucun numéro de compte",
+            "empty": {
+              "title": "Aucune coordonnée bancaire",
+              "body": "Ajoutez le compte où le professionnel reçoit ses paiements.",
+              "add": "Ajouter"
+            },
+            "removeAccount": "Retirer le numéro de compte",
+            "removeTitle": "Retirer le numéro de compte ?",
+            "removeBody": "Le numéro de compte se terminant par {last4} sera retiré. L'institution et le transit restent.",
+            "removing": "Retrait…",
+            "removed": "Numéro de compte retiré.",
+            "saved": "Coordonnées bancaires enregistrées."
+          },
+          "retention": {
+            "title": "Rétention",
+            "description": "La part de la clinique sur les consultations. Elle baisse avec le nombre de séances cumulées, selon la grille de la profession. Interne : elle n’est jamais transmise au professionnel.",
+            "grid": "Grille : {title}",
+            "noGrid": "Aucune grille pour la profession principale de ce professionnel : ajoutez-en une dans Paramètres, section Rémunération.",
+            "sessions": "Séances cumulées",
+            "applied": "Taux appliqué",
+            "suggested": "Taux suggéré",
+            "noRate": "Aucun taux",
+            "since": "Depuis le {date}",
+            "upcoming": "Dès le {date} · aujourd’hui : {rate}",
+            "tier": "Palier de {range}",
+            "next": "prochain palier à {tier} ({rate})",
+            "maxTier": "palier maximum",
+            "pay": "Versé au professionnel par séance",
+            "payTable": {
+              "duration": "Durée",
+              "clientPrice": "Prix client",
+              "today": "Aujourd’hui",
+              "from": "Dès le {date}"
+            },
+            "otherRates": "Autres services, taux de la clinique : {rates}",
+            "rateHistory": "Historique des taux",
+            "monthHistory": "Séances par mois",
+            "snapshot": "À la décision : {sessions}, {rate} suggéré",
+            "snapshotNoGrid": "À la décision : {sessions}, aucune grille",
+            "monthRow": "{long} de 50 ou 60 min · {short} de 30 min",
+            "adjustment": "Ajustement {value}",
+            "monthTotal": "+{count} · cumul {total}",
+            "deleteLabel": "Supprimer le taux de {rate} dès le {date}",
+            "deleteTitle": "Supprimer ce taux ?",
+            "deleteBody": "Le taux de {rate} dès le {date} sera supprimé. Le taux précédent s’appliquera de nouveau."
+          },
+          "rate": {
+            "deleted": "Taux supprimé."
+          },
+          "decision": {
+            "saved": "Taux de {rate} enregistré.",
+            "savedDecreased": "Taux de {rate} enregistré : la retenue baisse, une augmentation pour le professionnel."
+          },
+          "sessions": {
+            "add": "Ajouter les séances du mois",
+            "saved": "Séances enregistrées.",
+            "stale": "Les séances de ce mois ont été modifiées entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
+            "dialog": {
+              "title": "Séances du mois",
+              "description": "Une séance de 50 ou 60 minutes compte pour 1, une séance de 30 minutes pour 0,5. Un mois déjà saisi est remplacé.",
+              "month": "Mois",
+              "monthEntered": "Ce mois est déjà saisi : ses valeurs sont affichées.",
+              "long": "Séances de 50 ou 60 min",
+              "longHelp": "Couples compris.",
+              "short": "Séances de 30 min",
+              "shortHelp": "Comptent pour une demi-séance.",
+              "adjustment": "Ajustement (facultatif)",
+              "adjustmentHelp": "Un solde d’ouverture ou une correction, par demi-séance (ex. 237,5 ou -2).",
+              "newTotal": "Nouveau cumul : {total}."
+            }
+          },
+          "agreements": {
+            "title": "Ententes particulières",
+            "description": "Pour un client et une durée : un montant fixe versé au professionnel par séance. La retenue ne s’y applique pas.",
+            "none": "Aucune entente particulière.",
+            "client": "{client} · {duration}",
+            "amounts": "Prix client {price} · Versé au professionnel {amount}",
+            "add": "Nouvelle entente",
+            "end": "Mettre fin",
+            "ending": "Enregistrement…",
+            "endLabel": "Mettre fin à l’entente {client} ({duration})",
+            "deleteLabel": "Supprimer l’entente {client} ({duration}) dès le {date}",
+            "deleteTitle": "Supprimer cette entente ?",
+            "deleteBody": "L’entente {client} ({duration}) dès le {date} sera supprimée.",
+            "saved": "Entente enregistrée.",
+            "ended": "Fin de l’entente enregistrée.",
+            "deleted": "Entente supprimée.",
+            "dialog": {
+              "title": "Nouvelle entente particulière",
+              "description": "Un montant fixe par séance, convenu pour un client. Une nouvelle entente pour le même client et la même durée remplace la précédente à sa date.",
+              "client": "Référence du client",
+              "clientHelp": "Numéro de dossier ou initiales, pas le nom complet.",
+              "duration": "Durée",
+              "clientPrice": "Prix client ($)",
+              "professionalAmount": "Versé au professionnel ($)",
+              "professionalAmountHelp": "Par séance, au plus le prix client.",
+              "fromHelp": "La première séance visée par l’entente."
+            },
+            "endDialog": {
+              "title": "Mettre fin à l’entente",
+              "description": "L’entente {client} ({duration}) prendra fin ; la grille s’appliquera de nouveau.",
+              "to": "Fin de l’entente le",
+              "toHelp": "L’entente s’applique jusqu’à la veille de cette date."
+            }
+          }
+        },
+        "header": {
+          "languages": "Langues :",
+          "notAccepting": "N'accepte pas de nouveaux clients"
+        },
+        "actions": {
+          "more": "Autres actions",
+          "activate": "Activer",
+          "reactivate": "Réactiver",
+          "deactivate": "Désactiver"
+        },
+        "activate": {
+          "title": "Activer {name} ?",
+          "titleReactivate": "Réactiver {name} ?",
+          "body": "{firstName} pourra recevoir de nouveaux clients et apparaîtra dans le jumelage.",
+          "accountBack": "{firstName} pourra de nouveau se connecter.",
+          "deactivatedFor": "Raison de la désactivation : {reason}",
+          "incomplete": "Le dossier n'est pas complet.",
+          "missing": "{item} : il manque {missing}.",
+          "reason": "Raison de l'activation",
+          "reasonHelp": "Elle s'affiche dans l'aperçu du dossier.",
+          "suggestion": "Suggestion :",
+          "suggestionText": "Dossier complété hors application",
+          "confirm": "Activer",
+          "confirmReactivate": "Réactiver",
+          "confirmOverride": "Activer quand même",
+          "confirmOverrideReactivate": "Réactiver quand même",
+          "pending": "Activation…",
+          "pendingReactivate": "Réactivation…",
+          "nowIncomplete": "Le dossier n'est plus complet. Indiquez la raison de l'activation."
+        },
+        "noteReadable": {
+          "named": "{firstName} peut lire cette note.",
+          "unnamed": "La personne professionnelle peut lire cette note."
+        },
+        "deactivate": {
+          "title": "Désactiver {name} ?",
+          "body": "{firstName} n'apparaîtra plus dans le jumelage et ne recevra plus de nouveaux clients. Le dossier reste consultable et pourra être réactivé.",
+          "reason": "Raison",
+          "reasonPlaceholder": "Choisir une raison",
+          "note": "Note",
+          "accountOff": "{firstName} ne pourra plus se connecter.",
+          "invitationStops": "Le lien d'invitation envoyé à {email} ne fonctionnera plus.",
+          "questionnaireCloses": "Le questionnaire en cours sera fermé sans être appliqué.",
+          "confirm": "Désactiver",
+          "pending": "Désactivation…"
+        },
+        "matching": {
+          "edit": "Modifier",
+          "readOnly": "Vous pouvez consulter le profil de jumelage, sans le modifier.",
+          "specialized": "(spécialisé)",
+          "archived": "archivé",
+          "clienteles": {
+            "title": "Clientèles",
+            "description": "Les personnes accompagnées, par âge ou par situation. ★ : spécialisé.",
+            "edit": "Modifier les clientèles",
+            "empty": "Aucune clientèle choisie",
+            "search": "Rechercher une clientèle…"
+          },
+          "motifs": {
+            "title": "Motifs",
+            "description": "Les besoins pour lesquels un client peut être jumelé à ce dossier.",
+            "edit": "Modifier les motifs",
+            "empty": "Aucun motif choisi",
+            "search": "Motif ou catégorie…",
+            "blocked": "Réservé aux professionnels qui ont un titre d'un ordre professionnel. Ajoutez d'abord un tel titre dans « Identité et permis »."
+          },
+          "languages": {
+            "title": "Langues",
+            "description": "Les langues dans lesquelles les rencontres peuvent se faire.",
+            "edit": "Modifier les langues",
+            "empty": "Aucune langue choisie",
+            "search": "Rechercher une langue…"
+          },
+          "limits": {
+            "title": "Limites de clientèle",
+            "description": "Ce que le jumelage exclut, au-delà des clientèles.",
+            "minAge": "Âge minimum des clients",
+            "minAgeHelp": "Par exemple 8 pour « Enfants (8 ans et plus) ». Laissez vide s'il n'y en a pas.",
+            "womenOnly": "Femmes seulement",
+            "womenOnlyHelp": "Le jumelage ne propose ce dossier qu'aux clientes."
+          },
+          "places": {
+            "title": "Places offertes",
+            "description": "Pour les nouveaux clients. Laissez vide si les places ne sont pas suivies.",
+            "label": "Nombre de places",
+            "help": "Nombre de nouveaux clients que {firstName} peut accueillir. Les places restantes seront calculées par le module Demandes.",
+            "setOn": "Indiqué le {date} (la date change quand le nombre change).",
+            "notTracked": "Les places ne sont pas suivies."
+          },
+          "matchingNote": {
+            "title": "Bon à savoir",
+            "description": "Ce que l'équipe doit savoir au moment de jumeler. Réservé à l'équipe : jamais montré à {firstName}, ni sur la fiche, ni dans le profil public.",
+            "label": "Note",
+            "placeholder": "Par exemple : écrire avant de réserver ; pas de couples l'été.",
+            "help": "1000 caractères au maximum. Le texte n'apparaît pas dans l'historique.",
+            "empty": "Aucune note."
+          },
+          "availability": {
+            "title": "Disponibilités générales",
+            "description": "Les moments de la semaine où les rencontres sont habituellement possibles.",
+            "periods": "Moments de la semaine",
+            "accepting": "Accepte de nouveaux clients",
+            "acceptingHelp": "Désactivé, le dossier reste actif pour les clients déjà jumelés.",
+            "note": "Note",
+            "notePlaceholder": "Par exemple : pas le vendredi."
+          },
+          "picker": {
+            "starsHint": "L'étoile marque une spécialisation.",
+            "searchLabel": "Rechercher dans la liste",
+            "count": "Sélection : {selected} sur {total}",
+            "selectedOnly": "Sélectionnés seulement",
+            "expandAll": "Tout ouvrir",
+            "collapseAll": "Tout fermer",
+            "groupCount": "{selected} sur {total}",
+            "selectAll": "Tout sélectionner",
+            "deselectAll": "Tout désélectionner",
+            "inGroup": "({group})",
+            "restricted": "Réservé",
+            "archived": "Archivé",
+            "noResults": {
+              "title": "Aucun résultat",
+              "body": "Essayez un autre mot, ou le nom d'une catégorie."
+            },
+            "results": {
+              "none": "Aucun résultat",
+              "one": "1 résultat",
+              "other": "{count} résultats"
+            },
+            "noneSelected": {
+              "title": "Rien n'est sélectionné",
+              "body": "Désactivez « Sélectionnés seulement » pour voir toute la liste."
+            },
+            "discard": {
+              "title": "Abandonner les modifications ?",
+              "body": "Les changements faits dans cette liste ne seront pas enregistrés.",
+              "keep": "Continuer la modification",
+              "confirm": "Abandonner"
+            }
+          }
+        },
+        "overview": {
+          "matching": {
+            "title": "Profil de jumelage",
+            "edit": "Modifier",
+            "clienteles": "Clientèles",
+            "motifs": "Motifs",
+            "languages": "Langues",
+            "availability": "Disponibilités générales",
+            "accepting": "Accepte de nouveaux clients",
+            "note": "Note",
+            "places": "Places offertes",
+            "placesCount": { "none": "Aucune place offerte", "one": "1 place offerte", "other": "{count} places offertes" },
+            "placesSince": "{places} · depuis le {date}",
+            "placesNotTracked": "Non suivies",
+            "matchingNote": "Bon à savoir",
+            "yes": "Oui",
+            "no": "Non",
+            "specialized": "(spécialisé)",
+            "archived": "archivé",
+            "motifSummary": {
+              "countShort": "{selected} / {total}",
+              "countSr": "({selected} sur {total})",
+              "showAll": "Afficher les {count} motifs",
+              "showOne": "Afficher le motif",
+              "hideAll": "Masquer les motifs"
+            },
+            "empty": {
+              "clienteles": "Aucune clientèle choisie",
+              "motifs": "Aucun motif choisi",
+              "languages": "Aucune langue choisie",
+              "availability": "Aucune disponibilité indiquée"
+            }
+          },
+          "readiness": {
+            "title": "Dossier",
+            "complete": "Dossier complet",
+            "override": "Activé sans dossier complet : {reason}",
+            "missing": "Il manque :"
+          },
+          "watch": {
+            "title": "À surveiller",
+            "nothing": "Rien à signaler."
+          },
+          "nextAction": {
+            "title": "Prochaine action"
+          }
+        },
+        "publicProfile": {
+          "portrait": {
+            "title": "Portrait",
+            "description": "Ces textes figurent sur la fiche remise au client.",
+            "bio": "Présentation",
+            "approach": "Approche",
+            "counter": "{count} / {max} caractères"
+          },
+          "contact": {
+            "title": "Coordonnées publiques",
+            "description": "Laissez vide pour ne pas les afficher.",
+            "email": "Courriel public",
+            "phone": "Téléphone public"
+          }
+        },
+        "identity": {
+          "readOnly": "Seules les personnes qui gèrent les dossiers des professionnels peuvent modifier ces informations.",
+          "identity": {
+            "title": "Identité",
+            "firstName": "Prénom",
+            "lastName": "Nom",
+            "gender": "Genre",
+            "genderNone": "Non indiqué",
+            "genderHelp": "Utilisé pour la préférence du client et pour la forme du titre : « Travailleuse sociale » ou « Travailleur social »."
+          },
+          "contact": {
+            "title": "Coordonnées",
+            "loginEmail": "Courriel de connexion",
+            "change": "Modifier",
+            "changeLabel": "Modifier le courriel de connexion",
+            "accountOwns": "Le changement se fait dans « Mon compte » du professionnel.",
+            "personalPhone": "Téléphone personnel",
+            "addressLine1": "Adresse",
+            "addressLine2": "Appartement ou bureau",
+            "city": "Ville",
+            "province": "Province",
+            "postalCode": "Code postal"
+          },
+          "changeEmail": {
+            "title": "Modifier le courriel de connexion",
+            "description": "L'invitation sera envoyée à cette adresse et elle servira à se connecter.",
+            "invitationStops": "Le lien d'invitation déjà envoyé ne fonctionnera plus : envoyez une nouvelle invitation à la nouvelle adresse.",
+            "email": "Courriel"
+          },
+          "professions": {
+            "title": "Professions et permis",
+            "description": "Deux titres au plus, dont un principal.",
+            "titleField": "Titre",
+            "titlePlaceholder": "Choisir un titre…",
+            "archived": "{name} (archivé)",
+            "licenceHelp": "Requis pour ce titre ({order}).",
+            "primary": "Titre principal",
+            "primaryLabel": "Titre principal : {name}",
+            "row": "Titre {n} : {name}",
+            "rowEmpty": "Titre {n}",
+            "add": "Ajouter un titre",
+            "max": "Deux titres au maximum.",
+            "remove": "Retirer",
+            "removeLabel": "Retirer le titre {name}",
+            "removeEmpty": "Retirer ce titre",
+            "empty": "Aucun titre pour l'instant.",
+            "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis enregistrez de nouveau."
+          },
+          "experience": {
+            "title": "Expérience",
+            "years": "Années d'expérience"
+          },
+          "payers": {
+            "title": "Numéros de payeurs",
+            "ivac": "N° IVAC",
+            "ivacHelp": "Unique dans la clinique. Laissez vide pour le retirer."
+          }
+        }
+      },
+      "history": {
+        "title": "Historique du dossier",
+        "filter": {
+          "label": "Afficher",
+          "all": "Tout",
+          "changes": "Modifications",
+          "emails": "Courriels"
+        },
+        "actors": {
+          "system": "Le système",
+          "import": "L'importation",
+          "migration": "Une mise à jour du système",
+          "unknown": "Une personne qui n'a plus accès"
+        },
+        "sentences": {
+          "created": "a créé le dossier",
+          "deleted": "a supprimé le dossier",
+          "publicProfile": {
+            "created": "a créé le profil public",
+            "deleted": "a supprimé le profil public"
+          },
+          "matchingProfile": {
+            "created": "a créé le profil de jumelage",
+            "deleted": "a supprimé le profil de jumelage"
+          },
+          "matchingNote": {
+            "added": "a ajouté la note Bon à savoir",
+            "changed": "a modifié la note Bon à savoir",
+            "removed": "a retiré la note Bon à savoir"
+          },
+          "changedOne": "a modifié {field}",
+          "changedValue": "a modifié {field} : {before} → {after}",
+          "activated": "a activé le dossier",
+          "activatedOverride": "a activé le dossier incomplet",
+          "reactivated": "a réactivé le dossier",
+          "deactivated": "a désactivé le dossier (raison : {reason})",
+          "statusChanged": "a changé le statut : {before} → {after}",
+          "titleAdded": "a ajouté le titre {title}",
+          "titleRemoved": "a retiré le titre {title}",
+          "licenceChanged": "a modifié le numéro de permis ({title}) : {before} → {after}",
+          "primaryTitle": "a choisi {title} comme titre principal",
+          "payerAdded": "a ajouté le numéro {payer} {number}",
+          "payerChanged": "a modifié le numéro {payer} : {before} → {after}",
+          "payerRemoved": "a retiré le numéro {payer} {number}",
+          "privateChanged": "a modifié les coordonnées fiscales ou bancaires",
+          "privateRead": "a affiché {fields}",
+          "privateReadOther": "a consulté des données privées",
+          "other": "a modifié une autre section du dossier",
+          "submission": {
+            "opened": "a ouvert le questionnaire d'accueil",
+            "updateRequested": "a demandé une mise à jour du profil",
+            "sections": "Sections",
+            "submitted": "a envoyé ses réponses au questionnaire",
+            "approved": "a approuvé les réponses au questionnaire",
+            "sentBack": "a renvoyé les réponses pour correction",
+            "note": "Note",
+            "cancelled": "a fermé le questionnaire en cours sans l'appliquer",
+            "privateSent": "a transmis des renseignements fiscaux ou bancaires",
+            "update": {
+              "submitted": "a envoyé sa mise à jour du profil",
+              "approved": "a approuvé la mise à jour du profil",
+              "sentBack": "a renvoyé la mise à jour du profil pour correction",
+              "cancelled": "a fermé la demande de mise à jour sans l'appliquer"
+            }
+          },
+          "consent": {
+            "recorded": "a enregistré le consentement au droit à l'image",
+            "withdrawn": "a enregistré le retrait du consentement au droit à l'image"
+          },
+          "contract": {
+            "sent": "a envoyé le contrat de service pour signature",
+            "signed": "a conservé au dossier le contrat de service signé (PDF signé)",
+            "rejected": "a enregistré le refus du contrat de service",
+            "cancelled": "a annulé le contrat de service",
+            "expired": "a constaté que le contrat de service a expiré sans signature",
+            "signer": {
+              "viewed": {
+                "professional": "a noté que le professionnel a consulté le contrat de service",
+                "clinic": "a noté que la clinique a consulté le contrat de service"
+              },
+              "signed": {
+                "professional": "a noté que le professionnel a signé le contrat de service",
+                "clinic": "a noté que la clinique a signé le contrat de service"
+              },
+              "rejected": {
+                "professional": "a noté que le professionnel a refusé le contrat de service",
+                "clinic": "a noté que la clinique a refusé le contrat de service"
+              }
+            }
+          },
+          "otherRead": "a consulté une section du dossier",
+          "rateSet": {
+            "initial": "a fixé le taux de départ à {rate} dès le {date}",
+            "suggested": "a appliqué le taux suggéré de {rate} dès le {date}",
+            "maintained": "a maintenu le taux à {rate} au palier de {tier}, dès le {date}",
+            "custom": "a fixé un taux particulier de {rate} dès le {date}"
+          },
+          "rateDeleted": "a supprimé le taux de {rate} (dès le {date})",
+          "rateChanged": "a modifié un taux de retenue",
+          "agreementAdded": "a ajouté une entente particulière ({duration}) dès le {date}",
+          "agreementDeleted": "a supprimé une entente particulière ({duration}, dès le {date})",
+          "agreementChanged": "a modifié une entente particulière",
+          "sessionsSet": "a saisi les séances de {month}",
+          "sessionsChanged": "a modifié les séances d’un mois",
+          "sessionsDeleted": "a retiré les séances de {month}"
+        },
+        "sets": {
+          "professional_motifs": {
+            "addedOne": "a ajouté le motif {name}",
+            "addedFew": "a ajouté les motifs {names}",
+            "addedMany": "a ajouté {count} motifs",
+            "removedOne": "a retiré le motif {name}",
+            "removedFew": "a retiré les motifs {names}",
+            "removedMany": "a retiré {count} motifs"
+          },
+          "professional_languages": {
+            "addedOne": "a ajouté la langue {name}",
+            "addedFew": "a ajouté les langues {names}",
+            "addedMany": "a ajouté {count} langues",
+            "removedOne": "a retiré la langue {name}",
+            "removedFew": "a retiré les langues {names}",
+            "removedMany": "a retiré {count} langues"
+          },
+          "professional_clienteles": {
+            "addedOne": "a ajouté la clientèle {name}",
+            "addedFew": "a ajouté les clientèles {names}",
+            "addedMany": "a ajouté {count} clientèles",
+            "removedOne": "a retiré la clientèle {name}",
+            "removedFew": "a retiré les clientèles {names}",
+            "removedMany": "a retiré {count} clientèles",
+            "specializedFew": "a indiqué une spécialisation pour : {names}",
+            "specializedMany": "a indiqué une spécialisation pour {count} clientèles",
+            "unspecializedFew": "a retiré la spécialisation pour : {names}",
+            "unspecializedMany": "a retiré la spécialisation pour {count} clientèles"
+          }
+        },
+        "fields": {
+          "professionals": {
+            "profile_id": "le compte de connexion",
+            "first_name": "le prénom",
+            "last_name": "le nom",
+            "email": "le courriel",
+            "personal_phone": "le téléphone personnel",
+            "address_line1": "l'adresse",
+            "address_line2": "l'appartement ou le bureau",
+            "city": "la ville",
+            "province": "la province",
+            "postal_code": "le code postal",
+            "country": "le pays",
+            "years_experience": "les années d'expérience",
+            "gender": "le genre",
+            "status": "le statut",
+            "deactivation_reason_id": "la raison de la désactivation",
+            "deactivation_note": "la note de désactivation",
+            "deactivation_disabled_account": "le compte désactivé avec le dossier",
+            "activation_override_reason": "la raison de l'activation d'un dossier incomplet"
+          },
+          "professional_public_profiles": {
+            "bio": "la présentation",
+            "approach": "l'approche",
+            "public_email": "le courriel public",
+            "public_phone": "le téléphone public"
+          },
+          "professional_matching_profiles": {
+            "accepting_new_clients": "l'accueil de nouveaux clients",
+            "availability_periods": "les disponibilités générales",
+            "availability_note": "la note sur les disponibilités",
+            "min_client_age": "l'âge minimum des clients",
+            "women_only": "« femmes seulement »",
+            "new_client_places": "le nombre de places offertes"
+          }
+        },
+        "values": {
+          "accountLinked": "Lié",
+          "accountNone": "Aucun",
+          "unknown": {
+            "motif": "Motif archivé",
+            "clientele": "Clientèle archivée",
+            "language": "Langue archivée",
+            "title": "Titre archivé",
+            "reason": "Raison archivée"
+          },
+          "hidden": "(valeur non affichable)",
+          "payers": {
+            "ivac": "IVAC",
+            "other": "de payeur"
+          }
+        },
+        "privateFields": {
+          "sin": "le NAS",
+          "bankAccount": "le numéro de compte"
+        },
+        "lines": {
+          "accountDisabled": "Le compte de connexion a aussi été désactivé.",
+          "accountEnabled": "Le compte de connexion a aussi été réactivé."
+        },
+        "loadError": "L'historique n'a pas pu être chargé.",
+        "loadMore": "Charger plus",
+        "loadingMore": "Chargement…",
+        "loadMoreError": "La suite de l'historique n'a pas pu être chargée.",
+        "end": "Début de l'historique",
+        "empty": {
+          "title": "Aucun historique",
+          "body": "Les modifications du dossier apparaîtront ici."
+        },
+        "emptyFiltered": {
+          "title": "Aucune modification à afficher",
+          "body": "Choisissez « Tout » pour voir tout l'historique."
+        },
+        "emptyEmails": {
+          "title": "Aucun courriel envoyé",
+          "body": "Les invitations et les demandes de mise à jour envoyées à {firstName} s'afficheront ici."
+        },
+        "emailsLoadError": "Les courriels n'ont pas pu être chargés.",
+        "email": {
+          "sentTo": "a envoyé « {template} » à {email}",
+          "sent": "a envoyé « {template} »",
+          "notDelivered": "Le service d'envoi n'a pas pu livrer ce courriel.",
+          "markedAsSpam": "Ce courriel a été signalé comme indésirable : le service d'envoi n'écrira plus à cette adresse.",
+          "checkAddress": "Vérifiez l'adresse dans l'onglet",
+          "identityTab": "Identité et permis"
+        },
+        "moneyFields": {
+          "client_price_cents": "Prix client",
+          "professional_amount_cents": "Versé au professionnel"
+        }
+      },
+      "list": {
+        "countOne": "{count} professionnel",
+        "countOther": "{count} professionnels",
+        "activeOne": "{count} actif",
+        "activeOther": "{count} actifs",
+        "add": "Ajouter",
+        "search": {
+          "label": "Rechercher un professionnel",
+          "placeholder": "Rechercher par nom, courriel ou permis…"
+        },
+        "statusFilter": { "label": "Statut", "all": "Tous les statuts" },
+        "filters": {
+          "button": "Filtres",
+          "buttonCount": "Filtres ({count})",
+          "label": "Plus de filtres",
+          "title": "Titre principal",
+          "titleAll": "Tous les titres",
+          "language": "Langue",
+          "languageAll": "Toutes les langues",
+          "clientele": "Clientèle",
+          "clienteleAll": "Toutes les clientèles",
+          "motifs": "Motifs",
+          "motifsSearch": "Rechercher un motif…",
+          "motifsEmpty": "Aucun motif ne correspond.",
+          "acceptingNewClients": "Accepte de nouveaux clients",
+          "watch": "À surveiller",
+          "archived": "{name} (archivé)"
+        },
+        "chips": {
+          "label": "Filtres actifs",
+          "title": "Titre principal : {name}",
+          "language": "Langue : {name}",
+          "clientele": "Clientèle : {name}",
+          "motif": "Motif : {name}",
+          "remove": "Retirer le filtre « {label} »"
+        },
+        "reset": "Réinitialiser",
+        "resultsOne": "{count} résultat",
+        "resultsOther": "{count} résultats",
+        "resultsPage": "{results}, page {page} sur {count}",
+        "table": {
+          "label": "Professionnels",
+          "name": "Nom",
+          "profession": "Profession",
+          "languages": "Langues",
+          "status": "Statut",
+          "watch": "À surveiller",
+          "nothingToWatch": "Rien à surveiller"
+        },
+        "footer": {
+          "countOne": "{shown} sur {total} professionnel",
+          "countOther": "{shown} sur {total} professionnels",
+          "pagination": "Pagination",
+          "page": "Page {page} sur {count}",
+          "previous": "Page précédente",
+          "next": "Page suivante"
+        },
+        "truncated": "Plus de 500 professionnels : affinez la recherche.",
+        "statesError": "Les invitations n'ont pas pu être chargées : les statuts affichés sont ceux des dossiers, sans les invitations ni les questionnaires.",
+        "loadError": "La liste des professionnels n'a pas pu être chargée.",
+        "empty": {
+          "title": "Aucun professionnel pour l'instant",
+          "body": "Ajoutez le premier professionnel de la clinique.",
+          "bodyReadOnly": "Les professionnels de la clinique s'afficheront ici."
+        },
+        "noMatch": { "title": "Aucun professionnel ne correspond", "body": "Modifiez la recherche ou les filtres." },
+        "review": "Révision mensuelle"
+      },
+      "create": {
+        "heading": "Ajouter un professionnel",
+        "description": "Une invitation lui sera envoyée par courriel pour créer son accès et remplir son questionnaire.",
+        "descriptionNoInvite": "Le dossier sera créé sans invitation. Elle pourra être envoyée plus tard depuis la fiche, avec « Envoyer l'invitation ».",
+        "firstName": "Prénom",
+        "lastName": "Nom",
+        "email": "Courriel",
+        "emailHelp": "L'adresse où l'invitation sera envoyée. Elle servira à se connecter.",
+        "profession": "Profession",
+        "professionNone": "Aucune pour l'instant",
+        "licenceHelp": "Requis pour ce titre ({order}).",
+        "submit": "Créer",
+        "submitAndInvite": "Créer et inviter",
+        "submitting": "Création…",
+        "inviting": "Envoi de l'invitation…",
+        "inviteNow": "Envoyer l'invitation maintenant",
+        "inviteNowHelp": "Décochez pour compléter le dossier d'abord : vous enverrez l'invitation depuis la fiche.",
+        "notInvited": "Le dossier est créé, mais l'invitation n'a pas été envoyée. Utilisez « Envoyer l'invitation » dans la fiche.",
+        "catalogError": "Les titres n'ont pas pu être chargés.",
+        "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis créez le dossier."
+      },
+      "fiche": {
+        "menu": {
+          "trigger": "Fiche PDF",
+          "download": "Télécharger",
+          "downloadTitle": "Télécharger la fiche ({title})",
+          "email": "Envoyer par courriel…",
+          "emailActiveOnly": "Professionnels actifs seulement"
+        },
+        "send": {
+          "title": "Envoyer la fiche par courriel",
+          "description": "La fiche de {name} est jointe au courriel, telle que « Télécharger » la produit.",
+          "to": "Courriel du client",
+          "emailRequired": "Indiquez le courriel du client.",
+          "invalidEmail": "Courriel invalide.",
+          "titleLabel": "Titre",
+          "titleHelp": "La fiche présente ce titre, avec son ordre et son permis.",
+          "message": "Message",
+          "messageHelp": "Facultatif. Il suit « Bonjour, ». {count} / {max} caractères",
+          "messageTooLong": "{max} caractères au plus.",
+          "submit": "Envoyer",
+          "pending": "Envoi…",
+          "sent": "Fiche envoyée à {email}."
+        },
+        "errors": {
+          "render": "La fiche n'a pas pu être préparée. Rechargez la page, puis réessayez.",
+          "appUpdated": "Une nouvelle version de l'application est disponible. Rechargez la page, puis réessayez.",
+          "send": "La fiche n'a pas pu être envoyée. Réessayez dans un instant.",
+          "tryAgain": "L'envoi a été interrompu. Réessayez.",
+          "invalidRecipient": "Ce courriel ne peut pas recevoir la fiche. Vérifiez l'adresse.",
+          "rateLimited": "Trop de fiches envoyées en peu de temps.",
+          "notConfigured": "L'envoi de courriels n'est pas configuré. Avisez l'administration de la clinique.",
+          "provider": "Le service de courriel n'a pas répondu. Réessayez dans un instant.",
+          "uploadGone": "La fiche préparée n'est plus disponible. Réessayez.",
+          "template": "Le modèle de courriel « Fiche d'un professionnel » demande une valeur que l'envoi ne fournit pas. Vérifiez-le dans Paramètres, Courriels."
+        },
+        "pdf": {
+          "documentTitle": "Fiche de {name}",
+          "member": "Membre de {acronym}",
+          "memberElided": "Membre de l’{acronym}",
+          "clienteles": "Clientèle",
+          "languages": "Langues",
+          "fees": "Honoraires",
+          "feesPending": "À confirmer",
+          "feeLine": "{duration} : {price}",
+          "feeDurations": {
+            "50": "Rencontre 50 min",
+            "30": "Rencontre 30 min",
+            "60": "Rencontre 60 min (couple/famille)"
+          },
+          "specialized": "Domaine de spécialisation",
+          "about": "À propos",
+          "approach": "Approche",
+          "motifs": "Motifs de consultation",
+          "closing": {
+            "kicker": "Prochaine étape",
+            "lead": "Le plus difficile, c’est parfois de faire le premier pas.",
+            "body": "Pour planifier une première rencontre avec {firstName}, communiquez avec une conseillère de la Clinique MANA."
+          },
+          "footer": "Fiche à jour le {date} · Page {page} de {total}"
+        }
+      },
+      "toasts": {
+        "saved": "Modifications enregistrées.",
+        "created": "Professionnel créé.",
+        "activated": "Dossier activé.",
+        "deactivated": "Dossier désactivé.",
+        "archived": "Élément archivé.",
+        "restored": "Élément restauré.",
+        "signin": {
+          "deactivatedClosed": "Dossier désactivé. Le compte est fermé : ses sessions sont terminées et la connexion est bloquée.",
+          "reactivatedOpen": "Dossier réactivé. Le compte peut de nouveau se connecter.",
+          "notBlocked": "Dossier désactivé et sessions terminées, mais le blocage des nouvelles connexions n'a pas pu être appliqué. Réessayez.",
+          "notRestored": "Dossier réactivé, mais la connexion n'a pas pu être rétablie : le compte ne peut pas encore se connecter. Réessayez.",
+          "blocked": "Les nouvelles connexions sont bloquées.",
+          "restored": "La connexion est rétablie.",
+          "noAccount": "Ce dossier n'a plus de compte : il n'y a rien à bloquer ni à rétablir."
+        }
+      },
+      "errors": {
+        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant.",
+        "recordChanged": "Le dossier vient de changer. Réessayez."
+      },
+      "validation": {
+        "firstNameRequired": "Prénom requis.",
+        "lastNameRequired": "Nom requis.",
+        "maxChars": "{max} caractères au maximum.",
+        "email": "Courriel invalide.",
+        "invisibleChars": "Le texte contient des caractères invisibles ou non permis.",
+        "titleRequired": "Choisissez un titre.",
+        "titleArchived": "Ce titre est archivé.",
+        "titleRepeated": "Un titre ne peut être choisi qu'une fois.",
+        "professionsMax": "Un professionnel a au plus deux titres.",
+        "onePrimary": "Un seul titre principal.",
+        "licenceRequired": "Le numéro de permis est requis pour ce titre.",
+        "licenceFormat": "Numéro de permis invalide.",
+        "licenceOrderFormat": "Le numéro de permis pour {title} n'a pas le bon format.",
+        "yearsExperience": "Entre 0 et 60 ans.",
+        "ivac": "Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d'union.",
+        "languagesRequired": "Au moins une langue est requise.",
+        "tooMany": "500 éléments au maximum.",
+        "motifArchived": "Le motif « {name} » est archivé.",
+        "motifRestricted": "Le motif « {name} » est réservé aux professions réglementées.",
+        "clienteleArchived": "La clientèle « {name} » est archivée.",
+        "languageArchived": "La langue « {name} » est archivée.",
+        "restrictedMotifsHeld": "Retirez d'abord les motifs réservés aux professions réglementées : {names}.",
+        "reasonRequired": "Choisissez une raison.",
+        "noteRequired": "Précisez la raison.",
+        "noteMax": "La note compte au plus 500 caractères.",
+        "overrideReason": "Indiquez la raison (au moins 5 caractères).",
+        "overrideReasonMax": "La raison compte au plus 500 caractères.",
+        "businessNumber": "Le numéro d'entreprise (NE) compte 9 chiffres.",
+        "gstNumber": "Numéro de TPS : format attendu 123456789 RT 0001.",
+        "qstNumber": "Numéro de TVQ : format attendu 1234567890 TQ 0001.",
+        "sinRequired": "Saisissez le NAS au complet.",
+        "sinInvalid": "NAS invalide : il compte 9 chiffres, et le dernier doit correspondre aux huit autres.",
+        "nameRequired": "Le nom est obligatoire.",
+        "nameTooLong": "Le nom ne peut pas dépasser 120 caractères.",
+        "acronym": "Sigle : 2 à 10 lettres majuscules.",
+        "licenceLabelTooLong": "Le libellé du permis ne peut pas dépasser 60 caractères.",
+        "licencePatternTooLong": "Le format de permis ne peut pas dépasser 200 caractères.",
+        "licencePattern": "Format de permis invalide.",
+        "licencePatternSyntax": "Ce format utilise une syntaxe non prise en charge.",
+        "categoryRequired": "Choisissez une catégorie.",
+        "ages": "Les âges vont de 0 à 120 ans.",
+        "places": "Un nombre entier de 0 à 99.",
+        "maxAgeNeedsMin": "Un âge maximum demande un âge minimum.",
+        "maxAgeBelowMin": "L'âge maximum doit être supérieur ou égal à l'âge minimum.",
+        "descriptionTooLong": "La description ne peut pas dépasser 300 caractères.",
+        "icon": "Icône inconnue.",
+        "languageCode": "Code de langue : deux lettres (ISO 639-1).",
+        "clienteleKind": "Cette clientèle garde son type (groupe d'âge ou non).",
+        "otherReasonNote": "La raison « Autre » demande toujours une note.",
+        "reminderDays": "Jusqu'à trois nombres de jours, de 1 à 90, séparés par des virgules.",
+        "remindersNeedExpiry": "Les rappels demandent une échéance.",
+        "acceptedMime": "Choisissez au moins un type de fichier.",
+        "photoMime": "La photo doit être une image JPEG ou PNG : elle figure sur la fiche.",
+        "maxBytes": "La taille maximale va de 100 Ko à 10 Mo.",
+        "nameTaken": {
+          "professional_orders": "Un ordre porte déjà ce nom (il est peut-être archivé).",
+          "profession_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
+          "profession_titles": "Un titre porte déjà ce nom (il est peut-être archivé).",
+          "clienteles": "Une clientèle porte déjà ce nom (elle est peut-être archivée).",
+          "motif_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
+          "motifs": "Un motif porte déjà ce nom (il est peut-être archivé).",
+          "languages": "Une langue porte déjà ce nom (elle est peut-être archivée).",
+          "deactivation_reasons": "Une raison porte déjà ce nom (elle est peut-être archivée).",
+          "document_types": "Un type de document porte déjà ce nom (il est peut-être archivé)."
+        }
+      },
+      "compensation": {
+        "statuses": {
+          "current": "En vigueur",
+          "upcoming": "À venir"
+        },
+        "period": {
+          "since": "Dès le {from}",
+          "between": "Du {from} au {to}",
+          "until": "Jusqu'au {date}"
+        },
+        "delete": "Supprimer",
+        "deleting": "Suppression…",
+        "history": "Historique",
+        "from": "À partir du",
+        "note": "Note",
+        "noteHelp": "Facultative, sur une ligne.",
+        "kind": "Type",
+        "add": "Ajouter",
+        "adding": "Ajout…",
+        "backdated": "Cette date est passée : la nouvelle valeur s'appliquera aussi depuis cette date.",
+        "validation": {
+          "date": "Date requise.",
+          "dateBounds": "La date doit être comprise entre le 1 janv. 2000 et le 31 déc. 2100.",
+          "kind": "Choisissez un type.",
+          "percent": "Indiquez un pourcentage entre 0 et 100.",
+          "afterOpen": {
+            "rate": "Le nouveau taux doit commencer après le {date}.",
+            "grid": "La nouvelle grille doit commencer après le {date}."
+          },
+          "month": "Choisissez un mois.",
+          "monthFuture": "Les séances d’un mois à venir ne peuvent pas être saisies.",
+          "sessionsLong": "Un nombre entier de séances, de 0 à 2 000.",
+          "sessionsShort": "Un nombre entier de séances, de 0 à 2 000.",
+          "adjustment": "Un nombre de séances par demi-séance (ex. 12,5 ou -3), entre -100 000 et 100 000.",
+          "customNote": "Indiquez la raison du taux particulier.",
+          "clientLabel": "Indiquez la référence du client.",
+          "clientLabelName": "Numéro de dossier ou initiales seulement.",
+          "duration": "Choisissez une durée.",
+          "money": "Un montant entre 0,01 $ et 1 000 $.",
+          "amountAbovePrice": "Le montant versé ne peut pas dépasser le prix client.",
+          "endAfterStart": "La fin doit suivre le début ({date}).",
+          "endBeforeToday": "La fin de l’entente ne peut pas précéder aujourd’hui.",
+          "threshold": "Un nombre entier de séances, de 0 à 100 000.",
+          "tiersRequired": "Ajoutez au moins un palier.",
+          "tiersDistinct": "Deux paliers ont le même seuil.",
+          "tiersFromZero": "Le premier palier commence à 0 séance.",
+          "tiersDecreasing": "Un palier plus élevé ne peut pas retenir davantage que le précédent.",
+          "pricesRequired": "Indiquez au moins un prix."
+        },
+        "durations": {
+          "60": "60 min / couple",
+          "50": "50 min",
+          "30": "30 min"
+        },
+        "sessionsCount": { "one": "{count} séance", "other": "{count} séances" },
+        "tierRange": "{from} à {to}",
+        "tierRangeOpen": "{from} et plus",
+        "tierShort": "{from}–{to}",
+        "tierShortOpen": "{from} et +",
+        "status": {
+          "newTier": "Nouveau palier atteint",
+          "gridGap": "Taux différent de la grille",
+          "noRate": "Taux de départ à fixer",
+          "increaseDecided": "Augmentation décidée",
+          "floor": "Palier maximum",
+          "conforme": "Conforme",
+          "maintained": "Maintenu",
+          "custom": "Taux particulier",
+          "professionUnconfirmed": "Profession à confirmer"
+        },
+        "decisions": {
+          "initial": "Taux de départ",
+          "suggested": "Suggestion appliquée",
+          "maintained": "Taux maintenu",
+          "custom": "Taux particulier"
+        },
+        "decision": {
+          "action": {
+            "apply": "Appliquer {rate}",
+            "setTo": "Fixer à {rate}",
+            "maintain": "Maintenir {rate}",
+            "other": "Autre taux…"
+          },
+          "title": {
+            "initial": "Taux de départ",
+            "custom": "Taux particulier"
+          },
+          "titleFor": "{title} — {name}",
+          "describe": {
+            "suggested": "La retenue de la clinique passe de {from} à {to} : le cumul est dans le palier de {tier}.",
+            "suggestedFirst": "La retenue de la clinique sera de {to}, celle du palier de {tier}.",
+            "maintained": "La retenue reste à {rate}, même si la grille propose {suggested} au palier de {tier}. L’écart sera signalé de nouveau au prochain palier.",
+            "custom": "Signalé de nouveau au prochain palier, sauf au palier maximum. Indiquez-en la raison.",
+            "initial": "La retenue appliquée jusqu’ici, avant le suivi dans l’application."
+          },
+          "pay": {
+            "title": "Versé au professionnel par séance",
+            "meeting": "Rencontre {duration} :",
+            "paid": "versé",
+            "becomes": "devient",
+            "unchanged": "(inchangé)"
+          },
+          "rate": "Retenue de la clinique (%)",
+          "fromHelp": "Le taux actuel se terminera la veille de cette date.",
+          "customNoteHelp": "Sur une ligne : la raison du taux particulier.",
+          "confirm": "Confirmer",
+          "confirming": "Enregistrement…",
+          "stale": "Le taux de ce professionnel vient d’être modifié par une autre personne. Vérifiez la situation à jour, puis décidez de nouveau."
+        }
+      },
+      "settings": {
+        "professions": {
+          "title": "Professions et ordres",
+          "description": "Les titres que portent les professionnels, leur catégorie et l'ordre qui délivre leur permis.",
+          "titleCount": {
+            "one": "1 titre",
+            "other": "{count} titres",
+            "none": "Aucun titre"
+          },
+          "orders": {
+            "title": "Ordres professionnels",
+            "description": "Un titre rattaché à un ordre demande un numéro de permis.",
+            "add": "Ajouter un ordre",
+            "createTitle": "Ajouter un ordre",
+            "editTitle": "Modifier l'ordre",
+            "acronym": "Sigle",
+            "acronymHelp": "2 à 10 lettres, par exemple « OPQ ».",
+            "licenceLabel": "Libellé du permis",
+            "licenceLabelDefault": "N° de permis",
+            "licenceLabelHelp": "Le nom du numéro sur la fiche du professionnel. Laissez vide pour « N° de permis ».",
+            "licencePattern": "Format du permis",
+            "licencePatternHelp": "Expression régulière, par exemple ^[0-9]{5}$. Laissez vide pour accepter tout numéro.",
+            "licencePatternChange": "Un format modifié s'applique à chaque dossier la prochaine fois qu'il est modifié.",
+            "archive": {
+              "bodyNone": "Aucun titre actif ne relève de cet ordre. Il ne pourra plus être choisi pour un titre.",
+              "bodyOne": "1 titre actif relève de cet ordre : archivez-le d'abord.",
+              "bodyOther": "{count} titres actifs relèvent de cet ordre : archivez-les d'abord."
+            }
+          },
+          "categories": {
+            "title": "Catégories",
+            "description": "Services et tarifs fixe les prix par catégorie.",
+            "add": "Ajouter une catégorie",
+            "createTitle": "Ajouter une catégorie",
+            "editTitle": "Modifier la catégorie",
+            "archive": {
+              "bodyNone": "Aucun titre actif n'est dans cette catégorie. Elle ne pourra plus être choisie pour un titre.",
+              "bodyOne": "1 titre actif est dans cette catégorie : archivez-le d'abord.",
+              "bodyOther": "{count} titres actifs sont dans cette catégorie : archivez-les d'abord."
+            }
+          },
+          "titles": {
+            "title": "Titres",
+            "description": "Le titre affiché sur la fiche de chaque professionnel. Un titre sans ordre ne demande pas de permis.",
+            "add": "Ajouter un titre",
+            "createTitle": "Ajouter un titre",
+            "editTitle": "Modifier le titre",
+            "nameHelp": "Affiché dans les paramètres et les filtres, et pour une personne dont le genre est « Autre » ou non indiqué. Écrivez-le en toutes lettres, par exemple « Travailleuse sociale ou travailleur social ».",
+            "feminine": "Forme féminine",
+            "feminineHelp": "Affichée pour une professionnelle (genre « Femme ») : liste, dossier, fiche. Laissez vide pour afficher le nom.",
+            "masculine": "Forme masculine",
+            "masculineHelp": "Affichée pour un professionnel (genre « Homme »). Laissez vide pour afficher le nom.",
+            "category": "Catégorie",
+            "categoryPlaceholder": "Choisir une catégorie…",
+            "order": "Ordre",
+            "noOrder": "Aucun ordre",
+            "noOrderLabel": "Aucun ordre : permis non requis",
+            "orderHelp": "Sans ordre, aucun numéro de permis n'est demandé.",
+            "orderOption": "{name} ({acronym})",
+            "archivedCategory": "{name} (archivée)",
+            "archivedOrder": "{name} (archivé)",
+            "archivedOrderOption": "{name} ({acronym}), archivé",
+            "licenceNote": "Les professionnels qui ont ce titre devront fournir un numéro de permis.",
+            "archive": {
+              "bodyNone": "Personne n'a ce titre. Il ne pourra plus être choisi.",
+              "bodyOne": "1 professionnel a ce titre. Il reste sur son dossier mais ne pourra plus être choisi.",
+              "bodyOther": "{count} professionnels ont ce titre. Il reste sur leur dossier mais ne pourra plus être choisi."
+            }
+          }
+        },
+        "clienteles": {
+          "title": "Clientèles",
+          "description": "Les clientèles que les professionnels reçoivent. Le jumelage filtre selon l'âge de la personne principale, ou selon le format : couple, famille, parents.",
+          "add": "Ajouter une clientèle",
+          "createTitle": "Ajouter une clientèle",
+          "editTitle": "Modifier la clientèle",
+          "system": "Utilisée par le jumelage : ne peut pas être archivée.",
+          "ages": "Âges",
+          "minAge": "Âge minimum",
+          "maxAge": "Âge maximum",
+          "minAgeHelp": "Laissez vide pour une clientèle sans âge, par exemple Couples.",
+          "maxAgeHelp": "Laissez vide pour « et plus », par exemple 18 ans et plus.",
+          "systemAgeGroup": "Le jumelage s'appuie sur ce groupe d'âge : l'âge minimum reste requis.",
+          "systemNoAges": "Le jumelage s'appuie sur cette clientèle telle quelle : elle reste sans âge."
+        },
+        "motifs": {
+          "title": "Motifs",
+          "description": "Les motifs pour lesquels les clients consultent, dans les mots de la clinique. Chaque professionnel choisit ceux qu'il accompagne.",
+          "add": "Ajouter un motif",
+          "createTitle": "Ajouter un motif",
+          "editTitle": "Modifier le motif",
+          "view": { "label": "Affichage", "byCategory": "Par catégorie", "alphabetical": "Liste A–Z" },
+          "categoryFilter": { "label": "Catégorie", "all": "Toutes les catégories" },
+          "category": "Catégorie",
+          "categoryNone": "Sans catégorie",
+          "categoryHelp": "Un motif sans catégorie active s'affiche sous « Sans catégorie ».",
+          "archivedCategory": "{name} (archivée)",
+          "restricted": "Réservé",
+          "restrictedCell": "Professions réglementées",
+          "notRestricted": "Non réservé",
+          "restrictedLabel": "Réservé aux professions réglementées",
+          "restrictedHelp": "Seuls les professionnels qui ont un titre d'un ordre professionnel pourront choisir ce motif.",
+          "restrictedNote": "Les professionnels qui ont déjà ce motif sans titre d'un ordre professionnel devront le retirer de leur dossier ou ajouter un tel titre.",
+          "manageCategories": "Gérer les catégories",
+          "viewCategories": "Voir les catégories",
+          "archive": {
+            "bodyNone": "Personne n'a ce motif. Il ne pourra plus être choisi.",
+            "bodyOne": "1 professionnel a ce motif. Il reste sur son dossier mais ne pourra plus être choisi.",
+            "bodyOther": "{count} professionnels ont ce motif. Il reste sur leur dossier mais ne pourra plus être choisi."
+          },
+          "categories": {
+            "title": "Catégories de motifs",
+            "description": "Elles regroupent les motifs à l'écran, par sphère de vie. Les motifs sans catégorie active s'affichent sous « Autres ».",
+            "add": "Ajouter une catégorie",
+            "createTitle": "Ajouter une catégorie",
+            "editTitle": "Modifier la catégorie",
+            "icon": "Icône",
+            "descriptionLabel": "Description",
+            "noDescription": "Aucune description",
+            "descriptionHelp": "Ce que la catégorie regroupe, par exemple « Deuil, santé et transitions de vie ».",
+            "motifCount": { "one": "1 motif", "other": "{count} motifs", "none": "Aucun motif" },
+            "archive": {
+              "bodyNone": "Aucun motif actif n'est dans cette catégorie. Elle ne pourra plus être choisie.",
+              "bodyOne": "Son motif actif s'affichera sous « Autres » tant qu'elle sera archivée.",
+              "bodyOther": "Ses {count} motifs actifs s'afficheront sous « Autres » tant qu'elle sera archivée."
+            }
+          }
+        },
+        "languages": {
+          "title": "Langues",
+          "description": "Le français est ajouté par défaut à chaque nouveau dossier. Ajoutez les autres langues de consultation.",
+          "add": "Ajouter une langue",
+          "createTitle": "Ajouter une langue",
+          "editTitle": "Modifier la langue",
+          "code": "Code",
+          "codeHelp": "Deux lettres, par exemple « pt » pour le portugais.",
+          "codeLocked": "Le code ne change pas une fois la langue ajoutée.",
+          "system": "Ajoutée par défaut à chaque nouveau dossier : ne peut pas être archivée."
+        },
+        "deactivationReasons": {
+          "title": "Raisons de désactivation",
+          "description": "Les raisons proposées au moment de désactiver un professionnel.",
+          "add": "Ajouter une raison",
+          "createTitle": "Ajouter une raison",
+          "editTitle": "Modifier la raison",
+          "requiresNote": "Note requise",
+          "requiresNoteHelp": "Une précision sera demandée au moment de la désactivation.",
+          "disablesAccount": "Désactive le compte",
+          "disablesAccountHelp": "Le professionnel ne pourra plus se connecter.",
+          "yes": "Oui",
+          "no": "Non",
+          "system": "Raison par défaut : ne peut pas être archivée."
+        },
+        "requiredDocuments": {
+          "title": "Documents requis",
+          "description": "Les documents demandés aux professionnels, leur date d'échéance et les fichiers acceptés.",
+          "add": "Ajouter un type de document",
+          "createTitle": "Ajouter un type de document",
+          "editTitle": "Modifier le type de document",
+          "system": "Suivi par l'application : ne peut pas être archivé. Vous pouvez le rendre facultatif.",
+          "required": "Requis",
+          "requiredHelp": "Le dossier n'est complet que lorsque ce document est valide.",
+          "yes": "Oui",
+          "no": "Non",
+          "expiry": "Échéance",
+          "expiryHelp": "La date proposée au téléversement ; elle reste modifiable.",
+          "rules": {
+            "none": "Aucune",
+            "next_march_31": "31 mars suivant",
+            "months_12": "12 mois"
+          },
+          "ruleOptions": {
+            "none": "Aucune échéance",
+            "next_march_31": "Le 31 mars suivant (en janvier et février : le 31 mars de l'année)",
+            "months_12": "12 mois après le téléversement"
+          },
+          "reminders": "Rappels",
+          "remindersNone": "Aucun",
+          "remindersBefore": "{days} jours avant",
+          "remindersBeforeOne": "1 jour avant",
+          "remindersWeekly": "chaque semaine après",
+          "reminderDays": "Rappels avant l'échéance (en jours)",
+          "reminderDaysHelp": "Jusqu'à trois nombres de 1 à 90, séparés par des virgules (par exemple « 30, 7 »). Laissez vide pour aucun rappel.",
+          "weekly": "Rappel chaque semaine après l'échéance",
+          "weeklyHelp": "Un courriel par semaine tant qu'aucune nouvelle preuve n'est vérifiée.",
+          "remindersOnlyInsurance": "Les rappels par courriel ne s'appliquent qu'à la preuve d'assurance.",
+          "files": "Fichiers acceptés",
+          "filesSummary": "{types} · {size}",
+          "allFiles": "Tous les types",
+          "photoFilesHelp": "La photo figure sur la fiche : JPEG ou PNG seulement.",
+          "maxBytes": "Taille maximale"
+        },
+        "consents": {
+          "title": "Consentements",
+          "description": "Le texte du consentement au droit à l'image que les professionnels signent dans leur questionnaire.",
+          "loadError": "Les versions du consentement n'ont pas pu être chargées.",
+          "current": {
+            "title": "Version en vigueur",
+            "description": "Le texte que signent les professionnels. Les consentements déjà signés gardent leur version.",
+            "none": "Aucune version publiée.",
+            "noneBody": "Les professionnels ne peuvent pas signer le consentement tant qu'aucune version n'est publiée.",
+            "meta": "Version {version} · publiée le {date}",
+            "metaBy": "Version {version} · publiée le {date} par {name}",
+            "signedNone": "Aucune signature",
+            "signedOne": "1 signature",
+            "signedOther": "{count} signatures"
+          },
+          "draft": {
+            "title": "Brouillon de la version {version}",
+            "description": "Pas encore publié : les professionnels signent toujours la version en vigueur.",
+            "titleField": "Titre",
+            "body": "Texte",
+            "bodyHelp": "Le texte exact que le professionnel lira et signera.",
+            "save": "Enregistrer le brouillon",
+            "saving": "Enregistrement…",
+            "publish": "Publier la version {version}",
+            "discard": "Supprimer le brouillon",
+            "unsavedBeforePublish": "Enregistrez le brouillon avant de le publier.",
+            "changedElsewhere": "Le brouillon a changé depuis l'ouverture de la page : la version à jour est affichée. Relisez-la, puis recommencez.",
+            "titleRequired": "Le titre est obligatoire.",
+            "titleTooLong": "Le titre ne peut pas dépasser 200 caractères.",
+            "bodyRequired": "Le texte du consentement est obligatoire.",
+            "bodyTooLong": "Le texte ne peut pas dépasser 20 000 caractères."
+          },
+          "newVersion": "Nouvelle version",
+          "newVersionHelp": "Un brouillon commence à partir du texte en vigueur. Rien ne change pour les professionnels avant sa publication.",
+          "cancelNew": "Annuler",
+          "publishDialog": {
+            "title": "Publier la version {version} ?",
+            "body": "Dès maintenant, les nouvelles signatures utiliseront ce texte. Les consentements déjà signés gardent leur version ; un questionnaire signé avec l'ancienne version et pas encore envoyé demandera de signer de nouveau.",
+            "confirm": "Publier la version {version}",
+            "pending": "Publication…"
+          },
+          "discardDialog": {
+            "title": "Supprimer le brouillon ?",
+            "body": "Le texte du brouillon sera perdu. La version en vigueur ne change pas.",
+            "confirm": "Supprimer le brouillon",
+            "pending": "Suppression…"
+          },
+          "previous": {
+            "title": "Versions précédentes",
+            "show": "Afficher le texte",
+            "hide": "Masquer le texte"
+          }
+        },
+        "invitations": {
+          "title": "Invitations",
+          "description": "Le lien que reçoit un professionnel invité, et le rappel s'il ne l'ouvre pas.",
+          "loadError": "Les réglages des invitations n'ont pas pu être chargés.",
+          "link": {
+            "title": "Lien d'invitation",
+            "description": "Le lien sert une seule fois. Un nouvel envoi remplace le lien précédent.",
+            "expiryDays": "Durée de validité du lien",
+            "expiryHelp": "De 1 à 30 jours. S'applique aux prochains envois.",
+            "days": "jours"
+          },
+          "reminder": {
+            "title": "Rappel automatique",
+            "description": "Un seul rappel par envoi, avec un nouveau lien, si l'invitation n'a pas été ouverte.",
+            "enabled": "Envoyer un rappel",
+            "enabledHelp": "Sinon, les invitations sans réponse restent dans « À surveiller ».",
+            "afterDays": "Rappel après",
+            "afterHelp": "Jours sans ouverture du lien, moins que sa durée de validité ({max} jours au plus).",
+            "days": "jours"
+          },
+          "job": {
+            "title": "Envoi des rappels",
+            "description": "Les rappels partent une fois par jour, par la tâche planifiée « Rappels d'invitation ».",
+            "on": "Les rappels partent chaque jour vers {hour} h (heure de la clinique).",
+            "onNoHour": "Les rappels partent une fois par jour.",
+            "off": "Aucun rappel ne part pour l'instant : la tâche planifiée « Rappels d'invitation » est désactivée.",
+            "enable": "Activer la tâche planifiée",
+            "enabling": "Activation…",
+            "askAdmin": "Un administrateur peut l'activer dans Paramètres → Tâches planifiées.",
+            "openJobs": "Ouvrir Tâches planifiées",
+            "unknown": "Les rappels partent seulement si la tâche planifiée « Rappels d'invitation » est activée (Paramètres → Tâches planifiées).",
+            "loadError": "L'état de la tâche planifiée n'a pas pu être chargé.",
+            "disabledReminder": "Le rappel automatique est désactivé : aucun rappel ne part."
+          },
+          "validation": {
+            "expiryRange": "Entrez un nombre entier de 1 à 30.",
+            "reminderRange": "Entrez un nombre entier de 1 à 29.",
+            "reminderBeforeExpiry": "Le rappel doit partir avant la fin de validité du lien : moins de {max} jours."
+          }
+        },
+        "compensation": {
+          "title": "Rémunération",
+          "description": "Les conditions communes à tous les professionnels : les grilles de rétention par profession et les taux des autres services. Chaque changement est daté.",
+          "loadError": "Les conditions de rémunération n'ont pas pu être chargées.",
+          "sin": {
+            "title": "Renseignements fiscaux",
+            "description": "Ce que le dossier des professionnels peut recueillir.",
+            "collect": "Recueillir le NAS",
+            "collectHelp": "Permet de saisir le NAS dans le dossier des professionnels. Désactivée, la collecte n'efface rien : un NAS enregistré reste affichable et peut être retiré.",
+            "loadError": "Impossible de charger le réglage de la collecte du NAS.",
+            "confirmTitle": "Activer la collecte du NAS ?",
+            "confirmBody": "Activez seulement si votre comptable confirme que le NAS est requis (T4A / relevé).",
+            "confirm": "Activer",
+            "confirming": "Activation…"
+          },
+          "grids": {
+            "title": "Grilles de rétention",
+            "description": "Par profession : la retenue de la clinique selon les séances cumulées, et le prix client de chaque durée. Une modification crée une nouvelle version datée.",
+            "summary": "De {first} à {floor} (dès {tier})",
+            "none": "Aucune grille : les professionnels de cette profession sont « Profession à confirmer ».",
+            "coming": "Nouvelle version dès le {date}.",
+            "details": "Paliers et prix ({count} version(s))",
+            "range": "{from} à {to}",
+            "rangeOpen": "{from} et plus",
+            "sessions": "Séances cumulées",
+            "retention": "Retenue",
+            "prices": "Prix client",
+            "tiersLabel": "Paliers de {title} dès le {date}",
+            "newVersion": "Nouvelle version",
+            "newVersionLabel": "Nouvelle version de la grille {title}",
+            "create": "Créer la grille",
+            "createLabel": "Créer la grille {title}",
+            "deleteLabel": "Supprimer la grille {title} dès le {date}",
+            "deleteTitle": "Supprimer cette version ?",
+            "deleteBody": "La grille {title} dès le {date} sera supprimée avec ses paliers et ses prix. La version précédente s’appliquera de nouveau.",
+            "saved": "Grille enregistrée.",
+            "deleted": "Grille supprimée.",
+            "dialog": {
+              "title": "Grille — {title}",
+              "description": "La nouvelle version s’applique à partir de la date choisie.",
+              "fromHelp": "La version actuelle se terminera la veille de cette date.",
+              "tiers": "Paliers",
+              "tiersHelp": "À partir du seuil de séances cumulées, la clinique retient ce pourcentage. Le premier palier commence à 0.",
+              "threshold": "Seuil du palier {index} (séances)",
+              "retention": "Retenue du palier {index} (%)",
+              "removeTier": "Retirer le palier {index}",
+              "addTier": "Ajouter un palier",
+              "prices": "Prix client ($)",
+              "pricesHelp": "Laissez vide une durée qui n’est pas offerte."
+            }
+          },
+          "rates": {
+            "title": "Autres services",
+            "description": "La retenue de la clinique sur les ateliers et conférences, les annulations tardives et les autres frais : la même pour tous les professionnels.",
+            "rate": "Retenue",
+            "from": "Du",
+            "to": "Au",
+            "status": "Statut",
+            "actions": "Actions",
+            "empty": "Aucun taux enregistré.",
+            "add": "Nouveau taux",
+            "deleteLabel": "Supprimer le taux {kind} de {rate} dès le {date}",
+            "deleteTitle": "Supprimer ce taux ?",
+            "deleteBody": "Le taux {kind} de {rate} dès le {date} sera supprimé. Le taux précédent s’appliquera de nouveau.",
+            "saved": "Taux enregistré.",
+            "deleted": "Taux supprimé.",
+            "dialog": {
+              "title": "Nouveau taux",
+              "description": "Le taux s’applique à partir de la date choisie.",
+              "rate": "Retenue (%)",
+              "fromHelp": "Le taux actuel de ce type se terminera la veille de cette date."
+            }
+          }
+        },
+        "fiche": {
+          "title": "Fiche PDF",
+          "description": "La fiche qu'une conseillère remet à un client, téléchargée ou envoyée par courriel. Ces choix valent pour toutes les fiches, dès la prochaine produite.",
+          "cardTitle": "Ce que la fiche affiche",
+          "cardDescription": "Le logo, le nom, le titre, les honoraires, la clientèle, « À propos », « Approche » et les motifs sont toujours affichés.",
+          "loadError": "Les réglages de la fiche n'ont pas pu être chargés.",
+          "showProContact": "Coordonnées du professionnel",
+          "showProContactHelp": "Le courriel et le téléphone publics du professionnel (Profil public), sous son nom. Désactivé, le client passe par la clinique.",
+          "showClinicFooter": "Coordonnées de la clinique au bas des pages",
+          "showClinicFooterHelp": "Le téléphone et le site Web de la clinique (Paramètres, Identité légale), à côté du logo, au bas de chaque page.",
+          "showClosing": "Bloc « Prochaine étape »",
+          "showClosingHelp": "À la fin de la fiche, une invitation à communiquer avec une conseillère pour planifier une première rencontre, avec le téléphone, le courriel et le site Web de la clinique."
+        },
+        "contracts": {
+          "title": "Contrats",
+          "description": "Le modèle du contrat de service envoyé aux professionnels pour signature électronique. Une version publiée ne change plus : les prochains contrats utilisent la version publiée.",
+          "editorLabel": "Modèle « {title} »",
+          "list": {
+            "title": "Modèles",
+            "description": "Les modèles de documents à signer du module Professionnels.",
+            "loadError": "Les modèles n'ont pas pu être chargés.",
+            "filterLabel": "Statut",
+            "filter": "{label} ({count})",
+            "filters": {
+              "all": "Tous",
+              "published": "Publiés",
+              "draft": "Brouillon en cours",
+              "unpublished": "Non publiés",
+              "retired": "Retirés"
+            },
+            "search": "Rechercher un modèle",
+            "emptyTitle": "Aucun modèle ne correspond.",
+            "emptyBody": "Changez le statut ou la recherche.",
+            "published": "Version {version} publiée le {date}",
+            "notPublished": "Non publié : aucun contrat ne peut être envoyé",
+            "draft": "Brouillon en cours",
+            "retired": "Retiré",
+            "open": "Ouvrir « {title} »"
+          },
+          "signer": {
+            "title": "Signataire de la clinique",
+            "description": "Quand un nom et une adresse courriel sont configurés, la clinique signe le contrat après le professionnel.",
+            "loadError": "Le signataire n'a pas pu être chargé.",
+            "signsSecond": "Signe en deuxième, à l'adresse {email}.",
+            "none": "Aucun signataire configuré : seul le professionnel signe.",
+            "link": "Modifier dans Paramètres → Signataire"
+          },
+          "editor": {
+            "loadError": "Les versions du modèle n'ont pas pu être chargées.",
+            "unreadable": "Cette version n'a pas la forme attendue : elle ne peut pas être affichée ici.",
+            "versions": {
+              "title": "Versions",
+              "description": "Une seule version est publiée à la fois; un brouillon se modifie jusqu'à sa publication.",
+              "draft": "Version {version} · brouillon, modifié le {date}",
+              "published": "Version {version} · publiée le {date}",
+              "archived": "Version {version} · retirée le {date}",
+              "inUse": "Utilisée pour les envois",
+              "editing": "En modification"
+            },
+            "newVersion": "Nouvelle version",
+            "newVersionFrom": "Nouvelle version (copie de la version {version})",
+            "discard": "Supprimer le brouillon {version}",
+            "save": "Enregistrer le brouillon",
+            "saving": "Enregistrement…",
+            "publish": "Publier la version {version}",
+            "publishBlocked": {
+              "unsaved": "Enregistrez le brouillon avant de le publier.",
+              "banner": "Retirez la ligne de validation avant de publier : le texte doit d'abord être validé par la direction.",
+              "annexe": "Ajoutez {placeholder} seul sur une ligne avant de publier : c'est là que s'imprime l'Annexe A."
+            },
+            "bannerNotice": "Ce brouillon commence par « {banner} ». Faites valider le texte par la direction, retirez cette ligne, enregistrez, puis publiez.",
+            "unknownPlaceholders": "Ces variables n'existent pas : {names}. Utilisez celles de la liste « Variables ».",
+            "annexeMissing": "Le tableau de l'Annexe A ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : il ne serait pas imprimé.",
+            "form": {
+              "titleDraft": "Brouillon de la version {version}",
+              "titlePublished": "Version {version} publiée (lecture seule)",
+              "titleArchived": "Version {version} retirée (lecture seule)",
+              "descriptionDraft": "Modifiez le texte, enregistrez, vérifiez l'aperçu, puis publiez.",
+              "descriptionReadOnly": "Une version publiée ou retirée ne change plus. Créez une nouvelle version pour modifier le texte.",
+              "title": "Titre du document",
+              "header": "En-tête des pages",
+              "headerHelp": "Affiché en haut de chaque page.",
+              "footer": "Pied de page",
+              "footerHelp": "Affiché au bas de chaque page, avant « Page x de y ».",
+              "initials": "Initiales du professionnel sur chaque page",
+              "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page.",
+              "initialsOn": "Oui",
+              "initialsOff": "Non (signature et date seulement)",
+              "body": "Texte du contrat",
+              "bodyHelp": "Une ligne vide sépare les paragraphes. # Titre, ## Sous-titre, ### Intertitre; - pour une liste, 1. pour une liste numérotée; | a | b | pour un tableau; --- pour un saut de page; **gras**. La page des signatures est ajoutée à la fin.",
+              "emailSubject": "Objet du courriel de signature",
+              "emailSubjectHelp": "Envoyé par Documenso, en français, avec le lien de signature.",
+              "emailMessage": "Message du courriel de signature"
+            },
+            "variables": {
+              "title": "Variables",
+              "description": "Copiez une variable telle quelle dans le texte : elle est remplacée par la valeur du dossier ou des paramètres au moment de l'envoi.",
+              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel.",
+              "markup": "Une valeur requise vide empêche l'envoi, avec le nom de l'information à compléter."
+            },
+            "preview": {
+              "title": "Aperçu",
+              "description": "Avec des valeurs d'exemple. Le PDF envoyé suit la même structure, mis en page en format lettre.",
+              "frameTitle": "Aperçu du contrat",
+              "annexeCaption": "Exemple : les tableaux réels viennent de la grille de rémunération du professionnel.",
+              "annexeColumns": {
+                "sessions": "Séances cumulées",
+                "d60": "Rencontre 60 min (couple ou famille)",
+                "d50": "Rencontre 50 min",
+                "d30": "Rencontre 30 min"
+              },
+              "annexeRows": {
+                "first": "0 à 50 séances",
+                "second": "51 à 100 séances",
+                "last": "301 séances et plus"
+              },
+              "initials": "Initiales",
+              "signature": "Signature",
+              "date": "Date",
+              "page": "Page 1 de 7"
+            },
+            "confirm": {
+              "publish": {
+                "title": "Publier la version {version} ?",
+                "body": "Les prochains contrats utiliseront cette version. Les contrats déjà envoyés ne changent pas.",
+                "action": "Publier la version {version}"
+              },
+              "discard": {
+                "title": "Supprimer le brouillon {version} ?",
+                "body": "Les modifications de ce brouillon seront perdues. La version publiée ne change pas.",
+                "action": "Supprimer le brouillon"
+              }
+            }
+          }
+        },
+        "list": {
+          "loadError": "La liste n'a pas pu être chargée.",
+          "table": "Tableau « {list} »",
+          "search": {
+            "label": "Rechercher dans « {list} »",
+            "placeholder": "Rechercher…"
+          },
+          "results": {
+            "one": "1 élément affiché",
+            "other": "{count} éléments affichés"
+          },
+          "add": "Ajouter",
+          "columns": {
+            "name": "Nom",
+            "usage": "Utilisé par",
+            "actions": "Actions"
+          },
+          "usage": {
+            "none": "—",
+            "noneLabel": "Personne",
+            "one": "1 professionnel",
+            "other": "{count} professionnels"
+          },
+          "archived": "Archivé",
+          "system": "Utilisé par le jumelage : ne peut pas être archivé.",
+          "actions": {
+            "menu": "Actions pour « {name} »",
+            "edit": "Modifier",
+            "archive": "Archiver",
+            "restore": "Restaurer",
+            "moveUp": "Monter « {name} »",
+            "moveDown": "Descendre « {name} »",
+            "moved": "« {name} » : position {position} sur {count}"
+          },
+          "empty": {
+            "title": "Aucun élément",
+            "body": "Ajoutez le premier élément de cette liste.",
+            "bodyReadOnly": "Rien n'a encore été ajouté à cette liste.",
+            "noMatchTitle": "Aucun résultat",
+            "noMatchBody": "Modifiez la recherche.",
+            "noMatchFilteredBody": "Modifiez la recherche ou les filtres.",
+            "noActive": "Aucun élément actif",
+            "noActiveBody": "Les éléments archivés sont sous « Archivés ».",
+            "noArchived": "Aucun élément archivé",
+            "noArchivedBody": "Un élément archivé reste sur les dossiers, mais ne peut plus être choisi."
+          },
+          "dialog": {
+            "createTitle": "Ajouter un élément",
+            "editTitle": "Modifier l'élément",
+            "name": "Nom",
+            "create": "Ajouter",
+            "creating": "Ajout…"
+          },
+          "archive": {
+            "title": "Archiver « {name} » ?",
+            "bodyNone": "Personne n'utilise cet élément. Il ne pourra plus être choisi.",
+            "bodyOne": "Cet élément est utilisé par 1 professionnel. Il reste sur son dossier mais ne pourra plus être choisi.",
+            "bodyOther": "Cet élément est utilisé par {count} professionnels. Il reste sur leur dossier mais ne pourra plus être choisi.",
+            "confirm": "Archiver",
+            "pending": "Archivage…"
+          },
+          "restore": {
+            "title": "Restaurer « {name} » ?",
+            "body": "Cet élément pourra de nouveau être choisi.",
+            "confirm": "Restaurer",
+            "pending": "Restauration…"
+          }
+        }
+      },
+      "review": {
+        "title": "Révision mensuelle",
+        "description": "Les séances du mois de chaque professionnel actif, et la retenue à décider quand le cumul atteint un nouveau palier.",
+        "loadError": "La révision du mois n’a pas pu être chargée.",
+        "month": "Mois",
+        "monthPrevious": "Mois précédent",
+        "monthNext": "Mois suivant",
+        "filter": "Afficher",
+        "filters": {
+          "todo": "À décider ({count})",
+          "all": "Tous ({count})",
+          "conforme": "Conformes ({count})",
+          "floor": "Palier maximum ({count})",
+          "kept": "Maintenus ou taux particuliers ({count})",
+          "profession_unconfirmed": "Profession à confirmer ({count})"
+        },
+        "todoGap": { "one": "{count} écart à valider", "other": "{count} écarts à valider" },
+        "todoNoRate": { "one": "{count} taux de départ à fixer", "other": "{count} taux de départ à fixer" },
+        "legend": "Retenue = part conservée par la clinique.",
+        "help": "Cumul = séances depuis le début du suivi. Une rencontre de 30 min compte pour ½ séance : un cumul de 100,5 reste dans le palier qui se termine à 100.",
+        "listLabel": "Professionnels, {month}",
+        "columns": {
+          "professional": "Professionnel",
+          "sessions": "Séances du mois",
+          "cumulative": "Cumul",
+          "tier": "Palier",
+          "retention": "Retenue",
+          "status": "Statut / décision"
+        },
+        "long": "50/60",
+        "short": "30",
+        "halfHint": "30 min = ½ séance",
+        "longLabel": "Séances de 50/60 min — {name}",
+        "shortLabel": "Séances de 30 min — {name}",
+        "breakdown": "({before} + {month})",
+        "breakdownLong": "{before} avant + {month} ce mois-ci",
+        "adjustment": "Ajustement {value}",
+        "importedBalance": "Solde importé : {count} avant le suivi",
+        "unsaved": "(non enregistré)",
+        "recalculated": "Recalculé à l’enregistrement",
+        "newTier": "nouveau",
+        "newTierLong": "nouveau palier ce mois-ci",
+        "retentionChange": "{from} actuellement, {to} proposé par la grille",
+        "retentionFirst": "aucune retenue fixée, {to} proposé par la grille",
+        "grid": "Grille : {rate}",
+        "startsOn": "Dès le {date}",
+        "comesBack": "Revient au prochain palier ({count})",
+        "staysAtFloor": "Reste en place au palier maximum",
+        "noGrid": "Aucune grille pour cette profession",
+        "noTitle": "Aucune profession",
+        "agreements": "{count} entente(s) particulière(s)",
+        "decisionFor": "{action} pour {name}",
+        "noTodo": "Rien à décider pour {month}.",
+        "empty": "Aucun professionnel dans ce filtre.",
+        "changes": "{count} professionnel(s) modifié(s).",
+        "invalid": "Corrigez les nombres signalés.",
+        "discard": "Annuler les changements",
+        "save": "Enregistrer les séances",
+        "saved": "Séances enregistrées pour {count} professionnel(s).",
+        "stale": "Les séances de {name} ont été modifiées entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
+        "refusedFor": "{name} : {message}"
+      },
+      "submission": {
+        "fields": {
+          "personal_phone": "Téléphone personnel",
+          "address_line1": "Adresse",
+          "address_line2": "Appartement ou bureau",
+          "city": "Ville",
+          "province": "Province",
+          "postal_code": "Code postal",
+          "professions": "Titres professionnels et permis",
+          "years_experience": "Années d'expérience",
+          "bio": "Présentation",
+          "approach": "Approche",
+          "public_email": "Courriel public",
+          "public_phone": "Téléphone public",
+          "language_ids": "Langues",
+          "clienteles": "Clientèles",
+          "min_client_age": "Âge minimum des clients",
+          "women_only": "Femmes seulement",
+          "motif_ids": "Motifs de consultation",
+          "accepting_new_clients": "Accepte de nouveaux clients",
+          "availability_periods": "Moments de la semaine",
+          "availability_note": "Précision sur les disponibilités",
+          "photo": "Photo",
+          "insurance": "Preuve d'assurance",
+          "business_number": "Numéro d'entreprise (NE)",
+          "gst_number": "Numéro de TPS",
+          "qst_number": "Numéro de TVQ",
+          "bank_institution": "Institution bancaire",
+          "bank_transit": "Transit",
+          "bank_account": "Numéro de compte",
+          "sin": "Numéro d'assurance sociale (NAS)",
+          "consent": "Consentement au droit à l'image"
+        },
+        "kinds": {
+          "onboarding": "Questionnaire d'accueil",
+          "update": "Mise à jour du profil"
+        },
+        "states": {
+          "onboarding": {
+            "returned": "Renvoyé au professionnel",
+            "in_progress": "En cours chez le professionnel",
+            "to_review": "À réviser",
+            "applied": "Appliqué",
+            "approved_unchanged": "Approuvé sans changement",
+            "cancelled": "Fermé sans être appliqué"
+          },
+          "update": {
+            "returned": "Renvoyée au professionnel",
+            "in_progress": "En cours chez le professionnel",
+            "to_review": "À réviser",
+            "applied": "Appliquée",
+            "approved_unchanged": "Approuvée sans changement",
+            "cancelled": "Fermée sans être appliquée"
+          }
+        },
+        "values": {
+          "current": "Actuel",
+          "proposed": "Proposé",
+          "changed": "Modifié",
+          "notIndicated": "Non indiqué",
+          "confirmed": "Confirmé tel quel",
+          "notAnswered": "Non répondu, le dossier garde sa valeur",
+          "notSent": "Non transmis",
+          "yes": "Oui",
+          "no": "Non",
+          "year": "{count} an",
+          "years": "{count} ans",
+          "primary": "(principal)",
+          "unknown": "Élément retiré de la liste",
+          "specialized": "(spécialisé)",
+          "added": "Ajoutés ({count})",
+          "removed": "Retirés ({count})",
+          "starred": "Maintenant marqués « spécialisé »",
+          "unstarred": "Ne sont plus marqués « spécialisé »",
+          "kept": "Inchangés ({count})",
+          "privateHidden": "Non affiché",
+          "privateSent": "Nouvelle valeur transmise, non affichée",
+          "maskAccount": "Au dossier : se termine par {last4}",
+          "maskSin": "Au dossier : se termine par {last3}",
+          "photoAlt": "Photo transmise par le professionnel",
+          "photoSent": "Nouvelle photo transmise. Une fois appliquée, elle est jointe au dossier.",
+          "insuranceSent": "Preuve d'assurance transmise, échéance le {date}.",
+          "insuranceSentUndated": "Preuve d'assurance transmise.",
+          "openFile": "Ouvrir le fichier",
+          "newTab": "(nouvel onglet)",
+          "fileUnavailable": "Le fichier ne peut pas être affiché pour l'instant.",
+          "consentNone": "Aucun consentement au dossier.",
+          "consentUnsigned": "Pas encore signé.",
+          "consentOnFile": "Signé le {date} (version {version}), valide jusqu'au {until}.",
+          "consentSigned": "Signé le {date} par {name} (version {version})."
+        },
+        "card": {
+          "title": "Questionnaire et mises à jour",
+          "description": "Ce que {firstName} a envoyé à la clinique, et ce qui en a été appliqué au dossier.",
+          "loadError": "Les questionnaires n'ont pas pu être chargés.",
+          "empty": {
+            "title": "Aucun questionnaire pour l'instant.",
+            "body": "Le questionnaire d'accueil apparaît ici dès l'envoi de l'invitation."
+          },
+          "sentOn": { "onboarding": "Envoyé le {date}", "update": "Envoyée le {date}" },
+          "startedOn": { "onboarding": "Commencé le {date}", "update": "Commencée le {date}" },
+          "appliedOn": { "onboarding": "Approuvé le {date}", "update": "Approuvée le {date}" },
+          "appliedOnBy": { "onboarding": "Approuvé le {date} par {name}", "update": "Approuvée le {date} par {name}" },
+          "returnedOn": { "onboarding": "Renvoyé le {date}", "update": "Renvoyée le {date}" },
+          "returnedOnBy": { "onboarding": "Renvoyé le {date} par {name}", "update": "Renvoyée le {date} par {name}" },
+          "origin": {
+            "clinic": "Demandée par la clinique",
+            "self": "Commencée par {firstName}"
+          },
+          "changes": "{count} changements appliqués",
+          "changesOne": "1 changement appliqué",
+          "sections": "Sections demandées : {sections}",
+          "note": "Note de la clinique :",
+          "review": "Réviser",
+          "reviewLabel": "Réviser : {kind}",
+          "ownFile": "C'est votre propre dossier : une autre personne autorisée doit le réviser.",
+          "cancel": "Fermer la demande"
+        },
+        "sheet": {
+          "title": "Réviser le profil de {name}",
+          "sentOn": {
+            "onboarding": "Questionnaire d'accueil envoyé le {date}.",
+            "update": "Mise à jour du profil envoyée le {date}."
+          },
+          "loadingDescription": "Chargement des réponses envoyées.",
+          "loadError": "Les réponses n'ont pas pu être chargées.",
+          "gone": "Cette soumission n'existe plus ou vous n'y avez pas accès.",
+          "notWaiting": "Cette soumission n'attend plus de révision : elle a déjà été traitée ou fermée.",
+          "summary": "{count} changements proposés, tous cochés. Décochez ceux à ne pas appliquer au dossier.",
+          "summaryOne": "1 changement proposé, coché. Décochez-le pour ne pas l'appliquer au dossier.",
+          "noChange": "Aucun changement proposé : les réponses reprennent ce que le dossier contient déjà.",
+          "changedOne": "1 modifié",
+          "changedMany": "{count} modifiés",
+          "unchangedOne": "1 inchangé",
+          "unchangedMany": "{count} inchangés",
+          "showUnchanged": "Voir les champs inchangés ({count})",
+          "checkedCount": "{checked} changements cochés sur {total}. Les changements décochés ne seront pas appliqués.",
+          "checkedCountOne": "1 changement coché sur {total}. Les changements décochés ne seront pas appliqués.",
+          "discardNote": {
+            "title": "Abandonner la note ?",
+            "body": "La note pour {firstName} n'a pas été envoyée : elle sera perdue.",
+            "keep": "Continuer la note",
+            "confirm": "Abandonner"
+          },
+          "noneChecked": "Cochez au moins un changement, ou renvoyez le profil au professionnel.",
+          "warnings": {
+            "insuranceExpired": "Cette assurance est échue depuis le {date} : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
+            "consentOutdated": "Le texte du consentement a changé depuis la signature : ce consentement ne peut pas être appliqué. Décochez-le, ou renvoyez le profil au professionnel pour qu'il signe la nouvelle version."
+          },
+          "apply": "Appliquer les changements sélectionnés ({count})",
+          "applying": "Application…",
+          "approveUnchanged": "Approuver sans changement",
+          "return": "Renvoyer au professionnel",
+          "noteLabel": "Note pour {firstName}",
+          "noteHelp": "Dites ce qu'il faut corriger. {firstName} lira cette note en haut de son questionnaire ; aucun courriel n'est envoyé.",
+          "noteCounter": "{count} / {max} caractères.",
+          "noteRequired": "Écrivez ce que {firstName} doit corriger.",
+          "noteTooLong": "La note compte au plus {max} caractères.",
+          "backToReview": "Retour à la révision",
+          "sendBack": "Renvoyer avec cette note",
+          "returning": "Envoi…"
+        },
+        "toasts": {
+          "applied": {
+            "onboarding": "Questionnaire approuvé : {count} changements appliqués au dossier.",
+            "update": "Mise à jour approuvée : {count} changements appliqués au dossier."
+          },
+          "appliedOne": {
+            "onboarding": "Questionnaire approuvé : 1 changement appliqué au dossier.",
+            "update": "Mise à jour approuvée : 1 changement appliqué au dossier."
+          },
+          "approvedUnchanged": {
+            "onboarding": "Questionnaire approuvé, sans changement au dossier.",
+            "update": "Mise à jour approuvée, sans changement au dossier."
+          },
+          "returned": "Profil renvoyé à {firstName} avec votre note.",
+          "cancelled": "Mise à jour fermée : les réponses de {firstName} ne sont pas appliquées au dossier."
+        },
+        "cancelDialog": {
+          "title": "Fermer la mise à jour de {name} ?",
+          "body": "Les réponses de {firstName} ne seront pas appliquées au dossier, et son questionnaire de mise à jour se fermera. Vous pourrez demander une nouvelle mise à jour.",
+          "confirm": "Fermer la demande",
+          "closing": "Fermeture…"
+        }
+      },
+      "documents": {
+        "or": "ou",
+        "loadError": "Les documents n'ont pas pu être chargés.",
+        "required": {
+          "title": "Documents requis",
+          "summary": "Documents requis en règle : {done} sur {total}",
+          "none": "La clinique ne demande aucun document pour l'instant."
+        },
+        "ownFile": "C'est votre propre dossier : une autre personne autorisée vérifie, refuse ou supprime vos documents.",
+        "state": {
+          "validUntil": "Valide jusqu'au {date}",
+          "verified": "Vérifié",
+          "expiring": "Expire le {date}",
+          "expiredOn": "Expiré : valide jusqu'au {date}",
+          "expired": "Expiré",
+          "pending": "À vérifier",
+          "pendingSelf": "En attente de vérification par la clinique",
+          "rejected": "Refusé",
+          "missing": "Manquant"
+        },
+        "lines": {
+          "uploadedByClinic": "Téléversé le {date} par la clinique",
+          "uploadedByProfessional": "Téléversé le {date} par {firstName}",
+          "uploadedByYou": "Téléversé le {date} par vous",
+          "uploadedForYou": "Téléversé le {date} par la clinique",
+          "verifiedBy": "Vérifié le {date} par {name}",
+          "verifiedOn": "Vérifié le {date}",
+          "rejectedBy": "Refusé le {date} par {name}",
+          "rejectedOn": "Refusé le {date}",
+          "reason": "Raison :",
+          "insurer": "Assureur : {value}",
+          "policy": "N° de police : {value}",
+          "fileGone": "Le fichier a été retiré.",
+          "consent": "Signé électroniquement le {date} par {name} (version {version})",
+          "consentNoName": "Signé électroniquement le {date} (version {version})",
+          "consentWithdrawn": "Retrait demandé : il prend effet le {date}.",
+          "newPending": "Nouveau document",
+          "none": "Aucun document pour l'instant."
+        },
+        "older": {
+          "show": "Voir les documents précédents ({count})",
+          "hide": "Masquer les documents précédents"
+        },
+        "actions": {
+          "upload": "Téléverser",
+          "uploadLabel": "Téléverser : {type}",
+          "replace": "Remplacer",
+          "replaceLabel": "Remplacer : {type}",
+          "uploadOther": "Téléverser un document",
+          "preview": "Aperçu",
+          "download": "Télécharger",
+          "downloading": "Téléchargement…",
+          "verify": "Vérifier",
+          "reject": "Refuser",
+          "redate": "Modifier l'échéance",
+          "delete": "Supprimer",
+          "more": "Autres actions : {name}",
+          "documentName": "{type}, {state}"
+        },
+        "others": {
+          "title": "Autres documents",
+          "description": "CV, diplômes, attestations et tout autre document du dossier.",
+          "empty": "Aucun autre document."
+        },
+        "upload": {
+          "title": "Téléverser : {type}",
+          "titleAny": "Téléverser un document",
+          "description": "Le document s'ajoute au dossier de {name}.",
+          "descriptionSelf": "Le document s'ajoute à votre dossier.",
+          "type": "Type de document",
+          "typePlaceholder": "Choisissez un type",
+          "expiresOn": "Valide jusqu'au",
+          "expiresOnHelp": "Le dernier jour où le document est valide. La date proposée suit la règle du type : corrigez-la si le document en indique une autre.",
+          "insurer": "Assureur",
+          "policyNumber": "Numéro de police",
+          "choose": "Choisir le fichier",
+          "hint": "{types}, {size} au plus.",
+          "verifiedAtOnce": "Le document sera marqué vérifié dès son téléversement.",
+          "reviewedLater": "Le document attendra la vérification d'une autre personne autorisée.",
+          "reviewedLaterSelf": "La clinique vérifiera le document avant qu'il compte dans votre dossier.",
+          "chooseTypeFirst": "Choisissez d'abord le type de document.",
+          "dateRequired": "Indiquez le dernier jour de validité.",
+          "dateInvalid": "Cette date n'est pas valide.",
+          "datePast": "La date doit être aujourd'hui ou plus tard.",
+          "dateTooFar": "La date ne peut pas dépasser le 31 décembre 2100.",
+          "fieldTooLong": "120 caractères au plus."
+        },
+        "verify": {
+          "title": "Vérifier : {type}",
+          "body": "Confirmez que le document est lisible, complet et au nom de {name}.",
+          "expiresOn": "Valide jusqu'au",
+          "expiresOnHelp": "Corrigez la date si le document en indique une autre.",
+          "pastNote": "Cette date est passée : le document sera marqué expiré.",
+          "confirm": "Vérifier le document",
+          "pending": "Vérification…"
+        },
+        "reject": {
+          "title": "Refuser : {type}",
+          "reason": "Raison du refus",
+          "emailed": "{firstName} recevra cette raison par courriel et pourra téléverser un nouveau document.",
+          "notEmailed": "La clinique a téléversé ce document : aucun courriel n'est envoyé.",
+          "fileRemoved": "Le fichier sera retiré du dossier ; la raison reste visible.",
+          "reasonRequired": "Indiquez pourquoi le document est refusé.",
+          "reasonTooLong": "La raison compte au plus 1000 caractères.",
+          "confirm": "Refuser le document",
+          "pending": "Refus…"
+        },
+        "redate": {
+          "title": "Modifier l'échéance : {type}",
+          "body": "Le changement est inscrit à l'historique du dossier.",
+          "confirm": "Enregistrer l'échéance",
+          "pending": "Enregistrement…"
+        },
+        "delete": {
+          "title": "Supprimer ce document ?",
+          "body": "{type} : le document et son fichier seront retirés du dossier de {name}. Cette action ne peut pas être annulée ; l'historique en garde la trace.",
+          "confirm": "Supprimer le document",
+          "pending": "Suppression…"
+        },
+        "preview": {
+          "description": "{file} · {size}",
+          "frameTitle": "Aperçu de {file}",
+          "imageAlt": "Aperçu : {type}",
+          "notPreviewable": "Ce type de fichier ne s'affiche pas ici : téléchargez-le.",
+          "fallback": "Si l'aperçu ne s'affiche pas, téléchargez le fichier.",
+          "downloadFailed": "Le fichier n'a pas pu être téléchargé. Réessayez dans un instant."
+        },
+        "toasts": {
+          "uploaded": "Document téléversé et vérifié.",
+          "uploadedPending": "Document téléversé. Il attend une vérification.",
+          "uploadedSelf": "Document envoyé. La clinique le vérifiera.",
+          "verified": "Document vérifié.",
+          "redated": "Échéance enregistrée.",
+          "deleted": "Document supprimé.",
+          "rejected": "Document refusé.",
+          "rejectedEmailed": "Document refusé. {firstName} a reçu un courriel avec la raison.",
+          "rejectedNotEmailed": "Document refusé, mais le courriel n'a pas pu être envoyé. Prévenez {firstName} directement.",
+          "draftSaved": "Brouillon enregistré.",
+          "published": "Nouvelle version publiée.",
+          "draftDiscarded": "Brouillon supprimé."
+        }
+      },
+      "myDocuments": {
+        "nav": "Mes documents",
+        "pageTitle": "Mes documents",
+        "description": "Les documents que la clinique garde à votre dossier, et ce qu'il reste à envoyer.",
+        "loadError": "Vos documents n'ont pas pu être chargés.",
+        "noFile": {
+          "title": "Aucun dossier de professionnel n'est lié à votre compte.",
+          "body": "Cette page sert aux professionnels de la clinique."
+        },
+        "banners": {
+          "expiringTitle": "Votre assurance arrive à échéance",
+          "expiring": "Votre assurance expire le {date}. Téléversez la nouvelle preuve dès que possible.",
+          "expiredTitle": "Votre assurance est expirée",
+          "expired": "Votre assurance est expirée. Téléversez la nouvelle preuve pour continuer à recevoir de nouveaux clients.",
+          "renewalPending": "Merci : votre nouvelle preuve d'assurance attend la vérification de la clinique."
+        },
+        "rejectedNote": "La clinique a refusé ce document. Téléversez-en un nouveau."
+      },
+      "contract": {
+        "title": "Contrat de service",
+        "description": "Le contrat est envoyé à {firstName} pour signature électronique. Le PDF signé est conservé au dossier dès qu'il existe.",
+        "loadError": "Le contrat n'a pas pu être chargé.",
+        "state": {
+          "none": "Aucun contrat",
+          "sending": "Envoi en cours",
+          "stalled": "L'envoi n'a pas abouti",
+          "stalledDetail": "L'envoi s'est arrêté sans réponse de Documenso. Réessayez l'envoi ou régénérez le contrat."
+        },
+        "version": "Modèle, version {version}",
+        "none": "Aucun contrat de service n'a encore été envoyé à {firstName}.",
+        "dates": {
+          "prepared": "Préparé le {date}",
+          "sent": "Envoyé le {date}",
+          "viewed": "Consulté le {date}",
+          "expires": "Expire le {date}",
+          "signed": "Signé le {date}",
+          "rejected": "Refusé le {date}",
+          "expired": "Expiré le {date}",
+          "cancelled": "Annulé le {date}"
+        },
+        "reason": "Raison du refus :",
+        "signersLabel": "Signataires",
+        "signer": {
+          "pending": "En attente de signature",
+          "viewed": "Consulté le {date}",
+          "signed": "Signé le {date}",
+          "rejected": "Refusé le {date}"
+        },
+        "roles": {
+          "professional": "Professionnel",
+          "clinic": "Clinique",
+          "client": "Client",
+          "other": "Signataire"
+        },
+        "noTemplate": "Aucun modèle de contrat publié : publiez « Contrat de service » avant d'envoyer.",
+        "noTemplateLink": "Ouvrir Paramètres → Contrats",
+        "failedHelp": "« Réessayer l'envoi » renvoie le contrat tel qu'il a été préparé. Si le dossier a changé depuis (adresse, signataire, rémunération), corrigez-le, puis utilisez « Régénérer ».",
+        "noClinicSigner": "Seul le professionnel signera : aucun signataire de la clinique n'est configuré (Paramètres → Signataire).",
+        "restricted": "Le PDF signé est réservé aux personnes qui gèrent la rémunération : il contient les montants versés.",
+        "journal": {
+          "title": "Journal de signature",
+          "sent": "Envoyé pour signature le {date}",
+          "viewed": "{name} a consulté le contrat le {date}",
+          "signed": "{name} a signé le {date}",
+          "completed": "Contrat complété et PDF signé conservé le {date}",
+          "pdfNote": "Le PDF signé contient aussi le certificat et le journal de Documenso."
+        },
+        "actions": {
+          "send": "Préparer et envoyer",
+          "retry": "Réessayer l'envoi",
+          "regenerate": "Régénérer",
+          "resend": "Renvoyer le courriel",
+          "sync": "Synchroniser",
+          "syncing": "Synchronisation…",
+          "working": "Envoi…",
+          "journal": "Journal de signature",
+          "hideJournal": "Masquer le journal",
+          "pdf": "Télécharger le PDF signé",
+          "pdfLabel": "Télécharger le PDF signé du contrat de {firstName}"
+        },
+        "confirm": {
+          "send": {
+            "title": "Envoyer le contrat à {firstName} ?",
+            "body": "Le contrat est préparé avec la version {version} du modèle et les honoraires de {firstName} en vigueur aujourd'hui, puis envoyé par courriel pour signature électronique.",
+            "action": "Préparer et envoyer"
+          },
+          "regenerate": {
+            "title": "Régénérer le contrat de {firstName} ?",
+            "body": "Le contrat en cours, s'il y en a un, est annulé. Un nouveau contrat est préparé avec la version {version} du modèle et les honoraires en vigueur aujourd'hui, puis envoyé à {firstName}.",
+            "action": "Régénérer et envoyer"
+          },
+          "resend": {
+            "title": "Renvoyer le courriel de signature à {firstName} ?",
+            "body": "Documenso renvoie le courriel avec un lien de signature renouvelé. Le contrat ne change pas.",
+            "action": "Renvoyer le courriel"
+          }
+        },
+        "toasts": {
+          "send": "Contrat envoyé à {firstName} pour signature.",
+          "regenerate": "Nouveau contrat envoyé à {firstName}.",
+          "resend": "Courriel de signature renvoyé à {firstName}.",
+          "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
+          "draftSaved": "Brouillon enregistré.",
+          "published": "Version publiée : les prochains contrats l'utiliseront.",
+          "archived": "Version retirée."
+        },
+        "errors": {
+          "missingVariable": "Le contrat ne peut pas être préparé : « {label} » est vide. Complétez le dossier ou les paramètres, puis réessayez.",
+          "missingVariableUnknown": "Le contrat ne peut pas être préparé : une information requise par le modèle est vide.",
+          "notConfigured": "La signature électronique n'est pas configurée (Paramètres → Signature électronique).",
+          "providerError": "Documenso n'a pas répondu correctement. Réessayez dans quelques minutes : le même envoi sera repris.",
+          "inProgress": "Un envoi est déjà en cours pour ce contrat.",
+          "rateLimited": "Trop d'envois en peu de temps.",
+          "network": "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
+          "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard."
+        }
+      },
+      "myProfile": {
+        "nav": "Mon profil",
+        "pageTitle": "Mon profil",
+        "loadError": "Votre profil n'a pas pu être chargé.",
+        "notIndicated": "Non indiqué",
+        "noFile": {
+          "title": "Aucun dossier de professionnel n'est lié à votre compte.",
+          "body": "Cette page sert aux professionnels de la clinique."
+        },
+        "cards": {
+          "contact": "Coordonnées",
+          "public": "Profil public",
+          "publicHelp": "Ce que les clients lisent sur votre fiche.",
+          "matching": "Profil de jumelage",
+          "matchingHelp": "Ce qui aide la clinique à vous proposer des clients qui vous correspondent.",
+          "taxBankHelp": "Le numéro de compte et le NAS ne s'affichent jamais en entier.",
+          "documents": "Documents"
+        },
+        "masks": {
+          "account": "Se termine par {last4}",
+          "sin": "Se termine par {last3}"
+        },
+        "taxBankError": "Impossible d'afficher vos renseignements fiscaux et bancaires.",
+        "documents": {
+          "body": "Votre assurance, votre photo et vos autres documents sont dans « Mes documents ».",
+          "link": "Voir mes documents"
+        },
+        "questionnaire": {
+          "title": "Votre profil",
+          "inactive": "Votre dossier est inactif : communiquez avec la clinique pour le réactiver.",
+          "continue": {
+            "onboarding": "Votre questionnaire d'accueil n'est pas encore envoyé. Vos réponses sont gardées : reprenez où vous en étiez.",
+            "update": "Votre mise à jour n'est pas encore envoyée. Vos réponses sont gardées : reprenez où vous en étiez.",
+            "action": "Continuer le questionnaire"
+          },
+          "returned": {
+            "title": "La clinique vous demande des précisions",
+            "action": "Corriger mon profil"
+          },
+          "sent": {
+            "onboarding": "Questionnaire envoyé le {date}. L'équipe de la clinique le révise.",
+            "update": "Mise à jour envoyée le {date}. L'équipe de la clinique la révise.",
+            "action": "Voir ce que j'ai envoyé"
+          },
+          "sentUndated": {
+            "onboarding": "Questionnaire envoyé. L'équipe de la clinique le révise.",
+            "update": "Mise à jour envoyée. L'équipe de la clinique la révise."
+          },
+          "update": {
+            "body": "Un changement à faire ? Choisissez les sections à revoir. La clinique révise vos changements avant qu'ils paraissent à votre dossier.",
+            "action": "Mettre mon profil à jour"
+          }
+        },
+        "update": {
+          "title": "Mettre mon profil à jour",
+          "body": "Choisissez les sections à revoir. Rien ne change à votre dossier avant que la clinique révise vos changements.",
+          "legend": "Sections à revoir",
+          "required": "Choisissez au moins une section.",
+          "confirm": "Commencer la mise à jour",
+          "starting": "Ouverture…",
+          "failed": "La mise à jour n'a pas pu être ouverte. Réessayez dans un instant."
+        },
+        "home": {
+          "onboarding": {
+            "title": "Complétez votre profil",
+            "body": "La clinique attend votre questionnaire d'accueil pour vous proposer des clients. Vos réponses sont gardées au fur et à mesure.",
+            "action": "Compléter mon profil"
+          },
+          "update": {
+            "title": "Mettez votre profil à jour",
+            "body": "La clinique vous demande de revoir : {sections}.",
+            "action": "Mettre mon profil à jour"
+          },
+          "self": {
+            "title": "Terminez votre mise à jour",
+            "body": "Vous avez choisi de revoir : {sections}. Envoyez-la quand elle est prête.",
+            "action": "Continuer ma mise à jour"
+          },
+          "returned": {
+            "title": "La clinique vous demande des précisions",
+            "body": "Lisez sa note en haut de votre questionnaire, corrigez, puis envoyez votre profil de nouveau.",
+            "action": "Corriger mon profil"
+          }
+        }
+      },
+      "questionnaire": {
+        "title": {
+          "onboarding": "Compléter mon profil",
+          "update": "Mettre mon profil à jour"
+        },
+        "intro": {
+          "onboarding": "Quelques étapes pour présenter votre pratique à la clinique. Vos réponses sont enregistrées au fur et à mesure : vous pouvez faire une pause et revenir quand vous voulez.",
+          "updateOne": "La clinique vous demande de revoir une section de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "updateMany": "La clinique vous demande de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "selfOne": "Vous avez choisi de revoir une section de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "selfMany": "Vous avez choisi de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure."
+        },
+        "stepsLabel": "Étapes du questionnaire",
+        "stepOf": "Étape {current} sur {total}",
+        "stepNumber": "Étape {n} :",
+        "doneCount": "{done} sur {total} terminées",
+        "showSteps": "Voir toutes les étapes",
+        "hideSteps": "Masquer les étapes",
+        "stepState": {
+          "complete": "(terminée)",
+          "current": "(étape en cours)",
+          "todo": "(à compléter)",
+          "refused": "(modification refusée)"
+        },
+        "steps": {
+          "personal": {
+            "title": "Renseignements personnels",
+            "description": "Pour vous joindre et préparer votre contrat. Ces renseignements ne paraissent pas sur votre fiche."
+          },
+          "professional": {
+            "title": "Profil professionnel",
+            "description": "Vos titres, vos numéros de permis et vos années d'expérience."
+          },
+          "portrait": {
+            "title": "Portrait",
+            "description": "Ce que les clients liront sur votre fiche."
+          },
+          "languages": {
+            "title": "Langues",
+            "description": "Les langues dans lesquelles vous pouvez offrir vos rencontres."
+          },
+          "clienteles": {
+            "title": "Clientèles",
+            "description": "Les personnes que vous accompagnez. L'étoile marque une spécialisation."
+          },
+          "motifs": {
+            "title": "Motifs",
+            "description": "Les besoins pour lesquels la clinique peut vous proposer des clients."
+          },
+          "availability": {
+            "title": "Disponibilités générales",
+            "description": "Les moments de la semaine où vous recevez habituellement des clients."
+          },
+          "photo": {
+            "title": "Photo",
+            "description": "La photo de votre fiche."
+          },
+          "insurance": {
+            "title": "Assurance",
+            "description": "Votre preuve d'assurance responsabilité professionnelle en vigueur."
+          },
+          "tax_bank": {
+            "title": "Fiscalité et banque",
+            "description": "Pour vous payer par dépôt direct."
+          },
+          "consent": {
+            "title": "Consentement",
+            "description": "L'utilisation de votre image et de votre nom par la clinique."
+          },
+          "review": {
+            "title": "Révision et envoi",
+            "description": "Vérifiez vos réponses, puis envoyez votre profil à la clinique."
+          }
+        },
+        "actions": {
+          "back": "Retour",
+          "continue": "Continuer",
+          "saving": "Enregistrement…"
+        },
+        "autosave": {
+          "saving": "Enregistrement…",
+          "savedAt": "Enregistré à {time}",
+          "savedOn": "Enregistré le {date}",
+          "unsaved": "Des modifications ne sont pas enregistrées.",
+          "onContinue": "Cette étape est enregistrée quand vous continuez.",
+          "saveDraft": "Enregistrer le brouillon",
+          "failed": "Vos dernières modifications n'ont pas été enregistrées. Vérifiez votre connexion.",
+          "retry": "Réessayer",
+          "notSaved": "Cette modification n'a pas pu être enregistrée."
+        },
+        "refused": {
+          "titleOne": "Une modification n'a pas été enregistrée",
+          "titleMany": "Des modifications n'ont pas été enregistrées"
+        },
+        "states": {
+          "loadError": "Le questionnaire n'a pas pu être chargé.",
+          "none": {
+            "pageTitle": "Mon questionnaire",
+            "title": "Rien à compléter pour l'instant.",
+            "body": "La clinique vous écrira si elle a besoin d'une mise à jour de votre profil.",
+            "closed": "La clinique a fermé votre questionnaire : vos dernières modifications n'ont pas été enregistrées.",
+            "myProfile": "Voir mon profil"
+          },
+          "submitted": {
+            "pageTitle": "Profil envoyé",
+            "sentOn": "Envoyé le {date}.",
+            "thanks": "Merci ! L'équipe de la clinique va réviser votre profil. Si elle a besoin d'une précision, vous la verrez ici et sur votre page d'accueil.",
+            "summary": "Vos réponses"
+          },
+          "returned": {
+            "title": "La clinique vous demande des précisions",
+            "body": "Corrigez les étapes concernées, puis envoyez votre profil de nouveau."
+          }
+        },
+        "personal": {
+          "name": "Nom",
+          "nameHelp": "Pour corriger votre nom, écrivez à la clinique.",
+          "loginEmail": "Courriel de connexion",
+          "loginEmailHelp": "Il se change dans « Mon compte ».",
+          "phone": "Téléphone",
+          "phoneHelp": "Le numéro où la clinique peut vous joindre.",
+          "address": "Adresse",
+          "addressLine1": "Adresse",
+          "addressLine2": "Appartement ou bureau",
+          "city": "Ville",
+          "province": "Province",
+          "postalCode": "Code postal"
+        },
+        "professional": {
+          "titles": "Titres professionnels",
+          "titlesHelp": "Deux titres au plus, dont un principal. Le numéro de permis est demandé pour un titre d'un ordre professionnel.",
+          "noTitle": "Aucun titre pour l'instant.",
+          "years": "Années d'expérience",
+          "yearsHelp": "Facultatif. De 0 à 60."
+        },
+        "portrait": {
+          "bio": "Présentation",
+          "bioHelp": "Quelques phrases sur votre pratique, écrites pour les clients.",
+          "approach": "Approche",
+          "approachHelp": "Facultatif. Votre façon de travailler, dans vos mots.",
+          "counter": "{count} / {max} caractères.",
+          "publicTitle": "Coordonnées publiques",
+          "publicHelp": "Facultatif. Laissez vide pour ne pas les afficher sur votre fiche.",
+          "publicEmail": "Courriel public",
+          "publicPhone": "Téléphone public"
+        },
+        "sets": {
+          "languages": {
+            "empty": "Aucune langue choisie.",
+            "choose": "Choisir mes langues",
+            "change": "Modifier mes langues",
+            "search": "Rechercher une langue…"
+          },
+          "clienteles": {
+            "empty": "Aucune clientèle choisie.",
+            "choose": "Choisir mes clientèles",
+            "change": "Modifier mes clientèles",
+            "search": "Rechercher une clientèle…",
+            "required": "Choisissez au moins une clientèle."
+          },
+          "motifs": {
+            "empty": "Aucun motif choisi.",
+            "choose": "Choisir mes motifs",
+            "change": "Modifier mes motifs",
+            "search": "Motif ou catégorie…",
+            "required": "Choisissez au moins un motif.",
+            "blocked": "Réservé aux titres d'un ordre professionnel. Ajoutez d'abord un tel titre à l'étape « Profil professionnel »."
+          }
+        },
+        "limits": {
+          "title": "Limites de clientèle",
+          "description": "Facultatif. Ce que la clinique doit éviter de vous proposer.",
+          "minAge": "Âge minimum de vos clients",
+          "minAgeHelp": "Par exemple 8 si vous recevez les enfants à partir de 8 ans. Laissez vide s'il n'y en a pas.",
+          "womenOnly": "Femmes seulement",
+          "womenOnlyHelp": "Activez si vous recevez uniquement des femmes."
+        },
+        "availability": {
+          "periods": "Moments de la semaine",
+          "periodsHelp": "Cochez tous ceux qui vous conviennent habituellement.",
+          "accepting": "J'accepte de nouveaux clients",
+          "acceptingHelp": "Désactivez si vous ne prenez pas de nouveaux clients pour l'instant.",
+          "note": "Précision",
+          "noteHelp": "Facultatif.",
+          "notePlaceholder": "Par exemple : pas le vendredi."
+        },
+        "files": {
+          "choosePhoto": "Choisir une photo",
+          "replacePhoto": "Remplacer la photo",
+          "removePhoto": "Retirer la photo",
+          "photoHint": "JPEG ou PNG, 5 Mo au plus. Une photo de face, sur fond neutre, convient le mieux.",
+          "photoAlt": "Votre photo",
+          "photoNone": "Aucune photo pour l'instant.",
+          "photoReceived": "Photo reçue.",
+          "photoRequired": "Ajoutez une photo pour continuer.",
+          "chooseInsurance": "Choisir le fichier",
+          "replaceInsurance": "Remplacer le fichier",
+          "removeInsurance": "Retirer le fichier",
+          "insuranceHint": "PDF, JPEG ou PNG, 10 Mo au plus.",
+          "insuranceProof": "Preuve d'assurance",
+          "insuranceNone": "Aucune preuve pour l'instant.",
+          "insuranceReceived": "Preuve d'assurance reçue.",
+          "insuranceRequired": "Ajoutez votre preuve d'assurance pour continuer.",
+          "open": "Ouvrir le fichier",
+          "removing": "Retrait…",
+          "expiry": "Date d'échéance",
+          "expiryHelp": "Proposée au 31 mars, la fin habituelle des polices. Modifiez-la au besoin."
+        },
+        "taxBank": {
+          "privacy": "Le numéro de compte et le NAS sont chiffrés dès l'enregistrement. Ils ne s'affichent plus jamais en entier.",
+          "onFileError": "Impossible d'afficher les renseignements déjà fournis.",
+          "errors": {
+            "network": "Vos renseignements n'ont pas été enregistrés. Vérifiez votre connexion, puis réessayez.",
+            "failed": "Vos renseignements n'ont pas pu être enregistrés. Réessayez dans un instant."
+          },
+          "bankTitle": "Dépôt direct",
+          "bankHelp": "Les numéros figurent sur un spécimen de chèque ou dans votre institution en ligne.",
+          "institution": "Institution",
+          "transit": "Transit",
+          "account": "Numéro de compte",
+          "accountSaved": "Enregistré (•••• {last4}). Laissez vide pour le garder.",
+          "accountOnFile": "Déjà fourni (•••• {last4}). Laissez vide pour le garder.",
+          "taxTitle": "Taxes",
+          "taxHelp": "Facultatif : seulement en cas d'inscription à la TPS ou à la TVQ.",
+          "businessNumber": "Numéro d'entreprise (NE)",
+          "gstNumber": "Numéro de TPS",
+          "qstNumber": "Numéro de TVQ",
+          "sinTitle": "Numéro d'assurance sociale",
+          "sinHelp": "La clinique le demande pour vos relevés fiscaux.",
+          "sin": "NAS",
+          "sinSaved": "Enregistré (••• {last3}). Laissez vide pour le garder.",
+          "sinOnFile": "Déjà fourni (••• {last3}). Laissez vide pour le garder."
+        },
+        "consent": {
+          "version": "Version {version}",
+          "none": "La clinique n'a pas encore publié ce texte. Vous pourrez le signer, puis envoyer votre profil, dès qu'elle l'aura publié.",
+          "signed": "Signé le {date} par {name}.",
+          "newVersion": "Le texte a changé depuis votre signature. Relisez-le, puis signez de nouveau.",
+          "agree": "J'ai lu et j'accepte ce consentement.",
+          "agreeRequired": "Cochez la case pour accepter.",
+          "name": "Votre nom complet",
+          "nameHelp": "Écrivez « {name} », tel qu'à votre dossier.",
+          "nameRequired": "Écrivez votre nom complet.",
+          "nameMismatch": "Le nom saisi ne correspond pas au nom du dossier.",
+          "signAndContinue": "Signer et continuer"
+        },
+        "review": {
+          "ready": "Toutes les étapes sont complètes. Vérifiez vos réponses, puis envoyez votre profil.",
+          "missingOne": "Il reste une étape à compléter avant l'envoi :",
+          "missingMany": "Il reste {count} étapes à compléter avant l'envoi :",
+          "serverMissing": "La clinique indique que ces étapes sont incomplètes :",
+          "complete": "Complète",
+          "incomplete": "À compléter",
+          "toConfirm": "À confirmer",
+          "edit": "Modifier",
+          "completeAction": "Compléter",
+          "confirmAction": "Confirmer",
+          "editLabel": "Modifier : {step}",
+          "completeActionLabel": "Compléter : {step}",
+          "confirmActionLabel": "Confirmer : {step}",
+          "submit": "Envoyer mon profil",
+          "submitting": "Envoi…",
+          "notAnswered": "Non indiqué",
+          "notSigned": "Pas encore signé.",
+          "signedVersion": "Signé (version {version}) le {date} par {name}.",
+          "yes": "Oui",
+          "no": "Non",
+          "primary": "principal",
+          "year": "{count} an",
+          "years": "{count} ans",
+          "masked4": "•••• {last4}",
+          "masked3": "••• {last3}",
+          "errors": {
+            "network": "Impossible de joindre la clinique. Vérifiez votre connexion, puis réessayez.",
+            "submitFailed": "Votre profil n'a pas pu être envoyé. Réessayez dans un instant.",
+            "refusedOne": "Corrigez d'abord l'étape « {step} » : une modification y a été refusée.",
+            "refusedMany": "Corrigez d'abord ces étapes : une modification y a été refusée.",
+            "goToStep": "Ouvrir l'étape"
+          }
+        },
+        "validation": {
+          "phoneRequired": "Saisissez votre numéro de téléphone.",
+          "addressRequired": "Saisissez votre adresse.",
+          "cityRequired": "Saisissez la ville.",
+          "postalCodeRequired": "Saisissez le code postal.",
+          "titleRequired": "Ajoutez au moins un titre.",
+          "bioRequired": "Écrivez votre présentation.",
+          "expiryRequired": "Indiquez la date d'échéance.",
+          "dateInvalid": "Date invalide.",
+          "expiryPast": "Cette date est passée : joignez une preuve en vigueur.",
+          "expiryTooFar": "La date doit être au plus tard le 31 décembre 2100.",
+          "institutionRequired": "Saisissez le numéro d'institution.",
+          "transitRequired": "Saisissez le numéro de transit.",
+          "accountRequired": "Saisissez votre numéro de compte.",
+          "sinRequired": "Saisissez votre NAS."
+        }
+      }
+    }
   },
   "roles": {
     "admin": "Administrateur",
@@ -1152,7 +3894,34 @@
       "org_scheduled_jobs": "Tâches planifiées",
       "email_settings": "Expéditeur des courriels",
       "email_templates": "Modèles de courriel",
-      "email_template_versions": "Versions des modèles de courriel"
+      "email_template_versions": "Versions des modèles de courriel",
+      "professional_orders": "Ordres professionnels",
+      "profession_categories": "Catégories de professions",
+      "profession_titles": "Titres professionnels",
+      "clienteles": "Clientèles",
+      "motif_categories": "Catégories de motifs",
+      "motifs": "Motifs",
+      "languages": "Langues",
+      "deactivation_reasons": "Raisons de désactivation",
+      "professionals": "Professionnels",
+      "professional_public_profiles": "Profils publics des professionnels",
+      "professional_matching_profiles": "Profils de jumelage",
+      "professional_matching_notes": "Notes Bon à savoir",
+      "professional_professions": "Titres des professionnels",
+      "professional_clienteles": "Clientèles des professionnels",
+      "professional_motifs": "Motifs des professionnels",
+      "professional_languages": "Langues des professionnels",
+      "professional_payer_numbers": "Numéros de payeurs des professionnels",
+      "professional_private": "Données privées des professionnels",
+      "compensation_rates": "Taux des autres services",
+      "retention_grids": "Grilles de rétention",
+      "retention_grid_tiers": "Paliers des grilles de rétention",
+      "retention_grid_prices": "Prix des grilles de rétention",
+      "professional_session_counts": "Séances des professionnels",
+      "professional_retention": "Taux de retenue des professionnels",
+      "professional_client_agreements": "Ententes particulières",
+      "document_types": "Documents requis",
+      "professional_documents": "Documents des professionnels"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -1170,7 +3939,7 @@
         "legal_name": "Raison sociale",
         "neq": "NEQ",
         "address_line1": "Adresse",
-        "address_line2": "Complément d'adresse",
+        "address_line2": "Appartement ou bureau",
         "city": "Ville",
         "province": "Province",
         "postal_code": "Code postal",
@@ -1258,6 +4027,238 @@
       "email_template_versions": {
         "key": "Modèle",
         "last_version": "Dernière version"
+      },
+      "professional_orders": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "acronym": "Sigle",
+        "licence_label": "Libellé du permis",
+        "licence_pattern": "Format du permis"
+      },
+      "profession_categories": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif"
+      },
+      "profession_titles": {
+        "key": "Clé",
+        "name": "Nom",
+        "name_feminine": "Forme féminine",
+        "name_masculine": "Forme masculine",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "category_id": "Catégorie",
+        "order_id": "Ordre professionnel"
+      },
+      "clienteles": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "min_age": "Âge minimum",
+        "max_age": "Âge maximum"
+      },
+      "motif_categories": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "description": "Description",
+        "icon": "Icône"
+      },
+      "motifs": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "category_id": "Catégorie",
+        "is_restricted": "Réservé aux professions réglementées"
+      },
+      "languages": {
+        "code": "Code",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Active"
+      },
+      "deactivation_reasons": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "requires_note": "Note requise",
+        "disables_account": "Désactive le compte"
+      },
+      "document_types": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "required": "Requis",
+        "expiry_rule": "Échéance",
+        "reminder_days": "Rappels (jours avant l'échéance)",
+        "weekly_after_expiry": "Rappel chaque semaine après l'échéance",
+        "accepted_mime": "Types de fichiers acceptés",
+        "max_bytes": "Taille maximale",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif"
+      },
+      "professional_documents": {
+        "professional_id": "Professionnel",
+        "document_type_id": "Type de document",
+        "stored_file_id": "Fichier",
+        "status": "Statut",
+        "expires_on": "Dernier jour de validité",
+        "metadata": "Renseignements du document",
+        "uploaded_by": "Téléversé par",
+        "uploaded_at": "Téléversé le",
+        "reviewed_by": "Vérifié par",
+        "reviewed_at": "Vérifié le",
+        "rejection_reason": "Raison du refus",
+        "submission_id": "Questionnaire"
+      },
+      "professionals": {
+        "profile_id": "Compte",
+        "first_name": "Prénom",
+        "last_name": "Nom",
+        "email": "Courriel",
+        "personal_phone": "Téléphone personnel",
+        "address_line1": "Adresse",
+        "address_line2": "Appartement ou bureau",
+        "city": "Ville",
+        "province": "Province",
+        "postal_code": "Code postal",
+        "country": "Pays",
+        "years_experience": "Années d'expérience",
+        "gender": "Genre",
+        "status": "Statut",
+        "status_changed_at": "Statut modifié le",
+        "status_changed_by": "Statut modifié par",
+        "deactivation_reason_id": "Raison de la désactivation",
+        "deactivation_note": "Note de désactivation",
+        "deactivation_disabled_account": "Compte désactivé avec le dossier",
+        "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
+        "fiche_generated_at": "Fiche PDF générée le"
+      },
+      "professional_public_profiles": {
+        "professional_id": "Professionnel",
+        "bio": "Présentation",
+        "approach": "Approche",
+        "public_email": "Courriel public",
+        "public_phone": "Téléphone public",
+        "photo_document_id": "Photo"
+      },
+      "professional_matching_profiles": {
+        "professional_id": "Professionnel",
+        "accepting_new_clients": "Accepte de nouveaux clients",
+        "availability_periods": "Disponibilités générales",
+        "availability_note": "Note sur les disponibilités",
+        "min_client_age": "Âge minimum des clients",
+        "women_only": "Femmes seulement",
+        "new_client_places": "Places offertes",
+        "new_client_places_set_at": "Places offertes indiquées le"
+      },
+      "professional_matching_notes": {
+        "professional_id": "Professionnel",
+        "note": "Bon à savoir"
+      },
+      "professional_professions": {
+        "professional_id": "Professionnel",
+        "profession_title_id": "Titre",
+        "licence_number": "Numéro de permis",
+        "is_primary": "Titre principal"
+      },
+      "professional_clienteles": {
+        "professional_id": "Professionnel",
+        "clientele_id": "Clientèle",
+        "is_specialized": "Spécialisé"
+      },
+      "professional_motifs": {
+        "professional_id": "Professionnel",
+        "motif_id": "Motif"
+      },
+      "professional_languages": {
+        "professional_id": "Professionnel",
+        "language_id": "Langue"
+      },
+      "professional_payer_numbers": {
+        "professional_id": "Professionnel",
+        "payer_type": "Payeur",
+        "number": "Numéro"
+      },
+      "professional_private": {
+        "professional_id": "Professionnel",
+        "sin": "NAS",
+        "sin_last3": "NAS (3 derniers chiffres)",
+        "business_number": "Numéro d'entreprise (NE)",
+        "gst_number": "Numéro de TPS",
+        "qst_number": "Numéro de TVQ",
+        "bank_institution": "Numéro d'institution",
+        "bank_transit": "Numéro de transit",
+        "bank_account": "Numéro de compte",
+        "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
+        "key_version": "Version de la clé de chiffrement"
+      },
+      "compensation_rates": {
+        "kind": "Type",
+        "retention_pct": "Retenue (%)",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)"
+      },
+      "retention_grids": {
+        "title_id": "Profession",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
+      },
+      "retention_grid_tiers": {
+        "grid_id": "Grille",
+        "threshold_sessions": "Seuil (séances)",
+        "retention_pct": "Retenue (%)"
+      },
+      "retention_grid_prices": {
+        "grid_id": "Grille",
+        "duration": "Durée (min)",
+        "client_price_cents": "Prix client (¢)"
+      },
+      "professional_session_counts": {
+        "professional_id": "Professionnel",
+        "month": "Mois",
+        "sessions_50_60": "Séances de 50 ou 60 min",
+        "sessions_30": "Séances de 30 min",
+        "adjustment": "Ajustement (séances)",
+        "note": "Note"
+      },
+      "professional_retention": {
+        "professional_id": "Professionnel",
+        "retention_pct": "Retenue (%)",
+        "decision": "Décision",
+        "tier_threshold": "Palier (séances)",
+        "suggested_pct": "Taux suggéré (%)",
+        "sessions_total": "Séances cumulées",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
+      },
+      "professional_client_agreements": {
+        "professional_id": "Professionnel",
+        "client_label": "Référence du client",
+        "client_id": "Client",
+        "duration": "Durée (min)",
+        "professional_amount_cents": "Versé au professionnel (¢)",
+        "client_price_cents": "Prix client (¢)",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
       }
     },
     "actions": {

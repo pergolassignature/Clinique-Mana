@@ -43,3 +43,37 @@ export function rpcErrorResponse(
       return errorResponse('internal', 'Request failed', 500, req)
   }
 }
+
+/** The HTTP status each `ErrorCode` answers with (CLAUDE.md §7). */
+const STATUS_BY_CODE: Record<ErrorCode, number> = {
+  invalid_request: 400,
+  missing_variable: 400,
+  weak_password: 400,
+  unauthenticated: 401,
+  forbidden: 403,
+  module_disabled: 403,
+  not_found: 404,
+  conflict: 409,
+  link_invalid: 410,
+  link_expired: 410,
+  link_used: 410,
+  rate_limited: 429,
+  server_misconfigured: 500,
+  internal: 500,
+  provider_error: 502,
+  auth_unavailable: 503,
+  not_configured: 503,
+}
+
+/**
+ * The answer for a thrown `FunctionError` (already reported where it was
+ * thrown): its own code with that code's status (e.g. `not_found` → 404),
+ * and the caller's generic message, never the error's.
+ */
+export function functionErrorResponse(
+  error: FunctionError,
+  message: string,
+  req?: Request,
+): Response {
+  return errorResponse(error.code, message, STATUS_BY_CODE[error.code], req)
+}

@@ -47,6 +47,8 @@ grant update (title, starts_on) on public.trainings to authenticated;   -- colum
 | Only `public.profiles` references `auth.users` | — |
 | `auth.users` is the only source of `profiles.email` (a trigger copies it on insert/update and on auth email change) | — |
 | Index every FK column that is not a prefix of the PK | `create index trainings_updated_by_idx on public.trainings (updated_by);` |
+| **Composite org FKs** to per-clinic reference rows (P4-40): every reference list has `unique (org_id, id)`, and a row that points at it uses `(org_id, <x>_id)`, so a row of clinic A can never point at clinic B's row, even through a bug in an RPC | `foreign key (org_id, motif_id) references public.motifs (org_id, id)` |
+| **Child rows: the primary key starts with the parent id** (P4-36). A junction's key is `(parent_id, x_id)`; a child with its own id uses `primary key (parent_id, id)` plus `unique (id)` for other modules' FKs. Audit record ids then start with the parent id, so the parent's history finds every child row, deleted ones included, through one expression index (`audit_log_org_record_prefix_idx` on `(org_id, left(record_id, 36), id desc)`) | `primary key (professional_id, id)`, `unique (id)` on `professional_professions` |
 | Reference data is soft-deleted (`is_active`), never hard-deleted | — |
 | Enumerations that may grow are lookup tables with text keys, not Postgres enums | `roles(key)`, `user_roles.role references roles(key)` |
 | JSON settings are objects | `check (jsonb_typeof(settings) = 'object')` |
@@ -94,11 +96,34 @@ using (
 Cross-module reads go through views published by the owning module (design §6.2). A plain view runs as its **owner**, which bypasses RLS and leaks across orgs. Views are always `security_invoker = true` (enforced by `000_invariants`), and like tables they start with no client grants:
 
 ```sql
+-- Shortened from 20261008133549_professionals_lifecycle.sql (the real view also publishes the
+-- professions, clientèles with ages, the client limits, motif keys, years, gender, insurance_status, ready).
 create view public.professionals_directory with (security_invoker = true) as
-  select p.id, p.org_id, p.display_name from public.professionals p where p.is_active;
+select p.id, p.org_id, p.status,
+       mp.accepting_new_clients,
+       p.first_name || ' ' || p.last_name as display_name,
+       coalesce(l.codes, '{}') as language_codes,
+       coalesce(m.ids, '{}')   as motif_ids,
+       greatest(p.updated_at, mp.updated_at) as updated_at
+  from public.professionals p
+  left join public.professional_matching_profiles mp on mp.professional_id = p.id
+  -- One pre-aggregated join per set (grouped once per statement), never a function call per row.
+  left join (select x.professional_id, array_agg(g.code order by g.sort_order, g.code) as codes
+               from public.professional_languages x
+               join public.languages g on g.org_id = x.org_id and g.id = x.language_id
+              group by x.professional_id) l on l.professional_id = p.id
+  left join (select x.professional_id, array_agg(x.motif_id order by k.key) as ids
+               from public.professional_motifs x
+               join public.motifs k on k.org_id = x.org_id and k.id = x.motif_id
+              group by x.professional_id) m on m.professional_id = p.id
+ -- The tables' RLS already scopes rows to the caller's clinic; this term keeps the provider's
+ -- own row (readable through the self policies) out of a staff view.
+ where (select private.has_permission('professionals.view'));
 revoke all on public.professionals_directory from anon, authenticated;
 grant select on public.professionals_directory to authenticated;
 ```
+
+A published view is a contract: other modules read it (and its sibling catalogue views) instead of the owning module's tables, it keeps ids and keys rather than labels, and a later batch only appends columns. The Professionnels contract is in [`docs/modules/professionals.md`](../modules/professionals.md#what-the-module-publishes).
 
 ## 6. Functions
 
@@ -146,10 +171,13 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - Redaction covers `changed_fields`, **not `record_id`**: a primary-key column must never be a redacted value (no SIN or email as a key).
 - `record_id` is the PK columns joined with `:` (`<org_id>:<module_key>`). `updated_at`-only updates are skipped.
 - `source` defaults to `app.audit_source` if set, else `app` (authenticated), `service` (service role) or `system`. RPCs that log explicitly use `rpc:<function_name>`; seeds set `seed`.
+- **`audit.view` sees every unredacted value.** Redact what a narrower permission guards when it is personal data (§8). Business terms guarded by a module permission may stay readable when the log is their only trail: the compensation tables of `…_professionals_compensation_private.sql` keep their margins, bonuses and caps (plan P4-149), so a role given `audit.view` also reads them. `audit.view` is admin-only by default; granting it is granting that.
 - Changes invisible to the row diff (e.g. a Vault value) get an explicit row from the RPC — see `set_org_secret`. Reads of `*_private` data are logged by their RPCs.
 - Catalogue tables changed only by migrations (`modules`, `permissions`, `role_permissions`) are not audited: git is their history.
 - **Operational logs are not audited either**, even with an `org_id`: `webhook_events`, `email_log`, `scheduled_job_runs`, `scheduled_job_dispatches`, `notifications`, `notification_reads` (and `rate_limits`, which has no `org_id`). They are written by the service role or by RPCs, hold recipient addresses or provider payloads, and are purged; auditing them would copy that data into the append-only `audit_log` forever (Loi 25; Phase 3 design §2.5). The list lives in `000_invariants` (§12): a new operational log is added there with its reason, never by disabling the check.
 - Operational logs keep no free text that could hold personal data: `detail` / `error` columns hold counts or codes (SQLSTATE, never `sqlerrm`), payloads hold ids only, and each log has a retention job (`scheduled_jobs`, maintenance). Read paths are RLS-filtered like any table.
+- **`signature_request_syncs` is not audited** (`…_core_signing_capture.sql`): the signing reconcile's per-request state (times and codes), rewritten every hour for every open request; auditing it would add an audit row per request per hour forever. Rows are deleted once the request closes (`core.signing_unsaved_alert`). Same exception list. It has no `created_at` / `updated_at` (§4): `attempted_at` is its write time, stamped by `record_signature_sync` on every attempt, and it has no `set_updated_at` trigger.
+- **`user_preferences` is not audited** (`…_core_user_preferences.sql`): it is UI state (remembered list filters), private to its user and rewritten on every filter change, and the search text it keeps may name a client, which `audit_log` would then keep forever (Loi 25). It is in the same `000_invariants` exception list (§12).
 - `roles` is audited since custom roles exist (`…_core_editable_roles.sql`): admins create, rename and delete them through RPCs. `org_id` comes from the row and is null for the shared base roles. `org_role_permissions` (each clinic's role defaults) is audited like any org-scoped table.
 
 ## 8. Secrets and sensitive data
@@ -159,12 +187,24 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 
 **Encrypted columns** (reference: `organization_bank_details`, migration `…_core_bank_details.sql`):
 - Store the value in a `bytea` column, on a table with no client privilege (RLS on, no policy), revoked from `service_role` too: `revoke all on public.<table> from anon, authenticated, service_role;`.
-- Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first. Key: Vault secret `pii_encryption_key`; AES-256 with a SHA-256 key derivation, via pgcrypto.
+- Add `key_version smallint not null default 1` with `check (key_version >= 1)`: one version for all the row's encrypted columns.
+- **One version per row (the write rule).** Every write leaves the whole row on the current version `v := private.pii_current_key_version()`, in **one** statement: each encrypted column the call sets is `private.encrypt_pii(value, v)`; each encrypted column it keeps is re-encrypted, `private.encrypt_pii(private.decrypt_pii(<column>, <row>.key_version), v)`; and `key_version = v`. A row already on `v` keeps its kept ciphertexts as they are (`case when key_version = v then <column> else … end`, so the audit log does not show a change that did not happen). Never store a new ciphertext next to an old-version one under a single `key_version`. When a kept value does not decrypt (its key is missing, `55000`, or wrong, pgcrypto's `39000`), catch those two around the `update` and raise a clean `P0001` with a French message and a `HINT` saying how to fix it (enter the value again), never pgcrypto's raw error. Reference: `set_bank_details`. **4a.17's RPCs (`set_professional_tax_numbers`, `set_professional_bank`, `set_professional_sin`, `clear_professional_private_field`) follow it:** a call that sets the account but keeps the SIN re-encrypts the SIN in the same `update`.
+- Do the write inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first. AES-256 with a SHA-256 key derivation, via pgcrypto.
 - Keep a `*_last4` (or otherwise masked) column for display; the « get » RPC returns only that.
-- A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
+- A reveal RPC decrypts with `private.decrypt_pii(<column>, <row>.key_version)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
 - Attach the audit trigger with the encrypted column **and every other value of the guarded data** redacted (masked column, related numbers, contact): `private.audit_trigger('<column>', …)`. `audit.view` must never show what the reveal permission guards; changes stay visible as `"[redacted]"`.
-- `private.pii_key`, `encrypt_pii` and `decrypt_pii` are SECURITY INVOKER and granted to no role (`service_role` included): never grant them, never log or select the key.
-- Only pass bytes read from an encrypted column to `decrypt_pii`, never caller-supplied bytes.
+- `private.pii_key`, `encrypt_pii`, `decrypt_pii`, `pii_encrypted_values`, `pii_key_versions_in_use`, `pii_current_key_version` and `pii_seed_canary` are SECURITY INVOKER and granted to no role (`service_role` included): never grant them, never log or select the key.
+- Only pass bytes read from an encrypted column to `decrypt_pii`, with that row's `key_version`, never caller-supplied bytes.
+- **Add every encrypted column to `private.pii_encrypted_values()`** (`create or replace`, one `union all` branch per column: table name, column name, row key (the primary key as text), `key_version`, ciphertext, nulls left out) in the migration that creates it. It is the one list the health check, `pii_key_versions_in_use()`, `pii_seed_canary()` and the rotation runbook read: a column missing from it is invisible to the health check, and a key could be retired while it still holds data. pgTAP checks the new branch, and pgTAP `047` fails while any table of `public` or `private` with a `key_version` column (except `private.pii_canary`) is not named in the function's body.
+- List the table and its encrypted columns in [`pii-key-rotation.md`](../runbooks/pii-key-rotation.md) (table and the re-encryption block of step 4), in the same change.
+
+**Key versions** (migration `…_core_pii_key_versions.sql`, ADR 0004 « Before Phase 4 »):
+- Version 1 is the Vault secret `pii_encryption_key`; version n ≥ 2 is `pii_encryption_key_v<n>`. `private.pii_key(v)` returns null for a missing version, and `encrypt_pii` / `decrypt_pii` then raise `55000`. The version arguments are `integer` (a `smallint` column casts to it implicitly, while an integer literal such as `2` would not resolve to a `smallint` parameter).
+- The one-argument forms (`pii_key()`, `encrypt_pii(text)`, `decrypt_pii(bytea)`) mean version 1. They stay for compatibility only: new code always passes a version, or it breaks once version 1 is retired.
+- **Canary:** `private.pii_canary` holds the fixed test value `'mana-pii-canary'` encrypted with each live version (no grant, RLS on, no policy). The highest version with a canary is the write version (`private.pii_current_key_version()`), so adding a key's canary is what switches writes to it. A canary is only ever created by `private.pii_seed_canary(v)`, which refuses (false, with a warning) when the version already has one (also when a concurrent call created it first: `on conflict do nothing`), its key is missing, or any value stored with `v` does not decrypt with the current `v` key.
+- **Versions in use:** `private.pii_key_versions_in_use()` lists, per table, the versions that hold at least one ciphertext (from `pii_encrypted_values()`). A row whose encrypted columns are all null needs no key and does not count.
+- **Health check:** `public.pii_health_check()` (definer, granted to no role: `postgres`, its owner, runs it) returns true when every canary decrypts, every version in use has its key and a canary, **and** every stored value decrypts with its row's version, false otherwise; it never raises and never returns a key or a value. The last step is a **full scan** of `pii_encrypted_values()` (one decryption and one subtransaction per value): cheap at the clinic's size (about 50 professionals with two values each, and one bank row), to revisit (sampling, or checking only rows changed since the last run) if it reaches tens of thousands. Consequence: an environment holding values encrypted with another key (production copies on staging) shows red until they are replaced with test values (escrow runbook, « Staging et production »). GitHub runs it after each migration push (« Apply Supabase migrations », even when the push failed) and every day (`pii-health.yml`), through `scripts/pii-health-check.sh`: a result other than `t` turns the job red. It is an alarm, not a gate: nothing waits for it, and Vercel deploys the app regardless.
+- **Runbooks:** [`pii-key-escrow.md`](../runbooks/pii-key-escrow.md) (owner's copy of each version, restore before loading data, what to do when the check fails) and [`pii-key-rotation.md`](../runbooks/pii-key-rotation.md). Never insert a canary by hand to make the check pass: only `pii_seed_canary`, as those runbooks say.
 
 ## 8b. Catalogues and definer handlers (the shared-services pattern)
 
@@ -249,7 +289,7 @@ These hold for every current and future object; a violation fails CI.
 | No `public` / `private` function is executable by `anon` or `PUBLIC` | `revoke all on function … from public, anon` |
 | Every function in `public` / `private` has `set search_path = ''` | add it, qualify names (§6) |
 | Every foreign key has an index whose first column is the FK's first column | add the index (§4) |
-| Every table with an `org_id` column has an `audit_trigger`, except `audit_log` and the operational logs `webhook_events`, `email_log`, `scheduled_job_runs`, `scheduled_job_dispatches`, `notifications`, `notification_reads` (they hold addresses and payloads that must not be copied into `audit_log` forever, §7) | attach it (§7) |
+| Every table with an `org_id` column has an `audit_trigger`, except `audit_log` and the operational logs `webhook_events`, `email_log`, `scheduled_job_runs`, `scheduled_job_dispatches`, `notifications`, `notification_reads` (they hold addresses and payloads that must not be copied into `audit_log` forever, §7), `user_preferences` (UI state whose search text may name a client, §7) and `signature_request_syncs` (the signing reconcile's hourly state, §7) | attach it (§7) |
 | Every view is `security_invoker = true` | §5b |
 | `admin` holds every permission in every org (`org_role_permissions`) | add the `('admin', '<permission>')` row to `role_permissions` in the migration that adds the permission (§9) |
 

@@ -1,7 +1,8 @@
-import { createElement, Suspense, useEffect, useMemo, type ReactNode } from 'react'
+import { createElement, Suspense, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Home, Settings } from 'lucide-react'
 import { t } from '@/i18n'
+import type { Access } from '@/core/access/access'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { Forbidden, RequireAccess } from '@/core/access/guards'
 import { AccountPage } from '@/core/account/pages/AccountPage'
@@ -33,8 +34,14 @@ function RequireAnyAccess({ allowed, children }: { allowed: boolean; children: R
 /** The signed-in app. Renders under RequireAuth, so access is ready (useReadyAccess throws otherwise). */
 export function AuthenticatedApp() {
   // Enabled module keys come with the access payload (get_my_access): no extra query.
-  const { modules: enabledKeys } = useReadyAccess()
+  const access = useReadyAccess()
+  const { modules: enabledKeys, org_timezone } = access
   const { can } = useAccess()
+  // A nav item or Accueil card may add a condition on the user beyond its permission (`shownWhen`).
+  const shown = useCallback(
+    (item: { permission: string; shownWhen?: (a: Access) => boolean }) => can(item.permission) && (item.shownWhen?.(access) ?? true),
+    [can, access],
+  )
 
   const modules = useMemo(() => resolveEnabledModules(ALL_MODULES, new Set(enabledKeys)), [enabledKeys])
 
@@ -60,9 +67,13 @@ export function AuthenticatedApp() {
     return idle.cancel
   }, [visibleSections, routeComponents])
 
+  // Accueil's module cards this user may see (each loads its own chunk when it renders).
+  const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter(shown)), [modules, shown])
+
   const navItems = useMemo<ShellNavItem[]>(() => {
     const moduleItems = modules
-      .flatMap((m) => (m.nav && can(m.nav.permission) ? [m.nav] : []))
+      .flatMap((m) => [m.nav ?? []].flat())
+      .filter(shown)
       .sort((a, b) => a.order - b.order)
     return [
       { path: '/accueil', labelKey: 'nav.home', icon: Home },
@@ -79,14 +90,16 @@ export function AuthenticatedApp() {
           ]
         : []),
     ]
-  }, [modules, can, canOpenSettings, visibleSections])
+  }, [modules, shown, canOpenSettings, visibleSections])
 
   return (
     <UnsavedChangesProvider>
       <AppShell navItems={navItems}>
-        <Routes>
+        {/* Keyed on the clinic time zone: a « Région » change remounts every page, so dates memoised
+            with the old zone are formatted again (AccessProvider sets the zone before this renders). */}
+        <Routes key={org_timezone}>
           <Route index element={<Navigate to="/accueil" replace />} />
-          <Route path="accueil" element={<HomePage />} />
+          <Route path="accueil" element={<HomePage cards={homeCards} />} />
           {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}
           <Route
             path="mon-compte"

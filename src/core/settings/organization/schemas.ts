@@ -1,41 +1,44 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { EMAIL_PATTERN } from '@/shared/lib/email'
-import { compactTaxNumber, formatPhone, formatPostalCode, formatTaxNumber, parsePhone } from '@/shared/lib/format'
+import {
+  emptyToNull,
+  optionalEmail,
+  optionalPattern,
+  optionalPhone,
+  optionalPostalCode,
+  optionalProvince,
+  optionalText,
+  requiredText,
+  withoutControlChars,
+} from '@/shared/lib/field-schemas'
+import { compactTaxNumber, formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import type { Organization } from './api'
 
 /**
  * One schema per settings card. The forms work on strings; each schema normalises them (trim,
  * empty → null, canonical formats) and validates with the same patterns as the database checks
  * in 20261007202941_core_organization_profile.sql. Digits are `[0-9]`, never `\d`, as in SQL.
+ * Fields other modules also need (text, email, phone, address) come from `@/shared/lib/field-schemas`.
  * Each `to…FormValues(org)` turns a stored row back into the card's form values (null → '').
  */
 
 const MESSAGES = {
   nameRequired: t('settings.validation.nameRequired'),
-  maxLength: (max: number) => t('settings.validation.maxLength', { max: String(max) }),
   neq: t('settings.validation.neq'),
   gst: t('settings.validation.gst'),
   qst: t('settings.validation.qst'),
-  province: t('settings.validation.province'),
-  postalCode: t('settings.validation.postalCode'),
-  phone: t('settings.validation.phone'),
   https: t('settings.validation.https'),
   url: t('settings.validation.url'),
-  email: t('auth.errors.invalidEmail'),
-  controlChar: t('settings.validation.controlChar'),
   retention: t('settings.validation.retention'),
   timezone: t('settings.validation.timezone'),
 } as const
 
-/** The 13 province and territory codes allowed by `organizations_province_check`. */
-export const PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'] as const
-export type Province = (typeof PROVINCES)[number]
+// Re-exported: the province picker and its tests read them from here.
+export { PROVINCES, type Province } from '@/shared/lib/field-schemas'
 
 const NEQ = /^[0-9]{10}$/
 const GST = /^[0-9]{9}RT[0-9]{4}$/
 const QST = /^[0-9]{10}TQ[0-9]{4}$/
-const POSTAL_CODE = /^[A-Z][0-9][A-Z] [0-9][A-Z][0-9]$/
 const HTTPS_URL = /^https:\/\/\S+$/
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i
 /**
@@ -43,32 +46,11 @@ const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i
  * a host with a port (`x.ca:8443`) is not mistaken for one.
  */
 const SCHEME_WITHOUT_SLASHES = /^[a-z][a-z0-9+-]*:(?!\/\/)/i
-/**
- * C0 and C1 control characters. JS `\s` misses U+001C–U+001F and U+0085, which the database (ICU)
- * treats as whitespace, so the email and URL patterns would accept what the SQL check refuses.
- */
-// eslint-disable-next-line no-control-regex -- matching control characters is the point
-const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/
-
-const emptyToNull = <T>(v: T | '') => (v === '' ? null : v)
-
-/** Optional free text: trimmed, empty → null, at most `max` characters. */
-const optionalText = (max: number) => z.string().trim().max(max, { error: MESSAGES.maxLength(max) }).transform(emptyToNull)
-
-/** Optional formatted value: trimmed, normalised, then empty → null or checked against `pattern`. */
-const optionalPattern = (pattern: RegExp, message: string, normalize: (v: string) => string = (v) => v) =>
-  z
-    .string()
-    .transform((v) => normalize(v.trim()))
-    .refine((v) => v === '' || pattern.test(v), { error: message })
-    .transform(emptyToNull)
-
 /** Hyphen, en and em dashes: typed or pasted in identifiers, as `parsePhone` accepts them. */
 const DASHES = /[-\u2013\u2014]/g
 
 /** `12 34-5` → `12345`: the NEQ is typed or pasted with spaces and dashes (tax numbers: `compactTaxNumber`). */
 const compactUpper = (v: string) => v.replace(/\s/g, '').replace(DASHES, '').toUpperCase()
-
 
 /** Lowercases the scheme, and adds `https://` when there is none (`www.x.ca` → `https://www.x.ca`). */
 function normalizeUrl(v: string): string {
@@ -89,15 +71,6 @@ function isWebAddress(url: string): boolean {
 }
 
 /**
- * Trims, then refuses control characters before anything else (abort: no second, misleading
- * format message). A pasted tab or line break at either end is trimmed, not refused.
- */
-export const withoutControlChars = <T extends z.ZodType<unknown, string>>(schema: T) =>
-  z.string().trim().refine((v) => !CONTROL_CHARS.test(v), { error: MESSAGES.controlChar, abort: true }).pipe(schema)
-
-const optionalEmail = () => withoutControlChars(optionalPattern(EMAIL_PATTERN, MESSAGES.email))
-
-/**
  * Optional `https://` address. Typed without a scheme it gets one; `http://` and other schemes
  * are refused (the SQL check wants https), and so is anything a browser could not open.
  */
@@ -116,7 +89,7 @@ const str = (v: string | null) => v ?? ''
 // --- Identité légale: « Clinique » ---------------------------------------------------------------
 
 export const clinicSchema = z.object({
-  name: z.string().trim().min(1, { error: MESSAGES.nameRequired }).max(200, { error: MESSAGES.maxLength(200) }),
+  name: requiredText(200, MESSAGES.nameRequired),
   legal_name: optionalText(200),
   neq: optionalPattern(NEQ, MESSAGES.neq, compactUpper),
 })
@@ -131,13 +104,8 @@ export const addressSchema = z.object({
   address_line1: optionalText(200),
   address_line2: optionalText(200),
   city: optionalText(100),
-  // A string, not z.enum: the form's « no province » is '' (stored as null).
-  province: z
-    .string()
-    .trim()
-    .refine((v): v is Province | '' => v === '' || (PROVINCES as readonly string[]).includes(v), { error: MESSAGES.province })
-    .transform(emptyToNull),
-  postal_code: optionalPattern(POSTAL_CODE, MESSAGES.postalCode, formatPostalCode),
+  province: optionalProvince(),
+  postal_code: optionalPostalCode(),
 })
 
 export function toAddressFormValues(org: Organization): z.input<typeof addressSchema> {
@@ -153,15 +121,7 @@ export function toAddressFormValues(org: Organization): z.input<typeof addressSc
 // --- Identité légale: « Coordonnées » ------------------------------------------------------------
 
 export const contactSchema = z.object({
-  phone: z.string().transform((v, ctx) => {
-    if (v.trim() === '') return null
-    const parsed = parsePhone(v)
-    if (!parsed) {
-      ctx.addIssue({ code: 'custom', message: MESSAGES.phone })
-      return z.NEVER
-    }
-    return parsed
-  }),
+  phone: optionalPhone(),
   email: optionalEmail(),
   website: optionalHttpsUrl(),
 })

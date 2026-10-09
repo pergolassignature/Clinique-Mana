@@ -20,6 +20,11 @@ describe('resolveLink', () => {
     expect(mocks.invokeFunction).toHaveBeenCalledExactlyOnceWith('resolve-link', { token: TOKEN })
   })
 
+  it("returns a professional invitation's display too", async () => {
+    mocks.invokeFunction.mockResolvedValue({ purpose: 'professional_invite', display: DISPLAY })
+    await expect(resolveLink(TOKEN)).resolves.toEqual(DISPLAY)
+  })
+
   it('reads a link of another purpose as invalid here', async () => {
     mocks.invokeFunction.mockResolvedValue({ purpose: 'professional_onboarding', display: { name: 'x' } })
     await expect(resolveLink(TOKEN)).rejects.toMatchObject({ code: 'link_invalid' })
@@ -35,8 +40,16 @@ describe('resolveLink', () => {
 describe('acceptInvite', () => {
   it('sends the token and password to accept-invite and returns the account address', async () => {
     mocks.invokeFunction.mockResolvedValue({ status: 'accepted', email: 'nouvelle@mana.test' })
-    await expect(acceptInvite(TOKEN, 'un mot de passe')).resolves.toEqual({ email: 'nouvelle@mana.test' })
+    await expect(acceptInvite(TOKEN, 'un mot de passe')).resolves.toEqual({ email: 'nouvelle@mana.test', redirect: null })
     expect(mocks.invokeFunction).toHaveBeenCalledExactlyOnceWith('accept-invite', { token: TOKEN, password: 'un mot de passe' })
+  })
+
+  it("returns the purpose's redirect when the function sends one", async () => {
+    mocks.invokeFunction.mockResolvedValue({ status: 'accepted', email: 'nadia@mana.test', redirect: '/mon-profil/questionnaire' })
+    await expect(acceptInvite(TOKEN, 'un mot de passe')).resolves.toEqual({
+      email: 'nadia@mana.test',
+      redirect: '/mon-profil/questionnaire',
+    })
   })
 
   it("passes the function's refusal on", async () => {

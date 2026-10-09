@@ -506,3 +506,93 @@ Deno.test('accept-invite: a display without an email, or a purpose without accep
     }
   })
 })
+
+Deno.test("accept-invite: a professional invitation passes the handler's redirect on (Task 4b.2)", async () => {
+  await run(async () => {
+    const { handler, events, service } = harness({
+      peek: peekValid({
+        purpose: 'professional_invite',
+        module_key: 'professionals',
+        subject_type: 'professional',
+        resolve_rpc: 'resolve_professional_invitation',
+        accept_rpc: 'link_professional_account',
+      }),
+      rpc: {
+        resolve_professional_invitation: { data: invitationDisplay() },
+        link_professional_account: {
+          data: {
+            status: 'accepted',
+            org_id: ORG_ID,
+            redirect: '/mon-profil/questionnaire',
+          },
+        },
+      },
+    })
+    const res = await handler(accept())
+    assertEquals(res.status, 200)
+    assertEquals(await res.json(), {
+      status: 'accepted',
+      email: INVITEE_EMAIL,
+      redirect: '/mon-profil/questionnaire',
+    })
+    assertEquals(events, [
+      'peek_secure_link',
+      'module_enabled_for_org',
+      'resolve_professional_invitation',
+      'createUser',
+      'link_professional_account',
+    ])
+    assertEquals(
+      service.calls.find((c) => c.fn === 'module_enabled_for_org')?.args,
+      { p_org_id: ORG_ID, p_key: 'professionals' },
+    )
+    // Accepted: the account is kept.
+    assertEquals(service.adminCalls.map((c) => c.method), ['createUser'])
+  })
+})
+
+Deno.test('accept-invite: a redirect that is not a plain app path is dropped and reported; the acceptance stands', async () => {
+  await run(async () => {
+    for (
+      const redirect of [
+        '//evil.test',
+        'https://evil.test/x',
+        '/a?next=//evil.test',
+        '/a#x',
+        '/a//b',
+        '/\\evil.test',
+        // Encoded, scheme, control-character and newline variants.
+        '/%2F%2Fevil.test',
+        'javascript:alert(1)',
+        '/javascript:alert(1)',
+        '/\t/evil.test',
+        '/mon-profil/questionnaire\n',
+        '/mon-profil\n//evil.test',
+        ' /mon-profil',
+        `/${'x'.repeat(250)}`,
+        42,
+      ]
+    ) {
+      const { handler, service } = harness({
+        rpc: {
+          accept_staff_invitation: {
+            data: { status: 'accepted', org_id: ORG_ID, redirect },
+          },
+        },
+      })
+      const logged = await captureConsole('error', async () => {
+        const res = await handler(accept())
+        assertEquals(res.status, 200)
+        assertEquals(await res.json(), {
+          status: 'accepted',
+          email: INVITEE_EMAIL,
+        }, String(redirect))
+      })
+      const line = JSON.parse(String(logged.at(-1)?.[0]))
+      assertEquals([line.code, line.ids], ['redirect_invalid', {
+        link_id: LINK_ID,
+      }])
+      assertEquals(service.adminCalls.map((c) => c.method), ['createUser'])
+    }
+  })
+})

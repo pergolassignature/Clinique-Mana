@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { formatMegabytes, formatPixels, readImageSize, sniffMimeType, uploadMimeType } from './files'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { formatMegabytes, formatPixels, readImageSize, saveBlob, sniffMimeType, uploadMimeType } from './files'
 
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]
 const JPEG = [0xff, 0xd8, 0xff, 0xe0, 0, 0x10]
@@ -110,5 +110,34 @@ describe('formatPixels', () => {
   it('words a side as storage-confirm does (fr-CA grouping)', () => {
     expect(formatPixels(4000)).toBe(new Intl.NumberFormat('fr-CA').format(4000))
     expect(formatPixels(4000).replace(/\s/g, ' ')).toBe('4 000')
+  })
+})
+
+describe('saveBlob', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('clicks a download link named as asked, leaves nothing in the page, and frees the URL later', () => {
+    vi.useFakeTimers()
+    const blob = new Blob(['%PDF-1.3'], { type: 'application/pdf' })
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fiche')
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const clicked: HTMLAnchorElement[] = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this)
+    })
+
+    saveBlob(blob, 'Fiche - Geneviève Tremblay.pdf')
+
+    expect(create).toHaveBeenCalledWith(blob)
+    expect(clicked).toHaveLength(1)
+    expect(clicked[0]?.download).toBe('Fiche - Geneviève Tremblay.pdf')
+    expect(clicked[0]?.getAttribute('href')).toBe('blob:fiche')
+    expect(document.querySelector('a[download]')).toBeNull()
+    expect(revoke).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(10_000)
+    expect(revoke).toHaveBeenCalledWith('blob:fiche')
   })
 })

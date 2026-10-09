@@ -82,3 +82,48 @@ jobs:
             echo "::error::src/core/supabase/database.types.ts is stale. Run 'npm run db:types' and commit."
             exit 1
           }
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+      - run: npm ci
+      # Every migration, then supabase/seed.sql: the specs sign in with its local logins. Mailpit stays:
+      # the onboarding spec reads the invitation email there.
+      - run: supabase start -x studio,imgproxy,logflare,vector,supavisor,edge-runtime,realtime
+      - name: Point the app at the local stack
+        run: |
+          supabase status -o env \
+            | sed -n -e 's/^API_URL=/VITE_SUPABASE_URL=/p' -e 's/^ANON_KEY=/VITE_SUPABASE_ANON_KEY=/p' > .env.local
+          grep -q '^VITE_SUPABASE_URL=' .env.local && grep -q '^VITE_SUPABASE_ANON_KEY=' .env.local
+      # The edge functions with the local fakes (invitation, activation, questionnaire): emails go to
+      # Mailpit, links to http://localhost:5173, CORS admits the e2e origin (5190).
+      - name: Serve the edge functions
+        run: |
+          cp supabase/functions/.env.example supabase/functions/.env
+          nohup supabase functions serve --env-file supabase/functions/.env > functions.log 2>&1 &
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS -H 'Origin: http://localhost:5190' http://127.0.0.1:55321/functions/v1/professionals-invite || true)
+            if [ "$code" = "200" ] || [ "$code" = "204" ]; then echo "functions ready ($code)"; exit 0; fi
+            sleep 2
+          done
+          echo "functions not ready"; tail -50 functions.log; exit 1
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            functions.log
+          retention-days: 7

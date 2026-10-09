@@ -2,10 +2,14 @@ import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
   applyEvents,
   documentEvents,
+  failureCode,
+  isDocumensoOutage,
+  isDocumentMissing,
   normaliseEventName,
   orgSigning,
   readDraftEnvelope,
   reconcileOrg,
+  SigningFailure,
   storeSignedPdf,
   syncRequest,
   webhookEvents,
@@ -1000,6 +1004,7 @@ Deno.test('reconcileOrg: an overdue pending request → synced, expired in the d
       'apply_signing_event',
       'expire_signature_request',
       'documenso /api/v2/envelope/cancel',
+      'record_signature_sync',
     ])
     assertEquals(s.db.requests.get(row.id)!.status, 'expired')
     assertEquals(s.fake.documents.get(doc)!.status, 'CANCELLED')
@@ -1016,6 +1021,7 @@ Deno.test('reconcileOrg: a stale draft with no document is abandoned without Doc
       'list_signature_requests_to_reconcile',
       'begin_signature_request_send',
       'mark_signature_request_failed',
+      'record_signature_sync',
     ])
     assertEquals(s.fake.calls.length, 0)
   })
@@ -1128,5 +1134,580 @@ Deno.test('reconcileOrg: nothing to do → a short detail; a failed request → 
     assert(report.includes(row.id))
     assert(report.includes('provider_error'))
     assert(!report.includes('@'))
+  })
+})
+
+Deno.test('isDocumensoOutage: Documenso unusable (key refused, no answer, redirect, a 404 not its own, 408, 429, 5xx, not configured) versus one bad request', () => {
+  const documenso = (
+    code: 'provider_error' | 'not_configured' | 'invalid_request',
+    status: number | null,
+    notFound = false,
+  ) => new DocumensoError(code, status, 'x', null, notFound)
+  for (
+    const outage of [
+      documenso('not_configured', 401),
+      documenso('not_configured', null),
+      documenso('provider_error', null),
+      documenso('provider_error', 302),
+      // A proxy's or another server's 404 (a wrong address), not Documenso's (E-14).
+      documenso('provider_error', 404),
+      documenso('provider_error', 408),
+      documenso('provider_error', 429),
+      documenso('provider_error', 503),
+      // A 200 to a read that is no envelope (a wrong base URL serving a page).
+      new DocumensoError('provider_error', 200, 'x', null, false, true),
+      new SigningFailure('not_configured'),
+    ]
+  ) assert(isDocumensoOutage(outage), `${outage.code} ${outage.message}`)
+  for (
+    const own of [
+      documenso('provider_error', 404, true),
+      documenso('provider_error', 400),
+      // Refused before any request (status null, but nothing was sent).
+      documenso('invalid_request', null),
+      // A signed PDF over the cap: refused while it streams, after a 200.
+      documenso('provider_error', 200),
+      new SigningFailure('signing_foreign_document'),
+      new SigningFailure('apply_failed'),
+      new Error('boom'),
+    ]
+  ) assert(!isDocumensoOutage(own), own.message)
+})
+
+Deno.test('reconcileOrg: one request deleted at Documenso (404) → the run is ok, the detail counts it, the others are read', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const gone = await sentRequest(s.fake, s.db)
+    const fine = await sentRequest(s.fake, s.db)
+    s.fake.documents.delete(gone.envelope_id!)
+    let detail = ''
+    const lines = await captureConsole('error', async () => {
+      detail = await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    })
+    assertEquals(
+      detail,
+      '1 demande suivie (1 inchangée) ; 1 demande non vérifiée',
+    )
+    const report = JSON.stringify(lines)
+    assert(report.includes(gone.id))
+    assert(report.includes('provider_not_found'))
+    assert(!report.includes(fine.id), 'only the failing request is reported')
+    assertEquals(s.db.syncs.get(gone.id)!.error_code, 'provider_not_found')
+    assertEquals(s.db.syncs.get(gone.id)!.synced_at, null)
+    assertEquals(s.db.syncs.get(fine.id)!.synced_at, NOW)
+    assertEquals(s.db.syncs.get(fine.id)!.error_code, null)
+  })
+})
+
+Deno.test('reconcileOrg: the only request fails on its own (404) → still ok, not an outage', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const gone = await sentRequest(s.fake, s.db)
+    s.fake.documents.delete(gone.envelope_id!)
+    await captureConsole('error', async () => {
+      assertEquals(
+        await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal),
+        'Aucune demande traitée ; 1 demande non vérifiée',
+      )
+    })
+  })
+})
+
+Deno.test('reconcileOrg: Documenso refuses the key for every request → reconcile_failed (an outage)', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    await sentRequest(s.fake, s.db)
+    await sentRequest(s.fake, s.db)
+    s.fake.failures.read = 401
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      )
+      assertEquals((error as { code: string }).code, 'reconcile_failed')
+    })
+    for (const sync of s.db.syncs.values()) {
+      assertEquals(sync.error_code, 'not_configured')
+    }
+  })
+})
+
+Deno.test('failureCode: a 404 and a 500 never read alike; our own codes kept; junk → internal', () => {
+  const documenso = (
+    code: 'provider_error' | 'not_configured' | 'invalid_request',
+    status: number | null,
+    notFound = false,
+  ) => new DocumensoError(code, status, 'x', null, notFound)
+  assertEquals(
+    [
+      documenso('provider_error', 404, true),
+      documenso('provider_error', 400),
+      documenso('provider_error', 410),
+      documenso('invalid_request', null),
+      documenso('provider_error', null),
+      documenso('provider_error', 404),
+      documenso('provider_error', 500),
+      documenso('provider_error', 429),
+      documenso('provider_error', 302),
+      documenso('provider_error', 200),
+      documenso('not_configured', 401),
+      new SigningFailure('signing_foreign_document'),
+      new SigningFailure('bad code!'),
+      new Error('boom'),
+      null,
+    ].map(failureCode),
+    [
+      'provider_not_found',
+      'provider_rejected',
+      'provider_rejected',
+      'provider_invalid_request',
+      'provider_unreachable',
+      'provider_error',
+      'provider_error',
+      'provider_error',
+      'provider_error',
+      'provider_error',
+      'not_configured',
+      'signing_foreign_document',
+      'internal',
+      'internal',
+      'internal',
+    ],
+  )
+})
+
+Deno.test('isDocumentMissing: Documenso answered, not with the envelope (its own 404, another 4xx, another envelope) versus Documenso unusable or nothing sent', () => {
+  const documenso = (
+    code: 'provider_error' | 'not_configured' | 'invalid_request',
+    status: number | null,
+    notFound = false,
+  ) => new DocumensoError(code, status, 'x', null, notFound)
+  for (
+    const gone of [
+      documenso('provider_error', 404, true),
+      documenso('provider_error', 400),
+      new SigningFailure('signing_foreign_document'),
+    ]
+  ) assert(isDocumentMissing(gone), gone.message)
+  for (
+    const other of [
+      // A 404 that is not Documenso's: the address is wrong (an outage).
+      documenso('provider_error', 404),
+      documenso('invalid_request', null),
+      documenso('not_configured', 401),
+      documenso('provider_error', null),
+      documenso('provider_error', 408),
+      documenso('provider_error', 429),
+      documenso('provider_error', 500),
+      documenso('provider_error', 200),
+      new SigningFailure('apply_failed'),
+      new Error('boom'),
+    ]
+  ) assert(!isDocumentMissing(other), other.message)
+})
+
+Deno.test('reconcileOrg: every read answers 404 (a key of another team, a VM rebuilt without its documents) → reconcile_documents_missing, not ok', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const rows = [
+      await sentRequest(s.fake, s.db),
+      await sentRequest(s.fake, s.db),
+    ]
+    for (const row of rows) s.fake.documents.delete(row.envelope_id!)
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      )
+      assertEquals(
+        (error as { code: string }).code,
+        'reconcile_documents_missing',
+      )
+    })
+    for (const row of rows) {
+      assertEquals(s.db.syncs.get(row.id)!.error_code, 'provider_not_found')
+    }
+  })
+})
+
+Deno.test("reconcileOrg: every read answers a 404 that is not Documenso's (another server at the address) → reconcile_failed, not documents missing", async () => {
+  await run(async () => {
+    const s = cronSetup()
+    await sentRequest(s.fake, s.db)
+    await sentRequest(s.fake, s.db)
+    // A proxy's page, not Documenso's NOT_FOUND (E-14: notFound stays false).
+    const elsewhere: typeof fetch = () =>
+      Promise.resolve(
+        new Response('<html>Not Found</html>', {
+          status: 404,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      )
+    const perOrg = reconcileOrg(
+      { fetch: elsewhere, now: s.clock.now, reach: LOCAL_REACH },
+      'signing-sync',
+    )
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      )
+      assertEquals((error as { code: string }).code, 'reconcile_failed')
+    })
+    assertEquals(s.db.syncs.size, 2)
+    for (const sync of s.db.syncs.values()) {
+      assertEquals(sync.error_code, 'provider_error')
+    }
+  })
+})
+
+Deno.test('reconcileOrg: overdue requests whose cancel Documenso answers 404 though the read-back finds them (E-8) → the run is ok: they were read', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const rows = [
+      await sentRequest(s.fake, s.db, {
+        expires_at: '2026-10-07T12:00:00.000Z',
+      }),
+      await sentRequest(s.fake, s.db, {
+        expires_at: '2026-10-07T12:00:00.000Z',
+      }),
+    ]
+    s.fake.failures.cancel = 404
+    let detail = ''
+    await captureConsole('error', async () => {
+      detail = await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    })
+    assertEquals(detail, 'Aucune demande traitée ; 2 demandes non vérifiées')
+    for (const row of rows) {
+      assertEquals(s.db.syncs.get(row.id)!.error_code, 'provider_not_found')
+      assertEquals(s.db.requests.get(row.id)!.status, 'expired')
+    }
+  })
+})
+
+Deno.test('reconcileOrg: stale drafts whose delete Documenso answers 404 though the read-back finds them (E-8) → the run is ok, each released with its code', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const rows = []
+    for (let i = 0; i < 2; i++) {
+      const row = await deadDraft(s, false)
+      s.fake.documents.get(row.envelope_id!)!.status = 'DRAFT'
+      rows.push(row)
+    }
+    s.fake.failures.delete = 404
+    s.clock.advance(2 * 3_600_000)
+    let detail = ''
+    await captureConsole('error', async () => {
+      detail = await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    })
+    assertEquals(detail, 'Aucune demande traitée ; 2 demandes non vérifiées')
+    for (const row of rows) {
+      assertEquals(s.db.syncs.get(row.id)!.error_code, 'provider_not_found')
+      const draft = s.db.requests.get(row.id)!
+      assertEquals([draft.status, draft.last_error], [
+        'draft',
+        'provider_not_found',
+      ])
+      assertEquals(s.fake.documents.get(row.envelope_id!)!.status, 'DRAFT')
+    }
+  })
+})
+
+Deno.test('reconcileOrg: every document is another one under its id (an instance rebuilt, ids reused) → reconcile_documents_missing', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    for (let i = 0; i < 2; i++) {
+      const row = await sentRequest(s.fake, s.db)
+      s.fake.documents.get(row.envelope_id!)!.externalId = `other-${i}`
+    }
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      )
+      assertEquals(
+        (error as { code: string }).code,
+        'reconcile_documents_missing',
+      )
+    })
+  })
+})
+
+Deno.test('reconcileOrg: a draft skipped as sending is not a read: with every other read a 404, still an outage', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const draft = await sentRequest(s.fake, s.db, {
+      status: 'draft',
+      sent_at: null,
+      expires_at: null,
+      created_at: NOW,
+    })
+    const gone = [
+      await sentRequest(s.fake, s.db),
+      await sentRequest(s.fake, s.db),
+    ]
+    for (const row of gone) s.fake.documents.delete(row.envelope_id!)
+    // Two hours later the draft is listed, but a send claimed it 5 minutes ago.
+    s.clock.advance(2 * 3_600_000)
+    s.db.requests.get(draft.id)!.send_started_at = new Date(
+      s.clock.now().getTime() - 5 * 60_000,
+    ).toISOString()
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      )
+      assertEquals(
+        (error as { code: string }).code,
+        'reconcile_documents_missing',
+      )
+    })
+    assertEquals(s.db.requests.get(draft.id)!.status, 'draft', 'left alone')
+  })
+})
+
+/** A fetch that answers every read of `envelopes` (all when null) with a 200 HTML page. */
+function pageAt(
+  envelopes: string[] | null,
+  fallback: typeof fetch,
+): typeof fetch {
+  return (input, init) => {
+    const path = new URL(new Request(input, init).url).pathname
+    const hit = envelopes === null
+      ? path.startsWith('/api/v2/envelope/')
+      : envelopes.some((id) => path.endsWith(`/${id}`))
+    return hit
+      ? Promise.resolve(
+        new Response('<html>Bienvenue</html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      )
+      : fallback(input, init)
+  }
+}
+
+Deno.test('reconcileOrg: every read answers a 200 that is no envelope (a wrong base URL serving a page) → reconcile_failed', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    await sentRequest(s.fake, s.db)
+    await sentRequest(s.fake, s.db)
+    const perOrg = reconcileOrg(
+      {
+        fetch: pageAt(null, s.fake.fetch),
+        now: s.clock.now,
+        reach: LOCAL_REACH,
+      },
+      'signing-sync',
+    )
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      )
+      assertEquals((error as { code: string }).code, 'reconcile_failed')
+    })
+    assertEquals(s.db.syncs.size, 2)
+    for (const sync of s.db.syncs.values()) {
+      assertEquals([sync.error_code, sync.synced_at], ['provider_error', null])
+    }
+  })
+})
+
+Deno.test('reconcileOrg: one read answers a 200 that is no envelope among real reads → partial, the run is ok', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const odd = await sentRequest(s.fake, s.db)
+    const fine = await sentRequest(s.fake, s.db)
+    const perOrg = reconcileOrg(
+      {
+        fetch: pageAt([odd.envelope_id!], s.fake.fetch),
+        now: s.clock.now,
+        reach: LOCAL_REACH,
+      },
+      'signing-sync',
+    )
+    let detail = ''
+    await captureConsole('error', async () => {
+      detail = await perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    })
+    assertEquals(
+      detail,
+      '1 demande suivie (1 inchangée) ; 1 demande non vérifiée',
+    )
+    assertEquals(s.db.syncs.get(odd.id)!.error_code, 'provider_error')
+    assertEquals(s.db.syncs.get(fine.id)!.synced_at, NOW)
+  })
+})
+
+Deno.test('reconcileOrg: a draft skipped as sending is recorded as an attempt only: its last read and failure streak stay', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const draft = await deadDraft(s, false)
+    const before = {
+      attempted_at: '2026-10-08T10:00:00.000Z',
+      synced_at: '2026-10-08T05:00:00.000Z',
+      error_code: 'provider_unreachable',
+      failing_since: '2026-10-08T06:00:00.000Z',
+      reported: {},
+    }
+    s.db.syncs.set(draft.id, { ...before })
+    // Two hours later the draft is listed, but a send claimed it 5 minutes ago.
+    s.clock.advance(2 * 3_600_000)
+    s.db.requests.get(draft.id)!.send_started_at = new Date(
+      s.clock.now().getTime() - 5 * 60_000,
+    ).toISOString()
+    assertEquals(
+      await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal),
+      '1 demande suivie (1 en cours d’envoi)',
+    )
+    assertEquals(s.db.syncs.get(draft.id), {
+      ...before,
+      attempted_at: s.clock.now().toISOString(),
+    })
+    assertEquals(
+      s.supabase.calls.find((c) => c.fn === 'record_signature_sync')?.args,
+      {
+        p_org_id: SIGNING_ORG,
+        p_id: draft.id,
+        p_error_code: null,
+        p_read: false,
+        p_report_codes: [],
+      },
+    )
+  })
+})
+
+Deno.test('reconcileOrg: a request settled without a Documenso read (a draft with no envelope, abandoned) is no read: the attempt only', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    s.db.insertRequest({ id: 'r1', created_at: '2026-10-06T12:00:00.000Z' })
+    assertEquals(
+      await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal),
+      '1 demande suivie (1 abandonnée)',
+    )
+    const sync = s.db.syncs.get('r1')!
+    assertEquals(
+      [sync.attempted_at, sync.synced_at, sync.error_code, sync.failing_since],
+      [NOW, null, null, null],
+    )
+  })
+})
+
+Deno.test('reconcileOrg: a read records a success (p_read true)', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const row = await sentRequest(s.fake, s.db)
+    await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    assertEquals(
+      s.supabase.calls.find((c) => c.fn === 'record_signature_sync')?.args
+        .p_read,
+      true,
+    )
+    assertEquals(s.db.syncs.get(row.id)!.synced_at, NOW)
+  })
+})
+
+Deno.test('reconcileOrg: when record_signature_sync fails, every report goes out, unthrottled', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const gone = await sentRequest(s.fake, s.db)
+    await sentRequest(s.fake, s.db)
+    s.fake.documents.delete(gone.envelope_id!)
+    s.db.rpc.record_signature_sync = () => ({
+      error: { code: 'XX000', message: 'boom' },
+    })
+    const reports = async () => {
+      const lines = await captureConsole('error', async () => {
+        await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      })
+      return lines.filter((l) => JSON.stringify(l).includes(gone.id)).length
+    }
+    assertEquals(await reports(), 1, 'reported')
+    s.clock.advance(3_600_000)
+    assertEquals(
+      await reports(),
+      1,
+      'an hour later: reported again (no record, no throttle)',
+    )
+  })
+})
+
+Deno.test('reconcileOrg: a request that keeps failing is reported to Sentry once a day, not every hour', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const gone = await sentRequest(s.fake, s.db)
+    await sentRequest(s.fake, s.db)
+    s.fake.documents.delete(gone.envelope_id!)
+    const reports = async () => {
+      const lines = await captureConsole('error', async () => {
+        await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      })
+      return lines.filter((l) => JSON.stringify(l).includes(gone.id)).length
+    }
+    assertEquals(await reports(), 1, 'first failure: reported')
+    s.clock.advance(3_600_000)
+    assertEquals(await reports(), 0, 'an hour later, same code: not again')
+    assertEquals(
+      s.db.syncs.get(gone.id)!.failing_since,
+      NOW,
+      'still failing since the first attempt',
+    )
+    s.clock.advance(23 * 3_600_000)
+    assertEquals(await reports(), 1, 'a day after the report: once more')
+  })
+})
+
+Deno.test('reconcileOrg: an orphan completed draft is reported once a day, not at every run', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const row = await deadDraft(s, false)
+    s.fake.complete(row.envelope_id!)
+    s.fake.documents.get(row.envelope_id!)!.recipients[1]
+      .signingOrder = 5
+    const orphanReports = async () => {
+      const lines = await captureConsole('error', async () => {
+        await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      })
+      return lines.filter((l) =>
+        JSON.stringify(l).includes('signing_orphan_completed')
+      ).length
+    }
+    // Listed an hour after its last send (each settle claims it again).
+    s.clock.advance(2 * 3_600_000)
+    assertEquals(await orphanReports(), 1)
+    assertEquals(s.db.requests.get(row.id)!.last_error, 'orphan_completed')
+    s.clock.advance(2 * 3_600_000)
+    assertEquals(await orphanReports(), 0, 'two hours later: not again')
+    assertEquals(
+      s.db.syncs.get(row.id)!.error_code,
+      null,
+      'a read, not a failure',
+    )
+    s.clock.advance(22 * 3_600_000)
+    assertEquals(await orphanReports(), 1, 'over a day later: once more')
+  })
+})
+
+Deno.test('reconcileOrg: a fair rotation: what a run left past its soft deadline comes first at the next', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const rows = []
+    for (let i = 0; i < 6; i++) rows.push(await sentRequest(s.fake, s.db))
+    let t = 0
+    const perOrg = reconcileOrg({
+      fetch: s.fake.fetch,
+      now: s.clock.now,
+      reach: LOCAL_REACH,
+      softDeadlineMs: 1000,
+      // Each batch takes the whole budget: one batch (4 requests) per run.
+      elapsed: () => (t += 600),
+    }, 'signing-sync')
+    await perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    const first = rows.filter((r) => s.db.syncs.has(r.id)).map((r) => r.id)
+    assertEquals(first.length, 4)
+    s.clock.advance(3_600_000)
+    t = 0
+    s.fake.calls.length = 0
+    await perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    const read = s.fake.calls.map((c) => new URL(c.url).pathname)
+    const left = rows.filter((r) => !first.includes(r.id))
+      .map((r) => `/api/v2/envelope/${r.envelope_id}`)
+    assertEquals(read.slice(0, 2).sort(), left.sort(), 'the two left first')
+    assertEquals(read.length, 4)
   })
 })

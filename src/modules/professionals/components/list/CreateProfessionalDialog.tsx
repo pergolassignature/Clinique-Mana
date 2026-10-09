@@ -1,0 +1,249 @@
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
+import { useQueryClient } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useNavigate } from 'react-router-dom'
+import { CircleAlert, Plus } from 'lucide-react'
+import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
+import { CheckboxField } from '@/shared/components/CheckboxField'
+import { LoadError, Loading } from '@/shared/components/LoadState'
+import { SaveButton } from '@/shared/components/SaveButton'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { cn } from '@/shared/lib/utils'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
+import { Button } from '@/shared/ui/button'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
+import { FormField } from '@/shared/ui/form-field'
+import { Input } from '@/shared/ui/input'
+import { Select } from '@/shared/ui/select'
+import { toast } from '@/shared/ui/sonner'
+import type { NewProfessional } from '../../api/record'
+import { useProfessionalsCatalog } from '../../hooks/use-catalog'
+import { professionalCatalogKeys } from '../../hooks/keys'
+import { useSendInvitation } from '../../hooks/use-invitations'
+import { useCreateProfessional } from '../../hooks/use-professional-mutations'
+import { titleOrder, type CatalogView } from '../../lib/catalog-view'
+import { recordPath } from '../../lib/constants'
+import { CREATE_PROFESSIONAL_DEFAULTS, createErrorField, createProfessionalSchema, type CreateProfessionalValues } from '../../schemas/create'
+
+const C = 'modules.professionals.create'
+
+/**
+ * « + Ajouter » (professionals.manage, the page's one teal action) and « Ajouter un professionnel »
+ * (design §5.2, P4-35): Prénom, Nom, Courriel, Profession (active titles), and « N° de permis »
+ * (the order's own label) when the title belongs to an order. With `professionals.invite`, « Envoyer
+ * l'invitation maintenant » (ticked; Task 4b.3) makes the button « Créer et inviter »: the file is
+ * created, then the invitation emailed to its address (the link is never shown, P4-260). Then the
+ * record opens. While creating, the dialog stays open; a refusal of the creation shows under the
+ * field its HINT names, when that field is on screen, else above the buttons. An invitation that
+ * fails after the creation is a toast: the file exists, « Envoyer l'invitation » is in its record.
+ */
+export function CreateProfessionalDialog() {
+  const [open, setOpen] = useState(false)
+  const [pending, setPending] = useState(false)
+  // Here, not in the form: the description says whether an invitation will leave.
+  const [inviteNow, setInviteNow] = useState(true)
+  const { can } = useAccess()
+  const invite = can('professionals.invite') && inviteNow
+  const firstName = useRef<HTMLInputElement | null>(null)
+
+  const changeOpen = (next: boolean) => {
+    if (pending) return
+    // Each opening starts ticked, as the form starts empty.
+    if (next) setInviteNow(true)
+    setOpen(next)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus aria-hidden />
+          {t('modules.professionals.list.add')}
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        onOpenAutoFocus={(event) => {
+          if (!firstName.current) return
+          event.preventDefault()
+          firstName.current.focus()
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>{t(`${C}.heading`)}</DialogTitle>
+          <DialogDescription>{t(invite ? `${C}.description` : `${C}.descriptionNoInvite`)}</DialogDescription>
+        </DialogHeader>
+        <CreateForm
+          firstNameRef={firstName}
+          inviteNow={inviteNow}
+          onInviteNowChange={setInviteNow}
+          onPendingChange={setPending}
+          onCreated={() => setOpen(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface CreateFormProps {
+  firstNameRef: RefObject<HTMLInputElement | null>
+  /** « Envoyer l'invitation maintenant » (shown with `professionals.invite`). */
+  inviteNow: boolean
+  onInviteNowChange: (inviteNow: boolean) => void
+  onPendingChange: (pending: boolean) => void
+  onCreated: () => void
+}
+
+/** The titles come from the cached catalogue (the list page has it already). */
+function CreateForm(props: CreateFormProps) {
+  const catalog = useProfessionalsCatalog()
+  if (catalog.data) return <CreateFormFields {...props} catalog={catalog.data} />
+  if (catalog.isError) {
+    return <LoadError message={t(`${C}.catalogError`)} onRetry={() => void catalog.refetch()} retrying={catalog.isFetching} />
+  }
+  return <Loading />
+}
+
+function CreateFormFields({ catalog, firstNameRef, inviteNow, onInviteNowChange, onPendingChange, onCreated }: CreateFormProps & { catalog: CatalogView }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { can } = useAccess()
+  const mayInvite = can('professionals.invite')
+  const invite = mayInvite && inviteNow
+  const sendInvitation = useSendInvitation({
+    // The file exists: the dialog closes on its record, the toast says what is left to do.
+    onErrorMessage: (message) => toast.error(t(`${C}.notInvited`), { description: message }),
+  })
+  const schema = useMemo(() => createProfessionalSchema(catalog), [catalog])
+  const form = useForm<CreateProfessionalValues, unknown, NewProfessional>({ resolver: zodResolver(schema), defaultValues: CREATE_PROFESSIONAL_DEFAULTS })
+  const { errors, isDirty } = form.formState
+  const create = useCreateProfessional({
+    onErrorMessage: (message, error) => {
+      const field = createErrorField(error)
+      if (field === 'licenceNumber' && !titleOrder(catalog, form.getValues('titleId') || null)) {
+        // The title gained an order since the catalogue was read: no licence field to put it under.
+        // The refetched catalogue brings the field.
+        form.setError('root.server', { message: t(`${C}.licenceNowRequired`) })
+        void queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.catalog() })
+      } else if (field) {
+        form.setError(field, { message }, { shouldFocus: true })
+        // « Ce titre est archivé. »: the refetched catalogue stops offering it.
+        if (field === 'titleId') void queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.catalog() })
+      } else {
+        form.setError('root.server', { message })
+      }
+    },
+  })
+  const titleId = useWatch({ control: form.control, name: 'titleId' })
+  const order = titleOrder(catalog, titleId || null)
+  const titles = catalog.titles.filter((title) => title.isActive)
+  const { ref: registerFirstName, ...firstNameField } = form.register('firstName')
+  // When the titles arrive after the dialog opened, Prénom still gets the focus.
+  useEffect(() => firstNameRef.current?.focus(), [firstNameRef])
+
+  const submit = form.handleSubmit(async (values) => {
+    onPendingChange(true)
+    try {
+      const id = await create.mutateAsync(values)
+      if (invite) {
+        // Its outcome is a toast either way (sent, created but not emailed, or refused).
+        await sendInvitation.mutateAsync({ id, action: 'send', email: values.email }).catch(() => {})
+      }
+      onCreated()
+      navigate(recordPath(id))
+    } catch {
+      // Shown under its field or above the buttons (onErrorMessage).
+    } finally {
+      onPendingChange(false)
+    }
+  })
+
+  const pending = create.isPending || sendInvitation.isPending
+  const alert = errors.root?.server?.message
+  return (
+    <form noValidate onSubmit={(event) => void submit(event)} className="grid gap-3.5" aria-busy={pending || undefined}>
+      <div className="grid gap-3.5 sm:grid-cols-2">
+        <FormField label={t(`${C}.firstName`)} required error={errors.firstName?.message}>
+          {(field) => (
+            <Input
+              {...field}
+              {...firstNameField}
+              ref={(element) => {
+                registerFirstName(element)
+                firstNameRef.current = element
+              }}
+              autoComplete="off"
+            />
+          )}
+        </FormField>
+        <FormField label={t(`${C}.lastName`)} required error={errors.lastName?.message}>
+          {(field) => <Input {...field} {...form.register('lastName')} autoComplete="off" />}
+        </FormField>
+      </div>
+      <FormField label={t(`${C}.email`)} required help={t(`${C}.emailHelp`)} error={errors.email?.message}>
+        {(field) => <Input {...field} {...form.register('email')} type="email" autoComplete="off" />}
+      </FormField>
+      <FormField label={t(`${C}.profession`)} error={errors.titleId?.message}>
+        {(field) => (
+          <Select
+            {...field}
+            {...form.register('titleId', {
+              // The licence field goes with a title that needs none: nothing hidden is sent.
+              onChange: (event: { target: { value: string } }) => {
+                if (!titleOrder(catalog, event.target.value || null)) form.setValue('licenceNumber', '')
+                form.clearErrors('licenceNumber')
+              },
+            })}
+          >
+            <option value="">{t(`${C}.professionNone`)}</option>
+            {titles.map((title) => (
+              <option key={title.id} value={title.id}>
+                {title.name}
+              </option>
+            ))}
+          </Select>
+        )}
+      </FormField>
+      {order && (
+        <FormField label={order.licenceLabel} required help={t(`${C}.licenceHelp`, { order: order.acronym })} error={errors.licenceNumber?.message}>
+          {(field) => <Input {...field} {...form.register('licenceNumber')} autoComplete="off" className="tabular" />}
+        </FormField>
+      )}
+      {mayInvite && (
+        <CheckboxField
+          label={t(`${C}.inviteNow`)}
+          help={t(`${C}.inviteNowHelp`)}
+          checked={inviteNow}
+          onCheckedChange={onInviteNowChange}
+        />
+      )}
+      {alert && (
+        <Alert variant="destructive" role="alert">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="text-foreground">{alert}</AlertDescription>
+        </Alert>
+      )}
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button
+            type="button"
+            variant="outline"
+            aria-disabled={pending || undefined}
+            onClick={ignoreWhenInactive(pending)}
+            className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+          >
+            {t('common.cancel')}
+          </Button>
+        </DialogClose>
+        <SaveButton
+          pending={pending}
+          disabled={!isDirty}
+          variant={isDirty || pending ? 'default' : 'outline'}
+          label={t(invite ? `${C}.submitAndInvite` : `${C}.submit`)}
+          pendingLabel={t(sendInvitation.isPending ? `${C}.inviting` : `${C}.submitting`)}
+        />
+      </DialogFooter>
+    </form>
+  )
+}

@@ -544,8 +544,12 @@ select is((select raw_app_meta_data ->> 'invite_link_id' from auth.users where i
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000010","role":"authenticated"}', true);
-select results_eq($$ select public.get_my_access() ->> 'role', public.get_my_access() -> 'permissions' $$,
-  $$ values ('counselor'::text, '["professionals.view"]'::jsonb) $$,
+-- Permissions checked on core keys plus professionals.view, so later module defaults leave it alone.
+select results_eq($$
+  select public.get_my_access() ->> 'role',
+         (select coalesce(jsonb_agg(k order by k), '[]') from jsonb_array_elements_text(public.get_my_access() -> 'permissions') k
+            join public.permissions pm on pm.key = k where pm.module_key = 'core' or pm.key = 'professionals.view')
+$$, $$ values ('counselor'::text, '["professionals.view"]'::jsonb) $$,
   'the new user''s access lists the role and its permissions');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);

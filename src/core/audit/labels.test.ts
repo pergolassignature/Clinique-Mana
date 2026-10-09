@@ -66,7 +66,7 @@ describe('tableLabel', () => {
   })
 
   it('falls back to the table name', () => {
-    expect(tableLabel('professionals')).toBe('professionals')
+    expect(tableLabel('demandes')).toBe('demandes')
   })
 })
 

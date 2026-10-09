@@ -3,18 +3,24 @@
  * from Documenso and applies what changed, in case a webhook was lost.
  *
  * **Job mode** (a request carrying `X-Job-Signature`, `core.signing_reconcile`,
- * daily): `runJob` verifies the signature, then `reconcileOrg` per org
- * (`_shared/signing-events.ts`, `perOrgTimeoutMs` `RECONCILE_TIMEOUT_MS`,
- * no new batch after `RECONCILE_SOFT_DEADLINE_MS`): up to 100 listed
- * requests, 4 at a time; `sync` (sent or viewed for over a day, or
- * completed without its PDF; a draft with an envelope whose send started
- * over an hour ago: claimed, read, then recovered when Documenso completed
- * it, else cancelled and abandoned), `expire` (sync first; still not
- * completed → expired here, then cancelled at Documenso, normally a 200:
- * Documenso expires the signing links, not the envelope, E-6; a 400 means it
- * left pending there in between) and `abandon` (a draft with no
- * envelope whose send started over a day ago, claimed first). A draft
- * whose send is under way is skipped (`sending`).
+ * hourly: the Documenso VM is not backed up, so a signed PDF whose webhook
+ * was lost or failed must reach our storage within the hour,
+ * `…_core_signing_capture.sql`): `runJob` verifies the signature, then
+ * `reconcileOrg` per org (`_shared/signing-events.ts`, `perOrgTimeoutMs`
+ * `RECONCILE_TIMEOUT_MS`, no new batch after `RECONCILE_SOFT_DEADLINE_MS`):
+ * up to 100 listed requests, 4 at a time, those Documenso completed without
+ * their PDF first, then the least recently attempted (a fair rotation: each
+ * attempt is recorded, `record_signature_sync`); a request that fails is
+ * counted and reported at most once a day, and only a real outage (nothing
+ * read, Documenso unusable) fails the run; `sync` (every sent or viewed
+ * request, completed without its PDF or not; a draft with an envelope whose
+ * send started over an hour ago: claimed, read, then recovered when
+ * Documenso completed it, else cancelled and abandoned), `expire` (sync
+ * first; still not completed → expired here, then cancelled at Documenso,
+ * normally a 200: Documenso expires the signing links, not the envelope,
+ * E-6; a 400 means it left pending there in between) and `abandon` (a draft
+ * with no envelope whose send started over a day ago, claimed first). A
+ * draft whose send is under way is skipped (`sending`).
  *
  * **User mode** (« Synchroniser »):
  * 1. CORS; `POST` only; `verifyAuth` (an active profile).
@@ -28,7 +34,13 @@
  *    without settling drafts: a draft whose send may be under way is never
  *    cancelled from a click (only a completed one is recovered, once
  *    claimed).
- * 7. 200 `{ request_id, outcome }` (`signed`, `updated`, `unchanged`,
+ * 7. For a sent or viewed request, the attempt is recorded like the
+ *    reconcile's (`record_signature_sync`, best effort, nothing reported): a
+ *    successful « Synchroniser » that read the request's own envelope
+ *    (`trackOwnReads`) clears its « non vérifiée » state
+ *    (`…_core_signing_blind_alert`), a failure records its code, and one
+ *    that read nothing (no envelope) records the attempt only.
+ * 8. 200 `{ request_id, outcome }` (`signed`, `updated`, `unchanged`,
  *    `orphan_completed`, `sending`).
  *
  * User-mode status codes: 200; 400 body; 401 / 403 / 503 from `verifyAuth`;
@@ -52,10 +64,15 @@ import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
   documensoReach,
+  failureCode,
+  type OrgSigning,
   orgSigning,
   RECONCILE_TIMEOUT_MS,
   reconcileOrg,
+  recordAttempt,
+  type SyncAttempt,
   syncRequest,
+  trackOwnReads,
 } from '../_shared/signing-events.ts'
 
 const FN = 'signing-sync'
@@ -97,6 +114,20 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       await reportError({ fn: FN, code, ids }, deps.fetch)
       return errorResponse('internal', 'Sync failed', 500, req)
     }
+    const failure = async (error: unknown) => {
+      if (error instanceof DocumensoError) {
+        return error.code === 'not_configured'
+          ? errorResponse(
+            'not_configured',
+            'Documenso refused the key',
+            503,
+            req,
+          )
+          : errorResponse('provider_error', 'Documenso failed', 502, req)
+      }
+      const code = (error as { code?: unknown }).code
+      return await fail(typeof code === 'string' ? code : 'sync_failed')
+    }
 
     const limited = limitResponse(
       await consume(service, LIMITS.signingSyncUser, [orgId, auth.user.id]),
@@ -126,27 +157,42 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
 
+    let signing: OrgSigning | null
     try {
-      const signing = await orgSigning(
+      signing = await orgSigning(
         service,
         orgId,
         deps.fetch,
         documensoReach(deps),
         req.signal,
       )
-      if (!signing) {
-        return errorResponse(
-          'not_configured',
-          'Signing is not configured',
-          503,
-          req,
-        )
-      }
+    } catch (error) {
+      return await failure(error)
+    }
+    if (!signing) {
+      return errorResponse(
+        'not_configured',
+        'Signing is not configured',
+        503,
+        req,
+      )
+    }
+    // A sent or viewed request's read is recorded like the reconcile's
+    // (`record_signature_sync`, nothing reported): a successful click that
+    // read its own envelope clears its « non vérifiée » state, a failed one
+    // counts, one that read nothing is an attempt only. A draft's state is
+    // its settle's, which a click never runs.
+    const tracked = trackOwnReads(signing, row.data.id)
+    const record = (attempt: SyncAttempt) =>
+      row.data.status === 'draft'
+        ? Promise.resolve()
+        : recordAttempt(service, orgId, row.data.id, attempt, [], deps.fetch)
+    try {
       const outcome = await syncRequest(
         {
           client: service,
           orgId,
-          signing,
+          signing: tracked.signing,
           now: deps.now,
           fn: FN,
           fetch: deps.fetch,
@@ -154,20 +200,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         row.data,
         { settleDrafts: false },
       )
+      await record({ read: tracked.seen() })
       return jsonResponse({ request_id: row.data.id, outcome }, 200, req)
     } catch (error) {
-      if (error instanceof DocumensoError) {
-        return error.code === 'not_configured'
-          ? errorResponse(
-            'not_configured',
-            'Documenso refused the key',
-            503,
-            req,
-          )
-          : errorResponse('provider_error', 'Documenso failed', 502, req)
-      }
-      const code = (error as { code?: unknown }).code
-      return await fail(typeof code === 'string' ? code : 'sync_failed')
+      await record({ code: failureCode(error) })
+      return await failure(error)
     }
   }
 }

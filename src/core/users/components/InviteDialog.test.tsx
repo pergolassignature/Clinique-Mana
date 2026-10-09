@@ -7,7 +7,7 @@ import type { Access } from '@/core/access/access'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { renderWithContexts } from '@/test/contexts'
-import { accessForRole } from '@/test/role-fixtures'
+import { accessForRole, ROLE_PERMISSIONS } from '@/test/role-fixtures'
 import { customRole, testRoleDefaults, testRoles } from '@/test/users-fixtures'
 import { userKeys } from '../hooks'
 import { InviteDialog } from './InviteDialog'
@@ -27,10 +27,10 @@ vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const adminCaller = accessForRole('admin', { user_id: 'u-admin' })
-/** A non-admin manager: the adjointe given users.view + users.manage. */
+/** A non-admin manager: the adjointe given users.view + users.manage on top of her defaults. */
 const managerCaller = accessForRole('admin_assistant', {
   user_id: 'u-adjointe',
-  permissions: ['settings.view', 'professionals.view', 'users.view', 'users.manage'],
+  permissions: [...ROLE_PERMISSIONS.admin_assistant, 'users.view', 'users.manage'],
 })
 
 function renderDialog(caller: Access = adminCaller) {

@@ -35,6 +35,8 @@ Thumbs.db
 
 # Testing
 coverage
+playwright-report/
+test-results/
 
 # TypeScript
 *.tsbuildinfo
@@ -56,3 +58,6 @@ supabase/.temp
 # Deno: the edge-function lockfile is supabase/functions/deno.lock (run deno with
 # --config supabase/functions/deno.json); a root lockfile is an accident.
 /deno.lock
+
+# Import reports (scripts/import-professionals.mjs): emails of real people, never committed
+import-report-*.csv

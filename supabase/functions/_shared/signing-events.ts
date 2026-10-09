@@ -1,7 +1,7 @@
 /**
  * Following Documenso after a request is sent (design §6.3, Task 3.33):
  * mapping an envelope's state or a webhook to `apply_signing_event` calls,
- * storing the signed PDF, syncing one request, and the daily reconcile.
+ * storing the signed PDF, syncing one request, and the hourly reconcile.
  * Used by `signing-webhook`, `signing-sync` and `_shared/signing.ts`.
  *
  * **Render-free on purpose:** nothing here imports `pdf/render.ts`, so the
@@ -68,7 +68,7 @@ import {
   type ResolveDns,
 } from './documenso.ts'
 import type { PerOrg } from './jobs.ts'
-import { reportError } from './report.ts'
+import { type ErrorReport, reportError, type ReportIds } from './report.ts'
 import { sha256Hex, sniff } from './storage.ts'
 
 /** A failure with a safe code (`runJob` records it; webhooks fail the claim with it). */
@@ -81,6 +81,29 @@ export class SigningFailure extends Error {
     super(code)
     this.name = 'SigningFailure'
   }
+}
+
+/**
+ * Where a request's reports go: `reportError`, or, when `report` is set (the
+ * reconcile), a collector that sends them once `record_signature_sync` says
+ * the code was not reported for that request in the last day.
+ */
+export interface SigningReporter {
+  fn: string
+  orgId: string
+  fetch: typeof fetch
+  report?: (report: ErrorReport) => void
+}
+
+/** Reports `code` for a request through `to` (`SigningReporter`). */
+async function reportRequest(
+  to: SigningReporter,
+  code: string,
+  ids: ReportIds,
+): Promise<void> {
+  const report = { fn: to.fn, code, ids }
+  if (to.report) to.report(report)
+  else await reportError(report, to.fetch)
 }
 
 /** One `apply_signing_event` call. */
@@ -325,7 +348,7 @@ export async function claimDraft(
  */
 export async function markDraftFailed(
   client: SupabaseClient,
-  report: { fn: string; orgId: string; fetch: typeof fetch },
+  report: SigningReporter,
   id: string,
   code: string,
   ids: { envelopeId?: string | null } = {},
@@ -336,11 +359,10 @@ export async function markDraftFailed(
     p_envelope_id: ids.envelopeId ?? null,
   })
   if (error) {
-    await reportError({
-      fn: report.fn,
-      code: 'mark_failed_failed',
-      ids: { org_id: report.orgId, signature_request_id: id },
-    }, report.fetch)
+    await reportRequest(report, 'mark_failed_failed', {
+      org_id: report.orgId,
+      signature_request_id: id,
+    })
   }
 }
 
@@ -537,7 +559,7 @@ export async function storeSignedPdf(
 }
 
 /** Everything one org's sync needs. */
-export interface SyncContext {
+export interface SyncContext extends SigningReporter {
   client: SupabaseClient
   orgId: string
   signing: OrgSigning
@@ -593,7 +615,7 @@ export function ownsEnvelope(
  * recovered nor cancelled).
  */
 export async function readDraftEnvelope(
-  report: { fn: string; orgId: string; fetch: typeof fetch },
+  report: SigningReporter,
   documenso: DocumensoClient,
   requestId: string,
   envelopeId: string,
@@ -602,19 +624,15 @@ export async function readDraftEnvelope(
   try {
     state = await documenso.get(envelopeId)
   } catch (error) {
-    if (error instanceof DocumensoError && error.notFound) return null
+    if (isProviderNotFound(error)) return null
     throw error
   }
   if (ownsEnvelope(state, requestId)) return state
-  await reportError({
-    fn: report.fn,
-    code: 'signing_foreign_document',
-    ids: {
-      org_id: report.orgId,
-      signature_request_id: requestId,
-      envelope_id: envelopeId,
-    },
-  }, report.fetch)
+  await reportRequest(report, 'signing_foreign_document', {
+    org_id: report.orgId,
+    signature_request_id: requestId,
+    envelope_id: envelopeId,
+  })
   return null
 }
 
@@ -718,9 +736,10 @@ async function settleDraft(
     if (failed.error) throw new SigningFailure('mark_failed_failed')
     return 'abandoned'
   } catch (error) {
-    // Release the claim (a no-op once the draft is recovered or abandoned).
-    const raw = (error as { code?: unknown }).code
-    await releaseClaim(ctx, row.id, typeof raw === 'string' ? raw : 'internal')
+    // Release the claim (a no-op once the draft is recovered or abandoned),
+    // with the reconcile's code: a Documenso failure split by what happened
+    // (`failureCode`), as « Signature électronique » reads it.
+    await releaseClaim(ctx, row.id, failureCode(error))
     throw error
   }
 }
@@ -793,10 +812,7 @@ export async function recoverCompletedDraft(
   }
   const recipients = recipientsByOrder(request.signers, state.recipients)
   if (!recipients) {
-    await reportError(
-      { fn: ctx.fn, code: 'signing_orphan_completed', ids },
-      ctx.fetch,
-    )
+    await reportRequest(ctx, 'signing_orphan_completed', ids)
     // Released with a code that says why; the draft stays open.
     await markDraftFailed(ctx.client, ctx, row.id, 'orphan_completed')
     return 'orphan_completed'
@@ -810,10 +826,7 @@ export async function recoverCompletedDraft(
   if (recovered.error) throw new SigningFailure('recover_failed')
   if (recovered.data === null) {
     // The rendered PDF left staging: the signed one is what matters.
-    await reportError(
-      { fn: ctx.fn, code: 'signing_source_missing', ids },
-      ctx.fetch,
-    )
+    await reportRequest(ctx, 'signing_source_missing', ids)
   }
   const result = await applyEvents(ctx.client, ctx.orgId, {
     requestId: row.id,
@@ -895,14 +908,204 @@ function detail(counts: Map<SyncOutcome, number>): string {
   })`
 }
 
+/** A code `record_signature_sync` and the run log accept (like `runJob`'s). */
+const SAFE_CODE = /^[A-Za-z0-9_]{1,64}$/
+
+/**
+ * Documenso itself answered that the envelope is not there: a 404 whose body
+ * is its own `NOT_FOUND` (`DocumensoError.notFound`, E-14). A proxy's or
+ * another server's 404 is not (a wrong address, not a missing envelope).
+ */
+export function isProviderNotFound(error: unknown): boolean {
+  return error instanceof DocumensoError && error.notFound
+}
+
+/**
+ * Documenso refused the request itself: another client error (not 404,
+ * 408 or 429; 401 and 403 are `not_configured`). A 400 here is a read's, or
+ * a cancel or delete the client read back first (the envelope is there, but
+ * not in a state that closes: E-8).
+ */
+function isProviderRejected(error: unknown): boolean {
+  if (!(error instanceof DocumensoError)) return false
+  const status = error.status
+  return error.code === 'provider_error' && status !== null &&
+    status >= 400 && status < 500 && status !== 404 && status !== 408 &&
+    status !== 429
+}
+
+/**
+ * A failure's code (stored by `record_signature_sync` and as a released
+ * draft's `last_error`, reported, shown in « Signature électronique »), or
+ * `internal` when it has none safe to store. Documenso's `provider_error` is
+ * split by what happened, so a deleted envelope and a broken instance never
+ * read alike: `provider_not_found` (Documenso's own 404, `notFound`),
+ * `provider_rejected` (another client error), `provider_unreachable` (no
+ * complete answer, or an address `reach` refuses), else `provider_error` (a
+ * redirect, a 404 that is not Documenso's, 408, 429, a 5xx, or a 2xx we
+ * cannot use: not a PDF, over the cap). Input the client refused before any
+ * request (`invalid_request`) is `provider_invalid_request`, the code
+ * `_shared/signing.ts` stores for a send.
+ */
+export function failureCode(error: unknown): string {
+  if (isProviderNotFound(error)) return 'provider_not_found'
+  if (isProviderRejected(error)) return 'provider_rejected'
+  if (error instanceof DocumensoError && error.code === 'invalid_request') {
+    return 'provider_invalid_request'
+  }
+  if (error instanceof DocumensoError && error.code === 'provider_error') {
+    return error.status === null ? 'provider_unreachable' : 'provider_error'
+  }
+  const code = (error as { code?: unknown } | null)?.code
+  return typeof code === 'string' && SAFE_CODE.test(code) ? code : 'internal'
+}
+
+/**
+ * Whether a failure says Documenso cannot be used at all, rather than that
+ * one request is bad: not configured or the key refused (`not_configured`:
+ * no URL or key, 401, 403), no complete answer (network, timeout, an address
+ * `reach` refuses), a redirect, a 404 that is not Documenso's own (a proxy or
+ * another server at the address: `notFound` false, E-14), 408, 429, a 5xx, or
+ * a 2xx to an envelope read that is no envelope (`unusableRead`: a wrong base
+ * URL serving a 200 page, a proxy; not Documenso).
+ * Documenso's own 404 (the envelope was deleted there), another 4xx, input
+ * refused before any request (`invalid_request`, status null: no request was
+ * made), a signed PDF over the cap, or a failure of ours
+ * (`signing_foreign_document`, `apply_failed`, …) is the request's own.
+ */
+export function isDocumensoOutage(error: unknown): boolean {
+  if (error instanceof DocumensoError) {
+    if (error.code === 'not_configured') return true
+    if (error.code !== 'provider_error') return false
+    if (error.unusableRead) return true
+    const status = error.status
+    return status === null || (status >= 300 && status < 400) ||
+      (status === 404 && !error.notFound) || status === 408 ||
+      status === 429 || status >= 500
+  }
+  return error instanceof SigningFailure && error.code === 'not_configured'
+}
+
+/**
+ * Whether Documenso answered, but not with the request's envelope: its own
+ * 404 (`notFound`) or another client error, or another envelope under its id
+ * (`signing_foreign_document`). One such failure is the request's own; when
+ * every request fails this way and none was read, the envelopes are not
+ * there: a key of another Documenso team, or an instance rebuilt without
+ * its documents (`reconcileOrg`). Not `invalid_request` (no request was
+ * made) nor a 404 that is not Documenso's (`isDocumensoOutage`).
+ *
+ * A cancel or a delete never decides it: the client reads the envelope back
+ * after their 400 or 404 (E-8) and throws only when it is there in another
+ * state, and the reconcile only closes an envelope it has just read as the
+ * request's own, so such a request already counts as read (`trackOwnReads`).
+ */
+export function isDocumentMissing(error: unknown): boolean {
+  return isProviderNotFound(error) || isProviderRejected(error) ||
+    (error instanceof SigningFailure &&
+      error.code === 'signing_foreign_document')
+}
+
+/**
+ * `signing` whose `get` notes when it returns `requestId`'s own envelope
+ * (`ownsEnvelope`): `seen()` then says Documenso was read for that request,
+ * whatever the request's outcome. A 404, another envelope or no answer is
+ * not a read; nor is the read-back inside a cancel or a delete (E-8), which
+ * only follows a `get` that already counted.
+ */
+export function trackOwnReads(
+  signing: OrgSigning,
+  requestId: string,
+): { signing: OrgSigning; seen: () => boolean } {
+  const { documenso } = signing
+  let seen = false
+  return {
+    signing: {
+      ...signing,
+      documenso: {
+        ...documenso,
+        get: async (envelopeId) => {
+          const state = await documenso.get(envelopeId)
+          if (ownsEnvelope(state, requestId)) seen = true
+          return state
+        },
+      },
+    },
+    seen: () => seen,
+  }
+}
+
+/**
+ * What one attempt did, as `record_signature_sync` records it: it failed
+ * (`code`, `failureCode`), or it did not and either read the request's own
+ * envelope at Documenso (`read`, `trackOwnReads`: a success, the last read
+ * stamped, the failure cleared) or read nothing (a draft skipped as
+ * `sending`, one abandoned without a read, a request with no envelope: only
+ * the attempt is stamped, for the rotation; its « non vérifiée » state is
+ * left as it was).
+ */
+export type SyncAttempt = { code: string } | { read: boolean }
+
+/**
+ * Records one request's attempt (`record_signature_sync`: the rotation, the
+ * last success, the failure code), then sends its reports whose code was
+ * not reported for that request in the last day, one per code. When the
+ * record fails, every report is sent: our own failure never silences one.
+ */
+export async function recordAttempt(
+  client: SupabaseClient,
+  orgId: string,
+  id: string,
+  attempt: SyncAttempt,
+  reports: ErrorReport[],
+  fetchFn: typeof fetch,
+): Promise<void> {
+  const codes = [...new Set(reports.map((r) => r.code))]
+  let due = new Set(codes)
+  try {
+    const { data, error } = await client.rpc('record_signature_sync', {
+      p_org_id: orgId,
+      p_id: id,
+      p_error_code: 'code' in attempt ? attempt.code : null,
+      p_read: 'read' in attempt && attempt.read,
+      p_report_codes: codes,
+    })
+    if (!error && Array.isArray(data)) due = new Set(data.map(String))
+  } catch {
+    // Reported below, unthrottled.
+  }
+  const sent = new Set<string>()
+  for (const report of reports) {
+    if (!due.has(report.code) || sent.has(report.code)) continue
+    sent.add(report.code)
+    await reportError(report, fetchFn)
+  }
+}
+
 /**
  * The `core.signing_reconcile` job's work for one org (`runJob`'s
  * `perOrg`, capped at `RECONCILE_TIMEOUT_MS`): up to 100 listed requests,
- * 4 at a time. After `softDeadlineMs` (default
- * `RECONCILE_SOFT_DEADLINE_MS`) no new batch starts: the rest waits for the
- * next run, and the detail says how many. A request that fails is reported
- * (its id and the error code) and the others go on; then the run fails as
- * `reconcile_failed`, so « Tâches planifiées » shows it.
+ * 4 at a time, in the list's order (completed without their PDF first, then
+ * the least recently attempted: a fair rotation, `…_core_signing_capture`).
+ * After `softDeadlineMs` (default `RECONCILE_SOFT_DEADLINE_MS`) no new batch
+ * starts: the rest waits for the next run, and the detail says how many.
+ *
+ * Each attempted request is recorded (`recordAttempt`): a failure with its
+ * code, a success as a read only when Documenso returned the request's own
+ * envelope (`trackOwnReads`), else as an attempt alone (`SyncAttempt`); its
+ * reports (its failure, `signing_orphan_completed`, …) reach Sentry at
+ * most once a day per request and code. A request that fails does not fail
+ * the run: the others go on, the detail counts it (« non vérifiée »), and
+ * `core.signing_unsaved_alert` tells a person when a request stays
+ * unverified for 6 hours (« Signature électronique » lists them). The run
+ * fails only when **no request was read** (no Documenso read returned a
+ * request's own envelope, `trackOwnReads`; a draft skipped as `sending`
+ * does not count) and either at least one failure says Documenso itself is
+ * unusable (`isDocumensoOutage`: `reconcile_failed`), or at least two
+ * requests failed and every one because its envelope is not there
+ * (`isDocumentMissing`: `reconcile_documents_missing`, a key of another
+ * team or an instance rebuilt without its documents). A single missing
+ * envelope stays a partial run: it is more likely deleted there.
  */
 export function reconcileOrg(
   deps: {
@@ -931,16 +1134,11 @@ export function reconcileOrg(
     const signing = rows.data.some((r) => r.action !== 'abandon')
       ? await orgSigning(client, orgId, deps.fetch, deps.reach, signal)
       : null
-    const ctx: SyncContext | null = signing && {
-      client,
-      orgId,
-      signing,
-      now: deps.now,
-      fn,
-      fetch: deps.fetch,
-    }
     const counts = new Map<SyncOutcome, number>()
     let failed = 0
+    let unreachable = 0
+    let missing = 0
+    let read = 0
     let done = 0
     for (
       let i = 0;
@@ -951,25 +1149,65 @@ export function reconcileOrg(
       done += batch.length
       await Promise.all(
         batch.map(async (row) => {
+          const reports: ErrorReport[] = []
+          const tracked = signing && trackOwnReads(signing, row.id)
+          const ctx: SyncContext | null = tracked && {
+            client,
+            orgId,
+            signing: tracked.signing,
+            now: deps.now,
+            fn,
+            fetch: deps.fetch,
+            report: (report) => reports.push(report),
+          }
+          let attempt: SyncAttempt
           try {
             const outcome = await reconcileRow(client, orgId, ctx, row)
             counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
+            // A draft skipped as `sending` was not settled: not a read.
+            const own = (tracked?.seen() ?? false) && outcome !== 'sending'
+            if (own) read++
+            attempt = { read: own }
           } catch (error) {
             failed++
-            const code = (error as { code?: unknown }).code
-            await reportError({
+            if (tracked?.seen()) read++
+            else if (isDocumensoOutage(error)) unreachable++
+            else if (isDocumentMissing(error)) missing++
+            const code = failureCode(error)
+            attempt = { code }
+            reports.push({
               fn,
-              code: typeof code === 'string' ? code : 'internal',
+              code,
               ids: { org_id: orgId, signature_request_id: row.id },
-            }, deps.fetch)
+            })
           }
+          await recordAttempt(
+            client,
+            orgId,
+            row.id,
+            attempt,
+            reports,
+            deps.fetch,
+          )
         }),
       )
     }
-    if (failed > 0) throw new SigningFailure('reconcile_failed')
+    if (read === 0 && unreachable > 0) {
+      throw new SigningFailure('reconcile_failed')
+    }
+    if (read === 0 && missing >= 2 && missing === failed) {
+      throw new SigningFailure('reconcile_documents_missing')
+    }
+    const parts = [detail(counts)]
+    if (failed > 0) {
+      parts.push(
+        `${failed} ${
+          failed > 1 ? 'demandes non vérifiées' : 'demande non vérifiée'
+        }`,
+      )
+    }
     const left = rows.data.length - done
-    return left > 0
-      ? `${detail(counts)} ; ${left} à reprendre au prochain passage`
-      : detail(counts)
+    if (left > 0) parts.push(`${left} à reprendre au prochain passage`)
+    return parts.join(' ; ')
   }
 }

@@ -7,7 +7,7 @@ import type { Access } from '@/core/access/access'
 import { accessKeys } from '@/core/access/access-context'
 import { roleKeys } from '@/core/access/org-roles'
 import { renderWithContexts, testAccess } from '@/test/contexts'
-import { accessForRole } from '@/test/role-fixtures'
+import { accessForRole, ROLE_PERMISSIONS } from '@/test/role-fixtures'
 import { customRole, testCatalog, testRoleDefaults, testRoles } from '@/test/users-fixtures'
 import { RoleMatrix } from './RoleMatrix'
 
@@ -44,7 +44,7 @@ const adminCaller = accessForRole('admin', { modules: ['professionals'] })
 /** A non-admin manager: the adjointe given roles.manage, and users.view (not a default of her role). */
 const managerCaller = accessForRole('admin_assistant', {
   modules: ['professionals'],
-  permissions: ['settings.view', 'professionals.view', 'users.view', 'roles.manage'],
+  permissions: [...ROLE_PERMISSIONS.admin_assistant, 'users.view', 'roles.manage'],
 })
 
 const P = { settings: 'Voir les paramètres', professionals: 'Voir les professionnels', audit: "Consulter le journal d'audit", usersView: 'Voir les utilisateurs' }
@@ -164,6 +164,13 @@ describe('RoleMatrix — read-only', () => {
       'Inviter et gérer les utilisateurs',
       'Professionnels',
       P.professionals,
+      'Activer un dossier incomplet (avec une raison)',
+      'Voir et modifier la rémunération',
+      'Gérer les dossiers des professionnels',
+      'Modifier le profil de jumelage',
+      'Voir et modifier les renseignements fiscaux et bancaires',
+      'Accéder à son propre dossier',
+      'Modifier les listes du module Professionnels',
     ])
     expect(screen.queryByText('Voir la facturation')).not.toBeInTheDocument()
   })

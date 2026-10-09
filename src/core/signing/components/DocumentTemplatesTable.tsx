@@ -1,16 +1,9 @@
-import { t, type TranslationKey } from '@/i18n'
+import { t } from '@/i18n'
 import type { DocumentTemplate } from '@/core/signing/api'
+import { moduleLabel } from '@/core/signing/labels'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { Badge } from '@/shared/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-
-/** « Plateforme » for core; the module's name (`modules.<key>.name`), else its key. */
-function moduleLabel(moduleKey: string): string {
-  if (moduleKey === 'core') return t('settings.signing.templates.coreModule')
-  const key = `modules.${moduleKey}.name` as TranslationKey
-  const name = t(key)
-  return name === key ? moduleKey : name
-}
 
 /**
  * « Modèles de documents », read-only: each template the caller may see, its module, and its

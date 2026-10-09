@@ -77,6 +77,10 @@ Deno.test('pdfmake: the signing functions that do not render never reach it', as
     new URL('signing-test-document/index.ts', FUNCTIONS),
   )
   assert(sender.has(RENDER), 'signing-test-document renders')
+  const contract = await graph(
+    new URL('professionals-contract-send/index.ts', FUNCTIONS),
+  )
+  assert(contract.has(RENDER), 'professionals-contract-send renders')
 })
 
 Deno.test('pdfmake: only render.ts (and tests) import the vendored module', async () => {

@@ -138,3 +138,32 @@ verify_jwt = false
 verify_jwt = false
 [functions.signing-test-document]
 verify_jwt = false
+# Address suggestions (Google Places, P4-220): verifyAuth, any active profile.
+[functions.places]
+verify_jwt = false
+# Professionnels (Task 4b.2): two user functions (verifyAuth with the module and the permission)
+# and a job (runJob verifies X-Job-Signature).
+[functions.professionals-invite]
+verify_jwt = false
+[functions.professionals-submit]
+verify_jwt = false
+[functions.professionals-invitation-reminders]
+verify_jwt = false
+# Job professionals.insurance_expiry_notice (runJob verifies X-Job-Signature).
+[functions.professionals-insurance-expiry]
+verify_jwt = false
+# « Fiche PDF » → « Envoyer par courriel » (verifyAuth, module professionals).
+[functions.professionals-fiche]
+verify_jwt = false
+# « Activer », « Réactiver », « Désactiver » and the sign-in ban that follows the provider's account
+# (Task 4b.6; verifyAuth, module professionals, professionals.manage).
+[functions.professionals-set-status]
+verify_jwt = false
+# « Refuser » a document, then the professional's email (Task 4c.3; verifyAuth, professionals.documents.review).
+[functions.professionals-documents]
+verify_jwt = false
+
+# The service contract: « Préparer et envoyer », « Renvoyer », « Régénérer » (Task 4d.2; verifyAuth,
+# module professionals, professionals.contracts.send and professionals.compensation). Renders.
+[functions.professionals-contract-send]
+verify_jwt = false

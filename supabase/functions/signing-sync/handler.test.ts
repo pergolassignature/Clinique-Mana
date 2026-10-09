@@ -1,4 +1,4 @@
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertFalse } from '@std/assert'
 import { createHandler } from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { fakeDocumenso } from '../_shared/testing/fake-documenso.ts'
@@ -218,6 +218,96 @@ Deno.test('signing-sync: not configured → 503; Documenso down → 502; Documen
       res = await s.handler(post({ request_id: row.id }))
       assertEquals([res.status, (await res.json()).error.code], [status, code])
     }
+  })
+})
+
+Deno.test('signing-sync: a successful « Synchroniser » records the read (record_signature_sync): the « non vérifiée » state clears', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db)
+    s.db.syncs.set(row.id, {
+      attempted_at: '2026-10-08T03:00:00.000Z',
+      synced_at: '2026-10-08T01:00:00.000Z',
+      error_code: 'provider_unreachable',
+      failing_since: '2026-10-08T02:00:00.000Z',
+      reported: {},
+    })
+    const res = await s.handler(post({ request_id: row.id }))
+    assertEquals(res.status, 200)
+    const sync = s.db.syncs.get(row.id)!
+    assertEquals(
+      [sync.synced_at, sync.error_code, sync.failing_since],
+      [NOW, null, null],
+    )
+    assertEquals(
+      s.service.calls.find((c) => c.fn === 'record_signature_sync')?.args
+        .p_report_codes,
+      [],
+      'nothing reported through the reconcile throttle',
+    )
+  })
+})
+
+Deno.test('signing-sync: a « Synchroniser » that read nothing at Documenso (no envelope) records the attempt only: the « non vérifiée » state stays', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = s.db.insertRequest({
+      id: crypto.randomUUID(),
+      status: 'sent',
+      envelope_id: null,
+    })
+    const before = {
+      attempted_at: '2026-10-08T03:00:00.000Z',
+      synced_at: '2026-10-08T01:00:00.000Z',
+      error_code: 'provider_unreachable',
+      failing_since: '2026-10-08T02:00:00.000Z',
+      reported: {},
+    }
+    s.db.syncs.set(row.id, { ...before })
+    const res = await s.handler(post({ request_id: row.id }))
+    assertEquals(await json(res), {
+      status: 200,
+      request_id: row.id,
+      outcome: 'unchanged',
+    })
+    assertEquals(s.db.syncs.get(row.id), { ...before, attempted_at: NOW })
+    assertEquals(
+      s.service.calls.find((c) => c.fn === 'record_signature_sync')?.args
+        .p_read,
+      false,
+    )
+    assertEquals(s.fake.calls.length, 0)
+  })
+})
+
+Deno.test('signing-sync: a failed « Synchroniser » records its code (a 404 is provider_not_found), still 502', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db)
+    s.fake.documents.delete(row.envelope_id!)
+    const res = await s.handler(post({ request_id: row.id }))
+    assertEquals([res.status, (await res.json()).error.code], [
+      502,
+      'provider_error',
+    ])
+    const sync = s.db.syncs.get(row.id)!
+    assertEquals(
+      [sync.synced_at, sync.error_code, sync.failing_since],
+      [null, 'provider_not_found', NOW],
+    )
+  })
+})
+
+Deno.test("signing-sync: a draft is never recorded from a click (its state is its settle's)", async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db, {
+      status: 'draft',
+      sent_at: null,
+      created_at: NOW,
+    })
+    assertEquals((await s.handler(post({ request_id: row.id }))).status, 200)
+    assertFalse(s.db.syncs.has(row.id))
   })
 })
 

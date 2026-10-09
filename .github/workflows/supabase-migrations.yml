@@ -28,9 +28,16 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_ID: vnmbjbdsjxmpijyjmmkh
+      # Session pooler host of the staging project (IPv4; GitHub runners cannot reach the IPv6-only
+      # direct host). Taken from the CLI's own link of this project (`supabase/.temp/pooler-url`);
+      # to confirm in Dashboard → Connect → « Session pooler ». The optional repository secret
+      # SUPABASE_DB_POOLER_URL overrides it (docs/plans/2026-10-07-status.md, Phase 4 Mise en service).
+      SUPABASE_DB_POOLER_HOST: aws-1-ca-central-1.pooler.supabase.com
     steps:
       - uses: actions/checkout@v4
 
+      # TODO(pin): pin supabase/setup-cli to a full commit SHA (`@<sha> # v1.x`); no SHA is recorded
+      # in the repo yet (every workflow uses @v1), and finding one needs GitHub, not done offline.
       - uses: supabase/setup-cli@v1
         with:
           version: 2.98.2
@@ -43,6 +50,7 @@ jobs:
           fi
 
       - name: Link project
+        id: link
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Apply migrations
@@ -57,3 +65,17 @@ jobs:
             exit 1
           fi
           echo "All migrations applied."
+
+      - name: PII key health check
+        # ADR 0004 « Before Phase 4 »: public.pii_health_check() must print `t` (every canary of
+        # private.pii_canary decrypts with its Vault key, and every key version that holds data has
+        # its key and a canary), or this job turns red. It is an alarm, not a gate: Vercel deploys
+        # the app regardless, and the check is read-only, so it never stops a push halfway. It runs
+        # whenever the project is linked, even after a failed push or drift check (a broken key
+        # must not hide behind another failure). The same script runs every day in pii-health.yml.
+        # A red check: docs/runbooks/pii-key-escrow.md (« La vérification échoue ») before anyone
+        # enters a SIN or bank number.
+        if: ${{ !cancelled() && steps.link.outcome == 'success' }}
+        env:
+          SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
+        run: bash scripts/pii-health-check.sh

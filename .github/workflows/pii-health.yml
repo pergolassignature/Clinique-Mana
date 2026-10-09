@@ -1,0 +1,46 @@
+name: PII key health check (staging)
+
+# ADR 0004 « Before Phase 4 », plan Task 4a.16: the same read-only check as the step « PII key
+# health check » of supabase-migrations.yml, every day, so a key deleted or edited in the dashboard
+# between two migration pushes turns a job red within a day. It runs scripts/pii-health-check.sh,
+# nothing else: no Supabase CLI, no link, no access token; it never pushes migrations and never
+# writes. The pooler host is the constant below; the host cross-check with `supabase link` stays in
+# supabase-migrations.yml, which links anyway. Only the health-check step sees the secrets.
+# Possible hardening (Mise en service, not required): a dedicated login role holding EXECUTE on
+# public.pii_health_check() only, instead of the `postgres` password (docs/plans/2026-10-07-status.md).
+# A red run: docs/runbooks/pii-key-escrow.md (« La vérification échoue »).
+# GitHub runs schedules from the default branch only, pauses them after 60 days without activity
+# in a public repository, and mails a failed scheduled run to whoever last edited the cron line
+# (docs/plans/2026-10-07-status.md, Phase 4 Mise en service).
+
+on:
+  schedule:
+    - cron: '17 10 * * *' # every day, 10:17 UTC (06:17 or 05:17 in Montréal)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Its own group: sharing supabase-migrations-staging would let a queued check cancel a queued push.
+concurrency:
+  group: pii-health-staging
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: PII key health check on staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_PROJECT_ID: vnmbjbdsjxmpijyjmmkh
+      # Same value as in supabase-migrations.yml (keep both in step).
+      SUPABASE_DB_POOLER_HOST: aws-1-ca-central-1.pooler.supabase.com
+    steps:
+      - uses: actions/checkout@v4
+
+      # The script fails with an ::error:: when SUPABASE_DB_PASSWORD is empty.
+      - name: PII key health check
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
+        run: bash scripts/pii-health-check.sh

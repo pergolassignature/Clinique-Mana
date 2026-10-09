@@ -67,6 +67,59 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `professionals-invite` (send, « Renvoyer », « Nouveau lien », update
+   * request), per caller: each call issues a link or opens a submission and
+   * sends an email, on top of the email limits. « Révoquer » is not counted.
+   */
+  professionalInviteUser: {
+    bucket: 'professionals.invite_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `professionals-invite` (send, « Renvoyer », « Nouveau lien »), per file
+   * (org + professional), whoever clicks: each call revokes the live link and
+   * emails a new one, so a double click, or two colleagues at once, would
+   * leave the first email's link dead. Consumed before the link is issued.
+   */
+  professionalInviteFile: {
+    bucket: 'professionals.invite_file',
+    max: 1,
+    windowSeconds: 5,
+  },
+  /**
+   * `professionals-submit`, per caller, consumed only once the submission
+   * succeeded (refusals are not counted, P4-261): it caps the reviewers'
+   * emails (up to 20 each). A submission is sent again only after a staff
+   * refusal, so 10 per hour is ample.
+   */
+  professionalSubmitUser: {
+    bucket: 'professionals.submit_user',
+    max: 10,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `professionals-contract-send` (send, « Renvoyer », « Régénérer »), per
+   * caller: each call may render a contract and call Documenso, which emails
+   * the professional.
+   */
+  professionalContractUser: {
+    bucket: 'professionals.contract_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `professionals-contract-send` « Renvoyer », per file (org + professional),
+   * whoever clicks (P4-478): each call has Documenso email the signer again,
+   * so a double click, or two colleagues at once, would email her twice.
+   * Consumed before the database is asked.
+   */
+  professionalContractResend: {
+    bucket: 'professionals.contract_resend',
+    max: 1,
+    windowSeconds: 10,
+  },
+  /**
    * `storage-upload`, per caller: each call creates a pending row and signs
    * an upload of up to the purpose's size cap.
    */
@@ -118,12 +171,46 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `professionals-fiche` (« Envoyer par courriel »), per caller: each call
+   * downloads the uploaded fiche (up to 10 MB) and sends an email, on top of
+   * the email limits.
+   */
+  ficheEmailUser: {
+    bucket: 'professionals.fiche_email_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
    * `email-preview`, per caller: each call renders a template on the server
    * (the editor previews on demand, not per keystroke).
    */
   emailPreviewUser: {
     bucket: 'emails.preview_user',
     max: 300,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `places` (address suggestions and the chosen place's address), per
+   * caller: every call is a billed Google request. The field asks after a
+   * pause in typing (250 ms, 3 characters at least), so one address takes a
+   * handful of calls; 600 an hour covers a long data-entry session and caps
+   * what one account can spend (P4-221).
+   */
+  placesUser: {
+    bucket: 'places.user',
+    max: 600,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `places`, per org, checked after `placesUser`: a ceiling on what the
+   * whole clinic can spend in an hour, however many accounts type at once
+   * (a leaked session, a script). 3,000 an hour is about five people typing
+   * addresses non-stop; Google's own daily quotas (status doc, « Mise en
+   * service ») are the hard cap behind it (P4-221).
+   */
+  placesOrg: {
+    bucket: 'places.org',
+    max: 3_000,
     windowSeconds: 3_600,
   },
   /**

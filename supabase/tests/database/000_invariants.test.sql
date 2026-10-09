@@ -59,8 +59,13 @@ select is_empty($$
      -- Operational logs, exempt on purpose (conventions §7): auditing them would copy recipient
      -- addresses and payloads into the append-only audit_log forever (Loi 25). Phase 3 design §2.5.
      -- scheduled_job_dispatches: one row per pg_net post, purged after 7 days; no business data.
+     -- user_preferences: UI state (remembered list filters), private to its user, rewritten on
+     -- every filter change; the search text may hold a client's name (Loi 25).
+     -- signature_request_syncs: the signing reconcile's per-request state (codes and times),
+     -- rewritten every hour for every open request; deleted once the request closes.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
-                           'scheduled_job_dispatches', 'notifications', 'notification_reads')
+                           'scheduled_job_dispatches', 'notifications', 'notification_reads',
+                           'user_preferences', 'signature_request_syncs')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');

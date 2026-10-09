@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ZodError } from 'zod'
 import { useAuth } from '@/core/auth/auth-context'
+import { onSessionUserChange } from '@/core/auth/session-events'
 import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/shared/lib/clinic-timezone'
 import { permissionChecker } from './access'
 import { AccessContext, accessKeys, type AccessContextValue, type AccessStatus } from './access-context'
@@ -15,6 +16,21 @@ export function AccessProvider({ children }: { children: ReactNode }) {
 
   // Shared reception PCs: when the signed-in user leaves (sign-out here or in another tab) or
   // changes, drop every cached query so nothing of theirs survives.
+  // Heard from auth first, before React re-renders: another tab switching the shared session is
+  // seen when this tab regains focus, together with the focus refetch of the open page's queries,
+  // which already carry the new user's token. Clearing at once cancels them (their answers, often a
+  // 42501, never land) and leaves nothing for a later focus or reconnect to refetch.
+  useEffect(
+    () =>
+      onSessionUserChange((sessionUserId) => {
+        const previous = previousUserId.current
+        if (!previous || previous === sessionUserId) return
+        previousUserId.current = sessionUserId ?? undefined
+        queryClient.clear()
+      }),
+    [queryClient],
+  )
+  // The same from the session React renders (the fallback when no auth event preceded it).
   // Declared BEFORE useQuery on purpose: effects run in declaration order, so the cache is cleared
   // before useQuery's own effect points the observer at the new user's query and starts its fetch.
   useEffect(() => {

@@ -22,10 +22,15 @@ function PageTitle({ title }: { title: string }) {
   return null
 }
 
-/** The phone layout (below `md`), where the menu is a disclosure. */
-const PHONE_QUERY = '(max-width: 767px)'
-const DESKTOP_QUERY = '(min-width: 768px)'
-const isPhoneLayout = () => typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches
+/**
+ * The compact layout (below `xl`: phones, tablets, small laptops), where the menu is a disclosure
+ * above the page. A 200 px menu column beside the shell's sidebar left a 768 px tablet about 230 px
+ * of page and a 1024 px laptop about 530, narrower than the reference lists (up to ~580 px with
+ * their « Monter / Descendre » buttons); from `xl` the page keeps about 790 px beside it.
+ */
+const COMPACT_QUERY = '(max-width: 1279px)'
+const WIDE_QUERY = '(min-width: 1280px)'
+const isCompactLayout = () => typeof window.matchMedia === 'function' && window.matchMedia(COMPACT_QUERY).matches
 
 /** How long to wait for a lazy page's heading before giving up. */
 const HEADING_WAIT_MS = 5000
@@ -69,9 +74,10 @@ interface SettingsLayoutProps {
 
 /**
  * Settings shell (design system « SettingsNav »): one nested route per section the user can
- * access, at its French `path`, and a menu grouped under overlines. From `md` up the menu is a
- * 200 px column; below, a disclosure button naming the current section opens it above the page,
- * and choosing a section closes it and moves focus to the section's h2.
+ * access, at its French `path`, and a menu grouped under overlines. From `xl` up the menu is a
+ * 200 px column; below (phones, tablets, small laptops), a disclosure button naming the current section opens
+ * it above the page (groups in two columns from `sm`), and choosing a section closes it and moves
+ * focus to the section's h2.
  * A section the user can see but not change shows a lock in the menu; its page reads `readOnly`
  * from `useSettingsSection()`. Each section has its own error boundary, so a crashing section
  * leaves the menu usable.
@@ -82,7 +88,7 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
   const navId = useId()
   const paneRef = useRef<HTMLElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  // The section chosen from the phone menu: its heading gets focus once that section shows. Kept
+  // The section chosen from the compact menu: its heading gets focus once that section shows. Kept
   // as a path, so a later navigation elsewhere (after « Rester », through the breadcrumb…) never
   // moves focus.
   const focusHeadingOf = useRef<string | null>(null)
@@ -92,7 +98,7 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
   const first = visible[0]
   const current = visible.find((s) => isUnder(location.pathname, settingsSectionPath(s, basePath)))
 
-  // Every navigation (including choosing the open section again) closes the phone menu. After
+  // Every navigation (including choosing the open section again) closes the compact menu. After
   // « Rester » in the unsaved-changes dialog nothing navigates, so the menu stays open.
   useEffect(() => {
     setMenuOpen(false)
@@ -104,18 +110,18 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key])
 
-  // The disclosure is the phone layout only: close it when the window widens past md, like the
-  // shell's sheet.
+  // The disclosure is the compact layout only: close it when the window widens to xl, like the
+  // shell's sheet past md.
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
-    const desktop = window.matchMedia(DESKTOP_QUERY)
+    const wide = window.matchMedia(WIDE_QUERY)
     const onChange = () => {
-      if (!desktop.matches) return
+      if (!wide.matches) return
       setMenuOpen(false)
       focusHeadingOf.current = null
     }
-    desktop.addEventListener('change', onChange)
-    return () => desktop.removeEventListener('change', onChange)
+    wide.addEventListener('change', onChange)
+    return () => wide.removeEventListener('change', onChange)
   }, [])
 
   const title = <h1 className="mb-5 text-xl font-semibold tracking-tight">{t('settings.title')}</h1>
@@ -133,8 +139,8 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
   return (
     <div>
       {title}
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
-        <div className="md:w-[200px] md:shrink-0">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-6">
+        <div className="xl:w-[200px] xl:shrink-0">
           <button
             type="button"
             aria-expanded={menuOpen}
@@ -143,7 +149,7 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
               focusHeadingOf.current = null
               setMenuOpen((open) => !open)
             }}
-            className={`flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-card px-3 text-left text-sm font-medium text-foreground transition-colors duration-120 hover:border-border-strong md:hidden ${focusRing}`}
+            className={`flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-card px-3 text-left text-sm font-medium text-foreground transition-colors duration-120 hover:border-border-strong xl:hidden ${focusRing}`}
           >
             {current && <current.icon className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />}
             <span className="min-w-0 flex-1 truncate">
@@ -159,14 +165,14 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
             id={navId}
             aria-label={t('settings.navLabel')}
             data-state={menuOpen ? 'open' : 'closed'}
-            className="max-md:mt-2 max-md:data-[state=closed]:hidden"
+            className="max-xl:mt-2 max-xl:data-[state=closed]:hidden sm:max-xl:columns-2 sm:max-xl:gap-6"
           >
             {SETTINGS_GROUP_ORDER.map((group) => {
               const items = visible.filter((s) => s.group === group)
               if (items.length === 0) return null
               const headingId = `${navId}-group-${group}`
               return (
-                <div key={group} role="group" aria-labelledby={headingId} className="mb-3">
+                <div key={group} role="group" aria-labelledby={headingId} className="mb-3 break-inside-avoid">
                   <p id={headingId} className="mb-0.5 px-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                     {t(`settings.groups.${group}`)}
                   </p>
@@ -175,11 +181,11 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
                       key={s.id}
                       to={settingsSectionPath(s, basePath)}
                       onClick={() => {
-                        focusHeadingOf.current = isPhoneLayout() ? settingsSectionPath(s, basePath) : null
+                        focusHeadingOf.current = isCompactLayout() ? settingsSectionPath(s, basePath) : null
                       }}
                       className={({ isActive }) =>
                         cn(
-                          `flex min-h-11 items-center gap-2 rounded-md px-2 py-2.5 text-sm transition-colors duration-120 md:min-h-0 md:py-[5px] ${focusRing}`,
+                          `flex min-h-11 items-center gap-2 rounded-md px-2 py-2.5 text-sm transition-colors duration-120 xl:min-h-0 xl:py-[5px] ${focusRing}`,
                           isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                         )
                       }

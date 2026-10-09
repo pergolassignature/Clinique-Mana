@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { REVEAL_DURATION_MS, useRevealedValue } from '@/shared/lib/use-revealed-value'
 import { toast } from '@/shared/ui/sonner'
 import { fetchBankDetails, revealAccountNumber, setBankDetails, type BankDetailsInput } from './api'
 
@@ -10,8 +10,8 @@ export const bankKeys = {
   details: () => [...bankKeys.all, 'details'] as const,
 }
 
-/** How long a revealed account number stays on screen. */
-export const REVEAL_DURATION_MS = 60_000
+/** How long a revealed account number stays on screen (shared with every reveal). */
+export { REVEAL_DURATION_MS }
 
 /** The masked bank details (null when none are stored). The full account number is never cached. */
 export function useBankDetails() {
@@ -44,60 +44,17 @@ export function useSetBankDetails() {
 }
 
 /**
- * The full account number, revealed on demand. Each `reveal` calls the RPC, which writes an audit
- * row. The number lives in this component's state only (never in React Query) and is dropped by
- * `hide`, after `REVEAL_DURATION_MS`, when the tab is hidden, and on unmount. An answer that arrives after `hide` or after
- * unmount is ignored. A refusal is a toast; nothing stored any more refreshes the masked details.
+ * The full account number, revealed on demand (`useRevealedValue`): each `reveal` calls the RPC,
+ * which writes an audit row; the number lives in this component's state only (never in React
+ * Query) and is dropped by `hide`, after `REVEAL_DURATION_MS`, when the tab is hidden, and on
+ * unmount. A refusal is a toast; nothing stored any more refreshes the masked details.
  */
 export function useRevealedAccountNumber() {
   const queryClient = useQueryClient()
-  const [accountNumber, setAccountNumber] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  // Bumped by every reveal, hide and unmount: an answer for an older request is dropped.
-  const request = useRef(0)
-
-  const hide = useCallback(() => {
-    request.current += 1
-    clearTimeout(timer.current)
-    setAccountNumber(null)
-    setPending(false)
-  }, [])
-
-  // Masked again on unmount, and as soon as the tab is hidden (a shared reception PC left as is).
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') hide()
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-      request.current += 1
-      clearTimeout(timer.current)
-      setAccountNumber(null)
-    }
-  }, [hide])
-
-  const reveal = useCallback(async () => {
-    const id = ++request.current
-    clearTimeout(timer.current)
-    setPending(true)
-    try {
-      const number = await revealAccountNumber()
-      if (id !== request.current) return
-      setAccountNumber(number)
-      if (number === null) {
-        void queryClient.invalidateQueries({ queryKey: bankKeys.all })
-      } else {
-        timer.current = setTimeout(hide, REVEAL_DURATION_MS)
-      }
-    } catch (error) {
-      if (id !== request.current) return
-      toast.error(moduleErrorMessage(error, t('common.errors.generic'), 'settings'))
-    } finally {
-      if (id === request.current) setPending(false)
-    }
-  }, [hide, queryClient])
-
-  return { accountNumber, pending, reveal, hide }
+  const { value, pending, reveal, hide } = useRevealedValue({
+    fetchValue: revealAccountNumber,
+    onNothing: () => void queryClient.invalidateQueries({ queryKey: bankKeys.all }),
+    onError: (error) => toast.error(moduleErrorMessage(error, t('common.errors.generic'), 'settings')),
+  })
+  return { accountNumber: value, pending, reveal, hide }
 }

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { UserRound } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
+import { ShellCrumbProvider } from '@/shared/lib/shell-crumb'
 import { useConfirmLeave } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
 import { Sheet, SheetContent, SheetTitle } from '@/shared/ui/sheet'
@@ -43,9 +44,10 @@ const isNativeClick = (event: MouseEvent) =>
  * The signed-in layout (design system « Ossature »): sidebar 220 px (56 collapsed, remembered),
  * a 48 px topbar (the banner) with the breadcrumb, ⌘K page search and the user menu, and the page
  * (padding 24, content max 1120, sections 20 apart). Below md the sidebar becomes a sheet opened
- * from the topbar. Every way out of the page — sidebar and breadcrumb links, the palette,
+ * from the topbar; on a tablet (md to lg) it starts as the 56 px rail (useSidebarCollapsed). Every way out of the page — sidebar and breadcrumb links, the palette,
  * « Mon compte » and « Se déconnecter » — goes through the unsaved-changes guard (Task 2.3).
- * The palette and the sheet give focus back to where it was when they close.
+ * The palette and the sheet give focus back to where it was when they close. A detail page names
+ * itself in the breadcrumb through `useShellCrumb` (ShellCrumbProvider).
  */
 export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; children: ReactNode }) {
   const { signOut } = useAuth()
@@ -198,78 +200,80 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
   }
 
   return (
-    <div className="flex min-h-dvh bg-background">
-      <a
-        href={`#${MAIN_ID}`}
-        onClick={skipToContent}
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-link focus:shadow-focus"
-      >
-        {t('nav.skipToContent')}
-      </a>
-
-      <aside
-        data-collapsed={collapsed}
-        className={cn(
-          'sticky top-0 hidden h-dvh shrink-0 flex-col bg-sidebar px-2 transition-[width] duration-160 motion-reduce:transition-none md:flex',
-          collapsed ? 'w-14' : 'w-[220px]',
-        )}
-      >
-        <SidebarContent
-          navItems={navItems}
-          collapsed={collapsed}
-          variant="sidebar"
-          signingOut={signingOut}
-          onSignOut={handleSignOut}
-        />
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar
-          title={title}
-          collapsed={collapsed}
-          onToggleCollapsed={toggleCollapsed}
-          onOpenMenu={openSheet}
-          onOpenPalette={openPalette}
-          onOpenAccount={() => goTo(ACCOUNT_PAGE.path)}
-          signingOut={signingOut}
-          onSignOut={handleSignOut}
-          menuButtonRef={menuButtonRef}
-          searchButtonRef={searchButtonRef}
-        />
-        <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-6">
-          <div className="mx-auto flex w-full max-w-content flex-col gap-5">{children}</div>
-        </main>
-      </div>
-
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent
-          ref={sheetRef}
-          side="left"
-          aria-describedby={undefined}
-          onOpenAutoFocus={focusCurrentNavLink}
-          onCloseAutoFocus={onSheetClosed}
-          className="w-[260px] max-w-[85vw] bg-sidebar px-2"
+    <ShellCrumbProvider>
+      <div className="flex min-h-dvh bg-background">
+        <a
+          href={`#${MAIN_ID}`}
+          onClick={skipToContent}
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-link focus:shadow-focus"
         >
-          <SheetTitle className="sr-only">{t('nav.menu')}</SheetTitle>
+          {t('nav.skipToContent')}
+        </a>
+
+        <aside
+          data-collapsed={collapsed}
+          className={cn(
+            'sticky top-0 hidden h-dvh shrink-0 flex-col bg-sidebar px-2 transition-[width] duration-160 motion-reduce:transition-none md:flex',
+            collapsed ? 'w-14' : 'w-[220px]',
+          )}
+        >
           <SidebarContent
             navItems={navItems}
-            collapsed={false}
-            variant="sheet"
+            collapsed={collapsed}
+            variant="sidebar"
             signingOut={signingOut}
             onSignOut={handleSignOut}
-            onLinkClick={navigateFromSheet}
           />
-        </SheetContent>
-      </Sheet>
+        </aside>
 
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        pages={palettePages}
-        onSelect={choosePalettePage}
-        onCloseAutoFocus={onPaletteClosed}
-        contentRef={paletteRef}
-      />
-    </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar
+            title={title}
+            collapsed={collapsed}
+            onToggleCollapsed={toggleCollapsed}
+            onOpenMenu={openSheet}
+            onOpenPalette={openPalette}
+            onOpenAccount={() => goTo(ACCOUNT_PAGE.path)}
+            signingOut={signingOut}
+            onSignOut={handleSignOut}
+            menuButtonRef={menuButtonRef}
+            searchButtonRef={searchButtonRef}
+          />
+          <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-6">
+            <div className="mx-auto flex w-full max-w-content flex-col gap-5">{children}</div>
+          </main>
+        </div>
+
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetContent
+            ref={sheetRef}
+            side="left"
+            aria-describedby={undefined}
+            onOpenAutoFocus={focusCurrentNavLink}
+            onCloseAutoFocus={onSheetClosed}
+            className="w-[260px] max-w-[85vw] bg-sidebar px-2"
+          >
+            <SheetTitle className="sr-only">{t('nav.menu')}</SheetTitle>
+            <SidebarContent
+              navItems={navItems}
+              collapsed={false}
+              variant="sheet"
+              signingOut={signingOut}
+              onSignOut={handleSignOut}
+              onLinkClick={navigateFromSheet}
+            />
+          </SheetContent>
+        </Sheet>
+
+        <CommandPalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          pages={palettePages}
+          onSelect={choosePalettePage}
+          onCloseAutoFocus={onPaletteClosed}
+          contentRef={paletteRef}
+        />
+      </div>
+    </ShellCrumbProvider>
   )
 }

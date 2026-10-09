@@ -40,6 +40,15 @@ describe('preloadRouteCode', () => {
     expect(route?.component.preload).toHaveBeenCalledTimes(1)
   })
 
+  it('starts loading the professional record page at a record URL, with or without its tab', () => {
+    spyPreloads()
+    const record = ALL_MODULES.flatMap((m) => m.routes).find((r) => r.path === 'professionnels/:id/:onglet?')
+    preloadRouteCode(at('/professionnels/0b6c9d3e-1f2a-4b5c-8d7e-9f0a1b2c3d4e/jumelage'))
+    preloadRouteCode(at('/professionnels/0b6c9d3e-1f2a-4b5c-8d7e-9f0a1b2c3d4e'))
+    expect(record?.component.preload).toHaveBeenCalledTimes(2)
+    expect(routePage(at('/professionnels/x/jumelage'))).toBe(record?.component)
+  })
+
   it("uses the login page's redirect target", () => {
     spyPreloads()
     preloadRouteCode(at('/connexion', `?redirect=${encodeURIComponent('/parametres/fiscalite?x=1')}`))

@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { useSettingsSection } from '@/core/settings/section-context'
 import { DocumentTemplatesTable } from '@/core/signing/components/DocumentTemplatesTable'
 import { SigningConnectionCard, SigningSendCard, SigningWebhookCard } from '@/core/signing/components/SigningSettingsCards'
+import { UnverifiedRequestsCard } from '@/core/signing/components/UnverifiedRequestsCard'
 import { useDocumentTemplates } from '@/core/signing/hooks'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -20,7 +21,9 @@ const isTab = (value: string): value is Tab => (TABS as string[]).includes(value
  * - « Réglages »: « Connexion », « Webhook » and « Envoi », changed with
  *   `settings.integrations_manage` only (the section's edit permission: read-only without it, with
  *   one notice naming that right; the cards repeat nothing). The test tools and the last test
- *   document need it too;
+ *   document need it too, and so does « Demandes non vérifiées » above them: the requests the
+ *   hourly reconcile has not read for over 6 hours (shown only when there are some), the list the
+ *   « non vérifiées » notice links to;
  * - « Modèles de documents »: the templates the caller may see, read-only (Task 3.34 lists them;
  *   versions are edited with their module).
  */
@@ -43,6 +46,7 @@ export function SigningSettingsPage() {
           ))}
         </TabsList>
         <TabsContent value="settings" className="mt-5 max-w-form space-y-5">
+          <UnverifiedRequestsCard enabled={!readOnly} />
           <SigningConnectionCard readOnly={readOnly} />
           <SigningWebhookCard readOnly={readOnly} />
           <SigningSendCard readOnly={readOnly} />

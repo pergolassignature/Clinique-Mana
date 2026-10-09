@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { closeButtonClasses, overlayClasses, overlayContentClasses } from './overlay-classes'
+import { keepOpenForCombobox } from './overlay-escape'
 
 const Dialog = DialogPrimitive.Root
 const DialogTrigger = DialogPrimitive.Trigger
@@ -31,7 +32,7 @@ interface DialogContentProps
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, hideClose = false, ...props }, ref) => (
+>(({ className, children, hideClose = false, onEscapeKeyDown, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -41,6 +42,8 @@ const DialogContent = React.forwardRef<
       aria-modal="true"
       className={cn(overlayContentClasses, className)}
       {...props}
+      // Échap from an open address list closes the list, not the dialog (P4-223).
+      onEscapeKeyDown={keepOpenForCombobox(onEscapeKeyDown)}
     >
       {children}
       {!hideClose && (

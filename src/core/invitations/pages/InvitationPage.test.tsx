@@ -88,7 +88,7 @@ beforeEach(() => {
   })
   mocks.acceptInvite.mockImplementation(async () => {
     log.push('accept')
-    return { email: DISPLAY.email }
+    return { email: DISPLAY.email, redirect: null }
   })
 })
 
@@ -216,6 +216,22 @@ describe('InvitationPage — the password', () => {
     expect(signInWithPassword).toHaveBeenCalledExactlyOnceWith(DISPLAY.email, PASSWORD)
     expect(signOut).not.toHaveBeenCalled()
     expect(log.indexOf('accept')).toBeLessThan(log.indexOf('signIn'))
+  })
+
+  it("opens the purpose's page after the sign-in (a professional's questionnaire), never one off the app", async () => {
+    for (const [redirect, where] of [
+      ['/mon-profil/questionnaire', '/mon-profil/questionnaire'],
+      ['//evil.test/x', '/accueil'],
+      ['https://evil.test/x', '/accueil'],
+    ] as const) {
+      mocks.acceptInvite.mockResolvedValueOnce({ email: DISPLAY.email, redirect })
+      const view = openLink(undefined, { signInWithPassword: vi.fn(async () => null) })
+      await fillAndSubmit()
+      await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(where))
+      expect(screen.getByTestId('where').textContent).toBe(where)
+      view.unmount()
+      vi.restoreAllMocks()
+    }
   })
 
   it('someone else signed in on this browser: signs them out here first, then signs in', async () => {

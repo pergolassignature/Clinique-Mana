@@ -8,10 +8,14 @@ select results_eq($$ select key, name from public.roles order by key $$,
             ('counselor', 'Conseillère'), ('provider', 'Professionnel') $$,
   'roles are admin, admin_assistant, counselor, provider');
 select ok(not exists (select 1 from public.role_permissions where role = 'staff'), 'staff has no permissions left');
-select results_eq($$ select permission_key from public.role_permissions where role = 'counselor' order by 1 $$,
-  array['professionals.view'], 'counselor defaults');
-select results_eq($$ select permission_key from public.role_permissions where role = 'admin_assistant' order by 1 $$,
-  array['professionals.view', 'settings.view'], 'admin_assistant defaults');
+-- Role defaults are checked on core keys plus professionals.view (the module key this split
+-- grants): later module defaults (Phase 4) do not change what this migration intended.
+select results_eq($$ select rp.permission_key from public.role_permissions rp join public.permissions pm on pm.key = rp.permission_key
+                      where rp.role = 'counselor' and (pm.module_key = 'core' or pm.key = 'professionals.view') order by 1 $$,
+  array['professionals.view'], 'counselor defaults (core keys and professionals.view)');
+select results_eq($$ select rp.permission_key from public.role_permissions rp join public.permissions pm on pm.key = rp.permission_key
+                      where rp.role = 'admin_assistant' and (pm.module_key = 'core' or pm.key = 'professionals.view') order by 1 $$,
+  array['professionals.view', 'settings.view'], 'admin_assistant defaults (core keys and professionals.view)');
 select results_eq($$ select module_key from public.permissions where key = 'settings.bank_manage' $$,
   array['core'], 'settings.bank_manage is a core permission');
 select results_eq($$ select role from public.role_permissions where permission_key = 'settings.bank_manage' $$,
@@ -39,12 +43,16 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select ok(private.has_permission('professionals.view'), 'counselor sees professionals');
 select ok(not private.has_permission('settings.view'), 'counselor has no settings.view');
 select ok(not private.has_permission('users.view'), 'counselor has no users.view');
-select is(public.get_my_access() -> 'permissions', '["professionals.view"]'::jsonb, 'counselor access payload');
+select is((select coalesce(jsonb_agg(k order by k), '[]') from jsonb_array_elements_text(public.get_my_access() -> 'permissions') k
+            join public.permissions pm on pm.key = k where pm.module_key = 'core' or pm.key = 'professionals.view'),
+  '["professionals.view"]'::jsonb, 'counselor access payload (core keys and professionals.view)');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000012","role":"authenticated"}', true);
 select ok(private.has_permission('settings.view'), 'admin_assistant reads settings');
 select ok(not private.has_permission('settings.manage'), 'admin_assistant cannot edit settings');
-select is(public.get_my_access() -> 'permissions', '["professionals.view", "settings.view"]'::jsonb, 'admin_assistant access payload');
+select is((select coalesce(jsonb_agg(k order by k), '[]') from jsonb_array_elements_text(public.get_my_access() -> 'permissions') k
+            join public.permissions pm on pm.key = k where pm.module_key = 'core' or pm.key = 'professionals.view'),
+  '["professionals.view", "settings.view"]'::jsonb, 'admin_assistant access payload (core keys and professionals.view)');
 
 select * from finish();
 rollback;

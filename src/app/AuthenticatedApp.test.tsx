@@ -8,10 +8,11 @@ import { renderWithContexts } from '@/test/contexts'
 import { testOrganization } from '@/test/organization'
 import { accessForRole } from '@/test/role-fixtures'
 import { coreSettingsSections } from '@/core/settings/sections'
+import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
 import { AuthenticatedApp } from './AuthenticatedApp'
 import { ALL_MODULES } from './modules'
 
-const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
+const mocks = vi.hoisted(() => ({ captureException: vi.fn(), accountMounts: 0, mySubmission: null as unknown, mySubmissionReads: 0 }))
 // The topbar bell (and Accueil) read the caller's notices: none here, and no network.
 vi.mock('@/core/notifications/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/notifications/api')>()),
@@ -20,6 +21,15 @@ vi.mock('@/core/notifications/api', async (importOriginal) => ({
   listImportantUnreadNotifications: async () => [],
 }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
+// Accueil's « Complétez votre profil » (professionals.self) reads the professional's questionnaire:
+// none unless a test sets one, and no network.
+vi.mock('@/modules/professionals/api/self', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/modules/professionals/api/self')>()),
+  fetchMySubmission: async () => {
+    mocks.mySubmissionReads += 1
+    return mocks.mySubmission
+  },
+}))
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.
 vi.mock('@/core/settings/pages/ModulesSettingsPage', () => ({ ModulesSettingsPage: () => <p>MODULES PAGE</p> }))
@@ -28,8 +38,24 @@ vi.mock('@/core/settings/organization/api', () => ({
   fetchOrganization: async () => testOrganization,
   updateOrganization: async () => testOrganization,
 }))
-// Same for « Mon compte ».
-vi.mock('@/core/account/pages/AccountPage', () => ({ AccountPage: () => <p>ACCOUNT PAGE</p> }))
+// Same for « Mon compte », which also probes the time-zone remount: it counts its mounts and shows the zone it sees.
+vi.mock('@/core/account/pages/AccountPage', async () => {
+  const { useEffect } = await import('react')
+  const { getClinicTimezone } = await import('@/shared/lib/clinic-timezone')
+  return {
+    AccountPage: () => {
+      useEffect(() => {
+        mocks.accountMounts += 1
+      }, [])
+      return (
+        <>
+          <p>ACCOUNT PAGE</p>
+          <p data-testid="account-timezone">{getClinicTimezone()}</p>
+        </>
+      )
+    },
+  }
+})
 
 // The real module list, with one crashing settings section added to Professionals. It needs a
 // permission no role has ('test.crash'), so only the test that grants it sees it.
@@ -58,13 +84,15 @@ beforeAll(async () => {
   await Promise.all([
     import('@/core/settings/pages/IdentitySettingsPage'),
     import('@/core/settings/pages/TaxSettingsPage'),
-    import('@/modules/professionals/pages/ProfessionalsPlaceholderPage'),
+    import('@/modules/professionals/pages/ProfessionalRecordPage'),
   ])
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
   mocks.captureException.mockReset()
+  mocks.mySubmission = null
+  mocks.mySubmissionReads = 0
 })
 
 const adminLike: Access = accessForRole('admin', { display_name: 'Camille Admin', modules: ['professionals'] })
@@ -79,6 +107,35 @@ const ALL_SECTIONS = [
   'settings.sections.region', 'settings.sections.privacy', 'settings.sections.users', 'settings.sections.modules',
   'settings.sections.audit', 'settings.sections.jobs', 'settings.sections.email', 'settings.sections.signing',
 ] as const
+
+/**
+ * Professionnels' list sections, « Documents requis » and « Consentements » (4c.3), « Fiche PDF »
+ * (P4-353) and « Contrats » (Task 4d.3), read like them, after the core ones (group « Modules »).
+ */
+const PROFESSIONALS_LIST_SECTIONS = [
+  'modules.professionals.settings.professions.title', 'modules.professionals.settings.clienteles.title',
+  'modules.professionals.settings.motifs.title', 'modules.professionals.settings.languages.title',
+  'modules.professionals.settings.deactivationReasons.title', 'modules.professionals.settings.requiredDocuments.title',
+  'modules.professionals.settings.consents.title', 'modules.professionals.settings.fiche.title',
+  'modules.professionals.settings.contracts.title',
+] as const
+/** Then « Invitations » (seen with `professionals.invite`, changed with `.settings`; Task 4b.3). */
+const PROFESSIONALS_SEEN_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.invitations.title'] as const
+/** Then « Rémunération » (`professionals.compensation`: the admin only, by default). */
+const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_SEEN_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
+const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'clienteles', 'motifs', 'languages', 'deactivation-reasons', 'required-documents', 'consents', 'fiche', 'contracts', 'invitations'].map(
+  (id) => `professionals:${id}`,
+)
+const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professionals:compensation']
+const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
+/** « Révision mensuelle »: professionals.compensation only (admin by default). */
+const PROFESSIONALS_REVIEW_ROUTE = 'professionals:/professionnels/revision-mensuelle'
+/** The provider's questionnaire (`professionals.self`; the test's admin-like access holds every key). */
+const PROFESSIONALS_QUESTIONNAIRE_ROUTE = 'professionals:/mon-profil/questionnaire'
+// « Mon profil » (4b.5, professionals.self).
+const PROFESSIONALS_MY_PROFILE_ROUTE = 'professionals:/mon-profil'
+// « Mes documents » (4c.6, professionals.self).
+const PROFESSIONALS_MY_DOCUMENTS_ROUTE = 'professionals:/mes-documents'
 
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -111,7 +168,7 @@ describe('AuthenticatedApp', () => {
   it('shows Paramètres to the adjointe, with the clinic sections, « Tâches planifiées », « Courriels » and « Signature électronique », read-only', async () => {
     render(appAt('/parametres', assistantLike))
     expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.name'), t('nav.settings')])
-    const readOnly = (key: (typeof ALL_SECTIONS)[number]) => `${t(key)} ${t('settings.navReadOnlyHint')}`
+    const readOnly = (key: (typeof ALL_SECTIONS)[number] | (typeof PROFESSIONALS_SECTIONS)[number]) => `${t(key)} ${t('settings.navReadOnlyHint')}`
     expect(settingsLinks()).toEqual([
       readOnly('settings.sections.identity'),
       readOnly('settings.sections.tax'),
@@ -121,6 +178,8 @@ describe('AuthenticatedApp', () => {
       readOnly('settings.sections.jobs'),
       readOnly('settings.sections.email'),
       readOnly('settings.sections.signing'),
+      // Professionnels' lists (professionals.manage) and « Invitations » (professionals.invite): changed with professionals.settings.
+      ...PROFESSIONALS_SEEN_SECTIONS.map(readOnly),
     ])
     expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByText(t('common.readOnlyNotice.body'))).toBeInTheDocument()
@@ -135,7 +194,7 @@ describe('AuthenticatedApp', () => {
 
   it('lists every section to an admin, at its French path, none of them locked', async () => {
     render(appAt('/parametres'))
-    expect(settingsLinks()).toEqual(ALL_SECTIONS.map((key) => t(key)))
+    expect(settingsLinks()).toEqual([...ALL_SECTIONS, ...PROFESSIONALS_SECTIONS].map((key) => t(key)))
     const nav = screen.getByRole('navigation', { name: t('settings.navLabel') })
     expect(within(nav).getByRole('link', { name: t('settings.sections.identity') })).toHaveAttribute('href', '/parametres/identite')
     expect(within(nav).getByRole('link', { name: t('settings.sections.audit') })).toHaveAttribute('href', '/parametres/journal')
@@ -162,22 +221,67 @@ describe('AuthenticatedApp', () => {
     expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
   })
 
-  it('renders the module placeholder at its route', async () => {
-    render(appAt('/professionnels'))
-    expect(await screen.findByText(t('modules.professionals.placeholder'))).toBeInTheDocument()
+  it('renders a module page at its route (the record; not a record id, so « introuvable » without a request)', async () => {
+    render(appAt('/professionnels/0b6c/apercu'))
+    expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.record.notFound.title') })).toBeInTheDocument()
   })
 
   it('hides a disabled module and does not route to it', () => {
     render(appAt('/professionnels', { ...adminLike, modules: [] }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByText(t('common.notFound.title'))).toBeInTheDocument()
-    expect(screen.queryByText(t('modules.professionals.placeholder'))).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: t('modules.professionals.name') })).not.toBeInTheDocument()
   })
 
   it('hides an enabled module the user may not view, and refuses its route', () => {
-    render(appAt('/professionnels', { ...adminLike, permissions: adminLike.permissions.filter((p) => p !== 'professionals.view') }))
+    // Without professionals.self too: « Mon profil » is the module's other menu entry.
+    const hidden = new Set(['professionals.view', 'professionals.self'])
+    render(appAt('/professionnels', { ...adminLike, permissions: adminLike.permissions.filter((p) => !hidden.has(p)) }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
+  })
+
+  // Task 4b.5 (P4-376): « Mon profil » right after Accueil for an account linked to a professional file.
+  it('shows « Mon profil » to a professional, after Accueil, and not to an admin without a file of her own', () => {
+    render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'] })))
+    expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.myProfile.nav'), t('modules.professionals.myDocuments.nav')])
+    expect(screen.getByRole('link', { name: t('modules.professionals.myProfile.nav') })).toHaveAttribute('href', '/mon-profil')
+    expect(screen.getByRole('link', { name: t('modules.professionals.myDocuments.nav') })).toHaveAttribute('href', '/mes-documents')
+    cleanup()
+    render(appAt('/accueil'))
+    expect(adminLike.permissions).toContain('professionals.self')
+    expect(menuLinks()).not.toContain(t('modules.professionals.myProfile.nav'))
+    expect(menuLinks()).not.toContain(t('modules.professionals.myDocuments.nav'))
+  })
+
+  it('keeps « Mon profil » for an admin who practises (her account is linked to a file)', () => {
+    render(appAt('/accueil', { ...adminLike, has_professional_file: true }))
+    expect(menuLinks()).toEqual([
+      t('nav.home'),
+      t('modules.professionals.myProfile.nav'),
+      t('modules.professionals.myDocuments.nav'),
+      t('modules.professionals.name'),
+      t('nav.settings'),
+    ])
+  })
+
+  // P4-319 (Task 4b.5): the module's Accueil card, for whoever holds professionals.self.
+  it('shows a professional « Complétez votre profil » on Accueil while her questionnaire is open', async () => {
+    const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')
+    mocks.mySubmission = mySubmission()
+    render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'] })))
+    expect(await screen.findByRole('heading', { name: t('modules.professionals.myProfile.home.onboarding.title') })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('modules.professionals.myProfile.home.onboarding.action') })).toHaveAttribute('href', '/mon-profil/questionnaire')
+  })
+
+  it('never reads a questionnaire for an admin without a file (no Accueil card)', async () => {
+    const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')
+    mocks.mySubmission = mySubmission()
+    render(appAt('/accueil'))
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('heading', { name: t('modules.professionals.myProfile.home.onboarding.title') })).not.toBeInTheDocument()
+    expect(mocks.mySubmissionReads).toBe(0)
   })
 
   // Outside Paramètres: a role with no settings section (here a provider) still reaches it.
@@ -186,6 +290,27 @@ describe('AuthenticatedApp', () => {
     expect(await screen.findByText('ACCOUNT PAGE')).toBeInTheDocument()
     expect(within(screen.getByRole('banner')).getByText(t('nav.account'))).toBeInTheDocument()
     expect(menuLinks()).toEqual([t('nav.home')])
+  })
+
+  // AccessProvider sets the new zone during its render, before this tree renders: done by hand here.
+  it('remounts the routed page when the clinic time zone changes, and only then', async () => {
+    try {
+      mocks.accountMounts = 0
+      const { rerender } = render(appAt('/mon-compte'))
+      expect(await screen.findByTestId('account-timezone')).toHaveTextContent('America/Toronto')
+      expect(mocks.accountMounts).toBe(1)
+
+      rerender(appAt('/mon-compte', { ...adminLike, display_name: 'Camille A.' }))
+      expect(mocks.accountMounts).toBe(1)
+
+      setClinicTimezone('America/Vancouver')
+      rerender(appAt('/mon-compte', { ...adminLike, org_timezone: 'America/Vancouver' }))
+      await waitFor(() => expect(mocks.accountMounts).toBe(2))
+      expect(getClinicTimezone()).toBe('America/Vancouver')
+      expect(screen.getByTestId('account-timezone')).toHaveTextContent('America/Vancouver')
+    } finally {
+      resetClinicTimezone()
+    }
   })
 
   it('shows not found for an unknown path', () => {
@@ -296,7 +421,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), 'professionals:/professionnels'])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE, PROFESSIONALS_MY_DOCUMENTS_ROUTE])
   })
 
   it('skips the pages the user may not open', () => {
@@ -305,7 +430,9 @@ describe('AuthenticatedApp — idle prefetch', () => {
     runIdle()
     // The adjointe's clinic sections (no bank, users, modules or audit), « Tâches planifiées », « Courriels »,
     // « Signature électronique », and Professionnels.
-    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'signing', 'professionals:/professionnels'])
+    expect(preloaded()).toEqual([
+      'identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'signing', ...PROFESSIONALS_LIST_SECTION_IDS, ...PROFESSIONALS_ROUTES,
+    ])
   })
 
   it("skips a disabled module's pages and sections", () => {

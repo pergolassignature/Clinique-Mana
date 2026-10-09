@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { CircleAlert, CircleCheck, Clock } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
@@ -13,8 +14,8 @@ const statuses = {
 interface StatusIndicatorProps {
   label: string
   status?: StatusIndicatorStatus
-  /** 12px secondary text on the same baseline (e.g. « Envoyé le 3 oct. »). */
-  description?: string
+  /** 12px secondary text on the same baseline (e.g. « Envoyé le 3 oct. »); may hold links. */
+  description?: ReactNode
   className?: string
 }
 

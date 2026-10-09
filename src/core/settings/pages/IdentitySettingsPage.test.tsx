@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { Organization } from '@/core/settings/organization/api'
 import { LEAVE_LINK, renderOrganizationPage, testOrganization } from '@/test/organization'
+import { resetSuggestionsPause } from '@/core/address/availability'
 import { IdentitySettingsPage } from './IdentitySettingsPage'
 
 const mocks = vi.hoisted(() => ({
@@ -11,12 +12,18 @@ const mocks = vi.hoisted(() => ({
   storage: { uploadFile: vi.fn(), signedFileUrl: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
   captureException: vi.fn(),
+  address: { fetchAddressSuggestions: vi.fn(), fetchPlaceAddress: vi.fn() },
 }))
 vi.mock('@/core/settings/organization/api', () => mocks.api)
+vi.mock('@/core/address/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/address/api')>()), ...mocks.address }))
 vi.mock('@/core/storage/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/storage/api')>()), ...mocks.storage }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
+beforeEach(() => {
+  resetSuggestionsPause()
+  mocks.address.fetchAddressSuggestions.mockResolvedValue([])
+})
 afterEach(() => vi.clearAllMocks())
 
 const FIELDS = {
@@ -34,7 +41,9 @@ const FIELDS = {
 }
 
 const cardNamed = (key: 'clinic' | 'address' | 'contact') => screen.getByRole('form', { name: t(`settings.identity.${key}.title`) })
-const field = (key: keyof typeof FIELDS) => screen.getByRole('textbox', { name: FIELDS[key] })
+/** « Adresse » is a combobox (Google suggestions) while editable, a plain textbox when read-only. */
+const field = (key: keyof typeof FIELDS) =>
+  key === 'addressLine1' ? screen.getByLabelText(FIELDS.addressLine1) : screen.getByRole('textbox', { name: FIELDS[key] })
 const provinceSelect = () => screen.getByRole('combobox', { name: FIELDS.province })
 
 /** The control of every field label in a card, in document (reading) order. */
@@ -87,13 +96,17 @@ describe('IdentitySettingsPage', () => {
     expect(field('neq')).toHaveAccessibleDescription(t('settings.identity.fields.neqHelp'))
     expect(field('name')).toHaveAccessibleDescription(t('settings.identity.fields.nameHelp'))
     expect(field('addressLine1')).toHaveValue('123, rue Saint-Denis')
-    expect(field('addressLine1')).toHaveAttribute('autocomplete', 'address-line1')
+    // The browser's own address menu would cover the Google suggestions (P4-220).
+    expect(screen.getByRole('combobox', { name: FIELDS.addressLine1 })).toHaveAttribute('autocomplete', 'off')
     expect(field('addressLine2')).toHaveValue('Bureau 200')
+    expect(field('addressLine2')).toHaveAttribute('placeholder', 'App. 4, bureau 210')
     expect(field('city')).toHaveValue('Montréal')
     expect(provinceSelect()).toHaveValue('QC')
     expect(within(provinceSelect()).getByRole('option', { selected: true })).toHaveTextContent('Québec')
     expect(field('postalCode')).toHaveValue('H2X 1Y4')
-    expect(field('postalCode')).toHaveAttribute('autocomplete', 'postal-code')
+    // The browser's address autofill is off on every address field, as in « Coordonnées » (P4-222).
+    for (const name of ['addressLine2', 'city', 'postalCode'] as const) expect(field(name)).toHaveAttribute('autocomplete', 'off')
+    expect(provinceSelect()).toHaveAttribute('autocomplete', 'off')
     expect(field('phone')).toHaveValue('514 555-1234')
     expect(field('phone')).toHaveAttribute('type', 'tel')
     expect(field('email')).toHaveValue('info@cliniquemana.com')
@@ -176,6 +189,43 @@ describe('IdentitySettingsPage', () => {
 
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Identité enregistrée.'))
     expect(mocks.api.updateOrganization).toHaveBeenCalledExactlyOnceWith('o1', { name: 'Clinique MANA Laval', legal_name: null, neq: '1234567891' })
+  })
+
+  it('« Adresse du siège social »: a Google suggestion fills the address (line 2 kept), every field stays editable, and the card saves it', async () => {
+    saveEchoes()
+    mocks.address.fetchAddressSuggestions.mockResolvedValue([
+      { placeId: 'ChIJfakeLevis00000003', mainText: '5955 Rue Saint-Laurent', secondaryText: 'Lévis, QC, Canada' },
+    ])
+    mocks.address.fetchPlaceAddress.mockResolvedValue({
+      line1: '5955, rue Saint-Laurent',
+      line2: '12',
+      city: 'Lévis',
+      province: 'QC',
+      postalCode: 'G6V 3P5',
+      country: 'CA',
+    })
+    await renderPage()
+    const address = screen.getByRole('combobox', { name: FIELDS.addressLine1 })
+    await edit(address, '5955 saint-laurent')
+    await userEvent.click(await screen.findByRole('option', { name: /5955 Rue Saint-Laurent/ }))
+
+    await waitFor(() => expect(address).toHaveValue('5955, rue Saint-Laurent'))
+    expect(field('addressLine2')).toHaveValue('Bureau 200')
+    expect(field('city')).toHaveValue('Lévis')
+    expect(provinceSelect()).toHaveValue('QC')
+    expect(field('postalCode')).toHaveValue('G6V 3P5')
+    // Manual override after the autofill: an ordinary edit.
+    await edit(field('city'), 'Lévis (Desjardins)')
+    await userEvent.click(within(cardNamed('address')).getByRole('button', { name: t('common.save') }))
+
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Adresse enregistrée.'))
+    expect(mocks.api.updateOrganization).toHaveBeenCalledExactlyOnceWith('o1', {
+      address_line1: '5955, rue Saint-Laurent',
+      address_line2: 'Bureau 200',
+      city: 'Lévis (Desjardins)',
+      province: 'QC',
+      postal_code: 'G6V 3P5',
+    })
   })
 
   it('« Adresse du siège social »: saves its five fields only, with the chosen province and the postal code formatted', async () => {

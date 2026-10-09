@@ -5,10 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FileSignature } from 'lucide-react'
 import { t } from '@/i18n'
 import type { SettingsSection } from '@/core/modules/types'
-import type { DocumentTemplate, SignatureRequestRow } from '@/core/signing/api'
+import type { DocumentTemplate, SignatureRequestRow, UnverifiedSignatureRequest } from '@/core/signing/api'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { lazyPage } from '@/shared/lib/lazy-page'
+import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { testAccess } from '@/test/contexts'
 import { renderInSettingsSection } from '@/test/settings-section'
 import { SigningSettingsPage } from './SigningSettingsPage'
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     lastDocumensoEventAt: vi.fn(),
     lastSigningTest: vi.fn(),
     listDocumentTemplates: vi.fn(),
+    listUnverifiedSignatureRequests: vi.fn(),
     testSigningConnection: vi.fn(),
     sendSigningTestDocument: vi.fn(),
     syncSignatureRequest: vi.fn(),
@@ -76,8 +78,11 @@ function renderPage(
     lastTest = null as SignatureRequestRow | null | Promise<never>,
     templates = [TEMPLATE] as DocumentTemplate[],
     secretKeys = [{ key: 'documenso_api_key', updated_at: '2026-10-08T12:00:00Z' }] as { key: string; updated_at: string }[],
+    unverified = [] as UnverifiedSignatureRequest[] | Error,
   } = {},
 ) {
+  if (unverified instanceof Error) mocks.signing.listUnverifiedSignatureRequests.mockRejectedValue(unverified)
+  else mocks.signing.listUnverifiedSignatureRequests.mockResolvedValue(unverified)
   mocks.signing.fetchSigningSettings.mockResolvedValue(settings)
   mocks.signing.lastDocumensoEventAt.mockResolvedValue(lastEvent)
   if (lastTest instanceof Promise) mocks.signing.lastSigningTest.mockReturnValue(lastTest)
@@ -122,6 +127,7 @@ describe('SigningSettingsPage', () => {
     mocks.secrets.listOrgSecretKeys.mockReturnValue(new Promise(() => {}))
     mocks.signing.lastDocumensoEventAt.mockReturnValue(new Promise(() => {}))
     mocks.signing.lastSigningTest.mockReturnValue(new Promise(() => {}))
+    mocks.signing.listUnverifiedSignatureRequests.mockReturnValue(new Promise(() => {}))
     render(
       <QueryClientProvider client={new QueryClient()}>
         {renderInSettingsSection(<SigningSettingsPage />, { section, access: { access: { ...testAccess, permissions: ADMIN } } })}
@@ -131,8 +137,74 @@ describe('SigningSettingsPage', () => {
     expect(mocks.secrets.listOrgSecretKeys).toHaveBeenCalledTimes(1)
     expect(mocks.signing.lastDocumensoEventAt).toHaveBeenCalledTimes(1)
     expect(mocks.signing.lastSigningTest).toHaveBeenCalledExactlyOnceWith(testAccess.user_id)
+    expect(mocks.signing.listUnverifiedSignatureRequests).toHaveBeenCalledTimes(1)
     // The templates load only when their tab opens.
     expect(mocks.signing.listDocumentTemplates).not.toHaveBeenCalled()
+  })
+
+  describe('« Demandes non vérifiées »', () => {
+    const unverifiedCard = () => screen.findByRole('region', { name: t('settings.signing.unverified.title') })
+    const ROWS: UnverifiedSignatureRequest[] = [
+      {
+        id: 'e0000000-0000-0000-0000-000000000001',
+        module_key: 'professionals',
+        title: null,
+        sent_at: '2026-10-05T12:00:00Z',
+        synced_at: null,
+        failing_since: null,
+        error_code: null,
+      },
+      {
+        id: 'e0000000-0000-0000-0000-000000000002',
+        module_key: 'core',
+        title: 'Document test',
+        sent_at: '2026-10-05T12:00:00Z',
+        synced_at: '2026-10-08T04:00:00Z',
+        failing_since: '2026-10-08T05:00:00Z',
+        error_code: 'provider_not_found',
+      },
+    ]
+
+    it('lists each request with its title, last successful read, failure start and reason in plain French', async () => {
+      renderPage(ADMIN, { unverified: ROWS })
+      const region = await unverifiedCard()
+      const items = within(region).getAllByRole('listitem')
+      expect(items).toHaveLength(2)
+      expect(items[1]).toHaveTextContent('Document test')
+      expect(items[1]).toHaveTextContent(formatClinicDateTime('2026-10-08T04:00:00Z'))
+      expect(items[1]).toHaveTextContent(t('settings.signing.unverified.failingSince'))
+      expect(items[1]).toHaveTextContent(formatClinicDateTime('2026-10-08T05:00:00Z'))
+      expect(items[1]).toHaveTextContent(t('settings.signing.unverified.failures.provider_not_found'))
+      expect(within(region).queryByRole('link')).not.toBeInTheDocument()
+    })
+
+    it('a request the caller may not see is named by its module, never by its title; never read and never failed say so', async () => {
+      renderPage(ADMIN, { unverified: ROWS })
+      const first = within(await unverifiedCard()).getAllByRole('listitem')[0]
+      expect(first).toHaveTextContent(t('settings.signing.unverified.hiddenTitle', { module: t('modules.professionals.name') }))
+      expect(first).toHaveTextContent(t('settings.signing.unverified.never'))
+      expect(first).not.toHaveTextContent(t('settings.signing.unverified.failingSince'))
+      expect(first).toHaveTextContent(t('settings.signing.unverified.failures.none'))
+    })
+
+    it('is hidden when every request was read', async () => {
+      renderPage(ADMIN)
+      await baseUrl()
+      await waitFor(() => expect(mocks.signing.listUnverifiedSignatureRequests).toHaveBeenCalled())
+      expect(screen.queryByRole('region', { name: t('settings.signing.unverified.title') })).not.toBeInTheDocument()
+    })
+
+    it('a failed read shows, with a retry (the problem is never hidden by its own list)', async () => {
+      renderPage(ADMIN, { unverified: new Error('boom') })
+      expect(await within(await unverifiedCard()).findByText(t('settings.signing.unverified.loadError'))).toBeInTheDocument()
+    })
+
+    it('is never asked for without settings.integrations_manage (the RPC refuses it)', async () => {
+      renderPage(ASSISTANT, { unverified: ROWS })
+      await baseUrl()
+      expect(mocks.signing.listUnverifiedSignatureRequests).not.toHaveBeenCalled()
+      expect(screen.queryByRole('region', { name: t('settings.signing.unverified.title') })).not.toBeInTheDocument()
+    })
   })
 
   describe('admin (settings.integrations_manage): editable', () => {

@@ -116,22 +116,24 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(private.current_permission_keys(),
   (select array_agg(pm.key order by pm.key) from public.permissions pm where pm.module_key in ('core', 'professionals')),
-  'admin A: every core key and professionals.view');
+  'admin A: every core and professionals key');
 select ok('settings.integrations_manage' = any (private.current_permission_keys()), 'admin A holds settings.integrations_manage');
 select is(public.get_my_access() -> 'permissions', to_jsonb(private.current_permission_keys()),
   'admin A: get_my_access permissions read the same source');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select is(private.current_permission_keys(), array['settings.manage', 'settings.view'],
-  'adjointe D: role defaults, plus the granted override, minus the revoked one');
+select is(private.current_permission_keys(), array['professionals.documents.review', 'professionals.invite', 'professionals.manage',
+                                                  'professionals.matching', 'professionals.review', 'settings.manage', 'settings.view'],
+  'adjointe D: role defaults (professionals.invite and .review since 4b.1, .documents.review since 4c.2), plus the granted override, minus the revoked one');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select is(private.current_permission_keys(), array['professionals.view'], 'conseillère: {professionals.view}');
+select is(private.current_permission_keys(), array['professionals.matching', 'professionals.view'],
+  'conseillère: {professionals.matching, professionals.view}');
 select is(public.get_my_access() -> 'permissions', to_jsonb(private.current_permission_keys()),
   'conseillère: get_my_access permissions read the same source');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select is(private.current_permission_keys(), array[]::text[], 'provider: nothing by default');
+select is(private.current_permission_keys(), array['professionals.self'], 'provider: only professionals.self by default');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is(private.current_permission_keys(), array[]::text[], 'disabled admin: {}');
