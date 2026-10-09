@@ -752,7 +752,7 @@
       "loadError": "Impossible de charger les renseignements de la clinique."
     },
     "identity": {
-      "description": "Ces renseignements figurent sur les contrats, reçus et factures.",
+      "description": "Le nom, l'adresse et les coordonnées figurent au bas des courriels de la clinique, les coordonnées sur la fiche PDF des professionnels, la raison sociale et l'adresse dans le contrat de service. Le NEQ n'est repris dans aucun document pour l'instant.",
       "clinic": { "title": "Clinique", "saved": "Identité enregistrée." },
       "address": { "title": "Adresse du siège social", "saved": "Adresse enregistrée." },
       "contact": { "title": "Coordonnées", "saved": "Coordonnées enregistrées." },
@@ -775,7 +775,7 @@
       },
       "logo": {
         "title": "Logo",
-        "description": "Il figure sur les documents de la clinique (contrats, fiches, reçus).",
+        "description": "Il figure sur la fiche PDF des professionnels. Les courriels et les contrats ne l'affichent pas pour l'instant.",
         "hint": "PNG ou JPEG, {size} Mo et {side} pixels de côté au plus.",
         "alt": "Logo de la clinique",
         "empty": "Aucun logo.",
@@ -783,11 +783,11 @@
         "remove": "Retirer",
         "saved": "Logo enregistré.",
         "removed": "Logo retiré.",
-        "removeConfirm": { "title": "Retirer le logo ?", "body": "Il ne figurera plus sur les documents de la clinique.", "confirm": "Retirer" }
+        "removeConfirm": { "title": "Retirer le logo ?", "body": "La fiche PDF des professionnels affichera le logo de Clinique MANA à la place.", "confirm": "Retirer" }
       }
     },
     "signatory": {
-      "description": "La personne qui signe les contrats et les reçus au nom de la clinique.",
+      "description": "La personne qui représente la clinique dans le contrat de service. Avec son courriel, elle le signe au nom de la clinique dans Documenso.",
       "representative": {
         "title": "Représentant de la clinique",
         "saved": "Signataire enregistré."
@@ -801,7 +801,7 @@
       },
       "signature": {
         "title": "Image de signature",
-        "description": "Utilisée pour la signature de la clinique sur les documents.",
+        "description": "Réservée aux documents à venir : aucun modèle ne l'affiche pour l'instant, et la clinique signe ses contrats dans Documenso.",
         "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
         "alt": "Signature de la clinique",
         "empty": "Aucune image de signature.",
@@ -809,7 +809,7 @@
         "remove": "Retirer",
         "saved": "Image de signature enregistrée.",
         "removed": "Image de signature retirée.",
-        "removeConfirm": { "title": "Retirer l'image de signature ?", "body": "Les documents n'afficheront plus la signature de la clinique.", "confirm": "Retirer" }
+        "removeConfirm": { "title": "Retirer l'image de signature ?", "body": "Aucun document ne l'affiche pour l'instant.", "confirm": "Retirer" }
       }
     },
     "region": {
@@ -858,10 +858,12 @@
       "description": "Les renseignements exigés par la Loi 25 sur la protection des renseignements personnels.",
       "officer": {
         "title": "Responsable de la protection des renseignements personnels",
+        "description": "Son nom et son courriel figurent au bas des courriels de la clinique.",
         "saved": "Responsable enregistré."
       },
       "policy": {
         "title": "Politique et conservation",
+        "description": "Enregistrées pour la conformité à la Loi 25. L'application ne les utilise pas encore : l'adresse de la politique ne figure dans aucun courriel, et aucune suppression ne suit cette durée.",
         "saved": "Politique et conservation enregistrées."
       },
       "fields": {
@@ -1070,7 +1072,7 @@
       }
     },
     "tax": {
-      "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ appliqués aux factures.",
+      "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ qui seront appliqués à la facturation, à venir. Aucun document ne les reprend pour l'instant.",
       "numbers": { "title": "Numéros d'inscription", "saved": "Numéros d'inscription enregistrés." },
       "fields": {
         "gst": "Numéro de TPS",
@@ -1107,7 +1109,7 @@
         "rate": "Taux (%)",
         "from": "À partir du",
         "fromHelp": "Le taux actuel se terminera la veille de cette date.",
-        "backdated": "Cette date est passée : le nouveau taux s'appliquera aussi aux calculs faits depuis cette date. Les factures déjà émises gardent leur taux.",
+        "backdated": "Cette date est passée : la facturation, à venir, appliquera ce taux à partir de cette date.",
         "submit": "Ajouter",
         "submitting": "Ajout…",
         "added": "Nouveau taux enregistré."
