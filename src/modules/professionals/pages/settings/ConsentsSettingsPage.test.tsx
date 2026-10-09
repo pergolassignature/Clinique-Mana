@@ -49,10 +49,10 @@ async function renderPage(data: ConsentVersions, { readOnly = false } = {}) {
 describe('ConsentsSettingsPage', () => {
   it('shows the version in force: its title, who published it, its signatures and its text', async () => {
     await renderPage(versions({ previous: [version({ id: 'old', version: 0, title: 'Ancien texte', signedCount: 1 })] }))
-    expect(screen.getByText('Version 1 · publiée le 01 oct. 2026 par Julie Roy · 3 signatures')).toBeInTheDocument()
+    expect(screen.getByText('Version 1 · publiée le 1 oct. 2026 par Julie Roy · 3 signatures')).toBeInTheDocument()
     expect(screen.getByText('J’autorise la clinique à utiliser ma photo sur son site.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: t(`${C}.previous.title`) })).toBeInTheDocument()
-    expect(screen.getByText('Version 0 · publiée le 01 oct. 2026 par Julie Roy · 1 signature')).toBeInTheDocument()
+    expect(screen.getByText('Version 0 · publiée le 1 oct. 2026 par Julie Roy · 1 signature')).toBeInTheDocument()
   })
 
   it('« Nouvelle version » starts from the text in force; « Enregistrer le brouillon » creates it', async () => {

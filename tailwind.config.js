@@ -140,6 +140,7 @@ export default {
         shimmer: 'shimmer 2s linear infinite',
         'fade-in': 'fade-in 160ms cubic-bezier(0, 0, 0.2, 1)',
         'dialog-in': 'dialog-in 160ms cubic-bezier(0, 0, 0.2, 1)',
+        'dialog-in-top': 'dialog-in-top 160ms cubic-bezier(0, 0, 0.2, 1)',
         'zoom-in': 'zoom-in 120ms cubic-bezier(0, 0, 0.2, 1)',
         'slide-in-right': 'slide-in-right 240ms cubic-bezier(0, 0, 0.2, 1)',
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -158,6 +159,11 @@ export default {
         'dialog-in': {
           from: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.95)' },
           to: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
+        },
+        // A top-anchored dialog (position="top") is centred horizontally only.
+        'dialog-in-top': {
+          from: { opacity: '0', transform: 'translate(-50%, 0) scale(0.95)' },
+          to: { opacity: '1', transform: 'translate(-50%, 0) scale(1)' },
         },
         'zoom-in': {
           from: { opacity: '0', transform: 'scale(0.95)' },

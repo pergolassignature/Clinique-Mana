@@ -157,9 +157,9 @@ describe('formatAuditValue', () => {
 
   it('formats instants (clinic timezone) and dates (no conversion) only in the columns that hold them', () => {
     // timestamptz as PostgreSQL writes it into jsonb: 19:58 in the clinic (EDT).
-    expect(formatAuditValue('2026-10-07T23:58:45.949486+00:00', 'profiles', 'updated_at')).toBe('07 oct. 2026 à 19:58')
-    expect(formatAuditValue('2026-10-07T23:58:45Z', 'tax_rates', 'created_at')).toBe('07 oct. 2026 à 19:58')
-    expect(formatAuditValue('2026-10-07T23:58:45Z', 'profiles', 'last_sign_in_at')).toBe('07 oct. 2026 à 19:58')
+    expect(formatAuditValue('2026-10-07T23:58:45.949486+00:00', 'profiles', 'updated_at')).toBe('7 oct. 2026 à 19:58')
+    expect(formatAuditValue('2026-10-07T23:58:45Z', 'tax_rates', 'created_at')).toBe('7 oct. 2026 à 19:58')
+    expect(formatAuditValue('2026-10-07T23:58:45Z', 'profiles', 'last_sign_in_at')).toBe('7 oct. 2026 à 19:58')
     // A date-only column stays on its day.
     expect(formatAuditValue('2026-01-01', 'tax_rates', 'effective_from')).toBe('1 janv. 2026')
     expect(formatAuditValue('2026-01-01', 'tax_rates', 'effective_to')).toBe('1 janv. 2026')

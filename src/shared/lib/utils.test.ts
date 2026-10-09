@@ -35,6 +35,12 @@ describe('cn', () => {
     expect(cn('max-w-content', 'max-w-form')).toBe('max-w-form')
   })
 
+  it('knows the theme animations are animations', () => {
+    expect(cn('animate-dialog-in', 'animate-dialog-in-top')).toBe('animate-dialog-in-top')
+    expect(cn('animate-fade-in', 'animate-none')).toBe('animate-none')
+    expect(cn('animate-slide-in-right', 'motion-reduce:animate-none')).toBe('animate-slide-in-right motion-reduce:animate-none')
+  })
+
   it('treats the design-system colours as colours', () => {
     expect(cn('text-muted-foreground', 'text-subtle')).toBe('text-subtle')
     expect(cn('bg-primary', 'bg-ink')).toBe('bg-ink')
