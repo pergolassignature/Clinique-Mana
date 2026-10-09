@@ -8,7 +8,7 @@ import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { useGuardedTabs } from '@/shared/lib/unsaved-changes-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { recordPath, type RecordTab } from '../../lib/constants'
-import type { RecordTabDef } from './record-tabs'
+import { preloadRecordTab, type RecordTabDef } from './record-tabs'
 
 const T = 'modules.professionals.record.tabs'
 
@@ -36,16 +36,10 @@ export function RecordTabs({ id, current, tabs }: RecordTabsProps) {
   return (
     <Tabs value={current.tab} onValueChange={onValueChange}>
       <TabsList aria-label={t(`${T}.label`)}>
-        {tabs.map(({ tab, panel, prefetch }) => {
+        {tabs.map((def) => {
+          const { tab } = def
           const guard = triggerProps(tab)
-          const preload = () => {
-            void panel.preload?.().catch(() => {
-              // Opening the tab loads it again and reports a real failure.
-            })
-            // Fresh data is not fetched again. A failed query never rejects; a hooks chunk that
-            // does not load does: opening the tab loads it again and reports a real failure.
-            void prefetch?.(queryClient, id, can).catch(() => {})
-          }
+          const preload = () => preloadRecordTab(def, queryClient, id, can)
           return (
             <TabsTrigger
               key={tab}

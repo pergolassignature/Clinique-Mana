@@ -189,6 +189,18 @@ describe('ProfessionalRecordPage', () => {
     expect(mocks.history.fetchProfessionalHistory).toHaveBeenCalledTimes(1)
   })
 
+  it('a deep link to a tab starts its code and its data with the record, not after it', async () => {
+    const historique = RECORD_TAB_DEFS.find((def) => def.tab === 'historique')?.panel
+    const preload = vi.spyOn(historique as Required<NonNullable<typeof historique>>, 'preload')
+    // The record never arrives: the tab's chunk and its first page are already on their way.
+    mocks.record.fetchProfessionalRecord.mockReturnValue(new Promise(() => {}))
+    renderPage({ path: `${base}/historique` })
+    expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
+    expect(preload).toHaveBeenCalled()
+    await waitFor(() => expect(mocks.history.fetchProfessionalHistory).toHaveBeenCalledWith(IDS.professional, undefined))
+    expect(mocks.invitations.fetchProfessionalEmails).toHaveBeenCalledWith(IDS.professional)
+  })
+
   it('starts loading a tab’s code when it takes the focus', async () => {
     const identite = RECORD_TAB_DEFS.find((def) => def.tab === 'identite')?.panel
     const preload = vi.spyOn(identite as Required<NonNullable<typeof identite>>, 'preload')

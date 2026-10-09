@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -11,7 +12,7 @@ import { RecordActions } from '../components/record/RecordActions'
 import { RecordHeader } from '../components/record/RecordHeader'
 import { RecordTabs } from '../components/record/RecordTabs'
 import { RecordContext, type RecordData } from '../components/record/record-context'
-import { visibleRecordTabs } from '../components/record/record-tabs'
+import { preloadRecordTab, visibleRecordTabs } from '../components/record/record-tabs'
 import { useProfessionalsCatalog } from '../hooks/use-catalog'
 import { useProfessionalOnboarding } from '../hooks/use-invitations'
 import { useProfessionalRecord } from '../hooks/use-professional-record'
@@ -27,7 +28,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * A professional's record (« fiche », design §5.3): the header band, then the tabs, the tab being
  * the URL's last segment. One request for the record (`get_professional_record`), one for its
  * onboarding line (`get_professional_onboarding`, P4-270) and the cached catalogue, all started at
- * mount; the tabs read them from `RecordContext`. An unknown or hidden
+ * mount, with the open tab's chunk and data; the tabs read them from `RecordContext`. An unknown or hidden
  * tab goes to « Aperçu ».
  */
 export function ProfessionalRecordPage() {
@@ -45,6 +46,12 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   const current = tabs.find((def) => def.tab === onglet)
   const heading = useRef<HTMLHeadingElement>(null)
   const focusHeading = useCallback(() => heading.current?.focus(), [])
+  const queryClient = useQueryClient()
+  // The tab the URL opens starts its chunk and its data with the record's requests, not once the
+  // record has arrived (a deep link to /documents would otherwise wait for both in turn).
+  useEffect(() => {
+    if (current) preloadRecordTab(current, queryClient, id, can)
+  }, [current, queryClient, id, can])
 
   const data = record.data
   usePageTitle(data ? fullName(data.professional) : t(data === null ? `${R}.notFound.title` : 'modules.professionals.name'), { crumb: Boolean(data) })

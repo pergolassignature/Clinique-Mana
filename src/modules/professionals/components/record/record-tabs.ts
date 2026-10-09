@@ -88,6 +88,16 @@ export const RECORD_TAB_DEFS: readonly RecordTabDef[] = [
   { tab: 'historique', panel: lazyPage(() => import('./tabs/HistoryTab'), 'HistoryTab'), visible: always, prefetch: prefetchHistoryTab },
 ]
 
+/**
+ * Starts loading a tab's chunk and its own data (hover, focus, and the tab a URL opens, so a deep
+ * link does not wait for the record before asking for them). Fresh data is not fetched again; a
+ * failure is ignored here: opening the tab loads it again and reports a real one.
+ */
+export function preloadRecordTab(def: RecordTabDef, queryClient: QueryClient, id: string, can: Can): void {
+  void def.panel.preload?.().catch(() => {})
+  void def.prefetch?.(queryClient, id, can).catch(() => {})
+}
+
 /** The tabs this user sees; a hidden tab is neither rendered nor reachable by its URL. */
 export function visibleRecordTabs(can: Can): RecordTabDef[] {
   return RECORD_TAB_DEFS.filter((def) => def.visible(can))
