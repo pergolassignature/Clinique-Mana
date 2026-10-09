@@ -7,12 +7,13 @@ import { formatTaxNumber } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
 import { SENSITIVE_INPUT_PROPS } from '@/shared/lib/sensitive-input'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { cn } from '@/shared/lib/utils'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { SubmissionPrivateInput } from '../../api/self'
 import { isRefusal, isTransient, reportQuestionnaireError, useSaveMyPrivate } from '../../hooks/use-my-submission'
 import { depositStarted, taxBankSchema, toTaxBankValues, type TaxBankValues } from '../../schemas/questionnaire'
-import { FIELD_GRID, FieldGroup, OnFileError, StepActions, StepAlert, StepForm } from './StepParts'
+import { FIELD_GRID, FieldGroup, OnFileError, STEP_BODY, StepActions, StepAlert, StepForm } from './StepParts'
 import { refusalTarget, type StepContext } from './use-step-form'
 
 const T = 'modules.professionals.questionnaire.taxBank'
@@ -32,7 +33,7 @@ export function TaxBankStep({ ctx }: { ctx: StepContext }) {
   const { submission, onFile } = ctx
   if (onFile.failed && !submission.private) {
     return (
-      <div className="space-y-4">
+      <div className={cn('space-y-4', STEP_BODY)}>
         <OnFileError onFile={onFile} />
         <StepActions back={ctx.back} pending={false} inactive />
       </div>
