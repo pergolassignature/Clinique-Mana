@@ -29,8 +29,8 @@ const FINAL_REFUSALS: ReadonlySet<string> = new Set(['account', 'status', 'invit
 /**
  * The confirmation of an invitation action (Task 4b.3): who, which address, what happens to the
  * link already sent. « Envoyer l'invitation », « Renvoyer l'invitation » and « Envoyer un nouveau
- * lien » email a new link to the file's address and revoke the previous one (P4-260: the link is
- * never shown); « Révoquer l'invitation » stops the link (and closes the questionnaire if one was
+ * lien » email a new link to the file's address and revoke the previous one (the link itself is
+ * shown only by « Copier le lien d'invitation », P4-491); « Révoquer l'invitation » stops the link (and closes the questionnaire if one was
  * sent, P4-301), destructive here only. The outcome is a toast. A refusal stays in the dialog, the
  * record refetched; one that a retry cannot change (FINAL_REFUSALS, by HINT) leaves « Fermer »
  * only, as the activation does. One call at a time: a second press before the first one renders

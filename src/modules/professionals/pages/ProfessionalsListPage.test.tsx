@@ -193,7 +193,7 @@ describe('ProfessionalsListPage', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
     const states = new Map([
-      [HELENE.id, { invitation: { state: 'sent' as const, sentAt: '2026-10-04T14:00:00Z', expiresAt: '2026-10-11T14:00:00Z', openedAt: null, usedAt: null }, submission: null, onboardingApproved: false }],
+      [HELENE.id, { invitation: { state: 'sent' as const, sentAt: '2026-10-04T14:00:00Z', expiresAt: '2026-10-11T14:00:00Z', openedAt: null, usedAt: null, delivery: 'email' as const, emailStatus: 'delivered', emailError: null }, submission: null, onboardingApproved: false }],
       [MARIE.id, { invitation: null, submission: { id: 's1', kind: 'update' as const, status: 'submitted' as const, submittedAt: '2026-10-07T12:00:00Z' }, onboardingApproved: true }],
       [PAUL.id, { invitation: null, submission: null, onboardingApproved: true }],
     ])

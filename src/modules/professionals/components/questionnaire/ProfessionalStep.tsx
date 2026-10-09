@@ -114,6 +114,14 @@ function Professions({ form, catalog }: { form: UseFormReturn<ProfessionalValues
   )
 }
 
+/** « Titre », « N° de permis » and « Retirer »: two field columns and the button's, from `sm`. */
+const TITLE_ROW = 'grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
+/**
+ * « Retirer », always in the third column (even without a licence field), level with the inputs:
+ * pushed down by the fields' label line (18 px) and its 4 px gap; the button is as tall as an input.
+ */
+const TITLE_ROW_REMOVE = 'flex justify-end sm:col-start-3 sm:pt-[22px]'
+
 interface ProfessionRowProps {
   form: UseFormReturn<ProfessionalValues>
   catalog: CatalogView
@@ -123,7 +131,11 @@ interface ProfessionRowProps {
   onRemove: () => void
 }
 
-/** One title: « Titre », its licence when the title has an order, « Titre principal » and « Retirer ». */
+/**
+ * One title: « Titre », its licence when the title has an order, and « Retirer » on the same row (from
+ * `sm`: a third column, the button level with the fields' inputs; on a phone, under them on the right);
+ * « Titre principal » under the row when there are two titles.
+ */
 function ProfessionRow({ form, catalog, index, rows, radioName, onRemove }: ProfessionRowProps) {
   const items = useWatch({ control: form.control, name: 'professions' })
   const item = items[index] ?? { titleId: '', licenceNumber: '', isPrimary: false }
@@ -138,7 +150,7 @@ function ProfessionRow({ form, catalog, index, rows, radioName, onRemove }: Prof
 
   return (
     <div role="group" aria-label={rowLabel} className={cn('space-y-3', index > 0 && 'border-t border-border-light pt-3')}>
-      <div className={FIELD_GRID}>
+      <div className={TITLE_ROW}>
         <FormField label={t(`${E}.titleField`)} required error={errors?.titleId?.message}>
           {(field) => (
             <Controller
@@ -171,9 +183,14 @@ function ProfessionRow({ form, catalog, index, rows, radioName, onRemove }: Prof
             {(field) => <Input {...field} {...form.register(`professions.${index}.licenceNumber`)} autoComplete="off" className="tabular" />}
           </FormField>
         )}
+        <div className={TITLE_ROW_REMOVE}>
+          <Button type="button" variant="ghost" aria-label={titleName ? t(`${E}.removeLabel`, { name: titleName }) : t(`${E}.removeEmpty`)} onClick={onRemove}>
+            {t(`${E}.remove`)}
+          </Button>
+        </div>
       </div>
-      <div className="flex min-h-8 items-center justify-between gap-3">
-        {rows > 1 ? (
+      {rows > 1 && (
+        <div className="flex min-h-8 items-center">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="radio"
@@ -185,13 +202,8 @@ function ProfessionRow({ form, catalog, index, rows, radioName, onRemove }: Prof
             />
             <span aria-hidden>{t(`${E}.primary`)}</span>
           </label>
-        ) : (
-          <span />
-        )}
-        <Button type="button" variant="ghost" size="sm" aria-label={titleName ? t(`${E}.removeLabel`, { name: titleName }) : t(`${E}.removeEmpty`)} onClick={onRemove}>
-          {t(`${E}.remove`)}
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
