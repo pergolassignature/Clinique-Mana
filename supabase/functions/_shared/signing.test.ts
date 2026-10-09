@@ -825,9 +825,57 @@ Deno.test('createSignatureRequest: a missing required value → missing_variable
     const s = setup()
     assertEquals(
       await createSignatureRequest(s.deps, input({ values: {} })),
-      { ok: false, code: 'missing_variable', requestId: null },
+      {
+        ok: false,
+        code: 'missing_variable',
+        requestId: null,
+        variable: { path: 'professional.name', label: 'Nom' },
+      },
     )
     assertEquals(s.db.requests.size, 0)
+  })
+})
+
+Deno.test("createSignatureRequest: the module's blocks replace their block placeholder (P4-433), unfilled", async () => {
+  await run(async () => {
+    const s = setup()
+    version.variables.push({
+      path: 'pricing.annexe_a',
+      label: 'Annexe A',
+      sample: '(tableau)',
+      required: true,
+      kind: 'text',
+    })
+    version.body = {
+      ...body,
+      blocks: [
+        { type: 'paragraph', runs: [{ text: '{{pricing.annexe_a}}' }] },
+        ...body.blocks,
+      ],
+    }
+    try {
+      const result = await createSignatureRequest(
+        s.deps,
+        input({
+          blocks: {
+            'pricing.annexe_a': [{
+              type: 'table',
+              columns: [{ label: 'Séances', width: 1 }],
+              rows: [['{{clinic.name}}']],
+            }],
+          },
+        }),
+      )
+      assert(result.ok, JSON.stringify(result))
+    } finally {
+      version.body = body
+      version.variables.pop()
+    }
+    assertEquals(s.rendered[0].blocks[0], {
+      type: 'table',
+      columns: [{ label: 'Séances', width: 1 }],
+      rows: [['{{clinic.name}}']],
+    })
   })
 })
 

@@ -123,7 +123,8 @@ select functions_are('public', array[
   'set_professional_document_expiry', 'delete_professional_document', 'get_professional_documents',
   'run_professionals_document_notices_for_service', 'cancel_professional_submission',
   'get_consent_versions', 'save_consent_draft', 'publish_consent_version', 'discard_consent_draft',
-  'get_professional_document_rejection_for_service'
+  'get_professional_document_rejection_for_service',
+  'prepare_professional_contract', 'get_professional_contract'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

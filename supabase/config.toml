@@ -162,3 +162,8 @@ verify_jwt = false
 # « Refuser » a document, then the professional's email (Task 4c.3; verifyAuth, professionals.documents.review).
 [functions.professionals-documents]
 verify_jwt = false
+
+# The service contract: « Préparer et envoyer », « Renvoyer », « Régénérer » (Task 4d.2; verifyAuth,
+# module professionals, professionals.contracts.send and professionals.compensation). Renders.
+[functions.professionals-contract-send]
+verify_jwt = false

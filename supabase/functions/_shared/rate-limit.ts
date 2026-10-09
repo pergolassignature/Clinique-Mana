@@ -99,6 +99,16 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `professionals-contract-send` (send, « Renvoyer », « Régénérer »), per
+   * caller: each call may render a contract and call Documenso, which emails
+   * the professional.
+   */
+  professionalContractUser: {
+    bucket: 'professionals.contract_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
    * `storage-upload`, per caller: each call creates a pending row and signs
    * an upload of up to the purpose's size cap.
    */

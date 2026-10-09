@@ -4,6 +4,8 @@ import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { useNow } from '@/shared/lib/use-now'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { useProfessionalContract } from '../../hooks/use-contracts'
+import { contractProgress } from '../../lib/contract'
 import { nextAction } from '../../lib/readiness'
 import type { InviteAction } from '../../lib/onboarding'
 import { ActivateDialog } from './ActivateDialog'
@@ -24,7 +26,12 @@ export function NextActionCard() {
   const { user_id } = useReadyAccess()
   // A minute is enough: the sentences name days (« expiré le 15 oct. »).
   const now = useNow(60_000)
-  const { message, action } = nextAction(record, onboarding, can, now, user_id)
+  // The contract card only when the contract is the last gap (one read then, none otherwise).
+  const { readiness } = record
+  const contractItem = readiness.items.find((i) => i.key === 'contract_signed')
+  const contractLast = !readiness.complete && contractItem !== undefined && !contractItem.done && readiness.items.every((i) => i === contractItem || i.done)
+  const contract = useProfessionalContract(record.professional.id, contractLast)
+  const { message, action } = nextAction(record, onboarding, can, now, user_id, contractLast ? contractProgress(contract.data, now) : null)
   const [dialog, setDialog] = useState<'activate' | InviteAction | null>(null)
   const button = useRef<HTMLButtonElement>(null)
   const restoreFocus = (event: Event) => focusAfterClose(event, [button.current], focusHeading)

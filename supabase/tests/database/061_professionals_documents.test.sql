@@ -506,7 +506,7 @@ update public.document_types set required = true where org_id = current_setting(
 set local role authenticated;
 select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'items' -> 3,
   '{"key": "documents", "done": false, "missing": ["other_documents"]}'::jsonb, 'a refused CV does not count; other required types are named together');
-select is((public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') ->> 'total')::int, 4, 'four readiness items');
+select is((public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') ->> 'total')::int, 5, 'five readiness items (4d.1 adds the contract)');
 reset role;
 update public.document_types set required = false where org_id = current_setting('test.a')::uuid and key = 'cv';
 

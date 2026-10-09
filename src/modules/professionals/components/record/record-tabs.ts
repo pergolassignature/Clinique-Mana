@@ -47,12 +47,20 @@ async function prefetchCompensationTab(queryClient: QueryClient, id: string, can
 }
 
 /**
- * Documents: the file's submissions (« Questionnaire et mises à jour », Task 4b.5) and its documents
- * (Task 4c.3), in parallel; the hooks ship in the tab's chunk.
+ * Documents: the contract card (Task 4d.3), the file's submissions (« Questionnaire et mises à
+ * jour », Task 4b.5) and its documents (Task 4c.3), in parallel; the hooks ship in the tab's chunk.
  */
 async function prefetchDocumentsTab(queryClient: QueryClient, id: string): Promise<void> {
-  const [submissions, documents] = await Promise.all([import('../../hooks/use-submissions'), import('../../hooks/use-documents')])
-  await Promise.all([submissions.prefetchProfessionalSubmissions(queryClient, id), documents.prefetchProfessionalDocuments(queryClient, id)])
+  const [submissions, documents, contracts] = await Promise.all([
+    import('../../hooks/use-submissions'),
+    import('../../hooks/use-documents'),
+    import('../../hooks/use-contracts'),
+  ])
+  await Promise.all([
+    submissions.prefetchProfessionalSubmissions(queryClient, id),
+    documents.prefetchProfessionalDocuments(queryClient, id),
+    contracts.prefetchProfessionalContract(queryClient, id),
+  ])
 }
 
 /** Historique: its first page (its compensation rows need no other list, P4-193) and the emails (4b.3). */

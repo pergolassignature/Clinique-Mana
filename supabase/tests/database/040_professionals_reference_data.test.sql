@@ -89,11 +89,11 @@ $$, $$ values ('professionals.activate_override'::text, 'professionals'::text),
 
 select results_eq($$ select permission_key from public.role_permissions
                       where role = 'admin' and permission_key like 'professionals.%' order by 1 $$,
-  array['professionals.activate_override', 'professionals.compensation', 'professionals.documents.delete',
-        'professionals.documents.review', 'professionals.invite', 'professionals.manage',
+  array['professionals.activate_override', 'professionals.compensation', 'professionals.contracts.send',
+        'professionals.documents.delete', 'professionals.documents.review', 'professionals.invite', 'professionals.manage',
         'professionals.matching', 'professionals.private', 'professionals.review', 'professionals.self', 'professionals.settings',
         'professionals.view'],
-  'template: admin holds every professionals permission (4b.1 adds invite and review, 4c.2 the two document keys)');
+  'template: admin holds every professionals permission (4b.1 adds invite and review, 4c.2 the two document keys, 4d.1 contracts.send)');
 select results_eq($$ select permission_key from public.role_permissions
                       where role = 'admin_assistant' and permission_key like 'professionals.%' order by 1 $$,
   array['professionals.documents.review', 'professionals.invite', 'professionals.manage', 'professionals.matching',

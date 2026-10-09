@@ -1,4 +1,4 @@
-import { CircleUser, Compass, FileCheck, FileText, FolderOpen, GraduationCap, HandCoins, Languages, Send, ShieldCheck, Tags, UserMinus, Users } from 'lucide-react'
+import { CircleUser, Compass, FileCheck, FileSignature, FileText, FolderOpen, GraduationCap, HandCoins, Languages, Send, ShieldCheck, Tags, UserMinus, Users } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -150,6 +150,16 @@ export const professionalsManifest: ModuleManifest = {
       icon: FileText,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/FicheSettingsPage'), 'FicheSettingsPage'),
+    },
+    {
+      // The service contract's template (Task 4d.3, A5.7): seen by whoever manages records or edits
+      // the module's settings, changed with `professionals.settings` (the template's edit permission).
+      id: 'contracts',
+      path: 'contrats',
+      labelKey: 'modules.professionals.settings.contracts.title',
+      icon: FileSignature,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/ContractsSettingsPage'), 'ContractsSettingsPage'),
     },
     {
       // The invitation link's lifetime and the automatic reminder (Task 4b.3): seen by whoever

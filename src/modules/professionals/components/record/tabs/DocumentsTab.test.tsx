@@ -21,10 +21,13 @@ const mocks = vi.hoisted(() => ({
   },
   private: { fetchProfessionalPrivate: vi.fn() },
   documents: { fetchProfessionalDocuments: vi.fn() },
+  contracts: { fetchProfessionalContract: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/record')>()), ...mocks.record }))
 vi.mock('../../../api/submissions', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/submissions')>()), ...mocks.submissions }))
+// The contract card atop the tab (Task 4d.3) has its own tests (ContractCard.test.tsx): none sent here.
+vi.mock('../../../api/contracts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/contracts')>()), ...mocks.contracts }))
 vi.mock('../../../api/private', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/private')>()), ...mocks.private }))
 vi.mock('../../../api/documents', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/documents')>()), ...mocks.documents }))
 vi.mock('@/core/storage/hooks', () => ({ useSignedFileUrl: () => ({ data: { url: 'https://files.test/x' }, isError: false, refetch: vi.fn() }) }))
@@ -40,6 +43,7 @@ beforeEach(() => {
   mocks.submissions.fetchSubmissionReview.mockResolvedValue(submissionReview())
   mocks.private.fetchProfessionalPrivate.mockResolvedValue({ bankAccountLast4: '4567', sinLast3: null })
   mocks.documents.fetchProfessionalDocuments.mockResolvedValue(documentsFixture())
+  mocks.contracts.fetchProfessionalContract.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null })
 })
 afterEach(() => vi.clearAllMocks())
 

@@ -45,6 +45,11 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * |                                          | readiness counts required types)                               |
  * | a consent version saved, published or    | `professionalsSettingsKeys.consents()`                         |
  * | discarded (« Consentements »)            |                                                                |
+ * | a contract sent, re-sent, regenerated or | `record(id)` (its `contract(id)` too: readiness follows the    |
+ * | synchronised (4d.3)                      | contract), `lists()`, `history(id)` (first page)               |
+ * | a contract template's version saved,     | `contractTemplateKeys.all` (the list and the versions), and    |
+ * | published or archived (4d.3)             | for a publication every `contract(…)` alone (`isContractKey`,  |
+ * |                                          | « Aucun modèle publié »), never the records around them        |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
  */
@@ -70,6 +75,11 @@ export const professionalKeys = {
    * `record(id)`, so every record refresh (an invitation, an apply, a refusal) refreshes it.
    */
   submissions: (id: string) => [...professionalKeys.record(id), 'submissions'] as const,
+  /**
+   * The contract card (`get_professional_contract`, Task 4d.3): under `record(id)`, so every
+   * record refresh refreshes it (a signed contract completes the readiness).
+   */
+  contract: (id: string) => [...professionalKeys.record(id), 'contract'] as const,
   /** One submission's review (`get_submission_review`), read when its sheet opens; dropped once decided. */
   submissionReview: (submissionId: string) => [...professionalKeys.all, 'submission-review', submissionId] as const,
   /**
@@ -126,4 +136,15 @@ export const compensationTermsKeys = {
   all: ['compensation-terms'] as const,
   kinds: () => [...compensationTermsKeys.all, 'kinds'] as const,
   terms: () => [...compensationTermsKeys.all, 'terms'] as const,
+}
+
+/** Every record's contract card (`professionalKeys.contract(id)`), and nothing else of the records. */
+export const isContractKey = (queryKey: readonly unknown[]) =>
+  queryKey.length === 4 && queryKey[0] === professionalKeys.all[0] && queryKey[1] === 'record' && queryKey[3] === 'contract'
+
+/** « Paramètres → Contrats » (Task 4d.3): the module's document templates and each one's versions. */
+export const contractTemplateKeys = {
+  all: ['contract-templates'] as const,
+  list: () => [...contractTemplateKeys.all, 'list'] as const,
+  versions: (templateId: string) => [...contractTemplateKeys.all, 'versions', templateId] as const,
 }

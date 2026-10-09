@@ -186,13 +186,16 @@ describe('OverviewTab — Profil de jumelage', () => {
   })
 
   it('has no « Modifier » without professionals.matching', () => {
+    // « Prochaine action » may read the contract card (Task 4d.3): a query client, as in the app.
     render(
-      renderWithContexts(
-        <RecordContext.Provider value={{ record: recordFixture(), catalog: CATALOG_VIEW, onboarding: null, focusHeading: () => {} }}>
-          <OverviewTab />
-        </RecordContext.Provider>,
-        { access: { access: accessForRole('counselor', { permissions: ['professionals.view'] }) } },
-      ),
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        {renderWithContexts(
+          <RecordContext.Provider value={{ record: recordFixture(), catalog: CATALOG_VIEW, onboarding: null, focusHeading: () => {} }}>
+            <OverviewTab />
+          </RecordContext.Provider>,
+          { access: { access: accessForRole('counselor', { permissions: ['professionals.view'] }) } },
+        )}
+      </QueryClientProvider>,
     )
     
     expect(screen.queryByRole('link', { name: t(`${O}.matching.edit`) })).not.toBeInTheDocument()

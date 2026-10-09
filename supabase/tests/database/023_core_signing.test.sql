@@ -166,6 +166,9 @@ values
 insert into public.organizations (id, name, timezone) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A', 'America/Toronto'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B', 'America/Toronto');
+-- Professionnels seeds « Contrat de service » (a draft) in every new clinic (4d.1): these tests list
+-- their own templates only.
+delete from public.document_templates where key = 'professionals.service_contract';
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',         'admin@a.test',    'active'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe D',      'adjointe@a.test', 'active'),
