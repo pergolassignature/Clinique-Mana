@@ -111,6 +111,9 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
   const sends = buttons.some((b) => b.kind === 'action')
   const noTemplate = sends && contract.publishedVersion === null
   const pending = send.isPending || sync.isPending
+  // « Renvoyer » writes to the next signer: the clinic once the professional has signed.
+  const next = request?.signers.find((s) => s.signedAt === null && s.rejectedAt === null)
+  const recipientOf = (action: ContractAction) => (action === 'resend' && next && next.role !== 'professional' ? next.name : professional.firstName)
 
   const confirm = (action: ContractAction) => {
     setRefusal(null)
@@ -119,7 +122,7 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
   const run = () => {
     if (confirming === null) return
     const action = confirming
-    send.run(action)
+    send.run(action, recipientOf(action))
     setConfirming(null)
   }
 
@@ -250,10 +253,10 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
           {confirming !== null && (
             <>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t(`${C}.confirm.${confirming}.title`, { firstName: professional.firstName })}</AlertDialogTitle>
+                <AlertDialogTitle>{t(`${C}.confirm.${confirming}.title`, { firstName: recipientOf(confirming) })}</AlertDialogTitle>
                 <AlertDialogDescription>
                   {t(`${C}.confirm.${confirming}.body`, {
-                    firstName: professional.firstName,
+                    firstName: recipientOf(confirming),
                     version: String(contract.publishedVersion ?? ''),
                   })}
                 </AlertDialogDescription>

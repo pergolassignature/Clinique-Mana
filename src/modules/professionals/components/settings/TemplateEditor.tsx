@@ -7,7 +7,7 @@ import { SettingsCard } from '@/shared/components/SettingsCard'
 import { SwitchField } from '@/shared/components/SwitchField'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
-import { formatClinicDateShort } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import {
   AlertDialog,
@@ -94,6 +94,13 @@ function previewText(): PreviewText {
     date: t(`${N}.preview.date`),
     page: t(`${N}.preview.page`),
   }
+}
+
+/** A sample as the PDF prints its kind: « 8 octobre 2026 » for a date, the clinic's time for a date and time. */
+function sampleText(variable: TemplateVersion['variables'][number]): string {
+  if (variable.kind === 'date' && /^\d{4}-\d{2}-\d{2}/.test(variable.sample)) return formatDateOnly(variable.sample)
+  if (variable.kind === 'datetime' && !Number.isNaN(Date.parse(variable.sample))) return formatClinicDateTime(variable.sample)
+  return variable.sample
 }
 
 function versionLabel(version: TemplateVersion): string {
@@ -189,7 +196,7 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
   const banner = hasValidationBanner(draft.markup)
   const annexe = hasAnnexePlaceholder(draft.markup)
   const pending = save.isPending || publish.isPending || archive.isPending
-  const samples = Object.fromEntries(version.variables.map((v) => [v.path, v.sample]))
+  const samples = Object.fromEntries(version.variables.map((v) => [v.path, sampleText(v)]))
   const publishBlocked = dirty ? t(`${N}.publishBlocked.unsaved`) : banner ? t(`${N}.publishBlocked.banner`) : !annexe ? t(`${N}.publishBlocked.annexe`, { placeholder: ANNEXE_PLACEHOLDER }) : null
 
   const onSave = (event: FormEvent<HTMLFormElement>) => {

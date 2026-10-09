@@ -1907,23 +1907,23 @@
             "withdrawn": "a enregistré le retrait du consentement au droit à l'image"
           },
           "contract": {
-            "sent": "Contrat de service envoyé pour signature",
-            "signed": "Contrat de service signé (PDF signé conservé au dossier)",
-            "rejected": "Contrat de service refusé",
-            "cancelled": "Contrat de service annulé",
-            "expired": "Contrat de service expiré sans signature",
+            "sent": "a envoyé le contrat de service pour signature",
+            "signed": "a conservé au dossier le contrat de service signé (PDF signé)",
+            "rejected": "a enregistré le refus du contrat de service",
+            "cancelled": "a annulé le contrat de service",
+            "expired": "a constaté que le contrat de service a expiré sans signature",
             "signer": {
               "viewed": {
-                "professional": "Contrat de service consulté par le professionnel",
-                "clinic": "Contrat de service consulté par la clinique"
+                "professional": "a noté que le professionnel a consulté le contrat de service",
+                "clinic": "a noté que la clinique a consulté le contrat de service"
               },
               "signed": {
-                "professional": "Contrat de service signé par le professionnel",
-                "clinic": "Contrat de service signé par la clinique"
+                "professional": "a noté que le professionnel a signé le contrat de service",
+                "clinic": "a noté que la clinique a signé le contrat de service"
               },
               "rejected": {
-                "professional": "Contrat de service refusé par le professionnel",
-                "clinic": "Contrat de service refusé par la clinique"
+                "professional": "a noté que le professionnel a refusé le contrat de service",
+                "clinic": "a noté que la clinique a refusé le contrat de service"
               }
             }
           },
@@ -3126,7 +3126,7 @@
       },
       "contract": {
         "title": "Contrat de service",
-        "description": "Envoyé à {firstName} pour signature électronique. Le PDF signé est conservé au dossier dès qu'il existe.",
+        "description": "Le contrat est envoyé à {firstName} pour signature électronique. Le PDF signé est conservé au dossier dès qu'il existe.",
         "loadError": "Le contrat n'a pas pu être chargé.",
         "state": {
           "none": "Aucun contrat",

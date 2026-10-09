@@ -77,21 +77,33 @@ export function contractErrorMessage(error: unknown): string | null {
 }
 
 /**
+ * Whether a failed send may have left work under its key (a request, an envelope): then the retry
+ * keeps the key, so it resumes that work. Not after a missing value (the snapshot was written with
+ * the empty value, and the first write wins: the same key would print it again once the file is
+ * completed) nor after a refusal (nothing was written).
+ */
+function keepsKey(error: unknown): boolean {
+  return error instanceof FunctionCallError && error.code !== 'missing_variable'
+}
+
+/**
  * « Préparer et envoyer », « Réessayer l'envoi », « Renvoyer », « Régénérer »: `run(action)` draws
  * an idempotency key per action and keeps it until that action succeeds, so a retry after a
- * failure is the same request (P4-434), and a double click one request. Toasts here, so the outcome
- * shows even if the card unmounts.
+ * failure that may have sent something is the same request (P4-434), and a double click one
+ * request; after a missing value or a refusal, the next try draws a new key (`keepsKey`). Toasts
+ * here, so the outcome shows even if the card unmounts.
  */
 export function useSendContract(professionalId: string, firstName: string, feedback?: MutationFeedback) {
   const queryClient = useQueryClient()
   const keys = useRef<Partial<Record<ContractAction, string>>>({})
   const mutation = useMutation({
-    mutationFn: ({ action, key }: { action: ContractAction; key: string }) => sendProfessionalContract(professionalId, action, key),
-    onSuccess: (_id, { action }) => {
+    mutationFn: ({ action, key }: { action: ContractAction; key: string; recipient: string }) => sendProfessionalContract(professionalId, action, key),
+    onSuccess: (_id, { action, recipient }) => {
       delete keys.current[action]
-      toast.success(t(`${T}.${action}`, { firstName }))
+      toast.success(t(`${T}.${action}`, { firstName: recipient }))
     },
-    onError: (error) => {
+    onError: (error, { action }) => {
+      if (!keepsKey(error)) delete keys.current[action]
       const message = contractErrorMessage(error)
       if (message === null) showMutationError(queryClient, error, feedback)
       else if (feedback?.onErrorMessage) feedback.onErrorMessage(message, error)
@@ -99,9 +111,10 @@ export function useSendContract(professionalId: string, firstName: string, feedb
     },
     onSettled: () => refreshAfterContract(queryClient, professionalId),
   })
-  const run = (action: ContractAction) => {
+  /** `recipient`: who « Renvoyer » writes to (the next signer); the professional otherwise. */
+  const run = (action: ContractAction, recipient: string = firstName) => {
     keys.current[action] ??= crypto.randomUUID()
-    mutation.mutate({ action, key: keys.current[action] })
+    mutation.mutate({ action, key: keys.current[action], recipient })
   }
   return { run, isPending: mutation.isPending, pendingAction: mutation.isPending ? mutation.variables?.action : undefined }
 }

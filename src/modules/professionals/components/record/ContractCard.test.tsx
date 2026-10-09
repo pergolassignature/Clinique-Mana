@@ -107,6 +107,26 @@ describe('ContractCard (Task 4d.3)', () => {
     await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'regenerate', expect.any(String)))
   })
 
+  it('« Renvoyer » names the next signer: the clinic once the professional has signed', async () => {
+    mocks.contracts.sendProfessionalContract.mockResolvedValue(REQUEST_ID)
+    await openCard(
+      contractJson(
+        requestJson({
+          status: 'viewed',
+          signers: [
+            { role: 'professional', name: 'Marie Tremblay', status: 'signed', signing_order: 1, viewed_at: '2026-10-09T13:00:00+00:00', signed_at: '2026-10-09T13:05:00+00:00', rejected_at: null },
+            { role: 'clinic', name: 'Dominique Exemple', status: 'pending', signing_order: 2, viewed_at: null, signed_at: null, rejected_at: null },
+          ],
+        }),
+      ),
+    )
+    await userEvent.click(screen.getByRole('button', { name: t(`${A}.resend`) }))
+    const dialog = await screen.findByRole('alertdialog', { name: t(`${C}.confirm.resend.title`, { firstName: 'Dominique Exemple' }) })
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${C}.confirm.resend.action`) }))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.toasts.resend`, { firstName: 'Dominique Exemple' })))
+    expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'resend', expect.any(String))
+  })
+
   it('a failed send shows its reason in the card', async () => {
     mocks.contracts.sendProfessionalContract.mockRejectedValue(new FunctionCallError('missing_variable', 400, 'x', { label: 'Adresse du professionnel' }))
     await openCard(contractJson(null))

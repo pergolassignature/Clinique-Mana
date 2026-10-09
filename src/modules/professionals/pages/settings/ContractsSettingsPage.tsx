@@ -83,15 +83,18 @@ export function ContractsSettingsPage() {
           ) : (
             <>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <SegmentedToggle
-                  label={t(`${N}.list.filterLabel`)}
-                  value={filter}
-                  onChange={setFilter}
-                  options={FILTERS.map((value) => ({
-                    value,
-                    label: t(`${N}.list.filter`, { label: t(`${N}.list.filters.${value}`), count: String(all.filter((tpl) => matches(tpl, value)).length) }),
-                  }))}
-                />
+                {/* Five filters do not fit a phone: they scroll inside the card, never the page. */}
+                <div className="min-w-0 max-w-full overflow-x-auto">
+                  <SegmentedToggle
+                    label={t(`${N}.list.filterLabel`)}
+                    value={filter}
+                    onChange={setFilter}
+                    options={FILTERS.map((value) => ({
+                      value,
+                      label: t(`${N}.list.filter`, { label: t(`${N}.list.filters.${value}`), count: String(all.filter((tpl) => matches(tpl, value)).length) }),
+                    }))}
+                  />
+                </div>
                 <Input
                   type="search"
                   aria-label={t(`${N}.list.search`)}

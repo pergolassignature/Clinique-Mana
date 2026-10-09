@@ -66,6 +66,22 @@ describe('useSendContract (P4-434: one key per action until it succeeds)', () =>
     expect(invalidated()).toEqual(expect.arrayContaining([professionalKeys.record(IDS.professional), professionalKeys.lists(), professionalKeys.history(IDS.professional)]))
   })
 
+  it('draws a new key after a missing value or a refusal (the first snapshot kept the empty value)', async () => {
+    const { wrapper } = setupQueryClient()
+    mocks.api.sendProfessionalContract
+      .mockRejectedValueOnce(new FunctionCallError('missing_variable', 400, 'x', { label: 'Adresse de la clinique' }))
+      .mockRejectedValueOnce({ code: 'P0001', message: 'Aucun modèle de contrat publié.' })
+      .mockResolvedValue(REQUEST_ID)
+    const { result } = renderHook(() => useSendContract(IDS.professional, 'Marie', { onErrorMessage: vi.fn() }), { wrapper })
+    for (let i = 1; i <= 3; i++) {
+      act(() => result.current.run('send'))
+      await waitFor(() => expect(mocks.api.sendProfessionalContract).toHaveBeenCalledTimes(i))
+      await waitFor(() => expect(result.current.isPending).toBe(false))
+    }
+    const keys = mocks.api.sendProfessionalContract.mock.calls.map(([, , key]) => key as string)
+    expect(new Set(keys).size).toBe(3)
+  })
+
   it('draws one key per action', async () => {
     const { wrapper } = setupQueryClient()
     mocks.api.sendProfessionalContract.mockRejectedValue(new FunctionCallError('provider_error', 502, 'x'))

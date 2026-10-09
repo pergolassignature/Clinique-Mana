@@ -515,9 +515,10 @@ const isOneOf = <T extends string>(list: readonly T[], value: string): value is 
 
 /**
  * The service contract (Task 4d.1): `list_professional_history` returns only the rows that move a
- * status, a signer's with its `role`. « Contrat de service envoyé pour signature », « signé »,
- * « refusé », « annulé », « expiré »; « consulté / signé / refusé par le professionnel (la
- * clinique) ». The request's own « consulté » is the signer's, so it is not repeated. Titles,
+ * status, a signer's with its `role`, each a verb after its actor (« Le système a envoyé le
+ * contrat de service pour signature », « … a noté que le professionnel a signé le contrat de
+ * service »): envoyé, signé (the PDF stored), refusé, annulé, expiré; consulté / signé / refusé
+ * by each signer. The request's own « consulté » is the signer's, so it is not repeated. Titles,
  * names, addresses and reasons are redacted by core's audit and never shown.
  */
 function contractRow(entry: HistoryEntry): Described | null {
