@@ -3968,7 +3968,6 @@ export type Database = {
           completed_at: string | null
           completed_event_at: string | null
           created_at: string
-          documenso_document_id: string | null
           envelope_id: string | null
           expired_at: string | null
           expires_at: string | null
@@ -3991,7 +3990,6 @@ export type Database = {
           status: string
           subject_id: string
           subject_type: string
-          superseded_document_ids: string[]
           superseded_envelope_ids: string[]
           template_version_id: string | null
           title: string
@@ -4005,7 +4003,6 @@ export type Database = {
           completed_at?: string | null
           completed_event_at?: string | null
           created_at?: string
-          documenso_document_id?: string | null
           envelope_id?: string | null
           expired_at?: string | null
           expires_at?: string | null
@@ -4028,7 +4025,6 @@ export type Database = {
           status?: string
           subject_id: string
           subject_type: string
-          superseded_document_ids?: string[]
           superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title: string
@@ -4042,7 +4038,6 @@ export type Database = {
           completed_at?: string | null
           completed_event_at?: string | null
           created_at?: string
-          documenso_document_id?: string | null
           envelope_id?: string | null
           expired_at?: string | null
           expires_at?: string | null
@@ -4065,7 +4060,6 @@ export type Database = {
           status?: string
           subject_id?: string
           subject_type?: string
-          superseded_document_ids?: string[]
           superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title?: string
@@ -5104,7 +5098,6 @@ export type Database = {
         Args: { p: Json }
         Returns: {
           created_at: string
-          documenso_document_id: string
           envelope_id: string
           existing: boolean
           id: string
@@ -5291,7 +5284,6 @@ export type Database = {
         Args: { p_id: string }
         Returns: {
           completed_at: string
-          documenso_document_id: string
           envelope_id: string
           expires_at: string
           id: string
@@ -5362,6 +5354,23 @@ export type Database = {
           record_id: string
           source: string
           table_name: string
+        }[]
+      }
+      list_document_template_versions: {
+        Args: { p_template_id: string }
+        Returns: {
+          archived_at: string
+          body: Json
+          created_at: string
+          email_message: string
+          email_subject: string
+          id: string
+          published_at: string
+          signers: Json
+          status: string
+          updated_at: string
+          variables: Json
+          version: number
         }[]
       }
       list_document_templates: {
@@ -5618,7 +5627,6 @@ export type Database = {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
           action: string
-          documenso_document_id: string
           envelope_id: string
           expires_at: string
           id: string
@@ -5815,6 +5823,10 @@ export type Database = {
           p_signer_recipients: Json
         }
         Returns: string
+      }
+      refund_rate_limit: {
+        Args: { p_bucket: string; p_key_hash: string; p_window_seconds: number }
+        Returns: undefined
       }
       register_system_file: {
         Args: {
@@ -6173,10 +6185,6 @@ export type Database = {
       set_user_status: {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
-      }
-      sign_my_consent: {
-        Args: { p_signer_name: string; p_version_id: string }
-        Returns: string
       }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }

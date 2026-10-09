@@ -129,14 +129,14 @@ $$, $$ values ('c0000000-0000-0000-0000-0000000000a1'::uuid, 'sync'::text),
   'every sent or viewed request is read at each run, even sent 10 minutes ago; the ones Documenso completed without their PDF come first (then expire, then by expiry); drafts keep their hour');
 select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a', 1) $$,
   $$ values ('c0000000-0000-0000-0000-0000000000a1'::uuid) $$, 'with a full page, a request known to be completed without its PDF comes first');
-select ok((select bool_and(l.documenso_document_id is null and l.envelope_id like 'envelope\_%')
+select ok((select bool_and(l.envelope_id like 'envelope\_%')
              from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a') l)
           and not exists (select 1 from pg_proc p
                            where p.oid in ('public.list_signature_requests_to_reconcile(uuid,int)'::regprocedure,
                                            'private.job_signing_unsaved_alert()'::regprocedure,
                                            'private.signing_unverified_requests(uuid)'::regprocedure)
                              and p.prosrc ~ 'documenso_document_id|superseded_document_ids'),
-  'built on the envelope (*_core_signing_envelope): the list returns the envelope id and a null document id; neither the list, the alert nor its unverified condition (*_core_signing_blind_alert) reads the deprecated columns');
+  'built on the envelope (*_core_signing_envelope): the list returns the envelope id; neither the list, the alert nor its unverified condition (*_core_signing_blind_alert) reads the deprecated columns');
 
 -- =============================================================================
 -- record_signature_sync and the rotation (service role)

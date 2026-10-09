@@ -21,7 +21,8 @@
  *    no key is the normal case).
  * 4. One hit on `LIMITS.placesUser` (600 an hour per caller), then one on
  *    `LIMITS.placesOrg` (3,000 an hour per org): either refused → 429; the
- *    limiter down → 503 (fails closed).
+ *    limiter down → 503 (fails closed). A refusal (or failure) of the org's
+ *    gives the caller's hit back (`refund`), so it never spends their quota.
  * 5. The Google call (`google.ts`: 5 s timeout, the caller's disconnect
  *    stops it). Answers `{ suggestions: [{ place_id, main_text,
  *    secondary_text }] }` (at most 5) or `{ address: { line1, line2, city,
@@ -53,7 +54,12 @@ import {
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { readJson } from '../_shared/http.ts'
-import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
+import {
+  consume,
+  limitResponse,
+  LIMITS,
+  refund,
+} from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
   autocomplete,
@@ -169,17 +175,23 @@ export function createHandler(
 
     const service = deps.serviceClient()
     if (service instanceof Response) return service
+    const userKey = [orgId, auth.user.id]
     const limited = limitResponse(
-      await consume(service, LIMITS.placesUser, [orgId, auth.user.id]),
+      await consume(service, LIMITS.placesUser, userKey),
       req,
     )
     if (limited) return limited
-    // The clinic's ceiling, whoever types (after the caller's own limit).
+    // The clinic's ceiling, whoever types. After the caller's own limit, so a
+    // person past it never spends the clinic's; when the clinic's refuses, the
+    // caller's hit is given back: a refused call costs no one's own quota.
     const orgLimited = limitResponse(
       await consume(service, LIMITS.placesOrg, [orgId]),
       req,
     )
-    if (orgLimited) return orgLimited
+    if (orgLimited) {
+      await refund(service, LIMITS.placesUser, userKey)
+      return orgLimited
+    }
 
     const options = {
       fetch: deps.fetch,

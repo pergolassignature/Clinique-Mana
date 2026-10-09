@@ -150,14 +150,11 @@ describe('templates and versions', () => {
   })
 
   it('reads a template’s versions, newest first', async () => {
-    const order = vi.fn().mockResolvedValue({ data: [versionJson()], error: null })
-    const eq = vi.fn(() => ({ order }))
-    const select = vi.fn(() => ({ eq }))
-    mocks.from.mockReturnValue({ select })
+    mocks.rpc.mockResolvedValue({ data: [versionJson()], error: null })
     const [version] = await fetchTemplateVersions(TEMPLATE_ID)
-    expect(mocks.from).toHaveBeenCalledWith('document_template_versions')
-    expect(eq).toHaveBeenCalledWith('template_id', TEMPLATE_ID)
-    expect(order).toHaveBeenCalledWith('version', { ascending: false })
+    // Core's RPC, never the table itself (module isolation, CLAUDE.md §5).
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('list_document_template_versions', { p_template_id: TEMPLATE_ID })
+    expect(mocks.from).not.toHaveBeenCalled()
     expect(version).toMatchObject({ id: DRAFT_ID, version: 1, status: 'draft', emailSubject: 'Votre contrat de service à signer' })
   })
 

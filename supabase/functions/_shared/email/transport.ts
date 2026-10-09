@@ -38,6 +38,7 @@
  * logs a recipient, a subject or a body.
  */
 import { isLocalAppUrl } from '../auth.ts'
+import { toBase64 } from '../bytes.ts'
 
 // Re-exported for send.ts and the tests (the helper lives in auth.ts).
 export { isLocalAppUrl }
@@ -161,16 +162,6 @@ const defaultSleep: Sleep = (ms, signal) =>
       resolve()
     }
   })
-
-/** Standard base64, in chunks so a 10 MB attachment does not overflow the call stack. */
-function toBase64(bytes: Uint8Array): string {
-  const CHUNK = 0x8000
-  let binary = ''
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
-  }
-  return btoa(binary)
-}
 
 /**
  * A display name that can neither close its quotes nor start a header, nor

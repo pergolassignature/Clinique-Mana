@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ChevronDown, Lock } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { Forbidden, NotFound } from '@/core/access/guards'
 import type { SettingsSection } from '@/core/modules/types'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
@@ -225,13 +226,12 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
                 }
               />
             ))}
+            {/* A section this user does not see reads « Accès refusé », like every page they may not
+                open; only a path that names no section is « Page introuvable ». */}
             <Route
               path="*"
               element={
-                <>
-                  <PageTitle title={t('pageTitles.settings')} />
-                  <FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} headingLevel={2} compact />
-                </>
+                sections.some((s) => isUnder(location.pathname, settingsSectionPath(s, basePath))) ? <Forbidden compact /> : <NotFound compact />
               }
             />
           </Routes>

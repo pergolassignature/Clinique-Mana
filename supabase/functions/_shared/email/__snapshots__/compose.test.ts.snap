@@ -24,12 +24,12 @@ snapshot[`composeEmail: staff-invite HTML snapshot (layout regressions) 1`] = `
 <td style="border-radius:4px;background-color:#1E837C;mso-padding-alt:12px 20px">
 <a href="https://app.cliniquemana.com/invitation#t=abc" target="_blank" style="display:inline-block;padding:12px 20px;border-radius:4px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;font-weight:600;color:#FFFFFF;text-decoration:none">Créer mon accès</a>
 </td></tr></table>
-<p style="margin:16px 0 0;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Si le bouton ne fonctionne pas, copiez ce lien :<br><span style="word-break:break-all">https://app.cliniquemana.com/invitation#t=abc</span></p>
+<p style="margin:16px 0 0;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Si le bouton ne fonctionne pas, copiez ce lien :<br><span style="word-break:break-all">https://app.cliniquemana.com/invitation#t=abc</span></p>
 </td></tr>
 </table>
 </td></tr>
 <tr><td style="padding:24px 28px 0;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">
-<p style="margin:0 0 12px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Clinique MANA<br>123, rue Saint-Denis<br>Bureau 200<br>Montréal QC H2X 1Y4<br>514 555-1234<br>https://cliniquemana.com<br>Confidentialité : Christine Tremblay, confidentialite@cliniquemana.com</p>
+<p style="margin:0 0 12px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Clinique MANA<br>123, rue Saint-Denis<br>Bureau 200<br>Montréal QC H2X 1Y4<br>514 555-1234<br>https://cliniquemana.com<br>Confidentialité : Christine Tremblay, confidentialite@cliniquemana.com</p>
 <p style="margin:0;padding:12px 0 0;border-top:1px solid #E4E4E7;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Vous recevez ce courriel parce que la clinique vous invite à créer votre accès.</p>
 </td></tr>
 </table>

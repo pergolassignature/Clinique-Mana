@@ -52,6 +52,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import type { Deps } from '../deps.ts'
 import { FunctionError } from '../errors.ts'
+import { UUID } from '../patterns.ts'
 import {
   consume,
   LIMITS,
@@ -179,7 +180,6 @@ const MAILBOX = new RegExp(
   'u',
 )
 /** A uuid, as `queue_email` returns (also the `email_log_id` tag value). */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_ADDRESS_LENGTH = 254
 /** A plain file name ending in `.pdf`: letters, digits, spaces and `'’()._-`. */
 const SAFE_FILENAME = /^[\p{L}\p{N}][\p{L}\p{N} '’()._-]{0,95}\.pdf$/iu

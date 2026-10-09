@@ -54,6 +54,7 @@ import {
   handleCors,
   isLocalAppUrl,
   jsonResponse,
+  parseOrigins,
   refusalResponse,
   verifyAuth,
 } from '../_shared/auth.ts'
@@ -146,8 +147,7 @@ export function returnBase(
   env: (key: string) => string | undefined,
 ): string {
   const origin = req.headers.get('Origin')
-  const allowed = (env('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim())
-    .filter(Boolean)
+  const allowed = parseOrigins(env('ALLOWED_ORIGINS')) ?? []
   if (origin && allowed.includes(origin)) return origin
   return env('APP_URL') ?? ''
 }

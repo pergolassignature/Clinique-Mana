@@ -4,6 +4,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
+import { testAccess } from '@/test/contexts'
 import { organizationKeys, useOrganization, useRemoveOrgAsset, useUpdateOrganization, useUploadOrgAsset } from './hooks'
 
 const mocks = vi.hoisted(() => ({
@@ -147,6 +148,39 @@ describe('useUpdateOrganization', () => {
     expect(fetchAccess).toHaveBeenCalledTimes(2)
     expect(mocks.toast.success).toHaveBeenCalledWith('Enregistré.')
     expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('writes the saved zone and name into the cached access at once, so a failed refetch keeps the new zone', async () => {
+    const { queryClient, wrapper } = setup()
+    const access = { ...testAccess, org_name: 'Clinique MANA', org_timezone: 'America/Toronto' }
+    const fetchAccess = vi.fn().mockResolvedValueOnce({ access }).mockRejectedValue({ code: '', message: 'TypeError: Failed to fetch' })
+    mocks.api.updateOrganization.mockResolvedValue({ ...SAVED, name: 'Clinique MANA Laval', timezone: 'America/Halifax' })
+
+    const { result } = renderHook(
+      () => ({
+        access: useQuery({ queryKey: accessKeys.me('u1'), queryFn: fetchAccess, retry: false }),
+        mutation: useUpdateOrganization('Enregistré.'),
+      }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.access.isSuccess).toBe(true))
+    result.current.mutation.mutate({ id: 'o1', patch: { timezone: 'America/Halifax' } })
+
+    await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true))
+    expect(fetchAccess).toHaveBeenCalledTimes(2)
+    expect(queryClient.getQueryData(accessKeys.me('u1'))).toEqual({
+      access: { ...access, org_name: 'Clinique MANA Laval', org_timezone: 'America/Halifax' },
+    })
+  })
+
+  it('leaves a cached access problem (no access payload) as it is', async () => {
+    const { queryClient, wrapper } = setup()
+    queryClient.setQueryData(accessKeys.me('u1'), { problem: 'no_role' })
+    mocks.api.updateOrganization.mockResolvedValue(SAVED)
+    const { result } = renderHook(() => useUpdateOrganization('Enregistré.'), { wrapper })
+    result.current.mutate({ id: 'o1', patch: { timezone: 'America/Toronto' } })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(queryClient.getQueryData(accessKeys.me('u1'))).toEqual({ problem: 'no_role' })
   })
 
   it('shows the success toast even if the page unmounted meanwhile', async () => {
