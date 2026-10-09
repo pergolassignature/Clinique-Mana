@@ -12,6 +12,7 @@ import {
   listLabel,
   motifIconLabel,
   periodsLabel,
+  placesLabel,
   primaryProfession,
   professionLine,
   statusLabel,
@@ -153,5 +154,20 @@ describe('listLabel', () => {
     expect(listLabel(['Anxiété'])).toBe('Anxiété')
     expect(listLabel(['Anxiété', 'Deuil'])).toBe('Anxiété et Deuil')
     expect(listLabel(['Anxiété', 'Deuil', 'Psychose'])).toBe('Anxiété, Deuil et Psychose')
+  })
+})
+
+describe('placesLabel (P4-382)', () => {
+  const now = Date.parse('2026-10-08T16:00:00Z')
+  it('says the number and since when, the year only when it is not this one', () => {
+    expect(placesLabel(4, '2026-10-08T14:00:00Z', now)).toBe('4 places offertes · depuis le 8 oct.')
+    expect(placesLabel(1, '2026-10-01T14:00:00Z', now)).toBe('1 place offerte · depuis le 1 oct.')
+    expect(placesLabel(0, '2025-12-15T14:00:00Z', now)).toBe('Aucune place offerte · depuis le 15 déc. 2025')
+  })
+
+  it('reads « Non suivies » without a number, the date in the clinic’s time zone', () => {
+    expect(placesLabel(null, null, now)).toBe(t('modules.professionals.record.overview.matching.placesNotTracked'))
+    // 02:00 UTC on the 9th is still the 8th in Toronto.
+    expect(placesLabel(2, '2026-10-09T02:00:00Z', now)).toBe('2 places offertes · depuis le 8 oct.')
   })
 })

@@ -29,7 +29,7 @@ let stored: ProfessionalRecord
 /** The database after a successful activation (what the refetch reads). */
 function activated(): StatusChange {
   stored = { ...stored, professional: { ...stored.professional, status: 'active' } }
-  return { status: 'active', accountChange: null, profileId: null }
+  return { status: 'active', accountChange: null, profileId: null, signinSynced: true }
 }
 
 beforeEach(() => {
@@ -224,6 +224,8 @@ describe('ActivateDialog — refusals that change the dialog', () => {
     expect(await within(dialog()).findByRole('alert')).toHaveTextContent(t(`${A}.nowIncomplete`))
     expect(await within(dialog()).findByRole('textbox', { name: `${t(`${A}.reason`)} ${t('common.form.required')}` })).toBeInTheDocument()
     expect(within(dialog()).getByRole('button', { name: t(`${A}.confirmOverride`) })).toBeInTheDocument()
+    // The professional may read the reason on her own row (P4-373): said in the field's help.
+    expect(reasonField()).toHaveAccessibleDescription(`${t(`${A}.reasonHelp`)} Marie peut lire cette note.`)
   })
 
   it('the adjointe on a file that became incomplete (HINT readiness): the message, the gaps, nothing to confirm', async () => {

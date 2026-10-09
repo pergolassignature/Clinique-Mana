@@ -272,7 +272,7 @@ describe('ProfessionalRecordPage', () => {
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
     expect(tabNames()).not.toContain(t(`${R}.tabs.remuneration`))
-    expect(tabNames()).toEqual(['apercu', 'jumelage', 'profil-public', 'identite', 'historique'].map((k) => t(`${R}.tabs.${k}` as Parameters<typeof t>[0])))
+    expect(tabNames()).toEqual(['apercu', 'jumelage', 'profil-public', 'identite', 'documents', 'historique'].map((k) => t(`${R}.tabs.${k}` as Parameters<typeof t>[0])))
     cleanup()
     renderPage({ role: 'admin' })
     await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })

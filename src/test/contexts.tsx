@@ -19,6 +19,7 @@ export const testAccess: Access = {
   permissions: ['settings.view'],
   // Matches the real payload: enabled module keys, never 'core'.
   modules: ['professionals'],
+  has_professional_file: false,
 }
 
 export function renderWithContexts(

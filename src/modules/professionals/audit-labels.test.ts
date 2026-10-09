@@ -24,8 +24,11 @@ const COLUMNS = {
   ],
   professional_public_profiles: ['org_id', 'professional_id', 'bio', 'approach', 'public_email', 'public_phone', 'photo_document_id', 'created_at', 'updated_at'],
   professional_matching_profiles: [
-    'org_id', 'professional_id', 'accepting_new_clients', 'availability_periods', 'availability_note', 'min_client_age', 'women_only', 'created_at', 'updated_at',
+    'org_id', 'professional_id', 'accepting_new_clients', 'availability_periods', 'availability_note', 'min_client_age', 'women_only',
+    'new_client_places', 'new_client_places_set_at', 'created_at', 'updated_at',
   ],
+  // « Bon à savoir » (P4-384): the text is redacted in the log; the field is still named.
+  professional_matching_notes: ['org_id', 'professional_id', 'note', 'created_at', 'updated_at'],
   professional_professions: ['id', 'org_id', 'professional_id', 'profession_title_id', 'licence_number', 'is_primary', 'created_at', 'updated_at'],
   professional_clienteles: ['org_id', 'professional_id', 'clientele_id', 'is_specialized', 'created_at', 'updated_at'],
   professional_motifs: ['org_id', 'professional_id', 'motif_id', 'created_at'],

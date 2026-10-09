@@ -14,7 +14,7 @@
 -- rollback puts the deferred mode back.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(92);
+select plan(94);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -52,6 +52,7 @@ update public.motifs set is_restricted = true where org_id = 'b0000000-0000-0000
 select set_config('test.row', $json${
   "first_name": "  Élise ", "last_name": "Bouchard", "email": " Elise.Bouchard@Example.TEST ",
   "personal_phone": "514 555-0101", "city": "Montréal", "province": "qc", "postal_code": "h2x-1y4", "years_experience": 12,
+  "gender": " Female ",
   "professions": [{"title_key": "psychologue", "licence_number": "12345", "is_primary": true},
                   {"title_key": "psychotherapeute", "licence_number": "PT-99"}],
   "languages": ["fr", "EN"],
@@ -151,6 +152,8 @@ select results_eq(
   $$ select c.key, pc.is_specialized from public.professional_clienteles pc join public.clienteles c on c.id = pc.clientele_id
       where pc.professional_id = current_setting('test.id')::uuid order by c.key $$,
   $$ values ('adults'::text, true), ('couples', false) $$, 'clientèles with their star');
+select is((select gender from public.professionals where id = current_setting('test.id')::uuid), 'female',
+  'the gender, as Identité stores it (trimmed, lower-cased; P4-388)');
 select results_eq(
   $$ select mp.min_client_age::int, mp.women_only from public.professional_matching_profiles mp
       where mp.professional_id = current_setting('test.id')::uuid $$,
@@ -233,14 +236,15 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(public.import_professional(jsonb_build_object(
     'first_name', 'Léa', 'last_name', 'Roy', 'email', 'lea.roy@example.test', 'personal_phone', 'abc', 'city', repeat('a', 101),
-    'province', 'QQ', 'postal_code', 'XYZ', 'years_experience', 75, 'min_client_age', 121), true) -> 'errors',
+    'province', 'QQ', 'postal_code', 'XYZ', 'years_experience', 75, 'gender', 'femme', 'min_client_age', 121), true) -> 'errors',
   '[{"field": "personalPhone", "message": "Numéro à 10 chiffres."},
     {"field": "city", "message": "100 caractères maximum."},
     {"field": "province", "message": "Province invalide."},
     {"field": "postalCode", "message": "Code postal invalide (ex. : H2X 1Y4)."},
     {"field": "yearsExperience", "message": "Entre 0 et 60 ans."},
+    {"field": "gender", "message": "Genre invalide : femme, homme ou autre."},
     {"field": "minClientAge", "message": "Entre 0 et 120 ans."}]'::jsonb,
-  'phone, city, province, postal code, years and youngest client age: every error of the row');
+  'phone, city, province, postal code, years, gender (the stored values only: the script maps femme) and youngest client age: every error of the row');
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "years_experience": 3.5}', true) -> 'errors',
   '[{"field": "yearsExperience", "message": "Entre 0 et 60 ans."}]'::jsonb, 'years: whole numbers only');
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "personal_phone": "+44 20 7946 0958"}', true) -> 'errors',
@@ -386,7 +390,7 @@ create policy import_test_block on public.professionals as restrictive for updat
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Bloqué", "email": "lea.bloque@example.test", "city": "Laval"}', true) -> 'errors',
-  '[{"field": null, "message": "Les coordonnées (téléphone, ville, province, code postal, années d''expérience) n''ont pas pu être enregistrées."}]'::jsonb,
+  '[{"field": null, "message": "Les coordonnées (téléphone, ville, province, code postal, années d''expérience, genre) n''ont pas pu être enregistrées."}]'::jsonb,
   'an update that touched no row is an error for the row');
 reset role;
 drop policy import_test_block on public.professionals;
@@ -404,6 +408,7 @@ select throws_ok($$ select public.import_professional('{"first_name": 12}') $$, 
 select throws_ok($$ select public.import_professional('{"activate": "oui"}') $$, '22023', 'Booléen attendu : activate', 'activate as text');
 select throws_ok($$ select public.import_professional('{"min_client_age": "8"}') $$, '22023', 'Nombre attendu : min_client_age', 'the youngest client age as text');
 select throws_ok($$ select public.import_professional('{"women_only": "oui"}') $$, '22023', 'Booléen attendu : women_only', '« femmes seulement » as text');
+select throws_ok($$ select public.import_professional('{"gender": true}') $$, '22023', 'Texte attendu : gender', 'the gender as a boolean');
 select throws_ok($$ select public.import_professional('{"approaches": [{"key": "cbt"}]}') $$, '22023', 'Clé inconnue : approaches', 'approaches are not imported (P4-240)');
 select throws_ok($$ select public.import_professional('{"motifs": "deuil"}') $$, '22023', 'Liste de 500 éléments au plus attendue : motifs', 'a list as text');
 select throws_ok($$ select public.import_professional('{"professions": [{"title": "psychologue"}]}') $$, '22023', null, 'a title item with an unknown key');

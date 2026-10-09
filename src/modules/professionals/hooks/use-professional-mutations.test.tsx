@@ -8,6 +8,7 @@ import {
   useDeactivateProfessional,
   useSetClienteles,
   useSetLanguages,
+  useSetMatchingNote,
   useSetMotifs,
   useSetPayerNumber,
   useSetProfessionalEmail,
@@ -36,8 +37,10 @@ const mocks = vi.hoisted(() => ({
     setProfessionalEmail: vi.fn(),
     activateProfessional: vi.fn(),
     deactivateProfessional: vi.fn(),
+    syncProfessionalSignin: vi.fn(),
+    setMatchingNote: vi.fn(),
   },
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
   captureException: vi.fn(),
 }))
 vi.mock('../api/record', () => mocks.api)
@@ -160,7 +163,7 @@ describe('field updates', () => {
 describe('status', () => {
   it('useActivateProfessional writes the new status and confirms', async () => {
     const { wrapper, cached, invalidated } = setup()
-    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: null, profileId: null })
+    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: null, profileId: null, signinSynced: true })
     await run(() => useActivateProfessional(), { id: ID, overrideReason: 'Dossier complété hors application' }, wrapper)
     expect(mocks.api.activateProfessional).toHaveBeenCalledWith(ID, 'Dossier complété hors application')
     expect(cached()?.professional.status).toBe('active')
@@ -175,7 +178,7 @@ describe('status', () => {
       ...record,
       professional: { ...record.professional, status: 'inactive', deactivationReasonId: IDS.ended, deactivationNote: 'Départ', deactivationDisabledAccount: true },
     })
-    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: 'enabled', profileId: 'u1' })
+    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: 'enabled', profileId: 'u1', signinSynced: true })
     await run(() => useActivateProfessional(), { id: ID, overrideReason: '  Dossier complété hors application \n' }, wrapper)
     expect(cached()?.professional).toMatchObject({
       status: 'active',
@@ -190,24 +193,95 @@ describe('status', () => {
     const { wrapper, queryClient, cached } = setup()
     const record = recordFixture()
     queryClient.setQueryData(professionalKeys.record(ID), { ...record, readiness: { ...record.readiness, complete: true } })
-    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: null, profileId: null })
+    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: null, profileId: null, signinSynced: true })
     await run(() => useActivateProfessional(), { id: ID, overrideReason: 'Inutile' }, wrapper)
     expect(cached()?.professional.activationOverrideReason).toBeNull()
   })
 
   it('useDeactivateProfessional', async () => {
     const { wrapper, cached } = setup()
-    mocks.api.deactivateProfessional.mockResolvedValue({ status: 'inactive', accountChange: 'disabled', profileId: 'u1' })
+    mocks.api.deactivateProfessional.mockResolvedValue({ status: 'inactive', accountChange: null, profileId: null, signinSynced: true })
     await run(() => useDeactivateProfessional(), { id: ID, reasonId: IDS.other, note: 'Départ' }, wrapper)
     expect(mocks.api.deactivateProfessional).toHaveBeenCalledWith(ID, IDS.other, 'Départ')
     expect(cached()?.professional).toMatchObject({
       status: 'inactive',
       deactivationReasonId: IDS.other,
       deactivationNote: 'Départ',
-      deactivationDisabledAccount: true,
+      deactivationDisabledAccount: false,
       activationOverrideReason: null,
     })
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.deactivated'))
+  })
+})
+
+describe('status: the provider’s account and its sign-in (Task 4b.6, P4-381)', () => {
+  const S = 'modules.professionals.toasts.signin'
+
+  it('a deactivation that closed the account says so: sessions ended, sign-in blocked', async () => {
+    const { wrapper, cached } = setup()
+    mocks.api.deactivateProfessional.mockResolvedValue({ status: 'inactive', accountChange: 'disabled', profileId: 'u1', signinSynced: true })
+    await run(() => useDeactivateProfessional(), { id: ID, reasonId: IDS.ended }, wrapper)
+    expect(cached()?.professional.deactivationDisabledAccount).toBe(true)
+    expect(mocks.toast.success).toHaveBeenCalledExactlyOnceWith(t(`${S}.deactivatedClosed`))
+    expect(mocks.toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('a reactivation that re-opened the account says so', async () => {
+    const { wrapper } = setup()
+    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: 'enabled', profileId: 'u1', signinSynced: true })
+    await run(() => useActivateProfessional(), { id: ID }, wrapper)
+    expect(mocks.toast.success).toHaveBeenCalledExactlyOnceWith(t(`${S}.reactivatedOpen`))
+  })
+
+  it('a ban Auth refused: a lasting warning with « Réessayer », which syncs the sign-in and says when it worked', async () => {
+    const { wrapper } = setup()
+    mocks.api.deactivateProfessional.mockResolvedValue({ status: 'inactive', accountChange: 'disabled', profileId: 'u1', signinSynced: false })
+    await run(() => useDeactivateProfessional(), { id: ID, reasonId: IDS.ended }, wrapper)
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(mocks.toast.warning).toHaveBeenCalledExactlyOnceWith(t(`${S}.notBlocked`), {
+      duration: Infinity,
+      action: { label: t('common.retry'), onClick: expect.any(Function) },
+    })
+    // « Réessayer » fails again: the warning comes back; then it works.
+    mocks.api.syncProfessionalSignin.mockResolvedValueOnce({ accountStatus: 'disabled', signinSynced: false })
+    mocks.toast.warning.mock.calls[0]?.[1].action.onClick()
+    await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledTimes(2))
+    expect(mocks.api.syncProfessionalSignin).toHaveBeenCalledWith(ID)
+    expect(mocks.toast.warning.mock.calls[1]?.[0]).toBe(t(`${S}.notBlocked`))
+    mocks.api.syncProfessionalSignin.mockResolvedValueOnce({ accountStatus: 'disabled', signinSynced: true })
+    mocks.toast.warning.mock.calls[1]?.[1].action.onClick()
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.blocked`)))
+  })
+
+  it('an unban Auth refused: the warning says the account cannot sign in yet; a retry that works says the sign-in is back', async () => {
+    const { wrapper } = setup()
+    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: 'enabled', profileId: 'u1', signinSynced: false })
+    await run(() => useActivateProfessional(), { id: ID }, wrapper)
+    expect(mocks.toast.warning.mock.calls[0]?.[0]).toBe(t(`${S}.notRestored`))
+    mocks.api.syncProfessionalSignin.mockResolvedValueOnce({ accountStatus: 'active', signinSynced: true })
+    mocks.toast.warning.mock.calls[0]?.[1].action.onClick()
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.restored`)))
+  })
+
+  it('a retry that fails outright shows the error', async () => {
+    const { wrapper } = setup()
+    mocks.api.deactivateProfessional.mockResolvedValue({ status: 'inactive', accountChange: 'disabled', profileId: 'u1', signinSynced: false })
+    await run(() => useDeactivateProfessional(), { id: ID, reasonId: IDS.ended }, wrapper)
+    mocks.api.syncProfessionalSignin.mockRejectedValueOnce({ code: '42501', message: 'Permission refusée' })
+    mocks.toast.warning.mock.calls[0]?.[1].action.onClick()
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t('common.errors.forbidden')))
+  })
+})
+
+describe('useSetMatchingNote (« Bon à savoir », P4-384)', () => {
+  it('writes the stored note into the record, refreshes the record and the history, never the lists', async () => {
+    const { wrapper, cached, invalidated } = setup()
+    mocks.api.setMatchingNote.mockResolvedValue({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
+    await run(() => useSetMatchingNote(), { id: ID, note: 'Écrire avant de réserver.' }, wrapper)
+    expect(mocks.api.setMatchingNote).toHaveBeenCalledWith(ID, 'Écrire avant de réserver.')
+    expect(cached()?.matchingNote).toEqual({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
+    expect(invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.history(ID)])
+    expect(mocks.toast.success).toHaveBeenCalledWith(SAVED)
   })
 })
 

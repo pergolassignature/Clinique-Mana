@@ -84,7 +84,8 @@ export function CategoryNames({ groups, className }: { groups: NamedGroup[]; cla
  * A button that unfolds its panel in place. The panel stays mounted (`hidden` while closed), so
  * `aria-controls` always points at an element. The Historique tab's entries use it too.
  */
-export function Disclosure({ label, children }: { label: ReactNode; children: ReactNode }) {
+/** `className` goes on the toggle button (e.g. a taller tap target on a phone). */
+export function Disclosure({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   return (
@@ -94,7 +95,7 @@ export function Disclosure({ label, children }: { label: ReactNode; children: Re
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
-        className={cn('group inline-flex max-w-full items-start gap-1 rounded-sm text-left', focusRing)}
+        className={cn('group inline-flex max-w-full items-start gap-1 rounded-sm text-left', focusRing, className)}
       >
         <Chevron open={open} />
         <span className="min-w-0">{label}</span>

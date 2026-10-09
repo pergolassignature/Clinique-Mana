@@ -1,12 +1,13 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 import { invokeFunction } from '@/core/supabase/functions'
+import { GENDERS, type SubmissionSection } from '../lib/constants'
 import { SUBMISSION_SECTIONS } from '../lib/questionnaire'
-import { parseRpc } from './parse'
+import { parseRpc, recordPayload, type ProfessionalRecord } from './parse'
 import { sqlArgs } from './sql-args'
 
 /**
- * The provider's own questionnaire (4b.4; RPCs of 20261008191219_professionals_onboarding.sql,
+ * The provider's own questionnaire (4b.4) and « Mon profil » (4b.5; RPCs of 20261008191219_professionals_onboarding.sql,
  * `professionals.self`, own record only): the open submission, the autosave of one section, the
  * private step, the consent signature and « Envoyer mon profil » (`professionals-submit`). Every
  * function throws the PostgREST or `FunctionCallError` unchanged: the questionnaire routes a
@@ -31,6 +32,8 @@ export const mySubmissionPayload = z
     submitted_at: z.string().nullable(),
     updated_at: z.string(),
     private_saved_at: z.string().nullable(),
+    /** She started this update herself (« Mettre mon profil à jour »), not the clinic (P4-375). */
+    started_by_me: z.boolean(),
     /** The private step as saved for this submission: plain numbers and masks only (never a SIN or an account). */
     private: z
       .object({
@@ -50,7 +53,8 @@ export const mySubmissionPayload = z
     /** The version number of the text the draft's signature names (null: unsigned). */
     signed_consent_version: z.number().nullable(),
     collect_sin: z.boolean(),
-    professional: z.object({ first_name: z.string(), last_name: z.string(), email: z.string() }),
+    /** The gender writes the titles in the provider's form (P4-342, P4-367). */
+    professional: z.object({ first_name: z.string(), last_name: z.string(), email: z.string(), gender: z.enum(GENDERS).nullable() }),
   })
   .transform((s) => ({
     id: s.id,
@@ -63,6 +67,7 @@ export const mySubmissionPayload = z
     submittedAt: s.submitted_at,
     updatedAt: s.updated_at,
     privateSavedAt: s.private_saved_at,
+    startedByMe: s.started_by_me,
     private: s.private && {
       businessNumber: s.private.business_number,
       gstNumber: s.private.gst_number,
@@ -76,7 +81,12 @@ export const mySubmissionPayload = z
     consent: s.consent,
     signedConsentVersion: s.signed_consent_version,
     collectSin: s.collect_sin,
-    professional: { firstName: s.professional.first_name, lastName: s.professional.last_name, email: s.professional.email },
+    professional: {
+      firstName: s.professional.first_name,
+      lastName: s.professional.last_name,
+      email: s.professional.email,
+      gender: s.professional.gender,
+    },
   }))
 export type MySubmission = z.output<typeof mySubmissionPayload>
 export type SubmissionPrivate = NonNullable<MySubmission['private']>
@@ -175,4 +185,28 @@ export async function fetchMyProfessionalPrivate(): Promise<MyProfessionalPrivat
  */
 export async function submitMyProfile(): Promise<void> {
   await invokeFunction('professionals-submit', {})
+}
+
+// --- « Mon profil » (Task 4b.5) ---------------------------------------------------------------
+
+/**
+ * The caller's own record (`get_my_professional_record`): the record bundle of
+ * `get_professional_record`, the clinic's notes on the file blanked (P4-366); null when no file is
+ * linked to the account.
+ */
+export async function fetchMyProfessionalRecord(): Promise<ProfessionalRecord | null> {
+  const { data, error } = await supabase.rpc('get_my_professional_record')
+  if (error) throw error
+  return parseRpc(recordPayload, data)
+}
+
+/**
+ * « Mettre mon profil à jour »: an update submission for the sections chosen (stored in the
+ * questionnaire's order); resolves with its id. One open submission at a time (« Une soumission
+ * est déjà en cours. », HINT `submission`); an inactive file is refused (HINT `status`, P4-303).
+ */
+export async function startMyProfileUpdate(sections: readonly SubmissionSection[]): Promise<string> {
+  const { data, error } = await supabase.rpc('start_my_profile_update', { p_sections: [...sections] })
+  if (error) throw error
+  return parseRpc(z.string(), data)
 }

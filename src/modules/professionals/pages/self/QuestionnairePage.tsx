@@ -29,6 +29,7 @@ import type { OnFilePrivate, StepContext } from '../../components/questionnaire/
 import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { useMyProfessionalPrivate, useMySubmission, useQuestionnaireAutosave } from '../../hooks/use-my-submission'
 import type { CatalogView } from '../../lib/catalog-view'
+import { MY_PROFILE_PATH } from '../../lib/my-profile'
 import {
   effectiveSection,
   incompleteSections,
@@ -104,7 +105,7 @@ function NothingToComplete({ closed }: { closed: string | null }) {
         body={t(`${Q}.states.none.body`)}
         action={
           <Button asChild variant="outline" size="sm">
-            <Link to="/accueil">{t(`${Q}.states.none.home`)}</Link>
+            <Link to={MY_PROFILE_PATH}>{t(`${Q}.states.none.myProfile`)}</Link>
           </Button>
         }
       />
@@ -156,7 +157,7 @@ function SentProfile({ submission, catalog }: { submission: MySubmission; catalo
         />
       </section>
       <Button asChild variant="outline" size="sm">
-        <Link to="/accueil">{t(`${Q}.states.none.home`)}</Link>
+        <Link to={MY_PROFILE_PATH}>{t(`${Q}.states.none.myProfile`)}</Link>
       </Button>
     </div>
   )
@@ -292,9 +293,10 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
         description={
           kind === 'onboarding'
             ? t(`${Q}.intro.onboarding`)
-            : requested.length === 1
-              ? t(`${Q}.intro.updateOne`)
-              : t(`${Q}.intro.updateMany`, { count: String(requested.length) })
+            : // Who asked (P4-375): « La clinique vous demande de revoir … », or « Vous avez choisi de revoir … ».
+              requested.length === 1
+              ? t(submission.startedByMe ? `${Q}.intro.selfOne` : `${Q}.intro.updateOne`)
+              : t(submission.startedByMe ? `${Q}.intro.selfMany` : `${Q}.intro.updateMany`, { count: String(requested.length) })
         }
       />
       {submission.decisionNote && (

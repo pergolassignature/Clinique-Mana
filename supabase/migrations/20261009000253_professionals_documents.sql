@@ -1458,7 +1458,8 @@ select p.id, p.org_id, p.first_name, p.last_name, p.email, p.status, p.status_ch
                from public.professional_motifs x group by x.professional_id) m on m.professional_id = p.id
  where (select private.has_permission('professionals.view'));
 
--- Same columns as *_professionals_lifecycle.sql; insurance_status comes from readiness now
+-- Same columns, joins and filter as *_professionals_places_and_note.sql (4b.6: new_client_places,
+-- new_client_places_set_at, matching_note last); insurance_status comes from readiness now
 -- (valid / expiring / expired / missing), never 'unknown'.
 create or replace view public.professionals_directory with (security_invoker = true) as
 select p.id, p.org_id, p.status,
@@ -1484,9 +1485,13 @@ select p.id, p.org_id, p.status,
        p.gender,
        coalesce(r.insurance_status, 'missing') as insurance_status,
        r.ready,
-       greatest(p.updated_at, mp.updated_at) as updated_at
+       greatest(p.updated_at, mp.updated_at) as updated_at,
+       mp.new_client_places,
+       mp.new_client_places_set_at,
+       n.note                                as matching_note
   from public.professionals p
   left join public.professional_matching_profiles mp on mp.professional_id = p.id
+  left join public.professional_matching_notes n on n.professional_id = p.id
   left join public.professional_professions pp on pp.professional_id = p.id and pp.is_primary
   left join public.profession_titles pt on pt.org_id = pp.org_id and pt.id = pp.profession_title_id
   left join public.profession_categories pc on pc.org_id = pt.org_id and pc.id = pt.category_id
@@ -1522,7 +1527,7 @@ select p.id, p.org_id, p.status,
  where (select private.has_permission('professionals.view'));
 
 -- -----------------------------------------------------------------------------
--- History: documents (4b.1's list, plus professional_documents)
+-- History: documents (*_professionals_places_and_note.sql's list, plus professional_documents)
 -- -----------------------------------------------------------------------------
 create or replace function private.professional_history_tables()
 returns text[]
@@ -1531,6 +1536,7 @@ immutable
 set search_path = ''
 as $$
   select array['professionals', 'professional_public_profiles', 'professional_matching_profiles',
+               'professional_matching_notes',
                'professional_professions', 'professional_clienteles',
                'professional_motifs', 'professional_languages', 'professional_payer_numbers',
                'professional_private', 'professional_retention', 'professional_session_counts',

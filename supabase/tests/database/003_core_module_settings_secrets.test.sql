@@ -117,6 +117,8 @@ select functions_are('public', array[
   'get_professional_submission_notice_for_service',
   'set_user_preference', 'delete_user_preference',
   'mark_professional_fiche_generated', 'get_professional_fiche_upload', 'get_professional_public_fees',
+  'list_professional_submissions', 'get_my_professional_record',
+  'get_professional_account_status', 'set_professional_matching_note',
   'save_document_type', 'attach_professional_document', 'verify_professional_document', 'reject_professional_document',
   'set_professional_document_expiry', 'delete_professional_document', 'get_professional_documents',
   'run_professionals_document_notices_for_service'

@@ -64,7 +64,7 @@ insert into public.user_roles (user_id, org_id, role) values
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000b', 'professionals', true);
--- Documents are 059's (4c.2): no type is required here, so the documents item is done and this
+-- Documents are 061's (4c.2): no type is required here, so the documents item is done and this
 -- suite keeps testing the matching profile, the account and the questionnaire.
 update public.document_types set required = false where org_id = 'b0000000-0000-0000-0000-00000000000a';
 
@@ -562,8 +562,8 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select public.set_professional_payer_number(current_setting('test.p2')::uuid, 'ivac', 'IV-123');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select array_agg(k order by k) from jsonb_object_keys(public.get_professional_record(current_setting('test.p1')::uuid)) k),
-  array['clienteles', 'language_ids', 'matching_profile', 'motif_ids', 'payer_numbers', 'professional', 'professions',
-        'public_profile', 'readiness'],
+  array['clienteles', 'language_ids', 'matching_note', 'matching_profile', 'motif_ids', 'payer_numbers', 'professional',
+        'professions', 'public_profile', 'readiness'],
   'the record bundles the professional, its 1:1 rows, its sets and readiness');
 select ok(not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'professional' ? 'org_id')
           and not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'public_profile' ? 'org_id')

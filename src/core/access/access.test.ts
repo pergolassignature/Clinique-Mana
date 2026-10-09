@@ -12,6 +12,7 @@ const base = {
   role: 'admin_assistant',
   permissions: ['settings.view', 'professionals.view'],
   modules: ['core', 'professionals'],
+  has_professional_file: false,
 }
 
 describe('parseAccess', () => {

@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { Access } from '@/core/access/access'
 import type { TranslationKey } from '@/i18n'
 import type { LazyPage } from '@/shared/lib/lazy-page'
 
@@ -19,8 +20,25 @@ export interface ModuleNavItem {
   labelKey: TranslationKey
   icon: LucideIcon
   permission: string
+  /**
+   * Shown only when this also holds for the signed-in user, beyond the permission: « Mon profil »
+   * (`professionals.self`) needs a professional file linked to the account (P4-376), since admins
+   * hold that key by default without one.
+   */
+  shownWhen?: (access: Access) => boolean
   /** Lower comes first in the menu. */
   order: number
+}
+
+/** A card a module adds to Accueil, for whoever holds its permission (it renders nothing when it has nothing to say). */
+export interface ModuleHomeCard {
+  /** Stable English identifier, unique across modules (React key, error scope). */
+  id: string
+  permission: string
+  /** As `ModuleNavItem.shownWhen`: a further condition on the signed-in user. */
+  shownWhen?: (access: Access) => boolean
+  /** A lazyPage(): Accueil does not load the module's code for users who cannot see the card. */
+  component: LazyPage
 }
 
 export type SettingsGroup = 'clinique' | 'plateforme' | 'modules' | 'compte'
@@ -56,8 +74,11 @@ export interface ModuleManifest {
   labelKey: TranslationKey
   /** Keys of the modules this one requires (mirrors public.module_dependencies). Never lists 'core', which is implicit. */
   dependsOn: string[]
-  nav?: ModuleNavItem
+  /** Its menu entries: one, or several (Professionnels and « Mon profil »). */
+  nav?: ModuleNavItem | readonly ModuleNavItem[]
   routes: ModuleRoute[]
+  /** Cards on Accueil, in this order, between the greeting and the important notices. */
+  homeCards?: readonly ModuleHomeCard[]
   /** The shell adds `moduleKey: key` to each (AuthenticatedApp). */
   settingsSections: Omit<SettingsSection, 'moduleKey'>[]
 }

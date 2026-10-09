@@ -1267,15 +1267,19 @@
           "invitationExpired": "Le lien d'invitation a expiré le {date} sans être utilisé.",
           "invitationRevoked": "L'invitation de {firstName} a été révoquée : son lien ne fonctionne plus.",
           "invitationUsedNoAccount": "{firstName} a créé son accès avec le lien d'invitation le {date}, mais ce compte n'existe plus.",
-          "invitationSent": "Invitation envoyée le {date}. {firstName} n'a pas encore créé son accès.",
+          "invitationSent": "Invitation envoyée le {date} : {firstName} n'a pas encore créé son accès.",
           "invitationOpened": "{firstName} a ouvert le lien d'invitation le {date}, mais n'a pas encore créé son accès.",
           "questionnaireInProgress": "{firstName} n'a pas encore envoyé son questionnaire. Il apparaîtra ici, à réviser, dès son envoi.",
           "updateInProgress": "Une demande de mise à jour est en cours : {firstName} ne l'a pas encore envoyée.",
           "awaitingQuestionnaire": "Le questionnaire de {firstName} n'a pas encore été approuvé.",
-          "reviewOnboarding": "{firstName} a envoyé son questionnaire le {date}. Il attend votre révision.",
+          "reviewOnboarding": "{firstName} a envoyé son questionnaire le {date} : il attend votre révision.",
           "reviewOnboardingUndated": "{firstName} a envoyé son questionnaire. Il attend votre révision.",
-          "reviewUpdate": "{firstName} a envoyé une mise à jour de son profil le {date}. Elle attend votre révision.",
+          "reviewUpdate": "{firstName} a envoyé une mise à jour de son profil le {date} : elle attend votre révision.",
           "reviewUpdateUndated": "{firstName} a envoyé une mise à jour de son profil. Elle attend votre révision.",
+          "reviewOwnOnboarding": "Vous avez envoyé votre questionnaire le {date} : une autre personne autorisée doit le réviser.",
+          "reviewOwnOnboardingUndated": "Vous avez envoyé votre questionnaire. Une autre personne autorisée doit le réviser.",
+          "reviewOwnUpdate": "Vous avez envoyé une mise à jour de votre profil le {date} : une autre personne autorisée doit la réviser.",
+          "reviewOwnUpdateUndated": "Vous avez envoyé une mise à jour de votre profil. Une autre personne autorisée doit la réviser.",
           "review": "Réviser le profil"
         }
       },
@@ -1334,7 +1338,7 @@
           },
           "new_link": {
             "title": "Envoyer un nouveau lien à {name} ?",
-            "body": "Le lien envoyé le {sent} a expiré le {expires}. Un nouveau lien sera envoyé à {email}."
+            "body": "Le lien envoyé le {sent} a expiré le {expires} : un nouveau lien sera envoyé à {email}."
           },
           "revoke": {
             "title": "Révoquer l'invitation de {name} ?",
@@ -1390,6 +1394,13 @@
       },
       "record": {
         "loadError": "Le dossier n'a pas pu être chargé.",
+        "documents": {
+          "files": {
+            "title": "Documents",
+            "emptyTitle": "Les documents arrivent bientôt.",
+            "emptyBody": "L'assurance, la photo et le contrat s'afficheront ici, avec leurs dates d'échéance."
+          }
+        },
         "notFound": {
           "title": "Professionnel introuvable",
           "body": "Ce dossier n'existe pas ou vous n'y avez pas accès.",
@@ -1595,6 +1606,10 @@
           "pendingReactivate": "Réactivation…",
           "nowIncomplete": "Le dossier n'est plus complet. Indiquez la raison de l'activation."
         },
+        "noteReadable": {
+          "named": "{firstName} peut lire cette note.",
+          "unnamed": "La personne professionnelle peut lire cette note."
+        },
         "deactivate": {
           "title": "Désactiver {name} ?",
           "body": "{firstName} n'apparaîtra plus dans le jumelage et ne recevra plus de nouveaux clients. Le dossier reste consultable et pourra être réactivé.",
@@ -1641,6 +1656,22 @@
             "minAgeHelp": "Par exemple 8 pour « Enfants (8 ans et plus) ». Laissez vide s'il n'y en a pas.",
             "womenOnly": "Femmes seulement",
             "womenOnlyHelp": "Le jumelage ne propose ce dossier qu'aux clientes."
+          },
+          "places": {
+            "title": "Places offertes",
+            "description": "Pour les nouveaux clients. Laissez vide si les places ne sont pas suivies.",
+            "label": "Nombre de places",
+            "help": "Nombre de nouveaux clients que {firstName} peut accueillir. Les places restantes seront calculées par le module Demandes.",
+            "setOn": "Indiqué le {date} (la date change quand le nombre change).",
+            "notTracked": "Les places ne sont pas suivies."
+          },
+          "matchingNote": {
+            "title": "Bon à savoir",
+            "description": "Ce que l'équipe doit savoir au moment de jumeler. Réservé à l'équipe : jamais montré à {firstName}, ni sur la fiche, ni dans le profil public.",
+            "label": "Note",
+            "placeholder": "Par exemple : écrire avant de réserver ; pas de couples l'été.",
+            "help": "1000 caractères au maximum. Le texte n'apparaît pas dans l'historique.",
+            "empty": "Aucune note."
           },
           "availability": {
             "title": "Disponibilités générales",
@@ -1695,6 +1726,11 @@
             "availability": "Disponibilités générales",
             "accepting": "Accepte de nouveaux clients",
             "note": "Note",
+            "places": "Places offertes",
+            "placesCount": { "none": "Aucune place offerte", "one": "1 place offerte", "other": "{count} places offertes" },
+            "placesSince": "{places} · depuis le {date}",
+            "placesNotTracked": "Non suivies",
+            "matchingNote": "Bon à savoir",
             "yes": "Oui",
             "no": "Non",
             "specialized": "(spécialisé)",
@@ -1823,6 +1859,11 @@
             "created": "a créé le profil de jumelage",
             "deleted": "a supprimé le profil de jumelage"
           },
+          "matchingNote": {
+            "added": "a ajouté la note Bon à savoir",
+            "changed": "a modifié la note Bon à savoir",
+            "removed": "a retiré la note Bon à savoir"
+          },
           "changedOne": "a modifié {field}",
           "changedValue": "a modifié {field} : {before} → {after}",
           "activated": "a activé le dossier",
@@ -1940,7 +1981,8 @@
             "availability_periods": "les disponibilités générales",
             "availability_note": "la note sur les disponibilités",
             "min_client_age": "l'âge minimum des clients",
-            "women_only": "« femmes seulement »"
+            "women_only": "« femmes seulement »",
+            "new_client_places": "le nombre de places offertes"
           }
         },
         "values": {
@@ -2154,7 +2196,16 @@
         "activated": "Dossier activé.",
         "deactivated": "Dossier désactivé.",
         "archived": "Élément archivé.",
-        "restored": "Élément restauré."
+        "restored": "Élément restauré.",
+        "signin": {
+          "deactivatedClosed": "Dossier désactivé. Le compte est fermé : ses sessions sont terminées et la connexion est bloquée.",
+          "reactivatedOpen": "Dossier réactivé. Le compte peut de nouveau se connecter.",
+          "notBlocked": "Dossier désactivé et sessions terminées, mais le blocage des nouvelles connexions n'a pas pu être appliqué. Réessayez.",
+          "notRestored": "Dossier réactivé, mais la connexion n'a pas pu être rétablie : le compte ne peut pas encore se connecter. Réessayez.",
+          "blocked": "Les nouvelles connexions sont bloquées.",
+          "restored": "La connexion est rétablie.",
+          "noAccount": "Ce dossier n'a plus de compte : il n'y a rien à bloquer ni à rétablir."
+        }
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant.",
@@ -2202,6 +2253,7 @@
         "licencePatternSyntax": "Ce format utilise une syntaxe non prise en charge.",
         "categoryRequired": "Choisissez une catégorie.",
         "ages": "Les âges vont de 0 à 120 ans.",
+        "places": "Un nombre entier de 0 à 99.",
         "maxAgeNeedsMin": "Un âge maximum demande un âge minimum.",
         "maxAgeBelowMin": "L'âge maximum doit être supérieur ou égal à l'âge minimum.",
         "descriptionTooLong": "La description ne peut pas dépasser 300 caractères.",
@@ -2741,6 +2793,261 @@
         "stale": "Les séances de {name} ont été modifiées entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
         "refusedFor": "{name} : {message}"
       },
+      "submission": {
+        "fields": {
+          "personal_phone": "Téléphone personnel",
+          "address_line1": "Adresse",
+          "address_line2": "Appartement ou bureau",
+          "city": "Ville",
+          "province": "Province",
+          "postal_code": "Code postal",
+          "professions": "Titres professionnels et permis",
+          "years_experience": "Années d'expérience",
+          "bio": "Présentation",
+          "approach": "Approche",
+          "public_email": "Courriel public",
+          "public_phone": "Téléphone public",
+          "language_ids": "Langues",
+          "clienteles": "Clientèles",
+          "min_client_age": "Âge minimum des clients",
+          "women_only": "Femmes seulement",
+          "motif_ids": "Motifs de consultation",
+          "accepting_new_clients": "Accepte de nouveaux clients",
+          "availability_periods": "Moments de la semaine",
+          "availability_note": "Précision sur les disponibilités",
+          "photo": "Photo",
+          "insurance": "Preuve d'assurance",
+          "business_number": "Numéro d'entreprise (NE)",
+          "gst_number": "Numéro de TPS",
+          "qst_number": "Numéro de TVQ",
+          "bank_institution": "Institution bancaire",
+          "bank_transit": "Transit",
+          "bank_account": "Numéro de compte",
+          "sin": "Numéro d'assurance sociale (NAS)",
+          "consent": "Consentement au droit à l'image"
+        },
+        "kinds": {
+          "onboarding": "Questionnaire d'accueil",
+          "update": "Mise à jour du profil"
+        },
+        "states": {
+          "onboarding": {
+            "returned": "Renvoyé au professionnel",
+            "in_progress": "En cours chez le professionnel",
+            "to_review": "À réviser",
+            "applied": "Appliqué",
+            "approved_unchanged": "Approuvé sans changement",
+            "cancelled": "Fermé sans être appliqué"
+          },
+          "update": {
+            "returned": "Renvoyée au professionnel",
+            "in_progress": "En cours chez le professionnel",
+            "to_review": "À réviser",
+            "applied": "Appliquée",
+            "approved_unchanged": "Approuvée sans changement",
+            "cancelled": "Fermée sans être appliquée"
+          }
+        },
+        "values": {
+          "current": "Actuel",
+          "proposed": "Proposé",
+          "changed": "Modifié",
+          "notIndicated": "Non indiqué",
+          "confirmed": "Confirmé tel quel",
+          "notAnswered": "Non répondu, le dossier garde sa valeur",
+          "notSent": "Non transmis",
+          "yes": "Oui",
+          "no": "Non",
+          "year": "{count} an",
+          "years": "{count} ans",
+          "primary": "(principal)",
+          "unknown": "Élément retiré de la liste",
+          "specialized": "(spécialisé)",
+          "added": "Ajoutés ({count})",
+          "removed": "Retirés ({count})",
+          "starred": "Maintenant marqués « spécialisé »",
+          "unstarred": "Ne sont plus marqués « spécialisé »",
+          "kept": "Inchangés ({count})",
+          "privateHidden": "Non affiché",
+          "privateSent": "Nouvelle valeur transmise, non affichée",
+          "maskAccount": "Au dossier : se termine par {last4}",
+          "maskSin": "Au dossier : se termine par {last3}",
+          "photoAlt": "Photo transmise par le professionnel",
+          "photoSent": "Nouvelle photo transmise. Une fois appliquée, elle est jointe au dossier.",
+          "insuranceSent": "Preuve d'assurance transmise, échéance le {date}.",
+          "insuranceSentUndated": "Preuve d'assurance transmise.",
+          "openFile": "Ouvrir le fichier",
+          "newTab": "(nouvel onglet)",
+          "fileUnavailable": "Le fichier ne peut pas être affiché pour l'instant.",
+          "consentNone": "Aucun consentement au dossier.",
+          "consentUnsigned": "Pas encore signé.",
+          "consentOnFile": "Signé le {date} (version {version}), valide jusqu'au {until}.",
+          "consentSigned": "Signé le {date} par {name} (version {version})."
+        },
+        "card": {
+          "title": "Questionnaire et mises à jour",
+          "description": "Ce que {firstName} a envoyé à la clinique, et ce qui en a été appliqué au dossier.",
+          "loadError": "Les questionnaires n'ont pas pu être chargés.",
+          "empty": {
+            "title": "Aucun questionnaire pour l'instant.",
+            "body": "Le questionnaire d'accueil apparaît ici dès l'envoi de l'invitation."
+          },
+          "sentOn": { "onboarding": "Envoyé le {date}", "update": "Envoyée le {date}" },
+          "startedOn": { "onboarding": "Commencé le {date}", "update": "Commencée le {date}" },
+          "appliedOn": { "onboarding": "Approuvé le {date}", "update": "Approuvée le {date}" },
+          "appliedOnBy": { "onboarding": "Approuvé le {date} par {name}", "update": "Approuvée le {date} par {name}" },
+          "returnedOn": { "onboarding": "Renvoyé le {date}", "update": "Renvoyée le {date}" },
+          "returnedOnBy": { "onboarding": "Renvoyé le {date} par {name}", "update": "Renvoyée le {date} par {name}" },
+          "origin": {
+            "clinic": "Demandée par la clinique",
+            "self": "Commencée par {firstName}"
+          },
+          "changes": "{count} changements appliqués",
+          "changesOne": "1 changement appliqué",
+          "sections": "Sections demandées : {sections}",
+          "note": "Note de la clinique :",
+          "review": "Réviser",
+          "reviewLabel": "Réviser : {kind}",
+          "ownFile": "C'est votre propre dossier : une autre personne autorisée doit le réviser."
+        },
+        "sheet": {
+          "title": "Réviser le profil de {name}",
+          "sentOn": {
+            "onboarding": "Questionnaire d'accueil envoyé le {date}.",
+            "update": "Mise à jour du profil envoyée le {date}."
+          },
+          "loadingDescription": "Chargement des réponses envoyées.",
+          "loadError": "Les réponses n'ont pas pu être chargées.",
+          "gone": "Cette soumission n'existe plus ou vous n'y avez pas accès.",
+          "notWaiting": "Cette soumission n'attend plus de révision : elle a déjà été traitée ou fermée.",
+          "summary": "{count} changements proposés, tous cochés. Décochez ceux à ne pas appliquer au dossier.",
+          "summaryOne": "1 changement proposé, coché. Décochez-le pour ne pas l'appliquer au dossier.",
+          "noChange": "Aucun changement proposé : les réponses reprennent ce que le dossier contient déjà.",
+          "changedOne": "1 modifié",
+          "changedMany": "{count} modifiés",
+          "unchangedOne": "1 inchangé",
+          "unchangedMany": "{count} inchangés",
+          "showUnchanged": "Voir les champs inchangés ({count})",
+          "checkedCount": "{checked} changements cochés sur {total}. Les changements décochés ne seront pas appliqués.",
+          "noneChecked": "Cochez au moins un changement, ou renvoyez le profil au professionnel.",
+          "warnings": {
+            "insuranceExpired": "Cette assurance est échue depuis le {date} : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
+            "consentOutdated": "Le texte du consentement a changé depuis la signature : ce consentement ne peut pas être appliqué. Décochez-le, ou renvoyez le profil au professionnel pour qu'il signe la nouvelle version."
+          },
+          "apply": "Appliquer les changements sélectionnés ({count})",
+          "applying": "Application…",
+          "approveUnchanged": "Approuver sans changement",
+          "return": "Renvoyer au professionnel",
+          "noteLabel": "Note pour {firstName}",
+          "noteHelp": "Dites ce qu'il faut corriger. {firstName} lira cette note en haut de son questionnaire ; aucun courriel n'est envoyé.",
+          "noteCounter": "{count} / {max} caractères.",
+          "noteRequired": "Écrivez ce que {firstName} doit corriger.",
+          "noteTooLong": "La note compte au plus {max} caractères.",
+          "backToReview": "Retour à la révision",
+          "sendBack": "Renvoyer avec cette note",
+          "returning": "Envoi…"
+        },
+        "toasts": {
+          "applied": {
+            "onboarding": "Questionnaire approuvé : {count} changements appliqués au dossier.",
+            "update": "Mise à jour approuvée : {count} changements appliqués au dossier."
+          },
+          "appliedOne": {
+            "onboarding": "Questionnaire approuvé : 1 changement appliqué au dossier.",
+            "update": "Mise à jour approuvée : 1 changement appliqué au dossier."
+          },
+          "approvedUnchanged": {
+            "onboarding": "Questionnaire approuvé, sans changement au dossier.",
+            "update": "Mise à jour approuvée, sans changement au dossier."
+          },
+          "returned": "Profil renvoyé à {firstName} avec votre note."
+        }
+      },
+      "myProfile": {
+        "nav": "Mon profil",
+        "pageTitle": "Mon profil",
+        "loadError": "Votre profil n'a pas pu être chargé.",
+        "notIndicated": "Non indiqué",
+        "noFile": {
+          "title": "Aucun dossier de professionnel n'est lié à votre compte.",
+          "body": "Cette page sert aux professionnels de la clinique."
+        },
+        "cards": {
+          "contact": "Coordonnées",
+          "public": "Profil public",
+          "publicHelp": "Ce que les clients lisent sur votre fiche.",
+          "matching": "Profil de jumelage",
+          "matchingHelp": "Ce qui aide la clinique à vous proposer des clients qui vous correspondent.",
+          "taxBankHelp": "Le numéro de compte et le NAS ne s'affichent jamais en entier.",
+          "documents": "Documents"
+        },
+        "masks": {
+          "account": "Se termine par {last4}",
+          "sin": "Se termine par {last3}"
+        },
+        "taxBankError": "Impossible d'afficher vos renseignements fiscaux et bancaires.",
+        "documents": {
+          "title": "Vos documents arrivent bientôt.",
+          "body": "Votre assurance, votre photo et votre contrat s'afficheront ici."
+        },
+        "questionnaire": {
+          "title": "Votre profil",
+          "inactive": "Votre dossier est inactif : communiquez avec la clinique pour le réactiver.",
+          "continue": {
+            "onboarding": "Votre questionnaire d'accueil n'est pas encore envoyé. Vos réponses sont gardées : reprenez où vous en étiez.",
+            "update": "Votre mise à jour n'est pas encore envoyée. Vos réponses sont gardées : reprenez où vous en étiez.",
+            "action": "Continuer le questionnaire"
+          },
+          "returned": {
+            "title": "La clinique vous demande des précisions",
+            "action": "Corriger mon profil"
+          },
+          "sent": {
+            "onboarding": "Questionnaire envoyé le {date}. L'équipe de la clinique le révise.",
+            "update": "Mise à jour envoyée le {date}. L'équipe de la clinique la révise.",
+            "action": "Voir ce que j'ai envoyé"
+          },
+          "sentUndated": {
+            "onboarding": "Questionnaire envoyé. L'équipe de la clinique le révise.",
+            "update": "Mise à jour envoyée. L'équipe de la clinique la révise."
+          },
+          "update": {
+            "body": "Un changement à faire ? Choisissez les sections à revoir. La clinique révise vos changements avant qu'ils paraissent à votre dossier.",
+            "action": "Mettre mon profil à jour"
+          }
+        },
+        "update": {
+          "title": "Mettre mon profil à jour",
+          "body": "Choisissez les sections à revoir. Rien ne change à votre dossier avant que la clinique révise vos changements.",
+          "legend": "Sections à revoir",
+          "required": "Choisissez au moins une section.",
+          "confirm": "Commencer la mise à jour",
+          "starting": "Ouverture…",
+          "failed": "La mise à jour n'a pas pu être ouverte. Réessayez dans un instant."
+        },
+        "home": {
+          "onboarding": {
+            "title": "Complétez votre profil",
+            "body": "La clinique attend votre questionnaire d'accueil pour vous proposer des clients. Vos réponses sont gardées au fur et à mesure.",
+            "action": "Compléter mon profil"
+          },
+          "update": {
+            "title": "Mettez votre profil à jour",
+            "body": "La clinique vous demande de revoir : {sections}.",
+            "action": "Mettre mon profil à jour"
+          },
+          "self": {
+            "title": "Terminez votre mise à jour",
+            "body": "Vous avez choisi de revoir : {sections}. Envoyez-la quand elle est prête.",
+            "action": "Continuer ma mise à jour"
+          },
+          "returned": {
+            "title": "La clinique vous demande des précisions",
+            "body": "Lisez sa note en haut de votre questionnaire, corrigez, puis envoyez votre profil de nouveau.",
+            "action": "Corriger mon profil"
+          }
+        }
+      },
       "questionnaire": {
         "title": {
           "onboarding": "Compléter mon profil",
@@ -2749,7 +3056,9 @@
         "intro": {
           "onboarding": "Quelques étapes pour présenter votre pratique à la clinique. Vos réponses sont enregistrées au fur et à mesure : vous pouvez faire une pause et revenir quand vous voulez.",
           "updateOne": "La clinique vous demande de revoir une section de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
-          "updateMany": "La clinique vous demande de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure."
+          "updateMany": "La clinique vous demande de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "selfOne": "Vous avez choisi de revoir une section de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "selfMany": "Vous avez choisi de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure."
         },
         "stepsLabel": "Étapes du questionnaire",
         "stepOf": "Étape {current} sur {total}",
@@ -2840,7 +3149,7 @@
             "title": "Rien à compléter pour l'instant.",
             "body": "La clinique vous écrira si elle a besoin d'une mise à jour de votre profil.",
             "closed": "La clinique a fermé votre questionnaire : vos dernières modifications n'ont pas été enregistrées.",
-            "home": "Retour à l'accueil"
+            "myProfile": "Voir mon profil"
           },
           "submitted": {
             "pageTitle": "Profil envoyé",
@@ -3073,6 +3382,7 @@
       "professionals": "Professionnels",
       "professional_public_profiles": "Profils publics des professionnels",
       "professional_matching_profiles": "Profils de jumelage",
+      "professional_matching_notes": "Notes Bon à savoir",
       "professional_professions": "Titres des professionnels",
       "professional_clienteles": "Clientèles des professionnels",
       "professional_motifs": "Motifs des professionnels",
@@ -3329,7 +3639,13 @@
         "availability_periods": "Disponibilités générales",
         "availability_note": "Note sur les disponibilités",
         "min_client_age": "Âge minimum des clients",
-        "women_only": "Femmes seulement"
+        "women_only": "Femmes seulement",
+        "new_client_places": "Places offertes",
+        "new_client_places_set_at": "Places offertes indiquées le"
+      },
+      "professional_matching_notes": {
+        "professional_id": "Professionnel",
+        "note": "Bon à savoir"
       },
       "professional_professions": {
         "professional_id": "Professionnel",

@@ -2,6 +2,7 @@ import { t } from '@/i18n'
 import type { BadgeProps } from '@/shared/ui/badge'
 import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type DisplayStatus, type Gender, type MotifCategoryIcon } from './constants'
 import { titleOrder, type CatalogView } from './catalog-view'
+import { shortDate } from './onboarding'
 import { titleLabel } from './title-label'
 import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
 
@@ -129,4 +130,25 @@ export function professionLine(row: Pick<ProfessionRow, 'titleId' | 'licenceNumb
 /** The record's primary title, or null without one. */
 export function primaryProfession(record: Pick<ProfessionalRecord, 'professions'>): ProfessionRow | null {
   return record.professions.find((p) => p.isPrimary) ?? null
+}
+
+/**
+ * « Places offertes » in words (P4-382): « 4 places offertes · depuis le 8 oct. » (the year only
+ * when it is not the clinic's current one), « Aucune place offerte · depuis … », or « Non suivies »
+ * when the number is not tracked. The places left are Demandes' (they need its first appointments).
+ */
+export function placesLabel(count: number | null, setAt: string | null, now: number): string {
+  const M = 'modules.professionals.record.overview.matching'
+  if (count === null) return t(`${M}.placesNotTracked`)
+  const places = count === 0 ? t(`${M}.placesCount.none`) : count === 1 ? t(`${M}.placesCount.one`) : t(`${M}.placesCount.other`, { count: String(count) })
+  return setAt ? t(`${M}.placesSince`, { places, date: shortDate(setAt, now) }) : places
+}
+
+/**
+ * Under a note staff write on the file (the deactivation's « Note », the activation's reason): the
+ * professional may read it on her own row (Loi 25 right of access, P4-373), so staff are told.
+ */
+export function noteReadableText(firstName: string | null | undefined): string {
+  const name = firstName?.trim()
+  return name ? t('modules.professionals.record.noteReadable.named', { firstName: name }) : t('modules.professionals.record.noteReadable.unnamed')
 }

@@ -40,11 +40,11 @@ type Can = (permission: string) => boolean
 const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professionals.manage', jumelage: 'professionals.matching' }
 
 /**
- * Where a submission is reviewed (the review's entry point): « Questionnaire et mises à jour » in
- * « Documents », which Task 4b.5 adds; it sets this to `'documents'` with the tab. Until then
- * « Prochaine action » says the profile waits for its review, without a button.
+ * Where a submission is reviewed (the review's entry point, Task 4b.5): « Questionnaire et mises à
+ * jour » in « Documents ». « Prochaine action »'s « Réviser le profil » and « À surveiller »'s
+ * review flags link there; so does the in-app notice (`/professionnels/:id/documents`, P4-271).
  */
-export const REVIEW_TAB: RecordTab | null = null
+export const REVIEW_TAB: RecordTab = 'documents'
 
 /**
  * The button of « Prochaine action »: a link to a tab (the one that fixes a gap, or the review's),
@@ -68,7 +68,9 @@ const N = 'modules.professionals.readiness.nextAction'
 /**
  * Aperçu « Prochaine action » (4a rules, then Task 4b.3): one plain sentence of where the file
  * stands and at most one button that does exactly what it says. In order:
- * 1. a submission waiting for review (« Réviser le profil » to REVIEW_TAB, `professionals.review`);
+ * 1. a submission waiting for review (« Réviser le profil » to REVIEW_TAB, `professionals.review`,
+ *    never on the viewer's own file: P4-304, the database refuses it; `viewerId` is the signed-in
+ *    user's id);
  * 2. an inactive file: reactivate it, or complete it first;
  * 3. no account and the link expired: « Envoyer un nouveau lien » (`professionals.invite`);
  * 4. the first gap of the matching profile (its tab): staff complete it, then invite (or the
@@ -78,16 +80,19 @@ const N = 'modules.professionals.readiness.nextAction'
  * 6. waiting for the professional: the link sent (or opened), or the questionnaire being filled in;
  * 7. a complete file: « Activer » (the header's dialog, P4-74), or nothing to do once active.
  */
-export function nextAction(record: NextActionSubject, onboarding: Onboarding | null, can: Can, now: number): NextAction {
+export function nextAction(record: NextActionSubject, onboarding: Onboarding | null, can: Can, now: number, viewerId: string | null = null): NextAction {
   const { professional, readiness } = record
   const firstName = professional.firstName
   const submission = onboarding?.submission ?? null
   if (submission?.status === 'submitted') {
     const date = submission.submittedAt ? shortDate(submission.submittedAt, now) : null
-    const key = submission.kind === 'onboarding' ? 'reviewOnboarding' : 'reviewUpdate'
+    // The reviewer's own file: another authorised person reviews it (P4-304), so no button.
+    const own = viewerId !== null && professional.profileId === viewerId
+    const kind = submission.kind === 'onboarding' ? 'Onboarding' : 'Update'
+    const key = own ? (`reviewOwn${kind}` as const) : (`review${kind}` as const)
     return {
       message: date ? t(`${N}.${key}`, { firstName, date }) : t(`${N}.${key}Undated`, { firstName }),
-      action: REVIEW_TAB && can('professionals.review') ? { kind: 'tab', label: t(`${N}.review`), tab: REVIEW_TAB } : null,
+      action: can('professionals.review') && !own ? { kind: 'tab', label: t(`${N}.review`), tab: REVIEW_TAB } : null,
     }
   }
   if (professional.status === 'inactive') return readinessStep(record, can) ?? activationStep(record, can)

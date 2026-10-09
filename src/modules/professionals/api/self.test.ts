@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { PROFESSIONAL_JSON, RECORD_JSON } from '../test/fixtures'
 import { MY_SUBMISSION_JSON } from '../test/fixtures-questionnaire'
 import { UNEXPECTED_SHAPE } from './parse'
 import {
   fetchMyProfessionalPrivate,
+  fetchMyProfessionalRecord,
   fetchMySubmission,
   saveMySubmissionDraft,
   saveMySubmissionPrivate,
   signMyConsent,
+  startMyProfileUpdate,
   submitMyProfile,
 } from './self'
 
@@ -33,7 +36,7 @@ describe('fetchMySubmission', () => {
       onFile: { hasSin: false, hasBankAccount: false },
       collectSin: false,
       signedConsentVersion: null,
-      professional: { firstName: 'Félix', lastName: 'Gauthier', email: 'provider@mana.test' },
+      professional: { firstName: 'Félix', lastName: 'Gauthier', email: 'provider@mana.test', gender: null },
     })
   })
 
@@ -131,5 +134,32 @@ describe('saves', () => {
     mocks.invokeFunction.mockResolvedValue({ ok: true })
     await submitMyProfile()
     expect(mocks.invokeFunction).toHaveBeenCalledWith('professionals-submit', {})
+  })
+})
+
+describe('« Mon profil »', () => {
+  it('reads the caller’s own record in the record’s shape, with the gender', async () => {
+    mocks.rpc.mockResolvedValue({ data: { ...RECORD_JSON, professional: { ...PROFESSIONAL_JSON, gender: 'female' } }, error: null })
+    const record = await fetchMyProfessionalRecord()
+    expect(mocks.rpc).toHaveBeenCalledWith('get_my_professional_record')
+    expect(record?.professional).toMatchObject({ firstName: 'Marie', gender: 'female' })
+    expect(record?.motifIds).toEqual(RECORD_JSON.motif_ids)
+  })
+
+  it('answers null when no file is linked to the account', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await expect(fetchMyProfessionalRecord()).resolves.toBeNull()
+  })
+
+  it('starts an update with the sections chosen and answers its id', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'sub-1', error: null })
+    await expect(startMyProfileUpdate(['portrait', 'motifs'])).resolves.toBe('sub-1')
+    expect(mocks.rpc).toHaveBeenCalledWith('start_my_profile_update', { p_sections: ['portrait', 'motifs'] })
+  })
+
+  it('passes a refusal on unchanged', async () => {
+    const error = { code: 'P0001', message: 'Une soumission est déjà en cours.', hint: 'submission' }
+    mocks.rpc.mockResolvedValue({ data: null, error })
+    await expect(startMyProfileUpdate(['portrait'])).rejects.toBe(error)
   })
 })

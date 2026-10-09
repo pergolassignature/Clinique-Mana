@@ -3,7 +3,7 @@ import type { ProfessionalRecord } from '../api/parse'
 import type { MatchingProfilePatch, ProfessionalPatch, PublicProfilePatch } from '../api/record'
 import { professionalKeys } from './keys'
 import type { MutationFeedback } from './mutation-feedback'
-import { useSetPayerNumber, useUpdateMatchingProfile, useUpdateProfessional, useUpdatePublicProfile } from './use-professional-mutations'
+import { useSetMatchingNote, useSetPayerNumber, useUpdateMatchingProfile, useUpdateProfessional, useUpdatePublicProfile } from './use-professional-mutations'
 
 /** What a record card needs from its mutation: write the card's output, then call `onSaved`. */
 export interface CardSave<TOut> {
@@ -59,4 +59,10 @@ export const useSaveMatchingProfile: UseCardSave<MatchingProfilePatch> = (id, fe
     },
     pending: mutation.isPending,
   }
+}
+
+/** « Bon à savoir » (P4-384): its own RPC (a staff-only table); an empty note clears it. */
+export const useSaveMatchingNote: UseCardSave<{ note: string | null }> = (id, feedback) => {
+  const mutation = useSetMatchingNote(feedback)
+  return { save: ({ note }, onSaved) => mutation.mutate({ id, note }, { onSuccess: onSaved }), pending: mutation.isPending }
 }

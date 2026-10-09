@@ -122,6 +122,24 @@ describe('OverviewTab — Profil de jumelage', () => {
     expect(value(t(`${M}.clienteles`))).toBe(`Couples${t('modules.professionals.display.minClientAge', { age: '14', unit: 'ans' })}`)
   })
 
+  it('reads the places offered with their date, « Non suivies » without, and the staff note « Bon à savoir » (P4-382, P4-384)', () => {
+    const M = `${O}.matching`
+    renderOverview()
+    expect(value(t(`${M}.places`))).toBe(t(`${M}.placesNotTracked`))
+    expect(within(card(t(`${M}.title`))).queryByText(t(`${M}.matchingNote`), { selector: 'dt' })).not.toBeInTheDocument()
+    cleanup()
+    renderOverview((r) => ({
+      ...r,
+      matchingProfile: { ...r.matchingProfile, newClientPlaces: 4, newClientPlacesSetAt: '2026-10-08T14:00:00Z' },
+      matchingNote: { note: 'Écrire avant de réserver.\nPas de couples l’été.', updatedAt: '2026-10-08T15:00:00Z' },
+    }))
+    expect(value(t(`${M}.places`))).toMatch(/^4 places offertes · depuis le 8 oct\./)
+    expect(value(t(`${M}.matchingNote`))).toBe('Écrire avant de réserver.\nPas de couples l’été.')
+    cleanup()
+    renderOverview((r) => ({ ...r, matchingProfile: { ...r.matchingProfile, newClientPlaces: 0, newClientPlacesSetAt: '2026-10-08T14:00:00Z' } }))
+    expect(value(t(`${M}.places`))).toMatch(/^Aucune place offerte · depuis le/)
+  })
+
   it('marks a held archived clientèle « (archivé) »', () => {
     const archive = <T extends { id: string; isActive: boolean }>(rows: T[], id: string) => rows.map((row) => (row.id === id ? { ...row, isActive: false } : row))
     const catalog = buildCatalogView({ ...CATALOG, clienteles: archive(CATALOG.clienteles, IDS.couples) })

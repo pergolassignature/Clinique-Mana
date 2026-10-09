@@ -90,8 +90,11 @@ describe('watchFlags: the onboarding (Task 4b.3)', () => {
     expect(watchFlags(subject({ onboarding: draft }), NOW)).toEqual([])
   })
 
-  it('the onboarding flags are settled on Aperçu itself: no tab to link', () => {
+  it('the invitation flags are settled on Aperçu itself; the review ones in Documents (4b.5)', () => {
     expect(WATCH_TAB.invitation_expired).toBeUndefined()
+    expect(WATCH_TAB.invitation_unanswered).toBeUndefined()
+    expect(WATCH_TAB.submission_to_review).toBe('documents')
+    expect(WATCH_TAB.update_to_review).toBe('documents')
     expect(WATCH_TAB.matching_incomplete).toBe('jumelage')
   })
 })

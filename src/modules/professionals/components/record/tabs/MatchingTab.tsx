@@ -17,7 +17,9 @@ import { SetPickerSheet, type PickerDraft, type SetPickerSheetProps } from '../.
 import { AvailabilityCard } from '../AvailabilityCard'
 import { HeldChips } from '../Chips'
 import { ClientLimitsCard } from '../ClientLimitsCard'
+import { MatchingNoteCard } from '../MatchingNoteCard'
 import { MotifsSummary } from '../MotifsSummary'
+import { PlacesCard } from '../PlacesCard'
 import { useRecordData } from '../record-context'
 
 const M = 'modules.professionals.record.matching'
@@ -25,8 +27,10 @@ const M = 'modules.professionals.record.matching'
 /**
  * « Jumelage »: what matching reads, in one curated place. Clientèles, motifs and languages each
  * show what is held (motifs by category, every name written out, P4-249) and open a picker sheet
- * that saves the whole set at once; the client limits (P4-245) and general availability are form
- * cards (the youngest age also reads on the youngest age group's chip). There are no approaches
+ * that saves the whole set at once; the client limits (P4-245), the places offered (P4-382), the
+ * staff-only « Bon à savoir » (P4-384) and general availability are form cards (the youngest age
+ * also reads on the youngest age group's chip). The places and the note sit with the limits, before
+ * the long motif list on a phone: conseillères update them often. There are no approaches
  * (P4-240). Editable with
  * `professionals.matching` (conseillères included); read-only otherwise. Everything comes from
  * the record bundle: the tab makes no request of its own until a save.
@@ -46,6 +50,8 @@ export function MatchingTab() {
           </SetCard>
           {/* Next to the clientèles it qualifies, before the long motif list on a phone. */}
           <ClientLimitsCard readOnly={!canEdit} />
+          <PlacesCard readOnly={!canEdit} />
+          <MatchingNoteCard readOnly={!canEdit} />
           <SetCard list="motifs" picker={pickers?.motifs}>
             {digest.motifs.groups.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t(`${M}.motifs.empty`)}</p>

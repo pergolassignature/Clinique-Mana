@@ -64,6 +64,34 @@ export function toClientLimitsFormValues(m: MatchingProfile): ClientLimitsValues
   return { minClientAge: m.minClientAge === null ? '' : String(m.minClientAge), womenOnly: m.womenOnly }
 }
 
+// --- Places offertes (P4-382) and « Bon à savoir » (P4-384) ------------------------------------
+
+/**
+ * « Places offertes »: a whole number 0–99 (`professional_matching_profiles_new_client_places_check`),
+ * empty = not tracked (null). The database stamps the date when the number changes.
+ */
+export const placesSchema = z
+  .object({
+    newClientPlaces: z
+      .string()
+      .trim()
+      .refine((v) => v === '' || /^[0-9]{1,2}$/.test(v), { error: t('modules.professionals.validation.places') })
+      .transform((v) => (v === '' ? null : Number(v))),
+  })
+export type PlacesValues = z.input<typeof placesSchema>
+
+export function toPlacesFormValues(m: MatchingProfile): PlacesValues {
+  return { newClientPlaces: m.newClientPlaces === null ? '' : String(m.newClientPlaces) }
+}
+
+/** « Bon à savoir »: trimmed, 1000 characters at most (`set_professional_matching_note`), empty clears it. */
+export const matchingNoteSchema = z.object({ note: longText(1000) })
+export type MatchingNoteValues = z.input<typeof matchingNoteSchema>
+
+export function toMatchingNoteFormValues(note: { note: string } | null): MatchingNoteValues {
+  return { note: note?.note ?? '' }
+}
+
 // --- Sets ----------------------------------------------------------------------------------------
 
 const tooMany = () => t('modules.professionals.validation.tooMany')
