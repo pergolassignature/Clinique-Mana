@@ -15,6 +15,11 @@ interface Props {
   onReset?: () => void
   /** Pane-sized fallback with a level-2 heading, for boundaries under an existing page title. */
   compact?: boolean
+  /**
+   * The fallback's heading level when the default does not fit: 2 when `compact`, else 1. A
+   * settings section is compact but is the page's only title (decision UI-4): `headingLevel={1}`.
+   */
+  headingLevel?: 1 | 2
   /** The boundary around the whole app: its fallback replaces everything, so its text says so. */
   root?: boolean
 }
@@ -68,7 +73,7 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     const { error, reloading } = this.state
     if (!error) return this.props.children
-    const headingLevel = this.props.compact ? 2 : 1
+    const headingLevel = this.props.headingLevel ?? (this.props.compact ? 2 : 1)
     const compact = this.props.compact
     if (isChunkLoadError(error)) {
       if (reloading) return <FullPageMessage role="status" headingLevel={headingLevel} compact={compact} title={t('common.loading')} />

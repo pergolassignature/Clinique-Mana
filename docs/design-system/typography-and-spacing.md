@@ -15,12 +15,13 @@ Each role is a **recipe**: use exactly these classes. Line-height comes with the
 
 | Role | Size / line-height | Weight | Tracking | Classes | Shared component |
 |---|---|---|---|---|---|
-| H1 page title | 20 / 28 | 600 | −0.01em | `text-xl font-semibold tracking-tight` | `PageHeader level={1}`, « Paramètres », record header |
+| H1 page title (also a Paramètres section's title, decision UI-4) | 20 / 28 | 600 | −0.01em | `text-xl font-semibold tracking-tight` | `PageHeader level={1}`, record header |
 | Figure (a number in a stat card) | 20 / 28 | 600 | 0 | `text-xl font-semibold tabular` | — |
 | Panel title: card, dialog, sheet (H2/H3) | 16 / 24 | 600 | 0 | `text-lg font-semibold` | `CardTitle`, `SettingsCard`, `DialogTitle`, `SheetTitle`, `AlertDialogTitle`, `FullPageMessage`, `PageHeader` level 2 |
 | H4 group inside a card | 13 / 18 | 600 | 0 | `text-sm font-semibold` | — |
 | Body | 13 / 18 | 400 | 0 | `text-sm` (the `body` default: often nothing to add) | `Table`, `Alert`, `EmptyState` |
 | Body emphasis, label, button | 13 / 18 | 500 | 0 | `text-sm font-medium` | `Label`, `Button`, `AlertTitle` |
+| Read-only label (dt) and value (dd) | 13 / 18 | 400 | 0 | label `text-sm text-muted-foreground`, value `text-sm`, empty « Non indiqué » `text-subtle` | `DescriptionList` |
 | Small: help, caption, secondary line, description | 12 / 16 | 400 | 0 | `text-xs text-muted-foreground` | `FormField` help, `CardDescription`, `Badge` |
 | Overline (group heading above cards, table header, table group row, menu group) | 11 / 16 | 500 | +0.06em | `text-2xs font-medium uppercase tracking-wide text-muted-foreground` | `SectionHeading` / `SectionGroup`, `TableHead`, `TableGroupRow` |
 
@@ -48,7 +49,8 @@ Rules:
 | Card footer (actions) | 12 above, 8 between buttons; **shown only while the form is dirty or saving** (decision UI-2) | `mt-3 flex justify-end gap-2` (`SettingsCard`, `FormActions`) |
 | Form sections of one surface | section padding 20 × 16, hairline between; from 720 px of surface: aside 220 + 24 + fields ≤ 560 | `SectionSurface` + `SettingsCard layout="section"` |
 | Fields on one line | 12 apart, wrapping | `FormRow`, each `FormField` with a `width` |
-| Buttons side by side | 8 (6 in a page header) | `gap-2` (`PageHeader` actions `gap-1.5`) |
+| Buttons side by side | 8 (6 in a page header) | `gap-2` (`PageHeader` actions `gap-1.5`, centred on the title's line) |
+| Read-only rows | 8 vertical, hairline between, label column 180 (132 in the rail), two columns of pairs from `xl` | `DescriptionList` (`columns={2}`, `labelWidth="sm"`) |
 | Icon → text inside a control | 6 | `gap-1.5` (built into `Button`, tabs) |
 | Table cell | 8 × 12, rows ≥ 40 | `TableCell` / `TableHead` (`px-3 py-2`, `h-10`) |
 | Dialog | padding 20, gap 14, max 512 | `DialogContent` (`p-5 gap-3.5`) |
@@ -106,6 +108,8 @@ A field is at least as wide as its label (« Années d'expérience » is `sm`, n
 | section title inside a page (`h2` over cards, a questionnaire step) | `text-lg font-semibold`, no tracking |
 | help or caption in `text-subtle` | `text-muted-foreground` |
 | hand-made label + input + error | `FormField` |
+| a tab the user can never edit, drawn as `readOnly` inputs | `DescriptionList` (decision UI-3) |
+| a list count in the toolbar or repeated in the footer | `PageHeader count`, and the footer only when filtered |
 | a short value (postal code, NEQ, years) in a half- or full-width box | `FormField width="xs" / "sm" / "md"`, related fields in a `FormRow` |
 | a stack of form cards on a record tab or settings section | one `SectionSurface` of `SettingsCard layout="section"` |
 | `space-y-2`/`space-y-4` between form fields | `space-y-3` (or `gap-3`) |

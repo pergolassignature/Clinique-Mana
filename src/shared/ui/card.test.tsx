@@ -17,4 +17,9 @@ describe('Card', () => {
     expect(title).not.toHaveClass('text-base', 'tracking-tight')
     expect(screen.getByText('Ce qui manque.')).toHaveClass('text-xs', 'text-muted-foreground')
   })
+
+  it('the title takes another heading level with `as`, same look', () => {
+    render(<CardTitle as="h2">Dossier</CardTitle>)
+    expect(screen.getByRole('heading', { level: 2, name: 'Dossier' })).toHaveClass('text-lg', 'font-semibold')
+  })
 })
