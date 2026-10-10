@@ -180,11 +180,13 @@ test('the conseillère cannot add, edits motifs, and reads Identité et permis o
   await savePicker(sheet)
   await expect(page.getByRole('region', { name: 'Motifs' }).getByText('Phobies')).toHaveCount(0)
 
-  // Identité et permis: one read-only notice, fields read-only, nothing to save.
+  // Identité et permis: one read-only notice, the values as a description list (UI-3), nothing to save.
   await openTab(page, 'Identité et permis')
   const panel = page.getByRole('tabpanel')
   await expect(panel.getByText('Seules les personnes qui gèrent les dossiers des professionnels peuvent modifier ces informations.')).toBeVisible()
-  await expect(panel.getByRole('textbox', { name: /^Prénom/ })).toHaveAttribute('readonly', '')
+  await expect(panel.getByRole('term').filter({ hasText: /^Prénom$/ })).toBeVisible()
+  await expect(panel.getByRole('definition').filter({ hasText: /^Étienne$/ })).toBeVisible()
+  await expect(panel.getByRole('textbox')).toHaveCount(0)
   await expect(panel.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Activer' })).toHaveCount(0)
 })
