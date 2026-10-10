@@ -59,7 +59,7 @@ export function SigningConnectionCard({ readOnly }: CardProps) {
   // What the test reads; a new address or key makes the last outcome stale: the test remounts, empty.
   const tested = settings.data && secrets.data ? `${settings.data.base_url}|${apiKeyAt}` : null
   return (
-    <SettingsCard as="section" title={t('settings.signing.connection.title')} description={t('settings.signing.connection.description')}>
+    <SettingsCard as="section" layout="section" title={t('settings.signing.connection.title')} description={t('settings.signing.connection.description')}>
       <SettingsLoad query={settings}>{(data) => <BaseUrlForm settings={data} readOnly={readOnly} hasApiKey={apiKeyAt !== null} />}</SettingsLoad>
       <DocumensoSecret
         secretKey="documenso_api_key"
@@ -77,7 +77,7 @@ export function SigningWebhookCard({ readOnly }: CardProps) {
   const { org_id: orgId } = useReadyAccess()
   const lastEvent = useLastDocumensoEvent()
   return (
-    <SettingsCard as="section" title={t('settings.signing.webhook.title')} description={t('settings.signing.webhook.description')}>
+    <SettingsCard as="section" layout="section" title={t('settings.signing.webhook.title')} description={t('settings.signing.webhook.description')}>
       <WebhookAddressField url={webhookUrl(orgId)} label={t('settings.signing.webhook.url')} help={t('settings.signing.webhook.urlHelp')} />
       <DocumensoSecret
         secretKey="documenso_webhook_secret"
@@ -105,7 +105,7 @@ export function SigningSendCard({ readOnly }: CardProps) {
   // Test requests are readable with settings.integrations_manage only: not asked for without it.
   const lastTest = useLastSigningTest(!readOnly)
   return (
-    <SettingsCard as="section" title={t('settings.signing.send.title')} description={t('settings.signing.send.description')}>
+    <SettingsCard as="section" layout="section" title={t('settings.signing.send.title')} description={t('settings.signing.send.description')}>
       <SettingsLoad query={settings}>{(data) => <ExpiryForm settings={data} readOnly={readOnly} />}</SettingsLoad>
       {!readOnly && <TestDocument lastTest={lastTest} />}
     </SettingsCard>
@@ -160,7 +160,7 @@ function BaseUrlForm({ settings, readOnly, hasApiKey }: { settings: SigningSetti
         )}
       </FormField>
       {!readOnly && (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 empty:hidden">
           <FormActions onCancel={cancel} onReset={() => form.setFocus('base_url')} dirty={isDirty} pending={mutation.isPending} />
         </div>
       )}
@@ -181,10 +181,10 @@ function ExpiryForm({ settings, readOnly }: { settings: SigningSettings; readOnl
   return (
     <form onSubmit={readOnly ? preventSubmit : (event) => void onSubmit(event)} noValidate aria-busy={mutation.isPending || undefined} className="space-y-2">
       <FormField label={t('settings.signing.send.expiry')} help={t('settings.signing.send.expiryHelp')} error={errors.expiry_days?.message} readOnly={readOnly}>
-        {(field) => <Input {...field} {...form.register('expiry_days')} inputMode="numeric" autoComplete="off" className="w-24" />}
+        {(field) => <Input {...field} {...form.register('expiry_days')} inputMode="numeric" autoComplete="off" className="w-field-xs max-w-full tabular" />}
       </FormField>
       {!readOnly && (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 empty:hidden">
           <FormActions onCancel={cancel} onReset={() => form.setFocus('expiry_days')} dirty={isDirty} pending={mutation.isPending} />
         </div>
       )}

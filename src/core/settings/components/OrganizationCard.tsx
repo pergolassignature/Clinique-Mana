@@ -63,9 +63,12 @@ export function OrganizationCard<TIn extends FlatFormValues, TOut extends Organi
   )
 
   return (
+    // A section of the page's surface (`OrganizationSettingsPage`, audit 2026-10-09 §2.4).
     <SettingsCard
+      layout="section"
       title={title}
       description={description}
+      dirty={isDirty}
       readOnly={readOnly}
       pending={mutation.isPending}
       onSubmit={(event) => void onSubmit(event)}

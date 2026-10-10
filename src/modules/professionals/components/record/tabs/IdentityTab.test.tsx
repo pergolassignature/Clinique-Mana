@@ -176,10 +176,28 @@ describe('IdentityTab', () => {
   })
 
   describe('IVAC', () => {
+    it('saves the years and the number of « Expérience et payeurs » with one « Enregistrer », the years first (decision UI-5)', async () => {
+      mocks.record.setPayerNumber.mockResolvedValue(undefined)
+      renderRecordTab(<IdentityTab />, { record: stored })
+      const section = card(t(`${I}.experience.title`))
+      const years = within(section).getByRole('textbox', { name: t(`${I}.experience.years`) })
+      const ivac = within(section).getByRole('textbox', { name: t(`${I}.payers.ivac`) })
+      await userEvent.clear(years)
+      await userEvent.type(years, '21')
+      await userEvent.clear(ivac)
+      await userEvent.type(ivac, 'AB-12')
+      await save(section)
+      await waitFor(() => expect(mocks.record.setPayerNumber).toHaveBeenCalledExactlyOnceWith(stored.professional.id, 'ivac', 'AB-12'))
+      expect(mocks.record.updateProfessional).toHaveBeenCalledExactlyOnceWith(stored.professional.id, { yearsExperience: 21 })
+      expect(mocks.record.updateProfessional.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.setPayerNumber.mock.invocationCallOrder[0] ?? 0)
+      // Clean once both are stored: the buttons go (decision UI-2).
+      await waitFor(() => expect(within(section).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument())
+    })
+
     it('saves the number, and an empty field deletes it', async () => {
       mocks.record.setPayerNumber.mockResolvedValue(undefined)
       renderRecordTab(<IdentityTab />, { record: stored })
-      const payers = card(t(`${I}.payers.title`))
+      const payers = card(t(`${I}.experience.title`))
       const ivac = within(payers).getByRole('textbox', { name: t(`${I}.payers.ivac`) })
       expect(ivac).toHaveValue('123456')
       await userEvent.clear(ivac)
@@ -190,7 +208,7 @@ describe('IdentityTab', () => {
     it('upper-cases the number once left, and saves it upper-case', async () => {
       mocks.record.setPayerNumber.mockResolvedValue(undefined)
       renderRecordTab(<IdentityTab />, { record: stored })
-      const payers = card(t(`${I}.payers.title`))
+      const payers = card(t(`${I}.experience.title`))
       const ivac = within(payers).getByRole('textbox', { name: t(`${I}.payers.ivac`) })
       await userEvent.clear(ivac)
       await userEvent.type(ivac, ' probe-777 ')
@@ -205,7 +223,7 @@ describe('IdentityTab', () => {
       let refuse: (error: unknown) => void = () => {}
       mocks.record.setPayerNumber.mockReturnValue(new Promise((_, reject) => (refuse = reject)))
       renderRecordTab(<IdentityTab />, { record: stored })
-      const payers = card(t(`${I}.payers.title`))
+      const payers = card(t(`${I}.experience.title`))
       const ivac = within(payers).getByRole('textbox', { name: t(`${I}.payers.ivac`) })
       await userEvent.clear(ivac)
       await userEvent.type(ivac, '654321')
@@ -224,7 +242,7 @@ describe('IdentityTab', () => {
     it('shows another refusal in a toast', async () => {
       mocks.record.setPayerNumber.mockRejectedValue({ code: 'P0001', message: 'Professionnel introuvable.', hint: '', details: '' })
       renderRecordTab(<IdentityTab />, { record: stored })
-      const payers = card(t(`${I}.payers.title`))
+      const payers = card(t(`${I}.experience.title`))
       await userEvent.type(within(payers).getByRole('textbox', { name: t(`${I}.payers.ivac`) }), '7')
       await save(payers)
       await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith('Professionnel introuvable.'))

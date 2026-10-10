@@ -507,8 +507,8 @@
       },
       "keys": {
         "title": "Envoi et webhook",
-        "description": "Le domaine d'envoi et les clés du service d'envoi (Resend). Une clé enregistrée n'est jamais affichée.",
-        "readOnlyDescription": "Le domaine d'envoi et les clés du service d'envoi (Resend). Seule une personne qui gère les clés d'intégration peut les modifier.",
+        "description": "Les clés du service d'envoi (Resend) et l'adresse du webhook. Une clé enregistrée n'est jamais affichée.",
+        "readOnlyDescription": "Les clés du service d'envoi (Resend) et l'adresse du webhook. Seule une personne qui gère les clés d'intégration peut les modifier.",
         "apiKey": "Clé d'API Resend",
         "apiKeyHelp": "Une clé d'envoi seulement, limitée au domaine d'envoi.",
         "webhookSecret": "Secret du webhook",
@@ -528,6 +528,8 @@
           "body": "Ce courriel confirme que l'envoi de courriels de la clinique fonctionne. Aucune action n'est requise."
         },
         "domain": {
+          "title": "Domaine d'envoi",
+          "description": "Le domaine d'où partent les courriels de la clinique.",
           "label": "Domaine d'envoi",
           "help": "Le domaine vérifié chez Resend.",
           "confirmTitle": "Changer le domaine d'envoi ?",
@@ -2272,6 +2274,7 @@
           "readOnly": "Seules les personnes qui gèrent les dossiers des professionnels peuvent modifier ces informations.",
           "identity": {
             "title": "Identité",
+            "description": "Le nom et le genre servent au jumelage et à la forme du titre.",
             "firstName": "Prénom",
             "lastName": "Nom",
             "gender": "Genre",
@@ -2280,6 +2283,7 @@
           },
           "contact": {
             "title": "Coordonnées",
+            "description": "Pour joindre le professionnel. Elles ne paraissent pas sur la fiche.",
             "loginEmail": "Courriel de connexion",
             "change": "Modifier",
             "changeLabel": "Modifier le courriel de connexion",
@@ -2317,11 +2321,11 @@
             "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis enregistrez de nouveau."
           },
           "experience": {
-            "title": "Expérience",
+            "title": "Expérience et payeurs",
+            "description": "Les années de pratique et le numéro de payeur IVAC.",
             "years": "Années d'expérience"
           },
           "payers": {
-            "title": "Numéros de payeurs",
             "ivac": "N° IVAC",
             "ivacHelp": "Unique dans la clinique. Laissez vide pour le retirer."
           }

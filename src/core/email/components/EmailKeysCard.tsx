@@ -33,8 +33,10 @@ const SECRETS = [
 ] as const
 
 /**
- * « Envoi et webhook »: the sending domain, the Resend API key and webhook secret (write-only), the
- * webhook address to give Resend, and when the last delivery event arrived. Changes need
+ * Two sections of the Courriels surface: « Domaine d'envoi » (a saved field, its own form) and
+ * « Envoi et webhook »: the Resend API key and webhook secret (write-only), the webhook address to
+ * give Resend, and when the last delivery event arrived (audit 2026-10-09: a saved field no longer
+ * sits with its « Enregistrer » in the middle of the secrets). Changes need
  * `settings.integrations_manage`; everyone who sees the section sees the state. Its three reads
  * start with the sender card's (same render), so nothing waits on anything else.
  */
@@ -63,8 +65,16 @@ export function EmailKeysCard({ readOnly }: { readOnly: boolean }) {
   }
 
   return (
-    <SettingsCard as="section" title={t('settings.email.keys.title')} description={t(readOnly ? 'settings.email.keys.readOnlyDescription' : 'settings.email.keys.description')}>
+    <>
+    <SettingsCard as="section" layout="section" title={t('settings.email.keys.domain.title')} description={t('settings.email.keys.domain.description')}>
       {sender.data ? <DomainForm domain={sender.data.sending_domain} readOnly={readOnly} /> : sender.isPending && <Loading />}
+    </SettingsCard>
+    <SettingsCard
+      as="section"
+      layout="section"
+      title={t('settings.email.keys.title')}
+      description={t(readOnly ? 'settings.email.keys.readOnlyDescription' : 'settings.email.keys.description')}
+    >
       {secretFields}
       <WebhookAddressField url={webhookUrl(orgId)} label={t('settings.email.keys.webhookUrl')} help={t('settings.email.keys.webhookUrlHelp')} />
       <ConnectionTest apiKeyConfigured={Boolean(secrets.data?.some((secret) => secret.key === 'resend_api_key'))} />
@@ -78,6 +88,7 @@ export function EmailKeysCard({ readOnly }: { readOnly: boolean }) {
               : t('settings.email.keys.noEvent')}
       </p>
     </SettingsCard>
+    </>
   )
 }
 
@@ -147,7 +158,7 @@ function DomainForm({ domain, readOnly }: { domain: string; readOnly: boolean })
 
   return (
     <form onSubmit={submit} noValidate aria-busy={mutation.isPending || undefined} className="space-y-2">
-      <FormField label={t('settings.email.keys.domain.label')} help={t('settings.email.keys.domain.help')} error={error ?? undefined} readOnly={readOnly}>
+      <FormField label={t('settings.email.keys.domain.label')} width="md" help={t('settings.email.keys.domain.help')} error={error ?? undefined} readOnly={readOnly}>
         {(field) => (
           <Input
             {...field}
