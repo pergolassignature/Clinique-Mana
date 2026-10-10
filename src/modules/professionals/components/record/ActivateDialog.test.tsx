@@ -10,7 +10,7 @@ import { IDS } from '../../test/fixtures'
 import { HARNESS_HEADING } from '../../test/RecordHarness'
 import { renderRecordTab } from '../../test/record-tab'
 import type { FixtureRole } from '@/test/role-fixtures'
-import { OverviewTab } from './tabs/OverviewTab'
+import { NextActionCard } from './NextActionCard'
 import { RecordActions } from './RecordActions'
 
 const mocks = vi.hoisted(() => ({
@@ -301,7 +301,7 @@ describe('ActivateDialog — reactivation', () => {
 describe('Aperçu « Prochaine action »', () => {
   it('« Activer » opens the same dialog; once active, focus goes to the record heading', async () => {
     stored = recordWithStatus('draft', true)
-    renderRecordTab(<OverviewTab />, { record: stored, role: 'admin_assistant' })
+    renderRecordTab(<NextActionCard />, { record: stored, role: 'admin_assistant' })
     const next = screen.getByRole('heading', { level: 3, name: t('modules.professionals.record.overview.nextAction.title') }).closest('.rounded-lg') as HTMLElement
     expect(within(next).getByText(t('modules.professionals.readiness.nextAction.readyToActivate'))).toBeInTheDocument()
     await userEvent.click(within(next).getByRole('button', { name: t('modules.professionals.record.actions.activate') }))

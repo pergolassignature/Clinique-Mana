@@ -84,7 +84,13 @@ function renderPage({ path = `${base}/apercu`, role = 'counselor' as FixtureRole
 }
 
 const location = () => screen.getByTestId('location').textContent
-const tabNames = () => screen.getAllByRole('tab').map((tab) => tab.textContent)
+/** Each tab's label, without the hidden bold copy that reserves its width (aria-hidden). */
+const tabNames = () =>
+  screen.getAllByRole('tab').map((tab) => {
+    const label = tab.cloneNode(true) as HTMLElement
+    label.querySelectorAll('[aria-hidden]').forEach((copy) => copy.remove())
+    return label.textContent
+  })
 const tab = (key: string) => screen.getByRole('tab', { name: t(`${R}.tabs.${key}` as Parameters<typeof t>[0]) })
 
 beforeEach(() => {
@@ -354,5 +360,62 @@ describe('ProfessionalRecordPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })).toBeInTheDocument()
     expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(2)
     expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ProfessionalRecordPage — layout (audit 2026-10-09 §2.7)', () => {
+  // jsdom has no matchMedia: a window of `width`, answering min-width queries.
+  let width = 375
+  const rail = () => screen.queryByRole('region', { name: t(`${R}.rail.label`) })
+  const brief = () => screen.queryByRole('heading', { level: 3, name: t(`${R}.rail.brief`) })
+  beforeEach(async () => {
+    width = 375
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      get matches() {
+        const bound = /\(min-width:\s*(\d+)px\)/.exec(query)
+        return bound !== null && width >= Number(bound[1])
+      },
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+    // The tab's chunk loaded first: a cold import may outlast findBy's wait.
+    await RECORD_TAB_DEFS.find((def) => def.tab === 'identite')?.panel.preload?.()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('from 1280 px, puts the rail beside every tab, after the panel, with « En bref » off Aperçu', async () => {
+    width = 1440
+    renderPage({ path: `${base}/identite` })
+    await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
+    const region = rail() as HTMLElement
+    expect(within(region).getByRole('heading', { level: 3, name: t(`${R}.overview.readiness.title`) })).toBeInTheDocument()
+    expect(brief()).toBeInTheDocument()
+    // Tab order follows the eye: the panel, then the rail at its right.
+    expect(screen.getByRole('tabpanel').compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    cleanup()
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
+    expect(rail()).toBeInTheDocument()
+    expect(brief()).not.toBeInTheDocument()
+  })
+
+  it('from 768 px, shows the rail as tiles above the tab, without « En bref »', async () => {
+    width = 1024
+    renderPage({ path: `${base}/identite` })
+    await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
+    const region = rail() as HTMLElement
+    expect(region.compareDocumentPosition(screen.getByRole('tabpanel')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(brief()).not.toBeInTheDocument()
+  })
+
+  it('on a phone, keeps the rail to Aperçu, under its digest', async () => {
+    renderPage({ path: `${base}/identite` })
+    await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
+    expect(rail()).not.toBeInTheDocument()
+    cleanup()
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
+    expect(screen.getByRole('tabpanel').compareDocumentPosition(rail() as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

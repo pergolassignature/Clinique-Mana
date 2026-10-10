@@ -41,9 +41,10 @@ export function MatchingTab() {
   const digest = useMemo(() => matchingDigest(record, catalog), [record, catalog])
   const pickers = useMatchingPickers(canEdit)
   return (
-    <div className="space-y-5">
+    <div className="container-inline space-y-5">
       {!canEdit && <ReadOnlyNotice body={t(`${M}.readOnly`)} />}
-      <div className="grid gap-5 min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
+      {/* Two columns when the tab has the room (880 px, beside the record's rail at 1920), one otherwise. */}
+      <div className="grid gap-5 cq-880:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
         <div className="flex min-w-0 flex-col gap-5">
           <SetCard list="clienteles" picker={pickers?.clienteles}>
             <HeldChips items={digest.clienteles} empty={t(`${M}.clienteles.empty`)} />

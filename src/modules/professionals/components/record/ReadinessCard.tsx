@@ -20,7 +20,7 @@ interface ReadinessCardProps {
 }
 
 /**
- * Aperçu « Dossier »: each readiness item with what it lacks, every gap a link to the tab that
+ * The rail's « Dossier » (every tab): each readiness item with what it lacks, every gap a link to the tab that
  * fixes it; the account's line says where the invitation stands (« Invitation envoyée le 8 oct. ·
  * expire le 15 oct. », A2.5) and the questionnaire's where it is (Task 4b.3). An active file shows
  * one line: « Dossier complet », or the override reason when it was activated incomplete (and the
