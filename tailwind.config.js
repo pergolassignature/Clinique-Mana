@@ -126,6 +126,24 @@ export default {
       maxWidth: {
         form: 'var(--form-max)',
         content: 'var(--content-max)',
+        // A form section's fields column (SettingsCard layout="section").
+        'section-fields': 'var(--section-fields-max)',
+      },
+      // Desktop layout widths (audit 2026-10-09 §2.1, §2.5): `w-rail`, `w-section-aside`, and the
+      // field widths `w-field-xs` (1–3 digits), `w-field-sm` (postal code, date, NEQ, licence),
+      // `w-field-md` (name, phone, city, short select).
+      width: {
+        rail: 'var(--rail-w)',
+        'section-aside': 'var(--section-aside-w)',
+        'field-xs': 'var(--field-xs)',
+        'field-sm': 'var(--field-sm)',
+        'field-md': 'var(--field-md)',
+      },
+      // The record page from `xl` (main column + summary rail) and a form section from `cq-720`
+      // (aside + fields): `xl:grid-cols-record`, `cq-720:grid-cols-section`.
+      gridTemplateColumns: {
+        record: 'minmax(0, 1fr) var(--rail-w)',
+        section: 'var(--section-aside-w) minmax(0, var(--section-fields-max))',
       },
       transitionDuration: {
         DEFAULT: '160ms',

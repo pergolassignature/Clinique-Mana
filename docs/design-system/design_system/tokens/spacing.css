@@ -9,5 +9,5 @@
 --sidebar-w:220px;--sidebar-w-collapsed:56px;--topbar-h:48px;--settings-nav-w:200px;
 --page-pad:24px;--page-pad-sm:16px;--card-pad:16px;--card-pad-sm:12px;
 --row-py:8px;--row-px:12px;
---content-max:1120px;--form-max:640px;
+--content-max:1280px;--form-max:640px; /* 1120 in the handoff; 1280 since decision UI-1 */
 }

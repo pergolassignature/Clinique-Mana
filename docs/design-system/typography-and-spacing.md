@@ -6,7 +6,7 @@ The one scale for every screen. The tokens live in `src/styles/globals.css` (`--
 
 - **Inter Variable**, self-hosted (`@fontsource-variable/inter`, decision #25/#29: no Google request, Loi 25). One variable file per subset (weights 100–900 in one file); French text only ever downloads the **latin** subset (~48 kB), which the build preloads (`preloadInterLatin`, `vite.config.ts`). `font-display: swap`.
 - Weights used: **400** (body), **500** (labels, emphasis, active tab, buttons), **600** (headings, figures). Never 300 or 700+.
-- Rendering: `antialiased` on `body`; figures in tables, amounts, dates and counters are **tabular** (`tabular` utility; `TableCell`, `Input` and `NavTab` counts already have it).
+- Rendering: `antialiased` and `font-synthesis: none` on `body` (no faux bold or italic, should a static subset ever replace the variable file); figures in tables, amounts, dates and counters are **tabular** (`tabular` utility; `TableCell`, `Input` and `NavTab` counts already have it).
 - OpenType features (measured in the browser, 2026-10-09): the self-hosted build has `tnum`, `frac`, `calt`, but **not** the design system's `cv02 cv03 cv04 cv11 ss01` (nor `zero`, `case`): setting them changes nothing, so don't.
 
 ## 2. Type scale
@@ -39,6 +39,7 @@ Rules:
 |---|---|---|
 | Page gutter | 16 phone / 24 from `md` | `AppShell` (`p-4 md:p-6`): pages add none |
 | Between page sections (header, cards, tables) | 20 | the shell's `gap-5`; inside a page `space-y-5` / `gap-5` |
+| Between **groups** of cards (a new group, under its overline heading) | 32 | `mt-8` / `space-y-8` between groups, `gap-5` inside one; the heading 8 above its group (audit 2026-10-09 §2.3) |
 | Card padding | 16 (12 compact) | `p-4` (`p-3`); `Card` header `p-4 pb-3`, content `p-4 pt-0` |
 | Card title → content | 12 | `mb-3` (`SettingsCard` does it) |
 | Between fields in a card or a form | 12 | `space-y-3`, grids `gap-3` (two columns: `grid gap-3 sm:grid-cols-2`) |
@@ -51,7 +52,25 @@ Rules:
 | Sheet | header 16/20/12, body 0 20 20, footer 12 | `SheetHeader`, `SheetBody`, `SheetFooter` |
 | Status list row | 6 vertical | `StatusIndicator` |
 | Empty state | 24 vertical, left-aligned | `EmptyState` |
-| Readable widths | forms 640, content 1120, prose ~65ch | `max-w-form`, `max-w-content`, `max-w-prose` |
+| Readable widths | forms 640, content 1280, prose ~65ch | `max-w-form`, `max-w-content`, `max-w-prose` |
+
+Rule of thumb: the gap between two things is smaller than the gap around their group.
+
+### Layout widths (desktop)
+
+The frame and the widths of the desktop layout (audit [`2026-10-09-desktop-layout-audit.md`](../audit/2026-10-09-desktop-layout-audit.md) §2.1, §2.5; decision UI-1). Tokens in `globals.css`, keys in `tailwind.config.js`, registered in `cn` (tailwind-merge).
+
+| What | Value | Classes |
+|---|---|---|
+| Frame (every page, and the top bar's content) | 1280, centred, gutter 24 (16 on phones) | `max-w-content` (`AppShell`, `Topbar`): pages add none |
+| Record page from `xl`: main column + summary rail | `minmax(0, 1fr)` + 320, gap 24 | `xl:grid-cols-record gap-6`; the rail alone `w-rail` |
+| Form section from 720 px of surface: aside + fields | 220 + up to 560, gap 24 | `container-inline` on the surface, `cq-720:grid-cols-section gap-6`; `w-section-aside`, `max-w-section-fields` |
+| Field `xs`: 1–3 digits (âge, années, jours, places) | 96 | `w-field-xs` |
+| Field `sm`: code postal, date, NEQ, n° de permis, IVAC | 160 | `w-field-sm` |
+| Field `md`: prénom, nom, téléphone, ville, short selects, TPS / TVQ | 264 | `w-field-md` |
+| Field `full`: address, email, URL, text | the fields column | `w-full` |
+
+A field is at least as wide as its label (« Années d'expérience » is `sm`, not `xs`).
 
 ## 4. Controls and icons
 
