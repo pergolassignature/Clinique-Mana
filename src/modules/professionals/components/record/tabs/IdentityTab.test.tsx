@@ -359,21 +359,24 @@ describe('IdentityTab', () => {
     })
   })
 
-  it('is read-only for the conseillère: one notice, focusable values, no buttons, no help', () => {
+  it('is a description list for the conseillère (UI-3): one notice, the same sections, no field, no button', () => {
     stored = { ...stored, professional: { ...stored.professional, profileId: '00000000-0000-4000-8000-000000009999' } }
     renderRecordTab(<IdentityTab />, { record: stored, role: 'counselor' })
     expect(screen.getAllByText(t('common.readOnlyNotice.title'))).toHaveLength(1)
     expect(screen.getByText(t(`${I}.readOnly`))).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
-    const first = screen.getByRole('textbox', { name: t(`${I}.identity.firstName`) })
-    expect(first).toHaveAttribute('readonly')
-    expect(screen.getByRole('textbox', { name: t(`${I}.contact.province`) })).toHaveValue(t('settings.provinces.QC'))
-    expect(screen.getByRole('textbox', { name: 'N° de permis' })).toHaveValue('12345')
-    // No gender recorded reads « Non indiqué », not an empty field.
-    expect(screen.getByRole('textbox', { name: t(`${I}.identity.gender`) })).toHaveValue(t(`${I}.identity.genderNone`))
-    // Help says how to fill a field in: none read-only (gender, login email, IVAC, licence).
-    for (const name of [t(`${I}.identity.gender`), t(`${I}.contact.loginEmail`), t(`${I}.payers.ivac`), 'N° de permis']) {
-      expect(screen.getByRole('textbox', { name })).not.toHaveAccessibleDescription()
-    }
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('region').map((region) => within(region).getByRole('heading').textContent)).toEqual([
+      t(`${I}.identity.title`),
+      t(`${I}.contact.title`),
+      t(`${I}.professions.title`),
+      t(`${I}.experience.title`),
+    ])
+    const value = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent
+    expect(value(t(`${I}.identity.firstName`))).toBe(stored.professional.firstName)
+    expect(value(t(`${I}.contact.province`))).toBe(t('settings.provinces.QC'))
+    expect(value(t(`${I}.professions.primary`))).toBe('Psychologue · OPQ 12345')
+    // Nothing recorded reads « Non indiqué », never a blank.
+    expect(value(t(`${I}.identity.gender`))).toBe(t('common.notProvided'))
   })
 })
