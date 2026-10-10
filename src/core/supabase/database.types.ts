@@ -5350,6 +5350,7 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
+      jobs_health_report: { Args: never; Returns: Json }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       link_professional_account: {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
