@@ -96,14 +96,15 @@ export function ProfessionalsFilters(props: ProfessionalsFiltersProps) {
 }
 
 /**
- * « N résultats » (polite): screen readers also hear « Page X sur Y » when there are several pages,
- * so ‹ and ›, which keep the focus, say where they led.
+ * « N résultats » (polite), for screen readers only: the eye reads the count once, in the page's
+ * subtitle and, filtered, in the table's footer (audit 2026-10-09 §2.4). They also hear « Page X
+ * sur Y » when there are several pages, so ‹ and ›, which keep the focus, say where they led.
  */
 function ResultsStatus({ count, pagination }: { count: number; pagination: ProfessionalsFiltersProps['pagination'] }) {
   const results = t(count > 1 ? 'modules.professionals.list.resultsOther' : 'modules.professionals.list.resultsOne', { count: String(count) })
   const paged = pagination !== undefined && pagination.pageCount > 1
   return (
-    <p role="status" aria-atomic="true" className="tabular ml-auto whitespace-nowrap text-xs text-muted-foreground">
+    <p role="status" aria-atomic="true" className="sr-only">
       <span aria-hidden={paged || undefined}>{results}</span>
       {paged && (
         <span className="sr-only">

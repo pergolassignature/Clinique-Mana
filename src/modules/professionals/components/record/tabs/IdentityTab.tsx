@@ -1,13 +1,14 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Controller } from 'react-hook-form'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { addressAutofill } from '@/core/address/autofill'
 import { AddressAutocomplete } from '@/core/address/components/AddressAutocomplete'
 import { rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
-import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
+import { PROVINCE_OPTIONS, provinceName } from '@/core/settings/organization/provinces'
+import { DescriptionList, type DescriptionItem } from '@/shared/components/DescriptionList'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
-import { SectionSurface } from '@/shared/components/SettingsCard'
+import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
 import { formatPostalCode, regroupPhone } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
 import { FormField, FormRow } from '@/shared/ui/form-field'
@@ -16,7 +17,7 @@ import { Select } from '@/shared/ui/select'
 import type { ProfessionalRecord } from '../../../api/parse'
 import { useSaveExperienceAndIvac, useSaveProfessionalFields } from '../../../hooks/use-card-saves'
 import { GENDERS } from '../../../lib/constants'
-import { genderLabel } from '../../../lib/display'
+import { genderLabel, professionLine } from '../../../lib/display'
 import { contactSchema, toContactFormValues } from '../../../schemas/contact'
 import {
   experienceAndPayersSchema,
@@ -51,11 +52,22 @@ const ivacError = (error: unknown) => (rpcErrorCode(error) === 'P0001' && rpcErr
  * « Identité et permis » (design §5.3): Identité, Coordonnées (with the login email), Professions et
  * permis, Expérience et payeurs (decision UI-5: two small groups, one save); sections of one surface
  * (title and description in an aside from 720 px, audit 2026-10-09 §2.4), each saving its own
- * fields, fields sized to their content. Editable with `professionals.manage`; read-only otherwise,
- * with one notice.
+ * fields, fields sized to their content. Editable with `professionals.manage`. Whoever opens the tab
+ * without it reads the same sections as description lists (decision UI-3), with one notice; a
+ * permission lost while the tab is open turns the forms read-only in place (an open dialog stays).
  */
 export function IdentityTab() {
   const readOnly = !useAccess().can('professionals.manage')
+  // Chosen once: the tab never re-lays itself under the user (and its dialogs) when access changes.
+  const [readerAtOpen] = useState(readOnly)
+  if (readOnly && readerAtOpen) {
+    return (
+      <div className="space-y-5">
+        <ReadOnlyNotice body={t(`${I}.readOnly`)} />
+        <IdentityReadOnly />
+      </div>
+    )
+  }
   return (
     <div className="space-y-5">
       {readOnly && <ReadOnlyNotice body={t(`${I}.readOnly`)} />}
@@ -216,6 +228,52 @@ export function IdentityTab() {
       </ProfessionalCard>
       </SectionSurface>
     </div>
+  )
+}
+
+/** The tab for whoever can never edit it (UI-3): the same sections, as label and value. */
+function IdentityReadOnly() {
+  const { record, catalog } = useRecordData()
+  const { professional, professions } = record
+  const ivac = record.payerNumbers.find((p) => p.type === 'ivac')?.number ?? null
+  const section = (title: string, description: string | undefined, items: DescriptionItem[]) => (
+    <SettingsCard as="section" layout="section" title={title} description={description}>
+      <DescriptionList items={items} />
+    </SettingsCard>
+  )
+  return (
+    <SectionSurface>
+      {section(t(`${I}.identity.title`), t(`${I}.identity.description`), [
+        { label: t(`${I}.identity.firstName`), value: professional.firstName },
+        { label: t(`${I}.identity.lastName`), value: professional.lastName },
+        { label: t(`${I}.identity.gender`), value: professional.gender && genderLabel(professional.gender) },
+      ])}
+      {section(t(`${I}.contact.title`), t(`${I}.contact.description`), [
+        { label: t(`${I}.contact.loginEmail`), value: professional.email },
+        { label: t(`${I}.contact.personalPhone`), value: professional.personalPhone },
+        { label: t(`${I}.contact.addressLine1`), value: [professional.addressLine1, professional.addressLine2].filter(Boolean).join(', ') },
+        { label: t(`${I}.contact.city`), value: professional.city },
+        { label: t(`${I}.contact.province`), value: professional.province && provinceName(professional.province) },
+        { label: t(`${I}.contact.postalCode`), value: professional.postalCode },
+      ])}
+      {section(
+        t(`${I}.professions.title`),
+        t(`${I}.professions.description`),
+        professions.length === 0
+          ? [{ label: t(`${I}.professions.titleField`), value: null, empty: t(`${I}.professions.empty`) }]
+          : [...professions]
+              .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+              .map((row) => ({
+                key: row.id,
+                label: row.isPrimary ? t(`${I}.professions.primary`) : t(`${I}.professions.titleField`),
+                value: professionLine(row, catalog, professional.gender),
+              })),
+      )}
+      {section(t(`${I}.experience.title`), t(`${I}.experience.description`), [
+        { label: t(`${I}.experience.years`), value: professional.yearsExperience === null ? null : String(professional.yearsExperience) },
+        { label: t(`${I}.payers.ivac`), value: ivac },
+      ])}
+    </SectionSurface>
   )
 }
 

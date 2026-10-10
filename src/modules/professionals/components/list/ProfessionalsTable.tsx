@@ -90,7 +90,8 @@ export function ProfessionalsTable({ rows, catalog, onPrefetch, footer }: Profes
             <span role="columnheader" className={CELL}>
               {t(`${T}.status`)}
             </span>
-            <span role="columnheader" className={cn(CELL, DOCUMENTS_COLUMN)}>
+            {/* A count: right-aligned, like every number of a table (§2.6). */}
+            <span role="columnheader" className={cn(CELL, DOCUMENTS_COLUMN, 'text-right')}>
               {t(`${T}.documents`)}
             </span>
             <span role="columnheader" className={cn(CELL, WATCH_COLUMN)}>
@@ -191,7 +192,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
         <Badge variant={statusTone(status)}>{statusLabel(status)}</Badge>
         <DocumentsCount row={row} className={DOCUMENTS_UNDER_STATUS} long />
       </div>
-      <div role="cell" className={cn(CELL, DOCUMENTS_COLUMN)}>
+      <div role="cell" className={cn(CELL, DOCUMENTS_COLUMN, 'text-right')}>
         <DocumentsCount row={row} />
       </div>
       {/* Wraps (two lines at most in practice), never ellipsed: « Assurance expirée : valide jusqu'au 5 oct. 2026 » reads whole. */}

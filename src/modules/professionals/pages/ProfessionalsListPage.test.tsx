@@ -106,7 +106,8 @@ describe('ProfessionalsListPage', () => {
   it('lists the professionals with their counts, title, licence, languages, status and first watch flag', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.name') })).toBeInTheDocument()
-    expect(await screen.findByText('3 professionnels · 1 actif')).toBeInTheDocument()
+    // The count in the header's count slot, then the active ones (A4: « 3 professionnels · 1 actif »).
+    expect(await screen.findByText((_, el) => el?.tagName === 'P' && el.textContent === '3 professionnels · 1 actif')).toBeInTheDocument()
     await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Paul Gagnon', 'Marie Tremblay']))
     const helene = screen.getByRole('link', { name: 'Hélène Côté' }).closest('[role=row]') as HTMLElement
     expect(within(helene).getByText('Naturopathe')).toBeInTheDocument()
@@ -116,9 +117,11 @@ describe('ProfessionalsListPage', () => {
     const marie = screen.getByRole('link', { name: 'Marie Tremblay' }).closest('[role=row]') as HTMLElement
     expect(within(marie).getByText('OPQ 12345')).toBeInTheDocument()
     expect(within(marie).getByText(t(`${L}.table.nothingToWatch`))).toBeInTheDocument()
-    expect(screen.getByText('3 résultats')).toBeInTheDocument()
-    expect(screen.getByText('3 sur 3 professionnels')).toBeInTheDocument()
-    expect(screen.getByText('Page 1 sur 1')).toBeInTheDocument()
+    // One count on screen (audit 2026-10-09 §2.6): the results status speaks to screen readers only,
+    // and the whole list on one page has no footer.
+    expect(screen.getByText('3 résultats').closest('[role="status"]')).toHaveClass('sr-only')
+    expect(screen.queryByText('3 sur 3 professionnels')).not.toBeInTheDocument()
+    expect(screen.queryByText('Page 1 sur 1')).not.toBeInTheDocument()
   })
 
   it('an inactive file: « Inactif depuis le … · {raison} » in « À surveiller » (P4-510)', async () => {
@@ -261,7 +264,9 @@ describe('ProfessionalsListPage', () => {
     await waitFor(() => expect(names()).toHaveLength(1))
     expect(next).toHaveAttribute('aria-disabled', 'true')
     expect(next).toHaveFocus()
-    expect(screen.getByText('26 sur 26 professionnels')).toBeInTheDocument()
+    // Not filtered: the footer pages without repeating the count.
+    expect(screen.queryByText('26 sur 26 professionnels')).not.toBeInTheDocument()
+    expect(screen.getByText('Page 2 sur 2')).toBeInTheDocument()
     // The focus stays on ›: the polite results status says where it led.
     expect(status).toHaveTextContent('26 résultats, page 2 sur 2')
     expect(status).toHaveAttribute('aria-atomic', 'true')
@@ -338,7 +343,7 @@ describe('ProfessionalsListPage', () => {
     renderPage()
     expect(await screen.findByText(t(`${L}.empty.title`))).toBeInTheDocument()
     expect(screen.getByText(t(`${L}.empty.body`))).toBeInTheDocument()
-    expect(screen.getByText('0 professionnel · 0 actif')).toBeInTheDocument()
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === '0 professionnel · 0 actif')).toBeInTheDocument()
   })
 
   it('the onboarding states failing: the list still shows, with the stored statuses, a notice and « Réessayer »', async () => {

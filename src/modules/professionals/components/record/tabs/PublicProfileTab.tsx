@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useWatch, type Control } from 'react-hook-form'
 import type { z } from 'zod'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
-import { SectionSurface } from '@/shared/components/SettingsCard'
+import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
+import { DescriptionList } from '@/shared/components/DescriptionList'
 import { regroupPhone } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
 import { FormField } from '@/shared/ui/form-field'
@@ -14,6 +16,7 @@ import { useSavePublicProfile } from '../../../hooks/use-card-saves'
 import { publicProfileSchema, toPublicProfileFormValues } from '../../../schemas/public-profile'
 import { editingHelp } from '../editing-help'
 import { ProfessionalCard } from '../ProfessionalCard'
+import { useRecordData } from '../record-context'
 
 const P = 'modules.professionals.record.publicProfile'
 /** `professional_public_profiles_bio_check` / `_approach_check`. */
@@ -45,6 +48,9 @@ function CharacterCount({ control, name }: { control: PortraitControl; name: 'bi
  */
 export function PublicProfileTab() {
   const readOnly = !useAccess().can('professionals.manage')
+  // Chosen once, as on « Identité et permis »: whoever can never edit reads description lists (UI-3).
+  const [readerAtOpen] = useState(readOnly)
+  if (readOnly && readerAtOpen) return <PublicProfileReadOnly />
   return (
     <div className="space-y-5">
       {readOnly && <ReadOnlyNotice body={t('modules.professionals.record.identity.readOnly')} />}
@@ -96,6 +102,35 @@ export function PublicProfileTab() {
           </>
         )}
       </ProfessionalCard>
+      </SectionSurface>
+    </div>
+  )
+}
+
+/** The tab for whoever can never edit it (UI-3): the texts as paragraphs, the contacts as label and value. */
+function PublicProfileReadOnly() {
+  const { record } = useRecordData()
+  const { bio, approach, publicEmail, publicPhone } = record.publicProfile
+  return (
+    <div className="space-y-5">
+      <ReadOnlyNotice body={t('modules.professionals.record.identity.readOnly')} />
+      <SectionSurface>
+        <SettingsCard as="section" layout="section" title={t(`${P}.portrait.title`)} description={t(`${P}.portrait.description`)}>
+          <DescriptionList
+            items={[
+              { label: t(`${P}.portrait.bio`), value: bio && <span className="whitespace-pre-line">{bio}</span> },
+              { label: t(`${P}.portrait.approach`), value: approach && <span className="whitespace-pre-line">{approach}</span> },
+            ]}
+          />
+        </SettingsCard>
+        <SettingsCard as="section" layout="section" title={t(`${P}.contact.title`)}>
+          <DescriptionList
+            items={[
+              { label: t(`${P}.contact.email`), value: publicEmail },
+              { label: t(`${P}.contact.phone`), value: publicPhone },
+            ]}
+          />
+        </SettingsCard>
       </SectionSurface>
     </div>
   )
