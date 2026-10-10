@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup · Échelle typographique</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  body { background: #fbfbfb; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
+  .pane { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
+  .pane > .t-over { margin: 0 0 16px; }
+  /* BEFORE: the recipes measured in the app today (computed styles, 2026-10-09). */
+  .b-h1 { font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .b-h2 { font-size: 16px; line-height: 24px; font-weight: 600; margin: 0; }
+  .b-h3 { font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .b-cat { font-size: 13px; line-height: 18px; font-weight: 600; }
+  .b-th1 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
+  .b-th2 { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .b-th3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); }
+  .b-dt-a { font-weight: 500; color: var(--text); }
+  .specimen { border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
+  .specimen + .specimen { margin-top: 16px; }
+  .cat { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--border-light); }
+  .cat:first-child { border-top: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  table.scale { width: 100%; border-collapse: collapse; margin-top: 24px; background: #fff; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .scale th, .scale td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .scale th { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); background: #fff; }
+  .scale tr:last-child td { border-bottom: 0; }
+  .scale code { font-size: 12px; background: var(--bg-secondary); padding: 1px 4px; border-radius: 3px; }
+  .chg { color: var(--primary); font-weight: 500; }
+  .tiny-tbl { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .tiny-tbl th, .tiny-tbl td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+  .tiny-tbl td.n, .tiny-tbl th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .grouprow td { background: var(--bg-secondary); }
+</style>
+</head>
+<body>
+<div class="note">
+  <span class="tag">Mockup 4 of 4 · Type scale</span>
+  <span><strong>Weights and hierarchy</strong>: the same content set with today's measured recipes (left) and the proposed ones (right). Font: Inter Variable, the one self-hosted latin file (weights 100–900 in one file), so no weight is synthesised; the app uses only 400, 500 and 600.</span>
+  <span>Problems on the left: the card title (14/600) and the field label (13/500) are 1 px and one weight step apart, so « Identité » and « Prénom » read as the same level; four table-header styles; motif categories in 600 make a bold wall; read-only labels in two styles (« Mon compte » 500 dark, the record 400 grey).</span>
+</div>
+<div class="wrap">
+  <div class="pair">
+    <section class="pane">
+      <p class="t-over">Today (measured)</p>
+      <h1 class="b-h1">Paramètres</h1>
+      <div style="margin-top:20px">
+        <h2 class="b-h2">Identité légale</h2>
+        <p class="t-small" style="margin:2px 0 0">Le nom, l'adresse et les coordonnées de la clinique.</p>
+      </div>
+      <div class="specimen" style="margin-top:20px">
+        <h3 class="b-h3">Identité</h3>
+        <div class="grid2" style="margin-top:12px">
+          <div class="field"><label>Prénom<span class="req">*</span></label><div class="input">Geneviève</div></div>
+          <div class="field"><label>Nom<span class="req">*</span></label><div class="input">Tremblay</div></div>
+        </div>
+        <div class="field" style="margin-top:12px"><label>Genre</label><div class="input">Femme</div><p class="help" style="margin:0">Utilisé pour la forme du titre.</p></div>
+      </div>
+      <div class="specimen">
+        <h3 class="b-h3">Profil de jumelage</h3>
+        <div style="margin-top:12px">
+          <div class="cat"><span class="b-cat">Santé mentale / Troubles psychologiques</span><span class="t-small tabular">19 / 19</span></div>
+          <div class="cat"><span class="b-cat">Personnalité et comportements</span><span class="t-small tabular">7 / 7</span></div>
+          <div class="cat"><span class="b-cat">Dépendances</span><span class="t-small tabular">5 / 5</span></div>
+          <div class="cat"><span class="b-cat">Neurodiversité / apprentissages</span><span class="t-small tabular">11 / 11</span></div>
+        </div>
+      </div>
+      <div class="specimen">
+        <p class="t-small" style="margin:0 0 4px">Three of the four table-header styles in use</p>
+        <table class="tiny-tbl">
+          <tr><th class="b-th1">Nom</th><th class="b-th2">Séances du mois</th><th class="b-th1 n">Cumul</th></tr>
+          <tr class="grouprow"><td colspan="3" class="b-th3" style="background:none">Ateliers et conférences</td></tr>
+          <tr><td>Camille Roy</td><td class="tabular">14 + 2</td><td class="n" style="text-align:left">103</td></tr>
+        </table>
+      </div>
+      <div class="specimen">
+        <p class="t-small" style="margin:0 0 8px">Read-only labels, two styles</p>
+        <dl class="dl" style="grid-template-columns:150px 1fr">
+          <dt class="b-dt-a">Courriel actuel</dt><dd>admin@mana.test</dd>
+          <dt>Langues</dt><dd>Français · Anglais</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="pane">
+      <p class="t-over">Proposed</p>
+      <h1 class="t-h1">Identité légale</h1>
+      <p class="t-small" style="margin:2px 0 0">Le nom, l'adresse et les coordonnées de la clinique.</p>
+      <div class="specimen" style="margin-top:24px;--field-md:240px">
+        <h3 class="t-panel">Identité</h3>
+        <div class="row" style="margin-top:12px">
+          <div class="field w-md"><label>Prénom<span class="req">*</span></label><div class="input">Geneviève</div></div>
+          <div class="field w-md"><label>Nom<span class="req">*</span></label><div class="input">Tremblay</div></div>
+        </div>
+        <div class="field w-md" style="margin-top:12px"><label>Genre</label><div class="input">Femme</div><p class="help" style="margin:0">Utilisé pour la forme du titre.</p></div>
+      </div>
+      <div class="specimen">
+        <h3 class="t-panel">Profil de jumelage</h3>
+        <div style="margin-top:12px">
+          <div class="cat"><span class="t-label">Santé mentale / Troubles psychologiques</span><span class="t-small tabular">19 / 19</span></div>
+          <div class="cat"><span class="t-label">Personnalité et comportements</span><span class="t-small tabular">7 / 7</span></div>
+          <div class="cat"><span class="t-label">Dépendances</span><span class="t-small tabular">5 / 5</span></div>
+          <div class="cat"><span class="t-label">Neurodiversité / apprentissages</span><span class="t-small tabular">11 / 11</span></div>
+        </div>
+      </div>
+      <div class="specimen">
+        <p class="t-small" style="margin:0 0 4px">One header style; group rows as a quiet band; numbers right-aligned</p>
+        <table class="tiny-tbl">
+          <tr><th class="t-over">Nom</th><th class="t-over">Séances du mois</th><th class="t-over n">Cumul</th></tr>
+          <tr class="grouprow"><td colspan="3" class="t-over">Ateliers et conférences</td></tr>
+          <tr><td>Camille Roy</td><td class="tabular">14 + 2</td><td class="n">103</td></tr>
+        </table>
+      </div>
+      <div class="specimen">
+        <p class="t-small" style="margin:0 0 8px">Read-only labels, one style (DescriptionList)</p>
+        <dl class="dl" style="grid-template-columns:150px 1fr">
+          <dt>Courriel actuel</dt><dd>admin@mana.test</dd>
+          <dt>Langues</dt><dd>Français · Anglais</dd>
+          <dt>Téléphone</dt><dd class="empty">Non indiqué</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+
+  <table class="scale">
+    <thead><tr><th>Role</th><th>Size / line</th><th>Weight</th><th>Colour</th><th>Classes</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td class="t-h1" style="font-size:20px">Page title (H1)</td><td>20 / 28, −0.01em</td><td>600</td><td>foreground</td><td><code>text-xl font-semibold tracking-tight</code></td><td>Settings: the section title becomes the H1; « Paramètres » leaves the page (breadcrumb + menu)</td></tr>
+      <tr><td class="t-panel">Card, dialog, sheet title</td><td>16 / 24</td><td>600</td><td>foreground</td><td><code>text-lg font-semibold</code></td><td class="chg">was 14 / 20 (cards only); dialogs and sheets already 16</td></tr>
+      <tr><td><span class="t-over">Group heading</span></td><td>11 / 16, +0.06em, caps</td><td>500</td><td>secondary</td><td><code>text-2xs font-medium uppercase tracking-wide text-muted-foreground</code></td><td class="chg">new use: above a group of cards (« Documents requis »), 32 px above, 8 px below; replaces in-page H3 16/600</td></tr>
+      <tr><td class="t-h4">Sub-group in a card (H4)</td><td>13 / 18</td><td>600</td><td>foreground</td><td><code>text-sm font-semibold</code></td><td>unchanged (« Ententes particulières »)</td></tr>
+      <tr><td class="t-label">Field label, button, active tab/nav</td><td>13 / 18</td><td>500</td><td>foreground</td><td><code>text-sm font-medium</code></td><td>unchanged; now two levels under the card title</td></tr>
+      <tr><td class="t-label">List-row name, motif category</td><td>13 / 18</td><td>500</td><td>foreground</td><td><code>text-sm font-medium</code></td><td class="chg">motif categories were 600 (13 bold lines on Aperçu)</td></tr>
+      <tr><td>Body, value, table cell</td><td>13 / 18</td><td>400</td><td>foreground</td><td><code>text-sm</code></td><td>unchanged</td></tr>
+      <tr><td class="muted">Read-only label (dt)</td><td>13 / 18</td><td>400</td><td>secondary #6B6B6E</td><td><code>text-sm text-muted-foreground</code></td><td class="chg">« Mon compte » used 500 foreground</td></tr>
+      <tr><td class="t-small">Help, description, secondary line</td><td>12 / 16</td><td>400</td><td>secondary</td><td><code>text-xs text-muted-foreground</code></td><td>unchanged</td></tr>
+      <tr><td><span class="t-over">Table header, menu group</span></td><td>11 / 16, +0.06em, caps</td><td>500</td><td>secondary</td><td><code>TableHead</code></td><td class="chg">the only header style (Révision mensuelle, Rétention, group rows aligned on it)</td></tr>
+      <tr><td class="t-figure">Figure</td><td>20 / 28, tabular</td><td>600</td><td>foreground</td><td><code>text-xl font-semibold tabular</code></td><td>unchanged</td></tr>
+      <tr><td class="subtle">Placeholder, icon, « — »</td><td>—</td><td>400</td><td>muted #8E8E92</td><td><code>text-subtle</code></td><td>unchanged: never a sentence someone must read</td></tr>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

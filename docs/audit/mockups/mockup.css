@@ -1,0 +1,206 @@
+/*
+ * Shared styles of the desktop-layout audit mockups (docs/audit/2026-10-09-desktop-layout-audit.md).
+ * Values are the app's tokens (src/styles/globals.css, decision #29/#30); the PROPOSED tokens are
+ * marked « proposed ». Static HTML, not app code: open the files from a checkout (the font is the
+ * repo's self-hosted Inter Variable from node_modules; without it, the system font shows).
+ */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations'), local('Inter');
+}
+
+:root {
+  /* Existing tokens */
+  --bg: #ffffff;
+  --bg-secondary: #f4f4f5;
+  --surface-card: #ffffff;
+  --surface-hover: #fafafa;
+  --surface-sidebar: #f7f7f8;
+  --border: #e4e4e7;
+  --border-light: #efeff1;
+  --border-strong: #cfcfd4;
+  --text: #1f1f20;
+  --text-secondary: #6b6b6e;
+  --text-muted: #8e8e92;
+  --link: #1a6b66;
+  --primary: #1e837c;
+  --primary-hover: #1a6b66;
+  --primary-soft: #eef8f7;
+  --success: #249d95;
+  --warning: #e0b400;
+  --warning-soft: #fff7d6;
+  --warning-fg: #6e5804;
+  --danger: #b3261e;
+  --wine: #9b1b3c;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --sidebar-w: 220px;
+  --topbar-h: 48px;
+  --page-pad: 24px;
+  --card-pad: 16px;
+  --form-max: 640px;
+
+  /* Proposed tokens */
+  --content-max: 1280px; /* was 1120 */
+  --rail-w: 320px; /* record summary rail, ≥1280 viewport */
+  --section-aside-w: 220px; /* title + description column of a form section */
+  --section-fields-max: 560px;
+  --field-xs: 96px; /* 1–3 digits: âge, années, jours, places */
+  --field-sm: 160px; /* code postal, date, NEQ, n° de permis */
+  --field-md: 264px; /* prénom, nom, téléphone, ville, select courts, TPS/TVQ */
+  --space-group: 32px; /* between groups of cards */
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ---------- Audit annotation strip (not part of the app) ---------- */
+.note {
+  background: #fffbe8;
+  border-bottom: 1px solid #f0e2a0;
+  padding: 10px 24px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #5c4a03;
+  display: flex;
+  gap: 4px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.note strong { font-weight: 600; }
+.note a { color: inherit; }
+.note .tag { display: inline-block; padding: 0 6px; border-radius: 3px; background: #f5e7a6; font-weight: 500; }
+
+/* ---------- Shell ---------- */
+.app { display: flex; min-height: 100vh; }
+.sidebar {
+  position: sticky; top: 0; height: 100vh; width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--surface-sidebar); padding: 0 8px; display: flex; flex-direction: column;
+}
+.sidebar .logo { height: 64px; display: flex; align-items: center; padding: 0 8px; }
+.sidebar .logo img { height: 36px; }
+.sidebar nav a {
+  display: flex; align-items: center; gap: 8px; height: 31px; padding: 0 8px; border-radius: var(--radius-md);
+  color: var(--text-secondary); text-decoration: none;
+}
+.sidebar nav a.active { background: #fff; color: var(--text); font-weight: 500; box-shadow: 0 0 0 1px var(--border-light); }
+.sidebar .me { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 12px 8px; }
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px;
+  background: var(--bg-secondary); color: var(--text-secondary); font-weight: 500; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.avatar.s24 { width: 24px; height: 24px; font-size: 10px; }
+.avatar.s40 { width: 40px; height: 40px; font-size: 14px; }
+.icon { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.icon.i16 { width: 16px; height: 16px; }
+.muted { color: var(--text-secondary); }
+.subtle { color: var(--text-muted); }
+
+.column { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: 0; z-index: 30; height: var(--topbar-h); background: var(--bg);
+  border-bottom: 1px solid var(--border); padding: 0 var(--page-pad);
+}
+/* Proposed: the topbar's content shares the page frame, so the breadcrumb starts where the title does. */
+.topbar .frame { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.crumbs { display: flex; gap: 8px; align-items: center; color: var(--text-secondary); }
+.crumbs b { font-weight: 500; color: var(--text); }
+.search {
+  width: 200px; height: 28px; border: 1px solid var(--border); border-radius: var(--radius-md); display: flex;
+  align-items: center; gap: 6px; padding: 0 8px; color: var(--text-muted);
+}
+.kbd { margin-left: auto; font-size: 11px; padding: 0 4px; border-radius: 3px; background: var(--bg-secondary); color: var(--text-secondary); }
+main { padding: var(--page-pad); }
+.frame { width: 100%; max-width: var(--content-max); margin: 0 auto; }
+
+/* ---------- Type scale (proposed recipes) ---------- */
+.t-h1 { font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.t-panel { font-size: 16px; line-height: 24px; font-weight: 600; margin: 0; } /* card, dialog, sheet title */
+.t-h4 { font-size: 13px; line-height: 18px; font-weight: 600; margin: 0; }
+.t-label { font-size: 13px; line-height: 18px; font-weight: 500; }
+.t-body { font-size: 13px; line-height: 18px; font-weight: 400; }
+.t-small { font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+.t-over { font-size: 11px; line-height: 16px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
+.t-figure { font-size: 20px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- Controls ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--radius-md);
+  font-size: 13px; font-weight: 500; border: 1px solid var(--border); background: #fff; color: var(--text); cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--border-strong); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
+.btn.ghost:hover { background: var(--bg-secondary); }
+.btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn.icon-only { width: 32px; padding: 0; justify-content: center; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; line-height: 18px; font-weight: 500; }
+.req { color: var(--primary); margin-left: 2px; }
+.input {
+  height: 32px; border: 1px solid #d9d9de; border-radius: var(--radius-md); padding: 0 10px; background: #fff; width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.input.placeholder { color: var(--text-muted); }
+.input:focus-within { border-color: var(--primary); }
+.help { font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+.w-xs { width: var(--field-xs); }
+.w-sm { width: var(--field-sm); }
+.w-md { width: var(--field-md); }
+.w-full { width: 100%; }
+
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: var(--success); }
+.dot.warn { background: var(--warning); }
+.dot.danger { background: var(--danger); }
+.dot.neutral { background: #a8a8ad; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.chip { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; color: var(--text-secondary); }
+
+/* ---------- Surfaces ---------- */
+.card { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-card); }
+.card-pad { padding: var(--card-pad); }
+.stack-20 > * + * { margin-top: 20px; }
+.stack-12 > * + * { margin-top: 12px; }
+.divider { height: 1px; background: var(--border); margin: 0; border: 0; }
+
+/* A form section with its header in an aside column (proposed SettingsCard layout ≥ 720px wide). */
+.section {
+  display: grid; grid-template-columns: var(--section-aside-w) minmax(0, var(--section-fields-max)); gap: 24px;
+  padding: 20px var(--card-pad);
+}
+.section + .section { border-top: 1px solid var(--border); }
+.section .aside p { margin: 4px 0 0; }
+.section .fields { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+
+/* Description list (proposed DescriptionList: the one read-only pattern). */
+.dl { display: grid; grid-template-columns: 180px minmax(0, 1fr); margin: 0; }
+.dl dt, .dl dd { margin: 0; padding: 7px 0; border-top: 1px solid var(--border-light); }
+.dl dt { color: var(--text-secondary); }
+.dl > :nth-child(1), .dl > :nth-child(2) { border-top: 0; }
+.dl .empty { color: var(--text-muted); }
+
+/* Tables */
+table.t { width: 100%; border-collapse: collapse; }
+.t th { text-align: left; font-size: 11px; line-height: 16px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.t td { padding: 8px 12px; height: 40px; border-bottom: 1px solid var(--border); vertical-align: middle; font-variant-numeric: tabular-nums; }
+.t tr:last-child td { border-bottom: 0; }
+.t tbody tr:hover { background: var(--surface-hover); }
+.t .num { text-align: right; }
+.t .sub { display: block; font-size: 12px; line-height: 16px; color: var(--text-secondary); }

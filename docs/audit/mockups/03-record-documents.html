@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup · Dossier, Documents</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .who { display: flex; gap: 12px; align-items: flex-start; }
+  .title-line { display: flex; align-items: center; gap: 12px; }
+  .tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); margin-top: 16px; }
+  .tabs a { padding: 8px 0; color: var(--text-secondary); text-decoration: none; }
+  .tabs a.on { color: var(--text); font-weight: 500; box-shadow: inset 0 -2px 0 var(--primary); }
+  .body { display: grid; grid-template-columns: minmax(0, 1fr) var(--rail-w); gap: 24px; margin-top: 24px; align-items: start; }
+  .group + .group { margin-top: var(--space-group); }
+  .group-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .group-head .t-over { margin: 0; }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 16px 16px 12px; }
+  .card-head p { margin: 2px 0 0; }
+  .list { border-top: 1px solid var(--border); }
+  .item > :last-child { justify-self: end; }
+  .item { display: grid; grid-template-columns: minmax(0, 1fr) 104px 112px 290px; gap: 16px; align-items: center; padding: 10px 16px; min-height: 52px; }
+  .item + .item { border-top: 1px solid var(--border); }
+  .item .name { font-weight: 500; }
+  .empty { padding: 0 16px 16px; color: var(--text-secondary); }
+  .empty b { display: block; font-weight: 500; color: var(--text); }
+  .contract { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 0 16px 16px; align-items: end; }
+  .callout { margin: 0 16px 16px; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--bg-secondary); color: var(--text-secondary); font-size: 12px; line-height: 16px; }
+  .callout a { color: var(--link); }
+  .rail { position: sticky; top: calc(var(--topbar-h) + 24px); display: flex; flex-direction: column; gap: 16px; }
+  .check { list-style: none; padding: 0; margin: 12px 0 0; }
+  .check li { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border-light); }
+  .check li:first-child { border-top: 0; padding-top: 0; }
+  .check .icon { margin-top: 2px; color: var(--warning); }
+</style>
+</head>
+<body>
+<div class="note">
+  <span class="tag">Mockup 3 of 4 · After</span>
+  <span><strong>Record page, « Documents »</strong> (Olivier Bergeron, « À réviser »), admin, 1440 × 900.</span>
+  <span>Before: 6 cards at 640 px; the « Documents requis » heading sits 20 px under the card above (the same gap as card to card), the three required documents are three cards 12 px apart, the questionnaire's empty state adds 24 px above and below inside its card (EmptyState without <code>inCard</code>), « Préparer le contrat » and « Téléverser » are 28 px buttons next to 32 px header buttons.</span>
+  <span>After: three groups (overline + 32 px between groups), one card per group, the required documents as rows of one list with aligned status and action columns, in-card empty states with no extra padding, every action 32 px.</span>
+  <a href="../screenshots/desktop/admin-professionnels_p09_documents-1440.jpg">Before screenshot</a>
+</div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo"><img src="../../design-system/assets/logo-header.svg" alt="MANA"></div>
+    <nav>
+      <a href="#">Accueil</a><a href="#" class="active">Professionnels</a><a href="#">Paramètres</a>
+    </nav>
+    <div class="me"><span class="avatar s24">AL</span><div><div class="t-label">Admin Local</div><div class="t-small">Administrateur</div></div></div>
+  </aside>
+  <div class="column">
+    <header class="topbar"><div class="frame">
+      <div class="crumbs"><span>Professionnels</span><span class="subtle">/</span><b>Olivier Bergeron</b></div>
+      <div style="display:flex;gap:12px;align-items:center"><div class="search">Rechercher…<span class="kbd">⌘K</span></div><span class="avatar s24">AL</span></div>
+    </div></header>
+    <main><div class="frame">
+      <div class="head-row">
+        <div class="who"><span class="avatar s40">OB</span><div>
+          <div class="title-line"><h1 class="t-h1">Olivier Bergeron</h1><span class="status"><span class="dot warn"></span>À réviser</span></div>
+          <div class="muted" style="margin-top:2px">Psychologue · OPQ 15026 · olivier.bergeron@exemple.test · <span class="chip">FR</span></div>
+        </div></div>
+        <div style="display:flex;gap:8px"><button class="btn">Fiche PDF</button><button class="btn primary">Activer</button><button class="btn icon-only">⋯</button></div>
+      </div>
+      <nav class="tabs"><a href="#">Aperçu</a><a href="#">Jumelage</a><a href="#">Profil public</a><a href="#">Identité et permis</a><a href="#" class="on">Documents</a><a href="#">Rémunération et fiscalité</a><a href="#">Historique</a></nav>
+
+      <div class="body">
+        <div>
+          <div class="group">
+            <div class="group-head"><p class="t-over">Contrat et questionnaire</p></div>
+            <div class="card">
+              <div class="card-head"><div><h3 class="t-panel">Contrat de service</h3><p class="t-small">Envoyé à Olivier pour signature électronique ; le PDF signé est conservé au dossier dès qu'il existe.</p></div></div>
+              <div class="contract">
+                <div><span class="status" style="font-size:13px;color:var(--text)"><span class="dot neutral"></span>Aucun contrat</span><p class="t-small" style="margin:2px 0 0">Aucun contrat de service n'a encore été envoyé à Olivier.</p></div>
+                <div style="display:flex;gap:8px"><button class="btn">Téléverser un contrat signé</button><button class="btn" aria-disabled="true" style="color:var(--text-muted)">Préparer le contrat</button></div>
+              </div>
+              <p class="callout">Aucun modèle de contrat publié : publiez « Contrat de service » avant d'envoyer. <a href="#">Ouvrir Paramètres → Contrats et formulaires</a></p>
+              <hr class="divider">
+              <div class="card-head"><div><h3 class="t-panel">Questionnaire et mises à jour</h3><p class="t-small">Ce qu'Olivier a envoyé à la clinique, et ce qui en a été appliqué au dossier.</p></div></div>
+              <div class="empty"><b>Aucun questionnaire pour l'instant.</b>Le questionnaire d'accueil apparaît ici dès l'envoi de l'invitation.</div>
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="group-head"><p class="t-over">Documents requis</p><span class="t-small tabular">En règle : 0 sur 3</span></div>
+            <div class="card">
+              <div class="item"><span class="name">Photo professionnelle</span><span class="status"><span class="dot danger"></span>Manquant</span><span class="t-small">Aucun document</span><button class="btn">Téléverser</button></div>
+              <div class="item"><span class="name">Preuve d'assurance responsabilité</span><span class="status"><span class="dot danger"></span>Manquant</span><span class="t-small">Aucun document</span><button class="btn">Téléverser</button></div>
+              <div class="item"><span class="name">Consentement droit à l'image<span class="t-small" style="display:block;font-weight:400">Signature électronique : aucun envoi</span></span><span class="status"><span class="dot danger"></span>Manquant</span><span class="t-small">Aucun document</span><div style="display:flex;gap:8px"><button class="btn" aria-disabled="true" style="color:var(--text-muted)">Envoyer pour signature</button><button class="btn">Téléverser</button></div></div>
+              <p class="callout" style="margin-top:4px">Aucun modèle de consentement publié : publiez « Consentement au droit à l'image » avant d'envoyer. <a href="#">Ouvrir Paramètres → Contrats et formulaires</a></p>
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="group-head"><p class="t-over">Autres documents</p><button class="btn">Téléverser un document</button></div>
+            <div class="card"><div class="empty" style="padding-top:16px"><b>Aucun autre document.</b>CV, diplômes, attestations et tout autre document du dossier.</div></div>
+          </div>
+        </div>
+
+        <aside class="rail">
+          <section class="card card-pad">
+            <h3 class="t-panel">Dossier</h3>
+            <ul class="check">
+              <li><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Compte pas encore créé</span></li>
+              <li><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Questionnaire pas encore approuvé</span></li>
+              <li><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Documents requis : 0 sur 3</span></li>
+              <li><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Contrat de service pas encore signé</span></li>
+            </ul>
+          </section>
+          <section class="card card-pad">
+            <h3 class="t-panel">Prochaine action</h3>
+            <p class="muted" style="margin:4px 0 12px">Olivier n'a pas encore reçu d'invitation pour créer son accès et remplir son questionnaire.</p>
+            <button class="btn">Envoyer l'invitation</button>
+          </section>
+        </aside>
+      </div>
+    </div></main>
+  </div>
+</div>
+</body>
+</html>

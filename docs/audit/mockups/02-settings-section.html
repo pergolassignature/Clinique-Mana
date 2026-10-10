@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup · Paramètres, Identité légale</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .settings { display: grid; grid-template-columns: 212px minmax(0, 1fr); gap: 32px; align-items: start; }
+  /* Proposed: the settings menu stays in view on long sections (Journal d'audit 2 429 px, Motifs 5 805 px). */
+  .snav { position: sticky; top: calc(var(--topbar-h) + var(--page-pad)); max-height: calc(100vh - var(--topbar-h) - 2 * var(--page-pad)); overflow: auto; }
+  .snav .group + .group { margin-top: 16px; }
+  .snav .t-over { padding: 0 8px; margin: 0 0 4px; }
+  .snav a { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: var(--radius-md); color: var(--text-secondary); text-decoration: none; }
+  .snav a.on { background: var(--bg-secondary); color: var(--text); font-weight: 500; }
+  .pane-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+  .pane-head p { margin: 2px 0 0; max-width: 65ch; }
+  .logo-row { display: flex; gap: 12px; align-items: stretch; }
+  .logo-box { width: 160px; height: 96px; border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; }
+  .drop { flex: 1; border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="note">
+  <span class="tag">Mockup 2 of 4 · After</span>
+  <span><strong>Paramètres → Identité légale</strong>, admin, 1440 × 900.</span>
+  <span>Before: « Paramètres » H1 (20 px) + section H2 (16 px) + card H3 (14 px) + label (13 px): four levels in 7 px; the menu scrolls away; at 1920 the menu starts 290 px from the sidebar and the 640 px form leaves 245 px empty on its right; 4 cards and 6 inactive buttons; NEQ, Téléphone, Code postal all 297 px.</span>
+  <span>After: the section title is the page's H1 (the breadcrumb and the menu already say « Paramètres »), sticky menu, one surface with aside headers, content-sized fields, actions only on the edited section.</span>
+  <a href="../screenshots/desktop/admin-parametres_identite-1920.jpg">Before screenshot</a>
+</div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo"><img src="../../design-system/assets/logo-header.svg" alt="MANA"></div>
+    <nav>
+      <a href="#"><svg class="icon i16" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>Accueil</a>
+      <a href="#"><svg class="icon i16" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-7 7-7s7 3 7 7"/></svg>Professionnels</a>
+      <a href="#" class="active"><svg class="icon i16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Paramètres</a>
+    </nav>
+    <div class="me"><span class="avatar s24">AL</span><div><div class="t-label">Admin Local</div><div class="t-small">Administrateur</div></div></div>
+  </aside>
+  <div class="column">
+    <header class="topbar"><div class="frame">
+      <div class="crumbs"><span>Paramètres</span><span class="subtle">/</span><b>Identité légale</b></div>
+      <div style="display:flex;gap:12px;align-items:center"><div class="search">Rechercher…<span class="kbd">⌘K</span></div><span class="avatar s24">AL</span></div>
+    </div></header>
+    <main><div class="frame settings">
+      <nav class="snav" aria-label="Paramètres">
+        <div class="group"><p class="t-over">Clinique</p>
+          <a href="#" class="on">Identité légale</a><a href="#">Fiscalité</a><a href="#">Signataire</a><a href="#">Coordonnées bancaires</a><a href="#">Région</a><a href="#">Confidentialité</a></div>
+        <div class="group"><p class="t-over">Plateforme</p>
+          <a href="#">Utilisateurs et accès</a><a href="#">Modules</a><a href="#">Journal d'audit</a><a href="#">Tâches planifiées</a><a href="#">Courriels</a><a href="#">Signature électronique</a></div>
+        <div class="group"><p class="t-over">Modules</p>
+          <a href="#">Professions et ordres</a><a href="#">Clientèles</a><a href="#">Motifs</a><a href="#">Langues</a><a href="#">Raisons de désactivation</a><a href="#">Documents requis</a><a href="#">Consentements</a><a href="#">Fiche PDF</a><a href="#">Contrats et formulaires</a><a href="#">Invitations</a><a href="#">Rémunération</a></div>
+      </nav>
+      <section>
+        <div class="pane-head"><div>
+          <h1 class="t-h1">Identité légale</h1>
+          <p class="muted">Le nom, l'adresse et les coordonnées figurent au bas des courriels, sur la fiche PDF et dans le contrat de service.</p>
+        </div></div>
+        <div class="card">
+          <form class="section">
+            <div class="aside"><h2 class="t-panel">Clinique</h2><p class="t-small">Le nom affiché dans l'application et la raison sociale des contrats.</p></div>
+            <div class="fields">
+              <div class="field"><label>Nom affiché<span class="req">*</span></label><div class="input">Clinique MANA (local)</div><p class="help" style="margin:0">Le nom qui apparaît dans l'application.</p></div>
+              <div class="field"><label>Raison sociale</label><div class="input"></div></div>
+              <div class="field w-sm"><label>NEQ</label><div class="input"></div><p class="help" style="margin:0">10 chiffres.</p></div>
+            </div>
+          </form>
+          <form class="section">
+            <div class="aside"><h2 class="t-panel">Adresse du siège social</h2><p class="t-small">Imprimée sur le contrat de service.</p></div>
+            <div class="fields">
+              <div class="field"><label>Adresse</label><div class="input placeholder">Commencez à saisir l'adresse</div></div>
+              <div class="field w-md"><label>Appartement ou bureau</label><div class="input placeholder">App. 4, bureau 210</div></div>
+              <div class="row"><div class="field w-md"><label>Ville</label><div class="input"></div></div>
+                <div class="field w-sm"><label>Province</label><div class="input">Québec<svg class="icon subtle" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+                <div class="field w-xs"><label>Code postal</label><div class="input"></div></div></div>
+            </div>
+          </form>
+          <form class="section">
+            <div class="aside"><h2 class="t-panel">Coordonnées</h2><p class="t-small">Au bas des courriels et sur la fiche PDF.</p></div>
+            <div class="fields">
+              <div class="row"><div class="field w-md"><label>Téléphone</label><div class="input"></div></div>
+                <div class="field w-md"><label>Courriel</label><div class="input"></div></div></div>
+              <div class="field"><label>Site web</label><div class="input placeholder">https://</div></div>
+            </div>
+          </form>
+          <section class="section">
+            <div class="aside"><h2 class="t-panel">Logo</h2><p class="t-small">Sur la fiche PDF des professionnels. PNG ou JPEG, 2 Mo au plus.</p></div>
+            <div class="fields"><div class="logo-row"><div class="logo-box">Aucun logo</div>
+              <div class="drop">Glissez un fichier ici, ou<button class="btn sm">Choisir un fichier</button></div></div></div>
+          </section>
+        </div>
+      </section>
+    </div></main>
+  </div>
+</div>
+</body>
+</html>
