@@ -5,7 +5,7 @@
  * fixed here (and the client select policy on `storage.objects` goes away).
  *
  * 1. CORS; `POST` only; `verifyAuth` (an active profile).
- * 2. Body `{ file_id, download? }`, strict.
+ * 2. Body `{ file_id, download? | variant? }`, strict.
  * 3. One hit on `LIMITS.storageSignUser` (120 an hour per caller), before
  *    any lookup.
  * 4. Readability, as the **caller**: `bucket, object_path, original_name`
@@ -30,9 +30,23 @@
  * an error: 200 `{ urls: { <file_id>: <url> }, expires_at }` (possibly empty).
  * Inline URLs only (no `download`), signed per bucket with `createSignedUrls`.
  *
+ * **Image variants** (`variant: 'avatar' | 'card' | 'print'`, ADR 0009,
+ * PERF-1; single and batch modes, never with `download`): a smaller copy of a
+ * stored image, made by Supabase image transformations
+ * (`/render/image/sign/…`). The client names a size, never a width: each
+ * size is fixed here (`IMAGE_VARIANTS`) and signed into the token, so it
+ * cannot be changed. Only a stored image (`mime_type` PNG, JPEG or WebP, the
+ * type storage-confirm sniffed) takes one: another file is refused (single:
+ * 400 `invalid_request`, after the readability check) or left out (batch).
+ * `STORAGE_IMAGE_VARIANTS=off` (the kill switch: a function secret) signs the
+ * originals instead: the same answer, bigger files. In batch mode with a
+ * variant, each image gets its own `createSignedUrl` (`createSignedUrls`
+ * takes no transform), `SIGN_CONCURRENCY` at a time.
+ *
  * Nothing logs the file's name or path: reports carry the org and file ids.
  *
- * Status mapping: 200 `{ url, expires_at }`; 400 `invalid_request` (body);
+ * Status mapping: 200 `{ url, expires_at }`; 400 `invalid_request` (body;
+ * a variant of a file that is not an image);
  * 401 / 403 / 503 from `verifyAuth`; 404 `not_found` (not readable by the
  * caller, another org's, deleted, pending; or a ready row whose object is
  * missing, reported); 405; 413; 429 `rate_limited` with `Retry-After`; 503
@@ -63,13 +77,50 @@ export const READ_URL_SECONDS = 300
 /** The most files one batch call signs. */
 export const MAX_BATCH_FILES = 50
 
+/**
+ * The image sizes a client may ask for, by name (PERF-1). Each fits the image
+ * inside a square box (`contain`: the aspect ratio is kept, nothing is
+ * cropped or padded), so its shorter side is at least ¾ of the box for any
+ * photo up to 4:3 (a 900 × 1200 portrait → 96 × 128 for `avatar`); the page
+ * crops it as before (`object-cover`, from the top). A width alone would not
+ * do: storage keeps the original height and crops a strip. Storage serves
+ * WebP to a request that accepts it (an `<img>`; transparency kept), else the
+ * image's own format: the fiche fetches `print` accepting PNG and JPEG only
+ * (`format: 'origin'` states the intent; the signed render follows Accept).
+ */
+export const IMAGE_VARIANTS = {
+  /** Avatars up to 48 px at 2×: the list rows, the record header. */
+  avatar: { width: 128, height: 128, resize: 'contain' },
+  /** Photo previews up to 96 px at 2×: the questionnaire, the review. */
+  card: { width: 256, height: 256, resize: 'contain' },
+  /** The fiche PDF (a 100 pt portrait, at least 300 dpi): PNG or JPEG, which react-pdf embeds. */
+  print: { width: 600, height: 600, resize: 'contain', format: 'origin' },
+} as const satisfies Record<
+  string,
+  { width: number; height: number; resize: 'contain'; format?: 'origin' }
+>
+
+export type ImageVariant = keyof typeof IMAGE_VARIANTS
+
+/** The stored types a variant applies to (storage-confirm sniffed them). */
+const VARIANT_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+
+/** How many images one batch call signs at once with a variant. */
+export const SIGN_CONCURRENCY = 10
+
+const variantSchema = z.enum(['avatar', 'card', 'print'])
+
 const singleSchema = z.strictObject({
   file_id: z.guid(),
   download: z.boolean().optional(),
+  variant: variantSchema.optional(),
+}).refine((body) => !(body.download && body.variant), {
+  message: 'download and variant are exclusive',
 })
 
 const batchSchema = z.strictObject({
   file_ids: z.array(z.guid()).min(1).max(MAX_BATCH_FILES),
+  variant: variantSchema.optional(),
 })
 
 const bodySchema = z.union([singleSchema, batchSchema])
@@ -78,6 +129,7 @@ const batchRowSchema = z.object({
   id: z.guid(),
   bucket: z.string().min(1),
   object_path: z.string().min(1),
+  mime_type: z.string().min(1),
 })
 
 const signedEntrySchema = z.object({
@@ -90,6 +142,7 @@ const rowSchema = z.object({
   bucket: z.string().min(1),
   object_path: z.string().min(1),
   original_name: z.string().min(1),
+  mime_type: z.string().min(1),
 })
 
 /** The origin of `PUBLIC_API_URL` when it is an http(s) URL; undefined when unset; null when malformed. */
@@ -155,12 +208,20 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     )
     if (limited) return limited
 
+    // The kill switch signs the originals, as without a variant.
+    const transform =
+      input.variant && deps.env('STORAGE_IMAGE_VARIANTS') !== 'off'
+        ? IMAGE_VARIANTS[input.variant]
+        : undefined
+
     if ('file_ids' in input) {
       return await signBatch(deps, req, {
         client: auth.client,
         service,
         orgId: auth.access.org_id,
         fileIds: [...new Set(input.file_ids.map((id) => id.toLowerCase()))],
+        imagesOnly: input.variant !== undefined,
+        transform,
         publicUrl,
       })
     }
@@ -180,7 +241,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       errorResponse('not_found', 'File not found', 404, req)
 
     const found = await auth.client.from('stored_files')
-      .select('bucket, object_path, original_name')
+      .select('bucket, object_path, original_name, mime_type')
       .eq('id', fileId)
       .eq('status', 'ready')
       .maybeSingle()
@@ -189,6 +250,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const row = rowSchema.safeParse(found.data)
     if (!row.success) return await fail('unexpected_file_row')
     const file = row.data
+    if (input.variant && !VARIANT_MIME_TYPES.has(file.mime_type)) {
+      return errorResponse(
+        'invalid_request',
+        'Variant applies to images only',
+        400,
+        req,
+      )
+    }
 
     const expiresAt = new Date(
       deps.now().getTime() + READ_URL_SECONDS * 1000,
@@ -196,7 +265,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const signed = await service.storage.from(file.bucket).createSignedUrl(
       file.object_path,
       READ_URL_SECONDS,
-      { download: input.download ? file.original_name : undefined },
+      transform
+        ? { transform }
+        : { download: input.download ? file.original_name : undefined },
     )
     if (signed.error || !signed.data?.signedUrl) {
       if (signed.error && isMissingObject(signed.error)) {
@@ -219,19 +290,44 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
 type Client = Exclude<ReturnType<Deps['serviceClient']>, Response>
 
+/** `items` mapped by `task`, at most `limit` at a time, results in order. */
+async function mapPooled<T, R>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await task(items[index])
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  )
+  return results
+}
+
 /**
  * Batch mode: the caller's readable `ready` rows among `fileIds`, signed per
- * bucket. What cannot be read or signed is left out of `urls`; only a failed
- * lookup, an unexpected row or a failed bucket call fails the call (500).
+ * bucket, or with a variant one image at a time (`SIGN_CONCURRENCY` at once).
+ * What cannot be read or signed is left out of `urls`; only a failed lookup,
+ * an unexpected row or a failed signing call fails the call (500).
  */
 async function signBatch(
   deps: Deps,
   req: Request,
-  { client, service, orgId, fileIds, publicUrl }: {
+  { client, service, orgId, fileIds, imagesOnly, transform, publicUrl }: {
     client: Client
     service: Client
     orgId: string
     fileIds: string[]
+    /** A variant was asked for: files other than images are left out. */
+    imagesOnly: boolean
+    /** The variant's transform; undefined signs the originals (no variant, or the kill switch). */
+    transform: (typeof IMAGE_VARIANTS)[ImageVariant] | undefined
     publicUrl: (url: string) => string
   },
 ): Promise<Response> {
@@ -250,23 +346,58 @@ async function signBatch(
   }
 
   const found = await client.from('stored_files')
-    .select('id, bucket, object_path')
+    .select('id, bucket, object_path, mime_type')
     .in('id', fileIds)
     .eq('status', 'ready')
   if (found.error) return await fail('file_lookup_failed')
   const rows = z.array(batchRowSchema).safeParse(found.data ?? [])
   if (!rows.success) return await fail('unexpected_file_row')
+  const wanted = rows.data.filter((row) =>
+    fileIds.includes(row.id) &&
+    (!imagesOnly || VARIANT_MIME_TYPES.has(row.mime_type))
+  )
+
+  const expiresAt = new Date(deps.now().getTime() + READ_URL_SECONDS * 1000)
+  const answer = (urls: Record<string, string>) =>
+    jsonResponse({ urls, expires_at: expiresAt.toISOString() }, 200, req)
+
+  if (transform) {
+    const signedOne = await mapPooled(
+      wanted,
+      SIGN_CONCURRENCY,
+      async (row) => ({
+        id: row.id,
+        result: await service.storage.from(row.bucket).createSignedUrl(
+          row.object_path,
+          READ_URL_SECONDS,
+          { transform },
+        ),
+      }),
+    )
+    const urls: Record<string, string> = {}
+    let missing: string | undefined
+    for (const { id, result } of signedOne) {
+      if (result.error && isMissingObject(result.error)) {
+        missing ??= id
+        continue
+      }
+      if (result.error || !result.data?.signedUrl) {
+        return await fail('sign_failed')
+      }
+      urls[id] = publicUrl(result.data.signedUrl)
+    }
+    if (missing) await report('object_missing', missing)
+    return answer(urls)
+  }
 
   // One `createSignedUrls` per bucket (today all photos share one).
   const byBucket = new Map<string, Map<string, string>>()
-  for (const row of rows.data) {
-    if (!fileIds.includes(row.id)) continue
+  for (const row of wanted) {
     const paths = byBucket.get(row.bucket) ?? new Map<string, string>()
     paths.set(row.object_path, row.id)
     byBucket.set(row.bucket, paths)
   }
 
-  const expiresAt = new Date(deps.now().getTime() + READ_URL_SECONDS * 1000)
   const signed = await Promise.all(
     [...byBucket].map(async ([bucket, paths]) => ({
       paths,
@@ -297,10 +428,5 @@ async function signBatch(
     }
   }
   if (missing) await report('object_missing', missing)
-
-  return jsonResponse(
-    { urls, expires_at: expiresAt.toISOString() },
-    200,
-    req,
-  )
+  return answer(urls)
 }

@@ -2,17 +2,21 @@ import { useCallback, useState } from 'react'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/core/auth/auth-context'
 import { FunctionCallError } from '@/core/supabase/functions'
-import { SIGN_BATCH_MAX, signedFileUrl, signedFileUrls } from './api'
+import { SIGN_BATCH_MAX, signedFileUrl, signedFileUrls, type ImageVariant } from './api'
 
 /** Read URLs live 300 s (P3-33): one is stale after 240 s, before it expires. */
 const SIGNED_URL_REFRESH_MS = 240_000
 
+/** The variant's place in a key: nothing for the original, so the original's keys are unchanged. */
+const variantPart = (variant: ImageVariant | undefined) => (variant ? ([variant] as const) : ([] as const))
+
 export const storageKeys = {
   all: ['storage'] as const,
-  /** Per user as well as per file: a URL signed for one user is never served to the next (#10). */
-  signedUrl: (userId: string, fileId: string) => [...storageKeys.all, 'signedUrl', userId, fileId] as const,
+  /** Per user as well as per file (and size): a URL signed for one user is never served to the next (#10). */
+  signedUrl: (userId: string, fileId: string, variant?: ImageVariant) => [...storageKeys.all, 'signedUrl', userId, fileId, ...variantPart(variant)] as const,
   /** One batch of `useSignedFileUrls` (sorted ids), per user too. */
-  signedUrls: (userId: string, fileIds: readonly string[]) => [...storageKeys.all, 'signedUrls', userId, fileIds.join(',')] as const,
+  signedUrls: (userId: string, fileIds: readonly string[], variant?: ImageVariant) =>
+    [...storageKeys.all, 'signedUrls', userId, fileIds.join(','), ...variantPart(variant)] as const,
 }
 
 /** A 4xx (not readable: 404; 120 an hour: 429) is shown, not retried; anything else once. */
@@ -24,6 +28,8 @@ interface SignedFileUrlOptions {
    * when it is clicked. Off for an `<img>`: it has loaded by then, and a new URL would reload it.
    */
   refresh?: boolean
+  /** A smaller copy of an image (`avatar`, `card`, `print`; PERF-1); the original without. */
+  variant?: ImageVariant
 }
 
 /**
@@ -34,14 +40,15 @@ interface SignedFileUrlOptions {
  *   for a new one itself (`refetch`, from its `onError`). Once unused the URL is dropped after
  *   30 s, so it never outlives its expiry in the cache (240 + 30 < 300): a later mount signs a
  *   new one.
- * - Keyed by the signed-in user. The cache is also cleared when the user changes (AccessProvider).
+ * - Keyed by the signed-in user (and the variant). The cache is also cleared when the user changes
+ *   (AccessProvider).
  * - A 4xx (not readable: 404; 120 an hour: 429) is shown, not retried.
  */
-export function useSignedFileUrl(fileId: string | null, { refresh = false }: SignedFileUrlOptions = {}) {
+export function useSignedFileUrl(fileId: string | null, { refresh = false, variant }: SignedFileUrlOptions = {}) {
   const userId = useAuth().session?.user.id ?? 'anonymous'
   return useQuery({
-    queryKey: storageKeys.signedUrl(userId, fileId ?? ''),
-    queryFn: ({ signal }) => signedFileUrl(fileId as string, { signal }),
+    queryKey: storageKeys.signedUrl(userId, fileId ?? '', variant),
+    queryFn: ({ signal }) => signedFileUrl(fileId as string, { signal, ...(variant && { variant }) }),
     enabled: fileId !== null,
     staleTime: SIGNED_URL_REFRESH_MS,
     refetchInterval: refresh ? SIGNED_URL_REFRESH_MS : false,
@@ -79,13 +86,17 @@ function useStableBatches(ids: readonly string[]): readonly (readonly string[])[
  * file. `urls` maps each readable file to its URL; an unreadable one is absent (the caller shows
  * its fallback). Same lifetimes as `useSignedFileUrl`: fresh 240 s, dropped 30 s after its last
  * use, keyed by the signed-in user. Pass only the ids actually shown (e.g. the rows in view): a
- * new id adds one batch, the ones already signed are not asked for again.
+ * new id adds one batch, the ones already signed are not asked for again. With `variant`, smaller
+ * copies (a list's avatars: `avatar`).
  *
  * `refetchFor(fileId)` asks for a new URL for that file's batch (an image whose URL expired); a
  * batch already being fetched is joined, not restarted, so several images failing at once make
  * one call.
  */
-export function useSignedFileUrls(fileIds: readonly string[]): {
+export function useSignedFileUrls(
+  fileIds: readonly string[],
+  { variant }: { variant?: ImageVariant } = {},
+): {
   urls: ReadonlyMap<string, string>
   refetchFor: (fileId: string) => Promise<{ isError: boolean }>
 } {
@@ -94,8 +105,8 @@ export function useSignedFileUrls(fileIds: readonly string[]): {
   const batches = useStableBatches(fileIds)
   const results = useQueries({
     queries: batches.map((batch) => ({
-      queryKey: storageKeys.signedUrls(userId, batch),
-      queryFn: ({ signal }: { signal: AbortSignal }) => signedFileUrls(batch, { signal }),
+      queryKey: storageKeys.signedUrls(userId, batch, variant),
+      queryFn: ({ signal }: { signal: AbortSignal }) => signedFileUrls(batch, { signal, ...(variant && { variant }) }),
       staleTime: SIGNED_URL_REFRESH_MS,
       gcTime: 30_000,
       retry: retrySigning,
@@ -107,11 +118,11 @@ export function useSignedFileUrls(fileIds: readonly string[]): {
     async (fileId: string) => {
       const batch = batches.find((ids) => ids.includes(fileId))
       if (!batch) return { isError: true }
-      const queryKey = storageKeys.signedUrls(userId, batch)
+      const queryKey = storageKeys.signedUrls(userId, batch, variant)
       await queryClient.refetchQueries({ queryKey, exact: true }, { cancelRefetch: false })
       return { isError: queryClient.getQueryState(queryKey)?.status === 'error' }
     },
-    [batches, queryClient, userId],
+    [batches, queryClient, userId, variant],
   )
   return { urls, refetchFor }
 }

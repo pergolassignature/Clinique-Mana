@@ -12,6 +12,7 @@ One file per decision that is hard to reverse or that later work must respect: `
 | [0006](0006-session-and-recovery-policy.md) | Session and recovery policy (shared reception PCs, enumeration-safe auth) | Accepted |
 | [0007](0007-secure-links-and-public-token-functions.md) | Secure links: hashed single-use tokens in the URL fragment, pluggable purposes, public token functions | Accepted |
 | [0008](0008-server-side-pdf-rendering.md) | Server-side PDF rendering with a vendored pdfmake, isolated from the other functions | Accepted |
+| [0009](0009-image-variants.md) | Image variants (small photos) through Supabase image transformations, signed by `storage-sign` | Accepted |
 
 ## Template
 

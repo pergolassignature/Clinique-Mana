@@ -88,7 +88,7 @@ function RemoveFileButton({
 /** « Photo » (required, P4-173): JPEG or PNG, 5 MB at most, shown as the fiche will show it. */
 export function PhotoStep({ ctx }: { ctx: StepContext }) {
   const fileId = sectionFileId(ctx.autosave.answered, 'photo')
-  const preview = useSignedFileUrl(fileId)
+  const preview = useSignedFileUrl(fileId, { variant: 'card' })
   const image = useImageRetry(fileId, preview.data?.url, preview.refetch)
   const [pending, setPending] = useState(false)
   const [alert, setAlert] = useState<string | null>(null)
@@ -116,7 +116,7 @@ export function PhotoStep({ ctx }: { ctx: StepContext }) {
       {fileId ? (
         <div className="flex items-center gap-4">
           {preview.data && !image.dead ? (
-            <img src={preview.data.url} alt={t(`${F}.photoAlt`)} onError={image.onError} className="size-24 shrink-0 rounded-full border border-border object-cover" />
+            <img src={preview.data.url} alt={t(`${F}.photoAlt`)} width={96} height={96} decoding="async" onError={image.onError} className="size-24 shrink-0 rounded-full border border-border object-cover" />
           ) : (
             <div aria-hidden className="size-24 shrink-0 rounded-full bg-muted" />
           )}

@@ -106,7 +106,7 @@ describe('ProfessionalsTable — photos', () => {
     expect(imageOf('Cleo Sans')).toBeNull()
     expect(within(rowOf('Cleo Sans')).getByText('CS')).toBeInTheDocument()
     expect(imageOf('Dina Plus')).toBeNull()
-    expect(mocks.storage.signedFileUrls).toHaveBeenCalledExactlyOnceWith([FILE(1), FILE(2)], { signal: expect.any(AbortSignal) })
+    expect(mocks.storage.signedFileUrls).toHaveBeenCalledExactlyOnceWith([FILE(1), FILE(2)], { signal: expect.any(AbortSignal), variant: 'avatar' })
 
     act(() => show('Dina Plus'))
     await waitFor(() => expect(imageOf('Dina Plus')).toHaveAttribute('src', urlOf(FILE(4))))
@@ -154,6 +154,6 @@ describe('ProfessionalsTable — photos', () => {
     mocks.storage.signedFileUrls.mockImplementation(answer())
     renderTable()
     await waitFor(() => expect(imageOf('Dina Plus')).not.toBeNull())
-    expect(mocks.storage.signedFileUrls).toHaveBeenCalledExactlyOnceWith([FILE(1), FILE(2), FILE(4)], { signal: expect.any(AbortSignal) })
+    expect(mocks.storage.signedFileUrls).toHaveBeenCalledExactlyOnceWith([FILE(1), FILE(2), FILE(4)], { signal: expect.any(AbortSignal), variant: 'avatar' })
   })
 })

@@ -179,6 +179,14 @@ describe('signedFileUrl', () => {
     expect(mocks.invokeFunction).toHaveBeenCalledWith('storage-sign', { file_id: FILE_ID, download: true }, {})
   })
 
+  it('asks for a smaller copy by name (the server fixes its size)', async () => {
+    mocks.invokeFunction.mockResolvedValue({ url: 'https://x.test/render/image/sign/a', expires_at: '2026-10-08T12:05:00.000Z' })
+    await signedFileUrl(FILE_ID, { variant: 'avatar' })
+    expect(mocks.invokeFunction).toHaveBeenCalledWith('storage-sign', { file_id: FILE_ID, variant: 'avatar' }, {})
+    await signedFileUrls([FILE_ID], { variant: 'avatar' }).catch(() => {})
+    expect(mocks.invokeFunction).toHaveBeenLastCalledWith('storage-sign', { file_ids: [FILE_ID], variant: 'avatar' }, {})
+  })
+
   it('passes a 404 or a 429 on', async () => {
     const limited = new FunctionCallError('rate_limited', 429, 'Too many attempts', {}, 600)
     mocks.invokeFunction.mockRejectedValue(limited)
