@@ -9,7 +9,7 @@ import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { SENSITIVE_INPUT_PROPS } from '@/shared/lib/sensitive-input'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { Button } from '@/shared/ui/button'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { ProfessionalPrivate } from '../../api/private'
 import { professionalKeys } from '../../hooks/keys'
@@ -79,7 +79,7 @@ function BankDisplay({ professionalId, data, onEdit, actionRef }: BankDisplayPro
 
   if (empty) {
     return (
-      <SettingsCard as="section" title={t(`${B}.title`)} description={t(`${B}.description`)}>
+      <SettingsCard as="section" layout="section" title={t(`${B}.title`)} description={t(`${B}.description`)}>
         <EmptyState
           title={t(`${B}.empty.title`)}
           body={t(`${B}.empty.body`)}
@@ -97,6 +97,7 @@ function BankDisplay({ professionalId, data, onEdit, actionRef }: BankDisplayPro
   return (
     <SettingsCard
       as="section"
+      layout="section"
       title={t(`${B}.title`)}
       description={t(`${B}.description`)}
       footer={
@@ -215,21 +216,25 @@ function BankForm({ professionalId, data, onClose }: BankCardProps & { onClose: 
 
   return (
     <SettingsCard
+      layout="section"
       title={t(`${B}.title`)}
       description={t(`${B}.description`)}
+      dirty={isDirty}
       pending={save.isPending}
       onSubmit={(event) => void onSubmit(event)}
       footer={<FormActions onCancel={onClose} dirty={isDirty} pending={save.isPending} cancelCloses />}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <FormField label={t(`${P2}.fields.institution`)} help={t(`${P2}.fields.institutionHelp`)} error={errors.institution?.message}>
+      <FormRow>
+        <FormField label={t(`${P2}.fields.institution`)} width="sm" help={t(`${P2}.fields.institutionHelp`)} error={errors.institution?.message}>
           {(field) => <Input {...field} {...form.register('institution')} inputMode="numeric" autoComplete="off" />}
         </FormField>
-        <FormField label={t(`${P2}.fields.transit`)} help={t(`${P2}.fields.transitHelp`)} error={errors.transit?.message}>
+        <FormField label={t(`${P2}.fields.transit`)} width="sm" help={t(`${P2}.fields.transitHelp`)} error={errors.transit?.message}>
           {(field) => <Input {...field} {...form.register('transit')} inputMode="numeric" autoComplete="off" />}
         </FormField>
+      </FormRow>
         <FormField
           label={t(`${P2}.fields.account`)}
+          width="md"
           help={hasAccount ? t(`${P2}.fields.accountKeepHelp`, { last4: data.bankAccountLast4 ?? '' }) : t(`${P2}.fields.accountHelp`)}
           error={errors.account?.message}
         >
@@ -244,7 +249,6 @@ function BankForm({ professionalId, data, onClose }: BankCardProps & { onClose: 
             />
           )}
         </FormField>
-      </div>
       {refusal && <RefusalAlert message={refusal.message} detail={refusal.detail} />}
     </SettingsCard>
   )

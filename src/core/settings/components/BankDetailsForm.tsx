@@ -7,7 +7,7 @@ import { FormActions } from '@/shared/components/FormActions'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { FieldsReadOnlyContext } from '@/shared/ui/read-only-context'
 
@@ -53,15 +53,17 @@ export function BankDetailsForm({ details, onClose }: BankDetailsFormProps) {
     >
       {/* Read-only while saving: the form closes on success, so anything typed meanwhile would be lost. */}
       <FieldsReadOnlyContext.Provider value={fieldsReadOnly}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FormField label={t('settings.bank.fields.institution')} help={t('settings.bank.fields.institutionHelp')} required error={errors.institution?.message}>
+        <FormRow>
+          <FormField label={t('settings.bank.fields.institution')} width="sm" help={t('settings.bank.fields.institutionHelp')} required error={errors.institution?.message}>
             {(field) => <Input {...field} {...register('institution')} inputMode="numeric" autoComplete="off" />}
           </FormField>
-          <FormField label={t('settings.bank.fields.transit')} help={t('settings.bank.fields.transitHelp')} required error={errors.transit?.message}>
+          <FormField label={t('settings.bank.fields.transit')} width="sm" help={t('settings.bank.fields.transitHelp')} required error={errors.transit?.message}>
             {(field) => <Input {...field} {...register('transit')} inputMode="numeric" autoComplete="off" />}
           </FormField>
+          </FormRow>
           <FormField
             label={t('settings.bank.fields.account')}
+            width="md"
             help={details ? t('settings.bank.fields.accountKeepHelp', { last4: details.account_last4 }) : t('settings.bank.fields.accountHelp')}
             required={!hasStoredAccount}
             error={errors.account?.message}
@@ -85,7 +87,6 @@ export function BankDetailsForm({ details, onClose }: BankDetailsFormProps) {
           <FormField label={t('settings.bank.fields.email')} help={t('settings.bank.fields.emailHelp')} error={errors.etransferEmail?.message}>
             {(field) => <Input {...field} {...register('etransferEmail')} type="email" autoComplete="off" spellCheck={false} />}
           </FormField>
-        </div>
       </FieldsReadOnlyContext.Provider>
     </SettingsCard>
   )

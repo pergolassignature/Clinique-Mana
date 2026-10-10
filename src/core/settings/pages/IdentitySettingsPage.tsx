@@ -13,7 +13,7 @@ import {
 } from '@/core/settings/organization/schemas'
 import { formatPostalCode, regroupPhone } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { OrganizationCard } from '../components/OrganizationCard'
@@ -29,9 +29,6 @@ const ADDRESS_FIELDS = {
   postalCode: 'postal_code',
 } as const
 
-/** Full width in the card's two-column grid (long values); the others share a row from `md` up. */
-const WIDE = 'md:col-span-2'
-const GRID = 'grid gap-3 md:grid-cols-2'
 
 /**
  * Paramètres → Identité légale: the clinic's name and legal identity, its head-office address, its
@@ -52,21 +49,17 @@ export function IdentitySettingsPage() {
             successMessage={t('settings.identity.clinic.saved')}
           >
             {({ register, formState: { errors } }) => (
-              <div className={GRID}>
-                <div className={WIDE}>
-                  <FormField label={t('settings.identity.fields.name')} help={t('settings.identity.fields.nameHelp')} required error={errors.name?.message}>
-                    {(field) => <Input {...field} {...register('name')} autoComplete="organization" />}
-                  </FormField>
-                </div>
-                <div className={WIDE}>
-                  <FormField label={t('settings.identity.fields.legalName')} error={errors.legal_name?.message}>
-                    {(field) => <Input {...field} {...register('legal_name')} autoComplete="off" />}
-                  </FormField>
-                </div>
-                <FormField label={t('settings.identity.fields.neq')} help={t('settings.identity.fields.neqHelp')} error={errors.neq?.message}>
-                  {(field) => <Input {...field} {...register('neq')} inputMode="numeric" autoComplete="off" />}
+              <>
+                <FormField label={t('settings.identity.fields.name')} help={t('settings.identity.fields.nameHelp')} required error={errors.name?.message}>
+                  {(field) => <Input {...field} {...register('name')} autoComplete="organization" />}
                 </FormField>
-              </div>
+                <FormField label={t('settings.identity.fields.legalName')} error={errors.legal_name?.message}>
+                  {(field) => <Input {...field} {...register('legal_name')} autoComplete="off" />}
+                </FormField>
+                <FormField label={t('settings.identity.fields.neq')} width="sm" help={t('settings.identity.fields.neqHelp')} error={errors.neq?.message}>
+                  {(field) => <Input {...field} {...register('neq')} inputMode="numeric" autoComplete="off" className="tabular" />}
+                </FormField>
+              </>
             )}
           </OrganizationCard>
 
@@ -81,8 +74,7 @@ export function IdentitySettingsPage() {
             {(form) => {
               const { register, control, formState: { errors } } = form
               return (
-                <div className={GRID}>
-                  <div className={WIDE}>
+                <>
                     <FormField label={t('settings.identity.fields.addressLine1')} error={errors.address_line1?.message}>
                       {(field) => (
                         // Google suggestions with manual override (P4-220); the other fields stay plain inputs.
@@ -96,14 +88,16 @@ export function IdentitySettingsPage() {
                         />
                       )}
                     </FormField>
-                  </div>
-                  <FormField label={t('settings.identity.fields.addressLine2')} error={errors.address_line2?.message}>
+                  <FormField label={t('settings.identity.fields.addressLine2')} width="md" error={errors.address_line2?.message}>
                     {(field) => <Input {...field} {...register('address_line2')} placeholder={t('address.line2Placeholder')} autoComplete="off" />}
                   </FormField>
-                  <FormField label={t('settings.identity.fields.city')} error={errors.city?.message}>
+                  <FormRow>
+                  <FormField label={t('settings.identity.fields.city')} width="md" error={errors.city?.message}>
                     {(field) => <Input {...field} {...register('city')} autoComplete="off" />}
                   </FormField>
-                  <FormField label={t('settings.identity.fields.province')} error={errors.province?.message}>
+                  {/* Province and code postal stay together: they wrap under Ville as a pair, never the code alone. */}
+                  <FormRow className="flex-nowrap">
+                  <FormField label={t('settings.identity.fields.province')} width="sm" error={errors.province?.message}>
                     {(field) => (
                       // Controlled, so the read-only Select can show the chosen province's name. No default
                       // here: the database defaults to QC (…_core_org_province_default_qc.sql), so the form
@@ -130,7 +124,7 @@ export function IdentitySettingsPage() {
                       />
                     )}
                   </FormField>
-                  <FormField label={t('settings.identity.fields.postalCode')} error={errors.postal_code?.message}>
+                  <FormField label={t('settings.identity.fields.postalCode')} width="xs" error={errors.postal_code?.message}>
                     {(field) => (
                       <Input
                         {...field}
@@ -141,7 +135,9 @@ export function IdentitySettingsPage() {
                       />
                     )}
                   </FormField>
-                </div>
+                  </FormRow>
+                  </FormRow>
+                </>
               )
             }}
           </OrganizationCard>
@@ -157,8 +153,8 @@ export function IdentitySettingsPage() {
             {(form) => {
               const { register, formState: { errors } } = form
               return (
-                <div className={GRID}>
-                  <FormField label={t('settings.identity.fields.phone')} error={errors.phone?.message}>
+                <>
+                  <FormField label={t('settings.identity.fields.phone')} width="md" error={errors.phone?.message}>
                     {(field) => (
                       <Input
                         {...field}
@@ -172,12 +168,10 @@ export function IdentitySettingsPage() {
                   <FormField label={t('settings.identity.fields.email')} error={errors.email?.message}>
                     {(field) => <Input {...field} {...register('email')} type="email" autoComplete="off" />}
                   </FormField>
-                  <div className={WIDE}>
-                    <FormField label={t('settings.identity.fields.website')} error={errors.website?.message}>
-                      {(field) => <Input {...field} {...register('website')} type="url" inputMode="url" placeholder="https://" autoComplete="off" />}
-                    </FormField>
-                  </div>
-                </div>
+                  <FormField label={t('settings.identity.fields.website')} error={errors.website?.message}>
+                    {(field) => <Input {...field} {...register('website')} type="url" inputMode="url" placeholder="https://" autoComplete="off" />}
+                  </FormField>
+                </>
               )
             }}
           </OrganizationCard>

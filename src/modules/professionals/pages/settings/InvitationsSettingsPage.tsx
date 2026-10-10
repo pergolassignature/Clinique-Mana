@@ -8,7 +8,7 @@ import { FormActions } from '@/shared/components/FormActions'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
-import { SettingsCard } from '@/shared/components/SettingsCard'
+import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
 import { SwitchField } from '@/shared/components/SwitchField'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
@@ -50,7 +50,7 @@ export function InvitationsSettingsPage() {
   }
 
   return (
-    <div className="max-w-form space-y-5">
+    <div className="space-y-5">
       <PageHeader level={1} title={t(`${S}.title`)} description={t(`${S}.description`)} />
       {readOnly && <ReadOnlyNotice />}
       {content}
@@ -79,9 +79,13 @@ function InvitationsCard({ settings, readOnly }: { settings: ProfessionalsSettin
   )
 
   return (
+    // One section with its aside (audit 2026-10-09 §2.4), like every settings form.
+    <SectionSurface>
     <SettingsCard
+      layout="section"
       title={t(`${S}.link.title`)}
       description={t(`${S}.link.description`)}
+      dirty={isDirty}
       readOnly={readOnly}
       pending={save.isPending}
       onSubmit={(event) => void onSubmit(event)}
@@ -134,6 +138,7 @@ function InvitationsCard({ settings, readOnly }: { settings: ProfessionalsSettin
         </p>
       )}
     </SettingsCard>
+    </SectionSurface>
   )
 }
 

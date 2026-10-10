@@ -39,14 +39,16 @@ export function SenderCard({ sender, readOnly }: SenderCardProps) {
 
   return (
     <SettingsCard
+      layout="section"
       title={t('settings.email.sender.title')}
       description={t('settings.email.sender.description')}
+      dirty={isDirty}
       readOnly={readOnly}
       pending={mutation.isPending}
       onSubmit={(event) => void onSubmit(event)}
       footer={<FormActions onCancel={cancel} onReset={() => form.setFocus('from_name')} dirty={isDirty} pending={mutation.isPending} />}
     >
-      <FormField label={t('settings.email.sender.fromName')} required error={errors.from_name?.message}>
+      <FormField label={t('settings.email.sender.fromName')} width="md" required error={errors.from_name?.message}>
         {(field) => <Input {...field} {...form.register('from_name')} autoComplete="organization" />}
       </FormField>
       <FormField

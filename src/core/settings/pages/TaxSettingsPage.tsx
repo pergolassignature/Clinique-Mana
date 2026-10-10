@@ -2,7 +2,7 @@ import { t } from '@/i18n'
 import { taxNumbersSchema, toTaxNumbersFormValues } from '@/core/settings/organization/schemas'
 import { formatTaxNumber } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { OrganizationCard } from '../components/OrganizationCard'
 import { OrganizationSettingsPage } from '../components/OrganizationSettingsPage'
@@ -30,14 +30,14 @@ export function TaxSettingsPage() {
               // 123456789rt0001 → 123456789 RT 0001 once the field is left; the schema compacts it on save.
               const grouped = (name: 'gst_number' | 'qst_number') => regroupOnBlur(form, name, (v) => formatTaxNumber(v.trim()))
               return (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <FormField label={t('settings.tax.fields.gst')} help={t('settings.tax.fields.gstHelp')} error={errors.gst_number?.message}>
+                <FormRow>
+                  <FormField label={t('settings.tax.fields.gst')} width="md" help={t('settings.tax.fields.gstHelp')} error={errors.gst_number?.message}>
                     {(field) => <Input {...field} {...register('gst_number', grouped('gst_number'))} autoComplete="off" autoCapitalize="characters" />}
                   </FormField>
-                  <FormField label={t('settings.tax.fields.qst')} help={t('settings.tax.fields.qstHelp')} error={errors.qst_number?.message}>
+                  <FormField label={t('settings.tax.fields.qst')} width="md" help={t('settings.tax.fields.qstHelp')} error={errors.qst_number?.message}>
                     {(field) => <Input {...field} {...register('qst_number', grouped('qst_number'))} autoComplete="off" autoCapitalize="characters" />}
                   </FormField>
-                </div>
+                </FormRow>
               )
             }}
           </OrganizationCard>

@@ -7,21 +7,21 @@ import { AddressAutocomplete } from '@/core/address/components/AddressAutocomple
 import { rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
+import { SectionSurface } from '@/shared/components/SettingsCard'
 import { formatPostalCode, regroupPhone } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import type { ProfessionalRecord } from '../../../api/parse'
-import { useSaveIvac, useSaveProfessionalFields } from '../../../hooks/use-card-saves'
+import { useSaveExperienceAndIvac, useSaveProfessionalFields } from '../../../hooks/use-card-saves'
 import { GENDERS } from '../../../lib/constants'
 import { genderLabel } from '../../../lib/display'
 import { contactSchema, toContactFormValues } from '../../../schemas/contact'
 import {
-  experienceSchema,
+  experienceAndPayersSchema,
   identitySchema,
   normalizeIvac,
-  payerNumbersSchema,
   toExperienceFormValues,
   toIdentityFormValues,
   toPayerNumbersFormValues,
@@ -34,32 +34,36 @@ import { ProfessionsEditor } from '../ProfessionsEditor'
 import { useRecordData } from '../record-context'
 
 const I = 'modules.professionals.record.identity'
-/** Full width in the card's two-column grid; the other fields share a row from `md` up. */
-const WIDE = 'md:col-span-2'
-const GRID = 'grid gap-3 md:grid-cols-2'
 /** The home address fields, for the Google suggestions' autofill (P4-222). */
 const ADDRESS_FIELDS = { line1: 'addressLine1', line2: 'addressLine2', city: 'city', province: 'province', postalCode: 'postalCode' } as const
 
 // Module level: ProfessionalCard memoises on them.
 const toIdentity = (record: ProfessionalRecord) => toIdentityFormValues(record.professional)
 const toContact = (record: ProfessionalRecord) => toContactFormValues(record.professional)
-const toExperience = (record: ProfessionalRecord) => toExperienceFormValues(record.professional)
-const toPayers = (record: ProfessionalRecord) => toPayerNumbersFormValues(record.payerNumbers)
+const toExperienceAndPayers = (record: ProfessionalRecord) => ({
+  ...toExperienceFormValues(record.professional),
+  ...toPayerNumbersFormValues(record.payerNumbers),
+})
 /** `set_professional_payer_number` refusals carry HINT `ivac` (invalid, or used in the clinic). */
 const ivacError = (error: unknown) => (rpcErrorCode(error) === 'P0001' && rpcErrorHint(error) === 'ivac' ? ('ivac' as const) : null)
 
 /**
  * « Identité et permis » (design §5.3): Identité, Coordonnées (with the login email), Professions et
- * permis, Expérience, Numéros de payeurs; one card each, each saving its own fields. Editable with
- * `professionals.manage`; read-only otherwise, with one notice.
+ * permis, Expérience et payeurs (decision UI-5: two small groups, one save); sections of one surface
+ * (title and description in an aside from 720 px, audit 2026-10-09 §2.4), each saving its own
+ * fields, fields sized to their content. Editable with `professionals.manage`; read-only otherwise,
+ * with one notice.
  */
 export function IdentityTab() {
   const readOnly = !useAccess().can('professionals.manage')
   return (
-    <div className="max-w-form space-y-5">
+    <div className="space-y-5">
       {readOnly && <ReadOnlyNotice body={t(`${I}.readOnly`)} />}
+      <SectionSurface>
       <ProfessionalCard
+        layout="section"
         title={t(`${I}.identity.title`)}
+        description={t(`${I}.identity.description`)}
         readOnly={readOnly}
         schema={identitySchema}
         toFormValues={toIdentity}
@@ -67,13 +71,15 @@ export function IdentityTab() {
         useSave={useSaveProfessionalFields}
       >
         {({ register, control, formState: { errors } }) => (
-          <div className={GRID}>
-            <FormField label={t(`${I}.identity.firstName`)} required error={errors.firstName?.message}>
-              {(field) => <Input {...field} {...register('firstName')} autoComplete="off" />}
-            </FormField>
-            <FormField label={t(`${I}.identity.lastName`)} required error={errors.lastName?.message}>
-              {(field) => <Input {...field} {...register('lastName')} autoComplete="off" />}
-            </FormField>
+          <>
+            <FormRow>
+              <FormField label={t(`${I}.identity.firstName`)} width="md" required error={errors.firstName?.message}>
+                {(field) => <Input {...field} {...register('firstName')} autoComplete="off" />}
+              </FormField>
+              <FormField label={t(`${I}.identity.lastName`)} width="md" required error={errors.lastName?.message}>
+                {(field) => <Input {...field} {...register('lastName')} autoComplete="off" />}
+              </FormField>
+            </FormRow>
             <FormField label={t(`${I}.identity.gender`)} help={editingHelp(readOnly, t(`${I}.identity.genderHelp`))} error={errors.gender?.message}>
               {(field) => (
                 // Controlled, so the read-only Select shows the chosen label.
@@ -81,23 +87,28 @@ export function IdentityTab() {
                   control={control}
                   name="gender"
                   render={({ field: gender }) => (
-                    <Select {...field} {...gender} placeholder={t(`${I}.identity.genderNone`)} readOnlyEmptyLabel={t(`${I}.identity.genderNone`)} clearable>
-                      {GENDERS.map((value) => (
-                        <option key={value} value={value}>
-                          {genderLabel(value)}
-                        </option>
-                      ))}
-                    </Select>
+                    // The select at the width of a short choice; its help keeps the column's width.
+                    <div className="w-field-md max-w-full">
+                      <Select {...field} {...gender} placeholder={t(`${I}.identity.genderNone`)} readOnlyEmptyLabel={t(`${I}.identity.genderNone`)} clearable>
+                        {GENDERS.map((value) => (
+                          <option key={value} value={value}>
+                            {genderLabel(value)}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
                   )}
                 />
               )}
             </FormField>
-          </div>
+          </>
         )}
       </ProfessionalCard>
 
       <ProfessionalCard
+        layout="section"
         title={t(`${I}.contact.title`)}
+        description={t(`${I}.contact.description`)}
         readOnly={readOnly}
         schema={contactSchema}
         toFormValues={toContact}
@@ -107,15 +118,12 @@ export function IdentityTab() {
         {(form) => {
           const { register, control, formState: { errors } } = form
           return (
-            <div className={GRID}>
-              <div className={WIDE}>
-                <LoginEmail readOnly={readOnly} />
-              </div>
-              <FormField label={t(`${I}.contact.personalPhone`)} error={errors.personalPhone?.message}>
+            <>
+              <LoginEmail readOnly={readOnly} />
+              <FormField label={t(`${I}.contact.personalPhone`)} width="md" error={errors.personalPhone?.message}>
                 {(field) => <Input {...field} {...register('personalPhone', regroupOnBlur(form, 'personalPhone', regroupPhone))} type="tel" autoComplete="off" />}
               </FormField>
-              <div className={WIDE}>
-                <FormField label={t(`${I}.contact.addressLine1`)} error={errors.addressLine1?.message}>
+              <FormField label={t(`${I}.contact.addressLine1`)} error={errors.addressLine1?.message}>
                   {(field) => (
                     // Google suggestions with manual override (P4-220, replaces P4-12's manual-only entry).
                     // The browser's address autofill is off on every address field (P4-222).
@@ -123,18 +131,20 @@ export function IdentityTab() {
                       {...field}
                       {...register('addressLine1')}
                       autofill={addressAutofill(form, ADDRESS_FIELDS)}
-                      placeholder={t('address.line1Placeholder')}
-                    />
-                  )}
-                </FormField>
-              </div>
-              <FormField label={t(`${I}.contact.addressLine2`)} error={errors.addressLine2?.message}>
+                    placeholder={t('address.line1Placeholder')}
+                  />
+                )}
+              </FormField>
+              <FormField label={t(`${I}.contact.addressLine2`)} width="md" error={errors.addressLine2?.message}>
                 {(field) => <Input {...field} {...register('addressLine2')} placeholder={t('address.line2Placeholder')} autoComplete="off" />}
               </FormField>
-              <FormField label={t(`${I}.contact.city`)} error={errors.city?.message}>
+              <FormRow>
+              <FormField label={t(`${I}.contact.city`)} width="md" error={errors.city?.message}>
                 {(field) => <Input {...field} {...register('city')} autoComplete="off" />}
               </FormField>
-              <FormField label={t(`${I}.contact.province`)} required error={errors.province?.message}>
+              {/* Province and code postal stay together: they wrap under Ville as a pair, never the code alone. */}
+              <FormRow className="flex-nowrap">
+              <FormField label={t(`${I}.contact.province`)} width="sm" required error={errors.province?.message}>
                 {(field) => (
                   <Controller
                     control={control}
@@ -151,7 +161,7 @@ export function IdentityTab() {
                   />
                 )}
               </FormField>
-              <FormField label={t(`${I}.contact.postalCode`)} error={errors.postalCode?.message}>
+              <FormField label={t(`${I}.contact.postalCode`)} width="xs" error={errors.postalCode?.message}>
                 {(field) => (
                   <Input
                     {...field}
@@ -161,44 +171,34 @@ export function IdentityTab() {
                   />
                 )}
               </FormField>
-            </div>
+              </FormRow>
+              </FormRow>
+            </>
           )
         }}
       </ProfessionalCard>
 
-      <ProfessionsEditor readOnly={readOnly} />
+      <ProfessionsEditor layout="section" readOnly={readOnly} />
 
       <ProfessionalCard
+        layout="section"
         title={t(`${I}.experience.title`)}
+        description={t(`${I}.experience.description`)}
         readOnly={readOnly}
-        schema={experienceSchema}
-        toFormValues={toExperience}
+        schema={experienceAndPayersSchema}
+        toFormValues={toExperienceAndPayers}
         firstField="yearsExperience"
-        useSave={useSaveProfessionalFields}
-      >
-        {({ register, formState: { errors } }) => (
-          <div className={GRID}>
-            <FormField label={t(`${I}.experience.years`)} error={errors.yearsExperience?.message}>
-              {(field) => <Input {...field} {...register('yearsExperience')} inputMode="numeric" autoComplete="off" className="tabular" />}
-            </FormField>
-          </div>
-        )}
-      </ProfessionalCard>
-
-      <ProfessionalCard
-        title={t(`${I}.payers.title`)}
-        readOnly={readOnly}
-        schema={payerNumbersSchema}
-        toFormValues={toPayers}
-        firstField="ivac"
-        useSave={useSaveIvac}
+        useSave={useSaveExperienceAndIvac}
         errorField={ivacError}
       >
         {(form) => {
           const { register, formState: { errors } } = form
           return (
-            <div className={GRID}>
-              <FormField label={t(`${I}.payers.ivac`)} help={editingHelp(readOnly, t(`${I}.payers.ivacHelp`))} error={errors.ivac?.message}>
+            <FormRow>
+              <FormField label={t(`${I}.experience.years`)} width="sm" error={errors.yearsExperience?.message}>
+                {(field) => <Input {...field} {...register('yearsExperience')} inputMode="numeric" autoComplete="off" className="tabular" />}
+              </FormField>
+              <FormField label={t(`${I}.payers.ivac`)} width="sm" help={editingHelp(readOnly, t(`${I}.payers.ivacHelp`))} error={errors.ivac?.message}>
                 {(field) => (
                   <Input
                     {...field}
@@ -210,10 +210,11 @@ export function IdentityTab() {
                   />
                 )}
               </FormField>
-            </div>
+            </FormRow>
           )
         }}
       </ProfessionalCard>
+      </SectionSurface>
     </div>
   )
 }

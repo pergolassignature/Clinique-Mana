@@ -7,7 +7,7 @@ import { formatTaxNumber } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { ProfessionalPrivate } from '../../api/private'
 import { professionalKeys } from '../../hooks/keys'
@@ -54,8 +54,10 @@ export function TaxNumbersCard({ professionalId, data }: { professionalId: strin
 
   return (
     <SettingsCard
+      layout="section"
       title={t(`${X}.title`)}
       description={t(`${X}.description`)}
+      dirty={isDirty}
       pending={save.isPending}
       onSubmit={(event) => void onSubmit(event)}
       footer={
@@ -70,17 +72,17 @@ export function TaxNumbersCard({ professionalId, data }: { professionalId: strin
         />
       }
     >
-      <div className="grid gap-3 md:grid-cols-2">
-        <FormField label={t(`${X}.businessNumber`)} help={t(`${X}.businessNumberHelp`)} error={errors.businessNumber?.message}>
+      <FormField label={t(`${X}.businessNumber`)} width="md" help={t(`${X}.businessNumberHelp`)} error={errors.businessNumber?.message}>
           {(field) => <Input {...field} {...form.register('businessNumber')} inputMode="numeric" autoComplete="off" />}
-        </FormField>
-        <FormField label={t(`${X}.gst`)} help={t(`${X}.gstHelp`)} error={errors.gstNumber?.message}>
+      </FormField>
+      <FormRow>
+        <FormField label={t(`${X}.gst`)} width="md" help={t(`${X}.gstHelp`)} error={errors.gstNumber?.message}>
           {(field) => <Input {...field} {...form.register('gstNumber', grouped('gstNumber'))} autoComplete="off" autoCapitalize="characters" />}
         </FormField>
-        <FormField label={t(`${X}.qst`)} help={t(`${X}.qstHelp`)} error={errors.qstNumber?.message}>
+        <FormField label={t(`${X}.qst`)} width="md" help={t(`${X}.qstHelp`)} error={errors.qstNumber?.message}>
           {(field) => <Input {...field} {...form.register('qstNumber', grouped('qstNumber'))} autoComplete="off" autoCapitalize="characters" />}
         </FormField>
-      </div>
+      </FormRow>
       {refusal && <RefusalAlert message={refusal.message} detail={refusal.detail} />}
     </SettingsCard>
   )

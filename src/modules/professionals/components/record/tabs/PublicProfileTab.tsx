@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
+import { SectionSurface } from '@/shared/components/SettingsCard'
 import { regroupPhone } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
 import { FormField } from '@/shared/ui/form-field'
@@ -38,15 +39,18 @@ function CharacterCount({ control, name }: { control: PortraitControl; name: 'bi
 }
 
 /**
- * « Profil public » (design §5.3, A2.11): what the client's fiche shows. Editable with
- * `professionals.manage`, empty or not; read-only otherwise. 4c adds the photo and the fiche preview.
+ * « Profil public » (design §5.3, A2.11): what the client's fiche shows, two sections of one surface
+ * (audit 2026-10-09 §2.4). Editable with `professionals.manage`, empty or not; read-only otherwise.
+ * 4c adds the photo and the fiche preview.
  */
 export function PublicProfileTab() {
   const readOnly = !useAccess().can('professionals.manage')
   return (
-    <div className="max-w-form space-y-5">
+    <div className="space-y-5">
       {readOnly && <ReadOnlyNotice body={t('modules.professionals.record.identity.readOnly')} />}
+      <SectionSurface>
       <ProfessionalCard
+        layout="section"
         title={t(`${P}.portrait.title`)}
         description={t(`${P}.portrait.description`)}
         readOnly={readOnly}
@@ -72,6 +76,7 @@ export function PublicProfileTab() {
         )}
       </ProfessionalCard>
       <ProfessionalCard
+        layout="section"
         title={t(`${P}.contact.title`)}
         description={t(`${P}.contact.description`)}
         readOnly={readOnly}
@@ -81,16 +86,17 @@ export function PublicProfileTab() {
         useSave={useSavePublicProfile}
       >
         {(form) => (
-          <div className="grid gap-3 md:grid-cols-2">
+          <>
             <FormField label={t(`${P}.contact.email`)} error={form.formState.errors.publicEmail?.message}>
               {(field) => <Input {...field} {...form.register('publicEmail')} type="email" autoComplete="off" />}
             </FormField>
-            <FormField label={t(`${P}.contact.phone`)} error={form.formState.errors.publicPhone?.message}>
+            <FormField label={t(`${P}.contact.phone`)} width="md" error={form.formState.errors.publicPhone?.message}>
               {(field) => <Input {...field} {...form.register('publicPhone', regroupOnBlur(form, 'publicPhone', regroupPhone))} type="tel" autoComplete="off" />}
             </FormField>
-          </div>
+          </>
         )}
       </ProfessionalCard>
+      </SectionSurface>
     </div>
   )
 }

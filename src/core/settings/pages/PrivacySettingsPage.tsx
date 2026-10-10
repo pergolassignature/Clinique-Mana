@@ -5,8 +5,6 @@ import { Input } from '@/shared/ui/input'
 import { OrganizationCard } from '../components/OrganizationCard'
 import { OrganizationSettingsPage } from '../components/OrganizationSettingsPage'
 
-const GRID = 'grid gap-3 md:grid-cols-2'
-const WIDE = 'md:col-span-2'
 
 /**
  * Paramètres → Confidentialité (Loi 25): the person in charge of personal information, then the
@@ -27,14 +25,14 @@ export function PrivacySettingsPage() {
             successMessage={t('settings.privacy.officer.saved')}
           >
             {({ register, formState: { errors } }) => (
-              <div className={GRID}>
-                <FormField label={t('settings.privacy.fields.officerName')} error={errors.privacy_officer_name?.message}>
+              <>
+                <FormField label={t('settings.privacy.fields.officerName')} width="md" error={errors.privacy_officer_name?.message}>
                   {(field) => <Input {...field} {...register('privacy_officer_name')} autoComplete="off" />}
                 </FormField>
                 <FormField label={t('settings.privacy.fields.officerEmail')} error={errors.privacy_officer_email?.message}>
                   {(field) => <Input {...field} {...register('privacy_officer_email')} type="email" autoComplete="off" />}
                 </FormField>
-              </div>
+              </>
             )}
           </OrganizationCard>
 
@@ -48,24 +46,20 @@ export function PrivacySettingsPage() {
             successMessage={t('settings.privacy.policy.saved')}
           >
             {({ register, formState: { errors } }) => (
-              <div className={GRID}>
-                <div className={WIDE}>
-                  <FormField label={t('settings.privacy.fields.policyUrl')} error={errors.privacy_policy_url?.message}>
-                    {(field) => <Input {...field} {...register('privacy_policy_url')} type="url" inputMode="url" placeholder="https://" autoComplete="off" />}
-                  </FormField>
-                </div>
-                <div className={WIDE}>
-                  <FormField
+              <>
+                <FormField label={t('settings.privacy.fields.policyUrl')} error={errors.privacy_policy_url?.message}>
+                  {(field) => <Input {...field} {...register('privacy_policy_url')} type="url" inputMode="url" placeholder="https://" autoComplete="off" />}
+                </FormField>
+                <FormField
                     label={t('settings.privacy.fields.retentionYears')}
                     help={t('settings.privacy.fields.retentionYearsHelp')}
                     error={errors.record_retention_years?.message}
                   >
                     {/* A text field with the numeric keyboard, not type="number": a number input empties
                         what it cannot parse, which the schema would save as « no value ». */}
-                    {(field) => <Input {...field} {...register('record_retention_years')} inputMode="numeric" autoComplete="off" className="md:w-24" />}
-                  </FormField>
-                </div>
-              </div>
+                    {(field) => <Input {...field} {...register('record_retention_years')} inputMode="numeric" autoComplete="off" className="w-field-xs max-w-full tabular" />}
+                </FormField>
+              </>
             )}
           </OrganizationCard>
         </>

@@ -35,7 +35,7 @@ function LocaleCard({ organization }: { organization: Organization }) {
     [t('settings.region.locale.currency'), nameOf(CURRENCIES, organization.currency)],
   ] as const
   return (
-    <SettingsCard as="section" title={t('settings.region.locale.title')}>
+    <SettingsCard as="section" layout="section" title={t('settings.region.locale.title')}>
       <dl className="space-y-1 text-sm">
         {lines.map(([term, value]) => (
           <div key={term}>

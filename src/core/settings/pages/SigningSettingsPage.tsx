@@ -9,6 +9,7 @@ import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
+import { SectionSurface } from '@/shared/components/SettingsCard'
 import { useGuardedTabs } from '@/shared/lib/unsaved-changes-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 
@@ -45,11 +46,13 @@ export function SigningSettingsPage() {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="settings" className="mt-5 max-w-form space-y-5">
+        <TabsContent value="settings" className="mt-5 space-y-5">
           <UnverifiedRequestsCard enabled={!readOnly} />
-          <SigningConnectionCard readOnly={readOnly} />
-          <SigningWebhookCard readOnly={readOnly} />
-          <SigningSendCard readOnly={readOnly} />
+          <SectionSurface>
+            <SigningConnectionCard readOnly={readOnly} />
+            <SigningWebhookCard readOnly={readOnly} />
+            <SigningSendCard readOnly={readOnly} />
+          </SectionSurface>
         </TabsContent>
         <TabsContent value="templates" className="mt-5 space-y-3">
           <p className="text-sm text-muted-foreground">{t('settings.signing.templates.description')}</p>
