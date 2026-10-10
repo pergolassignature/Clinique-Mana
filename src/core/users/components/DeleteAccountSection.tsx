@@ -45,7 +45,7 @@ export function DeleteAccountSection({ user }: { user: OrgUser }) {
 
   return (
     <section aria-labelledby={titleId} className="space-y-2 border-t border-border pt-5">
-      <h3 id={titleId} className="text-base font-semibold tracking-tight">
+      <h3 id={titleId} className="text-sm font-semibold">
         {t('settings.users.sheet.delete.title')}
       </h3>
       <p className="text-xs text-muted-foreground">{t('settings.users.sheet.delete.description', { name: user.display_name })}</p>

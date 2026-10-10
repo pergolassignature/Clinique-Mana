@@ -77,7 +77,7 @@ describe('IdentitySettingsPage', () => {
   it('shows the title and description, loads, then fills the three cards', async () => {
     mocks.api.fetchOrganization.mockResolvedValue(testOrganization)
     renderOrganizationPage(<IdentitySettingsPage />)
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByText(t('settings.identity.description'))).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 

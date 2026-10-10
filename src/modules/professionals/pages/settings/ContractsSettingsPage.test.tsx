@@ -48,7 +48,9 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     expect(await screen.findByRole('heading', { name: t(`${N}.title`) })).toBeInTheDocument()
     expect(await screen.findByText('Contrat de service')).toBeInTheDocument()
     expect(screen.getByText(t(`${N}.list.notPublished`))).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: t(`${N}.list.filter`, { label: t(`${N}.list.filters.unpublished`), count: '1' }) })).toBeInTheDocument()
+    // One template: no filters, no search (they show from 8, audit 2026-10-09 §2.6).
+    expect(screen.queryByRole('toolbar', { name: t(`${N}.list.filterLabel`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
     expect(await bodyField()).toBeInTheDocument()
     expect(mocks.contracts.fetchTemplateVersions).toHaveBeenCalledWith(TEMPLATE_ID)
   })
@@ -60,12 +62,16 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     expect(screen.getByRole('link', { name: t(`${N}.signer.link`) })).toHaveAttribute('href', '/parametres/signataire')
   })
 
-  it('filters and searches the templates', async () => {
+  it('filters and searches the templates once they are 8 or more', async () => {
+    const others = Array.from({ length: 7 }, (_, index) =>
+      parsedTemplate(templateJson({ id: `00000000-0000-4000-8000-00000000010${index}`, key: `professionals.form_${index}`, title: `Formulaire ${index + 1}`, draft_version_id: null })),
+    )
+    mocks.contracts.listContractTemplates.mockResolvedValue([parsedTemplate(), ...others])
     render()
     await screen.findByText('Contrat de service')
     await userEvent.click(screen.getByRole('button', { name: t(`${N}.list.filter`, { label: t(`${N}.list.filters.published`), count: '0' }) }))
     expect(screen.getByText(t(`${N}.list.emptyTitle`))).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: t(`${N}.list.filter`, { label: t(`${N}.list.filters.all`), count: '1' }) }))
+    await userEvent.click(screen.getByRole('button', { name: t(`${N}.list.filter`, { label: t(`${N}.list.filters.all`), count: '8' }) }))
     await userEvent.type(screen.getByRole('searchbox', { name: t(`${N}.list.search`) }), 'bail')
     expect(screen.getByText(t(`${N}.list.emptyTitle`))).toBeInTheDocument()
   })

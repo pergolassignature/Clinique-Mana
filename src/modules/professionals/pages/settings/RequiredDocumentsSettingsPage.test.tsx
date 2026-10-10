@@ -75,7 +75,7 @@ async function openEdit(name: string) {
 describe('RequiredDocumentsSettingsPage', () => {
   it('shows Requis, Échéance, Rappels, Fichiers and « Utilisé par » in words; the system types locked', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t(`${R}.title`) })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t(`${R}.title`) })).toBeInTheDocument()
     expect(cells(INSURANCE)).toEqual(['Oui', '31 mars suivant', '7 jours avant · chaque semaine après', 'PDF, JPEG ou PNG · 10 Mo', '12 professionnels'])
     expect(cells('Autre')[3]).toBe('Tous les types · 10\u00a0Mo')
     expect(cells('CV')).toEqual(['Non', 'Aucune', 'Aucun', 'PDF, Word (.doc) ou Word (.docx) · 10 Mo', expect.stringContaining('—')])

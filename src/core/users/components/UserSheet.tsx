@@ -59,7 +59,8 @@ import {
 import { DeleteAccountSection } from './DeleteAccountSection'
 import { permissionGroupName } from './group-name'
 
-const SECTION_TITLE = 'text-base font-semibold tracking-tight'
+/** A sub-group inside the sheet (H4 recipe, 13/600): under the sheet's 16 px title (audit 2026-10-09 §2.2). */
+const SECTION_TITLE = 'text-sm font-semibold'
 
 /** What the caller may do with the target: everything, or nothing (and why). */
 type Lock = null | 'self' | 'admin'

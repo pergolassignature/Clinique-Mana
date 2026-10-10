@@ -113,6 +113,6 @@ describe('ModulesSettingsPage', () => {
   it('titles the page with the section name', async () => {
     mocks.fetchModules.mockResolvedValue(rows)
     renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.modules') })).toHaveAttribute('tabindex', '-1')
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.modules') })).toHaveAttribute('tabindex', '-1')
   })
 })

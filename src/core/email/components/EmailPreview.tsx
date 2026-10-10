@@ -41,7 +41,7 @@ export function EmailPreview({ templateKey, draft, pausedReason }: EmailPreviewP
   return (
     <section aria-labelledby={titleId} className="min-w-0 space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id={titleId} className="text-base font-semibold text-foreground">
+        <h3 id={titleId} className="text-sm font-semibold text-foreground">
           {t('settings.email.preview.title')}
         </h3>
         <div role="group" aria-label={t('settings.email.preview.widthLabel')} className="flex gap-1">

@@ -55,7 +55,7 @@ async function openEdit(name: string) {
 describe('DeactivationReasonsSettingsPage', () => {
   it('shows « Note requise » and « Désactive le compte » as Oui / Non, in order, reorderable', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t(`${R}.title`) })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t(`${R}.title`) })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: t(`${R}.requiresNote`) })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: t(`${R}.disablesAccount`) })).toBeInTheDocument()
     expect(flags('Congé')).toEqual([t(`${R}.no`), t(`${R}.no`)])

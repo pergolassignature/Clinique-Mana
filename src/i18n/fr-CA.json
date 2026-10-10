@@ -395,7 +395,6 @@
       "empty": "Aucune tâche planifiée pour le moment.",
       "columns": {
         "job": "Tâche",
-        "schedule": "Fréquence",
         "lastRun": "Dernière exécution",
         "active": "Activation",
         "actions": "Actions"
@@ -3218,7 +3217,13 @@
           "grids": {
             "title": "Grilles de rétention",
             "description": "Par profession : la retenue de la clinique selon les séances cumulées, et le prix client de chaque durée. Une modification crée une nouvelle version datée.",
-            "summary": "De {first} à {floor} (dès {tier})",
+            "columns": {
+              "profession": "Profession",
+              "actions": "Actions"
+            },
+            "retentionRange": "De {first} à {floor}",
+            "fromSessions": "Dès {tier}",
+            "notPriced": "Non offert",
             "none": "Aucune grille : les professionnels de cette profession sont « Profession à confirmer ».",
             "coming": "Nouvelle version dès le {date}.",
             "details": "Paliers et prix ({count} versions)",
@@ -3312,7 +3317,8 @@
             "notPublished": "Non publié : rien ne peut être envoyé avec ce modèle",
             "draft": "Brouillon en cours",
             "retired": "Retiré",
-            "open": "Ouvrir « {title} »"
+            "open": "Ouvrir « {title} »",
+            "openShort": "Ouvrir"
           },
           "signer": {
             "title": "Signataire de la clinique",

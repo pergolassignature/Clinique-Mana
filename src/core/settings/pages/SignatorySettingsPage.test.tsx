@@ -52,7 +52,7 @@ describe('SignatorySettingsPage', () => {
   it('shows the title and description, loads, then fills the card', async () => {
     mocks.api.fetchOrganization.mockResolvedValue(testOrganization)
     renderOrganizationPage(<SignatorySettingsPage />)
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.signatory') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.signatory') })).toBeInTheDocument()
     expect(screen.getByText(t('settings.signatory.description'))).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 

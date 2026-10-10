@@ -131,24 +131,24 @@ describe('ScheduledJobsSettingsPage — reading', () => {
   it('lists each job: label, schedule in clinic time, last run, status dot and word, last error', async () => {
     renderPage({ readOnly: true })
     await loaded()
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.jobs') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.jobs') })).toBeInTheDocument()
 
     const maintenance = jobRow(MAINTENANCE.label)
     expect(within(maintenance).getByText(MAINTENANCE.description)).toBeInTheDocument()
-    // Its own column, and repeated under the label on a phone.
-    expect(within(maintenance).getAllByText('Toutes les heures')).toHaveLength(2)
+    // Under the description, at every width (no column of its own).
+    expect(within(maintenance).getByText('Toutes les heures')).toBeInTheDocument()
     // The last run too: its own column, and under the label on a phone.
     expect(within(maintenance).getAllByText('8 oct. 2026 à 08:07')).toHaveLength(2)
     expect(within(maintenance).getAllByText('Réussie')).toHaveLength(2)
 
     const business = jobRow(BUSINESS.label)
     // Testing Library reads non-breaking spaces as spaces.
-    expect(within(business).getAllByText('Tous les jours à 6 h (heure de la clinique)')).toHaveLength(2)
+    expect(within(business).getByText('Tous les jours à 6 h (heure de la clinique)')).toBeInTheDocument()
     expect(within(business).getAllByText('Erreur')).toHaveLength(2)
     expect(within(business).getAllByText('Configuration manquante (voir Mise en service)')).toHaveLength(2)
 
     const never = jobRow(NEVER_RAN.label)
-    expect(within(never).getAllByText('Non planifiée')).toHaveLength(2)
+    expect(within(never).getByText('Non planifiée')).toBeInTheDocument()
     expect(within(never).getAllByText(t('settings.jobs.never'))).toHaveLength(2)
   })
 

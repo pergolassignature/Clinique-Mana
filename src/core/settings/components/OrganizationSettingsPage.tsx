@@ -26,7 +26,7 @@ export function OrganizationSettingsPage({ title, description, children }: Organ
   return (
     <div className="max-w-form space-y-5">
       {/* The subtitle wraps at the cards' width (640), not a narrower reading measure. */}
-      <PageHeader title={title} description={description} fullWidthDescription />
+      <PageHeader level={1} title={title} description={description} fullWidthDescription />
       {readOnly && <ReadOnlyNotice />}
       {isPending ? (
         <Loading />

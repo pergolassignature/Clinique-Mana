@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Play } from 'lucide-react'
 import { t } from '@/i18n'
 import type { JobRun, ScheduledJob } from '@/core/jobs/api'
 import {
@@ -14,6 +15,7 @@ import { useSettingsSection } from '@/core/settings/section-context'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { SectionHeading } from '@/shared/components/SectionHeading'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
@@ -78,17 +80,17 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
 
   return (
     <div className="rounded-lg border border-border">
-      {/* Fixed columns from `sm`: the task and its description take what the others leave. */}
-      <Table aria-label={t('settings.sections.jobs')} scrollLabel={t('settings.jobs.scrollLabel')} className={cn(PHONE_TABLE, 'sm:table-fixed')}>
+      {/* The task, its description and its schedule take what the other columns leave, at least 320 px
+          from `lg` (audit 2026-10-09 §2.6: the description no longer wraps to a dozen lines). */}
+      <Table aria-label={t('settings.sections.jobs')} scrollLabel={t('settings.jobs.scrollLabel')} className={PHONE_TABLE} stickyHeader>
         <TableHeader>
           <TableRow className="[&>th]:whitespace-nowrap">
-            <TableHead>{t('settings.jobs.columns.job')}</TableHead>
-            <TableHead className="max-sm:hidden sm:w-36">{t('settings.jobs.columns.schedule')}</TableHead>
+            <TableHead className="lg:min-w-80">{t('settings.jobs.columns.job')}</TableHead>
             <TableHead className="max-sm:hidden sm:w-40">{t('settings.jobs.columns.lastRun')}</TableHead>
             <TableHead className="sm:w-32">{t('settings.jobs.columns.active')}</TableHead>
             {/* A real header cell (only its text is hidden), so the header row spans every column. */}
             {!readOnly && (
-              <TableHead className="w-px sm:w-40">
+              <TableHead className="w-px">
                 <span className="sr-only">{t('settings.jobs.columns.actions')}</span>
               </TableHead>
             )}
@@ -107,13 +109,12 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
                 <TableCell className="py-2 align-top">
                   <span className="font-medium">{job.label}</span>
                   <span className="block text-xs text-muted-foreground max-sm:hidden">{job.description}</span>
-                  {/* On a phone the schedule and the last run move here, so the table fits the screen. */}
-                  <span className="block text-xs text-muted-foreground sm:hidden">{schedule}</span>
+                  <span className="mt-0.5 block text-xs text-foreground">{schedule}</span>
+                  {/* On a phone the last run moves here, so the table fits the screen. */}
                   <span className="mt-1 block text-xs sm:hidden">
                     <LastRun job={job} />
                   </span>
                 </TableCell>
-                <TableCell className="align-top max-sm:hidden">{schedule}</TableCell>
                 {/* When, then the status dot and word, then what went wrong. */}
                 <TableCell className="align-top max-sm:hidden">
                   <LastRun job={job} />
@@ -154,11 +155,12 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
                 </TableCell>
                 {!readOnly && (
                   // w-px: the column is as wide as the button; the hint below it wraps. On a phone the
-                  // button's label takes two lines, so the table fits the screen.
+                  // button's label takes two lines, so the table fits the screen. A quiet (ghost) button:
+                  // repeated on every row, it must not outweigh the one row that needs attention (§2.6).
                   <TableCell className="w-px whitespace-nowrap text-right align-top">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       aria-label={t('settings.jobs.runNowLabel', { label: job.label })}
                       aria-disabled={isRunning || needsEnabling || undefined}
@@ -169,9 +171,10 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
                       }}
                       className={cn(
                         softDisabledClasses,
-                        'max-sm:h-11 max-sm:w-24 max-sm:whitespace-normal aria-disabled:hover:border-border aria-disabled:hover:bg-card',
+                        'max-sm:h-11 max-sm:w-24 max-sm:whitespace-normal aria-disabled:hover:bg-transparent',
                       )}
                     >
+                      <Play aria-hidden className="max-sm:hidden" />
                       {t('settings.jobs.runNow')}
                     </Button>
                     {needsEnabling && (
@@ -216,7 +219,7 @@ function RunsSection({ labels }: { labels: ReadonlyMap<string, string> | null })
   } else {
     content = (
       <div className="rounded-lg border border-border">
-        <Table aria-labelledby={headingId} scrollLabel={t('settings.jobs.runs.scrollLabel')} className={PHONE_TABLE}>
+        <Table aria-labelledby={headingId} scrollLabel={t('settings.jobs.runs.scrollLabel')} className={PHONE_TABLE} stickyHeader>
           <TableHeader>
             <TableRow className="[&>th]:whitespace-nowrap">
               <TableHead>{t('settings.jobs.runs.columns.date')}</TableHead>
@@ -274,10 +277,9 @@ function RunsSection({ labels }: { labels: ReadonlyMap<string, string> | null })
   }
 
   return (
-    <section className="space-y-3">
-      <h3 id={headingId} className="text-base font-semibold text-foreground">
-        {t('settings.jobs.runs.title')}
-      </h3>
+    // A second group of the page: 32 px above it (audit 2026-10-09 §2.3), its heading 8 px above the table.
+    <section aria-labelledby={headingId} className="!mt-8 space-y-2">
+      <SectionHeading id={headingId}>{t('settings.jobs.runs.title')}</SectionHeading>
       {content}
     </section>
   )
@@ -322,8 +324,8 @@ export function ScheduledJobsSettingsPage() {
   }
 
   return (
-    <div className="max-w-content space-y-5">
-      <PageHeader title={t('settings.sections.jobs')} description={t('settings.jobs.description')} />
+    <div className="space-y-6">
+      <PageHeader level={1} title={t('settings.sections.jobs')} description={t('settings.jobs.description')} />
       {readOnly && <ReadOnlyNotice />}
       {content}
       <RunsSection labels={labels} />

@@ -68,7 +68,7 @@ const setDate = (value: string) => fireEvent.change(dateField(), { target: { val
 describe('TaxSettingsPage', () => {
   it('shows the numbers card grouped, with each format as help', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.tax') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.tax') })).toBeInTheDocument()
     const gst = within(numbersCard()).getByRole('textbox', { name: t('settings.tax.fields.gst') })
     const qst = within(numbersCard()).getByRole('textbox', { name: t('settings.tax.fields.qst') })
     expect(gst).toHaveValue('123456789 RT 0001')
