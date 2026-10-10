@@ -40,7 +40,7 @@ export function SubmissionsCard({ id }: { id?: string } = {}) {
   return (
     <Card id={id} tabIndex={id ? -1 : undefined} className="min-w-0 outline-none">
       <CardHeader>
-        <CardTitle>{t(`${C}.title`)}</CardTitle>
+        <CardTitle as="h4">{t(`${C}.title`)}</CardTitle>
         <CardDescription>{t(`${C}.description`, { firstName: professional.firstName })}</CardDescription>
       </CardHeader>
       <CardContent>

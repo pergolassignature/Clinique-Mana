@@ -61,6 +61,19 @@ async function openTab({ role = 'admin', documents = documentsFixture(), record 
 const card = (name: string) => screen.getByRole('region', { name })
 const stateOf = (name: string) => card(name).querySelector('[data-type-state]')?.textContent
 
+describe('Documents tab — groups (audit 2026-10-09 §2.4)', () => {
+  it('reads as three groups under the tab, each type of « Documents requis » one level below', async () => {
+    await openTab()
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual([
+      t(`${D}.groups.contract`),
+      t(`${D}.required.title`),
+      t(`${D}.others.title`),
+    ])
+    expect(screen.getByRole('heading', { level: 4, name: INSURANCE })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 4, name: t('modules.professionals.contract.title') })).toBeInTheDocument()
+  })
+})
+
 describe('Documents tab — states by the clinic’s date', () => {
   it('says each required type in words, the summary « 3 sur 3 », and the signed consent without an end date (P4-504)', async () => {
     await openTab()

@@ -55,7 +55,7 @@ export function ContractCard() {
   return (
     <Card className="min-w-0">
       <CardHeader>
-        <CardTitle>{t(`${C}.title`)}</CardTitle>
+        <CardTitle as="h4">{t(`${C}.title`)}</CardTitle>
         <CardDescription>{t(`${C}.description`, { firstName: professional.firstName })}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -97,7 +97,6 @@ function ServiceContractBody({ contract }: { contract: ProfessionalContract }) {
   const paperButton = paperAction && (
     <Button
       type="button"
-      size="sm"
       variant="outline"
       aria-label={paperAction === 'replace' ? t(`${C}.actions.replacePaperLabel`, { firstName: professional.firstName }) : undefined}
       onClick={(event) => {
@@ -116,18 +115,18 @@ function ServiceContractBody({ contract }: { contract: ProfessionalContract }) {
       ) : (
         <>
           <section aria-labelledby={inForceId} className="space-y-2">
-            <h4 id={inForceId} className="text-sm font-semibold text-foreground">
+            <h5 id={inForceId} className="text-sm font-semibold text-foreground">
               {t(`${C}.inForce.title`)}
-            </h4>
+            </h5>
             {current.kind === 'signed' ? <SigningBody form="service_contract" contract={{ ...contract, request: current.request }} /> : <PaperContractView paper={current} />}
           </section>
           {(request !== null || sender) && (
             <section aria-labelledby={request !== null ? renewalId : undefined} className="space-y-2 border-t border-border-light pt-4">
               {request !== null && (
                 <>
-                  <h4 id={renewalId} className="text-sm font-semibold text-foreground">
+                  <h5 id={renewalId} className="text-sm font-semibold text-foreground">
                     {t(`${C}.renewal.title`)}
-                  </h4>
+                  </h5>
                   <p className="text-xs text-muted-foreground">{t(`${C}.renewal.help`)}</p>
                 </>
               )}
@@ -486,7 +485,6 @@ export function SigningBody({
                 <Button
                   key="sync"
                   type="button"
-                  size="sm"
                   variant="outline"
                   aria-disabled={pending || undefined}
                   className={cn(softDisabledClasses)}
@@ -502,7 +500,6 @@ export function SigningBody({
               <Button
                 key={button.action}
                 type="button"
-                size="sm"
                 variant={primary ? 'default' : 'outline'}
                 aria-disabled={pending || unavailable || undefined}
                 className={cn(softDisabledClasses)}
@@ -519,7 +516,6 @@ export function SigningBody({
           {sentSource && (
             <Button
               type="button"
-              size="sm"
               variant="outline"
               onClick={(event) => {
                 opener.current = event.currentTarget
@@ -530,7 +526,7 @@ export function SigningBody({
             </Button>
           )}
           {state === 'signed' && request && (
-            <Button type="button" size="sm" variant="outline" aria-expanded={journal} aria-controls={journal ? journalId : undefined} onClick={() => setJournal((open) => !open)}>
+            <Button type="button" variant="outline" aria-expanded={journal} aria-controls={journal ? journalId : undefined} onClick={() => setJournal((open) => !open)}>
               {journal ? t(`${C}.actions.hideJournal`) : t(`${C}.actions.journal`)}
             </Button>
           )}
