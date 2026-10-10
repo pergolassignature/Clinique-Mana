@@ -310,18 +310,15 @@ describe('IdentitySettingsPage', () => {
     expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
   })
 
-  it("follows the reading order with Tab, card by card (the clean cards' inactive buttons stay in it)", async () => {
+  it('follows the reading order with Tab, card by card (clean cards show no buttons, decision UI-2)', async () => {
     await renderPage()
     // Every labelled control, in the order the cards and fields are read.
     const controls = labelledControls()
     expect(controls.map((c) => c.getAttribute('name'))).toEqual(['name', 'legal_name', 'neq', 'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'phone', 'email', 'website'])
-    // Each card: its fields, then « Annuler » and « Enregistrer ». Inactive while the card is clean,
-    // they are aria-disabled, not disabled, so they keep their place in the tab order (FormActions).
+    // Each card: its fields only. « Annuler » and « Enregistrer » show only once a card is dirty (FormActions).
     const order = screen.getAllByRole('form').flatMap((form) => {
-      const buttons = within(form).getAllByRole('button')
-      expect(buttons.map((b) => b.textContent)).toEqual([t('common.cancel'), t('common.save')])
-      for (const button of buttons) expect(button).toHaveAttribute('aria-disabled', 'true')
-      return [...labelledControlsOf(form), ...buttons]
+      expect(within(form).queryAllByRole('button').map((b) => b.textContent)).not.toContain(t('common.save'))
+      return [...labelledControlsOf(form), ...within(form).queryAllByRole('button')]
     })
     const [first, ...rest] = order
     first?.focus()

@@ -171,10 +171,10 @@ describe('PrivacySettingsPage', () => {
       'privacy_policy_url',
       'record_retention_years',
     ])
+    // Clean cards show no « Annuler / Enregistrer » (decision UI-2): fields only.
     const order = screen.getAllByRole('form').flatMap((form) => {
-      const buttons = within(form).getAllByRole('button')
-      expect(buttons.map((b) => b.textContent)).toEqual([t('common.cancel'), t('common.save')])
-      return [...labelledControlsOf(form), ...buttons]
+      expect(within(form).queryAllByRole('button').map((b) => b.textContent)).not.toContain(t('common.save'))
+      return [...labelledControlsOf(form), ...within(form).queryAllByRole('button')]
     })
     const [first, ...rest] = order
     first?.focus()

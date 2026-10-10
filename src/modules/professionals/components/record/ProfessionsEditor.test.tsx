@@ -104,7 +104,7 @@ describe('ProfessionsEditor', () => {
         { titleId: IDS.naturopathe, licenceNumber: null, isPrimary: true },
       ]),
     )
-    await waitFor(() => expect(within(editor()).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true'))
+    await waitFor(() => expect(within(editor()).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument())
   })
 
   it('removing the primary promotes the other title (A2.9) and moves focus to « Ajouter »', async () => {
@@ -162,7 +162,8 @@ describe('ProfessionsEditor', () => {
     const unlinked = buildCatalogView({ ...CATALOG, titles: CATALOG.titles.map((title) => (title.id === IDS.psychologue ? { ...title, orderId: null } : title)) })
     renderRecordTab(<ProfessionsEditor readOnly={false} />, { record: (stored = twoTitles(stored)), catalog: unlinked })
     expect(licence()).not.toBeInTheDocument()
-    expect(within(editor()).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true')
+    // Clean: no « Enregistrer » (decision UI-2).
+    expect(within(editor()).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
     await userEvent.click(radio('Naturopathe'))
     await save()
     await waitFor(() =>

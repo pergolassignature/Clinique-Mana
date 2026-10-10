@@ -154,7 +154,7 @@ describe('IdentityTab', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledOnce())
     expect(mocks.record.updateProfessional).toHaveBeenCalledExactlyOnceWith(stored.professional.id, { firstName: 'Marie', lastName: 'Gagnon', gender: null })
     // The refetched record reached Expérience, which kept its draft and is still dirty.
-    await waitFor(() => expect(within(identity).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true'))
+    await waitFor(() => expect(within(identity).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument())
     expect(years).toHaveValue('20')
     expect(within(experience).getByRole('button', { name: t('common.save') })).not.toHaveAttribute('aria-disabled')
     await save(experience)

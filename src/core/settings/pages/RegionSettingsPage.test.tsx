@@ -96,10 +96,9 @@ describe('RegionSettingsPage', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Fuseau horaire enregistré.'))
     expect(mocks.api.updateOrganization).toHaveBeenCalledExactlyOnceWith('o1', { timezone: 'America/Vancouver' })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: accessKeys.all })
-    // Clean again: both buttons are inactive (FormActions shows the outline variant then).
-    const saveButton = within(card()).getByRole('button', { name: t('common.save') })
-    await waitFor(() => expect(saveButton).toHaveAttribute('aria-disabled', 'true'))
-    expect(within(card()).getByRole('button', { name: t('common.cancel') })).toHaveAttribute('aria-disabled', 'true')
+    // Clean again: no « Annuler / Enregistrer » (FormActions hides them, decision UI-2).
+    await waitFor(() => expect(within(card()).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument())
+    expect(within(card()).queryByRole('button', { name: t('common.cancel') })).not.toBeInTheDocument()
   })
 
   describe('« Autre fuseau… »', () => {
@@ -167,7 +166,7 @@ describe('RegionSettingsPage', () => {
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       await waitFor(() => expect(otherButton()).toHaveFocus())
       expect(timezoneSelect()).toHaveValue('America/Toronto')
-      expect(within(card()).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true')
+      expect(within(card()).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
     })
   })
 
@@ -196,10 +195,10 @@ describe('RegionSettingsPage', () => {
     await waitFor(() => expect(timezoneSelect()).toHaveFocus())
   })
 
-  it('follows the reading order with Tab: zone, « Autre fuseau… », Annuler, Enregistrer', async () => {
+  it('follows the reading order with Tab: zone, « Autre fuseau… » (clean: no Annuler / Enregistrer, decision UI-2)', async () => {
     await renderPage()
     const buttons = within(card()).getAllByRole('button')
-    expect(buttons.map((b) => b.textContent)).toEqual([OTHER, t('common.cancel'), t('common.save')])
+    expect(buttons.map((b) => b.textContent)).toEqual([OTHER])
     const [first, ...rest] = [timezoneSelect(), ...buttons]
     first?.focus()
     for (const control of rest) {

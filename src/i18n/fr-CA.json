@@ -38,7 +38,7 @@
     "saving": "Enregistrement…",
     "cancel": "Annuler",
     "listFilter": { "label": "Afficher", "option": "{label} ({count})", "active": "Actifs", "archived": "Archivés", "all": "Tous" },
-    "form": { "required": "(requis)" },
+    "form": { "required": "(requis)", "unsavedChanges": "Modifications non enregistrées" },
     "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
     "toast": { "region": "Notifications", "close": "Fermer la notification" },
     "errors": {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
-import { FormField } from './form-field'
+import { FormField, FormRow } from './form-field'
 import { Input } from './input'
 import { FieldsReadOnlyContext } from './read-only-context'
 
@@ -91,5 +91,38 @@ describe('FormField', () => {
   it('editable by default: no readOnly prop on the control', () => {
     render(<FormField label="Ville">{(field) => <Input {...field} />}</FormField>)
     expect(screen.getByRole('textbox', { name: 'Ville' })).not.toHaveAttribute('readonly')
+  })
+
+  it('without width it is a plain block, as before (no width class)', () => {
+    render(<FormField label="Ville">{(field) => <Input {...field} />}</FormField>)
+    const wrapper = screen.getByText('Ville').parentElement!
+    expect(wrapper.className).toBe('space-y-1')
+  })
+
+  it.each([
+    ['xs', 'w-field-xs'],
+    ['sm', 'w-field-sm'],
+    ['md', 'w-field-md'],
+    ['full', 'w-full'],
+  ] as const)('width="%s" sizes the whole field (%s), never wider than its column', (width, cls) => {
+    render(
+      <FormField label="Code postal" width={width} help="A1A 1A1">
+        {(field) => <Input {...field} />}
+      </FormField>,
+    )
+    const wrapper = screen.getByText('Code postal').closest('div')!
+    expect(wrapper).toHaveClass(cls, 'max-w-full', 'min-w-0')
+    expect(wrapper).toContainElement(screen.getByText('A1A 1A1'))
+  })
+
+  it('FormRow puts fields that belong together on one wrapping line, 12 px apart', () => {
+    render(
+      <FormRow>
+        <FormField label="Ville" width="md">{(field) => <Input {...field} />}</FormField>
+        <FormField label="Code postal" width="xs">{(field) => <Input {...field} />}</FormField>
+      </FormRow>,
+    )
+    const row = screen.getByText('Ville').parentElement!.parentElement!
+    expect(row).toHaveClass('flex', 'flex-wrap', 'gap-3', 'items-start')
   })
 })

@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import { t } from '@/i18n'
+import { cn } from '@/shared/lib/utils'
 import { Label } from './label'
 import { useFieldReadOnly } from './read-only-context'
 
@@ -18,8 +19,29 @@ export interface FieldControlProps {
   readOnly: boolean
 }
 
+/**
+ * A field's width, from its content (audit 2026-10-09 §2.5): `xs` 96 (1–3 digits: âge, années,
+ * jours, places), `sm` 160 (code postal, date, NEQ, n° de permis, IVAC), `md` 264 (prénom, nom,
+ * téléphone, ville, short selects, TPS / TVQ), `full` the whole column (address, email, URL,
+ * text). A field is at least as wide as its label.
+ */
+export type FieldWidth = 'xs' | 'sm' | 'md' | 'full'
+
+const FIELD_WIDTH: Record<FieldWidth, string> = {
+  xs: 'w-field-xs',
+  sm: 'w-field-sm',
+  md: 'w-field-md',
+  full: 'w-full',
+}
+
 interface FormFieldProps {
   label: string
+  /**
+   * The field's width (label, control, help and error together); never wider than its column
+   * (`max-w-full`). Without it the field is a plain block, as before (it fills a block column).
+   */
+  width?: FieldWidth
+  className?: string
   /** A line under the control, read with it (`aria-describedby`): a hint, or a live counter. */
   help?: ReactNode
   error?: string
@@ -41,14 +63,14 @@ interface FormFieldProps {
  * The error is read through `aria-describedby`, not announced as an alert: react-hook-form focuses
  * the first invalid field, and an alert per field would announce every error at once.
  */
-export function FormField({ label, help, error, required, readOnly: readOnlyProp, children }: FormFieldProps) {
+export function FormField({ label, width, className, help, error, required, readOnly: readOnlyProp, children }: FormFieldProps) {
   const id = useId()
   const readOnly = useFieldReadOnly(readOnlyProp)
   const helpId = help ? `${id}-help` : undefined
   const errorId = error ? `${id}-error` : undefined
   const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined
   return (
-    <div className="space-y-1">
+    <div className={cn('space-y-1', width && ['min-w-0 max-w-full', FIELD_WIDTH[width]], className)}>
       <Label htmlFor={id}>
         {label}
         {required && !readOnly && (
@@ -73,4 +95,12 @@ export function FormField({ label, help, error, required, readOnly: readOnlyProp
       )}
     </div>
   )
+}
+
+/**
+ * Fields that belong together on one line (Prénom | Nom; Ville | Province | Code postal), 12 px
+ * apart, wrapping when the column is too narrow. Give each `FormField` a `width`.
+ */
+export function FormRow({ className, children }: { className?: string; children: ReactNode }) {
+  return <div className={cn('flex flex-wrap items-start gap-3', className)}>{children}</div>
 }

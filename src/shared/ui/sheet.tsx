@@ -5,6 +5,7 @@ import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { closeButtonClasses, overlayClasses } from './overlay-classes'
 import { keepOpenForCombobox } from './overlay-escape'
+import { InCardContext } from './card-context'
 
 const Sheet = DialogPrimitive.Root
 const SheetTrigger = DialogPrimitive.Trigger
@@ -56,7 +57,7 @@ const SheetContent = React.forwardRef<
       // Échap from an open address list closes the list, not the sheet (P4-223).
       onEscapeKeyDown={keepOpenForCombobox(onEscapeKeyDown)}
     >
-      {children}
+      <InCardContext.Provider value={false}>{children}</InCardContext.Provider>
       {!hideClose && (
         <DialogPrimitive.Close
           tabIndex={-1}

@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
+import { InCardContext } from './card-context'
 
 /**
  * White, 1px hairline, radius 6, no shadow. Padding 16 through header/content/footer. The title is
@@ -9,11 +10,13 @@ const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('rounded-lg border border-border bg-card text-card-foreground', className)}
-    {...props}
-  />
+  <InCardContext.Provider value>
+    <div
+      ref={ref}
+      className={cn('rounded-lg border border-border bg-card text-card-foreground', className)}
+      {...props}
+    />
+  </InCardContext.Provider>
 ))
 Card.displayName = 'Card'
 
