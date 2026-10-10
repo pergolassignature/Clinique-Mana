@@ -89,7 +89,7 @@ export function FoldedMotifsSummary({ summary }: { summary: MotifSummary }) {
               >
                 <Chevron open={isOpen} />
                 {group.icon ? <CategoryIcon icon={group.icon} className="mt-0.5 size-3.5 shrink-0 text-subtle" /> : <span aria-hidden className="mt-0.5 size-3.5 shrink-0" />}
-                <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{group.name}</span>
+                <span className="min-w-0 flex-1 break-words font-medium text-foreground">{group.name}</span>
                 <span className="mt-px shrink-0 text-xs tabular text-muted-foreground">
                   <span aria-hidden>{t(`${S}.countShort`, { selected: String(group.selected), total: String(group.total) })}</span>
                   <span className="sr-only">{t(`${S}.countSr`, { selected: String(group.selected), total: String(group.total) })}</span>
@@ -121,7 +121,7 @@ export function CategoryNames({ groups, className }: { groups: NamedGroup[]; cla
             <p className="mb-1 flex items-center gap-2">
               {group.icon !== undefined &&
                 (group.icon ? <CategoryIcon icon={group.icon} className="size-3.5 shrink-0 text-subtle" /> : <span aria-hidden className="size-3.5 shrink-0" />)}
-              <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{group.name}</span>
+              <span className="min-w-0 flex-1 break-words font-medium text-foreground">{group.name}</span>
               {group.count && (
                 <span className="shrink-0 text-xs tabular text-muted-foreground">
                   <span aria-hidden>{t(`${S}.countShort`, { selected: String(group.count.selected), total: String(group.count.total) })}</span>

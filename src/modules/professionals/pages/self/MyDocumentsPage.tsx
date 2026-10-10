@@ -73,6 +73,7 @@ export function MyDocumentsPage() {
         can={SELF_PERMISSIONS}
         verifiedAtOnce={false}
         focusFallback={() => heading.current?.focus()}
+        groupAs="h2"
         typeExtra={(type) =>
           type.key === 'image_consent' ? (
             <ConsentSigning

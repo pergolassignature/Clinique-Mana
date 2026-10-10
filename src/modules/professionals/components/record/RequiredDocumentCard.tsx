@@ -23,10 +23,13 @@ interface RequiredDocumentCardProps {
   extra?: ReactNode
   /** Staff: « Voir le questionnaire à réviser », for a type the questionnaire holds (P4-495). */
   onShowReview?: () => void
+  /** The type's heading level: one under its group's heading (h4 on the record, h3 in « Mes documents »). */
+  headingAs?: 'h3' | 'h4'
 }
 
 /**
- * One required type (Documents tab, « Mes documents »): its name, its state in words (« Valide
+ * One required type, a row of the required documents' list (Documents tab, « Mes documents »;
+ * audit 2026-10-09 §2.4: one card per group, not a card per type): its name, its state in words (« Valide
  * jusqu'au 31 mars 2027 », « Expire le … » within the type's reminder window, « Expiré : … »,
  * « À vérifier », « Refusé », « Manquant »), then the documents that make it: a renewal waiting
  * for review (« Nouveau document »), the one that counts, the latest refusal with its reason. The
@@ -38,7 +41,7 @@ interface RequiredDocumentCardProps {
  * « Manquant »; in her draft, « Ajouté à votre questionnaire, pas encore envoyé ». She is not
  * offered an upload then (the questionnaire's review settles it).
  */
-export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onAction, onUpload, extra, onShowReview }: RequiredDocumentCardProps) {
+export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onAction, onUpload, extra, onShowReview, headingAs: Heading = 'h4' }: RequiredDocumentCardProps) {
   const titleId = useId()
   const [showOlder, setShowOlder] = useState(false)
   const { type, kind, current, pending, rejected, older } = entry
@@ -54,12 +57,12 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
   const stateText = eSigned ? t(`${D}.state.signedOn`, { date: formatClinicDateShort(current.uploadedAt) }) : typeStateLabel(entry, self)
 
   return (
-    <section aria-labelledby={titleId} className="min-w-0 rounded-lg border border-border bg-card p-4 text-card-foreground">
+    <section aria-labelledby={titleId} className="min-w-0 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 space-y-0.5">
-          <h4 id={titleId} className="text-base font-semibold tracking-tight text-foreground">
+          <Heading id={titleId} className="text-sm font-semibold text-foreground">
             {type.name}
-          </h4>
+          </Heading>
           <p data-type-state className="inline-flex items-center gap-1.5 text-sm text-foreground">
             <StatusDot tone={typeCardTone(entry, self)} />
             {stateText}
@@ -73,7 +76,6 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
         {uploadOffered(entry, viewer, can) && (
           <Button
             type="button"
-            size="sm"
             variant="outline"
             className="self-start"
             aria-label={t(replace ? `${D}.actions.replaceLabel` : `${D}.actions.uploadLabel`, { type: type.name })}

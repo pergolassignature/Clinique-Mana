@@ -3742,6 +3742,7 @@
       "documents": {
         "or": "ou",
         "loadError": "Les documents n'ont pas pu être chargés.",
+        "groups": { "contract": "Contrat et questionnaire" },
         "required": {
           "title": "Documents requis",
           "summary": "Documents requis en règle : {done} sur {total}",
