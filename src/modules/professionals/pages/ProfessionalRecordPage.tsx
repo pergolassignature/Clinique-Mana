@@ -25,8 +25,8 @@ const R = 'modules.professionals.record'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * A professional's record (« fiche », design §5.3): the header band, then the tabs, the tab being
- * the URL's last segment. One request for the record (`get_professional_record`), one for its
+ * A professional's record (« fiche », design §5.3): the header band and the tabs (sticky), then
+ * the open tab with the summary rail (`RecordTabs`), the tab being the URL's last segment. One request for the record (`get_professional_record`), one for its
  * onboarding line (`get_professional_onboarding`, P4-270) and the cached catalogue, all started at
  * mount, with the open tab's chunk and data; the tabs read them from `RecordContext`. An unknown or hidden
  * tab goes to « Aperçu ».
@@ -72,8 +72,14 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   if (!value) return <RecordSkeleton />
   return (
     <RecordContext.Provider value={value}>
-      <RecordHeader record={value.record} onboarding={value.onboarding} catalog={value.catalog} headingRef={heading} actions={<RecordActions />} />
-      <RecordTabs id={id} current={current} tabs={tabs} />
+      <RecordTabs
+        id={id}
+        current={current}
+        tabs={tabs}
+        header={(compact) => (
+          <RecordHeader record={value.record} onboarding={value.onboarding} catalog={value.catalog} headingRef={heading} actions={<RecordActions />} compact={compact} />
+        )}
+      />
     </RecordContext.Provider>
   )
 }

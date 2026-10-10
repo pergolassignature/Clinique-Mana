@@ -15,8 +15,8 @@ interface WatchCardProps {
 }
 
 /**
- * Aperçu « À surveiller »: the list's flags (`watchFlags`), each a link to the tab that settles it;
- * a flag settled on Aperçu itself (the invitation, « Prochaine action ») is plain text.
+ * The rail's « À surveiller » (every tab): the list's flags (`watchFlags`), each a link to the tab that settles it;
+ * a flag settled in the rail itself (the invitation, « Prochaine action ») is plain text.
  */
 export function WatchCard({ record, onboarding, now }: WatchCardProps) {
   const flags = watchFlags(recordWatchSubject(record, onboarding), now)

@@ -2247,6 +2247,12 @@
             "title": "Prochaine action"
           }
         },
+        "rail": {
+          "label": "Résumé du dossier",
+          "brief": "En bref",
+          "accepting": "Nouveaux clients",
+          "availability": "Disponibilités"
+        },
         "publicProfile": {
           "portrait": {
             "title": "Portrait",
