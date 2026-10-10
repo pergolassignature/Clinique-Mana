@@ -120,16 +120,16 @@ const TEMPLATES: Record<
     ],
   },
   'professionals.document_expiring': {
-    subject: 'Votre assurance prend fin le {{document.expires_on}}',
+    subject: "Votre assurance est valide jusqu'au {{document.expires_on}}",
     body: 'Bonjour {{professional.first_name}},\n\n' +
-      'Votre preuve chez {{clinic.name}} prend fin le {{document.expires_on}}.',
+      "Votre preuve chez {{clinic.name}} est valide jusqu'au {{document.expires_on}}.",
     button: 'Téléverser ma preuve',
     paths: ['professional.first_name', 'clinic.name', 'document.expires_on'],
   },
   'professionals.document_expired': {
     subject: 'Votre assurance est échue',
     body: 'Bonjour {{professional.first_name}},\n\n' +
-      'Votre preuve chez {{clinic.name}} a pris fin le {{document.expires_on}}.',
+      "Votre preuve chez {{clinic.name}} était valide jusqu'au {{document.expires_on}}.",
     button: 'Téléverser ma preuve',
     paths: ['professional.first_name', 'clinic.name', 'document.expires_on'],
   },

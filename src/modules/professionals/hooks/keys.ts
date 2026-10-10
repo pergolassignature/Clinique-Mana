@@ -43,8 +43,6 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | the provider's own upload (4c.6)         | `myDocuments()`                                                |
  * | a document type saved or archived        | as any list row (`catalog()`, `usage()`, every record: the     |
  * |                                          | readiness counts required types)                               |
- * | a consent version saved, published or    | `professionalsSettingsKeys.consents()`                         |
- * | discarded (« Consentements »)            |                                                                |
  * | a contract or an image consent sent,     | `record(id)` (its `contract(id)` / `imageConsent(id)` and the  |
  * | re-sent, regenerated or synchronised     | documents too: readiness follows them), `lists()`,             |
  * | (4d.3, P4-485)                           | `history(id)` (first page)                                     |
@@ -134,8 +132,6 @@ export const professionalCatalogKeys = {
 export const professionalsSettingsKeys = {
   all: ['professionals-settings'] as const,
   settings: () => [...professionalsSettingsKeys.all, 'settings'] as const,
-  /** « Paramètres → Consentements » (`get_consent_versions`). */
-  consents: () => [...professionalsSettingsKeys.all, 'consents'] as const,
 }
 
 /**

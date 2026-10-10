@@ -1,7 +1,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Upload } from 'lucide-react'
 import { t } from '@/i18n'
-import { formatClinicDateShort, formatDateOnly } from '@/shared/lib/timezone'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { StatusDot } from '@/shared/ui/status-dot'
 import { stagedInDraft, typeCardTone, typeStateLabel, uploadOffered, type DocumentPermissions, type DocumentViewer, type TypeDocuments } from '../../lib/documents'
@@ -29,8 +29,8 @@ interface RequiredDocumentCardProps {
  * One required type (Documents tab, « Mes documents »): its name, its state in words (« Valide
  * jusqu'au 31 mars 2027 », « Expire le … » within the type's reminder window, « Expiré : … »,
  * « À vérifier », « Refusé », « Manquant »), then the documents that make it: a renewal waiting
- * for review (« Nouveau document »), the one that counts, the latest refusal with its reason. For
- * the image consent, the e-consent in force (« Signé électroniquement le … par … »). Older
+ * for review (« Nouveau document »), the one that counts, the latest refusal with its reason. The
+ * image consent signed through Documenso reads « Signé le … », with no end date (P4-504). Older
  * documents fold under « Voir les documents précédents (n) ». « Téléverser » (« Remplacer » once a
  * document counts) for whoever may upload. While the open questionnaire holds the type (P4-495):
  * « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » (her side)
@@ -41,19 +41,17 @@ interface RequiredDocumentCardProps {
 export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onAction, onUpload, extra, onShowReview }: RequiredDocumentCardProps) {
   const titleId = useId()
   const [showOlder, setShowOlder] = useState(false)
-  const { type, kind, current, pending, rejected, consent, older } = entry
-  const replace = current !== null || consent !== null
+  const { type, kind, current, pending, rejected, older } = entry
+  const replace = current !== null
   const rowProps = { type, today, viewer, firstName, can, onAction }
   const self = viewer === 'self'
   // The questionnaire holds it: its state line says so, not « Aucun document pour l'instant ».
   const inQuestionnaire = kind === 'submitted' || (self && stagedInDraft(entry))
-  const empty = !current && !pending && !rejected && !consent && !inQuestionnaire
-  // A consent signed through Documenso and in force: one line, « Signé le … · valide jusqu'au … »
-  // (its row and the signing block below do not repeat it).
-  const eSigned = current !== null && current.signatureRequestId !== null && kind === 'valid' && entry.until !== null
-  const stateText = eSigned
-    ? t(`${D}.state.signedValidUntil`, { date: formatClinicDateShort(current.uploadedAt), until: formatDateOnly(entry.until) })
-    : typeStateLabel(entry, self)
+  const empty = !current && !pending && !rejected && !inQuestionnaire
+  // A consent signed through Documenso: one line, « Signé le … », never an end date (P4-504; its
+  // row and the signing block below do not repeat it).
+  const eSigned = current !== null && current.signatureRequestId !== null && kind === 'valid'
+  const stateText = eSigned ? t(`${D}.state.signedOn`, { date: formatClinicDateShort(current.uploadedAt) }) : typeStateLabel(entry, self)
 
   return (
     <section aria-labelledby={titleId} className="min-w-0 rounded-lg border border-border bg-card p-4 text-card-foreground">
@@ -86,16 +84,6 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
           </Button>
         )}
       </div>
-      {consent && (
-        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-          <p>
-            {consent.signerName
-              ? t(`${D}.lines.consent`, { date: formatClinicDateShort(consent.signedAt), name: consent.signerName, version: String(consent.version) })
-              : t(`${D}.lines.consentNoName`, { date: formatClinicDateShort(consent.signedAt), version: String(consent.version) })}
-          </p>
-          {consent.withdrawalEffectiveOn && <p>{t(`${D}.lines.consentWithdrawn`, { date: formatDateOnly(consent.withdrawalEffectiveOn) })}</p>}
-        </div>
-      )}
       {extra}
       {viewer === 'self' && kind === 'rejected' && <p className="mt-2 text-sm text-foreground">{t('modules.professionals.myDocuments.rejectedNote')}</p>}
       {empty ? (

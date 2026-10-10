@@ -183,7 +183,7 @@ select results_eq($$ select n.title, n.body, n.importance, n.recipient_permissio
                        from public.notifications n
                       where n.kind = 'professionals.insurance_expiring' and n.subject_id = 'c0000000-0000-0000-0000-000000000002' $$,
   $$ values ('Assurance bientôt échue'::text,
-             'L''assurance de Pia Deux prend fin le ' || private.format_date_fr(current_setting('test.t')::date + 7) || '.',
+             'L''assurance de Pia Deux est valide jusqu''au ' || private.format_date_fr(current_setting('test.t')::date + 7) || '.',
              'important'::text, 'professionals.manage'::text, '/professionnels/c0000000-0000-0000-0000-000000000002/documents'::text,
              'professional'::text,
              'insurance:f0000000-0000-0000-0000-000000000002:' || to_char(current_setting('test.t')::date + 7, 'YYYY-MM-DD') || ':expiring',
@@ -192,7 +192,7 @@ select results_eq($$ select n.title, n.body, n.importance, n.recipient_permissio
 select results_eq($$ select n.title, n.body, n.dedupe_key from public.notifications n
                       where n.kind = 'professionals.insurance_expired' and n.subject_id = 'c0000000-0000-0000-0000-000000000005' $$,
   $$ values ('Assurance expirée'::text,
-             'L''assurance de Pro N5 a pris fin le ' || private.format_date_fr(current_setting('test.t')::date - 1) || '. Son dossier reste actif.',
+             'L''assurance de Pro N5 était valide jusqu''au ' || private.format_date_fr(current_setting('test.t')::date - 1) || '. Son dossier reste actif.',
              'insurance:f0000000-0000-0000-0000-000000000005:expired'::text) $$,
   'the « expired » notice: the professional stays active (P4-1)');
 select set_eq($$ select subject_id from public.notifications where org_id = current_setting('test.a')::uuid

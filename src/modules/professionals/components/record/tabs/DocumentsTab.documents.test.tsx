@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { professionalCatalogKeys, professionalKeys } from '../../../hooks/keys'
 import { IDS } from '../../../test/fixtures'
-import { CONSENT_JSON, CV_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../../test/fixtures-documents'
+import { CONSENT_DOC_JSON, CV_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../../test/fixtures-documents'
 import { recordFixture } from '../../../test/fixtures-domain'
 import { renderRecordTab } from '../../../test/record-tab'
 import { DocumentsTab } from './DocumentsTab'
@@ -62,40 +62,39 @@ const card = (name: string) => screen.getByRole('region', { name })
 const stateOf = (name: string) => card(name).querySelector('[data-type-state]')?.textContent
 
 describe('Documents tab — states by the clinic’s date', () => {
-  it('says each required type in words, the summary « 3 sur 3 », and the e-consent on the consent card', async () => {
+  it('says each required type in words, the summary « 3 sur 3 », and the signed consent without an end date (P4-504)', async () => {
     await openTab()
     expect(screen.getByText(t(`${D}.required.summary`, { done: '3', total: '3' }))).toBeInTheDocument()
     expect(stateOf(INSURANCE)).toBe("Valide jusqu'au 31 mars 2027")
     expect(stateOf(PHOTO)).toBe(t(`${D}.state.verified`))
-    expect(stateOf(CONSENT)).toBe("Valide jusqu'au 8 octobre 2027")
-    expect(card(CONSENT)).toHaveTextContent('Signé électroniquement le 8 oct. 2026 par Marie Tremblay (version 1)')
+    expect(stateOf(CONSENT)).toBe(t(`${D}.state.signedOn`, { date: '8 oct. 2026' }))
+    expect(card(CONSENT)).not.toHaveTextContent('valide jusqu')
     // The insurance's row: who sent it, who verified it.
     expect(card(INSURANCE)).toHaveTextContent('Téléversé le 1 oct. 2026 par Marie · Vérifié le 2 oct. 2026 par Julie Adjointe')
   })
 
-  it('« Expire le … » within the insurance’s reminder window (7 days), « Expiré » the day after its last day', async () => {
+  it('« Expire bientôt : valide jusqu’au … » within the insurance’s reminder window (7 days), « Expiré » the day after its last day (P4-511)', async () => {
     await openTab({ documents: documentsFixture({ today: '2027-03-23' }) })
     expect(stateOf(INSURANCE)).toBe("Valide jusqu'au 31 mars 2027")
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-03-24' }) })
-    expect(stateOf(INSURANCE)).toBe('Expire le 31 mars 2027')
+    expect(stateOf(INSURANCE)).toBe(t(`${D}.state.expiring`, { date: '31 mars 2027' }))
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-03-31' }) })
-    expect(stateOf(INSURANCE)).toBe('Expire le 31 mars 2027')
+    expect(stateOf(INSURANCE)).toBe(t(`${D}.state.expiring`, { date: '31 mars 2027' }))
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-04-01' }) })
     expect(stateOf(INSURANCE)).toBe("Expiré : valide jusqu'au 31 mars 2027")
     expect(screen.getByText(t(`${D}.required.summary`, { done: '2', total: '3' }))).toBeInTheDocument()
   })
 
-  it('« Manquant », « À vérifier » and « Refusé » with its reason; an e-consent past its date no longer counts', async () => {
+  it('« Manquant », « À vérifier » and « Refusé » with its reason; no consent document: missing', async () => {
     await openTab({
       documents: documentsFixture({
         documents: [
           documentJson({ status: 'pending', reviewed_at: null, reviewed_by_name: null }),
           documentJson({ id: DOC_IDS.refused, type_id: IDS.photoType, type_key: 'photo', status: 'rejected', expires_on: null, rejection_reason: 'Photo floue.', file: null }),
         ],
-        consent: { ...CONSENT_JSON, expires_on: '2026-10-08' },
       }),
     })
     expect(stateOf(INSURANCE)).toBe(t(`${D}.state.pending`))
@@ -164,7 +163,7 @@ describe('Documents tab — states by the clinic’s date', () => {
 })
 
 describe('Documents tab — actions by permission', () => {
-  const pending = () => documentsFixture({ documents: [documentJson({ status: 'pending', reviewed_at: null, reviewed_by_name: null }), PHOTO_JSON] })
+  const pending = () => documentsFixture({ documents: [documentJson({ status: 'pending', reviewed_at: null, reviewed_by_name: null }), PHOTO_JSON, CONSENT_DOC_JSON] })
 
   it('the admin: Vérifier, Refuser on a pending document; Supprimer in « … »; « Téléverser » everywhere', async () => {
     await openTab({ documents: pending() })
@@ -176,7 +175,7 @@ describe('Documents tab — actions by permission', () => {
     expect(screen.getByRole('menuitem', { name: t(`${D}.actions.redate`) })).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(screen.getByRole('button', { name: t(`${D}.actions.replaceLabel`, { type: PHOTO }) })).toBeInTheDocument()
-    // The e-consent in force counts: « Remplacer » there too.
+    // The signed consent counts: « Remplacer » there too.
     expect(screen.getByRole('button', { name: t(`${D}.actions.replaceLabel`, { type: CONSENT }) })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: INSURANCE }) })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: t(`${D}.actions.uploadOther`) })).toBeInTheDocument()

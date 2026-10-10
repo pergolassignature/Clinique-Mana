@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
+import type { ScheduledJob } from '@/core/jobs/api'
 import { usageKey } from '../../api/catalog'
 import { CATALOG } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
 import { renderProfessionalsSettingsPage } from '../../test/settings-page'
-import { RequiredDocumentsSettingsPage } from './RequiredDocumentsSettingsPage'
+import { INSURANCE_EXPIRY_JOB, RequiredDocumentsSettingsPage } from './RequiredDocumentsSettingsPage'
 
 const mocks = vi.hoisted(() => ({
   api: {
@@ -17,7 +18,9 @@ const mocks = vi.hoisted(() => ({
     reorderReference: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
+  jobs: { listScheduledJobs: vi.fn(), setScheduledJobEnabled: vi.fn(), listScheduledJobRuns: vi.fn(), runScheduledJobNow: vi.fn() },
 }))
+vi.mock('@/core/jobs/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/jobs/api')>()), ...mocks.jobs }))
 vi.mock('../../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/catalog')>()), ...mocks.api }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -29,6 +32,22 @@ const INSURANCE = "Preuve d'assurance responsabilité"
 beforeEach(() => {
   mocks.api.fetchProfessionalsCatalog.mockResolvedValue(CATALOG)
   mocks.api.fetchReferenceUsage.mockResolvedValue(new Map([[usageKey('document_types', IDS.insuranceType), 12]]))
+  mocks.jobs.listScheduledJobs.mockResolvedValue([insuranceJob(false)])
+  mocks.jobs.setScheduledJobEnabled.mockResolvedValue(undefined)
+})
+
+const insuranceJob = (enabled: boolean): ScheduledJob => ({
+  key: INSURANCE_EXPIRY_JOB,
+  label: 'Échéances des assurances',
+  description: '',
+  kind: 'function',
+  is_maintenance: false,
+  local_hour: 6,
+  schedule: '15 * * * *',
+  enabled,
+  last_started_at: null,
+  last_status: null,
+  last_detail: null,
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -60,7 +79,8 @@ describe('RequiredDocumentsSettingsPage', () => {
     expect(cells(INSURANCE)).toEqual(['Oui', '31 mars suivant', '7 jours avant · chaque semaine après', 'PDF, JPEG ou PNG · 10 Mo', '12 professionnels'])
     expect(cells('Autre')[3]).toBe('Tous les types · 10\u00a0Mo')
     expect(cells('CV')).toEqual(['Non', 'Aucune', 'Aucun', 'PDF, Word (.doc) ou Word (.docx) · 10 Mo', expect.stringContaining('—')])
-    expect(cells("Consentement droit à l'image")[1]).toBe('12 mois')
+    // The image consent never expires (P4-504).
+    expect(cells("Consentement droit à l'image")[1]).toBe(t(`${R}.consentNoExpiry`))
     expect(within(rowOf(INSURANCE)).getByRole('img', { name: t(`${R}.system`) })).toBeInTheDocument()
     // An archived type is under « Archivés » only.
     expect(screen.queryByText('Ancien document')).not.toBeInTheDocument()
@@ -157,5 +177,41 @@ describe('RequiredDocumentsSettingsPage', () => {
     expect(screen.getByText(t('common.readOnlyNotice.title'))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t(`${R}.add`) })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Actions pour/ })).not.toBeInTheDocument()
+  })
+
+  it('the image consent never expires: « Aucune expiration », read-only in its form (P4-504)', async () => {
+    await renderPage()
+    await openEdit("Consentement droit à l'image")
+    expect(within(dialog()).getByLabelText(t(`${R}.expiry`))).toHaveValue(t(`${R}.consentNoExpiry`))
+    expect(within(dialog()).getByLabelText(t(`${R}.expiry`))).toHaveAttribute('readonly')
+    expect(within(dialog()).queryByRole('combobox', { name: t(`${R}.expiry`) })).not.toBeInTheDocument()
+  })
+
+  it('points to « Contrats et formulaires » for the consent’s text (P4-508)', async () => {
+    await renderPage()
+    const card = screen.getByRole('region', { name: t(`${R}.consentText.title`) })
+    expect(within(card).getByRole('link', { name: t(`${R}.consentText.open`) })).toHaveAttribute('href', '/parametres/contrats')
+  })
+
+  it('says the insurance reminders need the job « Échéances des assurances », off, and lets an admin turn it on (P4-509)', async () => {
+    await renderPage()
+    const card = screen.getByRole('region', { name: t(`${R}.job.title`) })
+    expect(await within(card).findByText(t(`${R}.job.off`))).toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${R}.job.enable`) }))
+    await waitFor(() => expect(mocks.jobs.setScheduledJobEnabled).toHaveBeenCalledExactlyOnceWith(INSURANCE_EXPIRY_JOB, true))
+  })
+
+  it('on: when it runs', async () => {
+    mocks.jobs.listScheduledJobs.mockResolvedValue([insuranceJob(true)])
+    await renderPage()
+    expect(await within(screen.getByRole('region', { name: t(`${R}.job.title`) })).findByText(t(`${R}.job.on`, { hour: '6' }))).toBeInTheDocument()
+  })
+
+  it('the adjointe, the job off: where it is done, never a switch', async () => {
+    await renderPage({ readOnly: true })
+    const card = screen.getByRole('region', { name: t(`${R}.job.title`) })
+    expect(await within(card).findByText(t(`${R}.job.askAdmin`))).toBeInTheDocument()
+    expect(within(card).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(card).getByRole('link', { name: t(`${R}.job.openJobs`) })).toHaveAttribute('href', '/parametres/taches-planifiees')
   })
 })

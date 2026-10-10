@@ -8,7 +8,7 @@ import { accessForRole } from '@/test/role-fixtures'
 import type { ProfessionalDocuments } from '../../api/documents'
 import { professionalKeys } from '../../hooks/keys'
 import { IDS } from '../../test/fixtures'
-import { CONSENT_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../test/fixtures-documents'
+import { DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../test/fixtures-documents'
 import { CATALOG, recordFixture } from '../../test/fixtures-domain'
 import { setupQueryClient } from '../../test/query-client'
 import { MyDocumentsPage } from './MyDocumentsPage'
@@ -144,12 +144,12 @@ describe('MyDocumentsPage — documents sent with her questionnaire (P4-495)', (
 })
 
 describe('MyDocumentsPage — her own documents', () => {
-  it('her e-consent reads its date and version without a signer’s name (the RPC gives none to the provider, P4-472)', async () => {
-    renderPage(documentsFixture({ consent: { ...CONSENT_JSON, signer_name: null } }))
+  it('her signed consent reads « Signé le … », with no end date (P4-504)', async () => {
+    renderPage(documentsFixture())
     await loaded()
     const consent = screen.getByRole('region', { name: "Consentement droit à l'image" })
-    expect(consent).toHaveTextContent('Signé électroniquement le 8 oct. 2026 (version 1)')
-    expect(consent).not.toHaveTextContent(' par ')
+    expect(consent).toHaveTextContent(t(`${D}.state.signedOn`, { date: '8 oct. 2026' }))
+    expect(consent).not.toHaveTextContent('valide jusqu')
   })
 
   it('in her words; no review, no deletion', async () => {
@@ -227,7 +227,7 @@ describe('MyDocumentsPage — her own documents', () => {
     expect(dialog).not.toHaveTextContent("Consentement droit à l'image")
   })
 
-  it('an expired consent reads « Renouveler : remplir et signer »; a signed one its dates', async () => {
+  it('a consent no longer on file reads « Remplir et signer » (never « Renouveler »); a signed one « Signé le … », no end date (P4-504)', async () => {
     mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
       available: true,
       validUntil: null,
@@ -235,29 +235,30 @@ describe('MyDocumentsPage — her own documents', () => {
     })
     renderPage(documentsFixture({ consent: null, documents: [] }))
     await loaded()
-    expect(await screen.findByRole('button', { name: t('modules.professionals.consentSign.renew') })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: t('modules.professionals.consentSign.fill') })).toBeInTheDocument()
     cleanup()
     mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
       available: true,
-      validUntil: '2027-10-08',
+      validUntil: '2100-12-31',
       request: { status: 'signed', lastError: null, sentAt: '2026-10-08T14:00:00Z', completedAt: '2026-10-08T14:05:00Z', signedAt: '2026-10-08T14:05:00Z' },
     })
     renderPage(documentsFixture({ consent: null, documents: [] }))
     await loaded()
-    expect(await screen.findByText(/^Signé le .* · valide jusqu'au 8 octobre 2027$/)).toBeInTheDocument()
+    expect(await screen.findByText(t('modules.professionals.consentSign.signedOn', { date: '8 oct. 2026' }))).toBeInTheDocument()
+    expect(screen.queryByText(/valide jusqu/)).not.toBeInTheDocument()
   })
 
-  it('a consent signed through Documenso and on file says its dates once: « Signé le … · valide jusqu’au … »', async () => {
+  it('a consent signed through Documenso and on file says its date once: « Signé le … »', async () => {
     mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
       available: true,
-      validUntil: '2027-10-08',
+      validUntil: '2100-12-31',
       request: { status: 'signed', lastError: null, sentAt: '2026-10-08T14:00:00Z', completedAt: '2026-10-08T14:05:00Z', signedAt: '2026-10-08T14:05:00Z' },
     })
     const signed = documentJson({
       id: '00000000-0000-4000-8000-0000000c0c01',
       type_id: IDS.consentType,
       type_key: 'image_consent',
-      expires_on: '2027-10-08',
+      expires_on: null,
       uploaded_at: '2026-10-08T14:05:00+00:00',
       uploaded_by_self: false,
       reviewed_at: null,
@@ -267,9 +268,9 @@ describe('MyDocumentsPage — her own documents', () => {
     })
     renderPage(documentsFixture({ consent: null, documents: [PHOTO_JSON, documentJson(), signed] }))
     await loaded()
-    expect(await screen.findAllByText(/Signé le .* · valide jusqu'au 8 octobre 2027/)).toHaveLength(1)
+    expect(await screen.findAllByText(t(`${D}.state.signedOn`, { date: '8 oct. 2026' }))).toHaveLength(1)
     expect(screen.getByText(t(`${D}.lines.signedPdf`))).toBeInTheDocument()
-    expect(screen.queryByText(/^Valide jusqu'au 8 octobre 2027$/)).not.toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: "Consentement droit à l'image" })).queryByText(/valide jusqu/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Signé électroniquement le/)).not.toBeInTheDocument()
   })
 

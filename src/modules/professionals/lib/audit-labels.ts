@@ -39,6 +39,7 @@ export const PROFESSIONALS_AUDITED_TABLES = [
   'professional_documents',
   'professional_consents',
   'professional_contract_snapshots',
+  'professional_paper_contracts',
   'professional_session_counts',
   'professional_retention',
   'professional_client_agreements',

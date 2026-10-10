@@ -5,7 +5,7 @@
 -- no published template, the snapshot, a draft resumed under its own key, one out at a time,
 -- resend, regenerate, an inactive file, a renewal after a signature, empty values); the card
 -- (get_professional_image_consent for the conseillère, another clinic, the provider); the signed
--- consent becoming a verified « Consentement droit à l'image » document (12 months, the
+-- consent becoming a verified « Consentement droit à l'image » document (no end date, P4-504; the
 -- provider's file, readiness, idempotent, a contract creates none); reject refused and delete
 -- keeping the signed file; the history.
 begin;
@@ -118,9 +118,9 @@ select is((select v.body -> 'header' -> 'initialsFor' from public.document_templ
 select results_eq($$ select s ->> 'role', (s ->> 'required')::boolean from public.document_template_versions v,
                             jsonb_array_elements(v.signers) s where v.id = current_setting('test.v1')::uuid $$,
   $$ values ('professional'::text, true) $$, 'the professional is the only signer (as the legacy consent)');
-select ok((select v.body::text ~ 'renouvelé automatiquement' and v.body::text ~ 'préavis écrit de '
+select ok((select v.body::text ~ 'sans limite de durée' and v.body::text !~ '12 mois|renouvel' and v.body::text ~ 'préavis écrit de '
              from public.document_template_versions v where v.id = current_setting('test.v1')::uuid),
-  'the legacy text: 12 months renewed automatically, 3 months'' notice');
+  'the legacy text, without a time limit since P4-504: no 12 months, no renewal, 3 months'' notice');
 select is_empty($$ select 1 from public.document_template_versions v
                     where v.id = current_setting('test.v1')::uuid and (v.body::text ~ 'MANA|DocuSeal|Christine' or v.email_message ~ 'MANA') $$,
   'no clinic name, no provider name: variables only');
@@ -273,9 +273,9 @@ select lives_ok($$ select public.complete_signature_request(current_setting('tes
 
 select results_eq($$ select d.status, d.expires_on, d.stored_file_id, d.document_type_id, d.uploaded_by, d.reviewed_at is not null
                        from public.professional_documents d where d.signature_request_id = current_setting('test.r3')::uuid $$,
-  $$ values ('verified'::text, ((now() at time zone 'America/Toronto')::date + interval '12 months')::date,
+  $$ values ('verified'::text, null::date,
              'f0000000-0000-0000-0000-000000000003'::uuid, current_setting('test.type')::uuid, null::uuid, true) $$,
-  'a verified image-consent document, valid 12 months from the clinic date of the signature (the type''s rule)');
+  'a verified image-consent document, with no end date (the type has no rule since P4-504)');
 select results_eq($$ select f.owner_profile_id, f.owner_permission, f.view_permission, f.status from public.stored_files f
                       where f.id = 'f0000000-0000-0000-0000-000000000003' $$,
   $$ values ('a0000000-0000-0000-0000-000000000003'::uuid, 'professionals.self'::text, 'professionals.view'::text, 'ready'::text) $$,

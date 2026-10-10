@@ -12,7 +12,7 @@ import { fullName, languagesLabel, statusLabel, statusTone } from '../../lib/dis
 import { hasMissingDocuments } from '../../lib/filters'
 import { displayStatus } from '../../lib/onboarding'
 import { titleLabel } from '../../lib/title-label'
-import { watchFlags } from '../../lib/watch'
+import { inactiveLabel, watchFlags } from '../../lib/watch'
 import { ProfessionalAvatar } from '../ProfessionalAvatar'
 import { useImageRetry } from '../use-image-retry'
 import { useRowsInView } from './use-rows-in-view'
@@ -28,7 +28,7 @@ const T = 'modules.professionals.list.table'
  * 96px 120px minmax(0,1.4fr)`; the status column is 136px so the longest status, « En préparation »
  * (P4-43), is never cut; Documents is 104px, its header's width). Every flexible
  * column is `minmax(0, …)` and every text ellipsed, so the table never scrolls sideways, except
- * « À surveiller », which wraps: its sentence (« Assurance expirée depuis le 5 oct. 2026 ») must read whole.
+ * « À surveiller », which wraps: its sentence (« Assurance expirée : valide jusqu'au 5 oct. 2026 ») must read whole.
  */
 const GRID = cn(
   'grid grid-cols-[minmax(0,1fr)_136px]',
@@ -140,6 +140,8 @@ const ProfessionalRow = memo(function ProfessionalRow({
   const title = row.primaryTitleId ? catalog.byId.titles.get(row.primaryTitleId) : undefined
   const licence = [titleOrder(catalog, row.primaryTitleId)?.acronym, row.primaryLicenceNumber].filter(Boolean).join(' ')
   const flag = watchFlags(row)[0]
+  // An inactive file is not watched: why and since when instead (P4-510).
+  const inactive = inactiveLabel(row, catalog)
   const status = displayStatus(row.status, row.onboarding)
   const prefetch = () => onPrefetch(row.id)
   // A pointer resting on the row, not one crossing the list on its way elsewhere.
@@ -192,12 +194,12 @@ const ProfessionalRow = memo(function ProfessionalRow({
       <div role="cell" className={cn(CELL, DOCUMENTS_COLUMN)}>
         <DocumentsCount row={row} />
       </div>
-      {/* Wraps (two lines at most in practice), never ellipsed: « Assurance expirée depuis le 5 oct. 2026 » reads whole. */}
+      {/* Wraps (two lines at most in practice), never ellipsed: « Assurance expirée : valide jusqu'au 5 oct. 2026 » reads whole. */}
       <div
         role="cell"
         className={cn(CELL, 'text-pretty break-words text-xs', WATCH_COLUMN, flag?.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}
       >
-        {flag ? flag.label : <Nothing label={t(`${T}.nothingToWatch`)} />}
+        {flag ? flag.label : (inactive ?? <Nothing label={t(`${T}.nothingToWatch`)} />)}
       </div>
     </div>
   )

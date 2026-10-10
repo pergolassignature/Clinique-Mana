@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { t } from '@/i18n'
 import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone, formatTaxNumber } from '@/shared/lib/format'
-import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
+import { formatDateOnly } from '@/shared/lib/timezone'
 import type { MySubmission, SectionValues } from '../../api/self'
 import type { CatalogView } from '../../lib/catalog-view'
 import { AVAILABILITY_PERIODS, type Gender } from '../../lib/constants'
@@ -234,20 +234,9 @@ export function SectionSummary({ section, values, submission, catalog, onFile }:
         </div>
       )
     }
-    case 'consent': {
-      const signedId = text(values, 'consent_version_id')
-      const current = submission.consent !== null && signedId === submission.consent.id
-      const at = text(values, 'signed_at')
-      const params = { date: at ? formatClinicDateTime(at) : '', name: text(values, 'signer_name') ?? '' }
-      // Signed on an older text (the clinic published a newer one since): its version is named.
-      const older = !current && signedId !== null && submission.signedConsentVersion !== null
-      // Without the former e-consent: the consent signed through Documenso (P4-487).
-      if (!current && !older) return <MyConsentSummary />
-      return (
-        <p className="text-sm text-foreground">
-          {current ? t(`${L}.consent.signed`, params) : t(`${R}.signedVersion`, { ...params, version: String(submission.signedConsentVersion) })}
-        </p>
-      )
-    }
+    // The consent signed through Documenso (P4-487); a draft's former e-consent answer is no longer
+    // read (P4-507).
+    case 'consent':
+      return <MyConsentSummary />
   }
 }

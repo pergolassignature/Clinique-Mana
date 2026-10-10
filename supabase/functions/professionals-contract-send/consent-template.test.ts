@@ -1,9 +1,9 @@
 /**
- * The seeded « Consentement au droit à l'image » (draft version 1 of
- * `*_professionals_image_consent.sql`,
- * `private.professionals_image_consent_template()`) renders: every
- * placeholder is declared, the professional is the only signer, nothing is
- * initialled, and the signature lands on the last page (P4-481).
+ * The seeded « Consentement au droit à l'image » (draft version 1, the latest
+ * definition of `private.professionals_image_consent_template()`) renders:
+ * every placeholder is declared, the professional is the only signer, nothing
+ * is initialled, the signature lands on the last page (P4-481), and it has no
+ * time limit (P4-504).
  */
 import { assert, assertEquals } from '@std/assert'
 import { PLACEHOLDER_SOURCE, type TemplateVariable } from '../_shared/format.ts'
@@ -20,10 +20,17 @@ async function seededTemplate(): Promise<{
   email_subject: string
   email_message: string
 }> {
-  const name = [...Deno.readDirSync(MIGRATIONS)].map((e) => e.name)
-    .find((n) => n.endsWith('_professionals_image_consent.sql'))
-  assert(name, 'the image consent migration exists')
-  const sql = await Deno.readTextFile(new URL(name, MIGRATIONS))
+  // The latest migration that (re)defines the template (P4-504 removed the 12 months).
+  const names = [...Deno.readDirSync(MIGRATIONS)].map((e) => e.name)
+    .filter((n) => n.endsWith('.sql')).sort()
+  let sql = ''
+  for (const name of names) {
+    const text = await Deno.readTextFile(new URL(name, MIGRATIONS))
+    if (
+      /function private\.professionals_image_consent_template\(\)/.test(text)
+    ) sql = text
+  }
+  assert(sql, 'a migration defines the image consent template')
   const start = sql.indexOf('$json$') + '$json$'.length
   const end = sql.indexOf('$json$::jsonb')
   return JSON.parse(sql.slice(start, end))
@@ -57,6 +64,16 @@ Deno.test('seeded image consent: the draft opens with the validation banner, no 
     !JSON.stringify(body).includes('pricing.'),
     'no Annexe A in a consent',
   )
+})
+
+Deno.test('seeded image consent: valid with no time limit, never 12 months or a renewal (P4-504)', async () => {
+  const { body } = await seededTemplate()
+  const text = JSON.stringify(body)
+  assert(
+    text.includes('sans limite de durée'),
+    'section 3 says it has no time limit',
+  )
+  assert(!/12 mois|douze mois|renouvel/.test(text), 'no 12 months, no renewal')
 })
 
 Deno.test('seeded image consent: every placeholder is a declared variable, every variable is used', async () => {

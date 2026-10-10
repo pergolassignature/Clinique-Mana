@@ -1,27 +1,21 @@
 import { useMemo, type ReactNode } from 'react'
 import { Controller, useWatch } from 'react-hook-form'
-import { CircleAlert, CircleCheck } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
-import { useScheduledJobs, useSetScheduledJobEnabled } from '@/core/jobs/hooks'
 import { rpcErrorHint } from '@/core/modules/errors'
-import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
 import { useSettingsSection } from '@/core/settings/section-context'
 import { FormActions } from '@/shared/components/FormActions'
-import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
 import { SettingsCard } from '@/shared/components/SettingsCard'
-import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { SwitchField } from '@/shared/components/SwitchField'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
-import { cn } from '@/shared/lib/utils'
-import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { ProfessionalsSettings } from '../../api/parse'
+import { ScheduledJobState } from '../../components/settings/ScheduledJobState'
 import { useProfessionalsSettings, useSaveProfessionalsSettings } from '../../hooks/use-professionals-settings'
 import { INVITATION_REMINDER_MAX, invitationsSchema, toInvitationsFormValues } from '../../schemas/invitations'
 
@@ -169,7 +163,7 @@ function ReminderJobCard({ reminderOn }: { reminderOn: boolean }) {
       {!reminderOn ? (
         <p className="text-sm text-muted-foreground">{t(`${S}.job.disabledReminder`)}</p>
       ) : canRead ? (
-        <JobState />
+        <ScheduledJobState jobKey={INVITATION_REMINDERS_JOB} texts={`${S}.job`} />
       ) : (
         <p className="text-sm text-muted-foreground">{t(`${S}.job.unknown`)}</p>
       )}
@@ -177,48 +171,3 @@ function ReminderJobCard({ reminderOn }: { reminderOn: boolean }) {
   )
 }
 
-function JobState() {
-  const { can } = useAccess()
-  const jobs = useScheduledJobs()
-  const setEnabled = useSetScheduledJobEnabled()
-  if (jobs.isError && !jobs.data) return <LoadError message={t(`${S}.job.loadError`)} retrying={jobs.isFetching} onRetry={() => void jobs.refetch()} />
-  if (!jobs.data) return <Loading />
-  const job = jobs.data.find((j) => j.key === INVITATION_REMINDERS_JOB)
-  if (!job) return <p className="text-sm text-muted-foreground">{t(`${S}.job.unknown`)}</p>
-  if (job.enabled) {
-    return (
-      <p className="flex items-start gap-2 text-sm text-foreground">
-        <CircleCheck aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-        {job.local_hour === null ? t(`${S}.job.onNoHour`) : t(`${S}.job.on`, { hour: String(job.local_hour) })}
-      </p>
-    )
-  }
-  const pending = setEnabled.isPending
-  return (
-    <div className="space-y-2">
-      <p className="flex items-start gap-2 text-sm text-foreground">
-        <CircleAlert aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" />
-        {t(`${S}.job.off`)}
-      </p>
-      {can('settings.manage') ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-disabled={pending || undefined}
-          onClick={ignoreWhenInactive(pending, () => setEnabled.mutate({ key: INVITATION_REMINDERS_JOB, enabled: true }))}
-          className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
-        >
-          {pending ? t(`${S}.job.enabling`) : t(`${S}.job.enable`)}
-        </Button>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          {t(`${S}.job.askAdmin`)}{' '}
-          <GuardedNavLink to={`${SETTINGS_BASE_PATH}/taches-planifiees`} className="text-link underline-offset-[3px] hover:underline">
-            {t(`${S}.job.openJobs`)}
-          </GuardedNavLink>
-        </p>
-      )}
-    </div>
-  )
-}

@@ -14,11 +14,13 @@ export const DOC_IDS = {
   insuranceOld: '00000000-0000-4000-8000-00000000d004',
   cv: '00000000-0000-4000-8000-00000000d005',
   refused: '00000000-0000-4000-8000-00000000d006',
+  consent: '00000000-0000-4000-8000-00000000d007',
   photoFile: '00000000-0000-4000-8000-00000000f101',
   insuranceFile: '00000000-0000-4000-8000-00000000f102',
   renewalFile: '00000000-0000-4000-8000-00000000f103',
   oldFile: '00000000-0000-4000-8000-00000000f104',
   cvFile: '00000000-0000-4000-8000-00000000f105',
+  consentFile: '00000000-0000-4000-8000-00000000f106',
 } as const
 
 type Json = Record<string, unknown>
@@ -61,24 +63,30 @@ export const CV_JSON = documentJson({
   file: { id: DOC_IDS.cvFile, name: 'cv.docx', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size_bytes: 40_960 },
 })
 
-export const CONSENT_JSON = {
-  id: '00000000-0000-4000-8000-00000000c501',
-  version: 1,
-  signer_name: 'Marie Tremblay',
-  signed_at: '2026-10-08T13:58:00+00:00',
-  expires_on: '2027-10-08',
-  withdrawn_at: null,
-  withdrawal_effective_on: null,
-}
+/** The image consent signed through Documenso on 8 Oct. (P4-485): verified, no end date (P4-504). */
+export const CONSENT_DOC_JSON = documentJson({
+  id: DOC_IDS.consent,
+  type_id: IDS.consentType,
+  type_key: 'image_consent',
+  expires_on: null,
+  uploaded_at: '2026-10-08T13:58:00+00:00',
+  uploaded_by_self: false,
+  reviewed_by_name: null,
+  signature_request_id: '00000000-0000-4000-8000-00000000c501',
+  file: { id: DOC_IDS.consentFile, name: 'consentement.pdf', mime_type: 'application/pdf', size_bytes: 40_960 },
+})
 
-/** The payload: a photo, a verified insurance and the e-consent by default (every required type valid). */
+/**
+ * The payload: a verified insurance, a photo and the signed image consent by default (every
+ * required type valid). `consent` is always null since P4-507 (the retired e-consent).
+ */
 export function documentsJson(over: Json = {}): Json {
   return {
     professional_id: IDS.professional,
     today: '2026-10-09',
     photo: { document_id: DOC_IDS.photo, file_id: DOC_IDS.photoFile },
-    documents: [documentJson(), PHOTO_JSON],
-    consent: CONSENT_JSON,
+    documents: [documentJson(), PHOTO_JSON, CONSENT_DOC_JSON],
+    consent: null,
     staged: [],
     ...over,
   }

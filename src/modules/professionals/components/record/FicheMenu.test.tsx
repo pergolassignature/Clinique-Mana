@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { ProfessionalRecord } from '../../api/parse'
 import { IDS } from '../../test/fixtures'
+import { CONSENT_DOC_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON } from '../../test/fixtures-documents'
 import { recordWithStatus } from '../../test/fixtures-domain'
 import { renderRecordTab } from '../../test/record-tab'
 import { FicheMenu } from './FicheMenu'
@@ -81,11 +82,21 @@ describe('FicheMenu', () => {
 
   it('prints the newest verified photo (P4-202); an unreadable one leaves the initials, never a failed fiche', async () => {
     renderMenu()
-    mocks.fetchProfessionalDocuments.mockResolvedValue({ professionalId: IDS.professional, today: '2026-10-09', photo: { documentId: 'doc-photo', fileId: 'file-photo' }, documents: [], consent: null, staged: [] })
+    mocks.fetchProfessionalDocuments.mockResolvedValue(documentsFixture())
     await open()
     await userEvent.click(await screen.findByRole('menuitem', { name: t(`${M}.download`) }))
-    await waitFor(() => expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ photoFileId: 'file-photo' })))
+    await waitFor(() => expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ photoFileId: DOC_IDS.photoFile })))
     expect(mocks.fetchProfessionalDocuments).toHaveBeenCalledWith(IDS.professional)
+  })
+
+  it('prints no photo without a signed image consent on file (P4-512; « Envoyer par courriel » renders the same fiche)', async () => {
+    renderMenu()
+    // The photo is verified, but no consent: none, or one still waiting for review.
+    mocks.fetchProfessionalDocuments.mockResolvedValue(documentsFixture({ documents: [documentJson(), PHOTO_JSON, { ...CONSENT_DOC_JSON, status: 'pending' }] }))
+    await open()
+    await userEvent.click(await screen.findByRole('menuitem', { name: t(`${M}.download`) }))
+    await waitFor(() => expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ photoFileId: null })))
+    expect(mocks.saveBlob).toHaveBeenCalled()
   })
 
   it('a failed read of the documents still makes the fiche, without the photo', async () => {

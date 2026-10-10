@@ -1,7 +1,11 @@
 import { useId } from 'react'
 import { Controller, useWatch } from 'react-hook-form'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
+import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
 import { CheckboxField } from '@/shared/components/CheckboxField'
+import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
+import { SettingsCard } from '@/shared/components/SettingsCard'
 import { cn } from '@/shared/lib/utils'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { FormField } from '@/shared/ui/form-field'
@@ -10,14 +14,24 @@ import { Label } from '@/shared/ui/label'
 import { Select } from '@/shared/ui/select'
 import { ReferenceListCard, type ReferenceColumn, type ReferenceFormProps } from '../../components/settings/ReferenceListCard'
 import { ReferenceSettingsPage } from '../../components/settings/ReferenceSettingsPage'
+import { ScheduledJobState } from '../../components/settings/ScheduledJobState'
 import { DOCUMENT_EXPIRY_RULES, DOCUMENT_MIME_TYPES, PHOTO_MIME_TYPES } from '../../lib/constants'
 import { megabytesLabel, mimeLabel, mimeListLabel, remindersLabel } from '../../lib/documents'
 
 const R = 'modules.professionals.settings.requiredDocuments'
 
+/** The job that marks expired documents and sends the insurance reminders (P4-509). */
+export const INSURANCE_EXPIRY_JOB = 'professionals.insurance_expiry_notice'
+
 const COLUMNS: ReferenceColumn<'document_types'>[] = [
   { id: 'required', header: t(`${R}.required`), cell: (row) => t(row.required ? `${R}.yes` : `${R}.no`) },
-  { id: 'expiry', header: t(`${R}.expiry`), cell: (row) => t(`${R}.rules.${row.expiryRule}`), className: 'max-sm:hidden' },
+  {
+    id: 'expiry',
+    header: t(`${R}.expiry`),
+    // The image consent never expires (P4-504): said as such, not as a rule left at « Aucune ».
+    cell: (row) => (row.key === 'image_consent' ? t(`${R}.consentNoExpiry`) : t(`${R}.rules.${row.expiryRule}`)),
+    className: 'max-sm:hidden',
+  },
   {
     id: 'reminders',
     header: t(`${R}.reminders`),
@@ -51,6 +65,7 @@ function DocumentTypeFields({ form, row }: ReferenceFormProps<'document_types'>)
   const groupId = useId()
   const insurance = row?.key === 'insurance'
   const photo = row?.key === 'photo'
+  const consent = row?.key === 'image_consent'
   const maxBytes = useWatch({ control: form.control, name: 'maxBytes' })
   const sizes = SIZES.includes(Number(maxBytes)) || maxBytes === '' ? SIZES : [...SIZES, Number(maxBytes)].sort((a, b) => a - b)
   return (
@@ -70,17 +85,24 @@ function DocumentTypeFields({ form, row }: ReferenceFormProps<'document_types'>)
           />
         )}
       />
-      <FormField label={t(`${R}.expiry`)} help={t(`${R}.expiryHelp`)} error={errors.expiryRule?.message}>
-        {(field) => (
-          <Select {...field} {...form.register('expiryRule')}>
-            {DOCUMENT_EXPIRY_RULES.map((rule) => (
-              <option key={rule} value={rule}>
-                {t(`${R}.ruleOptions.${rule}`)}
-              </option>
-            ))}
-          </Select>
-        )}
-      </FormField>
+      {consent ? (
+        // The image consent never expires (P4-504; the database keeps its rule at `none`).
+        <FormField label={t(`${R}.expiry`)} help={t(`${R}.consentNoExpiryHelp`)}>
+          {(field) => <Input {...field} readOnly value={t(`${R}.consentNoExpiry`)} />}
+        </FormField>
+      ) : (
+        <FormField label={t(`${R}.expiry`)} help={t(`${R}.expiryHelp`)} error={errors.expiryRule?.message}>
+          {(field) => (
+            <Select {...field} {...form.register('expiryRule')}>
+              {DOCUMENT_EXPIRY_RULES.map((rule) => (
+                <option key={rule} value={rule}>
+                  {t(`${R}.ruleOptions.${rule}`)}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
+      )}
       {insurance ? (
         <>
           <FormField label={t(`${R}.reminderDays`)} help={t(`${R}.reminderDaysHelp`)} error={errors.reminderDays?.message}>
@@ -161,25 +183,60 @@ function DocumentTypeFields({ form, row }: ReferenceFormProps<'document_types'>)
  * the order the Documents tab shows them. A required type counts in readiness (« Documents requis
  * en règle »). The photo, the insurance and the image consent are followed by the application
  * (system rows): they can be made optional, never archived (P4-405). « Utilisé par » counts the
- * professionals holding a document of the type that was not refused (P4-453).
+ * professionals holding a document of the type that was not refused (P4-453). Below the list: where
+ * the image consent's text is edited (« Contrats et formulaires », P4-508), and whether the job
+ * that sends the insurance reminders runs (« Échéances des assurances », P4-509).
  */
 export function RequiredDocumentsSettingsPage() {
   return (
     <ReferenceSettingsPage title={t(`${R}.title`)} description={t(`${R}.description`)}>
       {({ catalog, usage, canEdit }) => (
-        <ReferenceListCard
-          kind="document_types"
-          title={t(`${R}.title`)}
-          headingHidden
-          rows={catalog.documentTypes}
-          usage={usage}
-          columns={COLUMNS}
-          renderForm={(props) => <DocumentTypeFields {...props} />}
-          reorderable
-          canEdit={canEdit}
-          labels={{ add: t(`${R}.add`), createTitle: t(`${R}.createTitle`), editTitle: t(`${R}.editTitle`), systemNote: t(`${R}.system`) }}
-        />
+        <>
+          <ReferenceListCard
+            kind="document_types"
+            title={t(`${R}.title`)}
+            headingHidden
+            rows={catalog.documentTypes}
+            usage={usage}
+            columns={COLUMNS}
+            renderForm={(props) => <DocumentTypeFields {...props} />}
+            reorderable
+            canEdit={canEdit}
+            labels={{ add: t(`${R}.add`), createTitle: t(`${R}.createTitle`), editTitle: t(`${R}.editTitle`), systemNote: t(`${R}.system`) }}
+          />
+          <ConsentTextCard />
+          <InsuranceJobCard />
+        </>
       )}
     </ReferenceSettingsPage>
+  )
+}
+
+/** The image consent's text is the Documenso template, edited in « Contrats et formulaires » (P4-508). */
+function ConsentTextCard() {
+  return (
+    <SettingsCard as="section" title={t(`${R}.consentText.title`)} description={t(`${R}.consentText.body`)}>
+      <GuardedNavLink to={`${SETTINGS_BASE_PATH}/contrats`} className="text-sm text-link underline-offset-[3px] hover:underline">
+        {t(`${R}.consentText.open`)}
+      </GuardedNavLink>
+    </SettingsCard>
+  )
+}
+
+/**
+ * « Rappels d'assurance »: the reminders, the « Assurance expirée » notices and the missing
+ * documents' count need the job « Échéances des assurances » (off by default): its state, as
+ * « Invitations » says its own (P4-509).
+ */
+function InsuranceJobCard() {
+  const { can } = useAccess()
+  return (
+    <SettingsCard as="section" title={t(`${R}.job.title`)} description={t(`${R}.job.description`)}>
+      {can('settings.view') ? (
+        <ScheduledJobState jobKey={INSURANCE_EXPIRY_JOB} texts={`${R}.job`} />
+      ) : (
+        <p className="text-sm text-muted-foreground">{t(`${R}.job.unknown`)}</p>
+      )}
+    </SettingsCard>
   )
 }

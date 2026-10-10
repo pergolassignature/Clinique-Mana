@@ -1,7 +1,8 @@
 import { t } from '@/i18n'
-import { formatDateOnlyShort, shiftCalendarDay } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnlyShort } from '@/shared/lib/timezone'
 import type { InsuranceStatus, ProfessionalStatus, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
+import type { CatalogView } from './catalog-view'
 import { clinicDaysSince, invitationEmail, invitationState } from './onboarding'
 
 /**
@@ -12,7 +13,8 @@ import { clinicDaysSince, invitationEmail, invitationState } from './onboarding'
  * INVITATION_UNANSWERED_DAYS; an invitation email that did not leave (danger) or whose outcome is
  * unknown (P4-490, as Aperçu says). 4c: the insurance expiring (within its reminder days) or
  * expired (danger), from `insurance_status` / `insurance_expires_on` (the list's columns, the
- * record's `readiness.insurance`). Inactive files are not watched.
+ * record's `readiness.insurance`). Inactive files are not watched: the list says why and since
+ * when instead (`inactiveLabel`, P4-510).
  */
 type WatchFlagKey =
   | 'insurance_expired'
@@ -90,16 +92,16 @@ function onboardingFlags({ hasAccount, onboarding }: WatchSubject, now: number):
 }
 
 /**
- * The insurance's flag: « Assurance expire le 12 oct. 2026 » (its last valid day) or « Assurance
- * expirée depuis le 6 oct. 2026 » (the day after it). An expired one comes first of all.
+ * The insurance's flag, always with its last valid day (P4-456, P4-511, as the Documents tab):
+ * « Assurance expire bientôt : valide jusqu'au 12 oct. 2026 » or « Assurance expirée : valide
+ * jusqu'au 5 oct. 2026 ». An expired one comes first of all.
  */
 function insuranceFlag({ insuranceStatus, insuranceExpiresOn }: WatchSubject): WatchFlag | null {
   if (!insuranceExpiresOn || (insuranceStatus !== 'expiring' && insuranceStatus !== 'expired')) return null
   if (insuranceStatus === 'expiring') {
     return { key: 'insurance_expiring', label: t(`${W}.insurance_expiring`, { date: formatDateOnlyShort(insuranceExpiresOn) }), tone: 'danger' }
   }
-  const since = formatDateOnlyShort(shiftCalendarDay(insuranceExpiresOn, 1))
-  return { key: 'insurance_expired', label: t(`${W}.insurance_expired`, { date: since }), tone: 'danger' }
+  return { key: 'insurance_expired', label: t(`${W}.insurance_expired`, { date: formatDateOnlyShort(insuranceExpiresOn) }), tone: 'danger' }
 }
 
 /** The flags, most important first (the list shows the first one). `now` dates the invitation's silence. */
@@ -111,6 +113,21 @@ export function watchFlags(subject: WatchSubject, now: number = Date.now()): Wat
   if (!subject.matchingComplete) flags.push({ key: 'matching_incomplete', label: t(`${W}.matching_incomplete`), tone: 'muted' })
   if (!subject.emailMatchesLogin) flags.push({ key: 'login_email_mismatch', label: t(`${W}.login_email_mismatch`), tone: 'muted' })
   return flags
+}
+
+/**
+ * Why and since when a file is inactive (P4-510): « Inactif depuis le 3 oct. 2026 · Congé
+ * prolongé » (the reason from the cached catalogue; without one, the date alone). Null for a file
+ * that is not inactive. The record adds the deactivation note below it.
+ */
+export function inactiveLabel(
+  subject: { status: ProfessionalStatus; statusChangedAt: string; deactivationReasonId: string | null },
+  catalog: Pick<CatalogView, 'byId'>,
+): string | null {
+  if (subject.status !== 'inactive') return null
+  const date = formatClinicDateShort(subject.statusChangedAt)
+  const reason = subject.deactivationReasonId ? catalog.byId.deactivationReasons.get(subject.deactivationReasonId)?.name : undefined
+  return reason ? t(`${W}.inactiveSinceFor`, { date, reason }) : t(`${W}.inactiveSince`, { date })
 }
 
 /** The watch subject of a record (its readiness carries the same facts as a list row). */

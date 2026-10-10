@@ -85,6 +85,7 @@ const COLUMNS = {
     'id', 'org_id', 'professional_id', 'template_version_id', 'title', 'template_values', 'annexe', 'signers', 'idempotency_key', 'created_at',
     'created_by',
   ],
+  professional_paper_contracts: ['id', 'org_id', 'professional_id', 'stored_file_id', 'signed_on', 'created_at', 'created_by'],
   consent_versions: ['id', 'org_id', 'key', 'version', 'title', 'body', 'published_at', 'published_by', 'created_at', 'updated_at'],
 } as const
 

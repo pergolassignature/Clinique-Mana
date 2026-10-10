@@ -21,7 +21,7 @@ export function OverviewTab() {
     <div className="grid gap-5 min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
       <MatchingDigest record={record} catalog={catalog} canEdit={can('professionals.matching')} />
       <div className="flex min-w-0 flex-col gap-5">
-        <ReadinessCard record={record} onboarding={onboarding} now={now} />
+        <ReadinessCard record={record} onboarding={onboarding} now={now} catalog={catalog} />
         <WatchCard record={record} onboarding={onboarding} now={now} />
         <NextActionCard />
       </div>
