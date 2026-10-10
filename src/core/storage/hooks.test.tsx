@@ -178,6 +178,47 @@ describe('useSignedFileUrls', () => {
     expect(queryClient.getQueryData(storageKeys.signedUrls('u1', [ID(1)]))).toBeUndefined()
   })
 
+  it('a record opened from the list reuses the URL its row signed (same user, same size): no new call, the same URL', async () => {
+    mocks.signedFileUrls.mockImplementation(answer())
+    const { wrapper } = setup()
+    const list = renderHook(() => useSignedFileUrls([ID(1), ID(2)], { variant: 'avatar' }), { wrapper })
+    await waitFor(() => expect(list.result.current.urls.size).toBe(2))
+    const header = renderHook(() => useSignedFileUrl(ID(2), { variant: 'avatar' }), { wrapper })
+    expect(header.result.current.data).toEqual({ url: urlOf(ID(2)), expiresAt: '2026-10-08T12:05:00.000Z' })
+    expect(header.result.current.isStale).toBe(false)
+    expect(mocks.signedFileUrl).not.toHaveBeenCalled()
+
+    // Another size, or the original, is signed on its own.
+    mocks.signedFileUrl.mockResolvedValue(signed(7))
+    const original = renderHook(() => useSignedFileUrl(ID(2)), { wrapper })
+    await waitFor(() => expect(original.result.current.data).toEqual(signed(7)))
+    expect(mocks.signedFileUrl).toHaveBeenCalledExactlyOnceWith(ID(2), { signal: expect.any(AbortSignal) })
+  })
+
+  it("another user's batch is never reused", async () => {
+    mocks.signedFileUrls.mockImplementation(answer())
+    mocks.signedFileUrl.mockResolvedValue(signed(4))
+    const { wrapper, signIn } = setup()
+    const list = renderHook(() => useSignedFileUrls([ID(1)], { variant: 'avatar' }), { wrapper })
+    await waitFor(() => expect(list.result.current.urls.size).toBe(1))
+    signIn('u2')
+    const header = renderHook(() => useSignedFileUrl(ID(1), { variant: 'avatar' }), { wrapper })
+    await waitFor(() => expect(header.result.current.data).toEqual(signed(4)))
+  })
+
+  it('a list URL 4 minutes old is not reused: the record signs a fresh one', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mocks.signedFileUrls.mockImplementation(answer())
+    mocks.signedFileUrl.mockResolvedValue(signed(3))
+    const { wrapper } = setup()
+    const list = renderHook(() => useSignedFileUrls([ID(1)], { variant: 'avatar' }), { wrapper })
+    await waitFor(() => expect(list.result.current.urls.size).toBe(1))
+    await act(() => vi.advanceTimersByTimeAsync(240_000))
+    const header = renderHook(() => useSignedFileUrl(ID(1), { variant: 'avatar' }), { wrapper })
+    await waitFor(() => expect(header.result.current.data).toEqual(signed(3)))
+    expect(mocks.signedFileUrl).toHaveBeenCalledExactlyOnceWith(ID(1), { signal: expect.any(AbortSignal), variant: 'avatar' })
+  })
+
   it('a 429 is not retried, and a new user signs again under their own key', async () => {
     mocks.signedFileUrls.mockRejectedValue(new FunctionCallError('rate_limited', 429, 'Too many'))
     const { wrapper } = setup()
