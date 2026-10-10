@@ -1,7 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { IDS } from '../test/fixtures'
-import { contractJson, DRAFT_ID, REQUEST_ID, requestJson, SIGNED_REQUEST, TEMPLATE_ID, templateJson, versionJson } from '../test/fixtures-contract'
+import {
+  contractJson,
+  DRAFT_ID,
+  PAPER_FILE,
+  PAPER_ID,
+  paperJson,
+  REQUEST_ID,
+  requestJson,
+  SIGNED_FILE,
+  SIGNED_REQUEST,
+  signedInForceJson,
+  TEMPLATE_ID,
+  templateJson,
+  versionJson,
+} from '../test/fixtures-contract'
 import {
   archiveTemplateVersion,
   createTemplateVersion,
@@ -9,12 +23,14 @@ import {
   fetchTemplateVersions,
   listContractTemplates,
   publishTemplateVersion,
+  recordPaperContract,
   sendProfessionalContract,
   updateTemplateVersion,
 } from './contracts'
 import { UNEXPECTED_SHAPE } from './parse'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), invokeFunction: vi.fn() }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), invokeFunction: vi.fn(), uploadFile: vi.fn() }))
+vi.mock('@/core/storage/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/storage/api')>()), uploadFile: mocks.uploadFile }))
 vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc, from: mocks.from } }))
 vi.mock('@/core/supabase/functions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/supabase/functions')>()),
@@ -38,7 +54,28 @@ describe('fetchProfessionalContract', () => {
 
   it('no template published, no request', async () => {
     mocks.rpc.mockResolvedValue({ data: contractJson(null, { template: null, clinic_signer: false }), error: null })
-    await expect(fetchProfessionalContract(IDS.professional)).resolves.toEqual({ publishedVersion: null, clinicSigner: false, request: null })
+    await expect(fetchProfessionalContract(IDS.professional)).resolves.toEqual({ publishedVersion: null, clinicSigner: false, request: null, current: null, previous: [] })
+  })
+
+  it('the contract in force, the renewal at work and the previous contracts (P4-525)', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: contractJson(requestJson(), { current: paperJson(), previous: [signedInForceJson(), paperJson({ id: 'p-old', can_read: false, file: null, uploaded_by_name: null })] }),
+      error: null,
+    })
+    const contract = await fetchProfessionalContract(IDS.professional)
+    expect(contract?.current).toEqual({
+      kind: 'paper',
+      id: PAPER_ID,
+      signedOn: '2023-05-01',
+      uploadedAt: '2026-10-09T16:00:00+00:00',
+      uploadedByName: 'Admin A',
+      canRead: true,
+      file: { id: PAPER_FILE, name: 'Contrat papier.pdf', mimeType: 'application/pdf', sizeBytes: 245_000 },
+    })
+    expect(contract?.request).toMatchObject({ id: REQUEST_ID, status: 'sent' })
+    expect(contract?.previous.map((c) => c.kind)).toEqual(['signed', 'paper'])
+    expect(contract?.previous[0]).toMatchObject({ kind: 'signed', request: { status: 'signed', signedFileId: SIGNED_FILE } })
+    expect(contract?.previous[1]).toMatchObject({ kind: 'paper', canRead: false, file: null, uploadedByName: null })
   })
 
   it('answers null for a file of another clinic; throws the PostgREST error; refuses another shape', async () => {
@@ -53,7 +90,7 @@ describe('fetchProfessionalContract', () => {
 })
 
 describe('sendProfessionalContract', () => {
-  it.each(['send', 'regenerate', 'resend'] as const)('%s: one call with the key, the request id back', async (action) => {
+  it.each(['send', 'renew', 'regenerate', 'resend'] as const)('%s: one call with the key, the request id back', async (action) => {
     mocks.invokeFunction.mockResolvedValue({ request_id: REQUEST_ID, existing: false })
     await expect(sendProfessionalContract(IDS.professional, action, 'key-1')).resolves.toBe(REQUEST_ID)
     expect(mocks.invokeFunction).toHaveBeenCalledExactlyOnceWith('professionals-contract-send', {
@@ -83,6 +120,27 @@ describe('sendProfessionalContract', () => {
   })
 })
 
+describe('recordPaperContract (P4-520)', () => {
+  it('uploads the PDF for the professional (purpose professional_contract), then records it with its date', async () => {
+    mocks.uploadFile.mockResolvedValue({ fileId: PAPER_FILE })
+    mocks.rpc.mockResolvedValue({ data: PAPER_ID, error: null })
+    const file = new File(['%PDF'], 'contrat.pdf', { type: 'application/pdf' })
+    await expect(recordPaperContract({ professionalId: IDS.professional, file, mimeType: 'application/pdf', signedOn: '2023-05-01' })).resolves.toBe(PAPER_ID)
+    expect(mocks.uploadFile).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ purpose: 'professional_contract', subjectType: 'professional', subjectId: IDS.professional, file, mimeType: 'application/pdf' }),
+    )
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('record_professional_paper_contract', { p_id: IDS.professional, p_file_id: PAPER_FILE, p_signed_on: '2023-05-01' })
+  })
+
+  it('throws the refusal unchanged (its HINT shows under the date)', async () => {
+    mocks.uploadFile.mockResolvedValue({ fileId: PAPER_FILE })
+    const refusal = { code: 'P0001', message: 'La date de signature ne peut pas être dans le futur.', hint: 'signed_on' }
+    mocks.rpc.mockResolvedValue({ data: null, error: refusal })
+    const file = new File(['%PDF'], 'contrat.pdf', { type: 'application/pdf' })
+    await expect(recordPaperContract({ professionalId: IDS.professional, file, mimeType: 'application/pdf', signedOn: '2030-01-01' })).rejects.toBe(refusal)
+  })
+})
+
 describe('templates and versions', () => {
   it('lists the module’s templates', async () => {
     mocks.rpc.mockResolvedValue({ data: [templateJson()], error: null })
@@ -92,14 +150,11 @@ describe('templates and versions', () => {
   })
 
   it('reads a template’s versions, newest first', async () => {
-    const order = vi.fn().mockResolvedValue({ data: [versionJson()], error: null })
-    const eq = vi.fn(() => ({ order }))
-    const select = vi.fn(() => ({ eq }))
-    mocks.from.mockReturnValue({ select })
+    mocks.rpc.mockResolvedValue({ data: [versionJson()], error: null })
     const [version] = await fetchTemplateVersions(TEMPLATE_ID)
-    expect(mocks.from).toHaveBeenCalledWith('document_template_versions')
-    expect(eq).toHaveBeenCalledWith('template_id', TEMPLATE_ID)
-    expect(order).toHaveBeenCalledWith('version', { ascending: false })
+    // Core's RPC, never the table itself (module isolation, CLAUDE.md §5).
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('list_document_template_versions', { p_template_id: TEMPLATE_ID })
+    expect(mocks.from).not.toHaveBeenCalled()
     expect(version).toMatchObject({ id: DRAFT_ID, version: 1, status: 'draft', emailSubject: 'Votre contrat de service à signer' })
   })
 

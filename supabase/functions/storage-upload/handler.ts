@@ -42,7 +42,7 @@ import {
   verifyAuth,
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
-import { rpcErrorResponse } from '../_shared/errors.ts'
+import { isExpectedRpcError, rpcErrorResponse } from '../_shared/errors.ts'
 import { forbiddenNameChar } from '../_shared/file-name.ts'
 import { readJson } from '../_shared/http.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
@@ -121,7 +121,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (pending.error.code === '23514') {
         return errorResponse('invalid_request', 'Invalid request', 400, req)
       }
-      if (!['P0001', '42501', '22023'].includes(pending.error.code ?? '')) {
+      if (!isExpectedRpcError(pending.error)) {
         return await fail('create_pending_failed')
       }
       return rpcErrorResponse(pending.error, req)

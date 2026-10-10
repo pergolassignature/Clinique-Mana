@@ -60,7 +60,8 @@ export function MyDocumentsPage() {
   }
   const { professional } = record.data
   return (
-    <div className="w-full max-w-form space-y-5">
+    // The frame's width (audit 2026-10-09 §2.1): the documents' rows and their actions on one line.
+    <div className="w-full space-y-5">
       <div ref={heading} tabIndex={-1} className="outline-none">
         <PageHeader level={1} title={t(`${M}.pageTitle`)} description={t(`${M}.description`)} />
       </div>
@@ -73,6 +74,7 @@ export function MyDocumentsPage() {
         can={SELF_PERMISSIONS}
         verifiedAtOnce={false}
         focusFallback={() => heading.current?.focus()}
+        groupAs="h2"
         typeExtra={(type) =>
           type.key === 'image_consent' ? (
             <ConsentSigning

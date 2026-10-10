@@ -6,6 +6,7 @@ import {
   limitResponse,
   LIMITS,
   type RateLimit,
+  refund,
 } from './rate-limit.ts'
 import { byteaHex } from './bytea.ts'
 import { captureConsole, withEnv } from './testing/env.ts'
@@ -244,6 +245,57 @@ Deno.test('consume: fails closed without calling the RPC when the secret is miss
 })
 
 // ---------------------------------------------------------------------------
+// refund
+// ---------------------------------------------------------------------------
+Deno.test('refund: calls refund_rate_limit with the same hash as consume, the bucket and the window', async () => {
+  const { client, calls } = fakeSupabase({
+    rpc: {
+      consume_rate_limit: {
+        data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }],
+      },
+      refund_rate_limit: { data: null },
+    },
+  })
+  await withEnv({ INTERNAL_FUNCTION_SECRET: SECRET }, async () => {
+    await consume(client, LIMIT, ['org', 'user'])
+    await refund(client, LIMIT, ['org', 'user'])
+    assertEquals(calls.map((c) => c.fn), [
+      'consume_rate_limit',
+      'refund_rate_limit',
+    ])
+    assertEquals(calls[1].args, {
+      p_bucket: 'test.bucket',
+      p_key_hash: calls[0].args.p_key_hash,
+      p_window_seconds: 60,
+    })
+  })
+})
+
+Deno.test('refund: an RPC error is reported, never thrown; no secret → nothing called', async () => {
+  const failing = fakeSupabase({
+    rpc: { refund_rate_limit: { error: { code: '22023', message: 'x' } } },
+  })
+  await withEnv(
+    { INTERNAL_FUNCTION_SECRET: SECRET, SENTRY_DSN: undefined },
+    async () => {
+      const lines = await captureConsole('error', async () => {
+        await refund(failing.client, LIMIT, ['k'])
+      })
+      assertEquals(JSON.parse(String(lines[0][0])), {
+        fn: 'rate-limit',
+        code: 'rate_limit_refund_failed',
+        ids: { bucket: 'test.bucket' },
+      })
+    },
+  )
+  const unset = fakeSupabase({})
+  await withEnv({ INTERNAL_FUNCTION_SECRET: undefined }, async () => {
+    await refund(unset.client, LIMIT, ['k'])
+  })
+  assertEquals(unset.calls.length, 0)
+})
+
+// ---------------------------------------------------------------------------
 // LIMITS (design §2.6, §3.2; P3-18)
 // ---------------------------------------------------------------------------
 Deno.test('LIMITS: the design values, with valid bucket names', () => {
@@ -262,6 +314,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     inviteAcceptIp: ['links.accept_ip', 10, 3_600],
     inviteAcceptLink: ['links.accept_link', 5, 3_600],
     staffInviteUser: ['invites.staff_user', 30, 3_600],
+    usersDeleteUser: ['users.delete_user', 20, 3_600],
     professionalInviteUser: ['professionals.invite_user', 30, 3_600],
     professionalInviteFile: ['professionals.invite_file', 1, 5],
     professionalSubmitUser: ['professionals.submit_user', 10, 3_600],

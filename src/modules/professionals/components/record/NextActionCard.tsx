@@ -16,7 +16,7 @@ import { focusAfterClose } from './status-dialog'
 import { TabLink } from './TabLink'
 
 /**
- * Aperçu « Prochaine action »: one sentence and at most one small outline button (`nextAction`):
+ * The rail's « Prochaine action »: one sentence and at most one outline button (`nextAction`):
  * a link to the tab that fixes the first gap, « Activer » / « Réactiver » (the header's dialog,
  * P4-74), « Envoyer l'invitation » / « Envoyer un nouveau lien » / « Renvoyer l'invitation » (the
  * invitation's confirmation), or « Réviser le profil » (a link to `REVIEW_TAB`, « Documents »,
@@ -49,7 +49,7 @@ export function NextActionCard() {
       <CardContent>
         <p className="text-sm text-muted-foreground">{message}</p>
         {action?.kind === 'tab' && (
-          <Button asChild variant="outline" size="sm" className="mt-3">
+          <Button asChild variant="outline" className="mt-3">
             <TabLink id={record.professional.id} tab={action.tab} unstyled>
               {action.label}
             </TabLink>
@@ -58,12 +58,12 @@ export function NextActionCard() {
         {(action?.kind === 'activate' || action?.kind === 'invite' || action?.kind === 'copyLink' || secondary?.kind === 'copyLink') && (
           <div className="mt-3 flex flex-wrap gap-2">
             {action && action.kind !== 'tab' && (
-              <Button ref={button} type="button" variant="outline" size="sm" onClick={() => open(action)}>
+              <Button ref={button} type="button" variant="outline" onClick={() => open(action)}>
                 {action.label}
               </Button>
             )}
             {secondary && secondary.kind !== 'tab' && (
-              <Button ref={secondaryButton} type="button" variant="outline" size="sm" onClick={() => open(secondary)}>
+              <Button ref={secondaryButton} type="button" variant="outline" onClick={() => open(secondary)}>
                 {secondary.label}
               </Button>
             )}

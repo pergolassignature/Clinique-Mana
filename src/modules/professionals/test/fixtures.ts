@@ -126,7 +126,8 @@ export const CATALOG_JSON = {
     ref(IDS.consentType, 'image_consent', "Consentement droit à l'image", 30, {
       is_system: true,
       required: true,
-      expiry_rule: 'months_12',
+      // No expiry since P4-504.
+      expiry_rule: 'none',
       reminder_days: [],
       weekly_after_expiry: false,
       accepted_mime: ['application/pdf', 'image/jpeg', 'image/png'],
@@ -247,6 +248,8 @@ export const LIST_ROW_JSON = {
   email_matches_login: true,
   created_at: '2026-10-08T12:00:00+00:00',
   updated_at: '2026-10-08T12:00:00+00:00',
+  documents_done: 3,
+  documents_required: 3,
 }
 
 export const HISTORY_ROW_JSON = {

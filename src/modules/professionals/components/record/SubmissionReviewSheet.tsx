@@ -374,7 +374,7 @@ function ReviewSectionBlock({ plan, ctx, checked, onToggle, disabled, masks, tod
 
 /** What « Appliquer » would refuse, on the field itself (P4-378), with what to do instead. */
 function warningText(warning: FieldWarning): string {
-  return warning.kind === 'insurance_expired' ? t(`${S}.warnings.insuranceExpired`, { date: formatDateOnly(warning.expiresOn) }) : t(`${S}.warnings.consentOutdated`)
+  return t(`${S}.warnings.insuranceExpired`, { date: formatDateOnly(warning.expiresOn) })
 }
 
 /** A changed field: its checkbox and label, « Modifié », then what changes, in words. */
@@ -469,6 +469,17 @@ function UnchangedValue({ field, ctx }: { field: ReviewField; ctx: ValueContext 
       <>
         <SetValue field={key} value={field.current} ctx={ctx} />
         {status}
+      </>
+    )
+  }
+  // The consent is never applied: it is on file once signed through Documenso (P4-505, P4-507).
+  if (key === 'consent') {
+    const signedHere = (field.submitted as { source?: unknown } | null)?.source === 'signature'
+    const note = signedHere ? t(`${V}.consentSignedHere`) : field.current !== null ? t(`${V}.consentAlreadyOnFile`) : null
+    return (
+      <>
+        <SideValue field={key} value={field.current} side="current" ctx={ctx} />
+        {note && <span className="text-muted-foreground"> ({note})</span>}
       </>
     )
   }

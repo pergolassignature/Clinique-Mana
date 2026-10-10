@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { forbiddenNameChar } from '../../../supabase/functions/_shared/file-name'
-import { registryName, signedFileUrl, uploadFile, UploadSendError } from './api'
+import { registryName, SIGN_BATCH_MAX, signedFileUrl, signedFileUrls, uploadFile, UploadSendError } from './api'
 
 const mocks = vi.hoisted(() => {
   const uploadToSignedUrl = vi.fn()
@@ -179,6 +179,14 @@ describe('signedFileUrl', () => {
     expect(mocks.invokeFunction).toHaveBeenCalledWith('storage-sign', { file_id: FILE_ID, download: true }, {})
   })
 
+  it('asks for a smaller copy by name (the server fixes its size)', async () => {
+    mocks.invokeFunction.mockResolvedValue({ url: 'https://x.test/render/image/sign/a', expires_at: '2026-10-08T12:05:00.000Z' })
+    await signedFileUrl(FILE_ID, { variant: 'avatar' })
+    expect(mocks.invokeFunction).toHaveBeenCalledWith('storage-sign', { file_id: FILE_ID, variant: 'avatar' }, {})
+    await signedFileUrls([FILE_ID], { variant: 'avatar' }).catch(() => {})
+    expect(mocks.invokeFunction).toHaveBeenLastCalledWith('storage-sign', { file_ids: [FILE_ID], variant: 'avatar' }, {})
+  })
+
   it('passes a 404 or a 429 on', async () => {
     const limited = new FunctionCallError('rate_limited', 429, 'Too many attempts', {}, 600)
     mocks.invokeFunction.mockRejectedValue(limited)
@@ -198,5 +206,27 @@ describe('registryName and storage-upload', () => {
       if (replaced !== forbidden(code)) mismatches.push(`U+${code.toString(16).padStart(4, '0')}`)
     }
     expect(mismatches).toEqual([])
+  })
+})
+
+describe('signedFileUrls', () => {
+  const OTHER = '22222222-2222-4222-8222-222222222222'
+
+  it('asks storage-sign for the files in one batch call; the unreadable ones are simply absent', async () => {
+    mocks.invokeFunction.mockResolvedValue({ urls: { [FILE_ID]: 'https://x.test/object/sign/a?token=1' }, expires_at: '2026-10-08T12:05:00.000Z' })
+    const signal = new AbortController().signal
+    const result = await signedFileUrls([FILE_ID, OTHER], { signal })
+    expect(mocks.invokeFunction).toHaveBeenCalledExactlyOnceWith('storage-sign', { file_ids: [FILE_ID, OTHER] }, { signal })
+    expect([...result.urls]).toEqual([[FILE_ID, 'https://x.test/object/sign/a?token=1']])
+    expect(result.expiresAt).toBe('2026-10-08T12:05:00.000Z')
+    expect(mocks.from).not.toHaveBeenCalled()
+  })
+
+  it('takes 1 to 50 files, and refuses an unexpected answer', async () => {
+    await expect(signedFileUrls([])).rejects.toBeInstanceOf(RangeError)
+    await expect(signedFileUrls(Array.from({ length: SIGN_BATCH_MAX + 1 }, () => FILE_ID))).rejects.toBeInstanceOf(RangeError)
+    expect(mocks.invokeFunction).not.toHaveBeenCalled()
+    mocks.invokeFunction.mockResolvedValue({ urls: { [FILE_ID]: 'not a url' }, expires_at: 'x' })
+    await expect(signedFileUrls([FILE_ID])).rejects.toThrow()
   })
 })

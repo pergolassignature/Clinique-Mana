@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ExternalLink, FileText } from 'lucide-react'
 import { t } from '@/i18n'
 import { useSignedFileUrl } from '@/core/storage/hooks'
-import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnly } from '@/shared/lib/timezone'
 import type { CatalogView } from '../../lib/catalog-view'
 import { clienteleLabel, professionLine } from '../../lib/display'
 import type { Gender, SubmissionField } from '../../lib/constants'
@@ -26,10 +26,6 @@ const text = (value: unknown, key: string): string | null => {
   const v = (value as Record<string, unknown> | null)?.[key]
   return typeof v === 'string' && v !== '' ? v : null
 }
-const num = (value: unknown, key: string): number | null => {
-  const v = (value as Record<string, unknown> | null)?.[key]
-  return typeof v === 'number' ? v : null
-}
 
 /** The titles as lines: « Psychologue · OPQ 12345 (principal) ». */
 function ProfessionsValue({ value, ctx }: { value: unknown; ctx: ValueContext }) {
@@ -48,16 +44,18 @@ function ProfessionsValue({ value, ctx }: { value: unknown; ctx: ValueContext })
 }
 
 /**
- * The consent, in words. On the record: « Signé le … (version 1), valide jusqu'au … »; in the
- * answer: « Signé le … par Marie Tremblay (version 1) ».
+ * The consent, in words, as the Documents tab says it (P4-505): « Signé électroniquement le …
+ * (Documenso). » for a signature through Documenso, « Consentement papier au dossier, téléversé le
+ * … » for a paper one; no end date (P4-504). Nothing: « Aucun consentement au dossier. » on the
+ * record, « Pas encore signé. » in the answer.
  */
 function ConsentValue({ value, side }: { value: unknown; side: 'current' | 'submitted' }) {
+  const source = text(value, 'source')
   const signedAt = text(value, 'signed_at')
-  if (!signedAt) return <span className="text-muted-foreground">{t(side === 'current' ? `${V}.consentNone` : `${V}.consentUnsigned`)}</span>
-  const version = String(num(value, 'version') ?? '')
-  if (side === 'submitted') return <>{t(`${V}.consentSigned`, { date: formatClinicDateTime(signedAt), name: text(value, 'signer_name') ?? '', version })}</>
-  const until = text(value, 'expires_on')
-  return <>{t(`${V}.consentOnFile`, { date: formatClinicDateTime(signedAt), version, until: until ? formatDateOnly(until) : '' })}</>
+  const uploadedAt = text(value, 'uploaded_at')
+  if (source === 'signature' && signedAt) return <>{t(`${V}.consentSignedElectronically`, { date: formatClinicDateShort(signedAt) })}</>
+  if (source === 'document' && uploadedAt) return <>{t(`${V}.consentPaper`, { date: formatClinicDateShort(uploadedAt) })}</>
+  return <span className="text-muted-foreground">{t(side === 'current' ? `${V}.consentNone` : `${V}.consentUnsigned`)}</span>
 }
 
 /** One side (« Actuel » or « Proposé ») of a plain field, the titles or the consent. */
@@ -178,14 +176,14 @@ export function SetValue({ field, value, ctx }: { field: SetField; value: unknow
  */
 export function FileProposal({ field, value }: { field: 'photo' | 'insurance'; value: unknown }) {
   const fileId = text(value, 'file_id')
-  const preview = useSignedFileUrl(fileId, { refresh: field === 'insurance' })
+  const preview = useSignedFileUrl(fileId, field === 'photo' ? { variant: 'card' } : { refresh: true })
   const image = useImageRetry(fileId, preview.data?.url, preview.refetch)
   if (!fileId) return <NotIndicated />
   if (field === 'photo') {
     return (
       <div className="flex items-center gap-3">
         {preview.data && !image.dead ? (
-          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} onError={image.onError} className="size-16 shrink-0 rounded-full border border-border object-cover" />
+          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} width={64} height={64} loading="lazy" decoding="async" onError={image.onError} className="size-16 shrink-0 rounded-full border border-border object-cover" />
         ) : (
           <div aria-hidden className="size-16 shrink-0 rounded-full bg-muted" />
         )}

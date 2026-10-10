@@ -51,6 +51,9 @@ export const payerNumbersSchema = z.object({
 })
 type PayerNumbersValues = z.input<typeof payerNumbersSchema>
 
+/** « Expérience et payeurs » (decision UI-5): the years of experience and the IVAC number, one save. */
+export const experienceAndPayersSchema = experienceSchema.extend(payerNumbersSchema.shape)
+
 export function toPayerNumbersFormValues(payerNumbers: readonly PayerNumber[]): PayerNumbersValues {
   return { ivac: payerNumbers.find((p) => p.type === 'ivac')?.number ?? '' }
 }

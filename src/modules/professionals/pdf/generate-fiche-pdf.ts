@@ -39,7 +39,7 @@ export async function renderFichePdf({ record, catalog, titleId, organization, f
     loadFicheFonts(),
     storedImageDataUrl(organization.logo_file_id),
     bundledImageDataUrl(MANA_LOGO_URL),
-    storedImageDataUrl(photoFileId),
+    storedImageDataUrl(photoFileId, { variant: 'print' }),
   ])
   const content = buildFicheContent({
     record,

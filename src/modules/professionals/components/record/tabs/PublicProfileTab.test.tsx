@@ -46,7 +46,7 @@ describe('PublicProfileTab', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.saved')))
     expect(mocks.record.updatePublicProfile).toHaveBeenCalledExactlyOnceWith(stored.professional.id, { bio: 'Vingt ans en pratique.', approach: null })
     await waitFor(() => expect(bio()).toHaveValue('Vingt ans en pratique.'))
-    expect(within(portrait).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(portrait).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
   })
 
   it('saves the public contact normalised, and shows a stored phone in the Québec format', async () => {
@@ -82,15 +82,12 @@ describe('PublicProfileTab', () => {
     expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
   })
 
-  it('is read-only for the conseillère: one notice, focusable values, no buttons, no counter', async () => {
+  it('is a description list for the conseillère (UI-3): one notice, the texts as written, no field, no button', async () => {
     stored = { ...stored, publicProfile: { ...stored.publicProfile, bio: 'Vingt ans en pratique.' } }
     renderRecordTab(<PublicProfileTab />, { record: stored, role: 'counselor' })
     expect(screen.getAllByText(t('common.readOnlyNotice.title'))).toHaveLength(1)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
-    expect(bio()).toHaveAttribute('readonly')
-    expect(bio()).toHaveValue('Vingt ans en pratique.')
-    expect(bio()).not.toHaveAccessibleDescription()
-    bio().focus()
-    expect(bio()).toHaveFocus()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByText(t(`${P}.portrait.bio`), { selector: 'dt' }).nextElementSibling).toHaveTextContent('Vingt ans en pratique.')
   })
 })

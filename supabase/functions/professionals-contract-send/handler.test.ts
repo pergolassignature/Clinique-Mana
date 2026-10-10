@@ -771,3 +771,44 @@ Deno.test('professionals-contract-send: « Renvoyer » is limited per file and f
     assertEquals((await s.handler(consentPost('resend'))).status, 429)
   })
 })
+
+Deno.test('professionals-contract-send: renew (P4-524) → the database decides with `renew`, then the new contract is sent; nothing is cancelled', async () => {
+  await run(async () => {
+    const s = setup()
+    const res = await s.handler(
+      post({ professional_id: PRO, action: 'renew', idempotency_key: KEY }),
+    )
+    const answer = await res.json()
+    assertEquals(res.status, 200)
+    assertEquals(prepareCalls(s).map((c) => c.args.p_action), ['renew'])
+    assertEquals(s.db.requests.get(answer.request_id)!.status, 'sent')
+    assertEquals(
+      s.service.calls.filter((c) => c.fn === 'cancel_signature_request')
+        .length,
+      0,
+      'the signed contract stays in force',
+    )
+  })
+})
+
+Deno.test("professionals-contract-send: renew is the service contract's only; for the image consent it is a bad request", async () => {
+  await run(async () => {
+    const s = setup({
+      permissions: ['professionals.view', 'professionals.manage'],
+    })
+    const res = await s.handler(
+      post({
+        professional_id: PRO,
+        action: 'renew',
+        idempotency_key: KEY,
+        form: 'image_consent',
+      }),
+    )
+    assertEquals(res.status, 400)
+    assertEquals((await res.json()).error.code, 'invalid_request')
+    assertEquals(
+      s.service.calls.filter((c) => c.fn.startsWith('prepare_')).length,
+      0,
+    )
+  })
+})

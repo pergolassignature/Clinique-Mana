@@ -148,8 +148,8 @@ grant execute on function private.test_staged(uuid) to authenticated;
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select is(private.test_staged(), 'image_consent:consent:submitted,insurance:insurance:submitted,photo:photo:submitted',
-  'the provider: photo, insurance and consent sent with her questionnaire');
+select is(private.test_staged(), 'insurance:insurance:submitted,photo:photo:submitted',
+  'the provider: photo and insurance sent with her questionnaire (a draft''s e-consent answer is no longer staged, P4-507)');
 select is((select x ->> 'submission_id' from jsonb_array_elements(public.get_professional_documents() -> 'staged') x
             where x ->> 'type_key' = 'photo'), 'd0000000-0000-0000-0000-000000000001', '… with the submission');
 select is((select (x ->> 'submitted_at')::timestamptz from jsonb_array_elements(public.get_professional_documents() -> 'staged') x
@@ -165,12 +165,12 @@ select is(public.get_professional_documents('c0000000-0000-0000-0000-00000000000
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(private.test_staged('c0000000-0000-0000-0000-000000000001'),
-  'image_consent:consent:submitted,insurance:insurance:submitted,photo:photo:submitted', 'the admin reads the same three items');
+  'insurance:insurance:submitted,photo:photo:submitted', 'the admin reads the same items');
 select is(private.test_staged('c0000000-0000-0000-0000-000000000002'), 'insurance:insurance:draft,photo:photo:draft',
   'a draft: its staged files, status draft (the consent not signed yet, the portrait is no document)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select is(private.test_staged('c0000000-0000-0000-0000-000000000001'),
-  'image_consent:consent:submitted,insurance:insurance:submitted,photo:photo:submitted', 'the conseillère too');
+  'insurance:insurance:submitted,photo:photo:submitted', 'the conseillère too');
 
 -- =============================================================================
 -- The provider (05): her draft; a file someone else uploaded is not hers
@@ -195,7 +195,7 @@ reset role;
 update public.professional_submissions set requested_sections = array['photo', 'consent']
  where id = 'd0000000-0000-0000-0000-000000000001';
 set local role authenticated;
-select is(private.test_staged('c0000000-0000-0000-0000-000000000001'), 'image_consent:consent:submitted,photo:photo:submitted',
+select is(private.test_staged('c0000000-0000-0000-0000-000000000001'), 'photo:photo:submitted',
   'a section not requested is not staged');
 
 reset role;
@@ -203,7 +203,7 @@ update public.professional_submissions
    set status = 'draft', decision_note = 'Précisez votre assurance.', reviewed_at = now(), reviewed_by = 'a0000000-0000-0000-0000-000000000001'
  where id = 'd0000000-0000-0000-0000-000000000001';
 set local role authenticated;
-select is(private.test_staged('c0000000-0000-0000-0000-000000000001'), 'image_consent:consent:draft,photo:photo:draft',
+select is(private.test_staged('c0000000-0000-0000-0000-000000000001'), 'photo:photo:draft',
   'sent back: the items read draft again');
 select ok((select bool_and(x ->> 'submitted_at' is not null)
              from jsonb_array_elements(public.get_professional_documents('c0000000-0000-0000-0000-000000000001') -> 'staged') x),

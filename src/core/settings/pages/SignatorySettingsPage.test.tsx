@@ -52,7 +52,7 @@ describe('SignatorySettingsPage', () => {
   it('shows the title and description, loads, then fills the card', async () => {
     mocks.api.fetchOrganization.mockResolvedValue(testOrganization)
     renderOrganizationPage(<SignatorySettingsPage />)
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.signatory') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.signatory') })).toBeInTheDocument()
     expect(screen.getByText(t('settings.signatory.description'))).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 
@@ -128,10 +128,12 @@ describe('SignatorySettingsPage', () => {
     expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
   })
 
-  it('follows the reading order with Tab: Nom, Titre, Courriel, Annuler, Enregistrer', async () => {
+  it('follows the reading order with Tab: Nom, Titre, Courriel, then (once dirty) Annuler, Enregistrer', async () => {
     await renderPage()
     const controls = labelledControls()
     expect(controls.map((c) => c.getAttribute('name'))).toEqual(['signatory_name', 'signatory_title', 'signatory_email'])
+    expect(within(card()).queryAllByRole('button')).toEqual([])
+    await edit(nameField(), 'Autre')
     const buttons = within(card()).getAllByRole('button')
     expect(buttons.map((b) => b.textContent)).toEqual([t('common.cancel'), t('common.save')])
     const [first, ...rest] = [...controls, ...buttons]
@@ -192,7 +194,7 @@ describe('SignatorySettingsPage', () => {
       mocks.storage.signedFileUrl.mockResolvedValue({ url: 'https://x.test/s.png?token=t', expiresAt: '2026-10-08T12:05:00Z' })
       await renderPage({ organization: { ...testOrganization, signature_file_id: SIGNATURE_ID } })
       expect(card().compareDocumentPosition(signatureCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      expect(within(signatureCard()).getByText('Utilisée pour la signature de la clinique sur les documents.')).toBeInTheDocument()
+      expect(within(signatureCard()).getByText(t('settings.signatory.signature.description'))).toBeInTheDocument()
       expect(within(signatureCard()).getByRole('button', { name: t('settings.signatory.signature.replace') })).toHaveAccessibleDescription(
         // The limits come from UPLOAD_PURPOSES (checked against the migrations), not the text.
         /^PNG à fond transparent recommandé \(JPEG accepté\), 2 Mo et 4\s000 pixels de côté au plus\.$/,

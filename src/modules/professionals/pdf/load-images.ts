@@ -1,4 +1,4 @@
-import { signedFileUrl } from '@/core/storage/api'
+import { signedFileUrl, type ImageVariant } from '@/core/storage/api'
 
 /**
  * Stored images as data URLs for the fiche (PS Hub's `loadImages.ts`): the clinic logo now, the
@@ -22,18 +22,30 @@ function dataUrl(blob: Blob): Promise<string> {
   })
 }
 
-/** The stored image `fileId` as a PNG or JPEG data URL, or null (none, unreadable, another type). */
-export async function storedImageDataUrl(fileId: string | null): Promise<string | null> {
-  if (!fileId) return null
+/** One signed read of `fileId` as an embeddable data URL, or null. */
+async function readEmbeddable(fileId: string, variant?: ImageVariant): Promise<string | null> {
   try {
-    const { url } = await signedFileUrl(fileId)
-    const response = await fetch(url)
+    const { url } = await signedFileUrl(fileId, variant ? { variant } : {})
+    // A resized copy comes in the format the request accepts (WebP when offered): ask for what
+    // react-pdf embeds.
+    const response = await fetch(url, { headers: { Accept: 'image/png, image/jpeg' } })
     if (!response.ok) return null
     const blob = await response.blob()
     return EMBEDDABLE.has(blob.type) ? await dataUrl(blob) : null
   } catch {
     return null
   }
+}
+
+/**
+ * The stored image `fileId` as a PNG or JPEG data URL, or null (none, unreadable, another type).
+ * With `variant` (the photo: `print`, 480 px wide with its PNG or JPEG kept, PERF-1), that smaller
+ * copy first, and the original when it cannot be had (image transformations off or failing): the
+ * fiche never loses its photo to a resize.
+ */
+export async function storedImageDataUrl(fileId: string | null, { variant }: { variant?: ImageVariant } = {}): Promise<string | null> {
+  if (!fileId) return null
+  return (variant && (await readEmbeddable(fileId, variant))) || readEmbeddable(fileId)
 }
 
 /**

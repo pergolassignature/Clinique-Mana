@@ -1,19 +1,25 @@
-import { t, type TranslationKey } from '@/i18n'
+import { t } from '@/i18n'
 import { isBaseRoleKey, roleLabel } from '@/core/access/roles'
+import type { ModuleAuditLabels } from '@/core/modules/types'
+import { signatureStatusLabel } from '@/core/signing/status'
 import { formatRate } from '@/shared/lib/format'
 import { formatClinicDateTime, formatDateOnlyShort } from '@/shared/lib/timezone'
 import type { AuditEntry } from './api'
+import { lookupAuditText as lookup } from './module-labels'
 
 /**
- * The audited tables the settings pages change, in the order of the « Section » filter. Their
- * French names are `audit.tables.<table>`; the columns are `audit.fields.<table>.<column>`, with
- * `audit.commonFields.<column>` for the ones every table has (`org_id`, `created_at`…).
+ * Core's audited tables, in the order of the « Section » filter (each enabled module's tables
+ * follow, from its `ModuleManifest.audit`). Their French names are `audit.tables.<table>`; the
+ * columns are `audit.fields.<table>.<column>`, with `audit.commonFields.<column>` for the ones
+ * every table has (`org_id`, `created_at`…). `src/app/audit-labels.test.ts` checks that every table
+ * the migrations audit is here or in a module's list, named in French with each of its columns.
  */
 export const AUDITED_TABLES = [
   'organizations',
   'profiles',
   'user_roles',
   'user_permission_overrides',
+  'staff_invitations',
   'roles',
   'org_role_permissions',
   'org_modules',
@@ -25,24 +31,37 @@ export const AUDITED_TABLES = [
   'email_settings',
   'email_templates',
   'email_template_versions',
+  'signing_settings',
+  'document_templates',
+  'document_template_versions',
+  'signature_requests',
+  'signature_request_signers',
+  'stored_files',
+  'secure_links',
 ] as const
 
-/** The French text of a key built from database names, or undefined when there is none. */
-function lookup(key: string): string | undefined {
-  // `t` returns the key itself when nothing (or no string) is there: an unknown table or column,
-  // a name with a dot, or an inherited property such as `toString`.
-  const text = t(key as TranslationKey)
-  return text === key ? undefined : text
+/** The first module's answer, or undefined when none has one. */
+function firstOf(modules: readonly ModuleAuditLabels[], read: (labels: ModuleAuditLabels) => string | undefined): string | undefined {
+  for (const labels of modules) {
+    const text = read(labels)
+    if (text !== undefined) return text
+  }
+  return undefined
 }
 
-/** « Clinique » for `organizations`; the table name for a table without a label. */
-export function tableLabel(table: string): string {
-  return lookup(`audit.tables.${table}`) ?? table
+/** « Clinique » for `organizations`, a module's name for its own tables; the table name for a table without one. */
+export function tableLabel(table: string, modules: readonly ModuleAuditLabels[] = []): string {
+  return lookup(`audit.tables.${table}`) ?? firstOf(modules, (m) => m.tableLabel(table)) ?? table
 }
 
-/** « NEQ » for `organizations.neq`; the column name for a column without a label. */
-export function fieldLabel(table: string, column: string): string {
-  return lookup(`audit.fields.${table}.${column}`) ?? lookup(`audit.commonFields.${column}`) ?? column
+/** « NEQ » for `organizations.neq`, a module's name for its own columns; the column name for a column without one. */
+export function fieldLabel(table: string, column: string, modules: readonly ModuleAuditLabels[] = []): string {
+  return (
+    lookup(`audit.fields.${table}.${column}`) ??
+    firstOf(modules, (m) => m.fieldLabel(table, column)) ??
+    lookup(`audit.commonFields.${column}`) ??
+    column
+  )
 }
 
 /** « Création », « Modification », « Suppression », « Consultation »; the raw action otherwise. */
@@ -50,16 +69,26 @@ export function actionLabel(action: string): string {
   return lookup(`audit.actions.${action}`) ?? action
 }
 
-type SourceKey = 'app' | 'seed' | 'bootstrap' | 'migration' | 'auth' | 'system'
+type SourceKey = 'app' | 'seed' | 'bootstrap' | 'migration' | 'auth' | 'job' | 'system'
 const SOURCES: Readonly<Record<string, SourceKey>> = { app: 'app', seed: 'seed', bootstrap: 'bootstrap', service: 'system', system: 'system' }
-const SOURCE_PREFIXES: Readonly<Record<string, SourceKey>> = { rpc: 'app', auth: 'auth', migration: 'migration' }
+const SOURCE_PREFIXES: Readonly<Record<string, SourceKey>> = {
+  rpc: 'app',
+  auth: 'auth',
+  migration: 'migration',
+  // A catalogue seeded by a migration (`seed:professionals_reference`): part of that update.
+  seed: 'migration',
+  job: 'job',
+  trigger: 'system',
+}
 
 /**
  * Who wrote a row that has no actor name (`audit_log.source`): `app`, `rpc:*` → « Application »,
- * `seed` → « Données de test », `bootstrap` → « Installation », `migration:*` → « Mise à jour »,
- * `auth:*` → « Connexion », `service` / `system` → « Système ». Anything else: the raw source.
+ * `seed` → « Données de test », `bootstrap` → « Installation », `migration:*` and `seed:*` →
+ * « Mise à jour », `auth:*` → « Connexion », `job:*` → « Tâche planifiée », `service`, `system` and
+ * `trigger:*` → « Système »; then a module's own sources (`import` → « Importation »). Anything
+ * else: the raw source.
  */
-export function sourceLabel(source: string): string {
+export function sourceLabel(source: string, modules: readonly ModuleAuditLabels[] = []): string {
   const colon = source.indexOf(':')
   const prefix = colon > 0 ? source.slice(0, colon) : undefined
   const key = Object.hasOwn(SOURCES, source)
@@ -67,16 +96,20 @@ export function sourceLabel(source: string): string {
     : prefix !== undefined && Object.hasOwn(SOURCE_PREFIXES, prefix)
       ? SOURCE_PREFIXES[prefix]
       : undefined
-  return key ? t(`audit.sources.${key}`) : source
+  return key ? t(`audit.sources.${key}`) : (firstOf(modules, (m) => m.sourceLabel(source)) ?? source)
 }
 
 /** The value `private.audit_trigger` writes in place of a redacted column (decision #31). */
 const REDACTED = '[redacted]'
 
-/** Columns holding a calendar date (`date`): shown without any timezone conversion. */
-const DATE_ONLY_COLUMNS = new Set(['effective_from', 'effective_to'])
-/** Columns holding an instant (`timestamptz`): shown in the clinic's timezone. */
-const INSTANT_COLUMNS = new Set(['created_at', 'updated_at', 'last_sign_in_at'])
+/**
+ * A calendar date (`date`), shown without any timezone conversion. The schema's naming: a `date`
+ * column ends in `_on` (`expires_on`) or is a dated row's bound (`effective_from`, `effective_to`);
+ * a `timestamptz` ends in `_at` (`retain_until` aside). A module's other dates (a month) are its own.
+ */
+const isDateOnlyColumn = (column: string) => column.endsWith('_on') || column === 'effective_from' || column === 'effective_to'
+/** An instant (`timestamptz`): shown in the clinic's timezone. */
+const isInstantColumn = (column: string) => column.endsWith('_at') || column === 'retain_until'
 
 /** Runs a date formatter; the raw string when the date is invalid (never throws). */
 function formatDateSafely(value: string, format: (value: string) => string): string {
@@ -92,9 +125,9 @@ function formatDateSafely(value: string, format: (value: string) => string): str
 /**
  * One value of `changed_fields` in `table.column`, for reading: null or empty → « (vide) »,
  * booleans → « Oui » / « Non », a redacted value → « (masqué) », objects and arrays → compact
- * JSON. Only the columns known to hold them are read as dates (`effective_from` / `effective_to`
- * as calendar dates, `created_at` / `updated_at` / `last_sign_in_at` in the clinic's timezone) and
- * as a rate (`tax_rates.rate`); any other value, a date-shaped name included, is shown as is.
+ * JSON. Dates by their column's name: `*_on`, `effective_from` and `effective_to` as calendar
+ * dates, `*_at` and `retain_until` in the clinic's timezone; `tax_rates.rate` as a rate. Any other
+ * value, a date-shaped one in another column included, is shown as is.
  */
 export function formatAuditValue(value: unknown, table = '', column = ''): string {
   if (value === null || value === undefined || value === '') return t('audit.values.empty')
@@ -102,8 +135,8 @@ export function formatAuditValue(value: unknown, table = '', column = ''): strin
   if (value === false) return t('audit.values.no')
   if (value === REDACTED) return t('audit.values.redacted')
   if (typeof value === 'object') return JSON.stringify(value)
-  if (typeof value === 'string' && DATE_ONLY_COLUMNS.has(column)) return formatDateSafely(value, formatDateOnlyShort)
-  if (typeof value === 'string' && INSTANT_COLUMNS.has(column)) return formatDateSafely(value, formatClinicDateTime)
+  if (typeof value === 'string' && isDateOnlyColumn(column)) return formatDateSafely(value, formatDateOnlyShort)
+  if (typeof value === 'string' && isInstantColumn(column)) return formatDateSafely(value, formatClinicDateTime)
   if (table === 'tax_rates' && column === 'rate' && Number.isFinite(Number(value))) return formatRate(Number(value))
   return String(value)
 }
@@ -132,6 +165,8 @@ export interface AuditLookups {
    * current roles, plus the deleted ones' last names (`roleNamesFromEntries`).
    */
   roles?: ReadonlyMap<string, string>
+  /** The enabled modules' labels (`ModuleManifest.audit`): their tables' columns and values. */
+  moduleLabels?: readonly ModuleAuditLabels[]
 }
 
 /** A value as shown: its text, and the full value in `title` when the text shortens it. */
@@ -140,38 +175,47 @@ export interface AuditValue {
   title?: string
 }
 
-/** Columns holding a person's user id, in any table. */
-const PERSON_COLUMNS = new Set(['user_id', 'actor_id', 'created_by', 'updated_by'])
+/** Columns holding a person's user id: `*_by` (`created_by`, `reviewed_by`…) and these. */
+const PERSON_COLUMNS = new Set(['user_id', 'actor_id', 'accepted_user_id'])
+const isPersonColumn = (column: string) => PERSON_COLUMNS.has(column) || column.endsWith('_by')
+/** Columns holding a permission key: `permission_key` and `*_permission` (`view_permission`…). */
+const isPermissionColumn = (column: string) => column === 'permission_key' || column.endsWith('_permission')
 
-/** The profiles.status values (`check (status in ('active', 'disabled'))`). */
-const PROFILE_STATUSES = new Set(['active', 'disabled'])
+/** A stored code that may name an i18n key: lower-case letters, digits and `_` only. */
+const CODE = /^[a-z0-9_]{1,60}$/
 
 /**
  * One value of `table.column`, for reading. Stored codes become French (`role` and `roles.key`,
- * custom role names included, `profiles.status`, `tax_rates.tax`, module and permission keys) and
- * person ids become names, each falling back to the raw value; a person not in `lookups.people`
- * shows a short id, the full one in `title`. A custom role whose name is unknown shows « Rôle
- * personnalisé », its key in `title`. Everything else goes through `formatAuditValue`.
+ * custom role names included, the statuses of core's tables (`audit.values.enums`), a signature
+ * request's status, `tax_rates.tax`, module and permission keys), a module's values read as the
+ * module says (`lookups.moduleLabels`), and person ids become names, each falling back to the raw
+ * value; a person not in `lookups.people` shows a short id, the full one in `title`. A custom role
+ * whose name is unknown shows « Rôle personnalisé », its key in `title`. Everything else goes
+ * through `formatAuditValue`.
  */
 export function auditValue(table: string, column: string, value: unknown, lookups: AuditLookups = {}): AuditValue {
-  if (typeof value !== 'string' || value === '' || value === REDACTED) return { text: formatAuditValue(value, table, column) }
-  if (PERSON_COLUMNS.has(column)) {
+  if (value === null || value === undefined || value === '' || value === REDACTED) return { text: formatAuditValue(value, table, column) }
+  const fromModule = firstOf(lookups.moduleLabels ?? [], (m) => m.value(table, column, value))
+  if (fromModule !== undefined) return { text: fromModule }
+  if (typeof value !== 'string') return { text: formatAuditValue(value, table, column) }
+  if (isPersonColumn(column)) {
     const name = lookups.people?.get(value)
     return name !== undefined ? { text: name, title: value } : { text: shortRecordId(value), title: value }
   }
+  // A status or kind of a core table (`profiles.status`, `signature_request_signers.role`…).
+  const code = CODE.test(value) ? lookup(`audit.values.enums.${table}.${column}.${value}`) : undefined
+  if (code !== undefined) return { text: code }
   if (column === 'role' || (table === 'roles' && column === 'key')) {
     const name = lookups.roles?.get(value)
     if (name === undefined && !isBaseRoleKey(value) && value.startsWith('custom_')) return { text: t('access.customRole'), title: value }
     return { text: roleLabel(value, name) }
   }
-  if (table === 'profiles' && column === 'status' && PROFILE_STATUSES.has(value)) {
-    return { text: t(`audit.values.status.${value as 'active' | 'disabled'}`) }
-  }
+  if (table === 'signature_requests' && column === 'status') return { text: signatureStatusLabel(value, null).label }
   if (table === 'tax_rates' && column === 'tax' && (value === 'gst' || value === 'qst')) {
     return { text: t(`settings.tax.taxes.${value}.title`) }
   }
   if (column === 'module_key') return { text: lookups.modules?.get(value) ?? value }
-  if (column === 'permission_key') return { text: lookups.permissions?.get(value) ?? value }
+  if (isPermissionColumn(column)) return { text: lookups.permissions?.get(value) ?? value }
   return { text: formatAuditValue(value, table, column) }
 }
 
@@ -215,17 +259,18 @@ export function auditDetailLines(
   { action, table_name: table, changed_fields: fields }: Pick<AuditEntry, 'action' | 'table_name' | 'changed_fields'>,
   lookups: AuditLookups = {},
 ): AuditDetailLine[] {
+  const modules = lookups.moduleLabels ?? []
   if (action === 'read' && isRecord(fields) && Array.isArray(fields.fields) && fields.fields.length > 0) {
     const columns = fields.fields.map(String)
     if (table === 'organization_bank_details' && columns.length === 1 && columns[0] === 'account_number') {
       return [{ kind: 'text', text: t('audit.details.readAccountNumber') }]
     }
-    return [{ kind: 'text', text: t('audit.details.readFields', { fields: columns.map((column) => fieldLabel(table, column)).join(', ') }) }]
+    return [{ kind: 'text', text: t('audit.details.readFields', { fields: columns.map((column) => fieldLabel(table, column, modules)).join(', ') }) }]
   }
   if (action === 'read' || !isRecord(fields) || Object.keys(fields).length === 0) return [{ kind: 'text', text: t('audit.details.none') }]
   return Object.entries(fields).map(([column, value]): AuditDetailLine => {
     if (isSecretRotation(table, column, value)) return { kind: 'text', text: t('audit.details.secretRotated') }
-    const field = fieldLabel(table, column)
+    const field = fieldLabel(table, column, modules)
     if (action === 'update' && isRecord(value) && Object.hasOwn(value, 'before') && Object.hasOwn(value, 'after')) {
       return { kind: 'change', field, before: auditValue(table, column, value.before, lookups), after: auditValue(table, column, value.after, lookups) }
     }

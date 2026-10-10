@@ -76,7 +76,8 @@ async function requestChange(email: string, answers: Answer | Answer[], serverAf
     await userEvent.type(field, email)
     await userEvent.click(within(card).getByRole('button', { name: t('account.email.submit') }))
     await waitFor(() => expect(auth.updateUser).toHaveBeenCalledTimes(before + 1))
-    await waitFor(() => expect(within(card).getByRole('button', { name: t('account.email.submit') })).toBeEnabled())
+    // The request has settled: no « Envoi… » left (the buttons hide once the field is cleared, decision UI-2).
+    await waitFor(() => expect(within(card).queryByRole('button', { name: t('account.email.submitting') })).not.toBeInTheDocument())
   }
   // The refetch after a success (neutral or not) has landed.
   await waitFor(() => expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(2))

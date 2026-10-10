@@ -10,6 +10,7 @@ import { useReadyAccess } from '@/core/access/access-context'
 import { accountKeys, useAuthUser, useUpdateDisplayName } from '@/core/account/hooks'
 import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { newPasswordRule, passwordMismatch, passwordsMatch } from '@/core/auth/password-schema'
+import { DescriptionList } from '@/shared/components/DescriptionList'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { FormActions } from '@/shared/components/FormActions'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -180,10 +181,8 @@ function EmailCard() {
         />
       }
     >
-      <dl className="space-y-1">
-        <dt className="text-sm font-medium text-foreground">{t('account.email.current')}</dt>
-        <dd className="break-all text-sm text-foreground">{current}</dd>
-      </dl>
+      {/* The one read-only label style (UI-3): 400 secondary, beside the value. */}
+      <DescriptionList items={[{ label: t('account.email.current'), value: <span className="break-all">{current}</span> }]} labelWidth="sm" />
       {/* Always rendered, so screen readers announce the notice when it appears inside. Empty, it
           takes no room (empty:!mt-0 cancels the card's spacing). */}
       <div role="status" className="empty:!mt-0">
@@ -461,12 +460,16 @@ function SessionsCard() {
 export function AccountPage() {
   usePageTitle(t('pageTitles.account'))
   return (
-    <div className="w-full max-w-form space-y-5">
+    <div className="w-full space-y-5">
       <PageHeader level={1} title={t('account.title')} description={t('account.description')} fullWidthDescription />
-      <NameCard />
-      <EmailCard />
-      <PasswordCard />
-      <SessionsCard />
+      {/* Two columns from 1280 (audit 2026-10-09 §2.1): « Nom affiché » | « Courriel », then
+          « Mot de passe » | « Sessions », in reading order; one column of 640 below. */}
+      <div className="grid max-w-form gap-5 xl:max-w-none xl:grid-cols-2 xl:items-start">
+        <NameCard />
+        <EmailCard />
+        <PasswordCard />
+        <SessionsCard />
+      </div>
     </div>
   )
 }

@@ -43,6 +43,29 @@ export const useSaveIvac: UseCardSave<{ ivac: string | null }> = (id, feedback) 
 }
 
 /**
+ * « Expérience et payeurs » (decision UI-5): the years (a field of `professionals`) and the IVAC
+ * number (`set_professional_payer_number`), each sent only when it changed, the years first; the
+ * section is clean once both are stored. A refused IVAC number leaves the saved years saved and
+ * the number under its field.
+ */
+export const useSaveExperienceAndIvac: UseCardSave<{ yearsExperience: number | null; ivac: string | null }> = (id, feedback) => {
+  const queryClient = useQueryClient()
+  const fields = useUpdateProfessional(feedback)
+  const ivac = useSetPayerNumber(feedback)
+  return {
+    save: ({ yearsExperience, ivac: number }, onSaved) => {
+      const stored = queryClient.getQueryData<ProfessionalRecord | null>(professionalKeys.record(id))
+      const storedIvac = stored?.payerNumbers.find((p) => p.type === 'ivac')?.number ?? null
+      const sendIvac = () =>
+        number === storedIvac ? onSaved() : ivac.mutate({ id, type: 'ivac', number }, { onSuccess: onSaved })
+      if (stored && yearsExperience === stored.professional.yearsExperience) sendIvac()
+      else fields.mutate({ id, patch: { yearsExperience } }, { onSuccess: sendIvac })
+    },
+    pending: fields.isPending || ivac.isPending,
+  }
+}
+
+/**
  * Disponibilités générales (`professionals.matching`). « Accepte de nouveaux clients » is sent only
  * when it changed: it is the one field of the card the list shows, so a save of the moments or the
  * note alone does not refetch the lists (`touchesList` of `useUpdateMatchingProfile`).

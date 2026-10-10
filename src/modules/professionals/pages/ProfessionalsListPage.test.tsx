@@ -46,8 +46,19 @@ const HELENE = listRowFixture({
   motifIds: [IDS.deuil],
   matchingComplete: false,
   acceptingNewClients: false,
+  documentsDone: 1,
+  documentsRequired: 3,
 })
-const PAUL = listRowFixture({ id: id(3), firstName: 'Paul', lastName: 'Gagnon', email: 'paul@exemple.ca', status: 'inactive', primaryLicenceNumber: '54321' })
+const PAUL = listRowFixture({
+  id: id(3),
+  firstName: 'Paul',
+  lastName: 'Gagnon',
+  email: 'paul@exemple.ca',
+  status: 'inactive',
+  statusChangedAt: '2026-10-03T14:00:00Z',
+  deactivationReasonId: IDS.leave,
+  primaryLicenceNumber: '54321',
+})
 const ROWS = [HELENE, PAUL, MARIE]
 
 function renderPage({ path = '/professionnels', role = 'admin_assistant' as FixtureRole } = {}) {
@@ -95,7 +106,8 @@ describe('ProfessionalsListPage', () => {
   it('lists the professionals with their counts, title, licence, languages, status and first watch flag', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.name') })).toBeInTheDocument()
-    expect(await screen.findByText('3 professionnels · 1 actif')).toBeInTheDocument()
+    // The count in the header's count slot, then the active ones (A4: « 3 professionnels · 1 actif »).
+    expect(await screen.findByText((_, el) => el?.tagName === 'P' && el.textContent === '3 professionnels · 1 actif')).toBeInTheDocument()
     await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Paul Gagnon', 'Marie Tremblay']))
     const helene = screen.getByRole('link', { name: 'Hélène Côté' }).closest('[role=row]') as HTMLElement
     expect(within(helene).getByText('Naturopathe')).toBeInTheDocument()
@@ -105,9 +117,19 @@ describe('ProfessionalsListPage', () => {
     const marie = screen.getByRole('link', { name: 'Marie Tremblay' }).closest('[role=row]') as HTMLElement
     expect(within(marie).getByText('OPQ 12345')).toBeInTheDocument()
     expect(within(marie).getByText(t(`${L}.table.nothingToWatch`))).toBeInTheDocument()
-    expect(screen.getByText('3 résultats')).toBeInTheDocument()
-    expect(screen.getByText('3 sur 3 professionnels')).toBeInTheDocument()
-    expect(screen.getByText('Page 1 sur 1')).toBeInTheDocument()
+    // One count on screen (audit 2026-10-09 §2.6): the results status speaks to screen readers only,
+    // and the whole list on one page has no footer.
+    expect(screen.getByText('3 résultats').closest('[role="status"]')).toHaveClass('sr-only')
+    expect(screen.queryByText('3 sur 3 professionnels')).not.toBeInTheDocument()
+    expect(screen.queryByText('Page 1 sur 1')).not.toBeInTheDocument()
+  })
+
+  it('an inactive file: « Inactif depuis le … · {raison} » in « À surveiller » (P4-510)', async () => {
+    renderPage()
+    await waitFor(() => expect(names()).toContain('Paul Gagnon'))
+    const paul = screen.getByRole('link', { name: 'Paul Gagnon' }).closest('[role=row]') as HTMLElement
+    expect(within(paul).getByText(t('modules.professionals.watch.inactiveSinceFor', { date: '3 oct. 2026', reason: 'Congé' }))).toBeInTheDocument()
+    expect(within(paul).queryByText(t(`${L}.table.nothingToWatch`))).not.toBeInTheDocument()
   })
 
   it('names each title in the professional\'s form, the title\'s name without a gender (P4-342)', async () => {
@@ -242,7 +264,9 @@ describe('ProfessionalsListPage', () => {
     await waitFor(() => expect(names()).toHaveLength(1))
     expect(next).toHaveAttribute('aria-disabled', 'true')
     expect(next).toHaveFocus()
-    expect(screen.getByText('26 sur 26 professionnels')).toBeInTheDocument()
+    // Not filtered: the footer pages without repeating the count.
+    expect(screen.queryByText('26 sur 26 professionnels')).not.toBeInTheDocument()
+    expect(screen.getByText('Page 2 sur 2')).toBeInTheDocument()
     // The focus stays on ›: the polite results status says where it led.
     expect(status).toHaveTextContent('26 résultats, page 2 sur 2')
     expect(status).toHaveAttribute('aria-atomic', 'true')
@@ -282,6 +306,28 @@ describe('ProfessionalsListPage', () => {
     await waitFor(() => expect(screen.getByText(t(`${L}.noMatch.title`))).toBeInTheDocument())
   })
 
+  it('shows « Documents x / y » (the column, and under the status on a phone), said whole, and filters on « Documents incomplets »', async () => {
+    renderPage()
+    const helene = (await screen.findByRole('link', { name: 'Hélène Côté' })).closest('[role=row]') as HTMLElement
+    expect(within(table()).getByRole('columnheader', { name: t(`${L}.table.documents`) })).toBeInTheDocument()
+    const values = { done: '1', required: '3' }
+    // The visible text has no-break spaces around « / »; the matcher compares normalised spaces.
+    const spaced = (text: string) => text.replace(/\s+/g, ' ')
+    expect(within(helene).getByText(spaced(t(`${L}.table.documentsShort`, values)))).toBeInTheDocument()
+    expect(within(helene).getByText(spaced(t(`${L}.table.documentsCount`, values)))).toBeInTheDocument()
+    expect(within(helene).getAllByText('1 document requis sur 3 en règle')).toHaveLength(2)
+    const marie = screen.getByRole('link', { name: 'Marie Tremblay' }).closest('[role=row]') as HTMLElement
+    expect(within(marie).getAllByText('3 documents requis sur 3 en règle')).toHaveLength(2)
+
+    await userEvent.click(screen.getByRole('button', { name: t(`${L}.filters.button`) }))
+    await userEvent.click(await screen.findByRole('checkbox', { name: t(`${L}.filters.documentsIncomplete`) }))
+    await waitFor(() => expect(names()).toEqual(['Hélène Côté']))
+    expect(location()).toBe('/professionnels?documents=incomplets')
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(screen.getByRole('button', { name: t(`${L}.chips.remove`, { label: t(`${L}.filters.documentsIncomplete`) }) }))
+    await waitFor(() => expect(names()).toHaveLength(3))
+  })
+
   it('says when nothing matches, and « Réinitialiser » shows everyone again', async () => {
     renderPage({ path: '/professionnels?q=personne' })
     expect(await screen.findByText(t(`${L}.noMatch.title`))).toBeInTheDocument()
@@ -297,7 +343,7 @@ describe('ProfessionalsListPage', () => {
     renderPage()
     expect(await screen.findByText(t(`${L}.empty.title`))).toBeInTheDocument()
     expect(screen.getByText(t(`${L}.empty.body`))).toBeInTheDocument()
-    expect(screen.getByText('0 professionnel · 0 actif')).toBeInTheDocument()
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === '0 professionnel · 0 actif')).toBeInTheDocument()
   })
 
   it('the onboarding states failing: the list still shows, with the stored statuses, a notice and « Réessayer »', async () => {

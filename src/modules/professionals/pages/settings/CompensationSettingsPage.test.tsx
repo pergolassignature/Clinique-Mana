@@ -95,8 +95,23 @@ describe('CompensationSettingsPage — grids (P4-185)', () => {
   it('summarises each active title’s grid in force, says when a title has none, and announces a coming version', async () => {
     render()
     const grids = await region(t(`${S}.grids.title`))
-    // jest-dom reads a no-break space as a space.
-    expect(grids).toHaveTextContent('PsychologueDe 28 % à 25 % (dès 301 séances) · 60 min / couple 200,00 $ · 50 min 175,00 $ · 30 min 130,00 $')
+    // One row per profession, a column per priced duration (jest-dom reads a no-break space as a space).
+    const table = within(grids).getByRole('table', { name: t(`${S}.grids.title`) })
+    expect(within(table).getAllByRole('columnheader').map((head) => head.textContent)).toEqual([
+      t(`${S}.grids.columns.profession`),
+      t(`${S}.grids.retention`),
+      '60 min / couple',
+      '50 min',
+      '30 min',
+      t(`${S}.grids.columns.actions`),
+    ])
+    const psychologue = within(table).getByText('Psychologue').closest('tr') as HTMLElement
+    expect(within(psychologue).getAllByRole('cell').slice(1, 5).map((cell) => cell.textContent?.replace(/\u00A0/g, ' '))).toEqual([
+      'De 28 % à 25 %Dès 301 séances',
+      '200,00 $',
+      '175,00 $',
+      '130,00 $',
+    ])
     expect(grids).toHaveTextContent('Nouvelle version dès le 1 janv. 2027.')
     expect(grids).toHaveTextContent(`Naturopathe${t(`${S}.grids.none`)}`)
     expect(grids).not.toHaveTextContent('Ancien titre')
@@ -170,7 +185,8 @@ describe('CompensationSettingsPage — other kinds (P4-181)', () => {
     render()
     const rates = await region(t(`${S}.rates.title`))
     const table = within(rates).getByRole('table', { name: t(`${S}.rates.title`) })
-    expect(within(table).getByRole('columnheader', { name: 'Ateliers et conférences' })).toBeInTheDocument()
+    // Each kind heads its own row group (TableGroupRow).
+    expect(within(table).getByRole('rowheader', { name: 'Ateliers et conférences' })).toBeInTheDocument()
     expect(table).toHaveTextContent('25 %')
     expect(within(rates).queryByRole('button', { name: /Supprimer le taux/ })).not.toBeInTheDocument()
   })

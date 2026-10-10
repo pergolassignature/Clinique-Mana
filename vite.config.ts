@@ -82,6 +82,12 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 230,
     rollupOptions: {
       output: {
+        // Folds chunks under 5 kB into a chunk loaded with them (same importers only, so nothing
+        // loads earlier: check-entry-chunk.mjs still guards the login page). 190 → 131 files; the
+        // list's first visit asked for 171 scripts, now 117, its rows 0.75 s sooner on a 4G-class
+        // link (perf/chunks PR); the login page's JS grows about 2 kB gzip (258 → 260 kB). Higher
+        // limits merge almost nothing more.
+        experimentalMinChunkSize: 5_000,
         // Vendor code changes rarely: separate chunks stay cached across app deploys.
         manualChunks: {
           // react-dom/client is the React 19 renderer; 'react-dom' alone is only its small shared entry.

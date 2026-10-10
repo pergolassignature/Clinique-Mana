@@ -101,7 +101,7 @@ const submit = (label: string) => userEvent.click(within(dialog()).getByRole('bu
 describe('ProfessionsSettingsPage', () => {
   it('stacks three cards under visible headings, each « Ajouter » outline', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t(`${P}.title`) })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t(`${P}.title`) })).toBeInTheDocument()
     for (const list of ['orders', 'categories', 'titles'] as const) {
       const heading = within(card(list)).getByRole('heading', { level: 3, name: t(`${P}.${list}.title`) })
       expect(heading.parentElement).not.toHaveClass('sr-only')

@@ -300,6 +300,12 @@ const recordShape = z.object({
   motif_ids: z.array(z.string()),
   language_ids: z.array(z.string()),
   payer_numbers: z.array(payerNumberPayload),
+  /**
+   * The newest verified photo's stored file (`professional_public_profiles.photo_document_id`), null
+   * without one: shown only through `storage-sign` (P3-33). Optional: bundles older than
+   * *_professionals_record_photo.sql.
+   */
+  photo_file_id: z.string().nullish(),
 })
 const recordFields = (r: z.output<typeof recordShape>) => ({
   professional: r.professional,
@@ -311,6 +317,7 @@ const recordFields = (r: z.output<typeof recordShape>) => ({
   motifIds: r.motif_ids,
   languageIds: r.language_ids,
   payerNumbers: r.payer_numbers,
+  photoFileId: r.photo_file_id ?? null,
 })
 
 /** `get_professional_record`: the record page in one payload, null when the caller cannot read it. */
@@ -470,6 +477,11 @@ export const listRowPayload = z
     // 4c.2 (P4-406): « À surveiller » flags an insurance expiring or expired.
     insurance_status: z.enum(INSURANCE_STATUSES).nullish(),
     insurance_expires_on: z.string().nullish(),
+    // « Documents 2 / 3 » (inventory A1.1): the required documents in order, out of the required ones.
+    documents_done: z.number().int().nullish(),
+    documents_required: z.number().int().nullish(),
+    // The verified photo's stored file (null without one, or unreadable): signed in batches for the visible rows.
+    photo_file_id: z.string().nullish(),
   })
   .transform((r) => ({
     id: r.id,
@@ -494,6 +506,9 @@ export const listRowPayload = z
     updatedAt: r.updated_at,
     insuranceStatus: r.insurance_status ?? null,
     insuranceExpiresOn: r.insurance_expires_on ?? null,
+    documentsDone: r.documents_done ?? 0,
+    documentsRequired: r.documents_required ?? 0,
+    photoFileId: r.photo_file_id ?? null,
     /**
      * Not a column of the view: the list joins `list_professional_invitation_states` in memory
      * (`withOnboarding`, P4-270); null until then, and for a file without link or submission.

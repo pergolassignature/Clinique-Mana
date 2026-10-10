@@ -43,8 +43,8 @@ beforeEach(() => {
   mocks.submissions.fetchSubmissionReview.mockResolvedValue(submissionReview())
   mocks.private.fetchProfessionalPrivate.mockResolvedValue({ bankAccountLast4: '4567', sinLast3: null })
   mocks.documents.fetchProfessionalDocuments.mockResolvedValue(documentsFixture())
-  mocks.contracts.fetchProfessionalContract.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null })
-  mocks.contracts.fetchProfessionalImageConsent.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null })
+  mocks.contracts.fetchProfessionalContract.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null, current: null, previous: [] })
+  mocks.contracts.fetchProfessionalImageConsent.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null, current: null, previous: [] })
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -246,9 +246,28 @@ describe('SubmissionReviewSheet', () => {
     const titles = within(sheet).getByRole('checkbox', { name: t(`${F}.professions`) }).closest('li') as HTMLElement
     expect(titles).toHaveTextContent('Psychologue · OPQ 12345')
     expect(titles).toHaveTextContent('Naturopathe')
-    const consent = within(sheet).getByRole('checkbox', { name: t(`${F}.consent`) }).closest('li') as HTMLElement
-    expect(consent).toHaveTextContent(t(`${V}.consentNone`))
-    expect(consent).toHaveTextContent('par Marie Tremblay (version 1)')
+  })
+
+  it('a consent signed through Documenso in the questionnaire: « Signé électroniquement le … », never « Pas encore signé », nothing to apply (P4-505)', async () => {
+    const { sheet } = await openSheet()
+    // Not a change to apply: no checkbox, read with the unchanged fields.
+    expect(within(sheet).queryByRole('checkbox', { name: t(`${F}.consent`) })).not.toBeInTheDocument()
+    await userEvent.click(within(sheet).getAllByRole('button', { name: /^Voir les champs inchangés/ }).at(-1) as HTMLElement)
+    const signed = t(`${V}.consentSignedElectronically`, { date: '8 oct. 2026' })
+    expect(within(sheet).getByText(signed, { exact: false })).toBeInTheDocument()
+    expect(within(sheet).getByText(`(${t(`${V}.consentSignedHere`)})`, { exact: false })).toBeInTheDocument()
+    expect(sheet).not.toHaveTextContent(t(`${V}.consentUnsigned`))
+    expect(sheet).not.toHaveTextContent(t(`${V}.consentNone`))
+  })
+
+  it('a consent already on file (signed before the questionnaire, or a paper one): said as on the Documents tab, no end date', async () => {
+    mocks.submissions.fetchSubmissionReview.mockResolvedValue(
+      submissionReviewWithFields({ consent: { current: { source: 'document', uploaded_at: '2026-09-01T14:00:00+00:00' }, submitted: null } }),
+    )
+    const { sheet } = await openSheet()
+    await userEvent.click(within(sheet).getAllByRole('button', { name: /^Voir les champs inchangés/ }).at(-1) as HTMLElement)
+    expect(within(sheet).getByText(t(`${V}.consentPaper`, { date: '1 sept. 2026' }), { exact: false })).toBeInTheDocument()
+    expect(within(sheet).getByText(`(${t(`${V}.consentAlreadyOnFile`)})`, { exact: false })).toBeInTheDocument()
   })
 
   it('never shows a private value: « Modifié », and the file’s mask only for whoever reads the masks', async () => {
@@ -342,19 +361,16 @@ describe('SubmissionReviewSheet', () => {
   })
 
   // P4-378: what « Appliquer » would refuse is said on the field first (the database still decides).
-  it('flags an insurance already expired and a consent signed on an older text, before « Appliquer »', async () => {
+  it('flags an insurance already expired before « Appliquer », with its last valid day (P4-511)', async () => {
     mocks.submissions.fetchSubmissionReview.mockResolvedValue(
       submissionReviewWithFields({
         insurance: { submitted: { file_id: INSURANCE_FILE, expires_on: '2020-03-31' } },
-        consent: { submitted: { consent_version_id: '00000000-0000-4000-8000-00000000c001', signer_name: 'Marie Tremblay', signed_at: '2026-10-08T13:58:00+00:00', version: 1, is_latest: false } },
       }),
     )
     const { sheet } = await openSheet()
     const insurance = within(sheet).getByRole('checkbox', { name: t(`${F}.insurance`) })
     expect(insurance.closest('li')).toHaveTextContent(t(`${S}.warnings.insuranceExpired`, { date: '31 mars 2020' }))
-    expect(insurance).toHaveAccessibleDescription(expect.stringContaining('Cette assurance est échue depuis le 31 mars 2020'))
-    const consent = within(sheet).getByRole('checkbox', { name: t(`${F}.consent`) })
-    expect(consent.closest('li')).toHaveTextContent(t(`${S}.warnings.consentOutdated`))
+    expect(insurance).toHaveAccessibleDescription(expect.stringContaining('valide jusqu’au 31 mars 2020'.replace('’', "'")))
     // Still checked: the reviewer decides; the server refuses if she applies it anyway.
     expect(insurance).toBeChecked()
   })

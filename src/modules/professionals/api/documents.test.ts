@@ -2,21 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FunctionCallError } from '@/core/supabase/functions'
 import {
   deleteProfessionalDocument,
-  discardConsentDraft,
   documentDownloadUrl,
-  fetchConsentVersions,
   fetchMyDocuments,
   fetchProfessionalDocuments,
-  publishConsentVersion,
   rejectProfessionalDocument,
-  saveConsentDraft,
   setProfessionalDocumentExpiry,
   uploadProfessionalDocument,
   verifyProfessionalDocument,
 } from './documents'
 import { UNEXPECTED_SHAPE } from './parse'
 import { IDS } from '../test/fixtures'
-import { CONSENT_JSON, DOC_IDS, documentJson, documentsJson } from '../test/fixtures-documents'
+import { DOC_IDS, documentJson, documentsJson } from '../test/fixtures-documents'
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), invokeFunction: vi.fn(), uploadFile: vi.fn(), signedFileUrl: vi.fn() }))
 vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc } }))
@@ -45,13 +41,13 @@ describe('fetchProfessionalDocuments / fetchMyDocuments', () => {
       uploadedBySelf: true,
       file: { id: DOC_IDS.insuranceFile, name: 'assurance-2026.pdf', mimeType: 'application/pdf', sizeBytes: 245_760 },
     })
-    expect(data?.consent?.signerName).toBe('Marie Tremblay')
   })
 
-  it('the provider’s own consent comes without the signer’s name (null, P4-472)', async () => {
-    ok(documentsJson({ consent: { ...CONSENT_JSON, signer_name: null } }))
+  it('the signed image consent is a document without an end date; the retired e-consent is not read (P4-504, P4-507)', async () => {
+    ok(documentsJson())
     const data = await fetchMyDocuments()
-    expect(data?.consent).toMatchObject({ version: 1, signerName: null, signedAt: CONSENT_JSON.signed_at })
+    expect(data?.documents[2]).toMatchObject({ typeKey: 'image_consent', expiresOn: null, signatureRequestId: '00000000-0000-4000-8000-00000000c501' })
+    expect(data).not.toHaveProperty('consent')
   })
 
   it('« Mes documents » asks for her own record (no id); null without a file', async () => {
@@ -97,6 +93,22 @@ describe('uploadProfessionalDocument', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('attach_professional_document', expect.objectContaining({ p_expires_on: null, p_metadata: {} }))
   })
 
+  it('says the stored file before attaching; a retry with it only attaches (nothing sent again)', async () => {
+    mocks.uploadFile.mockResolvedValue({ fileId: DOC_IDS.renewalFile })
+    const refusal = { code: 'P0001', message: "L'échéance doit être aujourd'hui ou plus tard.", hint: 'expires_on' }
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: refusal })
+    const onUploaded = vi.fn()
+    const input = { professionalId: IDS.professional, typeKey: 'insurance', file, mimeType: 'application/pdf', self: false }
+    await expect(uploadProfessionalDocument({ ...input, expiresOn: '2020-01-01', onUploaded })).rejects.toBe(refusal)
+    expect(onUploaded).toHaveBeenCalledExactlyOnceWith(DOC_IDS.renewalFile)
+
+    ok(DOC_IDS.insuranceRenewal)
+    await expect(uploadProfessionalDocument({ ...input, expiresOn: '2027-03-31', uploadedFileId: DOC_IDS.renewalFile, onUploaded })).resolves.toBe(DOC_IDS.insuranceRenewal)
+    expect(mocks.uploadFile).toHaveBeenCalledOnce()
+    expect(onUploaded).toHaveBeenCalledOnce()
+    expect(mocks.rpc).toHaveBeenLastCalledWith('attach_professional_document', expect.objectContaining({ p_file_id: DOC_IDS.renewalFile, p_expires_on: '2027-03-31' }))
+  })
+
   it('a failed upload never attaches', async () => {
     mocks.uploadFile.mockRejectedValue(new FunctionCallError('rate_limited', 429, 'Too many'))
     await expect(uploadProfessionalDocument({ professionalId: IDS.professional, typeKey: 'cv', file, mimeType: 'application/pdf', expiresOn: null, self: false })).rejects.toBeInstanceOf(FunctionCallError)
@@ -136,40 +148,5 @@ describe('the reviewer’s actions', () => {
     mocks.signedFileUrl.mockResolvedValue({ url: 'https://files.test/d', expiresAt: '2026-10-09T12:05:00Z' })
     await expect(documentDownloadUrl(DOC_IDS.insuranceFile)).resolves.toBe('https://files.test/d')
     expect(mocks.signedFileUrl).toHaveBeenCalledWith(DOC_IDS.insuranceFile, { download: true })
-  })
-})
-
-describe('« Consentements »', () => {
-  it('splits the versions into the one in force, the draft and the earlier ones', async () => {
-    const v = (id: string, version: number, published: boolean) => ({
-      id,
-      version,
-      title: `Version ${version}`,
-      body: 'Texte',
-      published_at: published ? '2026-10-01T14:00:00+00:00' : null,
-      published_by_name: published ? 'Julie Roy' : null,
-      signed_count: published ? 2 : 0,
-      created_at: '2026-10-01T13:00:00+00:00',
-      updated_at: '2026-10-01T13:00:00+00:00',
-    })
-    ok({ key: 'image_rights', current_id: 'v2', versions: [v('v3', 3, false), v('v2', 2, true), v('v1', 1, true)] })
-    const result = await fetchConsentVersions()
-    expect(mocks.rpc).toHaveBeenCalledWith('get_consent_versions', { p_key: 'image_rights' })
-    expect(result.current?.id).toBe('v2')
-    expect(result.draft?.id).toBe('v3')
-    expect(result.previous.map((x) => x.id)).toEqual(['v1'])
-  })
-
-  it('save, publish and discard call their RPC', async () => {
-    ok('v3')
-    await expect(saveConsentDraft({ title: 'Titre', body: 'Texte' })).resolves.toBe('v3')
-    ok(null)
-    await publishConsentVersion('v3')
-    await discardConsentDraft('v3')
-    expect(mocks.rpc.mock.calls).toEqual([
-      ['save_consent_draft', { p_key: 'image_rights', p_title: 'Titre', p_body: 'Texte' }],
-      ['publish_consent_version', { p_id: 'v3' }],
-      ['discard_consent_draft', { p_id: 'v3' }],
-    ])
   })
 })

@@ -23,9 +23,10 @@ const mocks = vi.hoisted(() => ({
   setPermissionOverride: vi.fn(),
   clearPermissionOverride: vi.fn(),
   clearPermissionOverrides: vi.fn(),
+  deleteUserAccount: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
-vi.mock('../api', () => ({
+vi.mock('../api', async (importOriginal) => ({
   fetchOrgUsers: vi.fn(),
   fetchRoleDefaults: mocks.fetchRoleDefaults,
   fetchUserOverrides: mocks.fetchUserOverrides,
@@ -34,6 +35,8 @@ vi.mock('../api', () => ({
   setPermissionOverride: mocks.setPermissionOverride,
   clearPermissionOverride: mocks.clearPermissionOverride,
   clearPermissionOverrides: mocks.clearPermissionOverrides,
+  deleteUserAccount: mocks.deleteUserAccount,
+  isAccountRemovedError: (await importOriginal<typeof import('../api')>()).isAccountRemovedError,
 }))
 // The clinic's roles come from the access module (shared with the shell and the audit log).
 vi.mock('@/core/access/api', async (importOriginal) => ({
@@ -657,6 +660,103 @@ describe('UserSheet', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: new RegExp(L.reset) })).toHaveFocus())
       await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.sheet.permissions.reset.saved')))
       expect(screen.getByRole('button', { name: L.reset })).toHaveFocus()
+    })
+  })
+
+  describe('« Supprimer le compte »', () => {
+    const disabledConseillere: OrgUser = { ...conseillere, status: 'disabled' }
+    const D = {
+      button: (name: string) => t('settings.users.sheet.delete.button', { name }),
+      title: (name: string) => t('settings.users.sheet.delete.confirmTitle', { name }),
+      type: (email: string) => t('settings.users.sheet.delete.typeLabel', { email }),
+    }
+    const LINKED =
+      "Ce compte est lié au dossier professionnel de Paule Pro. Désactivez d'abord ce dossier dans Professionnels (fin de la collaboration)."
+
+    it('an active account: the button is inactive and says to disable it first', async () => {
+      renderSheet(conseillere)
+      const button = await screen.findByRole('button', { name: D.button(conseillere.display_name) })
+      expect(button).toHaveAttribute('aria-disabled', 'true')
+      expect(button).toHaveAccessibleDescription(t('settings.users.sheet.delete.disableFirst'))
+      await userEvent.click(button)
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(mocks.deleteUserAccount).not.toHaveBeenCalled()
+    })
+
+    it('a disabled account: the confirmation says what goes and what stays, and acts only once the address is typed', async () => {
+      mocks.deleteUserAccount.mockResolvedValue(undefined)
+      renderSheet(disabledConseillere)
+      const button = await screen.findByRole('button', { name: D.button(conseillere.display_name) })
+      expect(button).not.toHaveAttribute('aria-disabled')
+      expect(screen.queryByText(t('settings.users.sheet.delete.disableFirst'))).not.toBeInTheDocument()
+      await userEvent.click(button)
+
+      const dialog = await screen.findByRole('alertdialog', { name: D.title(conseillere.display_name) })
+      expect(dialog).toHaveAccessibleDescription(t('settings.users.sheet.delete.confirmBody'))
+      expect(within(dialog).getByText(t('settings.users.sheet.delete.removed'))).toBeInTheDocument()
+      expect(within(dialog).getByText(t('settings.users.sheet.delete.kept'))).toBeInTheDocument()
+      const confirm = within(dialog).getByRole('button', { name: D.button(conseillere.display_name) })
+      expect(confirm).toHaveAttribute('aria-disabled', 'true')
+
+      const input = within(dialog).getByRole('textbox', { name: D.type(conseillere.email) })
+      await userEvent.type(input, 'quelquun@autre.test')
+      await userEvent.click(confirm)
+      expect(mocks.deleteUserAccount).not.toHaveBeenCalled()
+
+      await userEvent.clear(input)
+      await userEvent.type(input, ` ${conseillere.email.toUpperCase()} `)
+      expect(confirm).not.toHaveAttribute('aria-disabled')
+      await userEvent.click(confirm)
+      await waitFor(() => expect(mocks.deleteUserAccount).toHaveBeenCalledExactlyOnceWith(conseillere.user_id))
+      await waitFor(() =>
+        expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.sheet.delete.deleted', { name: conseillere.display_name })),
+      )
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    })
+
+    it("a refusal (an account linked to a professional file) shows in the dialog, which stays open", async () => {
+      mocks.deleteUserAccount.mockRejectedValue({ code: 'P0001', message: LINKED })
+      renderSheet({ ...pro })
+      await userEvent.click(await screen.findByRole('button', { name: D.button(pro.display_name) }))
+      const dialog = await screen.findByRole('alertdialog')
+      await userEvent.type(within(dialog).getByRole('textbox', { name: D.type(pro.email) }), pro.email)
+      await userEvent.click(within(dialog).getByRole('button', { name: D.button(pro.display_name) }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(LINKED)
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+      expect(mocks.toast.success).not.toHaveBeenCalled()
+    })
+
+    it('only the sign-in deletion failed: the dialog closes and a lasting warning offers « Réessayer »', async () => {
+      mocks.deleteUserAccount
+        .mockRejectedValueOnce(new FunctionCallError('provider_error', 502, 'x', { account_removed: true }))
+        .mockResolvedValueOnce(undefined)
+      renderSheet(disabledConseillere)
+      await userEvent.click(await screen.findByRole('button', { name: D.button(conseillere.display_name) }))
+      const dialog = await screen.findByRole('alertdialog')
+      await userEvent.type(within(dialog).getByRole('textbox'), conseillere.email)
+      await userEvent.click(within(dialog).getByRole('button', { name: D.button(conseillere.display_name) }))
+      await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledOnce())
+      const [message, options] = mocks.toast.warning.mock.calls[0] as [string, { duration: number; action: { label: string; onClick: () => void } }]
+      expect(message).toBe(t('settings.users.sheet.delete.signinNotDeleted', { name: conseillere.display_name }))
+      expect(options.duration).toBe(Infinity)
+      expect(options.action.label).toBe(t('common.retry'))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+
+      options.action.onClick()
+      await waitFor(() => expect(mocks.deleteUserAccount).toHaveBeenCalledTimes(2))
+      expect(mocks.deleteUserAccount).toHaveBeenLastCalledWith(conseillere.user_id)
+    })
+
+    it("not offered on one's own account", async () => {
+      renderSheet(admin)
+      await screen.findByRole('link', { name: t('settings.users.sheet.selfLink') })
+      expect(screen.queryByRole('button', { name: D.button(admin.display_name) })).not.toBeInTheDocument()
+    })
+
+    it('not offered to a non-admin manager on an admin', async () => {
+      renderSheet({ ...otherAdmin, status: 'disabled' }, managerCaller)
+      await screen.findByText(t('settings.users.sheet.adminOnly'))
+      expect(screen.queryByRole('button', { name: D.button(otherAdmin.display_name) })).not.toBeInTheDocument()
     })
   })
 

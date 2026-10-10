@@ -25,6 +25,13 @@ const HINT_FIELD: Record<string, FieldName> = { expires_on: 'expiresOn', insurer
 /** A check of the dialog's fields that stopped the upload: said under its field, and in the zone. */
 class FieldCheckError extends Error {}
 
+/** A file already uploaded whose attach a field refused: attached again once the field is corrected. */
+interface KeptFile {
+  fileId: string
+  file: File
+  mimeType: string
+}
+
 interface UploadDocumentDialogProps {
   professionalId: string
   /** « Le document s'ajoute au dossier de Marie Tremblay » (staff); null on « Mes documents ». */
@@ -51,6 +58,10 @@ interface UploadDocumentDialogProps {
  * attached (`attach_professional_document`, which checks them again). The fields are checked
  * before anything is sent. A refusal of a field shows under it; anything else in the zone, worded
  * as the storage functions' (`uploadErrorMessage`). While a file is sent the dialog stays open.
+ *
+ * A file the database refused on a field (the date, HINT `expires_on`; the insurer) is already
+ * uploaded: it is kept, and « Joindre ce fichier » attaches it again once the field is corrected,
+ * without sending it again (it stays staged a day). Another file, or another type, drops it.
  */
 export function UploadDocumentDialog({ professionalId, professionalName, today, type: fixedType, types, self, verifiedAtOnce, onClose, onCloseAutoFocus }: UploadDocumentDialogProps) {
   // The professional fills in and signs her image consent online, never uploads it (P4-489).
@@ -61,6 +72,10 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
   const [insurer, setInsurer] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({})
+  const [kept, setKept] = useState<KeptFile | null>(null)
+  const [keptError, setKeptError] = useState<string | null>(null)
+  // Remounts the zone on « Joindre ce fichier », so its message about the earlier try goes away.
+  const [zoneKey, setZoneKey] = useState(0)
   const dateInput = useRef<HTMLInputElement>(null)
   const upload = useUploadDocument()
   const { can } = useAccess()
@@ -75,6 +90,8 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
     const next = choices.find((x) => x.id === id)
     setExpiresOn(next ? (defaultExpiry(next.expiryRule, today) ?? '') : '')
     setErrors({})
+    setKept(null)
+    setKeptError(null)
   }
 
   /** The fields' own checks, before the file goes anywhere. */
@@ -87,15 +104,21 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
     return found
   }
 
-  const send = async (file: File, mimeType: string, onStep: (step: UploadStep) => void) => {
+  /**
+   * Checks the fields, then uploads `file` (or attaches `uploadedFileId` again) and attaches it. A
+   * field's refusal shows under the field and keeps the uploaded file for « Joindre ce fichier ».
+   */
+  const submit = async (file: File, mimeType: string, { onStep, uploadedFileId }: { onStep?: (step: UploadStep) => void; uploadedFileId?: string }) => {
     if (!type) return
     const found = checkFields()
     setErrors(found)
+    setKeptError(null)
     const first = Object.values(found)[0]
     if (first) {
       if (found.expiresOn) dateInput.current?.focus()
       throw new FieldCheckError(first)
     }
+    let uploaded = uploadedFileId ?? null
     try {
       await upload.mutateAsync({
         professionalId,
@@ -107,18 +130,39 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
         policyNumber: insurance ? policyNumber.trim() || null : null,
         self: selfPurpose,
         onStep,
+        uploadedFileId,
+        onUploaded: (fileId) => {
+          uploaded = fileId
+        },
       })
     } catch (error) {
       const field = HINT_FIELD[rpcErrorHint(error) ?? '']
       if (field) {
         const message = uploadErrorMessage(error)
         setErrors({ [field]: message })
+        setKept(uploaded ? { fileId: uploaded, file, mimeType } : null)
+        if (field === 'expiresOn') dateInput.current?.focus()
         throw new FieldCheckError(message)
       }
+      setKept(null)
       throw error
     }
     toast.success(t(self ? 'modules.professionals.documents.toasts.uploadedSelf' : verifiedAtOnce ? 'modules.professionals.documents.toasts.uploaded' : 'modules.professionals.documents.toasts.uploadedPending'))
     onClose()
+  }
+
+  const send = (file: File, mimeType: string, onStep: (step: UploadStep) => void) => submit(file, mimeType, { onStep })
+
+  /** « Joindre ce fichier »: the kept file, attached again with the fields as corrected. */
+  const attachKept = async () => {
+    if (!kept || busy) return
+    setZoneKey((key) => key + 1)
+    try {
+      await submit(kept.file, kept.mimeType, { uploadedFileId: kept.fileId })
+    } catch (error) {
+      // A field's refusal is already under the field; anything else (the staged file gone…) here.
+      if (!(error instanceof FieldCheckError)) setKeptError(uploadErrorMessage(error))
+    }
   }
 
   const title = fixedType ? t(`${U}.title`, { type: fixedType.name }) : t(`${U}.titleAny`)
@@ -176,9 +220,22 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
           {type ? (
             <>
               <p className="text-sm text-muted-foreground">{note}</p>
+              {kept && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-border p-3">
+                  <p className="min-w-0 flex-1 break-words text-sm">{t(`${U}.kept`, { name: kept.file.name })}</p>
+                  <Button type="button" size="sm" aria-disabled={busy || undefined} onClick={() => void attachKept()}>
+                    {t(`${U}.attachKept`)}
+                  </Button>
+                </div>
+              )}
+              {keptError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {keptError}
+                </p>
+              )}
               <FileDropzone
-                key={type.id}
-                buttonLabel={t(`${U}.choose`)}
+                key={`${type.id}:${zoneKey}`}
+                buttonLabel={t(kept ? `${U}.chooseAnother` : `${U}.choose`)}
                 hint={t(`${U}.hint`, { types: mimeListLabel(type.acceptedMime), size: megabytesLabel(type.maxBytes) })}
                 accept={type.acceptedMime}
                 maxBytes={type.maxBytes}

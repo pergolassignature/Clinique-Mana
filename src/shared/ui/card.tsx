@@ -1,16 +1,22 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
+import { InCardContext } from './card-context'
 
-/** White, 1px hairline, radius 6, no shadow. Padding 16 through header/content/footer. */
+/**
+ * White, 1px hairline, radius 6, no shadow. Padding 16 through header/content/footer. The title is
+ * the « panel title » shared with dialogs and sheets: 16/24, 600 (audit 2026-10-09 §2.2).
+ */
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('rounded-lg border border-border bg-card text-card-foreground', className)}
-    {...props}
-  />
+  <InCardContext.Provider value>
+    <div
+      ref={ref}
+      className={cn('rounded-lg border border-border bg-card text-card-foreground', className)}
+      {...props}
+    />
+  </InCardContext.Provider>
 ))
 Card.displayName = 'Card'
 
@@ -26,13 +32,15 @@ const CardHeader = React.forwardRef<
 ))
 CardHeader.displayName = 'CardHeader'
 
-const CardTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
+interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  /** The heading level in the page's outline; `h3` by default (under the page's h1 and a section's h2). */
+  as?: 'h2' | 'h3' | 'h4'
+}
+
+const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(({ as: Tag = 'h3', className, ...props }, ref) => (
+  <Tag
     ref={ref}
-    className={cn('text-base font-semibold tracking-tight text-foreground', className)}
+    className={cn('text-lg font-semibold text-foreground', className)}
     {...props}
   />
 ))

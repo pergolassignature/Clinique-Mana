@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { CircleAlert, MessageSquareText } from 'lucide-react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { DescriptionList } from '@/shared/components/DescriptionList'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -78,20 +79,27 @@ function MyProfile({ record, submission, catalog }: { record: MyProfessionalReco
   const title = primary ? catalog.byId.titles.get(primary.titleId) : undefined
   const summary = (section: ProfileSection) => <ProfileSectionSummary section={section} values={values[section]} catalog={catalog} gender={professional.gender} />
   return (
-    <div className="w-full max-w-form space-y-5">
+    <div className="w-full space-y-5">
       <PageHeader
         level={1}
         title={t(`${P}.pageTitle`)}
         description={[fullName(professional), title ? titleLabel(title, professional.gender) : null].filter(Boolean).join(' · ')}
       />
-      <QuestionnaireCard record={record} submission={submission} />
+      <div className="max-w-form xl:max-w-none">
+        <QuestionnaireCard record={record} submission={submission} />
+      </div>
+      {/* The read-only cards in two columns from 1280 (audit 2026-10-09 §2.1), in reading order;
+          one column of 640 below. */}
+      <div className="grid max-w-form gap-5 xl:max-w-none xl:grid-cols-2 xl:items-start">
       <ProfileCard title={t(`${P}.cards.contact`)}>
-        <dl className="mb-1.5 grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
-          <dt className="text-muted-foreground">{t('modules.professionals.questionnaire.personal.name')}</dt>
-          <dd className="min-w-0 break-words text-foreground">{fullName(professional)}</dd>
-          <dt className="text-muted-foreground">{t('modules.professionals.questionnaire.personal.loginEmail')}</dt>
-          <dd className="min-w-0 break-words text-foreground">{professional.email}</dd>
-        </dl>
+        <DescriptionList
+          className="mb-1.5"
+          labelWidth="sm"
+          items={[
+            { label: t('modules.professionals.questionnaire.personal.name'), value: fullName(professional) },
+            { label: t('modules.professionals.questionnaire.personal.loginEmail'), value: professional.email },
+          ]}
+        />
         {summary('personal')}
       </ProfileCard>
       <ProfileCard title={sectionLabel('professional')}>{summary('professional')}</ProfileCard>
@@ -112,10 +120,11 @@ function MyProfile({ record, submission, catalog }: { record: MyProfessionalReco
       <TaxBankCard />
       <ProfileCard title={t(`${P}.cards.documents`)}>
         <p className="text-sm text-muted-foreground">{t(`${P}.documents.body`)}</p>
-        <Button asChild variant="outline" size="sm" className="mt-3">
+        <Button asChild variant="outline" className="mt-3">
           <Link to={MY_DOCUMENTS_PATH}>{t(`${P}.documents.link`)}</Link>
         </Button>
       </ProfileCard>
+      </div>
     </div>
   )
 }
@@ -235,14 +244,7 @@ function TaxBankCard() {
       ) : !data ? (
         <LoadError message={t(`${P}.taxBankError`)} retrying={query.isFetching} onRetry={() => void query.refetch()} />
       ) : (
-        <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
-          {rows.map((row) => (
-            <div key={row.label} className="contents">
-              <dt className="text-muted-foreground">{row.label}</dt>
-              <dd className="min-w-0 break-words text-foreground">{row.value ?? <span className="text-muted-foreground">{t(`${P}.notIndicated`)}</span>}</dd>
-            </div>
-          ))}
-        </dl>
+        <DescriptionList labelWidth="sm" items={rows.map((row) => ({ label: row.label, value: row.value, empty: t(`${P}.notIndicated`) }))} />
       )}
     </ProfileCard>
   )

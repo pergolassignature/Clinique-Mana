@@ -92,7 +92,7 @@ export function SinCard({ professionalId, data, collect }: SinCardProps) {
   )
 
   return (
-    <SettingsCard as="section" title={t(`${N}.title`)} footer={actions || undefined} headingRef={heading}>
+    <SettingsCard as="section" layout="section" title={t(`${N}.title`)} footer={actions || undefined} headingRef={heading}>
       <dl>
         <dt className="text-xs text-muted-foreground">{t(`${N}.label`)}</dt>
         <dd className="mt-0.5 text-sm text-foreground">{value}</dd>

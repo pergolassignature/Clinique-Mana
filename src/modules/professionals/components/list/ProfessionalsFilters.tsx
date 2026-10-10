@@ -96,14 +96,15 @@ export function ProfessionalsFilters(props: ProfessionalsFiltersProps) {
 }
 
 /**
- * « N résultats » (polite): screen readers also hear « Page X sur Y » when there are several pages,
- * so ‹ and ›, which keep the focus, say where they led.
+ * « N résultats » (polite), for screen readers only: the eye reads the count once, in the page's
+ * subtitle and, filtered, in the table's footer (audit 2026-10-09 §2.4). They also hear « Page X
+ * sur Y » when there are several pages, so ‹ and ›, which keep the focus, say where they led.
  */
 function ResultsStatus({ count, pagination }: { count: number; pagination: ProfessionalsFiltersProps['pagination'] }) {
   const results = t(count > 1 ? 'modules.professionals.list.resultsOther' : 'modules.professionals.list.resultsOne', { count: String(count) })
   const paged = pagination !== undefined && pagination.pageCount > 1
   return (
-    <p role="status" aria-atomic="true" className="tabular ml-auto whitespace-nowrap text-xs text-muted-foreground">
+    <p role="status" aria-atomic="true" className="sr-only">
       <span aria-hidden={paged || undefined}>{results}</span>
       {paged && (
         <span className="sr-only">
@@ -148,7 +149,13 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
 
 /** How many of the popover's filters narrow the list (each motif counts). */
 function popoverCount(f: ProfessionalsFilters): number {
-  return [f.titleId, f.languageId, f.clienteleId].filter(Boolean).length + f.motifIds.length + Number(f.acceptingNewClients) + Number(f.watch)
+  return (
+    [f.titleId, f.languageId, f.clienteleId].filter(Boolean).length +
+    f.motifIds.length +
+    Number(f.acceptingNewClients) +
+    Number(f.watch) +
+    Number(f.documentsIncomplete)
+  )
 }
 
 function MoreFilters({ filters, catalog, onChange, onToggleMotif, filtersButtonRef }: ProfessionalsFiltersProps) {
@@ -197,6 +204,11 @@ function MoreFilters({ filters, catalog, onChange, onToggleMotif, filtersButtonR
               onCheckedChange={(acceptingNewClients) => onChange({ acceptingNewClients })}
             />
             <CheckboxField label={t(`${F}.watch`)} checked={filters.watch} onCheckedChange={(watch) => onChange({ watch })} />
+            <CheckboxField
+              label={t(`${F}.documentsIncomplete`)}
+              checked={filters.documentsIncomplete}
+              onCheckedChange={(documentsIncomplete) => onChange({ documentsIncomplete })}
+            />
           </div>
         ) : null}
       </PopoverContent>
@@ -291,5 +303,6 @@ function activeChips(f: ProfessionalsFilters, catalog: CatalogView, { onChange, 
   }
   if (f.acceptingNewClients) chips.push({ key: 'new', label: t(`${F}.acceptingNewClients`), remove: () => onChange({ acceptingNewClients: false }) })
   if (f.watch) chips.push({ key: 'watch', label: t(`${F}.watch`), remove: () => onChange({ watch: false }) })
+  if (f.documentsIncomplete) chips.push({ key: 'documents', label: t(`${F}.documentsIncomplete`), remove: () => onChange({ documentsIncomplete: false }) })
   return chips
 }

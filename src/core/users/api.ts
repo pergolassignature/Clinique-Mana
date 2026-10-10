@@ -80,6 +80,29 @@ export async function setUserStatus(userId: string, status: UserStatus): Promise
   }
 }
 
+/**
+ * True when « Supprimer le compte » removed the person from the app but Auth refused to delete her
+ * sign-in (`users-delete`: 502 `provider_error` with `account_removed`). The same call retries it.
+ */
+export function isAccountRemovedError(error: unknown): boolean {
+  return error instanceof FunctionCallError && error.extra.account_removed === true
+}
+
+/**
+ * « Supprimer le compte » through `users-delete`: `delete_staff_account` as the caller (users.manage;
+ * not oneself; disabled first; only an admin deletes an admin; a module may refuse, e.g. an account
+ * linked to a professional file), then the Auth deletion. Throws the RPC's refusal as such (P0001
+ * with its French message, 42501), or the function's error (`isAccountRemovedError` when only the
+ * Auth deletion failed; calling again finishes it).
+ */
+export async function deleteUserAccount(userId: string): Promise<void> {
+  try {
+    await invokeFunction('users-delete', { user_id: userId })
+  } catch (error) {
+    throw asRpcRefusal(error)
+  }
+}
+
 export async function setPermissionOverride(userId: string, permissionKey: string, granted: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_permission_override', { p_user_id: userId, p_permission_key: permissionKey, p_granted: granted })
   if (error) throw error

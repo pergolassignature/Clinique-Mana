@@ -630,7 +630,9 @@ insert into public.scheduled_job_runs (id, job_key, org_id, trigger, status, sta
   ('d0000000-0000-0000-0000-000000000002', 'professionals.test_job', 'b0000000-0000-0000-0000-00000000000a', 'cron', 'running', now() - interval '14 minutes', null),
   ('d0000000-0000-0000-0000-000000000003', 'core.test_business', 'b0000000-0000-0000-0000-00000000000b', 'cron', 'running', now() - interval '20 minutes', '2026-01-01');
 
-select matches(private.job_scheduled_jobs_reconcile(), '^abandoned=\d+ reconciled=\d+ failed=\d+ deleted=\d+$',
+-- Since *_core_jobs_health.sql the detail ends with the « failing » notices' counts (091).
+select matches(private.job_scheduled_jobs_reconcile(),
+  '^abandoned=\d+ reconciled=\d+ failed=\d+ deleted=\d+ failing_notified=\d+ failing_cleared=\d+$',
   'job_scheduled_jobs_reconcile returns counts');
 select results_eq(
   $$ select request_id, outcome from public.scheduled_job_dispatches where request_id between 900000001 and 900000009 order by request_id $$,
@@ -653,7 +655,7 @@ select results_eq(
             ('d0000000-0000-0000-0000-000000000002', 'running', null, null),
             ('d0000000-0000-0000-0000-000000000003', 'error', 'abandoned', '2026-01-01') $$,
   'runs still running after 15 minutes are abandoned; a local-hour run keeps its clinic day');
-select is(private.job_scheduled_jobs_reconcile(), 'abandoned=0 reconciled=0 failed=0 deleted=0',
+select is(private.job_scheduled_jobs_reconcile(), 'abandoned=0 reconciled=0 failed=0 deleted=0 failing_notified=0 failing_cleared=0',
   'a second pass changes nothing');
 
 -- =============================================================================

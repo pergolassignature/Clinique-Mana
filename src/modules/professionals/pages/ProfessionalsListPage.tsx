@@ -30,11 +30,10 @@ const L = 'modules.professionals.list'
 const NO_STATES: ReadonlyMap<string, Onboarding> = new Map()
 
 /** « 12 professionnels · 9 actifs » (French: 0 and 1 are singular). */
-function subtitle(rows: readonly ProfessionalListRow[]): string {
-  const count = (n: number, one: TranslationKey, other: TranslationKey) => t(n > 1 ? other : one, { count: String(n) })
-  const active = rows.filter((row) => row.status === 'active').length
-  return `${count(rows.length, `${L}.countOne`, `${L}.countOther`)} · ${count(active, `${L}.activeOne`, `${L}.activeOther`)}`
-}
+const counted = (n: number, one: TranslationKey, other: TranslationKey) => t(n > 1 ? other : one, { count: String(n) })
+/** « 10 professionnels », the page header's count (A4's count slot, before « · 7 actifs »). */
+const totalLabel = (rows: readonly ProfessionalListRow[]) => counted(rows.length, `${L}.countOne`, `${L}.countOther`)
+const activeLabel = (rows: readonly ProfessionalListRow[]) => counted(rows.filter((row) => row.status === 'active').length, `${L}.activeOne`, `${L}.activeOther`)
 
 /**
  * « Professionnels » (design §5.1, design system §4): the clinic's professionals, filtered in the
@@ -95,7 +94,8 @@ export function ProfessionalsListPage() {
       <PageHeader
         level={1}
         title={t('modules.professionals.name')}
-        description={rows ? subtitle(rows) : undefined}
+        count={rows ? totalLabel(rows) : undefined}
+        description={rows ? activeLabel(rows) : undefined}
         actions={
           can('professionals.manage') || can('professionals.compensation') ? (
             <>
@@ -193,12 +193,17 @@ interface TableFooterProps {
   onPage: (page: number) => void
 }
 
-/** « 12 sur 40 professionnels » and « ‹ Page 1 sur 2 › » (a page change is a history entry). */
+/**
+ * « 12 sur 40 professionnels » while filtered, and « ‹ Page 1 sur 2 › » with several pages (a page
+ * change is a history entry); nothing for the whole list on one page, whose count is in the
+ * subtitle (one count per list, audit 2026-10-09 §2.6).
+ */
 function TableFooter({ shown, total, page, pageCount, onPage }: TableFooterProps) {
   const F = `${L}.footer` as const
+  if (shown === total && pageCount <= 1) return null
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-      <p className="tabular">{t(total > 1 ? `${F}.countOther` : `${F}.countOne`, { shown: String(shown), total: String(total) })}</p>
+      {shown !== total ? <p className="tabular">{t(total > 1 ? `${F}.countOther` : `${F}.countOne`, { shown: String(shown), total: String(total) })}</p> : <span />}
       <nav aria-label={t(`${F}.pagination`)} className="flex items-center gap-1">
         <PageButton label={t(`${F}.previous`)} inactive={page <= 1} onClick={() => onPage(page - 1)}>
           <ChevronLeft aria-hidden />

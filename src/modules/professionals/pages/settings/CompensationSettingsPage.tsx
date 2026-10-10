@@ -47,8 +47,8 @@ export function CompensationSettingsPage() {
   }
 
   return (
-    <div className="max-w-form space-y-5">
-      <PageHeader title={t(`${S}.title`)} description={t(`${S}.description`)} />
+    <div className="space-y-5">
+      <PageHeader level={1} title={t(`${S}.title`)} description={t(`${S}.description`)} />
       {content}
       {can('professionals.private') && can('professionals.settings') && <SinCollectionCard />}
     </div>

@@ -104,6 +104,8 @@ function renderPage(
 const tabNames = () => screen.getAllByRole('tab').map((tab) => tab.textContent)
 const fromName = () => screen.findByLabelText(new RegExp(`^${t('settings.email.sender.fromName')}`))
 const keysCard = () => screen.getByRole('region', { name: t('settings.email.keys.title') })
+/** « Domaine d'envoi »: its own section, apart from the keys (audit 2026-10-09). */
+const domainCard = () => screen.getByRole('region', { name: t('settings.email.keys.domain.title') })
 
 describe('EmailSettingsPage', () => {
   it('starts the sender, secret keys and last event reads together (no waterfall)', () => {
@@ -132,7 +134,7 @@ describe('EmailSettingsPage', () => {
       const keys = keysCard()
       expect(await within(keys).findByRole('button', { name: t('settings.secrets.replace', { label: t('settings.email.keys.apiKey') }) })).toBeInTheDocument()
       expect(within(keys).getByRole('button', { name: t('settings.secrets.add', { label: t('settings.email.keys.webhookSecret') }) })).toBeInTheDocument()
-      expect(within(keys).getByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))).not.toHaveAttribute('readonly')
+      expect(within(domainCard()).getByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))).not.toHaveAttribute('readonly')
     })
 
     it('shows the webhook address of the clinic, with « Copier », and the last event in clinic time', async () => {
@@ -177,10 +179,10 @@ describe('EmailSettingsPage', () => {
       const user = userEvent.setup()
       mocks.email.setEmailSendingDomain.mockResolvedValue(undefined)
       renderPage(ADMIN)
-      const domain = await within(keysCard()).findByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))
+      const domain = await within(domainCard()).findByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))
       await user.clear(domain)
       await user.type(domain, 'Courriel.CliniqueMana.com')
-      await user.click(within(keysCard()).getByRole('button', { name: t('common.save') }))
+      await user.click(within(domainCard()).getByRole('button', { name: t('common.save') }))
       const dialog = await screen.findByRole('alertdialog')
       expect(within(dialog).getByText(t('settings.email.keys.domain.confirmBody'))).toBeInTheDocument()
       expect(mocks.email.setEmailSendingDomain).not.toHaveBeenCalled()
@@ -191,10 +193,10 @@ describe('EmailSettingsPage', () => {
     it('focuses the sending domain with its error when it is invalid', async () => {
       const user = userEvent.setup()
       renderPage(ADMIN)
-      const domain = await within(keysCard()).findByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))
+      const domain = await within(domainCard()).findByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))
       await user.clear(domain)
       await user.type(domain, 'pas un domaine')
-      await user.click(within(keysCard()).getByRole('button', { name: t('common.save') }))
+      await user.click(within(domainCard()).getByRole('button', { name: t('common.save') }))
       expect(domain).toHaveFocus()
       expect(domain).toHaveAttribute('aria-invalid', 'true')
       expect(domain.getAttribute('aria-describedby')).toMatch(/-error/)
@@ -289,7 +291,7 @@ describe('EmailSettingsPage', () => {
       await waitFor(() => expect(mocks.secrets.listOrgSecretKeys).toHaveBeenCalled())
       expect(await within(keysCard()).findByText(t('settings.secrets.configured'))).toBeInTheDocument()
       expect(within(keysCard()).queryByRole('button', { name: /Remplacer|Ajouter/ })).not.toBeInTheDocument()
-      expect(within(keysCard()).getByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))).toHaveAttribute('readonly')
+      expect(within(domainCard()).getByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))).toHaveAttribute('readonly')
     })
 
     it('opens a template read-only, with its preview', async () => {
@@ -312,7 +314,7 @@ describe('EmailSettingsPage', () => {
       expect(tabNames()).toEqual(['Réglages', 'Modèles', "Historique d'envoi"])
       expect(await fromName()).not.toHaveAttribute('readonly')
       expect(within(keysCard()).getByText(t('settings.email.keys.readOnlyDescription'))).toBeInTheDocument()
-      expect(within(keysCard()).getByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))).toHaveAttribute('readonly')
+      expect(within(domainCard()).getByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))).toHaveAttribute('readonly')
       await within(keysCard()).findByText(t('settings.secrets.configured'))
       expect(within(keysCard()).queryByRole('button', { name: /Remplacer|Ajouter/ })).not.toBeInTheDocument()
 

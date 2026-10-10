@@ -91,10 +91,11 @@ afterEach(() => vi.clearAllMocks())
 describe('UsersSettingsPage', () => {
   it('lists the users with their role, status and last sign-in (« Jamais » when never)', async () => {
     renderPage()
-    expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.users') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('settings.sections.users') })).toBeInTheDocument()
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-    // « Inviter » replaces the note about adding people by hand (decision #22).
-    expect(screen.getByRole('button', { name: t('settings.users.invite.button') })).toBeInTheDocument()
+    // « Inviter » replaces the note about adding people by hand (decision #22), in the section's header (audit §2.4).
+    const invite = screen.getByRole('button', { name: t('settings.users.invite.button') })
+    expect(invite.compareDocumentPosition(screen.getByRole('tablist')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The admin may change everything here.
     expect(screen.queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
     expect(within(table()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
@@ -232,8 +233,8 @@ describe('UsersSettingsPage', () => {
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
     const usersTab = screen.getByRole('tab', { name: t('settings.users.tabs.users') })
     const rolesTab = screen.getByRole('tab', { name: t('settings.users.tabs.roles') })
-    // Tab reaches the list (Radix: the list is the tab stop and hands focus to the active tab).
-    screen.getByRole('heading', { level: 2, name: t('settings.sections.users') }).focus()
+    // From the header's « Inviter », Tab reaches the list (Radix: the list is the tab stop and hands focus to the active tab).
+    screen.getByRole('button', { name: t('settings.users.invite.button') }).focus()
     await userEvent.tab()
     expect(usersTab).toHaveFocus()
     expect(rolesTab).toHaveAttribute('tabindex', '-1')
@@ -285,7 +286,7 @@ describe('UsersSettingsPage', () => {
       const user = userEvent.setup()
       renderDirty()
       await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-      screen.getByRole('heading', { level: 2, name: t('settings.sections.users') }).focus()
+      screen.getByRole('button', { name: t('settings.users.invite.button') }).focus()
       await user.tab()
       await user.keyboard('{ArrowRight}')
       expect(rolesTab()).toHaveFocus()

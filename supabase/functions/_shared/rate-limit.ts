@@ -67,6 +67,15 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `users-delete` (« Supprimer le compte » and its retries), per caller: a
+   * brake on a runaway loop, far above what a clinic ever deletes.
+   */
+  usersDeleteUser: {
+    bucket: 'users.delete_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /**
    * `professionals-invite` (send, « Renvoyer », « Nouveau lien », update
    * request), per caller: each call issues a link or opens a submission and
    * sends an email, on top of the email limits. « Révoquer » is not counted.
@@ -433,6 +442,37 @@ export async function consume(
     allowed: row.allowed,
     hits: row.hits,
     retryAfter: row.retry_after_seconds,
+  }
+}
+
+/**
+ * Gives back one hit that `consume` allowed on `limit` for `keyParts`, when a
+ * later check refused the call (e.g. `places`: the clinic's ceiling after the
+ * caller's own limit), so a refused call never spends that quota. Best
+ * effort: `refund_rate_limit` (*_core_refund_rate_limit.sql) takes it off the
+ * current window, never below zero; a failure is reported, never thrown (the
+ * caller is already answering a refusal). Needs a service-role client.
+ */
+export async function refund(
+  client: SupabaseClient,
+  limit: RateLimit,
+  keyParts: string[],
+): Promise<void> {
+  const secret = Deno.env.get('INTERNAL_FUNCTION_SECRET')
+  // consume() cannot have allowed a hit without the secret.
+  if (!secret) return
+  // refund_rate_limit(p_bucket text, p_key_hash bytea, p_window_seconds int) returns void
+  const { error } = await client.rpc('refund_rate_limit', {
+    p_bucket: limit.bucket,
+    p_key_hash: byteaHex(await hashKey(keyParts, secret)),
+    p_window_seconds: limit.windowSeconds,
+  })
+  if (error) {
+    await reportError({
+      fn: 'rate-limit',
+      code: 'rate_limit_refund_failed',
+      ids: { bucket: limit.bucket },
+    })
   }
 }
 

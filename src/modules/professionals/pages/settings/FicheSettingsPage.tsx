@@ -14,7 +14,7 @@ export function FicheSettingsPage() {
   const { readOnly } = useSettingsSection()
   return (
     <div className="max-w-form space-y-5">
-      <PageHeader title={t(`${N}.title`)} description={t(`${N}.description`)} />
+      <PageHeader level={1} title={t(`${N}.title`)} description={t(`${N}.description`)} />
       {readOnly && <ReadOnlyNotice />}
       <FicheOptionsCard readOnly={readOnly} />
     </div>

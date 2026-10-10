@@ -89,7 +89,7 @@ const submit = (label: string) => userEvent.click(within(dialog()).getByRole('bu
 describe('ClientelesSettingsPage', () => {
   it('is the clientèles alone: the page heading, its description, one list and no approaches (P4-240)', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t(`${S}.title`) })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t(`${S}.title`) })).toBeInTheDocument()
     expect(screen.getByText(t(`${S}.description`))).toBeInTheDocument()
     expect(screen.getAllByRole('table')).toHaveLength(1)
     expect(screen.queryByText(/approche/i)).not.toBeInTheDocument()

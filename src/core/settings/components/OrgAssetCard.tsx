@@ -90,7 +90,7 @@ export function OrgAssetCard({ organization, kind }: OrgAssetCardProps) {
   const confirmed = useRef(false)
 
   return (
-    <SettingsCard as="section" title={t(`${texts}.title`)} description={t(`${texts}.description`)}>
+    <SettingsCard as="section" layout="section" title={t(`${texts}.title`)} description={t(`${texts}.description`)}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <AssetPreview fileId={fileId} alt={t(`${texts}.alt`)} empty={t(`${texts}.empty`)} />
         {!readOnly && (

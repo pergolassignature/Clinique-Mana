@@ -255,7 +255,10 @@ Deno.test('preview: the PDF, its pages, the signers by name and Annexe A’s val
       label: 'Profession',
       value: 'Psychologue',
     })
-    assertEquals(answer.summary[1].value, '12 (palier « 0 à 50 séances »)')
+    assertEquals(
+      answer.summary[1].value,
+      '12 (palier «\u202F0 à 50 séances\u202F»)',
+    )
     assert(String(answer.summary[2].value).includes('126'), 'the pay today')
     assert(!JSON.stringify(answer).includes('@'), 'no address in the answer')
     assert(!JSON.stringify(answer).includes(CLINIC_EMAIL))

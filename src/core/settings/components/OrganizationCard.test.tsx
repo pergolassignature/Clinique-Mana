@@ -58,6 +58,8 @@ const location = () => screen.getByTestId('location').textContent
  */
 const inactive = (button: HTMLElement) => expect(button).toHaveAttribute('aria-disabled', 'true')
 const active = (button: HTMLElement) => expect(button).not.toHaveAttribute('aria-disabled')
+/** A clean form shows no « Annuler / Enregistrer » at all (decision UI-2). */
+const noActions = () => expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
 async function edit(field: HTMLElement, value: string) {
   await userEvent.clear(field)
@@ -70,18 +72,16 @@ describe('OrganizationCard', () => {
     expect(screen.getByRole('form', { name: 'Clinique' })).toBeInTheDocument()
     expect(nameField()).toHaveValue('Clinique MANA')
     expect(neq()).toHaveValue('1234567890')
-    inactive(saveButton())
-    inactive(cancelButton())
-    // Presses are ignored: a click on either button, and Enter in a field, save nothing.
-    await userEvent.click(saveButton())
-    await userEvent.click(cancelButton())
+    noActions()
+    // Enter in a clean field saves nothing.
     await userEvent.type(neq(), '{Enter}')
     expect(mocks.api.updateOrganization).not.toHaveBeenCalled()
     expect(neq()).toHaveValue('1234567890')
   })
 
-  it('keeps the inactive buttons in the tab order (aria-disabled, not disabled)', async () => {
+  it('once dirty, Annuler then Enregistrer follow the fields in the tab order', async () => {
     renderOrganizationPage(card())
+    await edit(neq(), '9876543210')
     neq().focus()
     await userEvent.tab()
     expect(cancelButton()).toHaveFocus()
@@ -89,8 +89,9 @@ describe('OrganizationCard', () => {
     expect(saveButton()).toHaveFocus()
   })
 
-  it('puts Annuler before Enregistrer (reading and tab order)', () => {
+  it('puts Annuler before Enregistrer (reading and tab order)', async () => {
     renderOrganizationPage(card())
+    await edit(neq(), '9876543210')
     const buttons = screen.getAllByRole('button').map((b) => b.textContent)
     expect(buttons).toEqual([t('common.cancel'), t('common.save')])
   })
@@ -118,10 +119,9 @@ describe('OrganizationCard', () => {
       neq: '9876543210',
     })
     await waitFor(() => expect(neq()).toHaveValue('9876543210'))
-    inactive(saveButton())
-    inactive(cancelButton())
-    expect(saveButton()).toHaveFocus()
-    await userEvent.click(saveButton())
+    noActions()
+    // The buttons are gone: focus moves to the card's title, never to the page's body.
+    expect(screen.getByRole('heading', { name: 'Clinique' })).toHaveFocus()
     expect(mocks.api.updateOrganization).toHaveBeenCalledOnce()
   })
 
@@ -157,8 +157,7 @@ describe('OrganizationCard', () => {
     expect(neq()).toHaveValue('1234567890')
     expect(screen.queryByText(t('settings.validation.neq'))).not.toBeInTheDocument()
     expect(nameField()).toHaveFocus()
-    inactive(saveButton())
-    inactive(cancelButton())
+    noActions()
     await leave()
     expect(location()).toBe('/ailleurs')
   })
@@ -237,7 +236,7 @@ describe('OrganizationCard', () => {
     resolve({ ...testOrganization, neq: '9876543210' })
 
     await waitFor(() => expect(neq()).toHaveValue('9876543210'))
-    inactive(saveButton())
+    noActions()
   })
 
   it('keeps its validation errors when the organization changes underneath (another card saved, a refetch)', async () => {

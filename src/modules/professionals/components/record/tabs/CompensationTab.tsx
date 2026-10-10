@@ -2,6 +2,7 @@ import { Eye } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { LoadError, Loading } from '@/shared/components/LoadState'
+import { SectionSurface } from '@/shared/components/SettingsCard'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { useProfessionalCompensation } from '../../../hooks/use-compensation'
 import { useProfessionalPrivate } from '../../../hooks/use-private'
@@ -17,8 +18,8 @@ const C = 'modules.professionals.record.compensation'
 /**
  * « Rémunération et fiscalité » (Task 4a.18), seen with `professionals.compensation` or
  * `professionals.private`; each card follows its own permission. Compensation: « Rétention »
- * (P4-180…). Private data: « Fiscalité », « NAS », « Banque », each saved on
- * its own (P4-148). Its requests start together at mount (no waterfall), or earlier on the tab's
+ * (P4-180…). Private data: « Fiscalité », « NAS », « Banque », sections of one surface (audit
+ * 2026-10-09 §2.4), each saved on its own (P4-148), 32 px below the compensation. Its requests start together at mount (no waterfall), or earlier on the tab's
  * hover; a revealed value is never cached.
  */
 export function CompensationTab() {
@@ -62,18 +63,20 @@ export function CompensationTab() {
               </p>
             )}
           </div>
-          <TaxNumbersCard professionalId={id} data={data} />
-          <SinCard professionalId={id} data={data} collect={settings.data.collectSin} />
-          <BankCard professionalId={id} data={data} />
+          <SectionSurface>
+            <TaxNumbersCard professionalId={id} data={data} />
+            <SinCard professionalId={id} data={data} collect={settings.data.collectSin} />
+            <BankCard professionalId={id} data={data} />
+          </SectionSurface>
         </>
       )
     }
   }
 
   return (
-    <div className="max-w-form space-y-5">
+    <div className="space-y-8">
       {compensationContent}
-      {privateContent}
+      {privateContent && <div className="space-y-3">{privateContent}</div>}
     </div>
   )
 }

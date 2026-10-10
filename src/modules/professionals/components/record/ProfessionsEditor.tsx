@@ -13,7 +13,7 @@ import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import type { ProfessionalRecord } from '../../api/parse'
@@ -48,7 +48,7 @@ const toValues = (record: ProfessionalRecord, catalog: CatalogView): Values => (
  * (`set_professional_professions`). Removing the primary promotes the other row. A refusal goes
  * under the row and field its HINT and DETAIL name, else above the buttons.
  */
-export function ProfessionsEditor({ readOnly }: { readOnly: boolean }) {
+export function ProfessionsEditor({ readOnly, layout = 'card' }: { readOnly: boolean; layout?: 'card' | 'section' }) {
   const { record, catalog } = useRecordData()
   const id = record.professional.id
   const queryClient = useQueryClient()
@@ -114,8 +114,10 @@ export function ProfessionsEditor({ readOnly }: { readOnly: boolean }) {
 
   return (
     <SettingsCard
+      layout={layout}
       title={t(`${P}.title`)}
       description={t(`${P}.description`)}
+      dirty={isDirty}
       readOnly={readOnly}
       pending={pending}
       onSubmit={(event) => void submit(event)}
@@ -221,8 +223,8 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, pendin
 
   return (
     <div role="group" aria-label={rowLabel} className={cn('space-y-3', index > 0 && 'border-t border-border-light pt-3')}>
-      <div className="grid gap-3 md:grid-cols-2">
-        <FormField label={t(`${P}.titleField`)} required error={errors?.titleId?.message}>
+      <FormRow>
+        <FormField label={t(`${P}.titleField`)} width="md" required error={errors?.titleId?.message}>
           {(field) => (
             <Controller
               control={form.control}
@@ -257,6 +259,7 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, pendin
         {order && (
           <FormField
             label={order.licenceLabel}
+            width="sm"
             required
             help={editingHelp(readOnly, t(`${P}.licenceHelp`, { order: order.acronym }))}
             error={errors?.licenceNumber?.message}
@@ -266,7 +269,7 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, pendin
             )}
           </FormField>
         )}
-      </div>
+      </FormRow>
       {(rows > 1 || !readOnly) && (
         <div className="flex min-h-8 items-center justify-between gap-3">
           {rows > 1 ? (

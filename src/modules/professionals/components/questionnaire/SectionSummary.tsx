@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { t } from '@/i18n'
 import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone, formatTaxNumber } from '@/shared/lib/format'
-import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
+import { formatDateOnly } from '@/shared/lib/timezone'
 import type { MySubmission, SectionValues } from '../../api/self'
 import type { CatalogView } from '../../lib/catalog-view'
 import { AVAILABILITY_PERIODS, type Gender } from '../../lib/constants'
@@ -32,6 +32,8 @@ const ids = (values: SectionValues, key: string): string[] => {
 interface Row {
   label: string
   value: ReactNode
+  /** What an empty value reads; « Non indiqué » by default (« Non indiquée » for the address). */
+  empty?: string
 }
 
 /** A label and its value, one per line on a phone, side by side from `sm`. Empty reads « Non indiqué ». */
@@ -41,11 +43,25 @@ function Rows({ rows }: { rows: Row[] }) {
       {rows.map((row) => (
         <div key={row.label} className="contents">
           <dt className="text-muted-foreground">{row.label}</dt>
-          <dd className="min-w-0 break-words text-foreground">{row.value ?? <span className="text-muted-foreground">{t(`${R}.notAnswered`)}</span>}</dd>
+          <dd className="min-w-0 break-words text-foreground">{row.value ?? <span className="text-muted-foreground">{row.empty ?? t(`${R}.notAnswered`)}</span>}</dd>
         </div>
       ))}
     </dl>
   )
+}
+
+/**
+ * The address in one line, or null while neither the street nor the city is filled: the province
+ * alone is the form's default (« Québec »), not an address the professional gave.
+ */
+function addressText(values: SectionValues): string | null {
+  const line1 = text(values, 'address_line1')
+  const city = text(values, 'city')
+  if (!line1 && !city) return null
+  const province = text(values, 'province')
+  const street = [line1, text(values, 'address_line2')].filter(Boolean).join(', ')
+  const place = [city, province && provinceName(province), text(values, 'postal_code')].filter(Boolean).join(', ')
+  return [street, place].filter(Boolean).join(', ')
 }
 
 const yesNo = (value: boolean) => t(value ? `${R}.yes` : `${R}.no`)
@@ -71,14 +87,11 @@ interface ProfileSummaryProps {
 export function ProfileSectionSummary({ section, values, catalog, gender }: ProfileSummaryProps) {
   switch (section) {
     case 'personal': {
-      const province = text(values, 'province')
-      const place = [text(values, 'city'), province && provinceName(province), text(values, 'postal_code')].filter(Boolean).join(', ')
-      const street = [text(values, 'address_line1'), text(values, 'address_line2')].filter(Boolean).join(', ')
       return (
         <Rows
           rows={[
             { label: t(`${L}.personal.phone`), value: text(values, 'personal_phone') && formatPhone(text(values, 'personal_phone')) },
-            { label: t(`${L}.personal.address`), value: street || place ? [street, place].filter(Boolean).join(', ') : null },
+            { label: t(`${L}.personal.address`), value: addressText(values), empty: t(`${R}.addressNone`) },
           ]}
         />
       )
@@ -221,20 +234,9 @@ export function SectionSummary({ section, values, submission, catalog, onFile }:
         </div>
       )
     }
-    case 'consent': {
-      const signedId = text(values, 'consent_version_id')
-      const current = submission.consent !== null && signedId === submission.consent.id
-      const at = text(values, 'signed_at')
-      const params = { date: at ? formatClinicDateTime(at) : '', name: text(values, 'signer_name') ?? '' }
-      // Signed on an older text (the clinic published a newer one since): its version is named.
-      const older = !current && signedId !== null && submission.signedConsentVersion !== null
-      // Without the former e-consent: the consent signed through Documenso (P4-487).
-      if (!current && !older) return <MyConsentSummary />
-      return (
-        <p className="text-sm text-foreground">
-          {current ? t(`${L}.consent.signed`, params) : t(`${R}.signedVersion`, { ...params, version: String(submission.signedConsentVersion) })}
-        </p>
-      )
-    }
+    // The consent signed through Documenso (P4-487); a draft's former e-consent answer is no longer
+    // read (P4-507).
+    case 'consent':
+      return <MyConsentSummary />
   }
 }

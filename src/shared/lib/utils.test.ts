@@ -35,6 +35,16 @@ describe('cn', () => {
     expect(cn('max-w-content', 'max-w-form')).toBe('max-w-form')
   })
 
+  it('knows the layout widths and grid templates (audit 2026-10-09)', () => {
+    expect(cn('w-full', 'w-field-sm')).toBe('w-field-sm')
+    expect(cn('w-field-md', 'w-field-xs')).toBe('w-field-xs')
+    expect(cn('w-rail', 'w-auto')).toBe('w-auto')
+    expect(cn('w-section-aside', 'w-48')).toBe('w-48')
+    expect(cn('max-w-section-fields', 'max-w-form')).toBe('max-w-form')
+    expect(cn('grid-cols-2', 'xl:grid-cols-record', 'xl:grid-cols-1')).toBe('grid-cols-2 xl:grid-cols-1')
+    expect(cn('grid-cols-1', 'grid-cols-section')).toBe('grid-cols-section')
+  })
+
   it('knows the theme animations are animations', () => {
     expect(cn('animate-dialog-in', 'animate-dialog-in-top')).toBe('animate-dialog-in-top')
     expect(cn('animate-fade-in', 'animate-none')).toBe('animate-none')

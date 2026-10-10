@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ChevronDown, Lock } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { Forbidden, NotFound } from '@/core/access/guards'
 import type { SettingsSection } from '@/core/modules/types'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
@@ -36,14 +37,15 @@ const isCompactLayout = () => typeof window.matchMedia === 'function' && window.
 const HEADING_WAIT_MS = 5000
 
 /**
- * Focuses the first h2 the section pane shows, now or once its lazy page has loaded. Pages give
- * their h2 `tabIndex={-1}` (PageHeader does); a heading without one gets it here.
+ * Focuses the section's h1 (its title: the layout has no heading of its own, decision UI-4), now or
+ * once its lazy page has loaded. Pages give their h1 `tabIndex={-1}` (PageHeader does); a heading
+ * without one gets it here.
  * The wait is bounded: it stops on the first focus or pointer press inside the pane (the user is
  * already working there; a late heading must not steal focus from a field) or after 5 s.
  */
 function focusSectionHeading(pane: HTMLElement): () => void {
   const focus = () => {
-    const heading = pane.querySelector<HTMLElement>('h2')
+    const heading = pane.querySelector<HTMLElement>('h1')
     if (!heading) return false
     if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1
     heading.focus()
@@ -74,10 +76,12 @@ interface SettingsLayoutProps {
 
 /**
  * Settings shell (design system « SettingsNav »): one nested route per section the user can
- * access, at its French `path`, and a menu grouped under overlines. From `xl` up the menu is a
- * 200 px column; below (phones, tablets, small laptops), a disclosure button naming the current section opens
- * it above the page (groups in two columns from `sm`), and choosing a section closes it and moves
- * focus to the section's h2.
+ * access, at its French `path`, and a menu grouped under overlines. The section's title is the
+ * page's h1 (decision UI-4: the breadcrumb and the menu already say « Paramètres »). From `xl` up
+ * the menu is a 212 px column, 32 px from the section, that stays in view under the top bar (its
+ * own scroll when taller than the window); below (phones, tablets, small laptops), a disclosure
+ * button naming the current section opens it above the page (groups in two columns from `sm`),
+ * and choosing a section closes it and moves focus to the section's h1.
  * A section the user can see but not change shows a lock in the menu; its page reads `readOnly`
  * from `useSettingsSection()`. Each section has its own error boundary, so a crashing section
  * leaves the menu usable.
@@ -124,13 +128,11 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
     return () => wide.removeEventListener('change', onChange)
   }, [])
 
-  const title = <h1 className="mb-5 text-xl font-semibold tracking-tight">{t('settings.title')}</h1>
-
   if (!first) {
     return (
       <div>
         <PageTitle title={t('pageTitles.settings')} />
-        {title}
+        <h1 className="mb-5 text-xl font-semibold tracking-tight">{t('settings.title')}</h1>
         <FullPageMessage title={t('settings.empty')} headingLevel={2} compact />
       </div>
     )
@@ -138,10 +140,11 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
 
   return (
     <div>
-      {title}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-6">
-        {/* 212, not the handoff's 200: the longest label with its icon and a « Lecture seule » lock fits on one line. */}
-        <div className="xl:w-[212px] xl:shrink-0">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-8">
+        {/* 212, not the handoff's 200: the longest label with its icon and a « Lecture seule » lock fits on one line.
+            Sticky from xl, so long sections (Journal d'audit, Motifs) keep the menu in view; 4 px of
+            padding inside its scroll box (taken back by the margin) keeps the links' focus ring unclipped. */}
+        <div className="xl:sticky xl:top-[calc(var(--topbar-h)+1.25rem)] xl:-m-1 xl:max-h-[calc(100dvh-var(--topbar-h)-2.5rem)] xl:w-[220px] xl:shrink-0 xl:overflow-y-auto xl:p-1">
           <button
             type="button"
             aria-expanded={menuOpen}
@@ -214,7 +217,7 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
                 key={s.id}
                 path={s.path}
                 element={
-                  <RouteBoundary scope={sectionScope(s)} compact>
+                  <RouteBoundary scope={sectionScope(s)} compact headingLevel={1}>
                     <PageTitle title={`${t(s.labelKey)} · ${t('pageTitles.settings')}`} />
                     <SettingsSectionContext.Provider value={{ section: s, readOnly: isSectionReadOnly(s, can) }}>
                       <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
@@ -225,13 +228,12 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
                 }
               />
             ))}
+            {/* A section this user does not see reads « Accès refusé », like every page they may not
+                open; only a path that names no section is « Page introuvable ». */}
             <Route
               path="*"
               element={
-                <>
-                  <PageTitle title={t('pageTitles.settings')} />
-                  <FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} headingLevel={2} compact />
-                </>
+                sections.some((s) => isUnder(location.pathname, settingsSectionPath(s, basePath))) ? <Forbidden compact /> : <NotFound compact />
               }
             />
           </Routes>

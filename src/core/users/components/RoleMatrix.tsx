@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
 import { Switch } from '@/shared/ui/switch'
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { Table, TableBody, TableCaption, TableCell, TableGroupRow, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { usePendingRolePermissions, useRoleDefaults, useSetRolePermission, type RolePermissionVariables } from '../hooks'
 import {
   confirmsSelfRemoval,
@@ -323,12 +323,10 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
           {/* One tbody per module, headed by a rowgroup header. */}
           {groups.map((group) => (
             <TableBody key={group.key}>
-              <TableRow className="hover:bg-transparent">
-                <th scope="rowgroup" colSpan={roles.length + 1} className="border-t border-border bg-muted px-3 py-1.5 text-left text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {/* Sticky too, so the module name stays in view while the columns scroll. */}
-                  <span className="sticky left-3">{permissionGroupName(group)}</span>
-                </th>
-              </TableRow>
+              <TableGroupRow colSpan={roles.length + 1}>
+                {/* Sticky too, so the module name stays in view while the columns scroll. */}
+                <span className="sticky left-3">{permissionGroupName(group)}</span>
+              </TableGroupRow>
               {group.permissions.map((permission) => (
                 // No hover fill: the sticky cell would not follow it.
                 <TableRow key={permission.key} className="hover:bg-transparent">

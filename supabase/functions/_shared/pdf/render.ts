@@ -36,6 +36,7 @@
  * only the functions that render PDFs may import it (CLAUDE.md §7). The model
  * (`model.ts`) and template filling (`template.ts`) do not.
  */
+import { toBase64 } from '../bytes.ts'
 import { imageSize } from '../image-size.ts'
 import { sniff } from '../storage.ts'
 import {
@@ -231,11 +232,7 @@ function dataUrl(key: string, bytes: Uint8Array | undefined): string {
       `asset « ${key} » is over ${MAX_IMAGE_SIDE} px a side`,
     )
   }
-  let binary = ''
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  }
-  return `data:image/${type};base64,${btoa(binary)}`
+  return `data:image/${type};base64,${toBase64(bytes)}`
 }
 
 const box = (x: number, y: number, w: number, h: number) => ({

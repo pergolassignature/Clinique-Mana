@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup · Dossier, Identité et permis</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  /* Record page (proposed): compact sticky header + tabs, then main column + summary rail. */
+  .record-head {
+    position: sticky; top: var(--topbar-h); z-index: 20; background: var(--bg);
+    margin: calc(-1 * var(--page-pad)) calc(-1 * var(--page-pad)) 0; padding: var(--page-pad) var(--page-pad) 0;
+  }
+  .record-head .frame { display: block; }
+  .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .who { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+  .title-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .meta { margin-top: 2px; color: var(--text-secondary); }
+  .head-actions { display: flex; gap: 8px; }
+  .tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); margin-top: 16px; }
+  .tabs a { padding: 8px 0; color: var(--text-secondary); text-decoration: none; position: relative; }
+  /* Reserves the bold width so the strip does not shift when the active tab changes. */
+  .tabs a::after { content: attr(data-label); display: block; height: 0; visibility: hidden; font-weight: 500; overflow: hidden; }
+  .tabs a.on { color: var(--text); font-weight: 500; box-shadow: inset 0 -2px 0 var(--primary); }
+  .body { display: grid; grid-template-columns: minmax(0, 1fr) var(--rail-w); gap: 24px; margin-top: 24px; align-items: start; }
+  .rail { position: sticky; top: calc(var(--topbar-h) + 136px); display: flex; flex-direction: column; gap: 16px; }
+  .check { list-style: none; padding: 0; margin: 12px 0 0; }
+  .check li { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border-light); }
+  .check li:first-child { border-top: 0; padding-top: 0; }
+  .check .icon { margin-top: 2px; }
+  .ok { color: var(--success); }
+  .todo { color: var(--warning); }
+  .dirty-flag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--warning-fg); }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 40px; }
+  .compare img { width: 100%; border: 1px solid var(--border); border-radius: 6px; }
+  @media (max-width: 1279px) {
+    .body { grid-template-columns: minmax(0, 1fr); }
+    .rail { position: static; order: -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="note">
+  <span class="tag">Mockup 1 of 4 · After</span>
+  <span><strong>Record page, « Identité et permis »</strong>, admin, 1440 × 900 (resize the window: the rail moves above the content under 1280).</span>
+  <span>Before: tab content 640 px wide in a 1120 px frame (480 px empty at 1440, 770 px at 1920), 5 cards and 10 « Annuler / Enregistrer » buttons, 1 672 px tall, every field 297 or 606 px wide.</span>
+  <span>After: sections share one surface, header beside the fields, fields sized to their content, buttons only on the section being edited, the Dossier summary in a sticky rail on every tab, header and tabs sticky.</span>
+  <a href="../screenshots/desktop/admin-professionnels_p01_identite-1920.jpg">Before screenshot</a>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo"><img src="../../design-system/assets/logo-header.svg" alt="MANA"></div>
+    <nav>
+      <a href="#"><svg class="icon i16" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>Accueil</a>
+      <a href="#" class="active"><svg class="icon i16" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-7 7-7s7 3 7 7M17 4a4 4 0 0 1 0 8M22 21c0-3-2-5.5-4.5-6.5"/></svg>Professionnels</a>
+      <a href="#"><svg class="icon i16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Paramètres</a>
+    </nav>
+    <div class="me"><span class="avatar s24">AL</span><div><div class="t-label">Admin Local</div><div class="t-small">Administrateur</div></div></div>
+  </aside>
+
+  <div class="column">
+    <header class="topbar"><div class="frame">
+      <div class="crumbs"><svg class="icon i16" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg><span>Professionnels</span><span class="subtle">/</span><b>Geneviève Tremblay</b></div>
+      <div style="display:flex;gap:12px;align-items:center"><div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Rechercher…<span class="kbd">⌘K</span></div><span class="avatar s24">AL</span></div>
+    </div></header>
+
+    <main>
+      <div class="record-head"><div class="frame">
+        <div class="head-row">
+          <div class="who">
+            <span class="avatar s40">GT</span>
+            <div>
+              <div class="title-line"><h1 class="t-h1">Geneviève Tremblay</h1><span class="status"><span class="dot"></span>Actif</span></div>
+              <div class="meta">Psychologue · OPQ 08417 · genevieve.tremblay@exemple.test · <span class="chip">FR · EN</span></div>
+            </div>
+          </div>
+          <div class="head-actions">
+            <button class="btn"><svg class="icon" viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>Fiche PDF<svg class="icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+            <button class="btn icon-only" aria-label="Autres actions">⋯</button>
+          </div>
+        </div>
+        <nav class="tabs">
+          <a href="#" data-label="Aperçu">Aperçu</a><a href="#" data-label="Jumelage">Jumelage</a><a href="#" data-label="Profil public">Profil public</a><a href="#" class="on" data-label="Identité et permis">Identité et permis</a><a href="#" data-label="Documents">Documents</a><a href="#" data-label="Rémunération et fiscalité">Rémunération et fiscalité</a><a href="#" data-label="Historique">Historique</a>
+        </nav>
+      </div></div>
+
+      <div class="frame body">
+        <div class="card">
+          <form class="section">
+            <div class="aside"><h3 class="t-panel">Identité</h3><p class="t-small">Le nom et le genre servent au jumelage et à la forme du titre.</p></div>
+            <div class="fields">
+              <div class="row">
+                <div class="field w-md"><label>Prénom<span class="req">*</span></label><div class="input">Geneviève</div></div>
+                <div class="field w-md"><label>Nom<span class="req">*</span></label><div class="input">Tremblay</div></div>
+              </div>
+              <div class="field w-md"><label>Genre</label><div class="input">Femme<svg class="icon subtle" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+                <p class="help" style="margin:0">Utilisé pour la préférence du client et la forme du titre : « Travailleuse sociale » ou « Travailleur social ».</p></div>
+            </div>
+          </form>
+
+          <form class="section">
+            <div class="aside"><h3 class="t-panel">Coordonnées</h3><p class="t-small">Pour joindre Geneviève. Ne paraissent pas sur la fiche.</p>
+              <p class="dirty-flag" style="margin-top:12px"><span class="dot warn"></span>Modifications non enregistrées</p></div>
+            <div class="fields">
+              <div class="field"><label>Courriel de connexion</label>
+                <div class="row" style="flex-wrap:nowrap"><div class="input" style="background:var(--bg-secondary)">genevieve.tremblay@exemple.test</div><button type="button" class="btn">Modifier</button></div></div>
+              <div class="field w-md"><label>Téléphone personnel</label><div class="input" style="border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)">514 555-0142</div></div>
+              <div class="field"><label>Adresse</label><div class="input placeholder">Commencez à saisir l'adresse</div></div>
+              <div class="row">
+                <div class="field w-md"><label>Appartement ou bureau</label><div class="input placeholder">App. 4, bureau 210</div></div>
+              </div>
+              <div class="row">
+                <div class="field w-md"><label>Ville</label><div class="input">Québec</div></div>
+                <div class="field w-sm"><label>Province<span class="req">*</span></label><div class="input">Québec<svg class="icon subtle" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+                <div class="field w-xs"><label>Code postal</label><div class="input"></div></div>
+              </div>
+              <div class="actions"><button type="button" class="btn">Annuler</button><button class="btn primary">Enregistrer</button></div>
+            </div>
+          </form>
+
+          <form class="section">
+            <div class="aside"><h3 class="t-panel">Professions et permis</h3><p class="t-small">Deux titres au plus, dont un principal.</p></div>
+            <div class="fields">
+              <div class="row" style="align-items:flex-end">
+                <div class="field w-md"><label>Titre<span class="req">*</span></label><div class="input">Psychologue<svg class="icon subtle" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+                <div class="field w-sm"><label>N° de permis<span class="req">*</span></label><div class="input tabular">08417</div></div>
+                <button type="button" class="btn ghost">Retirer</button>
+              </div>
+              <p class="help" style="margin:-8px 0 0">Requis pour ce titre (OPQ).</p>
+              <div><button type="button" class="btn"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter un titre</button></div>
+            </div>
+          </form>
+
+          <form class="section">
+            <div class="aside"><h3 class="t-panel">Expérience et payeurs</h3><p class="t-small">Le n° IVAC est unique dans la clinique ; laissez vide pour le retirer.</p></div>
+            <div class="fields">
+              <div class="row">
+                <div class="field w-sm"><label>Années d&apos;expérience</label><div class="input tabular">18</div></div>
+                <div class="field w-sm"><label>N° IVAC</label><div class="input tabular">IVAC-20417</div></div>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <aside class="rail" aria-label="Résumé du dossier">
+          <section class="card card-pad">
+            <h3 class="t-panel">Dossier</h3>
+            <p class="t-small" style="margin:2px 0 0">Activé sans dossier complet : dossier complété hors application.</p>
+            <ul class="check">
+              <li><svg class="icon ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span>Profil de jumelage complet</span></li>
+              <li><svg class="icon todo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Compte pas encore créé<span class="t-small" style="display:block">Aucune invitation envoyée.</span></span></li>
+              <li><svg class="icon todo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Documents requis : 0 sur 3<span class="t-small" style="display:block">Photo, assurance, consentement à l'image</span></span></li>
+              <li><svg class="icon todo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Contrat de service pas encore signé</span></li>
+            </ul>
+          </section>
+          <section class="card card-pad">
+            <h3 class="t-panel">Prochaine action</h3>
+            <p style="margin:4px 0 12px" class="muted">Geneviève n'a pas encore reçu d'invitation pour créer son accès et remplir son questionnaire.</p>
+            <button class="btn primary">Envoyer l'invitation</button>
+          </section>
+          <section class="card card-pad">
+            <p class="t-over" style="margin:0 0 8px">En bref</p>
+            <dl class="dl" style="grid-template-columns:132px 1fr">
+              <dt>Places offertes</dt><dd class="empty">Non suivies</dd>
+              <dt>Nouveaux clients</dt><dd>Oui</dd>
+              <dt>Disponibilités</dt><dd>Matin · Après-midi</dd>
+            </dl>
+          </section>
+        </aside>
+      </div>
+
+      <div class="frame">
+        <div class="compare">
+          <figure style="margin:0"><figcaption class="t-over" style="margin-bottom:8px">Before · 1920</figcaption><img src="../screenshots/desktop/admin-professionnels_p01_identite-1920.jpg" alt="Before: record Identité tab at 1920 px"></figure>
+          <figure style="margin:0"><figcaption class="t-over" style="margin-bottom:8px">Before · conseillère, read-only, 1440</figcaption><img src="../screenshots/desktop/counselor-professionnels_p01_identite-1440.jpg" alt="Before: read-only Identité tab for a conseillère"></figure>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

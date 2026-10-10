@@ -12,15 +12,17 @@ interface RouteBoundaryProps {
   scope: string
   /** Pane-sized fallback with a level-2 heading (see ErrorBoundary). */
   compact?: boolean
+  /** The fallback's heading level, when not the default (2 when compact, else 1; see ErrorBoundary). */
+  headingLevel?: 1 | 2
   children: ReactNode
 }
 
-export function RouteBoundary({ scope, compact, children }: RouteBoundaryProps) {
+export function RouteBoundary({ scope, compact, headingLevel, children }: RouteBoundaryProps) {
   const { pathname } = useLocation()
   return (
     <QueryErrorResetBoundary>
       {({ reset }) => (
-        <ErrorBoundary scope={scope} resetKey={pathname} onReset={reset} compact={compact}>
+        <ErrorBoundary scope={scope} resetKey={pathname} onReset={reset} compact={compact} headingLevel={headingLevel}>
           {children}
         </ErrorBoundary>
       )}

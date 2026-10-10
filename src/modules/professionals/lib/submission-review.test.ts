@@ -106,9 +106,8 @@ describe('fieldWarning', () => {
   })
 
   it('a consent signed on a text replaced since; the latest text, or an older payload without the flag, is none', () => {
-    expect(fieldWarning({ field: 'consent', submitted: { version: 1, is_latest: false } }, TODAY)).toEqual({ kind: 'consent_outdated' })
-    expect(fieldWarning({ field: 'consent', submitted: { version: 2, is_latest: true } }, TODAY)).toBeNull()
-    expect(fieldWarning({ field: 'consent', submitted: { version: 1 } }, TODAY)).toBeNull()
+    // The consent is never applied (P4-507): no warning, whatever it holds.
+    expect(fieldWarning({ field: 'consent', submitted: { version: 1, is_latest: false } }, TODAY)).toBeNull()
     expect(fieldWarning({ field: 'city', submitted: 'Laval' }, TODAY)).toBeNull()
   })
 })

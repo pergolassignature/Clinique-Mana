@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { professionalCatalogKeys, professionalKeys } from '../../../hooks/keys'
 import { IDS } from '../../../test/fixtures'
-import { CONSENT_JSON, CV_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../../test/fixtures-documents'
+import { CONSENT_DOC_JSON, CV_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../../test/fixtures-documents'
 import { recordFixture } from '../../../test/fixtures-domain'
 import { renderRecordTab } from '../../../test/record-tab'
 import { DocumentsTab } from './DocumentsTab'
@@ -61,41 +61,53 @@ async function openTab({ role = 'admin', documents = documentsFixture(), record 
 const card = (name: string) => screen.getByRole('region', { name })
 const stateOf = (name: string) => card(name).querySelector('[data-type-state]')?.textContent
 
+describe('Documents tab — groups (audit 2026-10-09 §2.4)', () => {
+  it('reads as three groups under the tab, each type of « Documents requis » one level below', async () => {
+    await openTab()
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual([
+      t(`${D}.groups.contract`),
+      t(`${D}.required.title`),
+      t(`${D}.others.title`),
+    ])
+    expect(screen.getByRole('heading', { level: 4, name: INSURANCE })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 4, name: t('modules.professionals.contract.title') })).toBeInTheDocument()
+  })
+})
+
 describe('Documents tab — states by the clinic’s date', () => {
-  it('says each required type in words, the summary « 3 sur 3 », and the e-consent on the consent card', async () => {
+  it('says each required type in words, the summary « 3 sur 3 », and the signed consent without an end date (P4-504)', async () => {
     await openTab()
     expect(screen.getByText(t(`${D}.required.summary`, { done: '3', total: '3' }))).toBeInTheDocument()
     expect(stateOf(INSURANCE)).toBe("Valide jusqu'au 31 mars 2027")
     expect(stateOf(PHOTO)).toBe(t(`${D}.state.verified`))
-    expect(stateOf(CONSENT)).toBe("Valide jusqu'au 8 octobre 2027")
-    expect(card(CONSENT)).toHaveTextContent('Signé électroniquement le 8 oct. 2026 par Marie Tremblay (version 1)')
+    expect(stateOf(CONSENT)).toBe(t(`${D}.state.signedOn`, { date: '8 oct. 2026' }))
+    expect(card(CONSENT)).not.toHaveTextContent('valide jusqu')
     // The insurance's row: who sent it, who verified it.
     expect(card(INSURANCE)).toHaveTextContent('Téléversé le 1 oct. 2026 par Marie · Vérifié le 2 oct. 2026 par Julie Adjointe')
   })
 
-  it('« Expire le … » within the insurance’s reminder window (7 days), « Expiré » the day after its last day', async () => {
+  it('« Expire bientôt : valide jusqu’au … » within the insurance’s reminder window (7 days), « Expiré » the day after its last day (P4-511)', async () => {
     await openTab({ documents: documentsFixture({ today: '2027-03-23' }) })
     expect(stateOf(INSURANCE)).toBe("Valide jusqu'au 31 mars 2027")
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-03-24' }) })
-    expect(stateOf(INSURANCE)).toBe('Expire le 31 mars 2027')
+    expect(stateOf(INSURANCE)).toBe(t(`${D}.state.expiring`, { date: '31 mars 2027' }))
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-03-31' }) })
-    expect(stateOf(INSURANCE)).toBe('Expire le 31 mars 2027')
+    expect(stateOf(INSURANCE)).toBe(t(`${D}.state.expiring`, { date: '31 mars 2027' }))
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-04-01' }) })
     expect(stateOf(INSURANCE)).toBe("Expiré : valide jusqu'au 31 mars 2027")
     expect(screen.getByText(t(`${D}.required.summary`, { done: '2', total: '3' }))).toBeInTheDocument()
   })
 
-  it('« Manquant », « À vérifier » and « Refusé » with its reason; an e-consent past its date no longer counts', async () => {
+  it('« Manquant », « À vérifier » and « Refusé » with its reason; no consent document: missing', async () => {
     await openTab({
       documents: documentsFixture({
         documents: [
           documentJson({ status: 'pending', reviewed_at: null, reviewed_by_name: null }),
           documentJson({ id: DOC_IDS.refused, type_id: IDS.photoType, type_key: 'photo', status: 'rejected', expires_on: null, rejection_reason: 'Photo floue.', file: null }),
         ],
-        consent: { ...CONSENT_JSON, expires_on: '2026-10-08' },
       }),
     })
     expect(stateOf(INSURANCE)).toBe(t(`${D}.state.pending`))
@@ -164,7 +176,7 @@ describe('Documents tab — states by the clinic’s date', () => {
 })
 
 describe('Documents tab — actions by permission', () => {
-  const pending = () => documentsFixture({ documents: [documentJson({ status: 'pending', reviewed_at: null, reviewed_by_name: null }), PHOTO_JSON] })
+  const pending = () => documentsFixture({ documents: [documentJson({ status: 'pending', reviewed_at: null, reviewed_by_name: null }), PHOTO_JSON, CONSENT_DOC_JSON] })
 
   it('the admin: Vérifier, Refuser on a pending document; Supprimer in « … »; « Téléverser » everywhere', async () => {
     await openTab({ documents: pending() })
@@ -176,7 +188,7 @@ describe('Documents tab — actions by permission', () => {
     expect(screen.getByRole('menuitem', { name: t(`${D}.actions.redate`) })).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(screen.getByRole('button', { name: t(`${D}.actions.replaceLabel`, { type: PHOTO }) })).toBeInTheDocument()
-    // The e-consent in force counts: « Remplacer » there too.
+    // The signed consent counts: « Remplacer » there too.
     expect(screen.getByRole('button', { name: t(`${D}.actions.replaceLabel`, { type: CONSENT }) })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: INSURANCE }) })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: t(`${D}.actions.uploadOther`) })).toBeInTheDocument()
@@ -265,6 +277,48 @@ describe('Documents tab — upload', () => {
     chooseFile(pdf())
     expect(await within(dialog).findAllByText("L'échéance doit être aujourd'hui ou plus tard.")).toHaveLength(2)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('after the database refused the date, « Joindre ce fichier » attaches the same file with the corrected date, without sending it again', async () => {
+    const refusal = { code: 'P0001', message: "L'échéance doit être aujourd'hui ou plus tard.", hint: 'expires_on' }
+    mocks.documents.uploadProfessionalDocument.mockImplementationOnce(async (input: { onUploaded?: (id: string) => void }) => {
+      input.onUploaded?.(DOC_IDS.renewalFile)
+      throw refusal
+    })
+    mocks.documents.uploadProfessionalDocument.mockResolvedValueOnce(DOC_IDS.insuranceRenewal)
+    await openTab({ documents: documentsFixture({ documents: [PHOTO_JSON] }) })
+    await userEvent.click(screen.getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: INSURANCE }) }))
+    const dialog = await screen.findByRole('dialog')
+    chooseFile(pdf())
+    const attach = await within(dialog).findByRole('button', { name: t(`${D}.upload.attachKept`) })
+    expect(within(dialog).getByText(t(`${D}.upload.kept`, { name: 'assurance.pdf' }).replace(/\s+/g, ' '))).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: t(`${D}.upload.chooseAnother`) })).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText(new RegExp(t(`${D}.upload.expiresOn`))), { target: { value: '2027-06-30' } })
+    await userEvent.click(attach)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.documents.uploadProfessionalDocument).toHaveBeenCalledTimes(2)
+    expect(mocks.documents.uploadProfessionalDocument).toHaveBeenLastCalledWith(
+      expect.objectContaining({ typeKey: 'insurance', expiresOn: '2027-06-30', uploadedFileId: DOC_IDS.renewalFile }),
+    )
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${D}.toasts.uploaded`))
+  })
+
+  it('a kept file whose attach then fails for another reason is dropped, and the reason shown', async () => {
+    const refusal = { code: 'P0001', message: "L'échéance doit être aujourd'hui ou plus tard.", hint: 'expires_on' }
+    mocks.documents.uploadProfessionalDocument.mockImplementationOnce(async (input: { onUploaded?: (id: string) => void }) => {
+      input.onUploaded?.(DOC_IDS.renewalFile)
+      throw refusal
+    })
+    mocks.documents.uploadProfessionalDocument.mockRejectedValueOnce({ code: 'P0001', message: 'Ce fichier ne peut plus être joint : envoyez-le de nouveau.' })
+    await openTab({ documents: documentsFixture({ documents: [PHOTO_JSON] }) })
+    await userEvent.click(screen.getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: INSURANCE }) }))
+    const dialog = await screen.findByRole('dialog')
+    chooseFile(pdf())
+    await userEvent.click(await within(dialog).findByRole('button', { name: t(`${D}.upload.attachKept`) }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ce fichier ne peut plus être joint : envoyez-le de nouveau.')
+    expect(within(dialog).queryByRole('button', { name: t(`${D}.upload.attachKept`) })).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: t(`${D}.upload.choose`) })).toBeInTheDocument()
   })
 })
 

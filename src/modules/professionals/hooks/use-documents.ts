@@ -7,20 +7,16 @@ import { toast } from '@/shared/ui/sonner'
 import {
   deleteProfessionalDocument,
   documentDownloadUrl,
-  discardConsentDraft,
-  fetchConsentVersions,
   fetchMyDocuments,
   fetchProfessionalDocuments,
-  publishConsentVersion,
   rejectProfessionalDocument,
-  saveConsentDraft,
   setProfessionalDocumentExpiry,
   uploadProfessionalDocument,
   verifyProfessionalDocument,
   type DocumentUploadInput,
   type RejectResult,
 } from '../api/documents'
-import { professionalCatalogKeys, professionalKeys, professionalsSettingsKeys } from './keys'
+import { professionalCatalogKeys, professionalKeys } from './keys'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
 import { refreshProfessionalHistory } from './use-professional-record'
 
@@ -45,20 +41,6 @@ export function prefetchProfessionalDocuments(queryClient: QueryClient, id: stri
 /** « Mes documents »: the signed-in professional's own documents (null without a file). */
 export function useMyDocuments() {
   return useQuery({ queryKey: professionalKeys.myDocuments(), queryFn: fetchMyDocuments, staleTime: 30_000 })
-}
-
-/** « Paramètres → Consentements ». */
-export function useConsentVersions() {
-  return useQuery({ queryKey: professionalsSettingsKeys.consents(), queryFn: () => fetchConsentVersions(), staleTime: 60_000 })
-}
-
-/**
- * The versions as the database holds them now (refetched, never the cache), for the checks before
- * a save or a publish (P4-463): a colleague's edit since the page loaded is said, never overwritten
- * nor published unseen.
- */
-export function fetchCurrentConsentVersions(queryClient: QueryClient) {
-  return queryClient.fetchQuery({ queryKey: professionalsSettingsKeys.consents(), queryFn: () => fetchConsentVersions(), staleTime: 0 })
 }
 
 // --- Document changes ----------------------------------------------------------------------------
@@ -180,19 +162,3 @@ export function useDocumentDownload() {
       ),
   })
 }
-
-// --- « Consentements » ---------------------------------------------------------------------------
-
-function useConsentMutation<V, R>(fn: (variables: V) => Promise<R>, message: string, feedback?: MutationFeedback) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (variables: V) => fn(variables),
-    onSuccess: () => toast.success(message),
-    onError: (error) => showMutationError(queryClient, error, feedback),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: professionalsSettingsKeys.consents() }),
-  })
-}
-
-export const useSaveConsentDraft = (feedback?: MutationFeedback) => useConsentMutation(saveConsentDraft, t(`${T}.draftSaved`), feedback)
-export const usePublishConsentVersion = (feedback?: MutationFeedback) => useConsentMutation(publishConsentVersion, t(`${T}.published`), feedback)
-export const useDiscardConsentDraft = (feedback?: MutationFeedback) => useConsentMutation(discardConsentDraft, t(`${T}.draftDiscarded`), feedback)

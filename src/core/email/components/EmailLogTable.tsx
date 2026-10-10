@@ -15,6 +15,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Select } from '@/shared/ui/select'
 import { StatusDot } from '@/shared/ui/status-dot'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { SectionHeading } from '@/shared/components/SectionHeading'
 
 const PERIODS = ['7d', '30d', 'all'] as const
 type Period = (typeof PERIODS)[number]
@@ -140,10 +141,8 @@ export function EmailLogTable() {
   }
 
   return (
-    <section className="space-y-3">
-      <h3 id={headingId} className="text-base font-semibold text-foreground">
-        {t('settings.email.log.title')}
-      </h3>
+    <section aria-labelledby={headingId} className="space-y-3">
+      <SectionHeading id={headingId}>{t('settings.email.log.title')}</SectionHeading>
       <div role="group" aria-label={t('settings.email.log.filters.label')} className="grid gap-3 sm:max-w-form sm:grid-cols-3">
         {/* Without the list, only « Tous les modèles »: the hint says why the filter is empty. */}
         <FormField

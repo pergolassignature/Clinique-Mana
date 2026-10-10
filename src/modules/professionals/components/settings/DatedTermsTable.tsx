@@ -1,9 +1,9 @@
-import { Fragment, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { Table, TableBody, TableCell, TableGroupRow, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import type { MutationFeedback } from '../../hooks/mutation-feedback'
 import { datedStatus, lastDay, type DatedRow } from '../../lib/compensation'
 import { ConfirmDeleteDialog, DatedStatusBadge } from '../compensation/DatedRowParts'
@@ -80,59 +80,51 @@ export function DatedTermsTable<R extends DatedRow>({
             )}
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {groups.map((group) => (
-            <Fragment key={group.key}>
-              {group.name !== null && (
-                <TableRow className="hover:bg-transparent">
-                  <TableHead scope="colgroup" colSpan={columns} className="h-8 pt-3 text-xs font-semibold text-foreground">
-                    {group.name}
-                  </TableHead>
-                </TableRow>
-              )}
-              {group.rows.map((row) => {
-                const end = lastDay(row.effectiveTo)
-                return (
-                  <TableRow key={row.id} className="align-top">
-                    <TableCell>{renderValue(row)}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDateOnlyShort(row.effectiveFrom)}
-                      {end !== null && (
-                        <span className="block text-xs text-muted-foreground sm:hidden">
-                          {t(`${W}.period.until`, { date: formatDateOnlyShort(end) })}
-                        </span>
+        {groups.map((group) => (
+          <TableBody key={group.key}>
+            {group.name !== null && <TableGroupRow colSpan={columns}>{group.name}</TableGroupRow>}
+            {group.rows.map((row) => {
+              const end = lastDay(row.effectiveTo)
+              return (
+                <TableRow key={row.id} className="align-top">
+                  <TableCell>{renderValue(row)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {formatDateOnlyShort(row.effectiveFrom)}
+                    {end !== null && (
+                      <span className="block text-xs text-muted-foreground sm:hidden">
+                        {t(`${W}.period.until`, { date: formatDateOnlyShort(end) })}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap max-sm:hidden">{end === null ? '—' : formatDateOnlyShort(end)}</TableCell>
+                  <TableCell>
+                    <DatedStatusBadge status={datedStatus(row, today)} />
+                  </TableCell>
+                  {anyDeletable && (
+                    <TableCell className="py-1 text-right">
+                      {deletable(row) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={deleteLabel(row)}
+                          onClick={(event) => {
+                            trigger.current = event.currentTarget
+                            setRefusal(null)
+                            setToDelete(row)
+                          }}
+                        >
+                          <Trash2 aria-hidden className="sm:hidden" />
+                          <span className="max-sm:sr-only">{t(`${W}.delete`)}</span>
+                        </Button>
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap max-sm:hidden">{end === null ? '—' : formatDateOnlyShort(end)}</TableCell>
-                    <TableCell>
-                      <DatedStatusBadge status={datedStatus(row, today)} />
-                    </TableCell>
-                    {anyDeletable && (
-                      <TableCell className="py-1 text-right">
-                        {deletable(row) && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={deleteLabel(row)}
-                            onClick={(event) => {
-                              trigger.current = event.currentTarget
-                              setRefusal(null)
-                              setToDelete(row)
-                            }}
-                          >
-                            <Trash2 aria-hidden className="sm:hidden" />
-                            <span className="max-sm:sr-only">{t(`${W}.delete`)}</span>
-                          </Button>
-                        )}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                )
-              })}
-            </Fragment>
-          ))}
-        </TableBody>
+                  )}
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        ))}
       </Table>
       <ConfirmDeleteDialog
         open={toDelete !== null}

@@ -24,6 +24,12 @@ const N = 'modules.professionals.settings.contracts'
 const FILTERS = ['all', 'published', 'draft', 'unpublished', 'retired'] as const
 type Filter = (typeof FILTERS)[number]
 
+/**
+ * The filters and the search show from this many templates, when the list can outgrow a screen
+ * (audit 2026-10-09 §2.6): five filters and a search for two templates were noise.
+ */
+const FILTERS_FROM = 8
+
 /** Which filters a template answers to (« Publié », « Brouillon en cours », « Non publié », « Retiré »). */
 function matches(template: ContractTemplate, filter: Filter): boolean {
   switch (filter) {
@@ -49,7 +55,8 @@ function publicationLabel(template: ContractTemplate): string {
 
 /**
  * Paramètres → Contrats et formulaires (Task 4d.3, A5.7; P4-482): the module's document templates
- * (« Contrat de service », « Consentement au droit à l'image ») with a status filter and a search, the selected one's editor (`TemplateEditor`), and the
+ * (« Contrat de service », « Consentement au droit à l'image »), with a status filter and a search once
+ * they are `FILTERS_FROM` or more, the selected one's editor (`TemplateEditor`), and the
  * clinic's signer from « Signataire ». Seen with `professionals.manage` or `.settings`, changed
  * with `professionals.settings` (the template's edit permission; read-only otherwise, one notice).
  */
@@ -61,15 +68,16 @@ export function ContractsSettingsPage() {
   const [selected, setSelected] = useState<string | null>(null)
 
   const all = templates.data ?? []
-  const needle = query.trim().toLocaleLowerCase('fr-CA')
-  const shown = all.filter((tpl) => matches(tpl, filter) && (needle === '' || tpl.title.toLocaleLowerCase('fr-CA').includes(needle)))
+  const filtering = all.length >= FILTERS_FROM
+  const needle = filtering ? query.trim().toLocaleLowerCase('fr-CA') : ''
+  const shown = filtering ? all.filter((tpl) => matches(tpl, filter) && (needle === '' || tpl.title.toLocaleLowerCase('fr-CA').includes(needle))) : all
   // A single template opens by itself; with several, « Ouvrir » picks one.
   const open = all.find((tpl) => tpl.id === selected) ?? (all.length === 1 ? all[0] : null)
 
   return (
     <div className="space-y-5">
       <div className="max-w-form space-y-5">
-        <PageHeader title={t(`${N}.title`)} description={t(`${N}.description`)} />
+        <PageHeader level={1} title={t(`${N}.title`)} description={t(`${N}.description`)} />
         {readOnly && <ReadOnlyNotice />}
         <SettingsCard as="section" title={t(`${N}.list.title`)} description={t(`${N}.list.description`)}>
           {templates.isPending ? (
@@ -82,28 +90,30 @@ export function ContractsSettingsPage() {
             />
           ) : (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                {/* Five filters do not fit a phone: they scroll inside the card, never the page. */}
-                <div className="max-w-full overflow-x-auto">
-                  <SegmentedToggle
-                    label={t(`${N}.list.filterLabel`)}
-                    value={filter}
-                    onChange={setFilter}
-                    options={FILTERS.map((value) => ({
-                      value,
-                      label: t(`${N}.list.filter`, { label: t(`${N}.list.filters.${value}`), count: String(all.filter((tpl) => matches(tpl, value)).length) }),
-                    }))}
+              {filtering && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {/* Five filters do not fit a phone: they scroll inside the card, never the page. */}
+                  <div className="max-w-full overflow-x-auto">
+                    <SegmentedToggle
+                      label={t(`${N}.list.filterLabel`)}
+                      value={filter}
+                      onChange={setFilter}
+                      options={FILTERS.map((value) => ({
+                        value,
+                        label: t(`${N}.list.filter`, { label: t(`${N}.list.filters.${value}`), count: String(all.filter((tpl) => matches(tpl, value)).length) }),
+                      }))}
+                    />
+                  </div>
+                  <Input
+                    type="search"
+                    aria-label={t(`${N}.list.search`)}
+                    placeholder={t(`${N}.list.search`)}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="sm:w-56"
                   />
                 </div>
-                <Input
-                  type="search"
-                  aria-label={t(`${N}.list.search`)}
-                  placeholder={t(`${N}.list.search`)}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="sm:w-56"
-                />
-              </div>
+              )}
               {shown.length === 0 ? (
                 <EmptyState title={t(`${N}.list.emptyTitle`)} body={t(`${N}.list.emptyBody`)} />
               ) : (
@@ -120,8 +130,15 @@ export function ContractsSettingsPage() {
                         </p>
                       </div>
                       {open?.id !== tpl.id && (
-                        <Button type="button" size="sm" variant="outline" className="self-start" onClick={() => setSelected(tpl.id)}>
-                          {t(`${N}.list.open`, { title: tpl.title })}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="self-start"
+                          aria-label={t(`${N}.list.open`, { title: tpl.title })}
+                          onClick={() => setSelected(tpl.id)}
+                        >
+                          {t(`${N}.list.openShort`)}
                         </Button>
                       )}
                     </li>

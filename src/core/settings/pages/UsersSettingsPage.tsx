@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type RefObject } from 'react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { roleLabel } from '@/core/access/roles'
@@ -33,8 +33,8 @@ const isTab = (value: string): value is Tab => (TABS as string[]).includes(value
  * users.manage, a row opens the user's sheet (role, status, permission overrides), else the table
  * is read-only; the matrix follows roles.manage. The section is read-only (the lock, one notice
  * for the page) only without either; otherwise a read-only users tab has its own notice.
- * People join by invitation (« Inviter », users.manage; Task 3.22): pending invitations are rows of
- * the same table.
+ * People join by invitation (« Inviter », users.manage; Task 3.22), the section's one teal action,
+ * in its header (audit 2026-10-09 §2.4): pending invitations are rows of the same table.
  */
 export function UsersSettingsPage() {
   const { readOnly } = useSettingsSection()
@@ -47,10 +47,18 @@ export function UsersSettingsPage() {
   const tab = selected !== null && tabs.includes(selected) ? selected : (tabs[0] ?? 'roles')
   // A tab's content unmounts when another tab opens: unsaved edits there would go silently.
   const { onValueChange, triggerProps } = useGuardedTabs(tab, isTab, setTab)
+  // « Inviter », where focus goes once an invitation's revocation is confirmed (its row goes).
+  const inviteButton = useRef<HTMLButtonElement>(null)
+  const canInvite = canManageUsers && tabs.includes('users')
 
   return (
-    <div className="max-w-content space-y-5">
-      <PageHeader title={t('settings.sections.users')} description={t('settings.users.description')} />
+    <div className="space-y-5">
+      <PageHeader
+        level={1}
+        title={t('settings.sections.users')}
+        description={t('settings.users.description')}
+        actions={canInvite && <InviteDialog triggerRef={inviteButton} />}
+      />
       {readOnly && <ReadOnlyNotice />}
       {/* Page-level views: real tabs, reachable by keyboard (decision #35). */}
       <Tabs value={tab} onValueChange={onValueChange}>
@@ -64,7 +72,7 @@ export function UsersSettingsPage() {
         {tabs.includes('users') && (
           <TabsContent value="users" className="mt-5 space-y-5">
             {!readOnly && !canManageUsers && <ReadOnlyNotice />}
-            <UsersTab canManage={canManageUsers} />
+            <UsersTab canManage={canManageUsers} inviteButton={inviteButton} />
           </TabsContent>
         )}
         <TabsContent value="roles" className="mt-5">
@@ -81,15 +89,13 @@ export function UsersSettingsPage() {
  * « Réessayer » asks again for what failed. When only the invitations fail, the users still show,
  * with the invitations' own load error above them.
  */
-function UsersTab({ canManage }: { canManage: boolean }) {
+function UsersTab({ canManage, inviteButton }: { canManage: boolean; inviteButton: RefObject<HTMLButtonElement | null> }) {
   const usersQuery = useOrgUsers()
   const invitationsQuery = useStaffInvitations()
   const users = usersQuery.data
   const failed = [usersQuery, invitationsQuery].filter((q) => q.isError && !q.data)
   const invitationsFailed = invitationsQuery.isError && !invitationsQuery.data
   const invitations = invitationsQuery.data ?? (invitationsFailed ? [] : undefined)
-  // « Inviter », where focus goes once an invitation's revocation is confirmed (its row goes).
-  const inviteButton = useRef<HTMLButtonElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // From the list, so the sheet shows the refreshed user after each change.
   const selected = users?.find((u) => u.user_id === selectedId) ?? null
@@ -117,12 +123,6 @@ function UsersTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-3">
-      {/* The screen's one teal action (users.manage). */}
-      {canManage && (
-        <div className="flex justify-end">
-          <InviteDialog triggerRef={inviteButton} />
-        </div>
-      )}
       {usersQuery.isError && !users ? (
         <LoadError
           message={t('settings.users.loadError')}
@@ -156,7 +156,10 @@ function UsersTab({ canManage }: { canManage: boolean }) {
           user={selected}
           onClose={() => setSelectedId(null)}
           returnFocus={() => {
-            if (lastOpened.current) nameButtons.current.get(lastOpened.current)?.focus()
+            // A deleted account's row is gone: focus goes to « Inviter » instead.
+            const row = lastOpened.current ? nameButtons.current.get(lastOpened.current) : undefined
+            const target = row ?? inviteButton.current
+            target?.focus()
           }}
         />
       )}

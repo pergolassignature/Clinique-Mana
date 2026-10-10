@@ -77,8 +77,8 @@ select functions_are('public', array[
   'clear_permission_overrides',
   'set_role_permission', 'create_role', 'rename_role', 'delete_role',
   'list_audit_entries', 'list_audit_actors',
-  'consume_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at',
-  'list_job_orgs', 'start_job_run', 'finish_job_run',
+  'consume_rate_limit', 'refund_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at',
+  'list_job_orgs', 'start_job_run', 'finish_job_run', 'jobs_health_report',
   'list_scheduled_jobs', 'list_scheduled_job_runs', 'set_scheduled_job_enabled', 'run_scheduled_job_now',
   'set_email_sender', 'set_email_sending_domain', 'list_email_templates', 'save_email_template', 'reset_email_template',
   'list_email_log', 'list_subject_emails',
@@ -91,7 +91,7 @@ select functions_are('public', array[
   'create_pending_upload', 'get_pending_upload', 'confirm_stored_file', 'reject_stored_file', 'register_system_file',
   'list_files_to_purge', 'mark_files_purged', 'set_org_asset',
   'set_signing_settings', 'create_document_template', 'create_template_version', 'update_template_version',
-  'publish_template_version', 'archive_template_version', 'list_document_templates',
+  'publish_template_version', 'archive_template_version', 'list_document_templates', 'list_document_template_versions',
   'list_subject_signature_requests', 'get_signature_request',
   'get_signing_context', 'create_signature_request', 'mark_signature_request_sent', 'mark_signature_request_failed',
   'apply_signing_event', 'complete_signature_request', 'list_signature_requests_to_reconcile', 'expire_signature_request',
@@ -110,7 +110,7 @@ select functions_are('public', array[
   'get_professional_compensation', 'list_retention_review',
   'create_professional_invitation', 'revoke_professional_invitation', 'request_professional_update',
   'resolve_professional_invitation', 'link_professional_account', 'list_professional_invitation_states', 'get_professional_onboarding',
-  'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private', 'sign_my_consent', 'submit_my_submission',
+  'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private', 'submit_my_submission',
   'get_my_professional_private', 'start_my_profile_update',
   'get_submission_review', 'apply_professional_submission', 'reject_professional_submission',
   'list_professional_invitations_to_remind_for_service', 'reissue_professional_invitation_for_service',
@@ -124,10 +124,11 @@ select functions_are('public', array[
   'run_professionals_document_notices_for_service', 'cancel_professional_submission',
   'get_consent_versions', 'save_consent_draft', 'publish_consent_version', 'discard_consent_draft',
   'get_professional_document_rejection_for_service',
-  'prepare_professional_contract', 'get_professional_contract',
+  'prepare_professional_contract', 'get_professional_contract', 'record_professional_paper_contract',
   'copy_professional_invitation_link', 'record_professional_invitation_email_failure_for_service',
   'prepare_professional_image_consent', 'get_professional_image_consent', 'prepare_my_image_consent', 'get_my_image_consent',
-  'search_professionals'
+  'search_professionals',
+  'delete_staff_account'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

@@ -15,10 +15,12 @@ import {
   fetchTemplateVersions,
   listContractTemplates,
   publishTemplateVersion,
+  recordPaperContract,
   sendProfessionalContract,
   updateTemplateVersion,
   type ContractAction,
   type DraftContent,
+  type PaperContractInput,
   type SigningForm,
 } from '../api/contracts'
 import { contractTemplateKeys, isContractKey, professionalKeys } from './keys'
@@ -122,12 +124,16 @@ export function useSendContract(professionalId: string, firstName: string, feedb
   const keys = useRef<Partial<Record<ContractAction, string>>>({})
   // Keys a send was tried with: kept when a preview is closed (a retry resumes that work).
   const tried = useRef(new Set<string>())
-  const F = formTextRoot(form)
   const mutation = useMutation({
     mutationFn: ({ action, key }: { action: ContractAction; key: string; recipient: string }) => sendProfessionalContract(professionalId, action, key, form),
     onSuccess: (_id, { action, recipient }) => {
       delete keys.current[action]
-      toast.success(t(`${F}.toasts.${action}`, { firstName: recipient }))
+      // `renew` is the contract's only (P4-524).
+      toast.success(
+        form === 'image_consent'
+          ? t(`modules.professionals.imageConsent.toasts.${action === 'renew' ? 'send' : action}`, { firstName: recipient })
+          : t(`modules.professionals.contract.toasts.${action}`, { firstName: recipient }),
+      )
     },
     onError: (error, { action }) => {
       if (!keepsKey(error)) delete keys.current[action]
@@ -183,6 +189,19 @@ export function useSyncContract(professionalId: string) {
     },
     onError: (error) => toast.error(contractErrorMessage(error) ?? t(`${E}.syncFailed`)),
     onSettled: () => refreshAfterContract(queryClient, professionalId),
+  })
+}
+
+/**
+ * « Téléverser un contrat signé » / « Remplacer » (P4-520, P4-523): upload then record; a failure
+ * is thrown to the dropzone, which words it. The record (readiness, the card), the lists and the
+ * history follow.
+ */
+export function useRecordPaperContract() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: PaperContractInput) => recordPaperContract(input),
+    onSettled: (_id, _error, { professionalId }) => refreshAfterContract(queryClient, professionalId),
   })
 }
 

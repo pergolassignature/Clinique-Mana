@@ -64,6 +64,11 @@ function renderPage(auth: Partial<AuthContextValue> = {}, path: NonNullable<Para
 
 const card = (title: string) => screen.getByRole('form', { name: title })
 const inactive = (button: HTMLElement) => expect(button).toHaveAttribute('aria-disabled', 'true')
+/** A clean form shows no « Annuler / Enregistrer » (decision UI-2). */
+const noActions = (form: HTMLElement) => {
+  expect(within(form).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
+  expect(within(form).queryByRole('button', { name: t('common.cancel') })).not.toBeInTheDocument()
+}
 
 describe('AccountPage', () => {
   it('is titled « Mon compte » (page heading and browser tab) and shows the four cards', () => {
@@ -85,11 +90,13 @@ describe('« Nom affiché »', () => {
   const save = () => within(nameCard()).getByRole('button', { name: t('common.save') })
   const cancel = () => within(nameCard()).getByRole('button', { name: t('common.cancel') })
 
-  it('starts from the current name, with the buttons inactive until something changes', () => {
+  it('starts from the current name, with no buttons until something changes', async () => {
     renderPage()
     expect(nameField()).toHaveValue('Camille Tremblay')
-    inactive(save())
-    inactive(cancel())
+    noActions(nameCard())
+    await userEvent.type(nameField(), ' bis')
+    expect(save()).not.toHaveAttribute('aria-disabled')
+    expect(cancel()).not.toHaveAttribute('aria-disabled')
   })
 
   it('requires a name', async () => {
@@ -110,7 +117,7 @@ describe('« Nom affiché »', () => {
     expect(mocks.updateDisplayName).not.toHaveBeenCalled()
   })
 
-  it('saves the trimmed name, refreshes access (the shell shows it), keeps focus on the button and disarms the guard', async () => {
+  it('saves the trimmed name, refreshes access (the shell shows it), moves focus to the card title and disarms the guard', async () => {
     mocks.updateDisplayName.mockResolvedValue(undefined)
     const { invalidate } = renderPage()
     await userEvent.clear(nameField())
@@ -119,8 +126,8 @@ describe('« Nom affiché »', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('account.name.saved')))
     expect(mocks.updateDisplayName).toHaveBeenCalledWith('u1', 'Camille T.')
     expect(invalidate).toHaveBeenCalledWith({ queryKey: accessKeys.all })
-    await waitFor(() => inactive(save()))
-    expect(save()).toHaveFocus()
+    await waitFor(() => noActions(nameCard()))
+    expect(within(nameCard()).getByRole('heading', { name: t('account.name.title') })).toHaveFocus()
     await userEvent.click(screen.getByRole('button', { name: 'LEAVE' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
@@ -151,8 +158,7 @@ describe('« Nom affiché »', () => {
     await userEvent.click(cancel())
     expect(nameField()).toHaveValue('Camille Tremblay')
     expect(nameField()).toHaveFocus()
-    inactive(cancel())
-    inactive(save())
+    noActions(nameCard())
     await userEvent.click(screen.getByRole('button', { name: 'LEAVE' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(mocks.updateDisplayName).not.toHaveBeenCalled()
@@ -297,7 +303,7 @@ describe('« Courriel »', () => {
     expect(newEmail()).toHaveValue('')
     expect(newEmail()).toHaveFocus()
     expect(within(emailCard()).queryByRole('alert')).not.toBeInTheDocument()
-    inactive(within(emailCard()).getByRole('button', { name: t('common.cancel') }))
+    noActions(emailCard())
   })
 })
 
@@ -463,7 +469,7 @@ describe('« Mot de passe »', () => {
     expect(field(t('account.password.new'))).toHaveValue('')
     expect(field(t('account.password.confirm'))).toHaveValue('')
     expect(field(t('account.password.new'))).toHaveFocus()
-    inactive(submit())
+    noActions(passwordCard())
   })
 
   it('shows a refused password on the password field', async () => {

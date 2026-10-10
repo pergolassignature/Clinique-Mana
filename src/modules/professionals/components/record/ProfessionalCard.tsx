@@ -15,6 +15,8 @@ import { useRecordData } from './record-context'
 interface ProfessionalCardProps<TIn extends FlatFormValues, TOut> {
   title: string
   description?: string
+  /** `section` inside a `SectionSurface` (the record's form tabs, audit 2026-10-09 §2.4); `card` alone. */
+  layout?: 'card' | 'section'
   /** Without the card's edit permission: read-only fields, no Annuler / Enregistrer, guard never armed. */
   readOnly: boolean
   /** The card's schema (`schemas/`): string form values in, the normalised patch out. */
@@ -34,12 +36,13 @@ interface ProfessionalCardProps<TIn extends FlatFormValues, TOut> {
  * One card of a record tab that edits some fields of the open professional (Portrait, Identité,
  * Coordonnées…), built like `OrganizationCard`: its own form (`useSettingsForm`: follows the record
  * without losing an edit, clean after a save), its own « Annuler / Enregistrer » (`FormActions`:
- * outline until dirty), saving only its own fields. Read-only, the fields stay focusable and the
+ * shown only while dirty, decision UI-2), saving only its own fields. Read-only, the fields stay focusable and the
  * tab shows the one notice.
  */
 export function ProfessionalCard<TIn extends FlatFormValues, TOut>({
   title,
   description,
+  layout = 'card',
   readOnly,
   schema,
   toFormValues,
@@ -71,8 +74,10 @@ export function ProfessionalCard<TIn extends FlatFormValues, TOut>({
 
   return (
     <SettingsCard
+      layout={layout}
       title={title}
       description={description}
+      dirty={isDirty}
       readOnly={readOnly}
       pending={pending}
       onSubmit={(event) => void onSubmit(event)}

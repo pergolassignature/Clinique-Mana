@@ -38,7 +38,7 @@
     "saving": "Enregistrement…",
     "cancel": "Annuler",
     "listFilter": { "label": "Afficher", "option": "{label} ({count})", "active": "Actifs", "archived": "Archivés", "all": "Tous" },
-    "form": { "required": "(requis)" },
+    "form": { "required": "(requis)", "unsavedChanges": "Modifications non enregistrées" },
     "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
     "toast": { "region": "Notifications", "close": "Fermer la notification" },
     "errors": {
@@ -57,6 +57,8 @@
       "remove": "Retirer la spécialisation"
     },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
+    "backHome": "Retour à l'accueil",
+    "notProvided": "Non indiqué",
     "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
     "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
     "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" },
@@ -210,7 +212,10 @@
       "no_role": "Aucun rôle n'est attribué à votre compte. Contactez la clinique.",
       "signOut": "Se déconnecter"
     },
-    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." },
+    "forbidden": {
+      "title": "Accès refusé",
+      "body": "Vous n'avez pas la permission d'ouvrir cette page. Si vous en avez besoin, demandez l'accès à un administrateur de la clinique."
+    },
     "customRole": "Rôle personnalisé"
   },
   "pageTitles": {
@@ -226,7 +231,11 @@
     "forbidden": "Accès refusé",
     "account": "Mon compte"
   },
-  "home": { "title": "Bienvenue", "body": "Ce qui demande votre attention s'affiche ici." },
+  "home": {
+    "title": "Bienvenue",
+    "body": "Ce qui demande votre attention s'affiche ici.",
+    "empty": { "title": "Rien ne demande votre attention pour l'instant.", "shortcuts": "Accès rapide" }
+  },
   "storage": {
     "dropzone": {
       "drop": "Glissez un fichier ici, ou",
@@ -386,7 +395,6 @@
       "empty": "Aucune tâche planifiée pour le moment.",
       "columns": {
         "job": "Tâche",
-        "schedule": "Fréquence",
         "lastRun": "Dernière exécution",
         "active": "Activation",
         "actions": "Actions"
@@ -499,8 +507,8 @@
       },
       "keys": {
         "title": "Envoi et webhook",
-        "description": "Le domaine d'envoi et les clés du service d'envoi (Resend). Une clé enregistrée n'est jamais affichée.",
-        "readOnlyDescription": "Le domaine d'envoi et les clés du service d'envoi (Resend). Seule une personne qui gère les clés d'intégration peut les modifier.",
+        "description": "Les clés du service d'envoi (Resend) et l'adresse du webhook. Une clé enregistrée n'est jamais affichée.",
+        "readOnlyDescription": "Les clés du service d'envoi (Resend) et l'adresse du webhook. Seule une personne qui gère les clés d'intégration peut les modifier.",
         "apiKey": "Clé d'API Resend",
         "apiKeyHelp": "Une clé d'envoi seulement, limitée au domaine d'envoi.",
         "webhookSecret": "Secret du webhook",
@@ -520,6 +528,8 @@
           "body": "Ce courriel confirme que l'envoi de courriels de la clinique fonctionne. Aucune action n'est requise."
         },
         "domain": {
+          "title": "Domaine d'envoi",
+          "description": "Le domaine d'où partent les courriels de la clinique.",
           "label": "Domaine d'envoi",
           "help": "Le domaine vérifié chez Resend.",
           "confirmTitle": "Changer le domaine d'envoi ?",
@@ -752,7 +762,7 @@
       "loadError": "Impossible de charger les renseignements de la clinique."
     },
     "identity": {
-      "description": "Ces renseignements figurent sur les contrats, reçus et factures.",
+      "description": "Le nom, l'adresse et les coordonnées figurent au bas des courriels de la clinique, les coordonnées sur la fiche PDF des professionnels, la raison sociale et l'adresse dans le contrat de service. Le NEQ n'est repris dans aucun document pour l'instant.",
       "clinic": { "title": "Clinique", "saved": "Identité enregistrée." },
       "address": { "title": "Adresse du siège social", "saved": "Adresse enregistrée." },
       "contact": { "title": "Coordonnées", "saved": "Coordonnées enregistrées." },
@@ -775,7 +785,7 @@
       },
       "logo": {
         "title": "Logo",
-        "description": "Il figure sur les documents de la clinique (contrats, fiches, reçus).",
+        "description": "Il figure sur la fiche PDF des professionnels. Les courriels et les contrats ne l'affichent pas pour l'instant.",
         "hint": "PNG ou JPEG, {size} Mo et {side} pixels de côté au plus.",
         "alt": "Logo de la clinique",
         "empty": "Aucun logo.",
@@ -783,11 +793,11 @@
         "remove": "Retirer",
         "saved": "Logo enregistré.",
         "removed": "Logo retiré.",
-        "removeConfirm": { "title": "Retirer le logo ?", "body": "Il ne figurera plus sur les documents de la clinique.", "confirm": "Retirer" }
+        "removeConfirm": { "title": "Retirer le logo ?", "body": "La fiche PDF des professionnels affichera le logo de Clinique MANA à la place.", "confirm": "Retirer" }
       }
     },
     "signatory": {
-      "description": "La personne qui signe les contrats et les reçus au nom de la clinique.",
+      "description": "La personne qui représente la clinique dans le contrat de service. Avec son courriel, elle le signe au nom de la clinique dans Documenso.",
       "representative": {
         "title": "Représentant de la clinique",
         "saved": "Signataire enregistré."
@@ -801,7 +811,7 @@
       },
       "signature": {
         "title": "Image de signature",
-        "description": "Utilisée pour la signature de la clinique sur les documents.",
+        "description": "Réservée aux documents à venir : aucun modèle ne l'affiche pour l'instant, et la clinique signe ses contrats dans Documenso.",
         "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
         "alt": "Signature de la clinique",
         "empty": "Aucune image de signature.",
@@ -809,7 +819,7 @@
         "remove": "Retirer",
         "saved": "Image de signature enregistrée.",
         "removed": "Image de signature retirée.",
-        "removeConfirm": { "title": "Retirer l'image de signature ?", "body": "Les documents n'afficheront plus la signature de la clinique.", "confirm": "Retirer" }
+        "removeConfirm": { "title": "Retirer l'image de signature ?", "body": "Aucun document ne l'affiche pour l'instant.", "confirm": "Retirer" }
       }
     },
     "region": {
@@ -858,10 +868,12 @@
       "description": "Les renseignements exigés par la Loi 25 sur la protection des renseignements personnels.",
       "officer": {
         "title": "Responsable de la protection des renseignements personnels",
+        "description": "Son nom et son courriel figurent au bas des courriels de la clinique.",
         "saved": "Responsable enregistré."
       },
       "policy": {
         "title": "Politique et conservation",
+        "description": "Enregistrées pour la conformité à la Loi 25. L'application ne les utilise pas encore : l'adresse de la politique ne figure dans aucun courriel, et aucune suppression ne suit cette durée.",
         "saved": "Politique et conservation enregistrées."
       },
       "fields": {
@@ -977,6 +989,22 @@
           "enabledSaved": "Compte réactivé.",
           "reenableFailed": "Le compte n'a pas pu être réactivé. Réessayez."
         },
+        "delete": {
+          "title": "Supprimer le compte",
+          "description": "Retire définitivement {name} de l'application. Pour une absence ou un départ temporaire, désactivez plutôt le compte.",
+          "button": "Supprimer le compte de {name}",
+          "disableFirst": "Désactivez d'abord le compte.",
+          "confirmTitle": "Supprimer le compte de {name} ?",
+          "confirmBody": "Cette suppression est définitive : le compte ne pourra pas être réactivé. Pour redonner accès à cette personne, il faudra l'inviter de nouveau.",
+          "removedLabel": "Supprimé",
+          "removed": "son accès à l'application, son rôle, ses exceptions de permissions, ses préférences et ses invitations.",
+          "keptLabel": "Conservé",
+          "kept": "l'historique de ce que ce compte a fait (Journal d'audit, historique des dossiers) : il y apparaîtra comme « Compte supprimé », sans son nom ni son courriel.",
+          "typeLabel": "Pour confirmer, tapez son courriel : {email}",
+          "deleting": "Suppression…",
+          "deleted": "Compte de {name} supprimé.",
+          "signinNotDeleted": "{name} a été retiré de l'application, mais sa connexion n'a pas pu être supprimée. Réessayez."
+        },
         "permissions": {
           "title": "Permissions",
           "description": "Chaque personne a les permissions de son rôle. Activez ou désactivez une permission pour créer une exception.",
@@ -1070,7 +1098,7 @@
       }
     },
     "tax": {
-      "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ appliqués aux factures.",
+      "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ qui seront appliqués à la facturation, à venir. Aucun document ne les reprend pour l'instant.",
       "numbers": { "title": "Numéros d'inscription", "saved": "Numéros d'inscription enregistrés." },
       "fields": {
         "gst": "Numéro de TPS",
@@ -1107,7 +1135,7 @@
         "rate": "Taux (%)",
         "from": "À partir du",
         "fromHelp": "Le taux actuel se terminera la veille de cette date.",
-        "backdated": "Cette date est passée : le nouveau taux s'appliquera aussi aux calculs faits depuis cette date. Les factures déjà émises gardent leur taux.",
+        "backdated": "Cette date est passée : la facturation, à venir, appliquera ce taux à partir de cette date.",
         "submit": "Ajouter",
         "submitting": "Ajout…",
         "added": "Nouveau taux enregistré."
@@ -1196,6 +1224,395 @@
   },
   "modules": {
     "professionals": {
+      "audit": {
+        "tables": {
+          "professionals": "Professionnels",
+          "professional_professions": "Titres des professionnels",
+          "professional_payer_numbers": "Numéros de payeurs des professionnels",
+          "professional_public_profiles": "Profils publics des professionnels",
+          "professional_matching_profiles": "Profils de jumelage",
+          "professional_matching_notes": "Notes Bon à savoir",
+          "professional_motifs": "Motifs des professionnels",
+          "professional_clienteles": "Clientèles des professionnels",
+          "professional_languages": "Langues des professionnels",
+          "professional_private": "Données privées des professionnels",
+          "professional_invitation_deliveries": "Envois des invitations",
+          "professional_submissions": "Questionnaires des professionnels",
+          "professional_submission_private": "Données privées des questionnaires",
+          "professional_documents": "Documents des professionnels",
+          "professional_consents": "Consentements des professionnels",
+          "professional_contract_snapshots": "Contrats de service préparés",
+          "professional_paper_contracts": "Contrats signés hors application",
+          "professional_session_counts": "Séances des professionnels",
+          "professional_retention": "Taux de retenue des professionnels",
+          "professional_client_agreements": "Ententes particulières",
+          "document_types": "Documents requis",
+          "consent_versions": "Versions des consentements",
+          "retention_grids": "Grilles de rétention",
+          "retention_grid_tiers": "Paliers des grilles de rétention",
+          "retention_grid_prices": "Prix des grilles de rétention",
+          "compensation_rates": "Taux des autres services",
+          "professional_orders": "Ordres professionnels",
+          "profession_categories": "Catégories de professions",
+          "profession_titles": "Titres professionnels",
+          "clienteles": "Clientèles",
+          "motif_categories": "Catégories de motifs",
+          "motifs": "Motifs",
+          "languages": "Langues",
+          "deactivation_reasons": "Raisons de désactivation"
+        },
+        "fields": {
+          "professionals": {
+            "profile_id": "Compte",
+            "first_name": "Prénom",
+            "last_name": "Nom",
+            "email": "Courriel",
+            "personal_phone": "Téléphone personnel",
+            "address_line1": "Adresse",
+            "address_line2": "Appartement ou bureau",
+            "city": "Ville",
+            "province": "Province",
+            "postal_code": "Code postal",
+            "country": "Pays",
+            "years_experience": "Années d'expérience",
+            "gender": "Genre",
+            "status": "Statut",
+            "status_changed_at": "Statut modifié le",
+            "status_changed_by": "Statut modifié par",
+            "deactivation_reason_id": "Raison de la désactivation",
+            "deactivation_note": "Note de désactivation",
+            "deactivation_disabled_account": "Compte désactivé avec le dossier",
+            "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
+            "fiche_generated_at": "Fiche PDF générée le"
+          },
+          "professional_professions": {
+            "professional_id": "Professionnel",
+            "profession_title_id": "Titre",
+            "licence_number": "Numéro de permis",
+            "is_primary": "Titre principal"
+          },
+          "professional_payer_numbers": {
+            "professional_id": "Professionnel",
+            "payer_type": "Payeur",
+            "number": "Numéro"
+          },
+          "professional_public_profiles": {
+            "professional_id": "Professionnel",
+            "bio": "Présentation",
+            "approach": "Approche",
+            "public_email": "Courriel public",
+            "public_phone": "Téléphone public",
+            "photo_document_id": "Photo"
+          },
+          "professional_matching_profiles": {
+            "professional_id": "Professionnel",
+            "accepting_new_clients": "Accepte de nouveaux clients",
+            "availability_periods": "Disponibilités générales",
+            "availability_note": "Note sur les disponibilités",
+            "min_client_age": "Âge minimum des clients",
+            "women_only": "Femmes seulement",
+            "new_client_places": "Places offertes",
+            "new_client_places_set_at": "Places offertes indiquées le"
+          },
+          "professional_matching_notes": {
+            "professional_id": "Professionnel",
+            "note": "Bon à savoir"
+          },
+          "professional_motifs": {
+            "professional_id": "Professionnel",
+            "motif_id": "Motif"
+          },
+          "professional_clienteles": {
+            "professional_id": "Professionnel",
+            "clientele_id": "Clientèle",
+            "is_specialized": "Spécialisé"
+          },
+          "professional_languages": {
+            "professional_id": "Professionnel",
+            "language_id": "Langue"
+          },
+          "professional_private": {
+            "professional_id": "Professionnel",
+            "sin": "NAS",
+            "sin_last3": "NAS (3 derniers chiffres)",
+            "business_number": "Numéro d'entreprise (NE)",
+            "gst_number": "Numéro de TPS",
+            "qst_number": "Numéro de TVQ",
+            "bank_institution": "Numéro d'institution",
+            "bank_transit": "Numéro de transit",
+            "bank_account": "Numéro de compte",
+            "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
+            "key_version": "Version de la clé de chiffrement"
+          },
+          "professional_invitation_deliveries": {
+            "professional_id": "Professionnel",
+            "link_id": "Lien d'invitation",
+            "method": "Mode d'envoi",
+            "email_failure": "Échec du courriel"
+          },
+          "professional_submissions": {
+            "professional_id": "Professionnel",
+            "kind": "Type",
+            "status": "Statut",
+            "requested_by": "Demandé par",
+            "requested_sections": "Sections demandées",
+            "secure_link_id": "Lien d'invitation",
+            "prefill": "Réponses préremplies",
+            "submitted_values": "Réponses envoyées",
+            "submitted_at": "Envoyé le",
+            "private_saved_at": "Données privées enregistrées le",
+            "reviewed_by": "Révisé par",
+            "reviewed_at": "Révisé le",
+            "decision_note": "Note de révision",
+            "applied_fields": "Champs appliqués"
+          },
+          "professional_submission_private": {
+            "submission_id": "Questionnaire",
+            "professional_id": "Professionnel",
+            "sin": "NAS",
+            "sin_last3": "NAS (3 derniers chiffres)",
+            "business_number": "Numéro d'entreprise (NE)",
+            "gst_number": "Numéro de TPS",
+            "qst_number": "Numéro de TVQ",
+            "bank_institution": "Numéro d'institution",
+            "bank_transit": "Numéro de transit",
+            "bank_account": "Numéro de compte",
+            "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
+            "key_version": "Version de la clé de chiffrement"
+          },
+          "professional_documents": {
+            "professional_id": "Professionnel",
+            "document_type_id": "Type de document",
+            "stored_file_id": "Fichier",
+            "status": "Statut",
+            "expires_on": "Dernier jour de validité",
+            "metadata": "Renseignements du document",
+            "uploaded_by": "Téléversé par",
+            "uploaded_at": "Téléversé le",
+            "reviewed_by": "Vérifié par",
+            "reviewed_at": "Vérifié le",
+            "rejection_reason": "Raison du refus",
+            "submission_id": "Questionnaire",
+            "signature_request_id": "Signature électronique"
+          },
+          "professional_consents": {
+            "professional_id": "Professionnel",
+            "consent_version_id": "Version du consentement",
+            "submission_id": "Questionnaire",
+            "signer_name": "Nom du signataire",
+            "signed_at": "Signé le",
+            "expires_on": "Valide jusqu'au",
+            "withdrawn_at": "Retiré le",
+            "withdrawal_effective_on": "Retrait en vigueur le"
+          },
+          "professional_contract_snapshots": {
+            "professional_id": "Professionnel",
+            "template_version_id": "Version du modèle",
+            "title": "Titre",
+            "template_values": "Valeurs du modèle",
+            "annexe": "Annexe A",
+            "signers": "Signataires",
+            "idempotency_key": "Clé d'envoi"
+          },
+          "professional_paper_contracts": {
+            "professional_id": "Professionnel",
+            "signed_on": "Signé le",
+            "stored_file_id": "Fichier"
+          },
+          "professional_session_counts": {
+            "professional_id": "Professionnel",
+            "month": "Mois",
+            "sessions_50_60": "Séances de 50 ou 60 min",
+            "sessions_30": "Séances de 30 min",
+            "adjustment": "Ajustement (séances)",
+            "note": "Note"
+          },
+          "professional_retention": {
+            "professional_id": "Professionnel",
+            "retention_pct": "Retenue (%)",
+            "decision": "Décision",
+            "tier_threshold": "Palier (séances)",
+            "suggested_pct": "Taux suggéré (%)",
+            "sessions_total": "Séances cumulées",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "note": "Note"
+          },
+          "professional_client_agreements": {
+            "professional_id": "Professionnel",
+            "client_label": "Référence du client",
+            "client_id": "Client",
+            "duration": "Durée (min)",
+            "professional_amount_cents": "Versé au professionnel (¢)",
+            "client_price_cents": "Prix client (¢)",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "note": "Note"
+          },
+          "document_types": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "required": "Requis",
+            "expiry_rule": "Échéance",
+            "reminder_days": "Rappels (jours avant l'échéance)",
+            "weekly_after_expiry": "Rappel chaque semaine après l'échéance",
+            "accepted_mime": "Types de fichiers acceptés",
+            "max_bytes": "Taille maximale",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif"
+          },
+          "consent_versions": {
+            "key": "Consentement",
+            "version": "Version",
+            "title": "Titre",
+            "body": "Texte",
+            "published_at": "Publiée le",
+            "published_by": "Publiée par"
+          },
+          "retention_grids": {
+            "title_id": "Profession",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "note": "Note"
+          },
+          "retention_grid_tiers": {
+            "grid_id": "Grille",
+            "threshold_sessions": "Seuil (séances)",
+            "retention_pct": "Retenue (%)"
+          },
+          "retention_grid_prices": {
+            "grid_id": "Grille",
+            "duration": "Durée (min)",
+            "client_price_cents": "Prix client (¢)"
+          },
+          "compensation_rates": {
+            "kind": "Type",
+            "retention_pct": "Retenue (%)",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)"
+          },
+          "professional_orders": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "acronym": "Sigle",
+            "licence_label": "Libellé du permis",
+            "licence_pattern": "Format du permis"
+          },
+          "profession_categories": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif"
+          },
+          "profession_titles": {
+            "key": "Clé",
+            "name": "Nom",
+            "name_feminine": "Forme féminine",
+            "name_masculine": "Forme masculine",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "category_id": "Catégorie",
+            "order_id": "Ordre professionnel"
+          },
+          "clienteles": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "min_age": "Âge minimum",
+            "max_age": "Âge maximum"
+          },
+          "motif_categories": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "description": "Description",
+            "icon": "Icône"
+          },
+          "motifs": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "category_id": "Catégorie",
+            "is_restricted": "Réservé aux professions réglementées"
+          },
+          "languages": {
+            "code": "Code",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Active"
+          },
+          "deactivation_reasons": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "requires_note": "Note requise",
+            "disables_account": "Désactive le compte"
+          }
+        },
+        "values": {
+          "professional_documents": {
+            "status": {
+              "pending": "À vérifier",
+              "verified": "Vérifié",
+              "rejected": "Refusé",
+              "expired": "Expiré"
+            }
+          },
+          "document_types": {
+            "expiry_rule": {
+              "none": "Aucune échéance",
+              "next_march_31": "Le 31 mars suivant",
+              "months_12": "12 mois après le téléversement"
+            }
+          },
+          "professional_submissions": {
+            "status": {
+              "draft": "En cours",
+              "submitted": "Envoyé, à réviser",
+              "approved": "Approuvé",
+              "cancelled": "Fermé sans être appliqué"
+            },
+            "kind": {
+              "onboarding": "Questionnaire d'accueil",
+              "update": "Mise à jour du profil"
+            }
+          },
+          "professional_invitation_deliveries": {
+            "method": {
+              "email": "Par courriel",
+              "copied": "Lien copié"
+            }
+          },
+          "consent_versions": {
+            "key": {
+              "image_rights": "Droit à l'image"
+            }
+          },
+          "professional_payer_numbers": {
+            "payer_type": {
+              "ivac": "IVAC"
+            }
+          }
+        },
+        "sources": {
+          "import": "Importation"
+        }
+      },
       "name": "Professionnels",
       "status": {
         "draft": "À inviter",
@@ -1330,8 +1747,10 @@
         "invitation_unknown": "Invitation : résultat inconnu",
         "matching_incomplete": "Profil de jumelage incomplet",
         "login_email_mismatch": "Courriel de connexion différent",
-        "insurance_expiring": "Assurance expire le {date}",
-        "insurance_expired": "Assurance expirée depuis le {date}"
+        "insurance_expiring": "Assurance expire bientôt : valide jusqu'au {date}",
+        "insurance_expired": "Assurance expirée : valide jusqu'au {date}",
+        "inactiveSince": "Inactif depuis le {date}",
+        "inactiveSinceFor": "Inactif depuis le {date} · {reason}"
       },
       "onboarding": {
         "actions": {
@@ -1818,6 +2237,7 @@
             "title": "Dossier",
             "complete": "Dossier complet",
             "override": "Activé sans dossier complet : {reason}",
+            "inactiveNote": "Note : {note}",
             "missing": "Il manque :",
             "questionnaireDocuments": "Les documents envoyés avec le questionnaire compteront une fois celui-ci approuvé."
           },
@@ -1828,6 +2248,12 @@
           "nextAction": {
             "title": "Prochaine action"
           }
+        },
+        "rail": {
+          "label": "Résumé du dossier",
+          "brief": "En bref",
+          "accepting": "Nouveaux clients",
+          "availability": "Disponibilités"
         },
         "publicProfile": {
           "portrait": {
@@ -1848,6 +2274,7 @@
           "readOnly": "Seules les personnes qui gèrent les dossiers des professionnels peuvent modifier ces informations.",
           "identity": {
             "title": "Identité",
+            "description": "Le nom et le genre servent au jumelage et à la forme du titre.",
             "firstName": "Prénom",
             "lastName": "Nom",
             "gender": "Genre",
@@ -1856,6 +2283,7 @@
           },
           "contact": {
             "title": "Coordonnées",
+            "description": "Pour joindre le professionnel. Elles ne paraissent pas sur la fiche.",
             "loginEmail": "Courriel de connexion",
             "change": "Modifier",
             "changeLabel": "Modifier le courriel de connexion",
@@ -1893,11 +2321,11 @@
             "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis enregistrez de nouveau."
           },
           "experience": {
-            "title": "Expérience",
+            "title": "Expérience et payeurs",
+            "description": "Les années de pratique et le numéro de payeur IVAC.",
             "years": "Années d'expérience"
           },
           "payers": {
-            "title": "Numéros de payeurs",
             "ivac": "N° IVAC",
             "ivacHelp": "Unique dans la clinique. Laissez vide pour le retirer."
           }
@@ -1914,7 +2342,7 @@
           "system": "Le système",
           "import": "L'importation",
           "migration": "Une mise à jour du système",
-          "unknown": "Une personne qui n'a plus accès"
+          "unknown": "Un compte supprimé"
         },
         "sentences": {
           "created": "a créé le dossier",
@@ -1928,6 +2356,10 @@
             "deleted": "a supprimé le profil de jumelage"
           },
           "invitationLinkCopied": "a copié le lien d'invitation (sans courriel)",
+          "paperContract": {
+            "uploaded": "a téléversé un contrat de service signé hors application (signé le {date})",
+            "uploadedNoDate": "a téléversé un contrat de service signé hors application"
+          },
           "matchingNote": {
             "added": "a ajouté la note Bon à savoir",
             "changed": "a modifié la note Bon à savoir",
@@ -2191,6 +2623,7 @@
           "motifsEmpty": "Aucun motif ne correspond.",
           "acceptingNewClients": "Accepte de nouveaux clients",
           "watch": "À surveiller",
+          "documentsIncomplete": "Documents incomplets",
           "archived": "{name} (archivé)"
         },
         "chips": {
@@ -2212,7 +2645,13 @@
           "languages": "Langues",
           "status": "Statut",
           "watch": "À surveiller",
-          "nothingToWatch": "Rien à surveiller"
+          "nothingToWatch": "Rien à surveiller",
+          "documents": "Documents",
+          "documentsCount": "Documents {done} / {required}",
+          "documentsShort": "{done} / {required}",
+          "documentsLabelOne": "{done} document requis sur {required} en règle",
+          "documentsLabelOther": "{done} documents requis sur {required} en règle",
+          "documentsNone": "Aucun document requis"
         },
         "footer": {
           "countOne": "{shown} sur {total} professionnel",
@@ -2698,64 +3137,31 @@
           "weekly": "Rappel chaque semaine après l'échéance",
           "weeklyHelp": "Un courriel par semaine tant qu'aucune nouvelle preuve n'est vérifiée.",
           "remindersOnlyInsurance": "Les rappels par courriel ne s'appliquent qu'à la preuve d'assurance.",
+          "consentNoExpiry": "Aucune expiration",
+          "consentNoExpiryHelp": "Le consentement au droit à l'image n'expire pas : une fois signé, il reste valide.",
+          "consentText": {
+            "title": "Consentement au droit à l'image",
+            "body": "Le texte que signent les professionnels est le modèle « Consentement au droit à l'image ». Il se modifie et se publie dans Contrats et formulaires.",
+            "open": "Ouvrir Contrats et formulaires"
+          },
+          "job": {
+            "title": "Rappels d'assurance",
+            "description": "Les rappels par courriel, les avis « Assurance expirée » et le compte des documents manquants partent une fois par jour, par la tâche planifiée « Échéances des assurances ».",
+            "on": "La tâche planifiée est activée : elle passe chaque jour vers {hour} h (heure de la clinique).",
+            "onNoHour": "La tâche planifiée est activée : elle passe une fois par jour.",
+            "off": "Aucun rappel ne part pour l'instant : la tâche planifiée « Échéances des assurances » est désactivée. Les assurances échues ne sont ni signalées ni rappelées aux professionnels.",
+            "enable": "Activer la tâche planifiée",
+            "enabling": "Activation…",
+            "askAdmin": "Un administrateur peut l'activer dans Paramètres → Tâches planifiées.",
+            "openJobs": "Ouvrir Tâches planifiées",
+            "unknown": "Les rappels partent seulement si la tâche planifiée « Échéances des assurances » est activée (Paramètres → Tâches planifiées).",
+            "loadError": "L'état de la tâche planifiée n'a pas pu être chargé."
+          },
           "files": "Fichiers acceptés",
           "filesSummary": "{types} · {size}",
           "allFiles": "Tous les types",
           "photoFilesHelp": "La photo figure sur la fiche : JPEG ou PNG seulement.",
           "maxBytes": "Taille maximale"
-        },
-        "consents": {
-          "title": "Consentements",
-          "description": "Le texte du consentement au droit à l'image que les professionnels signent dans leur questionnaire. Le formulaire envoyé pour signature électronique (Documenso) se modifie dans Contrats et formulaires.",
-          "loadError": "Les versions du consentement n'ont pas pu être chargées.",
-          "current": {
-            "title": "Version en vigueur",
-            "description": "Le texte que signent les professionnels. Les consentements déjà signés gardent leur version.",
-            "none": "Aucune version publiée.",
-            "noneBody": "Les professionnels ne peuvent pas signer le consentement tant qu'aucune version n'est publiée.",
-            "meta": "Version {version} · publiée le {date}",
-            "metaBy": "Version {version} · publiée le {date} par {name}",
-            "signedNone": "Aucune signature",
-            "signedOne": "1 signature",
-            "signedOther": "{count} signatures"
-          },
-          "draft": {
-            "title": "Brouillon de la version {version}",
-            "description": "Pas encore publié : les professionnels signent toujours la version en vigueur.",
-            "titleField": "Titre",
-            "body": "Texte",
-            "bodyHelp": "Le texte exact que le professionnel lira et signera.",
-            "save": "Enregistrer le brouillon",
-            "saving": "Enregistrement…",
-            "publish": "Publier la version {version}",
-            "discard": "Supprimer le brouillon",
-            "unsavedBeforePublish": "Enregistrez le brouillon avant de le publier.",
-            "changedElsewhere": "Le brouillon a changé depuis l'ouverture de la page : la version à jour est affichée. Relisez-la, puis recommencez.",
-            "titleRequired": "Le titre est obligatoire.",
-            "titleTooLong": "Le titre ne peut pas dépasser 200 caractères.",
-            "bodyRequired": "Le texte du consentement est obligatoire.",
-            "bodyTooLong": "Le texte ne peut pas dépasser 20 000 caractères."
-          },
-          "newVersion": "Nouvelle version",
-          "newVersionHelp": "Un brouillon commence à partir du texte en vigueur. Rien ne change pour les professionnels avant sa publication.",
-          "cancelNew": "Annuler",
-          "publishDialog": {
-            "title": "Publier la version {version} ?",
-            "body": "Dès maintenant, les nouvelles signatures utiliseront ce texte. Les consentements déjà signés gardent leur version ; un questionnaire signé avec l'ancienne version et pas encore envoyé demandera de signer de nouveau.",
-            "confirm": "Publier la version {version}",
-            "pending": "Publication…"
-          },
-          "discardDialog": {
-            "title": "Supprimer le brouillon ?",
-            "body": "Le texte du brouillon sera perdu. La version en vigueur ne change pas.",
-            "confirm": "Supprimer le brouillon",
-            "pending": "Suppression…"
-          },
-          "previous": {
-            "title": "Versions précédentes",
-            "show": "Afficher le texte",
-            "hide": "Masquer le texte"
-          }
         },
         "invitations": {
           "title": "Invitations",
@@ -2815,7 +3221,13 @@
           "grids": {
             "title": "Grilles de rétention",
             "description": "Par profession : la retenue de la clinique selon les séances cumulées, et le prix client de chaque durée. Une modification crée une nouvelle version datée.",
-            "summary": "De {first} à {floor} (dès {tier})",
+            "columns": {
+              "profession": "Profession",
+              "actions": "Actions"
+            },
+            "retentionRange": "De {first} à {floor}",
+            "fromSessions": "Dès {tier}",
+            "notPriced": "Non offert",
             "none": "Aucune grille : les professionnels de cette profession sont « Profession à confirmer ».",
             "coming": "Nouvelle version dès le {date}.",
             "details": "Paliers et prix ({count} versions)",
@@ -2909,7 +3321,8 @@
             "notPublished": "Non publié : rien ne peut être envoyé avec ce modèle",
             "draft": "Brouillon en cours",
             "retired": "Retiré",
-            "open": "Ouvrir « {title} »"
+            "open": "Ouvrir « {title} »",
+            "openShort": "Ouvrir"
           },
           "signer": {
             "title": "Signataire de la clinique",
@@ -3224,15 +3637,17 @@
           "maskSin": "Au dossier : se termine par {last3}",
           "photoAlt": "Photo transmise par le professionnel",
           "photoSent": "Nouvelle photo transmise. Une fois appliquée, elle est jointe au dossier.",
-          "insuranceSent": "Preuve d'assurance transmise, échéance le {date}.",
+          "insuranceSent": "Preuve d'assurance transmise, valide jusqu'au {date}.",
           "insuranceSentUndated": "Preuve d'assurance transmise.",
           "openFile": "Ouvrir le fichier",
           "newTab": "(nouvel onglet)",
           "fileUnavailable": "Le fichier ne peut pas être affiché pour l'instant.",
           "consentNone": "Aucun consentement au dossier.",
           "consentUnsigned": "Pas encore signé.",
-          "consentOnFile": "Signé le {date} (version {version}), valide jusqu'au {until}.",
-          "consentSigned": "Signé le {date} par {name} (version {version})."
+          "consentSignedElectronically": "Signé électroniquement le {date} (Documenso).",
+          "consentPaper": "Consentement papier au dossier, téléversé le {date}.",
+          "consentSignedHere": "signé avec ce questionnaire",
+          "consentAlreadyOnFile": "déjà au dossier"
         },
         "card": {
           "title": "Questionnaire et mises à jour",
@@ -3289,7 +3704,7 @@
           },
           "noneChecked": "Cochez au moins un changement, ou renvoyez le profil au professionnel.",
           "warnings": {
-            "insuranceExpired": "Cette assurance est échue depuis le {date} : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
+            "insuranceExpired": "Cette assurance est expirée (valide jusqu'au {date}) : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
             "consentOutdated": "Le texte du consentement a changé depuis la signature : ce consentement ne peut pas être appliqué. Décochez-le, ou renvoyez le profil au professionnel pour qu'il signe la nouvelle version."
           },
           "apply": "Appliquer les changements sélectionnés ({count})",
@@ -3331,6 +3746,7 @@
       "documents": {
         "or": "ou",
         "loadError": "Les documents n'ont pas pu être chargés.",
+        "groups": { "contract": "Contrat et questionnaire" },
         "required": {
           "title": "Documents requis",
           "summary": "Documents requis en règle : {done} sur {total}",
@@ -3340,9 +3756,9 @@
         "ownFile": "C'est votre propre dossier : une autre personne autorisée vérifie, refuse ou supprime vos documents.",
         "state": {
           "validUntil": "Valide jusqu'au {date}",
-          "signedValidUntil": "Signé le {date} · valide jusqu'au {until}",
+          "signedOn": "Signé le {date}",
           "verified": "Vérifié",
-          "expiring": "Expire le {date}",
+          "expiring": "Expire bientôt : valide jusqu'au {date}",
           "expiredOn": "Expiré : valide jusqu'au {date}",
           "expired": "Expiré",
           "pending": "À vérifier",
@@ -3371,9 +3787,6 @@
           "insurer": "Assureur : {value}",
           "policy": "N° de police : {value}",
           "fileGone": "Le fichier a été retiré.",
-          "consent": "Signé électroniquement le {date} par {name} (version {version})",
-          "consentNoName": "Signé électroniquement le {date} (version {version})",
-          "consentWithdrawn": "Retrait demandé : il prend effet le {date}.",
           "newPending": "Nouveau document",
           "showReview": "Voir le questionnaire à réviser",
           "none": "Aucun document pour l'instant."
@@ -3415,6 +3828,9 @@
           "insurer": "Assureur",
           "policyNumber": "Numéro de police",
           "choose": "Choisir le fichier",
+          "chooseAnother": "Choisir un autre fichier",
+          "kept": "Le fichier « {name} » est déjà envoyé. Corrigez le champ indiqué, puis joignez-le au dossier.",
+          "attachKept": "Joindre ce fichier",
           "hint": "{types}, {size} au plus.",
           "verifiedAtOnce": "Le document sera marqué vérifié dès son téléversement.",
           "reviewedLater": "Le document attendra la vérification d'une autre personne autorisée.",
@@ -3475,10 +3891,7 @@
           "deleted": "Document supprimé.",
           "rejected": "Document refusé.",
           "rejectedEmailed": "Document refusé. {firstName} a reçu un courriel avec la raison.",
-          "rejectedNotEmailed": "Document refusé, mais le courriel n'a pas pu être envoyé. Prévenez {firstName} directement.",
-          "draftSaved": "Brouillon enregistré.",
-          "published": "Nouvelle version publiée.",
-          "draftDiscarded": "Brouillon supprimé."
+          "rejectedNotEmailed": "Document refusé, mais le courriel n'a pas pu être envoyé. Prévenez {firstName} directement."
         }
       },
       "myDocuments": {
@@ -3492,7 +3905,7 @@
         },
         "banners": {
           "expiringTitle": "Votre assurance arrive à échéance",
-          "expiring": "Votre assurance expire le {date}. Téléversez la nouvelle preuve dès que possible.",
+          "expiring": "Votre assurance expire bientôt : elle est valide jusqu'au {date}. Téléversez la nouvelle preuve dès que possible.",
           "expiredTitle": "Votre assurance est expirée",
           "expired": "Votre assurance est expirée. Téléversez la nouvelle preuve pour continuer à recevoir de nouveaux clients.",
           "renewalPending": "Merci : votre nouvelle preuve d'assurance attend la vérification de la clinique.",
@@ -3562,9 +3975,56 @@
           "journal": "Journal de signature",
           "hideJournal": "Masquer le journal",
           "pdf": "Télécharger le contrat signé",
-          "pdfLabel": "Télécharger le contrat signé de {firstName}"
+          "pdfLabel": "Télécharger le contrat signé de {firstName}",
+          "renew": "Préparer un nouveau contrat",
+          "uploadPaper": "Téléverser un contrat signé",
+          "replacePaper": "Remplacer",
+          "replacePaperLabel": "Remplacer le contrat signé hors application de {firstName}",
+          "openPaper": "Aperçu",
+          "openPaperLabel": "Aperçu du contrat signé hors application le {date}",
+          "downloadPaper": "Télécharger",
+          "downloadPaperLabel": "Télécharger le contrat signé hors application le {date}"
+        },
+        "inForce": {
+          "title": "Contrat en vigueur",
+          "paper": "Signé hors application le {date}",
+          "uploaded": "Téléversé le {date} par {name}",
+          "uploadedNoName": "Téléversé le {date}",
+          "paperDocument": "Contrat signé hors application"
+        },
+        "renewal": {
+          "title": "Nouveau contrat",
+          "help": "Le contrat signé actuel reste en vigueur jusqu'à la signature du nouveau."
+        },
+        "previous": {
+          "show": "Contrats précédents ({count})",
+          "hide": "Masquer les contrats précédents",
+          "label": "Contrats précédents",
+          "signed": "Signé électroniquement le {date}",
+          "paper": "Signé hors application le {date}"
+        },
+        "paper": {
+          "title": "Téléverser un contrat signé",
+          "replaceTitle": "Remplacer le contrat signé hors application",
+          "description": "Le contrat de service que {firstName} a signé hors de l'application, en PDF. Il compte comme un contrat signé.",
+          "replaceNote": "Le contrat actuel passe dans « Contrats précédents » : il reste au dossier.",
+          "signedOn": "Date de signature",
+          "signedOnHelp": "Le jour où le contrat a été signé, au plus tard aujourd'hui.",
+          "dateFirst": "Indiquez la date de signature, puis choisissez le PDF.",
+          "choose": "Choisir le PDF",
+          "hint": "PDF, {size} au plus.",
+          "errors": {
+            "required": "Indiquez la date de signature.",
+            "future": "La date de signature ne peut pas être dans le futur.",
+            "tooOld": "La date de signature doit être le 1er janvier 2000 ou plus tard."
+          }
         },
         "confirm": {
+          "renew": {
+            "title": "Préparer un nouveau contrat pour {firstName} ?",
+            "body": "Le contrat signé actuel reste en vigueur jusqu'à la signature du nouveau. Le nouveau contrat est préparé avec la version {version} du modèle et les honoraires en vigueur aujourd'hui ; vous le verrez avant de l'envoyer à {firstName}.",
+            "action": "Voir le nouveau contrat"
+          },
           "send": {
             "title": "Envoyer le contrat à {firstName} ?",
             "body": "Le contrat est préparé avec la version {version} du modèle et les honoraires de {firstName} en vigueur aujourd'hui, puis envoyé par courriel pour signature électronique.",
@@ -3584,7 +4044,10 @@
         "toasts": {
           "send": "Contrat envoyé à {firstName} pour signature.",
           "regenerate": "Nouveau contrat envoyé à {firstName}.",
+          "renew": "Nouveau contrat envoyé à {firstName}. Le contrat signé actuel reste en vigueur jusqu'à sa signature.",
           "resend": "Courriel de signature renvoyé à {firstName}.",
+          "paperRecorded": "Contrat signé hors application ajouté au dossier.",
+          "paperReplaced": "Contrat remplacé : l'ancien est dans « Contrats précédents ».",
           "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
           "draftSaved": "Brouillon enregistré.",
           "published": "Version publiée : les prochains envois l'utiliseront.",
@@ -3618,19 +4081,19 @@
           "frozen": "Cet aperçu est figé : si le dossier change avant l'envoi, c'est ce PDF qui est envoyé. « Rafraîchir l'aperçu » reprend les données d'aujourd'hui.",
           "refresh": "Rafraîchir l'aperçu",
           "regenerateNote": "À l'envoi, le contrat en cours, s'il y en a un, est annulé et remplacé par celui-ci.",
+          "inForceNote": "Le contrat signé actuel reste en vigueur jusqu'à la signature du nouveau.",
           "send": "Envoyer pour signature à {firstName}"
         }
       },
       "consentSign": {
         "loadError": "Votre consentement n'a pas pu être chargé.",
-        "summary": "Ce formulaire autorise la clinique à utiliser votre photo professionnelle sur son site web, sur votre fiche et dans ses communications internes, pour 12 mois. Vous le lisez et le signez ici, en ligne.",
+        "summary": "Ce formulaire autorise la clinique à utiliser votre photo professionnelle sur son site web, sur votre fiche et dans ses communications internes. Vous le lisez et le signez ici, en ligne.",
         "sign": "Signer le consentement",
         "fill": "Remplir et signer",
-        "renew": "Renouveler : remplir et signer",
         "opening": "Préparation…",
         "retry": "Réessayer",
-        "signedOn": "Signé le {date} · valide jusqu'au {until}",
-        "validUntil": "Consentement en vigueur jusqu'au {until}",
+        "signedOn": "Signé le {date}",
+        "onFile": "Consentement au dossier",
         "notSignedYet": "Pas encore signé.",
         "notPublished": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard. Vous pouvez envoyer votre profil sans attendre.",
         "notPublishedDocuments": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard.",
@@ -3665,7 +4128,7 @@
         "none": "Aucun formulaire de consentement n'a encore été envoyé à {firstName} pour signature électronique.",
         "noTemplate": "Aucun modèle de consentement publié : publiez « Consentement au droit à l'image » avant d'envoyer.",
         "failedHelp": "« Réessayer l'envoi » renvoie le consentement tel qu'il a été préparé. Si le nom ou l'adresse courriel du dossier a changé depuis, corrigez-le, puis utilisez « Régénérer ».",
-        "signedHelp": "Le PDF signé est au dossier ci-dessous : il compte comme consentement valide pendant 12 mois.",
+        "signedHelp": "Le PDF signé est au dossier ci-dessous : il compte comme consentement valide, sans date de fin.",
         "journal": {
           "viewed": "{name} a consulté le consentement le {date}",
           "completed": "Consentement signé et PDF signé conservé le {date}"
@@ -3698,7 +4161,7 @@
           },
           "renew": {
             "title": "Envoyer un nouveau consentement à {firstName} ?",
-            "body": "Un nouveau formulaire (version {version} du modèle) est envoyé à {firstName} pour signature. Le consentement signé reste au dossier; le nouveau le remplacera une fois signé, pour 12 mois.",
+            "body": "Un nouveau formulaire (version {version} du modèle) est envoyé à {firstName} pour signature. Le consentement signé reste au dossier; le nouveau le remplacera une fois signé.",
             "action": "Envoyer pour signature"
           }
         },
@@ -4064,6 +4527,7 @@
           "submit": "Envoyer mon profil",
           "submitting": "Envoi…",
           "notAnswered": "Non indiqué",
+          "addressNone": "Non indiquée",
           "notSigned": "Pas encore signé.",
           "signedVersion": "Signé (version {version}) le {date} par {name}.",
           "yes": "Oui",
@@ -4125,33 +4589,14 @@
       "email_settings": "Expéditeur des courriels",
       "email_templates": "Modèles de courriel",
       "email_template_versions": "Versions des modèles de courriel",
-      "professional_orders": "Ordres professionnels",
-      "profession_categories": "Catégories de professions",
-      "profession_titles": "Titres professionnels",
-      "clienteles": "Clientèles",
-      "motif_categories": "Catégories de motifs",
-      "motifs": "Motifs",
-      "languages": "Langues",
-      "deactivation_reasons": "Raisons de désactivation",
-      "professionals": "Professionnels",
-      "professional_public_profiles": "Profils publics des professionnels",
-      "professional_matching_profiles": "Profils de jumelage",
-      "professional_matching_notes": "Notes Bon à savoir",
-      "professional_professions": "Titres des professionnels",
-      "professional_clienteles": "Clientèles des professionnels",
-      "professional_motifs": "Motifs des professionnels",
-      "professional_languages": "Langues des professionnels",
-      "professional_payer_numbers": "Numéros de payeurs des professionnels",
-      "professional_private": "Données privées des professionnels",
-      "compensation_rates": "Taux des autres services",
-      "retention_grids": "Grilles de rétention",
-      "retention_grid_tiers": "Paliers des grilles de rétention",
-      "retention_grid_prices": "Prix des grilles de rétention",
-      "professional_session_counts": "Séances des professionnels",
-      "professional_retention": "Taux de retenue des professionnels",
-      "professional_client_agreements": "Ententes particulières",
-      "document_types": "Documents requis",
-      "professional_documents": "Documents des professionnels"
+      "staff_invitations": "Invitations du personnel",
+      "signing_settings": "Réglages de la signature électronique",
+      "document_templates": "Modèles de documents",
+      "document_template_versions": "Versions des modèles de documents",
+      "signature_requests": "Demandes de signature",
+      "signature_request_signers": "Signataires des demandes de signature",
+      "stored_files": "Fichiers",
+      "secure_links": "Liens sécurisés"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -4187,7 +4632,10 @@
         "record_retention_years": "Durée de conservation des dossiers (années)",
         "timezone": "Fuseau horaire",
         "default_locale": "Langue",
-        "currency": "Devise"
+        "currency": "Devise",
+        "signatory_email": "Courriel du signataire",
+        "logo_file_id": "Logo",
+        "signature_file_id": "Image de la signature"
       },
       "profiles": {
         "display_name": "Nom",
@@ -4212,7 +4660,8 @@
       },
       "org_modules": {
         "module_key": "Module",
-        "enabled": "Activé"
+        "enabled": "Activé",
+        "disabled_at": "Désactivé le"
       },
       "org_module_settings": {
         "module_key": "Module",
@@ -4235,7 +4684,8 @@
         "transit_number": "Numéro de transit",
         "account_number": "Numéro de compte",
         "account_last4": "Fin du numéro de compte",
-        "etransfer_email": "Courriel Interac"
+        "etransfer_email": "Courriel Interac",
+        "key_version": "Version de la clé de chiffrement"
       },
       "org_scheduled_jobs": {
         "job_key": "Tâche",
@@ -4258,238 +4708,122 @@
         "key": "Modèle",
         "last_version": "Dernière version"
       },
-      "professional_orders": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "acronym": "Sigle",
-        "licence_label": "Libellé du permis",
-        "licence_pattern": "Format du permis"
-      },
-      "profession_categories": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif"
-      },
-      "profession_titles": {
-        "key": "Clé",
-        "name": "Nom",
-        "name_feminine": "Forme féminine",
-        "name_masculine": "Forme masculine",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "category_id": "Catégorie",
-        "order_id": "Ordre professionnel"
-      },
-      "clienteles": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "min_age": "Âge minimum",
-        "max_age": "Âge maximum"
-      },
-      "motif_categories": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "description": "Description",
-        "icon": "Icône"
-      },
-      "motifs": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "category_id": "Catégorie",
-        "is_restricted": "Réservé aux professions réglementées"
-      },
-      "languages": {
-        "code": "Code",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Active"
-      },
-      "deactivation_reasons": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif",
-        "requires_note": "Note requise",
-        "disables_account": "Désactive le compte"
-      },
-      "document_types": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "required": "Requis",
-        "expiry_rule": "Échéance",
-        "reminder_days": "Rappels (jours avant l'échéance)",
-        "weekly_after_expiry": "Rappel chaque semaine après l'échéance",
-        "accepted_mime": "Types de fichiers acceptés",
-        "max_bytes": "Taille maximale",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif"
-      },
-      "professional_documents": {
-        "professional_id": "Professionnel",
-        "document_type_id": "Type de document",
-        "stored_file_id": "Fichier",
-        "status": "Statut",
-        "expires_on": "Dernier jour de validité",
-        "metadata": "Renseignements du document",
-        "uploaded_by": "Téléversé par",
-        "uploaded_at": "Téléversé le",
-        "reviewed_by": "Vérifié par",
-        "reviewed_at": "Vérifié le",
-        "rejection_reason": "Raison du refus",
-        "submission_id": "Questionnaire",
-        "signature_request_id": "Signature électronique"
-      },
-      "professionals": {
-        "profile_id": "Compte",
-        "first_name": "Prénom",
-        "last_name": "Nom",
+      "staff_invitations": {
+        "display_name": "Nom",
         "email": "Courriel",
-        "personal_phone": "Téléphone personnel",
-        "address_line1": "Adresse",
-        "address_line2": "Appartement ou bureau",
-        "city": "Ville",
-        "province": "Province",
-        "postal_code": "Code postal",
-        "country": "Pays",
-        "years_experience": "Années d'expérience",
-        "gender": "Genre",
+        "role": "Rôle",
         "status": "Statut",
-        "status_changed_at": "Statut modifié le",
-        "status_changed_by": "Statut modifié par",
-        "deactivation_reason_id": "Raison de la désactivation",
-        "deactivation_note": "Note de désactivation",
-        "deactivation_disabled_account": "Compte désactivé avec le dossier",
-        "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
-        "fiche_generated_at": "Fiche PDF générée le"
+        "invited_by": "Invitation envoyée par",
+        "secure_link_id": "Lien d'invitation",
+        "accepted_at": "Acceptée le",
+        "accepted_user_id": "Compte créé"
       },
-      "professional_public_profiles": {
-        "professional_id": "Professionnel",
-        "bio": "Présentation",
-        "approach": "Approche",
-        "public_email": "Courriel public",
-        "public_phone": "Téléphone public",
-        "photo_document_id": "Photo"
+      "signing_settings": {
+        "base_url": "Adresse de Documenso",
+        "expiry_days": "Délai d'expiration (jours)"
       },
-      "professional_matching_profiles": {
-        "professional_id": "Professionnel",
-        "accepting_new_clients": "Accepte de nouveaux clients",
-        "availability_periods": "Disponibilités générales",
-        "availability_note": "Note sur les disponibilités",
-        "min_client_age": "Âge minimum des clients",
-        "women_only": "Femmes seulement",
-        "new_client_places": "Places offertes",
-        "new_client_places_set_at": "Places offertes indiquées le"
+      "document_templates": {
+        "module_key": "Module",
+        "key": "Clé",
+        "title": "Titre",
+        "description": "Description",
+        "is_active": "Actif",
+        "view_permission": "Permission pour consulter",
+        "edit_permission": "Permission pour modifier"
       },
-      "professional_matching_notes": {
-        "professional_id": "Professionnel",
-        "note": "Bon à savoir"
+      "document_template_versions": {
+        "template_id": "Modèle",
+        "version": "Version",
+        "status": "Statut",
+        "body": "Contenu",
+        "variables": "Variables",
+        "signers": "Signataires",
+        "email_subject": "Objet du courriel",
+        "email_message": "Message du courriel",
+        "published_at": "Publiée le",
+        "published_by": "Publiée par",
+        "archived_at": "Archivée le"
       },
-      "professional_professions": {
-        "professional_id": "Professionnel",
-        "profession_title_id": "Titre",
-        "licence_number": "Numéro de permis",
-        "is_primary": "Titre principal"
+      "signature_requests": {
+        "module_key": "Module",
+        "purpose": "Usage",
+        "subject_type": "Type de sujet",
+        "subject_id": "Sujet",
+        "title": "Titre",
+        "template_version_id": "Version du modèle",
+        "idempotency_key": "Clé d'envoi",
+        "view_permission": "Permission pour consulter",
+        "status": "Statut",
+        "source_file_id": "Document envoyé",
+        "page_count": "Nombre de pages",
+        "envelope_id": "Enveloppe Documenso",
+        "superseded_envelope_ids": "Enveloppes remplacées",
+        "documenso_document_id": "Document Documenso (ancien)",
+        "superseded_document_ids": "Documents Documenso remplacés (ancien)",
+        "send_started_at": "Envoi commencé le",
+        "last_send_at": "Dernier envoi le",
+        "last_error": "Dernière erreur",
+        "sent_at": "Envoyée le",
+        "sent_by": "Envoyée par",
+        "viewed_at": "Consultée le",
+        "expires_at": "Expire le",
+        "expired_at": "Expirée le",
+        "rejected_at": "Refusée le",
+        "rejection_reason": "Raison du refus",
+        "cancelled_at": "Annulée le",
+        "cancelled_by": "Annulée par",
+        "completed_at": "Signée le",
+        "completed_event_at": "Signature signalée par Documenso le",
+        "signed_file_id": "PDF signé",
+        "signed_sha256": "Empreinte du PDF signé"
       },
-      "professional_clienteles": {
-        "professional_id": "Professionnel",
-        "clientele_id": "Clientèle",
-        "is_specialized": "Spécialisé"
+      "signature_request_signers": {
+        "request_id": "Demande de signature",
+        "role": "Rôle",
+        "signing_order": "Ordre de signature",
+        "name": "Nom",
+        "email": "Courriel",
+        "status": "Statut",
+        "documenso_recipient_id": "Destinataire Documenso",
+        "viewed_at": "Consulté le",
+        "signed_at": "Signé le",
+        "rejected_at": "Refusé le"
       },
-      "professional_motifs": {
-        "professional_id": "Professionnel",
-        "motif_id": "Motif"
+      "stored_files": {
+        "module_key": "Module",
+        "purpose": "Usage",
+        "subject_type": "Type de sujet",
+        "subject_id": "Sujet",
+        "bucket": "Espace de stockage",
+        "object_path": "Emplacement",
+        "original_name": "Nom du fichier",
+        "ext": "Extension",
+        "mime_type": "Type de fichier",
+        "size_bytes": "Taille (octets)",
+        "sha256": "Empreinte",
+        "status": "Statut",
+        "view_permission": "Permission pour consulter",
+        "owner_permission": "Permission du propriétaire",
+        "owner_profile_id": "Propriétaire",
+        "uploaded_by": "Téléversé par",
+        "confirmed_at": "Confirmé le",
+        "retain_until": "Conservé jusqu'au",
+        "deleted_at": "Supprimé le",
+        "deleted_by": "Supprimé par"
       },
-      "professional_languages": {
-        "professional_id": "Professionnel",
-        "language_id": "Langue"
-      },
-      "professional_payer_numbers": {
-        "professional_id": "Professionnel",
-        "payer_type": "Payeur",
-        "number": "Numéro"
-      },
-      "professional_private": {
-        "professional_id": "Professionnel",
-        "sin": "NAS",
-        "sin_last3": "NAS (3 derniers chiffres)",
-        "business_number": "Numéro d'entreprise (NE)",
-        "gst_number": "Numéro de TPS",
-        "qst_number": "Numéro de TVQ",
-        "bank_institution": "Numéro d'institution",
-        "bank_transit": "Numéro de transit",
-        "bank_account": "Numéro de compte",
-        "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
-        "key_version": "Version de la clé de chiffrement"
-      },
-      "compensation_rates": {
-        "kind": "Type",
-        "retention_pct": "Retenue (%)",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)"
-      },
-      "retention_grids": {
-        "title_id": "Profession",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
-      },
-      "retention_grid_tiers": {
-        "grid_id": "Grille",
-        "threshold_sessions": "Seuil (séances)",
-        "retention_pct": "Retenue (%)"
-      },
-      "retention_grid_prices": {
-        "grid_id": "Grille",
-        "duration": "Durée (min)",
-        "client_price_cents": "Prix client (¢)"
-      },
-      "professional_session_counts": {
-        "professional_id": "Professionnel",
-        "month": "Mois",
-        "sessions_50_60": "Séances de 50 ou 60 min",
-        "sessions_30": "Séances de 30 min",
-        "adjustment": "Ajustement (séances)",
-        "note": "Note"
-      },
-      "professional_retention": {
-        "professional_id": "Professionnel",
-        "retention_pct": "Retenue (%)",
-        "decision": "Décision",
-        "tier_threshold": "Palier (séances)",
-        "suggested_pct": "Taux suggéré (%)",
-        "sessions_total": "Séances cumulées",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
-      },
-      "professional_client_agreements": {
-        "professional_id": "Professionnel",
-        "client_label": "Référence du client",
-        "client_id": "Client",
-        "duration": "Durée (min)",
-        "professional_amount_cents": "Versé au professionnel (¢)",
-        "client_price_cents": "Prix client (¢)",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
+      "secure_links": {
+        "purpose": "Usage",
+        "subject_type": "Type de sujet",
+        "subject_id": "Sujet",
+        "scope": "Portée",
+        "token_hash": "Empreinte du lien",
+        "expires_at": "Expire le",
+        "max_uses": "Utilisations permises",
+        "use_count": "Utilisations",
+        "used_at": "Utilisé le",
+        "last_opened_at": "Dernière ouverture le",
+        "revoked_at": "Révoqué le",
+        "revoked_by": "Révoqué par"
       }
     },
     "actions": {
@@ -4498,22 +4832,63 @@
       "delete": "Suppression",
       "read": "Consultation"
     },
+    "deletedAccount": "Compte supprimé",
     "sources": {
       "app": "Application",
       "seed": "Données de test",
       "bootstrap": "Installation",
       "migration": "Mise à jour",
       "auth": "Connexion",
-      "system": "Système"
+      "system": "Système",
+      "job": "Tâche planifiée"
     },
     "values": {
       "empty": "(vide)",
       "yes": "Oui",
       "no": "Non",
       "redacted": "(masqué)",
-      "status": {
-        "active": "Actif",
-        "disabled": "Désactivé"
+      "enums": {
+        "profiles": {
+          "status": {
+            "active": "Actif",
+            "disabled": "Désactivé"
+          }
+        },
+        "staff_invitations": {
+          "status": {
+            "pending": "En attente",
+            "accepted": "Acceptée",
+            "revoked": "Révoquée"
+          }
+        },
+        "document_template_versions": {
+          "status": {
+            "draft": "Brouillon",
+            "published": "Publiée",
+            "archived": "Archivée"
+          }
+        },
+        "signature_request_signers": {
+          "status": {
+            "pending": "En attente",
+            "viewed": "Consulté",
+            "signed": "Signé",
+            "rejected": "Refusé"
+          },
+          "role": {
+            "professional": "Professionnel",
+            "clinic": "Clinique",
+            "client": "Client"
+          }
+        },
+        "stored_files": {
+          "status": {
+            "pending": "Téléversement en cours",
+            "ready": "Prêt",
+            "deleted": "Supprimé",
+            "purged": "Effacé"
+          }
+        }
       }
     },
     "filters": {

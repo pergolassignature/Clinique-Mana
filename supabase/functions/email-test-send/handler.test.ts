@@ -159,7 +159,7 @@ Deno.test('email-test-send: sends the draft when one is given', async () => {
     }))
     assertEquals(res.status, 200)
     const sent = JSON.parse(http.calls[0].body)
-    assertEquals(sent.Subject, '[Test] Brouillon : Clinique MANA')
+    assertEquals(sent.Subject, '[Test] Brouillon\u202F: Clinique MANA')
     assert(sent.Text.includes('Bonjour Ana Gagnon'))
     assert(!sent.HTML.includes('Créer mon accès'))
   })

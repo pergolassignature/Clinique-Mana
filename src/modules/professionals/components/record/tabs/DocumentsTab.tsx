@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { Loading, LoadError } from '@/shared/components/LoadState'
+import { SectionGroup } from '@/shared/components/SectionHeading'
 import { useProfessionalDocuments } from '../../../hooks/use-documents'
 import { fullName } from '../../../lib/display'
 import { DocumentsPanel } from '../DocumentsPanel'
@@ -46,9 +47,12 @@ export function DocumentsTab() {
   }
 
   return (
-    <div className="max-w-form space-y-5">
-      <ContractCard />
-      <SubmissionsCard id={submissionsId} />
+    // Three groups 32 px apart, each under its overline (audit 2026-10-09 §2.3, mockup 3).
+    <div className="flex flex-col gap-8">
+      <SectionGroup as="h3" title={t(`${D}.groups.contract`)}>
+        <ContractCard />
+        <SubmissionsCard id={submissionsId} />
+      </SectionGroup>
       {documents.isPending ? (
         <Loading />
       ) : !documents.data ? (

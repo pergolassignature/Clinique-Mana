@@ -402,7 +402,7 @@ describe('history — private data, actors, ids', () => {
     expect(actor({ actorId: null, actorName: null, source: 'migration:professionals_core' }).actor).toBe(t(`${H}.actors.migration`))
     expect(actor({ actorId: null, actorName: null, source: 'service' }).actor).toBe(t(`${H}.actors.system`))
     expect(actor({ actorId: null, actorName: null, source: 'bootstrap' })).toMatchObject({ actor: 'Le système', byPerson: false })
-    expect(actor({ actorName: null })).toMatchObject({ actor: "Une personne qui n'a plus accès", byPerson: false })
+    expect(actor({ actorName: null })).toMatchObject({ actor: 'Un compte supprimé', byPerson: false })
   })
 
   it('prints no UUID for any table, an unknown one included', () => {
@@ -484,8 +484,8 @@ describe('history — retention (P4-193)', () => {
     ])
     expect(event.sentence).toBe(`a appliqué le taux suggéré de 27,5${NBSP}% dès le 1 nov. 2026`)
     expect(event.lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_retention.sessions_total'), value: '55,5' },
-      { kind: 'value', field: t('audit.fields.professional_retention.suggested_pct'), value: `27,5${NBSP}%` },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_retention.sessions_total'), value: '55,5' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_retention.suggested_pct'), value: `27,5${NBSP}%` },
     ])
   })
 
@@ -497,7 +497,7 @@ describe('history — retention (P4-193)', () => {
       `a maintenu le taux à 30${NBSP}% au palier de 0 séance, dès le 1 sept. 2026`,
     )
     expect(only([rate('insert', { retention_pct: 26, decision: 'custom', effective_from: '2026-09-01', note: 'Entente' })]).lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_retention.note'), value: 'Entente' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_retention.note'), value: 'Entente' },
     ])
     expect(only([rate('delete', { retention_pct: 26, decision: 'custom', effective_from: '2026-09-01' })]).sentence).toBe(`a supprimé le taux de 26${NBSP}% (dès le 1 sept. 2026)`)
   })
@@ -506,12 +506,12 @@ describe('history — retention (P4-193)', () => {
     const set = only([months('insert', { month: '2026-09-01', sessions_50_60: 20, sessions_30: 4, adjustment: 0, note: null })])
     expect(set.sentence).toBe('a saisi les séances de septembre 2026')
     expect(set.lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_session_counts.sessions_50_60'), value: '20' },
-      { kind: 'value', field: t('audit.fields.professional_session_counts.sessions_30'), value: '4' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_session_counts.sessions_50_60'), value: '20' },
+      { kind: 'value', field: t('modules.professionals.audit.fields.professional_session_counts.sessions_30'), value: '4' },
     ])
     const changed = only([months('update', { sessions_30: { before: 4, after: 6 } })])
     expect(changed.sentence).toBe('a modifié les séances d’un mois')
-    expect(changed.lines).toEqual([{ kind: 'change', field: t('audit.fields.professional_session_counts.sessions_30'), before: '4', after: '6' }])
+    expect(changed.lines).toEqual([{ kind: 'change', field: t('modules.professionals.audit.fields.professional_session_counts.sessions_30'), before: '4', after: '6' }])
     expect(only([months('delete', { month: '2026-09-01', sessions_50_60: 20 })]).sentence).toBe('a retiré les séances de septembre 2026')
   })
 
@@ -541,7 +541,7 @@ describe('history — retention (P4-193)', () => {
     const event = only([agreement('update', { effective_to: { before: null, after: '2027-03-01' } })])
     expect(event.sentence).toBe('a modifié une entente particulière')
     expect(event.lines).toEqual([
-      { kind: 'change', field: t('audit.fields.professional_client_agreements.effective_to'), before: t('audit.values.empty'), after: '1 mars 2027' },
+      { kind: 'change', field: t('modules.professionals.audit.fields.professional_client_agreements.effective_to'), before: t('audit.values.empty'), after: '1 mars 2027' },
     ])
   })
 
@@ -769,6 +769,14 @@ describe('history — the service contract (Task 4d.1)', () => {
     expect(events([row('signature_requests', 'insert', { status: 'draft' })])).toEqual([])
     expect(events([signer('pending', 'professional')])).toEqual([])
   })
+
+  it('a contract signed outside the app (P4-520): its upload with the signature date, a calendar date', () => {
+    const paper = (fields: Record<string, unknown>) =>
+      row('professional_paper_contracts', 'insert', { org_id: ORG, professional_id: P, stored_file_id: '00000000-0000-4000-8000-0000000f11e1', ...fields })
+    expect(only([paper({ signed_on: '2023-01-01' })]).sentence).toBe('a téléversé un contrat de service signé hors application (signé le 1 janv. 2023)')
+    expect(only([paper({ signed_on: null })]).sentence).toBe(t('modules.professionals.history.sentences.paperContract.uploadedNoDate'))
+    expect(JSON.stringify(only([paper({ signed_on: '2023-01-01' })]))).not.toContain('0f11e1')
+  })
 })
 
 describe('history — the documents (4c.2)', () => {
@@ -807,6 +815,19 @@ describe('history — the documents (4c.2)', () => {
       "a vérifié le document « Preuve d'assurance responsabilité »",
       "a téléversé le document « Preuve d'assurance responsabilité »",
     ])
+  })
+
+  it('an update alone on its page names its type from the server (id, else the name for a type the catalogue lacks)', () => {
+    const verified = { status: { before: 'pending', after: 'verified' } }
+    expect(only([docRow('update', { ...verified, document_type_id: IDS.insuranceType, document_type_name: 'Ancien nom' })]).sentence).toBe(
+      "a vérifié le document « Preuve d'assurance responsabilité »",
+    )
+    expect(only([docRow('update', { ...verified, document_type_id: '00000000-0000-4000-8000-00000000dead', document_type_name: 'Diplôme' })]).sentence).toBe(
+      'a vérifié le document « Diplôme »',
+    )
+    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' }, document_type_name: 'Diplôme' })]).sentence).toBe(
+      "a modifié l'échéance du document « Diplôme » au 1 nov. 2026",
+    )
   })
 
   it('an update whose document is not on screen reads « un document »; other updates say nothing', () => {

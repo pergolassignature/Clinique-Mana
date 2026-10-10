@@ -71,6 +71,26 @@ export const SIGNED_REQUEST = requestJson({
   ],
 })
 
+export const PAPER_ID = '00000000-0000-4000-8000-00000000c5a1'
+export const PAPER_FILE = '00000000-0000-4000-8000-00000000f5a1'
+
+/** A paper contract signed on 2023-05-01, uploaded on Oct 9 by Admin A (P4-520); its file for compensation readers. */
+export function paperJson(over: Json = {}): Json {
+  return {
+    kind: 'paper',
+    id: PAPER_ID,
+    signed_on: '2023-05-01',
+    created_at: '2026-10-09T16:00:00+00:00',
+    uploaded_by_name: 'Admin A',
+    can_read: true,
+    file: { id: PAPER_FILE, name: 'Contrat papier.pdf', mime_type: 'application/pdf', size_bytes: 245_000 },
+    ...over,
+  }
+}
+
+/** A Documenso contract in force (`current`, P4-525). */
+export const signedInForceJson = (request: Json = SIGNED_REQUEST): Json => ({ kind: 'signed', request })
+
 /** The card's payload parsed as the API does. */
 export const parsedContract = (json: Json): ProfessionalContract => parseRpc(contractPayload, json)
 

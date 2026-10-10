@@ -14,6 +14,7 @@ import { toast } from '@/shared/ui/sonner'
 import { fetchPublicFees, markFicheGenerated, sendFicheEmail } from '../api/fiche'
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
+import { imageConsentOnFile } from '../lib/documents'
 import { ficheFileName, ficheProfession } from '../lib/fiche'
 import { documentsQuery } from './use-documents'
 import { refreshProfessionalHistory } from './use-professional-record'
@@ -55,10 +56,11 @@ async function renderFiche(queryClient: QueryClient, { record, catalog, titleId 
     // The title the content prints (two titles: the chosen one), so the fees follow it (P4-218).
     fetchPublicFees(record.professional.id, ficheProfession(record, titleId)?.titleId ?? null),
     // The photo (P4-202): the public profile's, the newest verified one, from the Documents tab's
-    // read (cached 30 s). Unreadable → no photo: the initials take its place, never a failed fiche.
+    // read (cached 30 s), and only with an image consent in force on file (P4-512: the same read).
+    // Unreadable, or no consent → no photo: the initials take its place, never a failed fiche.
     queryClient
       .fetchQuery(documentsQuery(record.professional.id))
-      .then((documents) => documents?.photo?.fileId ?? null)
+      .then((documents) => (documents && imageConsentOnFile(documents.documents) ? (documents.photo?.fileId ?? null) : null))
       .catch(() => null),
   ])
   const options = {

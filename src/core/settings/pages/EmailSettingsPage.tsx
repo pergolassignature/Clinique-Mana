@@ -12,6 +12,7 @@ import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
+import { SectionSurface } from '@/shared/components/SettingsCard'
 import { useGuardedTabs } from '@/shared/lib/unsaved-changes-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 
@@ -43,7 +44,7 @@ export function EmailSettingsPage() {
 
   return (
     <div className="max-w-content space-y-5">
-      <PageHeader title={t('settings.sections.email')} description={t('settings.email.description')} />
+      <PageHeader level={1} title={t('settings.sections.email')} description={t('settings.email.description')} />
       {readOnly && <ReadOnlyNotice />}
       <Tabs value={tab} onValueChange={onValueChange}>
         <TabsList>
@@ -53,8 +54,10 @@ export function EmailSettingsPage() {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="settings" className="mt-5 max-w-form space-y-5">
-          <SettingsTab canManageEmail={canManageEmail} canManageKeys={canManageKeys} />
+        <TabsContent value="settings" className="mt-5">
+          <SectionSurface>
+            <SettingsTab canManageEmail={canManageEmail} canManageKeys={canManageKeys} />
+          </SectionSurface>
         </TabsContent>
         <TabsContent value="templates" className="mt-5 space-y-5">
           {!readOnly && !canManageEmail && <ReadOnlyNotice />}

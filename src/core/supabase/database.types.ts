@@ -9,6 +9,32 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      account_deletion_guards: {
+        Row: {
+          created_at: string
+          guard_function: string
+          module_key: string
+        }
+        Insert: {
+          created_at?: string
+          guard_function: string
+          module_key: string
+        }
+        Update: {
+          created_at?: string
+          guard_function?: string
+          module_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_deletion_guards_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: true
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -2474,6 +2500,79 @@ export type Database = {
           },
         ]
       }
+      professional_paper_contracts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          professional_id: string
+          signed_on: string
+          stored_file_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id: string
+          professional_id: string
+          signed_on: string
+          stored_file_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          professional_id?: string
+          signed_on?: string
+          stored_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_paper_contracts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_stored_file_id_fkey"
+            columns: ["stored_file_id"]
+            isOneToOne: true
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professional_payer_numbers: {
         Row: {
           created_at: string
@@ -3895,7 +3994,6 @@ export type Database = {
           completed_at: string | null
           completed_event_at: string | null
           created_at: string
-          documenso_document_id: string | null
           envelope_id: string | null
           expired_at: string | null
           expires_at: string | null
@@ -3918,7 +4016,6 @@ export type Database = {
           status: string
           subject_id: string
           subject_type: string
-          superseded_document_ids: string[]
           superseded_envelope_ids: string[]
           template_version_id: string | null
           title: string
@@ -3932,7 +4029,6 @@ export type Database = {
           completed_at?: string | null
           completed_event_at?: string | null
           created_at?: string
-          documenso_document_id?: string | null
           envelope_id?: string | null
           expired_at?: string | null
           expires_at?: string | null
@@ -3955,7 +4051,6 @@ export type Database = {
           status?: string
           subject_id: string
           subject_type: string
-          superseded_document_ids?: string[]
           superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title: string
@@ -3969,7 +4064,6 @@ export type Database = {
           completed_at?: string | null
           completed_event_at?: string | null
           created_at?: string
-          documenso_document_id?: string | null
           envelope_id?: string | null
           expired_at?: string | null
           expires_at?: string | null
@@ -3992,7 +4086,6 @@ export type Database = {
           status?: string
           subject_id?: string
           subject_type?: string
-          superseded_document_ids?: string[]
           superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title?: string
@@ -4766,6 +4859,7 @@ export type Database = {
           matching_complete: boolean | null
           motif_ids: string[] | null
           org_id: string | null
+          photo_file_id: string | null
           primary_licence_number: string | null
           primary_title_id: string | null
           ready: boolean | null
@@ -5031,7 +5125,6 @@ export type Database = {
         Args: { p: Json }
         Returns: {
           created_at: string
-          documenso_document_id: string
           envelope_id: string
           existing: boolean
           id: string
@@ -5093,6 +5186,7 @@ export type Database = {
       }
       delete_retention_grid: { Args: { p_id: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
+      delete_staff_account: { Args: { p_user_id: string }; Returns: string }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       delete_user_preference: {
         Args: { p_key: string; p_user_id: string }
@@ -5218,7 +5312,6 @@ export type Database = {
         Args: { p_id: string }
         Returns: {
           completed_at: string
-          documenso_document_id: string
           envelope_id: string
           expires_at: string
           id: string
@@ -5257,6 +5350,7 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
+      jobs_health_report: { Args: never; Returns: Json }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       link_professional_account: {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
@@ -5289,6 +5383,23 @@ export type Database = {
           record_id: string
           source: string
           table_name: string
+        }[]
+      }
+      list_document_template_versions: {
+        Args: { p_template_id: string }
+        Returns: {
+          archived_at: string
+          body: Json
+          created_at: string
+          email_message: string
+          email_subject: string
+          id: string
+          published_at: string
+          signers: Json
+          status: string
+          updated_at: string
+          variables: Json
+          version: number
         }[]
       }
       list_document_templates: {
@@ -5485,6 +5596,7 @@ export type Database = {
           matching_complete: boolean | null
           motif_ids: string[] | null
           org_id: string | null
+          photo_file_id: string | null
           primary_licence_number: string | null
           primary_title_id: string | null
           ready: boolean | null
@@ -5545,7 +5657,6 @@ export type Database = {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
           action: string
-          documenso_document_id: string
           envelope_id: string
           expires_at: string
           id: string
@@ -5720,6 +5831,10 @@ export type Database = {
         Args: { p_code: string; p_link_id: string; p_org: string }
         Returns: undefined
       }
+      record_professional_paper_contract: {
+        Args: { p_file_id: string; p_id: string; p_signed_on: string }
+        Returns: string
+      }
       record_signature_sync: {
         Args: {
           p_error_code?: string
@@ -5738,6 +5853,10 @@ export type Database = {
           p_signer_recipients: Json
         }
         Returns: string
+      }
+      refund_rate_limit: {
+        Args: { p_bucket: string; p_key_hash: string; p_window_seconds: number }
+        Returns: undefined
       }
       register_system_file: {
         Args: {
@@ -6096,10 +6215,6 @@ export type Database = {
       set_user_status: {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
-      }
-      sign_my_consent: {
-        Args: { p_signer_name: string; p_version_id: string }
-        Returns: string
       }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }

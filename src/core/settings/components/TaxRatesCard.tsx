@@ -163,6 +163,7 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
   return (
     <SettingsCard
       as="section"
+      layout="section"
       title={title}
       description={t(`settings.tax.taxes.${tax}.description`)}
       footer={

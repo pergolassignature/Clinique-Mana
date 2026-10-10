@@ -53,7 +53,7 @@ describe('PrivacySettingsPage', () => {
   it('shows the title and description, loads, then fills the two cards', async () => {
     mocks.api.fetchOrganization.mockResolvedValue(testOrganization)
     renderOrganizationPage(<PrivacySettingsPage />)
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.privacy') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.privacy') })).toBeInTheDocument()
     expect(screen.getByText(t('settings.privacy.description'))).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 
@@ -62,6 +62,9 @@ describe('PrivacySettingsPage', () => {
       'Responsable de la protection des renseignements personnels',
       'Politique et conservation',
     ])
+    // Each card says what uses it today: the officer in the emails' footer, the policy and retention by nothing yet.
+    expect(screen.getByText(t('settings.privacy.officer.description'))).toBeInTheDocument()
+    expect(screen.getByText(t('settings.privacy.policy.description'))).toBeInTheDocument()
     expect(field('officerName')).toHaveValue('Julie Roy')
     expect(field('officerEmail')).toHaveValue('vie-privee@cliniquemana.com')
     expect(field('officerEmail')).toHaveAttribute('type', 'email')
@@ -168,10 +171,10 @@ describe('PrivacySettingsPage', () => {
       'privacy_policy_url',
       'record_retention_years',
     ])
+    // Clean cards show no « Annuler / Enregistrer » (decision UI-2): fields only.
     const order = screen.getAllByRole('form').flatMap((form) => {
-      const buttons = within(form).getAllByRole('button')
-      expect(buttons.map((b) => b.textContent)).toEqual([t('common.cancel'), t('common.save')])
-      return [...labelledControlsOf(form), ...buttons]
+      expect(within(form).queryAllByRole('button').map((b) => b.textContent)).not.toContain(t('common.save'))
+      return [...labelledControlsOf(form), ...within(form).queryAllByRole('button')]
     })
     const [first, ...rest] = order
     first?.focus()

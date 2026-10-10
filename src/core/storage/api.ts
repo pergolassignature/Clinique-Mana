@@ -21,6 +21,18 @@ const preparedSchema = z.object({
 })
 
 const signedSchema = z.object({ url: z.url(), expires_at: z.string().min(1) })
+const signedBatchSchema = z.object({ urls: z.record(z.string(), z.url()), expires_at: z.string().min(1) })
+
+/** The most files one `storage-sign` batch call signs (its `MAX_BATCH_FILES`). */
+export const SIGN_BATCH_MAX = 50
+
+/**
+ * A smaller copy of a stored image, by name (`storage-sign`'s `IMAGE_VARIANTS`, PERF-1; the
+ * server fixes each size, the client never sends a width): `avatar` for avatars up to 48 px
+ * (96 px wide), `card` for previews up to 96 px (192 px wide), `print` for the fiche PDF
+ * (480 px wide, PNG or JPEG kept). Only for an image; a PDF is refused (single) or left out (batch).
+ */
+export type ImageVariant = 'avatar' | 'card' | 'print'
 
 /** The longest name `stored_files.original_name` takes. */
 const MAX_NAME = 200
@@ -108,11 +120,32 @@ export async function uploadFile({ purpose, subjectType, subjectId, file, mimeTy
 /**
  * A 5-minute read URL for a stored file, from `storage-sign` (P3-33: the client never signs one
  * itself; the caller's `stored_files` visibility decides). 404 `not_found` when the file is not
- * readable; 429 `rate_limited` past 120 an hour.
+ * readable; 429 `rate_limited` past 120 an hour. With `variant`, a smaller copy of the image
+ * (never with `download`).
  */
-export async function signedFileUrl(fileId: string, { download = false, ...options }: InvokeOptions & { download?: boolean } = {}): Promise<{ url: string; expiresAt: string }> {
-  const data = signedSchema.parse(await invokeFunction('storage-sign', { file_id: fileId, ...(download && { download: true }) }, options))
+export async function signedFileUrl(
+  fileId: string,
+  { download = false, variant, ...options }: InvokeOptions & { download?: boolean; variant?: ImageVariant } = {},
+): Promise<{ url: string; expiresAt: string }> {
+  const body = { file_id: fileId, ...(download && { download: true }), ...(variant && { variant }) }
+  const data = signedSchema.parse(await invokeFunction('storage-sign', body, options))
   return { url: data.url, expiresAt: data.expires_at }
+}
+
+/**
+ * 5-minute read URLs for up to SIGN_BATCH_MAX stored files in one `storage-sign` call (its batch
+ * mode, `{ file_ids }`): a list's photos count once against the 120-an-hour limit, not once per
+ * row. Inline URLs only. A file the caller cannot read (or whose object is gone) is simply absent
+ * from `urls`, never an error. With `variant`, smaller copies (a file that is not an image is
+ * left out).
+ */
+export async function signedFileUrls(
+  fileIds: readonly string[],
+  { variant, ...options }: InvokeOptions & { variant?: ImageVariant } = {},
+): Promise<{ urls: ReadonlyMap<string, string>; expiresAt: string }> {
+  if (fileIds.length === 0 || fileIds.length > SIGN_BATCH_MAX) throw new RangeError(`signedFileUrls takes 1 to ${SIGN_BATCH_MAX} files`)
+  const data = signedBatchSchema.parse(await invokeFunction('storage-sign', { file_ids: fileIds, ...(variant && { variant }) }, options))
+  return { urls: new Map(Object.entries(data.urls)), expiresAt: data.expires_at }
 }
 
 /** The stored file could not be read through its signed URL (the network, or storage answered an error). */

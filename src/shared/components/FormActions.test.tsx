@@ -41,15 +41,10 @@ describe('FormActions', () => {
     expect(onSubmit).toHaveBeenCalledOnce()
   })
 
-  it('makes both buttons inactive (aria-disabled, disabled look) while the form is unchanged, and ignores presses', async () => {
-    const { onCancel, onSubmit } = renderActions({ dirty: false })
-    for (const button of [cancel(), save()]) {
-      expect(button).toHaveAttribute('aria-disabled', 'true')
-      expect(button).toHaveClass('aria-disabled:opacity-50', 'aria-disabled:cursor-not-allowed')
-      await userEvent.click(button)
-    }
-    expect(onCancel).not.toHaveBeenCalled()
-    expect(onSubmit).not.toHaveBeenCalled()
+  // Decision UI-2: a clean form shows no buttons at all.
+  it('renders nothing while the form is unchanged and not saving', () => {
+    renderActions({ dirty: false })
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('makes both buttons inactive while saving', async () => {
@@ -63,18 +58,48 @@ describe('FormActions', () => {
   })
 
   // A disabled button would drop keyboard focus to <body> (WCAG 2.4.3).
-  it('keeps focus on the pressed button once it becomes inactive (after Annuler, while and after saving)', async () => {
+  it('keeps focus on the pressed button while saving (aria-disabled, never disabled)', async () => {
     const { rerender } = renderActions()
-    await userEvent.click(cancel())
-    rerender({ dirty: false })
-    expect(cancel()).toHaveFocus()
-
-    rerender({ dirty: true })
     await userEvent.click(save())
     rerender({ dirty: true, pending: true })
     expect(screen.getByRole('button', { name: t('common.saving') })).toHaveFocus()
-    rerender({ dirty: false })
-    expect(save()).toHaveFocus()
+  })
+
+  // The buttons disappear with the form clean: focus goes to the form's title, never to <body>.
+  it('moves focus to the form title when the buttons disappear with focus on them (after a save, after Annuler)', async () => {
+    const ui = (dirty: boolean, pending = false) => (
+      <form aria-labelledby="titre" onSubmit={(e) => e.preventDefault()}>
+        <h3 id="titre">Identité</h3>
+        <input aria-label="Nom" />
+        <FormActions onCancel={() => undefined} dirty={dirty} pending={pending} />
+      </form>
+    )
+    const view = render(ui(true))
+    await userEvent.click(save())
+    view.rerender(ui(true, true))
+    view.rerender(ui(false))
+    const title = screen.getByRole('heading', { name: 'Identité' })
+    expect(title).toHaveFocus()
+    expect(title).toHaveAttribute('tabindex', '-1')
+
+    view.rerender(ui(true))
+    await userEvent.click(cancel())
+    view.rerender(ui(false))
+    expect(title).toHaveFocus()
+  })
+
+  it('leaves focus alone when it was elsewhere', async () => {
+    const ui = (dirty: boolean) => (
+      <form aria-labelledby="titre2">
+        <h3 id="titre2">Identité</h3>
+        <input aria-label="Nom" />
+        <FormActions onCancel={() => undefined} dirty={dirty} />
+      </form>
+    )
+    const view = render(ui(true))
+    await userEvent.click(screen.getByRole('textbox', { name: 'Nom' }))
+    view.rerender(ui(false))
+    expect(screen.getByRole('textbox', { name: 'Nom' })).toHaveFocus()
   })
 
   it('calls onReset after onCancel, so the card can move focus to its first field', async () => {
@@ -84,22 +109,18 @@ describe('FormActions', () => {
     expect(calls).toEqual(['cancel', 'reset'])
   })
 
-  // Design system: « Un seul bouton d'action coloré par écran ». Clean cards show no teal.
-  it('draws the submit button outline while the form is clean, teal only while dirty or saving', () => {
-    const { rerender } = renderActions({ dirty: false })
-    expect(save()).toHaveClass('bg-card')
-    expect(save()).not.toHaveClass('bg-primary')
-    rerender({ dirty: true })
+  // Design system: « Un seul bouton d'action coloré par écran »: a shown « Enregistrer » is teal.
+  it('draws the submit button teal while dirty or saving; « Annuler » is always outline', () => {
+    const { rerender } = renderActions({ dirty: true })
     expect(save()).toHaveClass('bg-primary')
     rerender({ dirty: true, pending: true })
     expect(screen.getByRole('button', { name: t('common.saving') })).toHaveClass('bg-primary')
-    // « Annuler » is always outline.
     expect(cancel()).toHaveClass('bg-card')
     expect(cancel()).not.toHaveClass('bg-primary')
   })
 
   // An edit mode opened by « Modifier » (Coordonnées bancaires): « Annuler » leaves it, edits or not.
-  it('with cancelCloses, keeps « Annuler » active while the form is clean, inactive only while saving, and skips onReset', async () => {
+  it('with cancelCloses, shows the buttons while clean, « Annuler » active (inactive only while saving), and skips onReset', async () => {
     const onReset = vi.fn()
     const { onCancel, rerender } = renderActions({ dirty: false, cancelCloses: true, onReset })
     expect(cancel()).not.toHaveAttribute('aria-disabled')

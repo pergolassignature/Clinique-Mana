@@ -3,10 +3,9 @@ import { t } from '@/i18n'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { CATALOG } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
-import { CONSENT_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../test/fixtures-documents'
+import { CONSENT_DOC_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../test/fixtures-documents'
 import {
   addTwelveMonths,
-  consentLastDay,
   daysBetween,
   defaultExpiry,
   documentActions,
@@ -49,13 +48,6 @@ describe('dates', () => {
     expect(defaultExpiry('none', '2026-10-09')).toBeNull()
   })
 
-  it('an e-consent being withdrawn ends the day before the withdrawal takes effect', () => {
-    const consent = documentsFixture().consent
-    if (!consent) throw new Error('no consent')
-    expect(consentLastDay(consent)).toBe('2027-10-08')
-    expect(consentLastDay({ ...consent, withdrawalEffectiveOn: '2027-01-15' })).toBe('2027-01-14')
-  })
-
   it('checks a typed last day: required, real, at most 2100, not before `min`', () => {
     expect(expiryError('')).toBe(t('modules.professionals.documents.upload.dateRequired'))
     expect(expiryError('2027-02-30')).toBe(t('modules.professionals.documents.upload.dateInvalid'))
@@ -78,10 +70,11 @@ describe('typeDocuments', () => {
     expect(typeDocuments(type('photo'), documentsFixture()).kind).toBe('valid')
   })
 
-  it('the image consent: the later of the document’s last day and the e-consent’s', () => {
-    const doc = documentJson({ id: DOC_IDS.cv, type_id: IDS.consentType, type_key: 'image_consent', expires_on: '2027-01-31' })
-    expect(typeDocuments(type('image_consent'), documentsFixture({ documents: [doc] })).until).toBe('2027-10-08')
-    expect(typeDocuments(type('image_consent'), documentsFixture({ documents: [doc], consent: null })).until).toBe('2027-01-31')
+  it('the image consent: valid with no end date, years later too (P4-504); « Vérifié » for a paper one', () => {
+    expect(typeDocuments(type('image_consent'), documentsFixture())).toMatchObject({ kind: 'valid', until: null })
+    expect(typeDocuments(type('image_consent'), documentsFixture({ today: '2036-10-09' }))).toMatchObject({ kind: 'valid', until: null })
+    const paper = documentJson({ id: DOC_IDS.cv, type_id: IDS.consentType, type_key: 'image_consent', expires_on: null })
+    expect(typeStateLabel(typeDocuments(type('image_consent'), documentsFixture({ documents: [paper] })))).toBe(t('modules.professionals.documents.state.verified'))
   })
 
   it('counts the latest last day, keeps a renewal apart, and the rest as older', () => {
@@ -98,12 +91,13 @@ describe('typeDocuments', () => {
     expect(entry.older.map((d) => d.id)).toEqual([DOC_IDS.insuranceOld])
   })
 
-  it('pending, refused (only when nothing waits since), missing; the e-consent satisfies the image consent', () => {
+  it('pending, refused (only when nothing waits since), missing; the signed consent document satisfies the image consent', () => {
     expect(typeDocuments(type('insurance'), documentsFixture({ documents: [documentJson({ status: 'pending' })] })).kind).toBe('pending')
     expect(typeDocuments(type('insurance'), documentsFixture({ documents: [documentJson({ status: 'rejected', rejection_reason: 'Non.' })] })).kind).toBe('rejected')
     expect(typeDocuments(type('photo'), documentsFixture({ documents: [] })).kind).toBe('missing')
     expect(typeDocuments(type('image_consent'), documentsFixture()).kind).toBe('valid')
-    expect(typeDocuments(type('image_consent'), documentsFixture({ consent: { ...CONSENT_JSON, expires_on: '2026-10-08' } })).kind).toBe('missing')
+    expect(typeDocuments(type('image_consent'), documentsFixture({ documents: [documentJson(), PHOTO_JSON] })).kind).toBe('missing')
+    expect(typeDocuments(type('image_consent'), documentsFixture({ documents: [{ ...CONSENT_DOC_JSON, status: 'pending' }] })).kind).toBe('pending')
   })
 })
 
@@ -190,7 +184,7 @@ describe('the questionnaire’s documents (P4-495)', () => {
 
 describe('groups and summary', () => {
   it('one card per required active type, every other document under « Autres documents »', () => {
-    const data = documentsFixture({ documents: [documentJson(), PHOTO_JSON, documentJson({ id: DOC_IDS.cv, type_id: IDS.cvType, type_key: 'cv', expires_on: null })] })
+    const data = documentsFixture({ documents: [documentJson(), PHOTO_JSON, CONSENT_DOC_JSON, documentJson({ id: DOC_IDS.cv, type_id: IDS.cvType, type_key: 'cv', expires_on: null })] })
     const { required, others } = groupDocuments(types, data)
     expect(required.map((x) => x.type.key)).toEqual(['photo', 'insurance', 'image_consent'])
     expect(others.map((d) => d.id)).toEqual([DOC_IDS.cv])
@@ -220,7 +214,8 @@ describe('documentActions', () => {
     const signed = doc({ type_id: IDS.consentType, signature_request_id: '00000000-0000-4000-8000-00000000c501' })
     expect(signed.signatureRequestId).toBe('00000000-0000-4000-8000-00000000c501')
     // Downloaded from its signing part (core's split downloads), not from the row.
-    expect(documentActions(signed, type('image_consent'), ALL)).toEqual(['preview', 'redate', 'delete'])
+    // No « Modifier l'échéance » either: the consent never expires (P4-504).
+    expect(documentActions(signed, type('image_consent'), ALL)).toEqual(['preview', 'delete'])
     expect(doc({}).signatureRequestId).toBeNull()
   })
 })
