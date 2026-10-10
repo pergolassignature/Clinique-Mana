@@ -99,7 +99,7 @@ describe('ErrorBoundary — a chunk that fails to load (a deploy since the tab o
   function ChunkFail(): never {
     throw new TypeError('Failed to fetch dynamically imported module: /assets/X-abc.js')
   }
-  const renderChunkFailure = (props: { compact?: boolean } = {}) =>
+  const renderChunkFailure = (props: { compact?: boolean; headingLevel?: 1 | 2 } = {}) =>
     render(
       <ErrorBoundary {...props}>
         <ChunkFail />
@@ -140,6 +140,13 @@ describe('ErrorBoundary — a chunk that fails to load (a deploy since the tab o
     // The user's own reload; the unsaved-changes guard's beforeunload prompt still asks.
     await userEvent.click(screen.getByRole('button', { name: t('common.appUpdate.reload') }))
     expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('headingLevel overrides the compact h2 (a settings section is the page\'s only title, decision UI-4)', () => {
+    unregister = registerUnsavedChangesCheck(() => true)
+    renderChunkFailure({ compact: true, headingLevel: 1 })
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(t('common.appUpdate.title'))
+    expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
   })
 
   function DirtyForm() {
