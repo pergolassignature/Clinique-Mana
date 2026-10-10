@@ -34,8 +34,9 @@ const CARD_CLASSES = 'rounded-lg border border-border bg-card p-4 text-card-fore
 
 /**
  * One block of a settings page: its own form, its own save button, read-only without the edit
- * permission. Design system Card: hairline border, radius 6, padding 16, no shadow; title 14/600,
- * description 12px; actions aligned right under the fields.
+ * permission. Design system Card: hairline border, radius 6, padding 16, no shadow; the panel title
+ * 16/24, 600 (as `CardTitle`, `DialogTitle`; audit 2026-10-09 §2.2), description 12px; actions
+ * aligned right under the fields.
  */
 export function SettingsCard({ as = 'form', title, description, readOnly: readOnlyProp = false, pending, onSubmit, footer, headingRef, children }: SettingsCardProps) {
   const titleId = useId()
@@ -44,7 +45,7 @@ export function SettingsCard({ as = 'form', title, description, readOnly: readOn
   const readOnly = readOnlyProp || inherited
   const header = (
     <div className="mb-3 min-w-0">
-      <h3 id={titleId} ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="text-base font-semibold tracking-tight outline-none">
+      <h3 id={titleId} ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="text-lg font-semibold outline-none">
         {title}
       </h3>
       {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
