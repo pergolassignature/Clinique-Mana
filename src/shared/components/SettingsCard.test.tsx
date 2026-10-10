@@ -34,6 +34,13 @@ describe('SettingsCard', () => {
     expect(screen.getByText('Le nom de la clinique.')).toBeInTheDocument()
   })
 
+  it('the title is the panel title, 16/24 600 (as CardTitle and DialogTitle), with no tracking', () => {
+    render(card())
+    const title = screen.getByRole('heading', { level: 3, name: 'Identité' })
+    expect(title).toHaveClass('text-lg', 'font-semibold')
+    expect(title).not.toHaveClass('text-base', 'tracking-tight')
+  })
+
   it('names its form after the title', () => {
     render(card())
     expect(screen.getByRole('form', { name: 'Identité' })).toBeInTheDocument()

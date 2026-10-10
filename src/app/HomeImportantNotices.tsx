@@ -17,8 +17,7 @@ import { Button } from '@/shared/ui/button'
  * the notice's page and marks it read once there (not after « Rester »); a notice without a link
  * can only be marked read. Each button waits while its notice is being marked.
  *
- * The title is the design system's Accueil section heading (`.kit-sec h3`: --type-card-title,
- * 14 px semibold, which is `text-base` here). The icon is the design system's warning triangle in
+ * The title is the list card's panel title (16/24, 600, as `CardTitle`; audit 2026-10-09 §2.2). The icon is the design system's warning triangle in
  * `warning-strong` (#9A7B05, ~4:1): the kit's `--warning` #E0B400 is ~2.2:1 on white, below the
  * 3:1 a meaningful icon needs (decision #30, as for the pending clock).
  */
@@ -30,7 +29,7 @@ export function HomeImportantNotices() {
 
   return (
     <section aria-labelledby={headingId}>
-      <h2 id={headingId} className="mb-2 text-base font-semibold text-foreground">
+      <h2 id={headingId} className="mb-2 text-lg font-semibold text-foreground">
         {t('notifications.watch.title')}
       </h2>
       <ul className="divide-y divide-border rounded-lg border border-border bg-card">

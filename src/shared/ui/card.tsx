@@ -1,7 +1,10 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
 
-/** White, 1px hairline, radius 6, no shadow. Padding 16 through header/content/footer. */
+/**
+ * White, 1px hairline, radius 6, no shadow. Padding 16 through header/content/footer. The title is
+ * the « panel title » shared with dialogs and sheets: 16/24, 600 (audit 2026-10-09 §2.2).
+ */
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -32,7 +35,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h3
     ref={ref}
-    className={cn('text-base font-semibold tracking-tight text-foreground', className)}
+    className={cn('text-lg font-semibold text-foreground', className)}
     {...props}
   />
 ))

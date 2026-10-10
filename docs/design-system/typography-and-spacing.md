@@ -17,17 +17,18 @@ Each role is a **recipe**: use exactly these classes. Line-height comes with the
 |---|---|---|---|---|---|
 | H1 page title | 20 / 28 | 600 | −0.01em | `text-xl font-semibold tracking-tight` | `PageHeader level={1}`, « Paramètres », record header |
 | Figure (a number in a stat card) | 20 / 28 | 600 | 0 | `text-xl font-semibold tabular` | — |
-| H2 section, dialog and sheet title | 16 / 24 | 600 | 0 | `text-lg font-semibold` | `PageHeader` (level 2: a settings section), `DialogTitle`, `SheetTitle`, `AlertDialogTitle`, `FullPageMessage` |
-| H3 card title | 14 / 20 | 600 | −0.01em | `text-base font-semibold tracking-tight` | `CardTitle`, `SettingsCard` |
+| Panel title: card, dialog, sheet (H2/H3) | 16 / 24 | 600 | 0 | `text-lg font-semibold` | `CardTitle`, `SettingsCard`, `DialogTitle`, `SheetTitle`, `AlertDialogTitle`, `FullPageMessage`, `PageHeader` level 2 |
 | H4 group inside a card | 13 / 18 | 600 | 0 | `text-sm font-semibold` | — |
 | Body | 13 / 18 | 400 | 0 | `text-sm` (the `body` default: often nothing to add) | `Table`, `Alert`, `EmptyState` |
 | Body emphasis, label, button | 13 / 18 | 500 | 0 | `text-sm font-medium` | `Label`, `Button`, `AlertTitle` |
 | Small: help, caption, secondary line, description | 12 / 16 | 400 | 0 | `text-xs text-muted-foreground` | `FormField` help, `CardDescription`, `Badge` |
-| Overline (table header, menu group) | 11 / 16 | 500 | +0.06em | `text-2xs font-medium uppercase tracking-wide text-muted-foreground` | `TableHead` |
+| Overline (group heading above cards, table header, table group row, menu group) | 11 / 16 | 500 | +0.06em | `text-2xs font-medium uppercase tracking-wide text-muted-foreground` | `SectionHeading` / `SectionGroup`, `TableHead`, `TableGroupRow` |
 
 Rules:
 
-- **Tracking** only on H1 and card titles (`tracking-tight`, as the handoff's `--type-page-title` / `--type-card-title`) and on overlines (`tracking-wide`). Not on section, dialog or sheet titles, nor on body text.
+- **Tracking** only on H1 (`tracking-tight`) and on overlines (`tracking-wide`). Not on panel titles (cards, dialogs, sheets), nor on body text.
+- **Steps between levels** (audit 2026-10-09 §2.2): H1 20 → panel title 16 → label 13/500 → body 13/400 → help 12. Each level differs from the next by size or weight; card, dialog and sheet titles are one « panel title » (the handoff's 14 px card title was one pixel above the label).
+- **A group of cards** gets an overline heading (`SectionGroup`), never a 16/600 heading over cards inside a tab. **Tables** have one header style (`TableHead`) and one group row (`TableGroupRow`): don't restyle them per table (no 12 px, sentence case or 600 headers).
 - **One exception to the scale**: the initials of a 24 px avatar are 10 px (`Avatar size="sm"`, as the handoff). Nothing else goes under 11 px.
 - **Colours of text**: body `text-foreground`; informative secondary text `text-muted-foreground` (#6B6B6E, 5.3:1). `text-subtle` (#8E8E92, 3.3:1) is for placeholders, disabled text, separators and icons only, never for a sentence someone must read (decision #30).
 - **Form fields** are 16 px on phones and 13 px from `sm` (decision #30, `fieldClasses`): don't override the size of an `Input`, `Select` or `Textarea`.
@@ -95,7 +96,10 @@ A field is at least as wide as its label (« Années d'expérience » is `sm`, n
 | `text-[13px]`, `text-[13px] leading-5` | `text-sm` |
 | `text-[12px]`, `text-[11px]`, `text-[10px]` | `text-xs`, `text-2xs` (10 px is not on the scale) |
 | `leading-5`, `leading-6`… next to a scale size | nothing: the size carries its line-height |
-| a card title without `tracking-tight`, or in `text-sm`/`text-lg` | `text-base font-semibold tracking-tight` (or use `CardTitle` / `SettingsCard`) |
+| a card title in `text-base` / `text-sm`, or with `tracking-tight` | `text-lg font-semibold` (or use `CardTitle` / `SettingsCard`) |
+| an `h3` 16/600 over a group of cards inside a tab | `SectionGroup` / `SectionHeading` (the overline) |
+| a table header in 12 px, sentence case or 600; a hand-made group row | `TableHead` as is; `TableGroupRow` |
+| numbers, amounts, counts in a left-aligned column | `align="right"` on `TableHead` and `TableCell` |
 | a page title not `text-xl font-semibold tracking-tight` | `PageHeader`, or that recipe |
 | section title inside a page (`h2` over cards, a questionnaire step) | `text-lg font-semibold`, no tracking |
 | help or caption in `text-subtle` | `text-muted-foreground` |
