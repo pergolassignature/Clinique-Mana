@@ -88,89 +88,93 @@ export function Topbar({
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-4 md:px-6">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {/* Below md the sidebar is a sheet: the same icon opens it. */}
-        <TopbarIconButton
-          ref={menuButtonRef}
-          className="-ml-2 md:hidden"
-          aria-label={t('nav.openMenu')}
-          aria-haspopup="dialog"
-          onClick={onOpenMenu}
-        >
-          <PanelLeft className="h-4 w-4" aria-hidden />
-        </TopbarIconButton>
-        <TopbarIconButton
-          className="hidden md:inline-flex"
-          aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
-          onClick={onToggleCollapsed}
-        >
-          <PanelLeft className="h-4 w-4" aria-hidden />
-        </TopbarIconButton>
+    <header className="sticky top-0 z-30 h-12 shrink-0 border-b border-border bg-background px-4 md:px-6">
+      {/* The page's frame (AppShell's `max-w-content`): the breadcrumb starts where the page title does,
+          and the search, bell and avatar end where the content ends (audit 2026-10-09 §2.1). */}
+      <div className="mx-auto flex h-full w-full max-w-content items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {/* Below md the sidebar is a sheet: the same icon opens it. */}
+          <TopbarIconButton
+            ref={menuButtonRef}
+            className="-ml-2 md:hidden"
+            aria-label={t('nav.openMenu')}
+            aria-haspopup="dialog"
+            onClick={onOpenMenu}
+          >
+            <PanelLeft className="h-4 w-4" aria-hidden />
+          </TopbarIconButton>
+          <TopbarIconButton
+            className="hidden md:inline-flex"
+            aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
+            onClick={onToggleCollapsed}
+          >
+            <PanelLeft className="h-4 w-4" aria-hidden />
+          </TopbarIconButton>
 
-        {title && (
-          <nav aria-label={t('nav.breadcrumb')} className="min-w-0">
-            <ol className="flex min-w-0 items-center gap-2 text-sm">
-              {title.parent && <CrumbLink page={title.parent} />}
-              {crumb !== null && <CrumbLink page={title.current} />}
-              <li className="min-w-0">
-                <span aria-current="page" className="block truncate font-medium text-foreground">
-                  {crumb ?? t(title.current.labelKey)}
-                </span>
-              </li>
-            </ol>
-          </nav>
-        )}
-      </div>
+          {title && (
+            <nav aria-label={t('nav.breadcrumb')} className="min-w-0">
+              <ol className="flex min-w-0 items-center gap-2 text-sm">
+                {title.parent && <CrumbLink page={title.parent} />}
+                {crumb !== null && <CrumbLink page={title.current} />}
+                <li className="min-w-0">
+                  <span aria-current="page" className="block truncate font-medium text-foreground">
+                    {crumb ?? t(title.current.labelKey)}
+                  </span>
+                </li>
+              </ol>
+            </nav>
+          )}
+        </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          ref={searchButtonRef}
-          type="button"
-          onClick={onOpenPalette}
-          aria-label={t('nav.searchLabel')}
-          aria-keyshortcuts={isApplePlatform() ? 'Meta+K' : 'Control+K'}
-          aria-haspopup="dialog"
-          // A search field from `sm`; on a phone an icon button like the bell next to it (no border, 16 px icon).
-          className={`flex h-10 w-10 items-center justify-center gap-2 rounded-md border border-border bg-card text-sm text-muted-foreground transition-colors duration-120 hover:border-border-strong max-sm:border-transparent max-sm:bg-transparent max-sm:text-muted-foreground max-sm:hover:border-transparent max-sm:hover:bg-muted max-sm:hover:text-foreground sm:w-auto sm:min-w-[200px] sm:justify-start sm:pl-2 sm:pr-1.5 md:h-7 ${focusRing}`}
-        >
-          <Search className="h-4 w-4 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden />
-          <span className="hidden flex-1 text-left sm:inline">{t('nav.search')}</span>
-          <kbd className="hidden rounded-md bg-muted px-1 py-px font-sans text-2xs text-muted-foreground sm:inline">
-            {paletteShortcutLabel()}
-          </kbd>
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            ref={searchButtonRef}
+            type="button"
+            onClick={onOpenPalette}
+            aria-label={t('nav.searchLabel')}
+            aria-keyshortcuts={isApplePlatform() ? 'Meta+K' : 'Control+K'}
+            aria-haspopup="dialog"
+            // A search field from `sm`; on a phone an icon button like the bell next to it (no border, 16 px icon).
+            className={`flex h-10 w-10 items-center justify-center gap-2 rounded-md border border-border bg-card text-sm text-muted-foreground transition-colors duration-120 hover:border-border-strong max-sm:border-transparent max-sm:bg-transparent max-sm:text-muted-foreground max-sm:hover:border-transparent max-sm:hover:bg-muted max-sm:hover:text-foreground sm:w-auto sm:min-w-[200px] sm:justify-start sm:pl-2 sm:pr-1.5 md:h-7 ${focusRing}`}
+          >
+            <Search className="h-4 w-4 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden />
+            <span className="hidden flex-1 text-left sm:inline">{t('nav.search')}</span>
+            <kbd className="hidden rounded-md bg-muted px-1 py-px font-sans text-2xs text-muted-foreground sm:inline">
+              {paletteShortcutLabel()}
+            </kbd>
+          </button>
 
-        <NotificationBell />
+          <NotificationBell />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              ref={avatarButtonRef}
-              type="button"
-              aria-label={t('nav.userMenu', { name: display_name })}
-              className={`-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full md:mr-0 md:h-7 md:w-7 ${focusRing}`}
-            >
-              <UserAvatar name={display_name} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={runAfterClose}>
-            <DropdownMenuLabel className="text-sm">
-              <span className="block truncate font-medium text-foreground">{display_name}</span>
-              <span className="block min-h-4 truncate text-xs font-normal text-muted-foreground">{roleText}</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => (pendingAction.current = onOpenAccount)}>
-              <UserRound className="text-subtle" aria-hidden />
-              {t('nav.account')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={signingOut} onSelect={() => (pendingAction.current = onSignOut)}>
-              <LogOut className="text-subtle" aria-hidden />
-              {t('nav.logout')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                ref={avatarButtonRef}
+                type="button"
+                aria-label={t('nav.userMenu', { name: display_name })}
+                className={`-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full md:mr-0 md:h-7 md:w-7 ${focusRing}`}
+              >
+                <UserAvatar name={display_name} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={runAfterClose}>
+              <DropdownMenuLabel className="text-sm">
+                <span className="block truncate font-medium text-foreground">{display_name}</span>
+                <span className="block min-h-4 truncate text-xs font-normal text-muted-foreground">{roleText}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => (pendingAction.current = onOpenAccount)}>
+                <UserRound className="text-subtle" aria-hidden />
+                {t('nav.account')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={signingOut} onSelect={() => (pendingAction.current = onSignOut)}>
+                <LogOut className="text-subtle" aria-hidden />
+                {t('nav.logout')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   )

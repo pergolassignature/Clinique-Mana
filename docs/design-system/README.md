@@ -43,7 +43,7 @@ Source : `design_system/tokens/*.css` (copier tel quel dans `globals.css`). Rés
 **Espacements** — grille 4 px : 2 4 6 8 10 12 16 20 24 32 40 48 64.
 - Contrôles : 28 (sm) / 32 / 36 (lg) de haut ; padding horizontal 8 / 12 / 16 ; bouton icône carré 32 ou 28.
 - Avatars 24 / 32 / 48. Icônes 14 (boutons, cellules, onglets) / 16 (sidebar, barre du haut) / 12 (inline captions).
-- Layout : sidebar 220 (56 repliée) · barre du haut 48 · menu Paramètres 200 · padding de page 24 · padding de carte 16 (12 compact) · rangée 8×12, min 40 · contenu max 1120 · formulaires max 640 · écart entre sections 20.
+- Layout : sidebar 220 (56 repliée) · barre du haut 48 · menu Paramètres 200 · padding de page 24 · padding de carte 16 (12 compact) · rangée 8×12, min 40 · contenu max 1280 (décision UI-1, 2026-10-10 ; 1120 dans la livraison) · formulaires max 640 · écart entre sections 20.
 
 **Rayons** — sm 3 · md 4 (boutons, inputs, nav) · lg 6 (cartes, menus, alertes) · 2xl 8 (dialogues) · full 9999.
 
@@ -89,7 +89,7 @@ Référence interactive : `ui_kit/index.html` (ouvrir dans un navigateur ; la bi
 - Après envoi du lien : message « Si un compte existe pour ce courriel, un lien de connexion vient d'être envoyé. » (ne jamais révéler l'existence du compte).
 
 ### 2. Ossature (`ui_kit/screen-Shell.jsx`)
-- Flex horizontal plein écran : SidebarNav (220) + colonne (Topbar 48 + `<main>` défilant padding 24, contenu max 1120 centré, sections espacées de 20).
+- Flex horizontal plein écran : SidebarNav (220) + colonne (Topbar 48 + `<main>` défilant padding 24, contenu max 1280 centré (UI-1), sections espacées de 20).
 - Menu selon le rôle (ordre exact) :
   - Admin : Accueil · Demandes · Clients · Professionnels · Rendez-vous · Facturation · Paramètres
   - Conseillère : Accueil · Demandes · Clients · Professionnels · Rendez-vous

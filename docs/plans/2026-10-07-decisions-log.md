@@ -379,3 +379,15 @@ Copied from the [Professionnels plan](2026-10-08-professionals-module-plan.md) (
 | P4-525 | The card's shape | `get_professional_contract` gives `current` (the contract in force), `request` (the request at work: the latest one when nothing is in force, else only one made after the contract in force) and `previous`. The card shows « Contrat en vigueur », then « Nouveau contrat » for a renewal, then « Contrats précédents ». Delegated decision, 2026-10-09, revisable. | A renewal's state never hides the contract in force. |
 | P4-526 | History of a paper contract | `professional_paper_contracts` joins Historique: « a téléversé un contrat de service signé hors application (signé le …) ». Delegated decision, 2026-10-09, revisable. | Each upload is an event of the file. |
 | P4-527 | Le contrat signé n'est pas offert dans Mes documents | The professional neither sees nor downloads her signed contract, signed through Documenso or on paper; the paper contract and the previous contracts are staff-only. Décidée par Jonathan (2026-10-09). | « Le contrat signé n'est pas offert dans Mes documents (Jonathan, 2026-10-09). » |
+
+## Desktop layout decisions (Jonathan, 2026-10-10)
+
+Jonathan's answers to the five questions of the [desktop layout audit](../audit/2026-10-09-desktop-layout-audit.md) (§4, « Decisions to confirm before building »), all yes. Built by lane A (shared components) and lane B (screens).
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| UI-1 | Frame width | `--content-max` goes from 1120 to **1280** px, and the top bar's content shares the frame. Revises decision #29's « content max 1120 ». Decided by Jonathan, 2026-10-10. | At 1920 the 1120 frame left a third of the screen empty and the breadcrumb started 230 px left of the title (audit findings 1, 2). |
+| UI-2 | « Annuler / Enregistrer » | A section's `FormActions` stay **hidden until the section is dirty** (or saving). Revises #34 (« outline while clean »). Decided by Jonathan, 2026-10-10. | Ten equal inactive buttons on one screen hid the one that mattered (finding 3). |
+| UI-3 | Read-only tabs | A tab the user can **never** edit shows a `DescriptionList` (label, value, « Non indiqué »), not `readOnly` inputs; `readOnly` stays for a read-only moment inside an editable form. Supersedes CLAUDE.md §8's « read-only fields are `readOnly` » for that case. Decided by Jonathan, 2026-10-10. | Grey boxes read as « disabled » and doubled the page's height for staff who read files all day (finding 6). |
+| UI-4 | Paramètres heading | The « Paramètres » H1 is removed; the **section title is the page's H1** (the breadcrumb and the menu already say « Paramètres »). Decided by Jonathan, 2026-10-10. | Four heading levels in 7 px (finding 5). |
+| UI-5 | Small form sections | Small sections may be merged where the audit's mockups show it (record « Expérience » + « Numéros de payeurs » → « Expérience et payeurs »): one « Enregistrer » then saves both. Decided by Jonathan, 2026-10-10. | Two-field cards cost 164 px each (finding 3). |
