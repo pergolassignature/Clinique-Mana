@@ -43,7 +43,7 @@ export function EmailSettingsPage() {
 
   return (
     <div className="max-w-content space-y-5">
-      <PageHeader title={t('settings.sections.email')} description={t('settings.email.description')} />
+      <PageHeader level={1} title={t('settings.sections.email')} description={t('settings.email.description')} />
       {readOnly && <ReadOnlyNotice />}
       <Tabs value={tab} onValueChange={onValueChange}>
         <TabsList>

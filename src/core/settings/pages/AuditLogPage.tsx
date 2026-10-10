@@ -190,7 +190,7 @@ export function AuditLogPage() {
   } else {
     content = (
       <div className="rounded-lg border border-border">
-        <Table scrollLabel={t('audit.scrollLabel')} className={PHONE_TABLE}>
+        <Table scrollLabel={t('audit.scrollLabel')} className={PHONE_TABLE} stickyHeader>
           <TableHeader>
             <TableRow className="[&>th]:whitespace-nowrap">
               <TableHead>{t('audit.columns.date')}</TableHead>
@@ -301,7 +301,7 @@ export function AuditLogPage() {
 
   return (
     <div className="max-w-content space-y-5">
-      <PageHeader title={t('settings.sections.audit')} description={t('audit.description')} />
+      <PageHeader level={1} title={t('settings.sections.audit')} description={t('audit.description')} />
       <div role="group" aria-label={t('audit.filters.label')} className="grid gap-3 sm:max-w-form sm:grid-cols-3">
         <FormField label={t('audit.filters.table')}>
           {(field) => (

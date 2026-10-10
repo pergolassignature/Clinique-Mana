@@ -41,7 +41,10 @@ function AccessDenied({ problem, signOut }: { problem: AccessProblem; signOut: (
 }
 
 interface PageMessageProps {
-  /** Inside a page that already has its title (the settings pane): pane-sized, under an h2. */
+  /**
+   * Pane-sized, inside a layout (the settings pane). Still the page's h1: the settings layout has
+   * no heading of its own, the section's title is the h1 (decision UI-4).
+   */
   compact?: boolean
 }
 
@@ -67,7 +70,7 @@ export function Forbidden({ compact = false }: PageMessageProps) {
       title={t('access.forbidden.title')}
       body={t('access.forbidden.body')}
       action={<BackHome />}
-      headingLevel={compact ? 2 : 1}
+      headingLevel={1}
       compact={compact}
     />
   )
@@ -81,7 +84,7 @@ export function NotFound({ compact = false }: PageMessageProps) {
       title={t('common.notFound.title')}
       body={t('common.notFound.body')}
       action={<BackHome />}
-      headingLevel={compact ? 2 : 1}
+      headingLevel={1}
       compact={compact}
     />
   )

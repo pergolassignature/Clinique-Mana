@@ -194,7 +194,7 @@ describe('AuthenticatedApp', () => {
       // Professionnels' lists (professionals.manage) and « Invitations » (professionals.invite): changed with professionals.settings.
       ...PROFESSIONALS_SEEN_SECTIONS.map(readOnly),
     ])
-    expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByText(t('common.readOnlyNotice.body'))).toBeInTheDocument()
   })
 
@@ -211,21 +211,22 @@ describe('AuthenticatedApp', () => {
     const nav = screen.getByRole('navigation', { name: t('settings.navLabel') })
     expect(within(nav).getByRole('link', { name: t('settings.sections.identity') })).toHaveAttribute('href', '/parametres/identite')
     expect(within(nav).getByRole('link', { name: t('settings.sections.audit') })).toHaveAttribute('href', '/parametres/journal')
-    expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.queryByText(t('common.readOnlyNotice.body'))).not.toBeInTheDocument()
   })
 
   it('shows Paramètres and its section to a user who can access only that section', async () => {
     render(appAt('/parametres', { ...adminLike, permissions: ['modules.manage'] }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
-    expect(screen.getByRole('heading', { name: t('settings.title') })).toBeInTheDocument()
     expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
+    // The section's title is the page's h1 (decision UI-4): the layout has none of its own.
+    expect(screen.queryByRole('heading', { name: t('settings.title') })).not.toBeInTheDocument()
   })
 
   it('mounts the settings shell under /parametres, on the first accessible section', async () => {
     render(appAt('/parametres'))
-    expect(screen.getByRole('heading', { level: 1, name: t('settings.title') })).toBeInTheDocument()
     expect(await screen.findByRole('form', { name: t('settings.identity.clinic.title') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: t('settings.sections.identity') })).toHaveAttribute('aria-current', 'page')
   })
 
@@ -429,7 +430,7 @@ describe('AuthenticatedApp', () => {
   it("reports a module section's crash under the module's scope", async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     render(appAt('/parametres/plante', { ...adminLike, permissions: [...adminLike.permissions, 'test.crash'] }))
-    expect(await screen.findByRole('heading', { level: 2, name: t('common.moduleError.title') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('common.moduleError.title') })).toBeInTheDocument()
     expect(mocks.captureException).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({ tags: { scope: 'settings:professionals:crash' } }),
@@ -455,7 +456,7 @@ describe('AuthenticatedApp', () => {
 
   it('titles the topbar with the settings section that opened', async () => {
     render(appAt('/parametres/fiscalite'))
-    expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.tax') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('settings.sections.tax') })).toBeInTheDocument()
     const breadcrumb = screen.getByRole('navigation', { name: t('nav.breadcrumb') })
     expect(within(breadcrumb).getByRole('link', { name: t('nav.settings') })).toHaveAttribute('href', '/parametres')
     expect(within(breadcrumb).getByText(t('settings.sections.tax'))).toHaveAttribute('aria-current', 'page')

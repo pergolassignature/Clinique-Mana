@@ -4,6 +4,7 @@ import type { EmailTemplate } from '@/core/email/api'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { focusRing } from '@/shared/ui/field-classes'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { SectionHeading } from '@/shared/components/SectionHeading'
 
 /** « Plateforme » for core; the module's name (`modules.<key>.name`), else its key. */
 function groupLabel(moduleKey: string): string {
@@ -43,10 +44,8 @@ export function TemplatesTable({ templates, onOpen }: TemplatesTableProps) {
 function TemplateGroup({ title, rows, onOpen }: { title: string; rows: EmailTemplate[]; onOpen: TemplatesTableProps['onOpen'] }) {
   const headingId = useId()
   return (
-    <section className="space-y-3">
-      <h3 id={headingId} className="text-base font-semibold text-foreground">
-        {title}
-      </h3>
+    <section aria-labelledby={headingId} className="space-y-2">
+      <SectionHeading id={headingId}>{title}</SectionHeading>
       <div className="rounded-lg border border-border">
         {/* Fixed layout from `sm`: every module's table has its columns at the same place. */}
         <Table

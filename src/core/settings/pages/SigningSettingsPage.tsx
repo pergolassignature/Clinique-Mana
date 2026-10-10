@@ -35,7 +35,7 @@ export function SigningSettingsPage() {
 
   return (
     <div className="max-w-content space-y-5">
-      <PageHeader title={t('settings.sections.signing')} description={t('settings.signing.description')} />
+      <PageHeader level={1} title={t('settings.sections.signing')} description={t('settings.signing.description')} />
       {readOnly && <ReadOnlyNotice body={t('settings.signing.readOnlyNotice')} />}
       <Tabs value={tab} onValueChange={onValueChange}>
         <TabsList>

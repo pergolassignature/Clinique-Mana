@@ -134,7 +134,7 @@ const filter = (label: string) => screen.getByRole('combobox', { name: label })
 describe('AuditLogPage', () => {
   it('lists the entries newest first: date, person, section, action, shortened element', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.audit') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.audit') })).toBeInTheDocument()
     // Decision #31.
     expect(
       screen.getByText("Les numéros bancaires n'y figurent jamais : seul le fait que les coordonnées ont changé y figure."),

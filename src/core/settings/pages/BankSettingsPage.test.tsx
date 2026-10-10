@@ -48,7 +48,7 @@ async function renderPage({ details = DETAILS as BankDetails | null } = {}) {
 describe('BankSettingsPage', () => {
   it('says who sees the details and that every reveal is logged', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.bank') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.bank') })).toBeInTheDocument()
     expect(
       screen.getByText(
         "Visibles par les administrateurs seulement. Chaque affichage du numéro de compte est inscrit au journal d'audit.",

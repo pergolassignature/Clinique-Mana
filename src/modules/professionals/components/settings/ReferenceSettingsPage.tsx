@@ -58,7 +58,7 @@ export function ReferenceSettingsPage({ title, description, actions, children }:
 
   return (
     <div className="max-w-content space-y-5">
-      <PageHeader title={title} description={description} actions={data && actions?.(data)} />
+      <PageHeader level={1} title={title} description={description} actions={data && actions?.(data)} />
       {readOnly && <ReadOnlyNotice />}
       {content}
     </div>

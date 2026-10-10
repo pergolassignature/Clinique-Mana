@@ -60,7 +60,7 @@ describe('SettingsLayout', () => {
 
   it('refuses a section the user cannot access: « Accès refusé », the explanation and the way back', async () => {
     render(settingsAt('/parametres/modules'))
-    expect(await screen.findByRole('heading', { level: 2, name: t('access.forbidden.title') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('access.forbidden.title') })).toBeInTheDocument()
     expect(screen.getByText(t('access.forbidden.body'))).toBeInTheDocument()
     expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
     expect(screen.queryByText(t('common.notFound.title'))).not.toBeInTheDocument()
@@ -69,11 +69,11 @@ describe('SettingsLayout', () => {
 
   it('keeps « Page introuvable » for a path that names no section, matched case-insensitively', async () => {
     const { unmount } = render(settingsAt('/parametres/nope'))
-    expect(await screen.findByRole('heading', { level: 2, name: t('common.notFound.title') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('common.notFound.title') })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
     unmount()
     render(settingsAt('/parametres/Modules/sous-page'))
-    expect(await screen.findByRole('heading', { level: 2, name: t('access.forbidden.title') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('access.forbidden.title') })).toBeInTheDocument()
   })
 
   it('routes to a section with several permissions when the user has any of them, and only then', async () => {
@@ -163,19 +163,18 @@ describe('SettingsLayout', () => {
     expect(screen.getByRole('heading', { level: 2, name: t('settings.empty') })).toBeInTheDocument()
   })
 
-  it('has one page title, a labelled menu and level-2 headings inside the pane', async () => {
+  it('has no heading of its own: the pane holds the page\'s one h1 (decision UI-4), beside a labelled menu', async () => {
     render(settingsAt('/parametres/nope'))
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(screen.getByRole('heading', { level: 1, name: t('settings.title') })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: t('settings.title') })).not.toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: t('settings.navLabel') })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { level: 2, name: t('common.notFound.title') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('common.notFound.title') })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 
-  it('renders a crashed section fallback as a level-2 heading', async () => {
+  it('renders a crashed section fallback as the page\'s h1 (the pane holds the one h1)', async () => {
     const crash: SettingsSection = { id: 'crash', path: 'plante', labelKey: 'nav.home', icon: Bug, permission: 'settings.view', group: 'clinique', component: crashingPage() }
     render(settingsAt('/parametres/plante', {}, [crash]))
-    expect(await screen.findByRole('heading', { level: 2, name: t('common.moduleError.title') })).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(await screen.findByRole('heading', { level: 1, name: t('common.moduleError.title') })).toBeInTheDocument()
   })
 
   it('links and routes by the French path, not the English id', async () => {
@@ -316,7 +315,7 @@ describe('SettingsLayout', () => {
   // Below xl (phones, tablets, small laptops) the menu is a disclosure. jsdom applies no CSS: the open
   // state is read from aria-expanded and the nav's data-state, which drives `max-xl:data-[state=closed]:hidden`.
   describe('compact menu', () => {
-    const headingPage = (title: string) => lazyPage(async () => ({ default: () => <h2 tabIndex={-1}>{title}</h2> }))
+    const headingPage = (title: string) => lazyPage(async () => ({ default: () => <h1 tabIndex={-1}>{title}</h1> }))
     const clinic: SettingsSection = { ...visibleSection, component: headingPage('VISIBLE HEADING') }
     const platform: SettingsSection = { ...modulesSection, component: headingPage('MODULES HEADING') }
     const menuButton = () => screen.getByRole('button', { name: `${t('settings.menuButtonPrefix')} ${t('settings.title')}` })
@@ -499,7 +498,7 @@ describe('SettingsLayout', () => {
         return (
           <>
             <input aria-label="Champ" />
-            {shown && <h2 tabIndex={-1}>LATE HEADING</h2>}
+            {shown && <h1 tabIndex={-1}>LATE HEADING</h1>}
           </>
         )
       }

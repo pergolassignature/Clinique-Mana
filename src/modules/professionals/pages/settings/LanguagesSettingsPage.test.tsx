@@ -48,7 +48,7 @@ const rowOf = (name: string) => {
 describe('LanguagesSettingsPage', () => {
   it('lists the languages with their code and usage, French locked', async () => {
     await renderPage()
-    expect(screen.getByRole('heading', { level: 2, name: t(`${L}.title`) })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t(`${L}.title`) })).toBeInTheDocument()
     expect(screen.getByText(t(`${L}.description`))).toBeInTheDocument()
     expect(within(rowOf('Français')).getByText('fr')).toBeInTheDocument()
     expect(within(rowOf('Français')).getByRole('img', { name: t(`${L}.system`) })).toBeInTheDocument()

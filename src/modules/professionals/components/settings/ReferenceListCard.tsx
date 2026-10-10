@@ -12,7 +12,7 @@ import { Button } from '@/shared/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/ui/dropdown-menu'
 import { focusRing } from '@/shared/ui/field-classes'
 import { Input } from '@/shared/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { Table, TableBody, TableCell, TableGroupRow, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
 import { usageKey, type ReferenceKind, type ReferenceRow } from '../../api/catalog'
 import { useReorderReference } from '../../hooks/use-reference-mutations'
@@ -450,12 +450,8 @@ export function ReferenceListCard<K extends ReferenceKind>({
           group === null ? (
             <TableBody key="">{members.map((row, index) => renderRow(row, index, members))}</TableBody>
           ) : (
-            <TableBody key={group.id} className="border-t border-border first-of-type:border-t-0">
-              <TableRow className="hover:bg-transparent">
-                <th scope="rowgroup" colSpan={columnCount} className="bg-muted px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">
-                  {group.label}
-                </th>
-              </TableRow>
+            <TableBody key={group.id}>
+              <TableGroupRow colSpan={columnCount}>{group.label}</TableGroupRow>
               {members.map((row, index) => renderRow(row, index, members))}
             </TableBody>
           ),
@@ -468,7 +464,7 @@ export function ReferenceListCard<K extends ReferenceKind>({
     <TooltipProvider delayDuration={300}>
       <section aria-labelledby={titleId} className="rounded-lg border border-border bg-card p-4 text-card-foreground">
         <div className={cn('mb-3 min-w-0', headingHidden && 'sr-only')}>
-          <h3 id={titleId} className="text-base font-semibold tracking-tight">
+          <h3 id={titleId} className="text-lg font-semibold">
             {title}
           </h3>
           {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}

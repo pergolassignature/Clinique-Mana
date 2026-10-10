@@ -65,7 +65,8 @@ export function GridDialog({ titleId, titleName, series }: GridDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" aria-label={t(series.length > 0 ? `${G}.newVersionLabel` : `${G}.createLabel`, { title: titleName })}>
+        {/* « Nouvelle version » repeats on every row of the grids' table: quiet (ghost); « Créer la grille », a gap to fill, stays outline. */}
+        <Button type="button" variant={series.length > 0 ? 'ghost' : 'outline'} size="sm" aria-label={t(series.length > 0 ? `${G}.newVersionLabel` : `${G}.createLabel`, { title: titleName })}>
           {t(series.length > 0 ? `${G}.newVersion` : `${G}.create`)}
         </Button>
       </DialogTrigger>

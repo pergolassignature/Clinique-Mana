@@ -50,7 +50,7 @@ describe('RegionSettingsPage', () => {
   it('shows the title and description, loads, then the zone by its French name, the language and the currency', async () => {
     mocks.api.fetchOrganization.mockResolvedValue(testOrganization)
     renderOrganizationPage(<RegionSettingsPage />)
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.region') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.region') })).toBeInTheDocument()
     expect(screen.getByText(t('settings.region.description'))).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 

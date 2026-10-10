@@ -51,7 +51,7 @@ export function InvitationsSettingsPage() {
 
   return (
     <div className="max-w-form space-y-5">
-      <PageHeader title={t(`${S}.title`)} description={t(`${S}.description`)} />
+      <PageHeader level={1} title={t(`${S}.title`)} description={t(`${S}.description`)} />
       {readOnly && <ReadOnlyNotice />}
       {content}
     </div>

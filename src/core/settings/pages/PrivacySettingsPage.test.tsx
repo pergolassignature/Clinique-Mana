@@ -53,7 +53,7 @@ describe('PrivacySettingsPage', () => {
   it('shows the title and description, loads, then fills the two cards', async () => {
     mocks.api.fetchOrganization.mockResolvedValue(testOrganization)
     renderOrganizationPage(<PrivacySettingsPage />)
-    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.privacy') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.privacy') })).toBeInTheDocument()
     expect(screen.getByText(t('settings.privacy.description'))).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 
