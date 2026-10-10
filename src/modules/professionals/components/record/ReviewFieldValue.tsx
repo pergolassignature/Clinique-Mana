@@ -176,14 +176,14 @@ export function SetValue({ field, value, ctx }: { field: SetField; value: unknow
  */
 export function FileProposal({ field, value }: { field: 'photo' | 'insurance'; value: unknown }) {
   const fileId = text(value, 'file_id')
-  const preview = useSignedFileUrl(fileId, { refresh: field === 'insurance' })
+  const preview = useSignedFileUrl(fileId, field === 'photo' ? { variant: 'card' } : { refresh: true })
   const image = useImageRetry(fileId, preview.data?.url, preview.refetch)
   if (!fileId) return <NotIndicated />
   if (field === 'photo') {
     return (
       <div className="flex items-center gap-3">
         {preview.data && !image.dead ? (
-          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} onError={image.onError} className="size-16 shrink-0 rounded-full border border-border object-cover" />
+          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} width={64} height={64} loading="lazy" decoding="async" onError={image.onError} className="size-16 shrink-0 rounded-full border border-border object-cover" />
         ) : (
           <div aria-hidden className="size-16 shrink-0 rounded-full bg-muted" />
         )}

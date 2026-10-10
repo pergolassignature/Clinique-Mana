@@ -72,7 +72,7 @@ export function ProfessionalsTable({ rows, catalog, onPrefetch, footer }: Profes
     () => (rows ?? []).flatMap((row) => (row.photoFileId !== null && seen.has(row.id) ? [row.photoFileId] : [])),
     [rows, seen],
   )
-  const photos = useSignedFileUrls(photoIds)
+  const photos = useSignedFileUrls(photoIds, { variant: 'avatar' })
   return (
     <div className="container-inline rounded-lg border border-border bg-card">
       <div role="table" aria-label={t(`${T}.label`)} aria-busy={rows === null || undefined} className="text-sm">

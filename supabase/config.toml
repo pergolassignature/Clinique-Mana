@@ -31,6 +31,13 @@ pop3_port = 55326
 enabled = true
 file_size_limit = "50MiB"
 
+# Image transformations (imgproxy): storage-sign's image variants, the small photos (ADR 0009,
+# PERF-1). On the hosted project they come with the Pro plan. Locally, takes effect at the next
+# `supabase stop && supabase start`; until then storage-sign's variant URLs fail and the avatars
+# show initials (set STORAGE_IMAGE_VARIANTS=off in supabase/functions/.env to sign originals).
+[storage.image_transformation]
+enabled = true
+
 [auth]
 enabled = true
 # One local origin: Vite listens on localhost ([::1]) only, and 127.0.0.1 would be a separate

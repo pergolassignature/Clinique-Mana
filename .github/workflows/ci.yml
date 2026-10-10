@@ -94,10 +94,11 @@ jobs:
           cache: npm
       - run: npm ci
       # Every migration, then supabase/seed.sql: the specs sign in with its local logins. Mailpit stays:
-      # the onboarding spec reads the invitation email there.
+      # the onboarding spec reads the invitation email there. imgproxy stays too: storage-sign's
+      # image variants (the photos' small copies, ADR 0009) are rendered by it.
       - uses: ./.github/actions/supabase-start
         with:
-          exclude: studio,imgproxy,logflare,vector,supavisor,edge-runtime,realtime
+          exclude: studio,logflare,vector,supavisor,edge-runtime,realtime
       - name: Point the app at the local stack
         run: |
           supabase status -o env \

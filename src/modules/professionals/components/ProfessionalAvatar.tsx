@@ -52,7 +52,7 @@ interface ProfessionalPhotoAvatarProps {
  * (`useImageRetry`); a photo that cannot load leaves the initials.
  */
 export function ProfessionalPhotoAvatar({ name, fileId, size, className }: ProfessionalPhotoAvatarProps) {
-  const signed = useSignedFileUrl(fileId)
+  const signed = useSignedFileUrl(fileId, { variant: 'avatar' })
   const url = signed.data?.url
   const image = useImageRetry(fileId, url, signed.refetch)
   return <ProfessionalAvatar name={name} url={image.dead ? null : url} size={size} onImageError={image.onError} className={className} />

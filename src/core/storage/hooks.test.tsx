@@ -46,6 +46,18 @@ describe('useSignedFileUrl', () => {
     expect(queryClient.getQueryData(storageKeys.signedUrl('u1', FILE_ID))).toEqual(signed(1))
   })
 
+  it('a variant (a smaller copy) is asked for by name and cached apart from the original', async () => {
+    mocks.signedFileUrl.mockResolvedValueOnce(signed(1)).mockResolvedValueOnce(signed(2))
+    const { wrapper, queryClient } = setup()
+    const small = renderHook(() => useSignedFileUrl(FILE_ID, { variant: 'avatar' }), { wrapper })
+    await waitFor(() => expect(small.result.current.data).toEqual(signed(1)))
+    expect(mocks.signedFileUrl).toHaveBeenCalledWith(FILE_ID, { signal: expect.any(AbortSignal), variant: 'avatar' })
+    const original = renderHook(() => useSignedFileUrl(FILE_ID), { wrapper })
+    await waitFor(() => expect(original.result.current.data).toEqual(signed(2)))
+    expect(queryClient.getQueryData(storageKeys.signedUrl('u1', FILE_ID, 'avatar'))).toEqual(signed(1))
+    expect(queryClient.getQueryData(storageKeys.signedUrl('u1', FILE_ID))).toEqual(signed(2))
+  })
+
   it('with refresh (a download link), gets a new URL after 4 minutes, before the 5-minute one expires', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     mocks.signedFileUrl.mockResolvedValueOnce(signed(1)).mockResolvedValue(signed(2))
@@ -154,6 +166,16 @@ describe('useSignedFileUrls', () => {
     await waitFor(() => expect(result.current.urls.get(ID(2))).toBe(urlOf(ID(2), 2)))
     expect(result.current.urls.get(ID(1))).toBe(urlOf(ID(1)))
     await act(async () => expect(await result.current.refetchFor(ID(9))).toEqual({ isError: true }))
+  })
+
+  it('a variant is asked for by name and cached apart from the originals', async () => {
+    mocks.signedFileUrls.mockImplementation(answer())
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => useSignedFileUrls([ID(1)], { variant: 'avatar' }), { wrapper })
+    await waitFor(() => expect(result.current.urls.size).toBe(1))
+    expect(mocks.signedFileUrls).toHaveBeenCalledExactlyOnceWith([ID(1)], { signal: expect.any(AbortSignal), variant: 'avatar' })
+    expect(queryClient.getQueryData(storageKeys.signedUrls('u1', [ID(1)], 'avatar'))).toBeDefined()
+    expect(queryClient.getQueryData(storageKeys.signedUrls('u1', [ID(1)]))).toBeUndefined()
   })
 
   it('a 429 is not retried, and a new user signs again under their own key', async () => {

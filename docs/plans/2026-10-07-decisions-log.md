@@ -391,3 +391,11 @@ Jonathan's answers to the five questions of the [desktop layout audit](../audit/
 | UI-3 | Read-only tabs | A tab the user can **never** edit shows a `DescriptionList` (label, value, « Non indiqué »), not `readOnly` inputs; `readOnly` stays for a read-only moment inside an editable form. Supersedes CLAUDE.md §8's « read-only fields are `readOnly` » for that case. Decided by Jonathan, 2026-10-10. | Grey boxes read as « disabled » and doubled the page's height for staff who read files all day (finding 6). |
 | UI-4 | Paramètres heading | The « Paramètres » H1 is removed; the **section title is the page's H1** (the breadcrumb and the menu already say « Paramètres »). Decided by Jonathan, 2026-10-10. | Four heading levels in 7 px (finding 5). |
 | UI-5 | Small form sections | Small sections may be merged where the audit's mockups show it (record « Expérience » + « Numéros de payeurs » → « Expérience et payeurs »): one « Enregistrer » then saves both. Decided by Jonathan, 2026-10-10. | Two-field cards cost 164 px each (finding 3). |
+
+## Performance decisions (2026-10-10)
+
+Page-load work after Jonathan's « the app should run with smaller photos… it takes long to load pages » and « it should all be automatic ». Measurements: the PR bodies (perf/photo-variants, perf/url-reuse, perf/chunks).
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| PERF-1 | Small photos | Supabase image transformations, signed by `storage-sign`: `variant: 'avatar' \| 'card' \| 'print'` maps to a fixed `contain` box (128, 256, 600 px), images only, single and batch modes; the client never sends a size. The list and the record header use `avatar`, the questionnaire and review previews `card`, the fiche `print` (PNG or JPEG, else the original). Kill switch `STORAGE_IMAGE_VARIANTS=off`. [ADR 0009](../adr/0009-image-variants.md). Coordinator, 2026-10-10, for Jonathan's « tout automatique ». | 24 px avatars loaded 0.3–1.6 MB PNGs (37 MB for 36 photos). This covers every existing and future photo with nothing to backfill, and stays within Pro's 100 origin images a month. |

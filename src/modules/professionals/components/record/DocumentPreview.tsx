@@ -45,7 +45,7 @@ export function DocumentPreview({ file, typeName, onClose, onCloseAutoFocus }: D
       </div>
     )
   } else {
-    body = <img src={url} alt={t(`${P}.imageAlt`, { type: typeName })} onError={image.onError} className="mx-auto max-h-[70vh] max-w-full rounded-md border border-border object-contain" />
+    body = <img src={url} alt={t(`${P}.imageAlt`, { type: typeName })} decoding="async" onError={image.onError} className="mx-auto max-h-[70vh] max-w-full rounded-md border border-border object-contain" />
   }
 
   return (

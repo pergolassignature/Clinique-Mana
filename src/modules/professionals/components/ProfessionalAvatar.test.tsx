@@ -72,7 +72,7 @@ describe('ProfessionalPhotoAvatar', () => {
     expect(img).toHaveClass('h-full', 'w-full', 'object-cover', 'object-top', 'bg-primary-soft')
     expect(screen.queryByText('AD')).not.toBeInTheDocument()
     expect(mocks.storage.signedFileUrl).toHaveBeenCalledTimes(1)
-    expect(mocks.storage.signedFileUrl).toHaveBeenCalledWith('file-photo', expect.anything())
+    expect(mocks.storage.signedFileUrl).toHaveBeenCalledWith('file-photo', expect.objectContaining({ variant: 'avatar' }))
   })
 
   it('while the URL is signed, then while the photo loads: the initials', async () => {
