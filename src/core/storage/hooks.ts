@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/core/auth/auth-context'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { SIGN_BATCH_MAX, signedFileUrl, signedFileUrls, type ImageVariant } from './api'
@@ -22,6 +22,28 @@ export const storageKeys = {
 /** A 4xx (not readable: 404; 120 an hour: 429) is shown, not retried; anything else once. */
 const retrySigning = (failures: number, error: unknown) => failures < 1 && !(error instanceof FunctionCallError && error.status >= 400 && error.status < 500)
 
+type SignedBatch = Awaited<ReturnType<typeof signedFileUrls>>
+
+/**
+ * A still-fresh URL for `fileId` that a list already signed (a `useSignedFileUrls` batch of the
+ * same user and size, under 240 s old), with when it was signed: the record header then shows
+ * the photo the list row just loaded, from the browser's memory, without a `storage-sign` call.
+ */
+function urlFromBatches(queryClient: QueryClient, userId: string, fileId: string, variant: ImageVariant | undefined) {
+  const prefix = [...storageKeys.all, 'signedUrls', userId] as const
+  const length = prefix.length + 1 + (variant ? 1 : 0)
+  let found: { data: { url: string; expiresAt: string }; updatedAt: number } | undefined
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: prefix })) {
+    if (query.queryKey.length !== length || (variant && query.queryKey[length - 1] !== variant)) continue
+    const batch = query.state.data as SignedBatch | undefined
+    const url = batch?.urls.get(fileId)
+    const updatedAt = query.state.dataUpdatedAt
+    if (!batch || !url || Date.now() - updatedAt >= SIGNED_URL_REFRESH_MS) continue
+    if (!found || updatedAt > found.updatedAt) found = { data: { url, expiresAt: batch.expiresAt }, updatedAt }
+  }
+  return found
+}
+
 interface SignedFileUrlOptions {
   /**
    * Replace the URL every 240 s while it is shown: for a download link, which must still work
@@ -42,13 +64,19 @@ interface SignedFileUrlOptions {
  *   new one.
  * - Keyed by the signed-in user (and the variant). The cache is also cleared when the user changes
  *   (AccessProvider).
+ * - Starts from a fresh URL a list batch of the same size already holds (`urlFromBatches`), with
+ *   its signing time, so it goes stale when that one does: the same URL, so the browser reuses
+ *   the image it has (memory or HTTP cache, never a service worker).
  * - A 4xx (not readable: 404; 120 an hour: 429) is shown, not retried.
  */
 export function useSignedFileUrl(fileId: string | null, { refresh = false, variant }: SignedFileUrlOptions = {}) {
   const userId = useAuth().session?.user.id ?? 'anonymous'
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: storageKeys.signedUrl(userId, fileId ?? '', variant),
     queryFn: ({ signal }) => signedFileUrl(fileId as string, { signal, ...(variant && { variant }) }),
+    initialData: () => (fileId ? urlFromBatches(queryClient, userId, fileId, variant)?.data : undefined),
+    initialDataUpdatedAt: () => (fileId ? urlFromBatches(queryClient, userId, fileId, variant)?.updatedAt : undefined),
     enabled: fileId !== null,
     staleTime: SIGNED_URL_REFRESH_MS,
     refetchInterval: refresh ? SIGNED_URL_REFRESH_MS : false,
