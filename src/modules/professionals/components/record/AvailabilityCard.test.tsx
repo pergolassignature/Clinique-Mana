@@ -55,8 +55,8 @@ describe('AvailabilityCard', () => {
     })
     // « Accepte de nouveaux clients » shows in the list: the lists are refetched.
     expect(invalidated()).toContainEqual(professionalKeys.lists())
-    // Saved: the form is clean again, on the stored values.
-    await waitFor(() => expect(saveButton()).toHaveAttribute('aria-disabled', 'true'))
+    // Saved: the form is clean again, on the stored values (no buttons while clean, decision UI-2).
+    await waitFor(() => expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument())
     expect(period('pm')).toBeChecked()
     expect(screen.getByRole('switch', { name: t(`${A}.accepting`) })).not.toBeChecked()
   })

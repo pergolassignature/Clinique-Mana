@@ -45,14 +45,16 @@ Rules:
 | Card title → content | 12 | `mb-3` (`SettingsCard` does it) |
 | Between fields in a card or a form | 12 | `space-y-3`, grids `gap-3` (two columns: `grid gap-3 sm:grid-cols-2`) |
 | Label → control → help/error | 4 | `FormField` (`space-y-1`): always use it |
-| Card footer (actions) | 12 above, 8 between buttons | `mt-3 flex justify-end gap-2` (`SettingsCard`, `FormActions`) |
+| Card footer (actions) | 12 above, 8 between buttons; **shown only while the form is dirty or saving** (decision UI-2) | `mt-3 flex justify-end gap-2` (`SettingsCard`, `FormActions`) |
+| Form sections of one surface | section padding 20 × 16, hairline between; from 720 px of surface: aside 220 + 24 + fields ≤ 560 | `SectionSurface` + `SettingsCard layout="section"` |
+| Fields on one line | 12 apart, wrapping | `FormRow`, each `FormField` with a `width` |
 | Buttons side by side | 8 (6 in a page header) | `gap-2` (`PageHeader` actions `gap-1.5`) |
 | Icon → text inside a control | 6 | `gap-1.5` (built into `Button`, tabs) |
 | Table cell | 8 × 12, rows ≥ 40 | `TableCell` / `TableHead` (`px-3 py-2`, `h-10`) |
 | Dialog | padding 20, gap 14, max 512 | `DialogContent` (`p-5 gap-3.5`) |
 | Sheet | header 16/20/12, body 0 20 20, footer 12 | `SheetHeader`, `SheetBody`, `SheetFooter` |
 | Status list row | 6 vertical | `StatusIndicator` |
-| Empty state | 24 vertical, left-aligned | `EmptyState` |
+| Empty state | 24 vertical on a page, none inside a card (it reads the card context), left-aligned | `EmptyState` (`inCard` defaults to « inside a `Card` / `SettingsCard` / `SectionSurface` ») |
 | Readable widths | forms 640, content 1280, prose ~65ch | `max-w-form`, `max-w-content`, `max-w-prose` |
 
 Rule of thumb: the gap between two things is smaller than the gap around their group.
@@ -104,6 +106,8 @@ A field is at least as wide as its label (« Années d'expérience » is `sm`, n
 | section title inside a page (`h2` over cards, a questionnaire step) | `text-lg font-semibold`, no tracking |
 | help or caption in `text-subtle` | `text-muted-foreground` |
 | hand-made label + input + error | `FormField` |
+| a short value (postal code, NEQ, years) in a half- or full-width box | `FormField width="xs" / "sm" / "md"`, related fields in a `FormRow` |
+| a stack of form cards on a record tab or settings section | one `SectionSurface` of `SettingsCard layout="section"` |
 | `space-y-2`/`space-y-4` between form fields | `space-y-3` (or `gap-3`) |
 | `p-6`/`p-5` on a card | `p-4` (`Card`/`SettingsCard`) |
 | hand-made `h-9`/`h-10` buttons or inputs | `Button` / `Input` sizes |

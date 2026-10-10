@@ -118,7 +118,7 @@ Details of each function and of the shared services: [core doc, « Edge function
 - **Polling:** only the bell's unread count polls; other screens follow it from the cache.
 - **Pages and record tabs are code-split with `lazyPage(load, exportName)`**, never a bare `React.lazy`. Record tabs read the record bundle through `useRecordData`, never refetching it (P4-71, P4-312).
 - **Stale chunks:** error boundaries call `recoverFromStaleChunk()`; no global `vite:preloadError` reload. `npm run build` checks the login page's JS (`scripts/check-entry-chunk.mjs`).
-- **Settings:** a section has an English `id` and a French `path`; `permission` to see, `editPermission` to change (else read-only). Settings pages are stacks of `SettingsCard`s, each with its own form and `FormActions`; fields through `FormField`; read-only fields are `readOnly`, never `disabled`.
+- **Settings:** a section has an English `id` and a French `path`; `permission` to see, `editPermission` to change (else read-only). Settings pages are stacks of `SettingsCard`s (or `layout="section"` sections of one `SectionSurface`), each with its own form and `FormActions` (hidden until dirty, decision UI-2); fields through `FormField` (`width` from the content, `FormRow` for fields on one line); read-only fields are `readOnly`, never `disabled`.
 - **Motifs** (Jonathan, P4-249): every held motif is written out by name, by category, never « Tous », « Tous sauf … » or « N sur M »; Aperçu folds each category's names under its title until opened. See the [module doc](docs/modules/professionals.md#motif-density-jonathans-rules).
 - Tests: Vitest + Testing Library with `renderWithContexts` (`src/test/contexts.tsx`).
 

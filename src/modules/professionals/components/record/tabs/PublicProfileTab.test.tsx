@@ -46,7 +46,7 @@ describe('PublicProfileTab', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.saved')))
     expect(mocks.record.updatePublicProfile).toHaveBeenCalledExactlyOnceWith(stored.professional.id, { bio: 'Vingt ans en pratique.', approach: null })
     await waitFor(() => expect(bio()).toHaveValue('Vingt ans en pratique.'))
-    expect(within(portrait).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(portrait).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
   })
 
   it('saves the public contact normalised, and shows a stored phone in the Québec format', async () => {

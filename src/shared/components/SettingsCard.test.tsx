@@ -7,7 +7,8 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { FieldsReadOnlyContext } from '@/shared/ui/read-only-context'
 import { SaveButton } from './SaveButton'
-import { SettingsCard } from './SettingsCard'
+import { FormActions } from './FormActions'
+import { SectionSurface, SettingsCard } from './SettingsCard'
 
 function card(props: { readOnly?: boolean; pending?: boolean; onSubmit?: () => void } = {}) {
   return (
@@ -163,5 +164,63 @@ describe('SettingsCard', () => {
     expect(screen.getByRole('region', { name: 'Sessions' })).toBeInTheDocument()
     expect(screen.getByText('Contenu')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Agir' })).not.toBeInTheDocument()
+  })
+
+  describe('layout="section" in a SectionSurface (audit 2026-10-09 §2.4)', () => {
+    const surface = (dirty: boolean) => (
+      <SectionSurface>
+        <SettingsCard
+          layout="section"
+          title="Coordonnées"
+          description="Pour joindre la professionnelle."
+          dirty={dirty}
+          onSubmit={(e) => e.preventDefault()}
+          footer={<FormActions onCancel={() => undefined} dirty={dirty} />}
+        >
+          <Input aria-label="Téléphone" />
+        </SettingsCard>
+        <SettingsCard layout="section" title="Adresse">
+          <Input aria-label="Adresse" />
+        </SettingsCard>
+      </SectionSurface>
+    )
+
+    it('the surface is the container (container-inline) and draws the hairlines; a section has no border of its own', () => {
+      render(surface(false))
+      const form = screen.getByRole('form', { name: 'Coordonnées' })
+      expect(form.parentElement).toHaveClass('container-inline', 'divide-y', 'rounded-lg', 'border')
+      expect(form).not.toHaveClass('border', 'rounded-lg')
+      expect(form).toHaveClass('cq-720:grid', 'cq-720:grid-cols-section', 'py-5')
+    })
+
+    it('clean: no buttons and no footer row; dirty: « Modifications non enregistrées » and the buttons', () => {
+      const { rerender } = render(surface(false))
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+      expect(screen.queryByText(t('common.form.unsavedChanges'))).not.toBeInTheDocument()
+      rerender(surface(true))
+      expect(screen.getByText(t('common.form.unsavedChanges'))).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: t('common.save') })).toBeInTheDocument()
+    })
+
+    it('the footer row collapses while FormActions renders nothing', () => {
+      render(surface(false))
+      const footerRow = screen.getByRole('form', { name: 'Coordonnées' }).querySelector('.empty\\:hidden')
+      expect(footerRow).not.toBeNull()
+      expect(footerRow).toBeEmptyDOMElement()
+    })
+
+    it('read-only: no « Modifications non enregistrées »', () => {
+      render(
+        <SettingsCard layout="section" title="Coordonnées" dirty readOnly>
+          <Input aria-label="Téléphone" />
+        </SettingsCard>,
+      )
+      expect(screen.queryByText(t('common.form.unsavedChanges'))).not.toBeInTheDocument()
+    })
+  })
+
+  it('the default layout is still a bordered card', () => {
+    render(card())
+    expect(screen.getByRole('form', { name: 'Identité' })).toHaveClass('rounded-lg', 'border', 'p-4')
   })
 })

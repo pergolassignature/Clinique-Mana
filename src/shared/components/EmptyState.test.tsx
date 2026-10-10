@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Button } from '@/shared/ui/button'
+import { Card } from '@/shared/ui/card'
+import { Dialog, DialogContent, DialogTitle } from '@/shared/ui/dialog'
 import { EmptyState } from './EmptyState'
 
 describe('EmptyState', () => {
@@ -39,5 +41,31 @@ describe('EmptyState', () => {
     rerender(<EmptyState title="Aucun document" inCard />)
     expect(container.firstElementChild).not.toHaveClass('py-6')
     expect(screen.getByText('Aucun document')).toBeInTheDocument()
+  })
+
+  it('inside a Card it is inCard by default; inCard={false} keeps the padding; a dialog opened from a card resets it', () => {
+    const { rerender } = render(
+      <Card>
+        <EmptyState title="Aucun document" />
+      </Card>,
+    )
+    expect(screen.getByText('Aucun document').parentElement).not.toHaveClass('py-6')
+    rerender(
+      <Card>
+        <EmptyState title="Aucun document" inCard={false} />
+      </Card>,
+    )
+    expect(screen.getByText('Aucun document').parentElement).toHaveClass('py-6')
+    rerender(
+      <Card>
+        <Dialog open>
+          <DialogContent aria-describedby={undefined}>
+            <DialogTitle>Choisir</DialogTitle>
+            <EmptyState title="Aucun modèle" />
+          </DialogContent>
+        </Dialog>
+      </Card>,
+    )
+    expect(screen.getByText('Aucun modèle').parentElement).toHaveClass('py-6')
   })
 })

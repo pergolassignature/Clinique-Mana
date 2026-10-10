@@ -128,10 +128,12 @@ describe('SignatorySettingsPage', () => {
     expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
   })
 
-  it('follows the reading order with Tab: Nom, Titre, Courriel, Annuler, Enregistrer', async () => {
+  it('follows the reading order with Tab: Nom, Titre, Courriel, then (once dirty) Annuler, Enregistrer', async () => {
     await renderPage()
     const controls = labelledControls()
     expect(controls.map((c) => c.getAttribute('name'))).toEqual(['signatory_name', 'signatory_title', 'signatory_email'])
+    expect(within(card()).queryAllByRole('button')).toEqual([])
+    await edit(nameField(), 'Autre')
     const buttons = within(card()).getAllByRole('button')
     expect(buttons.map((b) => b.textContent)).toEqual([t('common.cancel'), t('common.save')])
     const [first, ...rest] = [...controls, ...buttons]

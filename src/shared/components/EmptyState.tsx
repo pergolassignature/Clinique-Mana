@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/lib/utils'
+import { useInCard } from '@/shared/ui/card-context'
 
 interface EmptyStateProps {
   title: string
@@ -14,12 +15,15 @@ interface EmptyStateProps {
   /**
    * Inside a card, under its title: no vertical padding, so the card's own 12 px title gap and
    * 16 px padding are the only space (24 px more on top would leave 36 px under the title).
+   * Defaults to whether a card is around (`Card`, `SettingsCard`, `SectionSurface`); pass `false`
+   * for an empty state that stands alone inside a card (a table's body, a wide empty panel).
    */
   inCard?: boolean
 }
 
 /** Nothing to show yet: two lines of text, left-aligned, no box, no icon (design system). */
-export function EmptyState({ title, body, action, titleAriaHidden, inCard = false }: EmptyStateProps) {
+export function EmptyState({ title, body, action, titleAriaHidden, inCard: inCardProp }: EmptyStateProps) {
+  const inCard = useInCard(inCardProp)
   return (
     <div className={cn('flex flex-col items-start', !inCard && 'py-6')}>
       <p aria-hidden={titleAriaHidden || undefined} className="text-sm font-medium text-foreground">
