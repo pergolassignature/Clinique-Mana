@@ -8,7 +8,7 @@ import { Button } from '@/shared/ui/button'
 import { StatusDot } from '@/shared/ui/status-dot'
 import type { MySubmission, SectionValues } from '../../api/self'
 import type { CatalogView } from '../../lib/catalog-view'
-import { functionErrorMessage } from '../../hooks/mutation-feedback'
+import { functionErrorText } from '@/core/supabase/function-errors'
 import { useSubmitMyProfile } from '../../hooks/use-my-submission'
 import { sectionKeys, type SubmissionSection } from '../../lib/questionnaire'
 import { SectionSummary } from './SectionSummary'
@@ -73,19 +73,11 @@ export function SubmissionSections({ submission, catalog, valuesOf, sections, on
 
 /**
  * The French text of a failed « Envoyer mon profil » that is not a list of steps: a refusal as
- * written, the connection, an expired session, a permission or the module switched off in plain
- * words; anything else « n'a pas pu être envoyé » (reported, code only).
+ * written, the connection, an expired session, a permission or the module switched off as every
+ * feature says them (`functionErrorText`); anything else « n'a pas pu être envoyé » (reported, code only).
  */
 function submitErrorText(error: unknown): string {
-  if (error instanceof FunctionCallError) {
-    const refusal = refusalMessage(error)
-    if (refusal) return refusal
-    if (error.code === 'network') return t(`${R}.errors.network`)
-    if (error.code === 'forbidden') return t('common.errors.forbidden')
-    const known = functionErrorMessage(error)
-    if (known) return known
-  }
-  return moduleErrorMessage(error, t(`${R}.errors.submitFailed`), 'professionals')
+  return functionErrorText(error, { audience: 'professional' }) ?? moduleErrorMessage(error, t(`${R}.errors.submitFailed`), 'professionals')
 }
 
 /**

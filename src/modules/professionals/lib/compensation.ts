@@ -183,7 +183,7 @@ export const monthLabel = (month: string): string => formatDateOnly(month, 'MMMM
 
 // --- Labels ------------------------------------------------------------------------------------------
 
-/** « 60 min / couple », « 50 min », « 30 min ». */
+/** « 60 min (couple ou famille) », « 50 min », « 30 min ». */
 export const durationLabel = (duration: Duration): string => t(`modules.professionals.compensation.durations.${duration}`)
 
 /**

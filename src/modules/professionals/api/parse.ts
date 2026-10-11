@@ -162,18 +162,15 @@ const professionalPayload = z
     city: z.string().nullable(),
     province: z.enum(PROVINCES),
     postal_code: z.string().nullable(),
-    country: z.string(),
     years_experience: z.number().nullable(),
     gender: z.enum(GENDERS).nullable(),
     status: z.enum(PROFESSIONAL_STATUSES),
     status_changed_at: z.string(),
-    status_changed_by: z.string().nullable(),
     deactivation_reason_id: z.string().nullable(),
     deactivation_note: z.string().nullable(),
     deactivation_disabled_account: z.boolean(),
     activation_override_reason: z.string().nullable(),
     created_at: z.string(),
-    created_by: z.string().nullable(),
     updated_at: z.string(),
   })
   .transform((p) => ({
@@ -189,19 +186,16 @@ const professionalPayload = z
     city: p.city,
     province: p.province,
     postalCode: p.postal_code,
-    country: p.country,
     yearsExperience: p.years_experience,
     gender: p.gender,
     status: p.status,
     statusChangedAt: p.status_changed_at,
-    statusChangedBy: p.status_changed_by,
     deactivationReasonId: p.deactivation_reason_id,
     deactivationNote: p.deactivation_note,
     /** True when this module's deactivation disabled the account (reactivation re-enables it, P4-11). */
     deactivationDisabledAccount: p.deactivation_disabled_account,
     activationOverrideReason: p.activation_override_reason,
     createdAt: p.created_at,
-    createdBy: p.created_by,
     updatedAt: p.updated_at,
   }))
 export type Professional = z.output<typeof professionalPayload>
@@ -284,6 +278,8 @@ const readinessShape = z.object({
    * `expires_on` its last valid day). Optional: bundles older than *_professionals_readiness_insurance.sql.
    */
   insurance: z.object({ status: z.enum(INSURANCE_STATUSES), expires_on: z.string().nullable() }).optional(),
+  /** Documents waiting for review (« À surveiller », V7). Optional: bundles older than *_professionals_notices_watch_history.sql. */
+  documents_to_review: z.number().int().optional(),
 })
 export type Readiness = z.output<typeof readinessShape>
 export type ReadinessItem = Readiness['items'][number]
@@ -470,10 +466,7 @@ export const listRowPayload = z
     // Left join: every professional has a matching profile (created with the record).
     accepting_new_clients: z.boolean().nullable(),
     matching_complete: z.boolean(),
-    ready: z.boolean(),
     email_matches_login: z.boolean(),
-    created_at: z.string(),
-    updated_at: z.string(),
     // 4c.2 (P4-406): « À surveiller » flags an insurance expiring or expired.
     insurance_status: z.enum(INSURANCE_STATUSES).nullish(),
     insurance_expires_on: z.string().nullish(),
@@ -482,6 +475,8 @@ export const listRowPayload = z
     documents_required: z.number().int().nullish(),
     // The verified photo's stored file (null without one, or unreadable): signed in batches for the visible rows.
     photo_file_id: z.string().nullish(),
+    // Documents waiting for review (« À surveiller », V7).
+    documents_to_review: z.number().int().nullish(),
   })
   .transform((r) => ({
     id: r.id,
@@ -500,15 +495,15 @@ export const listRowPayload = z
     motifIds: r.motif_ids,
     acceptingNewClients: r.accepting_new_clients ?? false,
     matchingComplete: r.matching_complete,
-    ready: r.ready,
     emailMatchesLogin: r.email_matches_login,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
     insuranceStatus: r.insurance_status ?? null,
     insuranceExpiresOn: r.insurance_expires_on ?? null,
     documentsDone: r.documents_done ?? 0,
     documentsRequired: r.documents_required ?? 0,
     photoFileId: r.photo_file_id ?? null,
+    documentsToReview: r.documents_to_review ?? 0,
+    /** « À surveiller » (V7): fewer required documents in order than required. */
+    documentsMissing: (r.documents_required ?? 0) > 0 && (r.documents_done ?? 0) < (r.documents_required ?? 0),
     /**
      * Not a column of the view: the list joins `list_professional_invitation_states` in memory
      * (`withOnboarding`, P4-270); null until then, and for a file without link or submission.

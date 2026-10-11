@@ -20,7 +20,7 @@ const T = 'modules.professionals.submission.toasts'
 const submissionsQuery = (id: string) =>
   queryOptions({ queryKey: professionalKeys.submissions(id), queryFn: () => fetchProfessionalSubmissions(id), staleTime: 30_000 })
 
-/** « Questionnaire et mises à jour » (Documents tab): fetched with the tab, or on its hover. */
+/** « Profils envoyés et mises à jour » (Documents tab): fetched with the tab, or on its hover. */
 export function useProfessionalSubmissions(id: string) {
   return useQuery({ ...submissionsQuery(id), enabled: id !== '' })
 }

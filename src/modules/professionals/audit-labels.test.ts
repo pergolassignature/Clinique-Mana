@@ -66,6 +66,7 @@ const COLUMNS = {
   professional_documents: [
     'id', 'org_id', 'professional_id', 'document_type_id', 'stored_file_id', 'status', 'expires_on', 'metadata', 'uploaded_by', 'uploaded_at',
     'reviewed_by', 'reviewed_at', 'rejection_reason', 'submission_id', 'signature_request_id', 'created_at', 'updated_at',
+    'withdrawn_on', 'withdrawal_note', 'withdrawn_at', 'withdrawn_by',
   ],
   // 4b: the questionnaire, its private data, the invitation deliveries; 4c–4d: consents and contracts.
   professional_submissions: [
@@ -128,7 +129,7 @@ describe('values of the professionals tables', () => {
 
   it('reads months, durations, rates and amounts as the module shows them', () => {
     expect(value('professional_session_counts', 'month', '2026-10-01')).toBe('octobre 2026')
-    expect(value('professional_client_agreements', 'duration', 60)).toBe('60 min / couple')
+    expect(value('professional_client_agreements', 'duration', 60)).toBe('60 min (couple ou famille)')
     expect(value('professional_retention', 'retention_pct', 27.5)).toMatch(/^27,5\s%$/)
     expect(value('professional_client_agreements', 'client_price_cents', 12000)).toMatch(/^120,00\s\$$/)
   })

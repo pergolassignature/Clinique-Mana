@@ -67,6 +67,11 @@ const VARIABLE = {
     sample: 'La photo est floue.',
     kind: 'text',
   },
+  'submission.description': {
+    label: 'Ce qui est envoyé',
+    sample: 'une mise à jour de son profil',
+    kind: 'text',
+  },
 } as const
 
 const TEMPLATES: Record<
@@ -101,10 +106,11 @@ const TEMPLATES: Record<
     paths: ['professional.first_name', 'clinic.name'],
   },
   'professionals.submission_received': {
-    subject: '{{professional.full_name}} a envoyé son profil',
-    body: 'Bonjour,\n\n{{professional.full_name}} a envoyé son profil.',
+    subject: '{{professional.full_name}} a envoyé {{submission.description}}',
+    body: 'Bonjour,\n\n{{professional.full_name}} a envoyé ' +
+      '{{submission.description}}, à réviser dans son dossier.',
     button: 'Réviser le profil',
-    paths: ['professional.full_name'],
+    paths: ['professional.full_name', 'submission.description'],
   },
   'professionals.document_rejected': {
     subject: 'Un document est à reprendre',

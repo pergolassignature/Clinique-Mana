@@ -63,6 +63,16 @@ export function frenchSpacing(text: string): string {
     .replace(/[ \u00A0\u202F]?»/g, `${NNBSP}»`)
 }
 
+/**
+ * `frenchSpacing` for French text that did not come through `t()` (C1, C-5): what the database
+ * wrote (a P0001 refusal, a notification's title and body) or a phrase the app put together
+ * (« Télécharger : … »). Off in tests, like `t` (`setFrenchSpacing`). Idempotent: text that
+ * already holds U+202F is unchanged.
+ */
+export function frenchText(text: string): string {
+  return spacingOn ? frenchSpacing(text) : text
+}
+
 /** Templates after `frenchSpacing`, by key (the dictionary never changes at runtime). */
 const spacedTemplates = new Map<string, string>()
 let spacingOn = true

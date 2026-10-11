@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { inactiveLabel, INVITATION_UNANSWERED_DAYS, recordWatchSubject, WATCH_TAB, watchFlags, type WatchSubject } from './watch'
+import { inactiveLabel, INVITATION_UNANSWERED_DAYS, recordWatchSubject, unansweredDays, WATCH_TAB, watchFlags, type WatchSubject } from './watch'
 import type { InvitationInfo, Onboarding } from '../api/parse'
 import { CATALOG, CATALOG_VIEW, listRowFixture, recordFixture } from '../test/fixtures-domain'
 
@@ -66,6 +66,55 @@ describe('watchFlags', () => {
   })
 })
 
+describe('watchFlags: the documents (gap audit V7, P4-540)', () => {
+  it('an active file with a required document missing: « Documents requis manquants », danger, to Documents', () => {
+    expect(watchFlags(subject({ documentsMissing: true }), NOW)).toEqual([
+      { key: 'documents_missing', label: 'Documents requis manquants', tone: 'danger' },
+    ])
+    expect(WATCH_TAB.documents_missing).toBe('documents')
+  })
+
+  it('only an active file: before activation « Dossier » lists the gaps', () => {
+    expect(watchFlags(subject({ status: 'in_review', documentsMissing: true }), NOW)).toEqual([])
+  })
+
+  it('an expired insurance says it more precisely: no second flag', () => {
+    const keys = watchFlags(subject({ documentsMissing: true, insuranceStatus: 'expired', insuranceExpiresOn: '2026-10-05' }), NOW).map((f) => f.key)
+    expect(keys).toEqual(['insurance_expired'])
+  })
+
+  it('documents waiting for review, counted, on any watched file', () => {
+    expect(watchFlags(subject({ documentsToReview: 1 }), NOW)).toEqual([{ key: 'documents_to_review', label: '1 document à vérifier', tone: 'muted' }])
+    expect(watchFlags(subject({ status: 'invited', documentsToReview: 3 }), NOW).map((f) => f.label)).toEqual(['3 documents à vérifier'])
+    expect(watchFlags(subject({ status: 'inactive', documentsToReview: 3 }), NOW)).toEqual([])
+    expect(WATCH_TAB.documents_to_review).toBe('documents')
+  })
+
+  it('reads a list row’s counts', () => {
+    const row = listRowFixture({ status: 'active', documentsMissing: true, documentsToReview: 2 })
+    expect(watchFlags(row, NOW).map((f) => f.key)).toEqual(['documents_missing', 'documents_to_review'])
+  })
+})
+
+describe('watchFlags: « sans réponse » after the clinic’s reminder delay (gap audit V14, P4-546)', () => {
+  const sent = (sentAt: string): Onboarding => invited('sent', sentAt)
+  const flags = (days: number | undefined) =>
+    watchFlags(subject({ status: 'invited', hasAccount: false, onboarding: sent('2026-10-05T14:00:00Z') }), NOW, { unansweredDays: days }).map((f) => f.key)
+
+  it('the reminder delay, else 3 days', () => {
+    expect(flags(undefined)).toEqual(['invitation_unanswered'])
+    expect(flags(3)).toEqual(['invitation_unanswered'])
+    expect(flags(5)).toEqual([])
+    expect(flags(2)).toEqual(['invitation_unanswered'])
+  })
+
+  it('unansweredDays: the setting, 3 without a reminder or before the settings load', () => {
+    expect(unansweredDays({ invitationReminderAfterDays: 5 })).toBe(5)
+    expect(unansweredDays({ invitationReminderAfterDays: null })).toBe(INVITATION_UNANSWERED_DAYS)
+    expect(unansweredDays(undefined)).toBe(3)
+  })
+})
+
 describe('watchFlags: the onboarding (Task 4b.3)', () => {
   const noAccount = { status: 'invited' as const, hasAccount: false }
 
@@ -95,14 +144,14 @@ describe('watchFlags: the onboarding (Task 4b.3)', () => {
     expect(watchFlags(subject({ ...noAccount, status: 'inactive', onboarding: invited('expired') }), NOW)).toEqual([])
   })
 
-  it('a submission waiting for review comes first: « Dossier à réviser », « Mise à jour à réviser »', () => {
+  it('a submission waiting for review comes first: « Profil à réviser », « Mise à jour à réviser »', () => {
     const waiting = (kind: 'onboarding' | 'update'): Onboarding => ({
       invitation: null,
       submission: { id: 's1', kind, status: 'submitted', submittedAt: '2026-10-07T12:00:00Z' },
       onboardingApproved: kind === 'update',
     })
     expect(watchFlags(subject({ status: 'in_review', matchingComplete: false, onboarding: waiting('onboarding') }), NOW).map((f) => f.label)).toEqual([
-      'Dossier à réviser',
+      'Profil à réviser',
       'Profil de jumelage incomplet',
     ])
     expect(watchFlags(subject({ onboarding: waiting('update') }), NOW).map((f) => f.label)).toEqual(['Mise à jour à réviser'])
@@ -131,6 +180,8 @@ describe('recordWatchSubject', () => {
       onboarding: null,
       insuranceStatus: null,
       insuranceExpiresOn: null,
+      documentsMissing: false,
+      documentsToReview: 0,
     })
     const complete = {
       ...record,
@@ -146,6 +197,8 @@ describe('recordWatchSubject', () => {
       onboarding,
       insuranceStatus: null,
       insuranceExpiresOn: null,
+      documentsMissing: false,
+      documentsToReview: 0,
     })
   })
 })
@@ -155,15 +208,15 @@ describe('watchFlags: the insurance (4c, P4-406)', () => {
     const waiting: Onboarding = { invitation: null, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' }, onboardingApproved: true }
     expect(watchFlags(subject({ insuranceStatus: 'expiring', insuranceExpiresOn: '2026-10-12', onboarding: waiting }), NOW)).toEqual([
       { key: 'update_to_review', label: 'Mise à jour à réviser', tone: 'muted' },
-      { key: 'insurance_expiring', label: t('modules.professionals.watch.insurance_expiring', { date: '12 oct. 2026' }), tone: 'danger' },
+      { key: 'insurance_expiring', label: t('modules.professionals.watch.insurance_expiring', { date: '12 octobre 2026' }), tone: 'danger' },
     ])
   })
 
   it('expired: « Assurance expirée : valide jusqu’au … », its last valid day as the Documents tab says it (P4-456, P4-511), first of all', () => {
     const flags = watchFlags(subject({ insuranceStatus: 'expired', insuranceExpiresOn: '2026-10-05', matchingComplete: false }), NOW)
-    expect(flags[0]).toEqual({ key: 'insurance_expired', label: t('modules.professionals.watch.insurance_expired', { date: '5 oct. 2026' }), tone: 'danger' })
-    expect(flags[0]?.label).toContain('5 oct. 2026')
-    expect(flags[0]?.label).not.toContain('6 oct.')
+    expect(flags[0]).toEqual({ key: 'insurance_expired', label: t('modules.professionals.watch.insurance_expired', { date: '5 octobre 2026' }), tone: 'danger' })
+    expect(flags[0]?.label).toContain('5 octobre 2026')
+    expect(flags[0]?.label).not.toContain('6 octobre')
     expect(flags.map((f) => f.key)).toEqual(['insurance_expired', 'matching_incomplete'])
   })
 

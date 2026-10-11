@@ -11,7 +11,7 @@ import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { renderWithContexts } from '@/test/contexts'
 import type { MySubmission } from '../../api/self'
 import { professionalKeys } from '../../hooks/keys'
-import { CATALOG } from '../../test/fixtures-domain'
+import { CATALOG, recordFixture } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
 import { mySubmission } from '../../test/fixtures-questionnaire'
 import { setupQueryClient } from '../../test/query-client'
@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     saveMySubmissionPrivate: vi.fn(),
     submitMyProfile: vi.fn(),
     fetchMyProfessionalPrivate: vi.fn(),
+    fetchMyProfessionalRecord: vi.fn(),
   },
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   address: { fetchAddressSuggestions: vi.fn(), fetchPlaceAddress: vi.fn() },
@@ -286,7 +287,7 @@ describe('QuestionnairePage — steps', () => {
     renderPage('consentement')
     await stepTitle('consent')
     await userEvent.click(await screen.findByRole('button', { name: t('modules.professionals.consentSign.sign') }))
-    expect(await screen.findByText(t('modules.professionals.consentSign.errors.provider'))).toBeInTheDocument()
+    expect(await screen.findByText(t('common.functionErrors.providerError.signing'))).toBeInTheDocument()
     mocks.consentSign.startConsentSigning.mockResolvedValue({ requestId: 'r1', token: 'tok_1', signingUrl: 'http://x.test/sign/tok_1', host: 'http://x.test' })
     await userEvent.click(screen.getByRole('button', { name: t('modules.professionals.consentSign.retry') }))
     expect(await screen.findByTestId('documenso-frame')).toBeInTheDocument()
@@ -672,6 +673,15 @@ describe('QuestionnairePage — files', () => {
     chooseFile(PNG())
     expect(await screen.findByText('La photo doit être une image JPEG ou PNG de 5 Mo au plus.')).toBeInTheDocument()
     expect(screen.getByText(t(`${Q}.files.photoNone`))).toBeInTheDocument()
+  })
+
+  it('an update shows her current photo before a new one is chosen, never « Aucune photo » (gap audit V1)', async () => {
+    current = mySubmission({ kind: 'update', requested_sections: ['photo'], prefill: {}, values: {} })
+    mocks.self.fetchMyProfessionalRecord.mockResolvedValue({ ...recordFixture(), photoFileId: 'current-photo' })
+    renderPage('photo')
+    await stepTitle('photo')
+    expect(await screen.findByText(t(`${Q}.files.photoCurrent`))).toBeInTheDocument()
+    expect(screen.queryByText(t(`${Q}.files.photoNone`))).not.toBeInTheDocument()
   })
 
   it('« Retirer » removes the photo from the step and moves focus to the dropzone’s button', async () => {

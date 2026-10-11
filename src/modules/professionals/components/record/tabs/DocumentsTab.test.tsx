@@ -90,12 +90,12 @@ async function openSheet(options: TabOptions & { summary?: string } = {}) {
   return { ...rendered, sheet }
 }
 
-/** « Questionnaire et mises à jour »'s list (the documents have lists of their own). */
+/** « Profils envoyés et mises à jour »'s list (the documents have lists of their own). */
 const submissionsList = () => screen.getByRole('list', { name: t(`${C}.title`) })
 
 const applyAll = () => screen.getByRole('button', { name: t(`${S}.apply`, { count: String(REVIEW_CHANGED_FIELDS.length) }) })
 
-describe('« Questionnaire et mises à jour »', () => {
+describe('« Profils envoyés et mises à jour »', () => {
   it('lists the submissions newest first, each with its state in words and its dates in the clinic’s time', async () => {
     await openTab()
     const items = within(submissionsList()).getAllByRole('listitem')
@@ -243,9 +243,20 @@ describe('SubmissionReviewSheet', () => {
     expect(insurance).not.toHaveTextContent(/échue/)
     const photo = within(sheet).getByRole('checkbox', { name: t(`${F}.photo`) }).closest('li') as HTMLElement
     expect(within(photo).getByRole('img', { name: t(`${V}.photoAlt`) })).toBeInTheDocument()
+    // « Actuel » beside it (gap audit V1): none on this file.
+    expect(photo).toHaveTextContent(t(`${V}.photoNoneOnFile`))
     const titles = within(sheet).getByRole('checkbox', { name: t(`${F}.professions`) }).closest('li') as HTMLElement
     expect(titles).toHaveTextContent('Psychologue · OPQ 12345')
     expect(titles).toHaveTextContent('Naturopathe')
+  })
+
+  it('shows the file’s current photo beside the proposed one (gap audit V1)', async () => {
+    const { sheet } = await openSheet({ record: { ...recordFixture(), photoFileId: '00000000-0000-4000-8000-0000000f0c01' } })
+    const photo = within(sheet).getByRole('checkbox', { name: t(`${F}.photo`) }).closest('li') as HTMLElement
+    const current = within(photo).getByRole('img', { name: t(`${V}.photoCurrentAlt`) })
+    expect(current).toHaveAttribute('loading', 'lazy')
+    expect(current).toHaveAttribute('width', '64')
+    expect(within(photo).getByRole('img', { name: t(`${V}.photoAlt`) })).toBeInTheDocument()
   })
 
   it('a consent signed through Documenso in the questionnaire: « Signé électroniquement le … », never « Pas encore signé », nothing to apply (P4-505)', async () => {
@@ -345,7 +356,7 @@ describe('SubmissionReviewSheet', () => {
 
   it('says the kind and the date in agreement: « Questionnaire d’accueil envoyé le … »', async () => {
     const { sheet } = await openSheet()
-    expect(sheet).toHaveAccessibleDescription("Questionnaire d'accueil envoyé le 8 oct. 2026 à 10:00.")
+    expect(sheet).toHaveAccessibleDescription("Premier profil envoyé le 8 oct. 2026 à 10:00.")
   })
 
   it('reads a deposit left empty « Non fourni » (optional, P4-480), the other private fields « Non transmis »', async () => {

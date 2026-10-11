@@ -53,6 +53,8 @@ interface ProfessionalsTableProps {
   catalog: CatalogView | undefined
   /** Starts loading a record (row hover or focus). */
   onPrefetch: (id: string) => void
+  /** « Sans réponse » after this many days (`useUnansweredDays`, V14); 3 when absent. */
+  unansweredDays?: number
   /** Under the rows: the count and the pagination. */
   footer?: ReactNode
 }
@@ -66,7 +68,7 @@ interface ProfessionalsTableProps {
  * `storage-sign` batch per scroll (`useSignedFileUrls`), never one call per row (120 an hour per
  * person). Initials while it loads, without a photo, or when it cannot be read.
  */
-export function ProfessionalsTable({ rows, catalog, onPrefetch, footer }: ProfessionalsTableProps) {
+export function ProfessionalsTable({ rows, catalog, onPrefetch, unansweredDays, footer }: ProfessionalsTableProps) {
   const { seen, observe } = useRowsInView()
   const photoIds = useMemo(
     () => (rows ?? []).flatMap((row) => (row.photoFileId !== null && seen.has(row.id) ? [row.photoFileId] : [])),
@@ -108,6 +110,7 @@ export function ProfessionalsTable({ rows, catalog, onPrefetch, footer }: Profes
                   row={row}
                   catalog={catalog}
                   onPrefetch={onPrefetch}
+                  unansweredDays={unansweredDays}
                   observe={observe}
                   photoUrl={row.photoFileId ? photos.urls.get(row.photoFileId) : undefined}
                   refetchPhoto={photos.refetchFor}
@@ -124,6 +127,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
   row,
   catalog,
   onPrefetch,
+  unansweredDays,
   observe,
   photoUrl,
   refetchPhoto,
@@ -131,6 +135,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
   row: ProfessionalListRow
   catalog: CatalogView
   onPrefetch: (id: string) => void
+  unansweredDays: number | undefined
   /** Tells the table when the row comes into view (its photo is signed then). */
   observe: (id: string) => (element: HTMLElement | null) => (() => void) | undefined
   /** The photo's signed URL once the row has been in view; undefined before, or without one. */
@@ -140,7 +145,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
   const name = fullName(row)
   const title = row.primaryTitleId ? catalog.byId.titles.get(row.primaryTitleId) : undefined
   const licence = [titleOrder(catalog, row.primaryTitleId)?.acronym, row.primaryLicenceNumber].filter(Boolean).join(' ')
-  const flag = watchFlags(row)[0]
+  const flag = watchFlags(row, Date.now(), { unansweredDays })[0]
   // An inactive file is not watched: why and since when instead (P4-510).
   const inactive = inactiveLabel(row, catalog)
   const status = displayStatus(row.status, row.onboarding)

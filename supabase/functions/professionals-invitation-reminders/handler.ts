@@ -26,6 +26,12 @@
  *    stamped on the link's delivery, P4-490; a copied link is never due,
  *    P4-493). The previous link is revoked by the
  *    re-issue: its raw token is gone, so a reminder always carries a new one.
+ *    When that email does not go out (any failure, thrown or returned),
+ *    `restore_professional_invitation_for_service` puts the previous link
+ *    back (unused and unexpired) and revokes the new one, which nobody has
+ *    received (gap audit H7, P4-550): a failed reminder never leaves her
+ *    without a working link. A failed restore is reported
+ *    (`reminder_link_restore_failed`); the new link then stays.
  *    Once the link has rotated, the send is never aborted (no signal: the
  *    email is the only way the new link reaches the professional), as
  *    `professionals-submit` does.
@@ -92,6 +98,8 @@ const idsSchema = z.array(z.guid()).max(MAX_PER_RUN)
 /** `reissue_professional_invitation_for_service`'s answer. */
 const reissuedSchema = z.object({
   link_id: z.guid(),
+  // The link the reminder replaced (P4-550); absent before that migration.
+  previous_link_id: z.guid().nullish(),
   email: z.string(),
   first_name: z.string(),
   expires_at: z.string(),
@@ -179,6 +187,27 @@ export async function remindOrg(
     if (error) await report('email_failure_stamp_failed', professionalId)
   }
 
+  /**
+   * The reminder did not go out: the previous link comes back (P4-550).
+   * Best effort: a refusal (false) or a failure leaves the new link live.
+   */
+  const restorePrevious = async (
+    row: z.infer<typeof reissuedSchema>,
+    professionalId: string,
+  ) => {
+    if (!row.previous_link_id) return
+    const { error } = await client.rpc(
+      'restore_professional_invitation_for_service',
+      {
+        p_org: orgId,
+        p_id: professionalId,
+        p_link_id: row.link_id,
+        p_previous_link_id: row.previous_link_id,
+      },
+    )
+    if (error) await report('reminder_link_restore_failed', professionalId)
+  }
+
   const remindOne = async (professionalId: string): Promise<Outcome> => {
     // In memory only: the token goes into the email, its hash to the RPC.
     const token = generateToken()
@@ -227,6 +256,7 @@ export async function remindOrg(
       if (result.emailLogId === null) {
         await stampFailure(row.data.link_id, result.code, professionalId)
       }
+      await restorePrevious(row.data, professionalId)
       return { kind: 'failed', code: result.code }
     } catch (error) {
       // The send path reports its own failures before throwing them.
@@ -234,6 +264,7 @@ export async function remindOrg(
         await report('unexpected', professionalId)
       }
       await stampFailure(row.data.link_id, 'internal', professionalId)
+      await restorePrevious(row.data, professionalId)
       return { kind: 'failed', code: 'internal' }
     }
   }

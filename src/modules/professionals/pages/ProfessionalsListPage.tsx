@@ -19,6 +19,7 @@ import { useProfessionalsCatalog } from '../hooks/use-catalog'
 import { prefetchProfessionalOnboarding, useInvitationStates } from '../hooks/use-invitations'
 import { prefetchProfessionalRecord } from '../hooks/use-professional-record'
 import { useProfessionalsList } from '../hooks/use-professionals-list'
+import { useUnansweredDays } from '../hooks/use-professionals-settings'
 import { filterProfessionals, paginate, searchHaystacks, withOnboarding } from '../lib/filters'
 import { useRememberedProfessionalsFilters } from '../lib/remembered-filters'
 import { professionalRecordPage } from '../manifest'
@@ -52,6 +53,9 @@ export function ProfessionalsListPage() {
   const catalog = useProfessionalsCatalog()
   const { filters, setFilters, toggleMotif, setPage, reset, restoring } = useRememberedProfessionalsFilters()
   const filtersButton = useRef<HTMLButtonElement>(null)
+  // « Sans réponse » after the clinic's reminder delay (V14).
+  const unanswered = useUnansweredDays()
+  const watchOptions = useMemo(() => ({ unansweredDays: unanswered }), [unanswered])
 
   // The onboarding states joined in memory (P4-270): one request, in parallel with the list. When
   // they cannot load, the list still shows, with the stored statuses and no invitation flags, and
@@ -64,8 +68,8 @@ export function ProfessionalsListPage() {
   // Folded once per list, not on every keystroke.
   const haystacks = useMemo(() => (rows ? searchHaystacks(rows) : undefined), [rows])
   const filtered = useMemo(
-    () => (rows && catalogView && haystacks ? filterProfessionals(rows, filters, catalogView, haystacks) : undefined),
-    [rows, filters, catalogView, haystacks],
+    () => (rows && catalogView && haystacks ? filterProfessionals(rows, filters, catalogView, haystacks, watchOptions) : undefined),
+    [rows, filters, catalogView, haystacks, watchOptions],
   )
   // Undefined while loading, and while the remembered filters are put in the URL.
   const shown = restoring ? undefined : filtered
@@ -176,6 +180,7 @@ export function ProfessionalsListPage() {
               rows={page?.rows ?? null}
               catalog={catalogView}
               onPrefetch={prefetch}
+              unansweredDays={unanswered}
               footer={page && shown && rows && <TableFooter shown={shown.length} total={rows.length} page={page.page} pageCount={page.pageCount} onPage={setPage} />}
             />
           )}

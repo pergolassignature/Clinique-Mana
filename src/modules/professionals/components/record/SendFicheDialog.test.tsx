@@ -158,8 +158,8 @@ describe('SendFicheDialog', () => {
   it.each([
     ['a refusal, as written', new FunctionCallError('invalid_request', 400, 'Seuls les professionnels actifs peuvent être proposés.', { refusal: true }), 'Seuls les professionnels actifs peuvent être proposés.'],
     ['too many sends, with the delay', new FunctionCallError('rate_limited', 429, 'Too many', {}, 1_200), `${t(`${E}.rateLimited`)} ${t('common.retryIn.minutesOther', { count: '20' })}`],
-    ['email not configured', new FunctionCallError('not_configured', 503, 'x'), t(`${E}.notConfigured`)],
-    ['the provider down', new FunctionCallError('provider_error', 502, 'x'), t(`${E}.provider`)],
+    ['email not configured', new FunctionCallError('not_configured', 503, 'x'), t('common.functionErrors.notConfigured.email.staff')],
+    ['the provider down', new FunctionCallError('provider_error', 502, 'x'), t('common.functionErrors.providerError.email')],
     ['the upload gone', new FunctionCallError('not_found', 404, 'x'), t(`${E}.uploadGone`)],
   ])('shows %s above the buttons', async (_case, error, text) => {
     renderMenu()

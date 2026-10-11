@@ -10,7 +10,7 @@
 -- permission, at most 20, null otherwise).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(54);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin 01, adjointe 02, provider 03 linked to P2, conseillère 04,
@@ -170,8 +170,10 @@ create temp table test_reissued on commit drop as
   select public.reissue_professional_invitation_for_service('b0000000-0000-0000-0000-00000000000a',
            'c0000000-0000-0000-0000-000000000001', decode(repeat('a1', 32), 'hex')) as r;
 reset role;
-select is((select r - 'link_id' - 'expires_at' from test_reissued),
+select is((select r - 'link_id' - 'expires_at' - 'previous_link_id' from test_reissued),
   '{"email": "p1@exemple.test", "first_name": "Paul", "clinic_name": "Org A"}'::jsonb, 'the re-issue answers what the email needs');
+select is((select r ->> 'previous_link_id' from test_reissued), current_setting('test.old_link'),
+  'and the link it replaced, put back if the email does not go out (H7, P4-550)');
 select ok((select (r ->> 'expires_at')::timestamptz between now() + interval '7 days' - interval '1 minute'
                                                          and now() + interval '7 days' + interval '1 minute' from test_reissued),
   'the new link lasts the clinic''s invitation_expiry_days (7 by default) from now');

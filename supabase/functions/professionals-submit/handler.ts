@@ -20,7 +20,8 @@
  *    refused or failed limiter skips the emails, reported
  *    (`reviewer_emails_rate_limited` / `reviewer_emails_limit_unavailable`);
  *    the in-app notice remains.
- * 5. The reviewers' email (`professionals.submission_received`):
+ * 5. The reviewers' email (`professionals.submission_received`, saying
+ *    whether it is her first profile or an update, P4-544):
  *    `get_professional_submission_notice_for_service(p_actor)` with the
  *    service client (the actor `verifyAuth` verified; her clinic's active
  *    members holding `professionals.review`, at most 20, the provider
@@ -76,6 +77,7 @@ const noticeSchema = z.object({
   org_id: z.guid(),
   professional_id: z.guid(),
   submission_id: z.guid(),
+  kind: z.enum(['onboarding', 'update']),
   full_name: z.string().min(1),
   reviewers: z.array(z.object({ user_id: z.guid(), email: z.string() }))
     .max(MAX_REVIEWERS),
@@ -168,7 +170,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
             templateKey: 'professionals.submission_received',
             to: { email: reviewer.email, profileId: reviewer.user_id },
             subject: { type: 'professional', id: notice.professional_id },
-            values: submissionReceivedValues({ fullName: notice.full_name }),
+            values: submissionReceivedValues({
+              fullName: notice.full_name,
+              kind: notice.kind,
+            }),
             actionUrl,
             sentBy: actor,
             explicitResend: true,

@@ -66,7 +66,7 @@ describe('CopyInvitationLinkDialog (P4-491)', () => {
     expect(dialog).toHaveAccessibleName("Copier le lien d'invitation pour Marie Tremblay ?")
     await waitFor(() =>
       expect(dialog).toHaveAccessibleDescription(
-        'Un nouveau lien sera créé pour Marie, sans courriel : vous le lui transmettez vous-même (texto, votre propre courriel…). Le lien du 5 oct. ne fonctionnera plus. Le lien sera valide 7 jours.',
+        'Un nouveau lien sera créé pour Marie, sans courriel : vous le lui transmettez vous-même (texto, votre propre courriel…). Le lien du 5 oct. 2026 ne fonctionnera plus. Le lien sera valide 7 jours.',
       ),
     )
     expect(mocks.invitations.copyProfessionalInvitationLink).not.toHaveBeenCalled()

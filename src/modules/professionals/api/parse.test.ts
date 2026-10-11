@@ -88,7 +88,6 @@ describe('recordPayload', () => {
       gender: null,
       status: 'draft',
       deactivationDisabledAccount: false,
-      createdBy: IDS.admin,
     })
     expect(record?.publicProfile).toEqual({ bio: null, approach: null, publicEmail: null, publicPhone: null, updatedAt: '2026-10-08T12:00:00+00:00' })
     expect(record?.matchingProfile).toEqual({
@@ -199,18 +198,23 @@ describe('listRowPayload', () => {
       motifIds: [IDS.anxiete],
       acceptingNewClients: true,
       matchingComplete: true,
-      ready: true,
       emailMatchesLogin: true,
-      createdAt: '2026-10-08T12:00:00+00:00',
-      updatedAt: '2026-10-08T12:00:00+00:00',
       insuranceStatus: null,
       insuranceExpiresOn: null,
       documentsDone: 3,
       documentsRequired: 3,
       photoFileId: null,
+      documentsToReview: 0,
+      documentsMissing: false,
       // Joined by the list page from list_professional_invitation_states (P4-270).
       onboarding: null,
     })
+  })
+
+  it('reads the documents waiting for review and whether a required one is missing (V7)', () => {
+    const row = parseRpc(listRowPayload, { ...LIST_ROW_JSON, documents_to_review: 2, documents_done: 1, documents_required: 3 })
+    expect(row).toMatchObject({ documentsToReview: 2, documentsMissing: true })
+    expect(parseRpc(listRowPayload, { ...LIST_ROW_JSON, documents_done: 0, documents_required: 0 }).documentsMissing).toBe(false)
   })
 
   it('reads the photo’s stored file, null without one', () => {

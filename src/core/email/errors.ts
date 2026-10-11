@@ -2,12 +2,12 @@ import * as Sentry from '@sentry/react'
 import { t } from '@/i18n'
 import { EmailFunctionError } from './api'
 import { UNCLOSED_BRACES_MESSAGE } from './schemas'
-import { retryInText } from '@/shared/lib/retry-after'
+import { functionErrorText } from '@/core/supabase/function-errors'
 
-/** The codes that have their own French text (`settings.email.errors.<code>`); not reported. */
-const KNOWN = new Set(['not_configured', 'rate_limited', 'provider_error', 'module_disabled', 'not_found', 'unauthenticated', 'network'] as const)
-type KnownCode = typeof KNOWN extends Set<infer C> ? C : never
-const isKnown = (code: string): code is KnownCode => (KNOWN as Set<string>).has(code)
+/** The codes whose meaning is the template editor's own (the shared texts cover the others, C-4). */
+const OVERRIDES = {
+  not_found: () => t('settings.email.errors.not_found'),
+} as const
 
 /**
  * `email-test-send`'s answer when the provider refused the recipient (`invalid_recipient` → 400
@@ -18,8 +18,8 @@ const INVALID_RECIPIENT_MESSAGE = 'Invalid recipient'
 /**
  * The French text of a failed email function call (`email-preview`, `email-test-send`; P3-28).
  * The function's English message is never shown, except SQL's unclosed-braces sentence, which it
- * sends as is; an unknown placeholder names its `variable`; a 429 says when to retry (its
- * `Retry-After`, `retryInText`). Unexpected codes go to Sentry (code and
+ * sends as is; an unknown placeholder names its `variable`; every other known code reads as
+ * everywhere (`functionErrorText`, a 429 with when to retry). Unexpected codes go to Sentry (code and
  * message only: the functions' messages carry no address or value) and read as the generic text.
  */
 export function emailErrorMessage(error: unknown): string {
@@ -31,9 +31,8 @@ export function emailErrorMessage(error: unknown): string {
       if (message === INVALID_RECIPIENT_MESSAGE) return t('settings.email.errors.invalidRecipient')
       return status === 413 ? t('settings.email.errors.tooLarge') : t('settings.email.errors.invalid_request')
     }
-    if (code === 'forbidden') return t('common.errors.forbidden')
-    if (code === 'rate_limited') return `${t('settings.email.errors.rate_limited')} ${retryInText(error.retryAfter)}`
-    if (isKnown(code)) return t(`settings.email.errors.${code}`)
+    const text = functionErrorText(error, { service: 'email', overrides: OVERRIDES })
+    if (text !== null) return text
   }
   const code = error instanceof EmailFunctionError ? error.code : 'unknown'
   const report = new Error(error instanceof Error ? error.message : String(error))

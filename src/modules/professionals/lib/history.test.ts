@@ -779,12 +779,35 @@ describe('history — the service contract (Task 4d.1)', () => {
   })
 })
 
+describe('history — the contract’s preparation (gap audit T4, P4-545)', () => {
+  const snapshot = (fields: Record<string, unknown>, action: HistoryEntry['action'] = 'insert') =>
+    row('professional_contract_snapshots', action, fields, { recordId: `${P}:00000000-0000-4000-8000-00000000c0a1` })
+
+  it('« a préparé le contrat de service », or « un nouveau » when a contract was in force; nothing it prints', () => {
+    expect(only([snapshot({ renewal: false })]).sentence).toBe('a préparé le contrat de service (aperçu ou envoi)')
+    expect(only([snapshot({ renewal: true })]).sentence).toBe('a préparé un nouveau contrat de service (aperçu ou envoi)')
+    expect(only([snapshot({ renewal: false })]).lines).toEqual([])
+  })
+
+  it('only the insert is an event', () => {
+    expect(events([snapshot({ renewal: false }, 'update')])).toEqual([])
+  })
+})
+
 describe('history — the documents (4c.2)', () => {
   const DOC = '00000000-0000-4000-8000-0000000d0c01'
   const docRow = (action: HistoryEntry['action'], fields: Record<string, unknown>, over: Partial<HistoryEntry> = {}) =>
     row('professional_documents', action, fields, { recordId: `${P}:${DOC}`, ...over })
   const inserted = (extra: Record<string, unknown> = {}, over: Partial<HistoryEntry> = {}) =>
     docRow('insert', { org_id: ORG, professional_id: P, document_type_id: IDS.photoType, status: 'verified', submission_id: null, signature_request_id: null, ...extra }, over)
+
+  it('a withdrawn consent (P4-549): « a enregistré le retrait … à partir du … », its note in the details', () => {
+    const withdrawn = only([
+      docRow('update', { withdrawn_on: { before: null, after: '2026-10-09' }, withdrawal_note: { before: null, after: 'Par courriel.' }, withdrawn_at: { before: null, after: '2026-10-09T15:00:00Z' } }),
+    ])
+    expect(withdrawn.sentence).toBe("a enregistré le retrait du consentement au droit à l'image, à partir du 9 oct. 2026")
+    expect(withdrawn.lines).toEqual([{ kind: 'value', field: 'Note', value: 'Par courriel.' }])
+  })
 
   it('an upload: « a téléversé le document « Photo professionnelle » », by staff or by the professional herself', () => {
     expect(only([inserted()]).sentence).toBe('a téléversé le document « Photo professionnelle »')
@@ -809,8 +832,8 @@ describe('history — the documents (4c.2)', () => {
     ].map((r, i) => ({ ...r, createdAt: `2026-10-08T14:3${i}:00+00:00` }))
     expect(events(rows).map((e) => e.sentence)).toEqual([
       "a supprimé le document « Preuve d'assurance responsabilité »",
-      "a noté que le document « Preuve d'assurance responsabilité » est échu",
-      "a modifié l'échéance du document « Preuve d'assurance responsabilité » au 12 oct. 2026",
+      "a noté que le document « Preuve d'assurance responsabilité » est expiré",
+      "a modifié l'échéance du document « Preuve d'assurance responsabilité » au 12 octobre 2026",
       "a refusé le document « Preuve d'assurance responsabilité » (raison : Photo floue)",
       "a vérifié le document « Preuve d'assurance responsabilité »",
       "a téléversé le document « Preuve d'assurance responsabilité »",
@@ -826,13 +849,13 @@ describe('history — the documents (4c.2)', () => {
       'a vérifié le document « Diplôme »',
     )
     expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' }, document_type_name: 'Diplôme' })]).sentence).toBe(
-      "a modifié l'échéance du document « Diplôme » au 1 nov. 2026",
+      "a modifié l'échéance du document « Diplôme » au 1 novembre 2026",
     )
   })
 
   it('an update whose document is not on screen reads « un document »; other updates say nothing', () => {
     expect(only([docRow('update', { status: { before: 'pending', after: 'verified' } })]).sentence).toBe('a vérifié un document')
-    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' } })]).sentence).toBe("a modifié l'échéance d'un document au 1 nov. 2026")
+    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' } })]).sentence).toBe("a modifié l'échéance d'un document au 1 novembre 2026")
     expect(events([docRow('update', { metadata: { before: {}, after: { insurer: 'X' } } })])).toEqual([])
     expect(printed(events([inserted()]))).not.toContain(t(`${H}.sentences.other`))
   })

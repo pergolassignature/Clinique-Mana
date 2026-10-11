@@ -3,7 +3,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { ProfessionalRecord } from '../../api/parse'
 import { useSaveMatchingProfile } from '../../hooks/use-card-saves'
-import { shortDate } from '../../lib/onboarding'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { placesSchema, toPlacesFormValues } from '../../schemas/matching'
 import { editingHelp } from './editing-help'
 import { ProfessionalCard } from './ProfessionalCard'
@@ -26,7 +26,7 @@ export function PlacesCard({ readOnly }: { readOnly: boolean }) {
   const status =
     newClientPlaces === null || newClientPlacesSetAt === null
       ? t(`${P}.notTracked`)
-      : t(`${P}.setOn`, { date: shortDate(newClientPlacesSetAt, Date.now()) })
+      : t(`${P}.setOn`, { date: formatClinicDateShort(newClientPlacesSetAt) })
   return (
     <ProfessionalCard
       title={t(`${P}.title`)}

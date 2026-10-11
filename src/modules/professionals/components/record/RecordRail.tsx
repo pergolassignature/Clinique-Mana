@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import type { RecordTab } from '../../lib/constants'
 import { placesLabel } from '../../lib/display'
 import { matchingDigest } from '../../lib/matching-digest'
+import { useUnansweredDays } from '../../hooks/use-professionals-settings'
 import { NextActionCard } from './NextActionCard'
 import { ReadinessCard } from './ReadinessCard'
 import { WatchCard } from './WatchCard'
@@ -37,6 +38,7 @@ export function RecordRail({ tab, layout }: RecordRailProps) {
   const { record, onboarding, catalog } = useRecordData()
   // The invitation's lines name days (« sans réponse depuis 4 jours »): a minute is enough.
   const now = useNow(60_000)
+  const unansweredDays = useUnansweredDays()
   const brief = layout === 'column' && tab !== 'apercu' && tab !== 'jumelage'
   return (
     <section
@@ -49,7 +51,7 @@ export function RecordRail({ tab, layout }: RecordRailProps) {
       )}
     >
       <ReadinessCard record={record} onboarding={onboarding} now={now} catalog={catalog} />
-      <WatchCard record={record} onboarding={onboarding} now={now} />
+      <WatchCard record={record} onboarding={onboarding} now={now} unansweredDays={unansweredDays} />
       <NextActionCard />
       {brief && <BriefCard />}
     </section>
@@ -68,7 +70,7 @@ function BriefCard() {
       <CardContent>
         <dl className="divide-y divide-border-light">
           <Row label={t(`${M}.places`)}>
-            <Muted when={digest.newClientPlaces === null}>{placesLabel(digest.newClientPlaces, digest.newClientPlacesSetAt, Date.now())}</Muted>
+            <Muted when={digest.newClientPlaces === null}>{placesLabel(digest.newClientPlaces, digest.newClientPlacesSetAt)}</Muted>
           </Row>
           <Row label={t(`${B}.accepting`)}>{t(digest.acceptingNewClients ? `${M}.yes` : `${M}.no`)}</Row>
           <Row label={t(`${B}.availability`)}>

@@ -263,7 +263,7 @@ describe('CreateProfessionalDialog — invite now (Task 4b.3)', () => {
     await open()
     await create()
     expect(mocks.toast.warning).toHaveBeenCalledWith(t('modules.professionals.onboarding.toasts.createdNotSent'), {
-      description: `${t('modules.professionals.onboarding.emailProblems.provider_error')} ${t('modules.professionals.onboarding.emailAdvice.invitation')} ${t('modules.professionals.onboarding.emailAdvice.copyLink')}`,
+      description: `${t('email.failure.providerError')}. ${t('modules.professionals.onboarding.emailAdvice.invitation')} ${t('modules.professionals.onboarding.emailAdvice.copyLink')}`,
     })
   })
 
@@ -272,6 +272,6 @@ describe('CreateProfessionalDialog — invite now (Task 4b.3)', () => {
     renderDialog({ invite: true })
     await open()
     await create()
-    expect(mocks.toast.error).toHaveBeenCalledWith(t(`${C}.notInvited`), { description: t('modules.professionals.onboarding.errors.network') })
+    expect(mocks.toast.error).toHaveBeenCalledWith(t(`${C}.notInvited`), { description: t('common.functionErrors.network') })
   })
 })

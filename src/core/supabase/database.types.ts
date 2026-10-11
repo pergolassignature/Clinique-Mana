@@ -2007,6 +2007,10 @@ export type Database = {
           updated_at: string
           uploaded_at: string
           uploaded_by: string | null
+          withdrawal_note: string | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+          withdrawn_on: string | null
         }
         Insert: {
           created_at?: string
@@ -2026,6 +2030,10 @@ export type Database = {
           updated_at?: string
           uploaded_at?: string
           uploaded_by?: string | null
+          withdrawal_note?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+          withdrawn_on?: string | null
         }
         Update: {
           created_at?: string
@@ -2045,6 +2053,10 @@ export type Database = {
           updated_at?: string
           uploaded_at?: string
           uploaded_by?: string | null
+          withdrawal_note?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+          withdrawn_on?: string | null
         }
         Relationships: [
           {
@@ -2113,6 +2125,13 @@ export type Database = {
           {
             foreignKeyName: "professional_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_documents_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
@@ -4846,6 +4865,7 @@ export type Database = {
           deactivation_reason_id: string | null
           documents_done: number | null
           documents_required: number | null
+          documents_to_review: number | null
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null
@@ -5583,6 +5603,7 @@ export type Database = {
           deactivation_reason_id: string | null
           documents_done: number | null
           documents_required: number | null
+          documents_to_review: number | null
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null
@@ -5916,6 +5937,15 @@ export type Database = {
         Returns: Json
       }
       resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
+      restore_professional_invitation_for_service: {
+        Args: {
+          p_id: string
+          p_link_id: string
+          p_org: string
+          p_previous_link_id: string
+        }
+        Returns: boolean
+      }
       reveal_bank_account_number: { Args: never; Returns: string }
       reveal_professional_private: {
         Args: { p_field: string; p_id: string }
@@ -6240,6 +6270,10 @@ export type Database = {
       verify_professional_document: {
         Args: { p_doc_id: string; p_expires_on?: string }
         Returns: undefined
+      }
+      withdraw_professional_image_consent: {
+        Args: { p_id: string; p_note?: string; p_withdrawn_on: string }
+        Returns: number
       }
     }
     Enums: {

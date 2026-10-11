@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import * as Sentry from '@sentry/react'
@@ -6,10 +7,10 @@ import { fetchOrganization } from '@/core/settings/organization/api'
 import { organizationKeys } from '@/core/settings/organization/hooks'
 import { UploadSendError, uploadFile } from '@/core/storage/api'
 import { uploadErrorMessage } from '@/core/storage/errors'
-import { FunctionCallError, refusalMessage } from '@/core/supabase/functions'
+import { FunctionCallError } from '@/core/supabase/functions'
+import { functionErrorText } from '@/core/supabase/function-errors'
 import { isChunkLoadError } from '@/shared/lib/app-update'
 import { saveBlob } from '@/shared/lib/files'
-import { retryInText } from '@/shared/lib/retry-after'
 import { toast } from '@/shared/ui/sonner'
 import { fetchPublicFees, markFicheGenerated, sendFicheEmail } from '../api/fiche'
 import type { ProfessionalRecord } from '../api/parse'
@@ -33,7 +34,7 @@ export function preloadFicheRenderer(): void {
   void loadRenderer().catch(() => undefined)
 }
 
-interface FicheTarget {
+export interface FicheTarget {
   record: ProfessionalRecord
   catalog: CatalogView
   titleId: string | null
@@ -56,11 +57,11 @@ async function renderFiche(queryClient: QueryClient, { record, catalog, titleId 
     // The title the content prints (two titles: the chosen one), so the fees follow it (P4-218).
     fetchPublicFees(record.professional.id, ficheProfession(record, titleId)?.titleId ?? null),
     // The photo (P4-202): the public profile's, the newest verified one, from the Documents tab's
-    // read (cached 30 s), and only with an image consent in force on file (P4-512: the same read).
+    // read (cached 30 s), and only with an image consent in force on file (P4-512, not withdrawn: P4-549; the same read).
     // Unreadable, or no consent → no photo: the initials take its place, never a failed fiche.
     queryClient
       .fetchQuery(documentsQuery(record.professional.id))
-      .then((documents) => (documents && imageConsentOnFile(documents.documents) ? (documents.photo?.fileId ?? null) : null))
+      .then((documents) => (documents && imageConsentOnFile(documents.documents, documents.today) ? (documents.photo?.fileId ?? null) : null))
       .catch(() => null),
   ])
   const options = {
@@ -72,8 +73,18 @@ async function renderFiche(queryClient: QueryClient, { record, catalog, titleId 
   return { blob, fileName: ficheFileName(record.professional) }
 }
 
+/**
+ * « Aperçu de la fiche » (gap audit H3): renders the fiche exactly as « Télécharger » does, for the
+ * preview dialog to show; nothing is saved nor stamped (`fiche_generated_at` is a download's or a
+ * send's). The renderer's chunk loads on the first call.
+ */
+export function useRenderFiche(): (target: FicheTarget) => Promise<{ blob: Blob; fileName: string }> {
+  const queryClient = useQueryClient()
+  return useCallback((target: FicheTarget) => renderFiche(queryClient, target), [queryClient])
+}
+
 /** The French text for a fiche that could not be made (or sent): a new deploy, a refusal, else the generic one. */
-function ficheErrorMessage(error: unknown, fallback: string): string {
+export function ficheErrorMessage(error: unknown, fallback: string): string {
   if (isChunkLoadError(error)) return t('modules.professionals.fiche.errors.appUpdated')
   return moduleErrorMessage(error, fallback, 'professionals')
 }
@@ -113,17 +124,12 @@ interface FicheSendFailure {
 
 const E = 'modules.professionals.fiche.errors'
 
-/** The function's codes that have their own text, not reported. */
-const SEND_TEXTS: Readonly<Record<string, () => string>> = {
-  unauthenticated: () => t('storage.errors.unauthenticated'),
-  forbidden: () => t('common.errors.forbidden'),
-  module_disabled: () => t('common.errors.forbidden'),
+/** The codes whose meaning is the fiche send's own (C-4); the shared texts cover the others. */
+const SEND_OVERRIDES = {
   // The upload was purged meanwhile (staged one day), or never stored.
   not_found: () => t(`${E}.uploadGone`),
-  not_configured: () => t(`${E}.notConfigured`),
-  provider_error: () => t(`${E}.provider`),
-  network: () => t('storage.errors.network'),
-}
+  rate_limited: () => t(`${E}.rateLimited`),
+} as const
 
 /** The French text of a failed send (see `useSendFiche`); unexpected codes are reported. */
 export function ficheSendFailure(error: unknown): FicheSendFailure {
@@ -139,11 +145,8 @@ export function ficheSendFailure(error: unknown): FicheSendFailure {
   }
   if (!(cause instanceof FunctionCallError)) return { message: moduleErrorMessage(cause, t(`${E}.send`), 'professionals') }
   if (cause.status === 400 && cause.field === 'to') return { message: t(`${E}.invalidRecipient`), field: 'to' }
-  const refusal = refusalMessage(cause)
-  if (refusal !== null) return { message: refusal }
-  if (cause.code === 'rate_limited') return { message: `${t(`${E}.rateLimited`)} ${retryInText(cause.retryAfter)}` }
-  const text = SEND_TEXTS[cause.code]
-  if (text) return { message: text() }
+  const text = functionErrorText(cause, { service: 'email', overrides: SEND_OVERRIDES })
+  if (text !== null) return { message: text }
   // missing_variable (the clinic's template names a value this send lacks), internal, anything new.
   // The code only: a function's message is never sent to Sentry.
   const report = new Error(cause.code)

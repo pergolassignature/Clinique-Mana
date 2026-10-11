@@ -15,12 +15,15 @@ const mocks = vi.hoisted(() => ({
     saveEmailTemplate: vi.fn(),
     resetEmailTemplate: vi.fn(),
     listEmailTemplates: vi.fn(),
-    EmailFunctionError: class extends Error {},
   },
   toast: { success: vi.fn(), error: vi.fn() },
   sentry: { captureException: vi.fn() },
 }))
-vi.mock('@/core/email/api', () => mocks.api)
+vi.mock('@/core/email/api', async () => {
+  // The real error class, so `functionErrorText` reads the mock's refusals as the function's.
+  const { FunctionCallError } = await vi.importActual<typeof import('@/core/supabase/functions')>('@/core/supabase/functions')
+  return { ...mocks.api, EmailFunctionError: FunctionCallError }
+})
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => mocks.sentry)
 
@@ -144,14 +147,15 @@ describe('TemplateEditorSheet — preview', () => {
   })
 
   it('shows a refusal of the function in French', async () => {
-    const error = Object.assign(new mocks.api.EmailFunctionError('Not configured'), { code: 'module_disabled', status: 403 })
+    const { EmailFunctionError } = await import('@/core/email/api')
+    const error = new EmailFunctionError('module_disabled', 403, 'Not configured')
     renderSheet()
     mocks.api.previewEmail.mockReset()
     mocks.api.previewEmail.mockRejectedValue(error)
     // The first call already went out with the default mock; the refusal is checked on the next draft.
     const user = userEvent.setup()
     await user.type(subject(), '!')
-    expect(await screen.findByText(t('settings.email.errors.module_disabled'), {}, { timeout: 2000 })).toBeInTheDocument()
+    expect(await screen.findByText(t('common.functionErrors.moduleDisabled'), {}, { timeout: 2000 })).toBeInTheDocument()
   })
 })
 

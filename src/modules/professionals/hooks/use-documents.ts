@@ -13,6 +13,7 @@ import {
   setProfessionalDocumentExpiry,
   uploadProfessionalDocument,
   verifyProfessionalDocument,
+  withdrawImageConsent,
   type DocumentUploadInput,
   type RejectResult,
 } from '../api/documents'
@@ -98,6 +99,18 @@ export function useSetDocumentExpiry(feedback?: MutationFeedback) {
   return useMutation({
     mutationFn: ({ documentId, expiresOn }: DocumentVariables & { expiresOn: string }) => setProfessionalDocumentExpiry(documentId, expiresOn),
     onSuccess: () => toast.success(t(`${T}.redated`)),
+    onError: (error) => showMutationError(queryClient, error, feedback),
+    onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId),
+  })
+}
+
+/** « Retrait du consentement » (P4-549): the documents, the record (readiness) and Historique are read again. */
+export function useWithdrawImageConsent(feedback?: MutationFeedback) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ professionalId, withdrawnOn, note }: { professionalId: string; withdrawnOn: string; note: string | null }) =>
+      withdrawImageConsent(professionalId, withdrawnOn, note),
+    onSuccess: () => toast.success(t('modules.professionals.documents.withdraw.done')),
     onError: (error) => showMutationError(queryClient, error, feedback),
     onSettled: (_data, _error, { professionalId }) => refreshAfterDocumentChange(queryClient, professionalId),
   })

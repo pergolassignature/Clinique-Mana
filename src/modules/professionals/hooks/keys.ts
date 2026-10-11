@@ -71,7 +71,7 @@ export const professionalKeys = {
    */
   onboarding: (id: string) => [...professionalKeys.record(id), 'onboarding'] as const,
   /**
-   * « Questionnaire et mises à jour » (`list_professional_submissions`, Task 4b.5): under
+   * « Profils envoyés et mises à jour » (`list_professional_submissions`, Task 4b.5): under
    * `record(id)`, so every record refresh (an invitation, an apply, a refusal) refreshes it.
    */
   submissions: (id: string) => [...professionalKeys.record(id), 'submissions'] as const,

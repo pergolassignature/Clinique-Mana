@@ -45,8 +45,11 @@ export function defaultExpiry(rule: DocumentExpiryRule, today: string): string |
 /** The largest reminder (days before the last valid day): the « bientôt échu » window; 0 without one. */
 const reminderWindow = (type: DocumentType) => Math.max(0, ...type.reminderDays)
 
-/** `submitted`: nothing counts yet, but the questionnaire waiting for review holds it (P4-495). */
-export type DocumentStateKind = 'valid' | 'expiring' | 'expired' | 'pending' | 'submitted' | 'rejected' | 'missing'
+/**
+ * `submitted`: nothing counts yet, but the questionnaire waiting for review holds it (P4-495).
+ * `withdrawn`: the image consent was withdrawn (P4-549) and nothing replaced it.
+ */
+export type DocumentStateKind = 'valid' | 'expiring' | 'expired' | 'pending' | 'submitted' | 'rejected' | 'missing' | 'withdrawn'
 
 /** One type's documents, as a card shows them. */
 export interface TypeDocuments {
@@ -64,14 +67,20 @@ export interface TypeDocuments {
   older: ProfessionalDocument[]
   /** What the open questionnaire holds for this type (a draft, or sent and waiting), if anything (P4-495). */
   staged: StagedDocument | null
+  /** `withdrawn`: the first day the image consent was no longer in force (P4-549). */
+  withdrawnOn?: string | null
 }
 
+/** An image consent withdrawn on or before `today` (P4-549): no longer in force. */
+export const isWithdrawn = (d: Pick<ProfessionalDocument, 'withdrawal'>, today: string) => d.withdrawal !== null && d.withdrawal.on <= today
+
 /**
- * A verified document, unexpired on `today`. For a type with a rule a document without a date does
- * not count (its type got a rule after it was verified), as the readiness view's `max(expires_on)`.
+ * A verified document, unexpired and not withdrawn on `today`. For a type with a rule a document
+ * without a date does not count (its type got a rule after it was verified), as the readiness
+ * view's `max(expires_on)`.
  */
 const isValid = (d: ProfessionalDocument, today: string, rule: DocumentExpiryRule = 'none') =>
-  d.status === 'verified' && (d.expiresOn === null ? rule === 'none' : d.expiresOn >= today)
+  d.status === 'verified' && !isWithdrawn(d, today) && (d.expiresOn === null ? rule === 'none' : d.expiresOn >= today)
 
 /**
  * The state of one type on the clinic's `today`: valid (or expiring within the type's largest
@@ -84,9 +93,10 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
   const docs = data.documents.filter((d) => d.typeId === type.id)
   const reviewed = docs.filter((d) => d.status === 'verified' || d.status === 'expired')
   // Newest first already: `reduce` keeps the first of equal dates.
+  // Without a rule: the newest one in force, else the newest verified (withdrawn, P4-549).
   const current =
     type.expiryRule === 'none'
-      ? (reviewed.find((d) => d.status === 'verified') ?? reviewed[0] ?? null)
+      ? (reviewed.find((d) => d.status === 'verified' && !isWithdrawn(d, today)) ?? reviewed.find((d) => d.status === 'verified') ?? reviewed[0] ?? null)
       : reviewed.reduce<ProfessionalDocument | null>((best, d) => (best === null || (d.expiresOn ?? '') > (best.expiresOn ?? '') ? d : best), null)
   const pending = docs.find((d) => d.status === 'pending') ?? null
   const rejected = pending === null && docs[0]?.status === 'rejected' ? docs[0] : null
@@ -95,10 +105,14 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
 
   let kind: DocumentStateKind
   let until: string | null = null
+  let withdrawnOn: string | null = null
   if (current && isValid(current, today, type.expiryRule)) {
     until = current.expiresOn
     const window = reminderWindow(type)
     kind = until !== null && window > 0 && daysBetween(today, until) <= window ? 'expiring' : 'valid'
+  } else if (current && current.status === 'verified' && isWithdrawn(current, today)) {
+    kind = 'withdrawn'
+    withdrawnOn = current.withdrawal?.on ?? null
   } else if (current) {
     kind = 'expired'
     until = current.expiresOn
@@ -110,17 +124,28 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
     kind = 'missing'
   }
   // Sent with the questionnaire, waiting for review: never « Manquant » (nor « Refusé », « Expiré »).
-  if (staged?.status === 'submitted' && (kind === 'missing' || kind === 'rejected' || kind === 'expired')) kind = 'submitted'
-  return { type, kind, current, pending, rejected, until, older, staged }
+  if (staged?.status === 'submitted' && (kind === 'missing' || kind === 'rejected' || kind === 'expired' || kind === 'withdrawn')) kind = 'submitted'
+  return { type, kind, current, pending, rejected, until, older, staged, withdrawnOn }
 }
 
 /**
- * Whether the file holds an image consent in force: a verified « Consentement droit à l'image »
- * document (signed through Documenso, or a paper one). It never expires (P4-504) and is the only
- * source (P4-507). The fiche prints the photo only then (P4-512).
+ * Whether the file holds an image consent in force on `today` (the clinic's): a verified
+ * « Consentement droit à l'image » document (signed through Documenso, or a paper one) not
+ * withdrawn by then (P4-549). It never expires (P4-504) and is the only source (P4-507). The fiche
+ * prints the photo only then (P4-512).
  */
-export const imageConsentOnFile = (documents: readonly Pick<ProfessionalDocument, 'typeKey' | 'status'>[]) =>
-  documents.some((d) => d.typeKey === 'image_consent' && d.status === 'verified')
+export const imageConsentOnFile = (documents: readonly Pick<ProfessionalDocument, 'typeKey' | 'status' | 'withdrawal'>[], today: string) =>
+  documents.some((d) => d.typeKey === 'image_consent' && d.status === 'verified' && !isWithdrawn(d, today))
+
+/** The image consent in force whose withdrawal is recorded for a later day (a notice period, P4-549); null otherwise. */
+export const scheduledWithdrawal = (entry: Pick<TypeDocuments, 'type' | 'current'>, today: string): string | null => {
+  const withdrawal = entry.type.key === 'image_consent' ? entry.current?.withdrawal : null
+  return withdrawal && withdrawal.on > today ? withdrawal.on : null
+}
+
+/** « Retrait du consentement » is offered on an image consent in force (a scheduled one: to correct its date). */
+export const withdrawalOffered = (entry: Pick<TypeDocuments, 'type' | 'kind'>, viewer: DocumentViewer, can: Pick<DocumentPermissions, 'review'>) =>
+  viewer === 'staff' && can.review && entry.type.key === 'image_consent' && (entry.kind === 'valid' || entry.kind === 'expiring')
 
 /**
  * The professional's own draft holds this type while nothing counts (P4-495): « Ajouté à votre
@@ -142,8 +167,8 @@ export const uploadOffered = (entry: Pick<TypeDocuments, 'staged'>, viewer: Docu
  * day off, P4-413, P4-456, P4-511).
  * `self`: the professional reads it (« En attente de vérification par la clinique », not « À vérifier »).
  */
-export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Partial<Pick<TypeDocuments, 'staged'>>, self = false): string {
-  const { kind, until, staged = null } = entry
+export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Partial<Pick<TypeDocuments, 'staged' | 'withdrawnOn'>>, self = false): string {
+  const { kind, until, staged = null, withdrawnOn = null } = entry
   const consent = staged?.kind === 'consent' ? 'Consent' : ''
   if (self && stagedInDraft({ kind, staged })) return t(`${D}.state.inDraftSelf${consent}`)
   switch (kind) {
@@ -163,6 +188,8 @@ export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Pa
       return t(`${D}.state.rejected`)
     case 'missing':
       return t(`${D}.state.missing`)
+    case 'withdrawn':
+      return withdrawnOn ? t(`${D}.state.withdrawnOn`, { date: formatDateOnly(withdrawnOn) }) : t(`${D}.state.withdrawn`)
   }
 }
 
@@ -178,6 +205,9 @@ function typeStateTone(kind: DocumentStateKind, required = true): StatusTone {
 export function documentStateLabel(document: ProfessionalDocument, today: string, self = false): string {
   if (document.status === 'pending') return t(self ? `${D}.state.pendingSelf` : `${D}.state.pending`)
   if (document.status === 'rejected') return t(`${D}.state.rejected`)
+  if (document.status === 'verified' && document.withdrawal && isWithdrawn(document, today)) {
+    return t(`${D}.state.withdrawnOn`, { date: formatDateOnly(document.withdrawal.on) })
+  }
   if (isValid(document, today)) return document.expiresOn ? t(`${D}.state.validUntil`, { date: formatDateOnly(document.expiresOn) }) : t(`${D}.state.verified`)
   return document.expiresOn ? t(`${D}.state.expiredOn`, { date: formatDateOnly(document.expiresOn) }) : t(`${D}.state.expired`)
 }
@@ -305,6 +335,23 @@ export function expiryError(value: string, { min }: { min?: string } = {}): stri
   if (!isCalendarDate(v) || v < '2000-01-01') return t(`${D}.upload.dateInvalid`)
   if (v > '2100-12-31') return t(`${D}.upload.dateTooFar`)
   if (min !== undefined && v < min) return t(`${D}.upload.datePast`)
+  return null
+}
+
+/** `date` + `days` (date-only values, no time zone). */
+function shiftDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+}
+
+/** The last day a withdrawal may be recorded for: a year after the clinic's `today` (366 days, as SQL). */
+export const withdrawalLatest = (today: string) => shiftDays(today, 366)
+
+/** The withdrawal date's problem in French, or null (P4-549: 2000-01-01 to a year from `today`). */
+export function withdrawalDateError(value: string, today: string): string | null {
+  const v = value.trim()
+  if (v === '') return t(`${D}.withdraw.dateRequired`)
+  if (!isCalendarDate(v) || v < '2000-01-01') return t(`${D}.withdraw.dateInvalid`)
+  if (v > withdrawalLatest(today)) return t(`${D}.withdraw.dateTooFar`)
   return null
 }
 

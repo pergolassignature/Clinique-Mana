@@ -37,6 +37,11 @@ const documentPayload = z
     rejection_reason: z.string().nullable(),
     submission_id: z.string().nullable(),
     signature_request_id: z.string().nullable().default(null),
+    // An image consent's withdrawal (P4-549); absent before that migration.
+    withdrawn_on: z.string().nullish(),
+    withdrawal_note: z.string().nullish(),
+    withdrawn_at: z.string().nullish(),
+    withdrawn_by_name: z.string().nullish(),
     file: filePayload.nullable(),
   })
   .transform((d) => ({
@@ -59,6 +64,13 @@ const documentPayload = z
     submissionId: d.submission_id,
     /** The Documenso request it was signed through (an image consent, P4-485); null for an upload. */
     signatureRequestId: d.signature_request_id,
+    /**
+     * An image consent's withdrawal (gap audit V5, P4-549): the first day it is no longer in force
+     * (`yyyy-MM-dd`, a calendar date), the note, when it was recorded and by whom (staff only).
+     */
+    withdrawal: d.withdrawn_on
+      ? { on: d.withdrawn_on, note: d.withdrawal_note ?? null, recordedAt: d.withdrawn_at ?? null, recordedByName: d.withdrawn_by_name ?? null }
+      : null,
     /** Null once the file is gone (refused, P4-404; deleted). */
     file: d.file,
   }))
@@ -212,6 +224,19 @@ export async function verifyProfessionalDocument(documentId: string, expiresOn: 
 /** « Modifier l'échéance » (audited). */
 export async function setProfessionalDocumentExpiry(documentId: string, expiresOn: string): Promise<void> {
   const { error } = await supabase.rpc('set_professional_document_expiry', { p_doc_id: documentId, p_expires_on: expiresOn })
+  if (error) throw error
+}
+
+/**
+ * « Retrait du consentement » (`professionals.documents.review`, gap audit V5, P4-549): the image
+ * consent in force is withdrawn from `withdrawnOn` (`yyyy-MM-dd`, at most a year ahead), with an
+ * optional note. A French P0001 with HINT `withdrawn_on`, `note` or `document` otherwise.
+ */
+export async function withdrawImageConsent(professionalId: string, withdrawnOn: string, note: string | null): Promise<void> {
+  const { error } = await supabase.rpc(
+    'withdraw_professional_image_consent',
+    sqlArgs<'withdraw_professional_image_consent'>({ p_id: professionalId, p_withdrawn_on: withdrawnOn, p_note: note }),
+  )
   if (error) throw error
 }
 

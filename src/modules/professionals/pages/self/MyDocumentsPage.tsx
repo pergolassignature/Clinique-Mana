@@ -15,7 +15,7 @@ import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { useMyDocuments } from '../../hooks/use-documents'
 import { useMyProfessionalRecord } from '../../hooks/use-my-profile'
 import type { CatalogView } from '../../lib/catalog-view'
-import { insuranceBanner } from '../../lib/documents'
+import { insuranceBanner, isWithdrawn } from '../../lib/documents'
 import { fullName } from '../../lib/display'
 
 const M = 'modules.professionals.myDocuments'
@@ -81,7 +81,9 @@ export function MyDocumentsPage() {
               back={{ returnTo: 'documents' }}
               variant="documents"
               // The card's state line says « Signé le … · valide jusqu'au … » once the signed PDF is on file.
-              cardSaysInForce={(documents.data?.documents ?? []).some((d) => d.typeId === type.id && d.signatureRequestId !== null && d.status === 'verified')}
+              cardSaysInForce={(documents.data?.documents ?? []).some(
+                (d) => d.typeId === type.id && d.signatureRequestId !== null && d.status === 'verified' && !isWithdrawn(d, documents.data?.today ?? ''),
+              )}
             />
           ) : null
         }
