@@ -49,21 +49,21 @@ Working days, one agent per lane; Jonathan reviews each batch within a day. Date
 | Week | Lane A (critical path) | Lane B |
 |---|---|---|
 | Oct 12–16 | **S1** schema (Oct 13) · **S2** RPCs (Oct 14) · **S3** UI (Oct 16) | **CM1** Gmail connect + token vault + sync engine + sync status screen (→ Oct 21) |
-| Oct 19–23 | **C1** schema (Oct 21) · **C2** RPCs (Oct 23) | CM1 · **C5** client consents (Oct 22 → 27) |
-| Oct 26–30 | **C3** list, create, record (Oct 28) · **C4** merge, Loi 25, ⌘K (Oct 30) | C5 · **I1** import tooling + clients dry run (Oct 28 → Nov 3) |
-| Nov 2–6 | **R1** agenda schema + booking RPCs (Nov 6) | I1 · **D1** demandes schema, states, waitlist tables (Nov 4 → 9) |
-| Nov 9–13 | **R2** agenda UI + availability mode (Nov 13) | D1 · **D2** inbox, intake, record, realtime (Nov 10 → 16) |
-| Nov 16–20 | **R3** recurrence, states, cancellations (Nov 19) · R4 starts | D2 · **D3** waitlist part 1 (Nov 17 → 23) |
-| Nov 23–27 | **R4** reminders + client links (Nov 25) · **R5** « Mon agenda », publications (Nov 27) | D3 · **D3b** discovery calls, proposals with acceptance link (Nov 24 → 25) · **RZ** Zoom per professional starts (Nov 26) |
-| Nov 30–Dec 4 | **F1** invoices, lines, payer model, numbering, taxes (Dec 4) | RZ (→ Dec 3) · **I2** appointments + waitlist dry run, day 1 (Dec 4, needs the support export) |
-| Dec 7–11 | **F2** payments, receipts, statements, UI (Dec 11) | **FS** Stripe link + Interac reconciliation (→ Dec 10) · I2 day 2 (Dec 11) |
-| Dec 14–18 | **F3** cancellation and registration fees, couple split, payouts read (Dec 16) · **RP1** Revenus + cancellations (Dec 18) | **FQ** QuickBooks: payer parents, dossier sub-customers, GOrendezvous customer mapping (→ Dec 23) |
+| Oct 19–23 | **C1** schema (Oct 21) · **C2** RPCs (Oct 23) | CM1 · **C5a** client consents, part 1 (Oct 22 → 28) |
+| Oct 26–30 | **C3** list, create, record (Oct 28) · **C4** merge, Loi 25, ⌘K (Oct 30) | C5a · **I1** import tooling + clients dry run (Oct 29 → Nov 4) |
+| Nov 2–6 | **R1** agenda schema + booking RPCs (Nov 6) | I1 · **D1** demandes schema, states, waitlist tables (Nov 5 → 10) |
+| Nov 9–13 | **R2** agenda UI + availability mode (Nov 13) | D1 · **D2** inbox, intake, record, realtime (Nov 11 → 17) |
+| Nov 16–20 | **R3** recurrence, states, cancellations (Nov 19) · R4 starts | D2 · **D3** waitlist part 1 (Nov 18 → 24) |
+| Nov 23–27 | **R4** reminders + client links (Nov 25) · **R5** « Mon agenda », publications (Nov 27) | D3 · **D3b** discovery calls, proposals with acceptance link (Nov 25 → 26) · **RZ** Zoom per professional starts (Nov 27) |
+| Nov 30–Dec 4 | **F1** invoices, lines, payer model, numbering, taxes (Dec 4) | RZ (→ Dec 4) |
+| Dec 7–11 | **F2** payments, receipts, statements, UI (Dec 11) | **I2** appointments + waitlist dry run, day 1 (Dec 7, needs the support export) · **FS** Stripe link + Interac reconciliation (Dec 8 → 11) |
+| Dec 14–18 | **F3** cancellation and registration fees, couple split, payouts read (Dec 16) · **RP1** Revenus + cancellations (Dec 18) | I2 day 2 (Dec 14) · **FQ** QuickBooks: payer parents, dossier sub-customers, GOrendezvous customer mapping (Dec 15 → 24) |
 | Dec 21–Jan 1 | **D3c** public discovery-call booking page replacing Calendly (Dec 21–23; the first batch dropped if lane A slips: Calendly has no deadline) · Buffer: fixes from walkthroughs; staff guide; holidays | FQ · **I3** billing dry run + QBO mapping report (Dec 28–30) |
 | Jan 4–8 | **Rehearsal** (Jan 4–6), go / no-go (Jan 7), **freeze** Fri Jan 8 18:00 | Rehearsal, final exports |
 | Jan 9–11 | **Cutover weekend**, go-live Mon Jan 11 | Cutover weekend |
-| Jan 11–Feb 26 | **D4–D6** Demandes (b) incl. waitlist offers · **FP** third-party payers · **R6** Google busy | **CM2** inbox UI + linking · **CM3** composer + Gmail send + templates · **CM4** OpenAI drafting · **RP2** reports |
+| Jan 11–Feb 26 | **C5b** consents part 2 (withdrawal, copy, reports; Jan 11–12) · **D4–D6** Demandes (b) incl. waitlist offers · **FP** third-party payers · **R6** Google busy | **CM2** inbox UI + linking · **CM3** composer + Gmail send + templates · **CM4** OpenAI drafting · **RP2** reports |
 
-- **Critical path:** S1–S3 → C1–C2 → R1–R5 → F1–F3 → FQ → I3 → rehearsal → cutover. Lane A finishes on Dec 18 (≈ 50 days); lane B on Dec 30 (≈ 56 days). **Slack:** lane A two weeks (Dec 21 → Jan 4), lane B only the holidays; then the Jan 25 fallback.
+- **Critical path:** S1–S3 → C1–C2 → R1–R5 → F1–F3 → FQ → I3 → rehearsal → cutover. Lane A finishes on Dec 23 (≈ 53 days, D3c included); lane B on Dec 30 (≈ 57 days, after C5a grew to 5 days). **Slack:** lane A the holidays (Dec 24 → Jan 4), lane B none; then the Jan 25 fallback. **If lane B slips:** D3b proposals move after the cutover, then FS's « À rapprocher » screen (manual matching in « Paiements »); C5a does not move (consents are a cutover requirement).
 - **External dependencies on the path:** the appointment-history export from GOrendezvous support (I2; roadmap question 1), QuickBooks access (FQ), the Zoom developer app (RZ; question 41) and each professional connecting Zoom (cutover T-14), Christine's 7 consent texts (C5).
 - **If lane A slips more than 5 days:** R5 and RP1 move after cutover (providers see « Mon agenda » through `/agenda` filtered; revenue from the GOrendezvous history and QuickBooks for the first weeks), then F3's payouts read. **If lane B slips:** D3b proposals move after cutover (offers by phone meanwhile), then FS's Interac screen (manual matching in « Paiements »).
 
@@ -76,7 +76,8 @@ Numbers refer to the roadmap's §4 questions. Defaults (the recommendation) are 
 | Before | Questions | Default if unanswered |
 |---|---|---|
 | S1 (Oct 12) | 10 drops, 11 student / reduced rates (who decides), 23 cancellation policy, 6 buffer after 50 min, 46 taxes on sexologie / orientation (9 price source answered by the data: per profession, identical across pros → grid) | drops as proposed; dated per-service discount; two tiers 50 % / 100 % in **confirm** mode only; 10 min « pause après »; therapy untaxed, `to_confirm` flag on those two |
-| C1 (Oct 19) | 12 visibility rule, 13 tags → fields, 14 RAMQ / TELUS / Lumino, 15 consents | GOrendezvous rule; fields as listed; none of the three; facts imported, 7 templates recreated |
+| C1 (Oct 19) | 12 visibility rule, 13 tags → fields, 14 RAMQ, 15 consents | GOrendezvous rule; fields as listed; no RAMQ; facts imported, 7 templates recreated fr / en |
+| C5a (Oct 22) | 47 optional yes / no clauses, 48 re-sign population at a new version, 49 retention | clauses as Christine lists them (none until then); « nouveaux clients seulement » by default; no automatic deletion |
 | CM1 (Oct 12) | 27 mailboxes, 30 retention | `info@` shared first; bodies 24 months |
 | I1 (Oct 28) | 1 export request, 2 cutover date, 3 counselors | Christine asks support; Jan 11; one account each |
 | D1 (Nov 4) | 7 proposals, 17 PHQ-2/GAD-2, 19 workbook questions; waitlist 34–40 | proposals with acceptance link; dropped; workbook defaults; fee as today, follow-up every 8 weeks, ≤ 2 entries, counselor sets priority with a reason, 48-h offer one client at a time, any profession, counselors own the lists |
@@ -195,7 +196,7 @@ To be written in full as `docs/runbooks/gorendezvous-cutover.md` during I3.
 | Primary and secondary insurance | visite §2 | Keep | `client_insurances` |
 | TELUS eRéclamations consents, RAMQ number | visite §2 | Drop (Jonathan's OK) | Question 14 |
 | Tags (max 5, satisfaction tags, rates, payers…) | visite §2 | Change | Useful ones become fields; ≤ 5 free tags |
-| Signed, versioned consents | visite §2, §15 | Keep | C5, core signing |
+| Signed, versioned consents, fr / en, yes / no clauses, required per service / payer / situation, « À compléter » with a deadline, withdrawal | visite §2, §15, §17 | Keep + Add | C5 (feature table there), core signing |
 | Visits & payments, receipts | visite §2 | Keep | Tabs filled by Rendez-vous and Facturation |
 | Provider visibility (created, seen / to see, primary) | visite §2 | Keep | `client_professional_links` |
 | Delete with first name + password | visite §2 | Change | `clients.privacy` + confirmation; anonymisation (Loi 25) |
@@ -209,6 +210,7 @@ To be written in full as `docs/runbooks/gorendezvous-cutover.md` during I3.
 - `client_relations` (pair stored once `client_a_id < client_b_id`, `type_a_to_b`, `type_b_to_a`, `is_main_contact_*`, rights per direction: `can_manage_appointments`, `receives_communications`, `receives_invoices`).
 - `client_insurances` (`client_id`, `rank` 1 / 2, `insurer`, `policy_number`, `certificate_number`, `relation`, `holder_name`; redacted).
 - `client_payers` (`client_id`, `kind` (`pae` / `ivac` / `employer`), `organisation_name`, `file_number`, `expires_on`, `coverage` jsonb; unique active per kind) — Facturation reads it through a published view.
+- Consents: `client_consent_rules`, `client_consent_requests`, `client_consents`, `client_consent_settings` (detail in C5).
 - `client_tags` (≤ 5 per client, trigger), `referral_sources` (seeded with the website's list), `client_professional_links` (`client_id`, `professional_id`, `reason` (`created` / `appointment` / `primary` / `demande`), first and last seen), `client_merges` (kept id, merged id, by, at, moved counts).
 - **RLS:** staff read with `clients.view`; provider reads rows linked to `private.current_professional_id()` through `client_professional_links` and only the columns of the view `my_clients` (no admin notes, no insurance); writes via RPCs.
 - **Published:** `clients_directory` (invoker), `search_clients(p_query, p_limit)` (definer, `clients.view` or `clients.self`), `get_client_summary(id)`, `client_payers_active` (for Facturation), `private.clients_link_professional(client, pro, reason)` (for Rendez-vous and Demandes), `private.client_contacts_for(client, right)` (who receives communications or invoices), `private.import_client(jsonb, dry_run)` (I1).
@@ -242,12 +244,55 @@ To be written in full as `docs/runbooks/gorendezvous-cutover.md` during I3.
 - C4.3 Playwright `e2e/clients.spec.ts` (create with duplicate warning, add a relation with rights, merge); Vitest for duplicate panel, relation rights, filters.
 - C4.4 `docs/modules/clients.md`; Keep / Change / Drop table copied there.
 
-**C5 — consents (Lane B, Oct 29–Nov 3, 4 d)**
-- C5.1 Seven document templates (module `clients`, `view_permission` `clients.view`, `edit_permission` `clients.manage`) with placeholder text until Christine's: general (« Consentement général »), waiting list, file transfer, intern in psychotherapy, coaching, naturopathy, external PAE; signer roles `client` (and `clinic` where needed).
-- C5.2 `client_consent_requirements` (template key per service or payer kind, `once` / `each_time`); `services.requires_consent_template_key` used.
-- C5.3 Function `clients-consent-send` (user, `clients.manage`): `prepare_client_consent` (service role, `p_actor`), **14-year rule**: a client under 14 → the signer is a relation with `can_manage_appointments`, else refused in French; `createSignatureRequest` with an idempotency key; email via Documenso.
-- C5.4 « Consentements » tab: per template, latest version signed, date, signer, « Envoyer pour signature », « Renvoyer »; view `client_consents_status` from `list_subject_signature_requests` plus imported facts (`client_consent_facts`, I1).
-- **Acceptance:** a 13-year-old's consent goes to the parent; a published new version marks clients « À signer de nouveau » only for that template.
+**C5 — client consents (Lane B: C5a Oct 22–28, 5 d; C5b after the cutover, Jan 11–12, 2 d)**
+
+Jonathan (2026-10-11): « faut que notre module client gère bien ça comme GOrendezvous ». Reference: tour §2 « Consentements », §15, §17; roadmap §2.2 bis; the Professionnels image consent is the in-house precedent (`professionals-consent-sign`, `EmbeddedSigning`, P4-481 – P4-489).
+
+*Keep / Change / Drop against GOrendezvous*
+
+| GOrendezvous feature (tour) | Mark | Ours |
+|---|---|---|
+| Rich-text consent templates with dynamic fields (client, pro, title, company, address, service, location, signer) | Keep | Core document templates, module `clients`; `{{ variables }}` checked at publish: `client.*`, `signataire.*`, `professionnel.*`, `clinique.*`, `service.nom`, `payeur.organisation`, `aujourd_hui` |
+| Versioned; never deleted, made inactive; one active per service | Keep | Core versions `draft → published → archived`; a signed version is never deleted (core trigger); one published per template |
+| fr / en texts | Keep | One template per (consent, language): `clients.consent.<key>.fr` / `.en`; the request picks the client's language |
+| Sections « Accord requis » and « Oui / Non » | Change | Yes / no clauses answered on our pre-signing page, printed into the PDF as checked boxes and stored in `answers`; no Documenso checkbox fields (R-46) |
+| Required per employee and per service, once or at each appointment | Change | `client_consent_rules`: by service, payer kind, professional status (intern), situation (waitlist, file transfer), general for every first appointment; `once` / `each_time` |
+| Signature électronique à l'acceptation; signer, date / time | Keep | Core signing (Documenso embedded), sealed PDF with certificate and journal; no IP stored by us |
+| Who signs: the client or a related person with the right « gérer rendez-vous et formulaires » | Keep + Change | Under 14 → relation with `can_manage_appointments`; both parents when shared custody is recorded (two signers) |
+| « À compléter » list with a deadline (portal and emails) | Keep | Public consent page via secure link; `due_at`; staff « Consentements à obtenir » and a bell notice at 48 h |
+| Sent from the appointment « Actions » (demande de consentement) | Keep | From the appointment, the demande, the record; automatic at the first booking |
+| Consent copies shared in the client portal | Change | « Envoyer la copie signée » by email on request; full portal later |
+| Health forms (raison, échelle 0–10, signes vitaux…) | Drop (D8) | None (not used at MANA either) |
+| Withdrawal | Add | « Retirer le consentement » with date, actor, note; future appointments flagged; re-sign later |
+| New version → who re-signs | Add | Chosen at publish: « tous les clients actifs » or « nouveaux clients seulement » (R-49, question 48) |
+| Reports | Add | `clients_consent_gaps`: clients without a valid required consent per template and pro |
+
+*Data model (migration `…_clients_consents.sql`, pgTAP `100_clients_consents.test.sql`)*
+- `client_consent_rules` (`org_id`, `template_key`, `trigger_kind` (`general` / `service` / `payer_kind` / `professional_status` / `situation`), `target` (service id, payer kind, status key or situation key), `frequency` (`once` / `each_time`), `is_active`; seeded for the 7 texts).
+- `client_consent_requests` (`client_id`, `template_key`, `language`, `template_version_id`, `context_type` / `context_id` (demande, appointment, waitlist entry), `signers` jsonb [{ role `client` | `relation`, client id, relation id }], `secure_link_id`, `due_at`, `state` (`pending` / `signed` / `declined` / `expired` / `cancelled`), `answers` jsonb (clause key → yes / no), `signature_request_id`, `reminded_at`, timestamps). Audit: signers redacted.
+- `client_consents` (the consent in force: `client_id`, `template_key`, `version_label`, `signed_at`, `signed_by` jsonb (name, relation), `answers`, `signed_file_id`, `request_id`, `source` (`app` / `import`), `withdrawn_at` / `withdrawn_by` / `withdrawal_note`; unique active per (client, template)). Audit: signer redacted.
+- Settings table `client_consent_settings` (`default_due_days_before_first_appointment` 1, `reminder_days` 7, `pre_appointment_reminder_hours` 48, `retention_policy` text set by Christine).
+- **RLS:** `clients.view` reads states and answers; providers read `client_consents_status` for their linked clients only; writes via RPCs; secure-link purpose `client_consent` (`resolve_rpc` returns the text to show and the clauses; `accept_rpc` stores answers and the signer confirmation, then the function starts the Documenso signing).
+- **Published:** `private.required_consents_for(client, service, payer_kind, professional) → (template_key, state)[]` (Rendez-vous's booking RPC and the agenda flag; Demandes' waitlist registration), view `client_consents_status`, `clients_consent_gaps`, `private.clients_mark_consent_signed` (called by the signing capture trigger).
+
+*C5a tasks (before the cutover)*
+- C5a.1 pgTAP first: rules refuse an unknown template key; a request for a client under 14 without an authorised relation is refused in French (HINT `signer_required`); both parents required when `shared_custody` is set on the dossier; `each_time` rules create a request per appointment, `once` rules none while a consent is in force; a published new version flags « À signer de nouveau » only for that template and only for the chosen population; provider RLS.
+- C5a.2 Migration: tables above, purposes (`secure_link_purposes` row `client_consent`, 14-day TTL, `max_uses` 1), seeds (7 rules; 14 templates = 7 texts × fr / en as drafts with « Texte à faire valider par la direction avant publication » as the first line, variables declared, one signature page with roles `client` and optional `relation_1` / `relation_2`), `pii_encrypted_values` untouched (no PII columns).
+- C5a.3 RPCs: `set_consent_rule`, `request_client_consent(client, template_key, context, signers?, due_at?)` (picks the language and the published version, resolves the signers by the 14-year and custody rules, issues the secure link through `private.issue_secure_link` with a token hashed by the function), `cancel_consent_request`, `resend_consent_request` (new link, old one revoked), `record_consent_answers` (accept_rpc), `publish_consent_version(template, population)` (wraps core's publish and flags clients), `withdraw_client_consent` (C5b), `import_client_consent_fact` (service role, I1).
+- C5a.4 Functions: `clients-consent-send` (user, `clients.manage`: calls `request_client_consent`, emails template `clients.consent_request` with the link, fr / en, attachment none); `clients-consent-sign` (public token: resolves the link, after the answers calls `createSignatureRequest` with `distributionMethod: 'NONE'`, a `redirectUrl` back to the public page, the answers rendered as block placeholders, and returns the embedded signing token once; per-IP limit before any lookup); the core capture trigger files the sealed PDF and `private.clients_mark_consent_signed` writes `client_consents`; job `clients.consent_reminders` (daily, `local_hour` 8: 7-day reminder of pending requests; 48-h notice for appointments with a missing required consent, email `clients.consent_before_appointment` and bell notice `clients.consent_missing`).
+- C5a.5 UI: record tab « Consentements » (per template: state line, answers, « Envoyer », « Renvoyer », « Signer ici » (opens the public page on the staff device), sealed PDF via `SignedDocumentDownloads`, history); settings section « Consentements » (`clients.manage`: the rules, the templates with core's versions editor, the due / reminder settings); public page `/consentement` (identity check: first name + birth year, clauses, embedded Documenso, « Merci »); staff list « Consentements à obtenir » (filters: overdue, by professional); `useRecordData` for the tab.
+- C5a.6 Integration hooks shipped here, consumed later: Rendez-vous R1 calls `required_consents_for` on booking and shows « Consentement signé / manquant » (R2) and in « Mon agenda » (R5); Demandes D2 offers « Envoyer le consentement général » from the discovery-call task; the waitlist D3 requires the « liste d'attente » text before « Active ».
+- C5a.7 Tests: Vitest (tab states, signer picker rules, public page flow with the fake Documenso), Deno (`clients-consent-send`, `clients-consent-sign`: token single use, under-14 refusal, answers rendered, no PII in logs), Playwright `consents.spec.ts` (send → public page → signed state).
+- **Acceptance:** a 13-year-old's consent goes to the authorised parent (both parents if shared custody); a client answers a yes / no clause and the sealed PDF shows it; a new published version with « nouveaux clients seulement » changes nothing for signed clients; the appointment of a client without the general consent shows « Consentement manquant » and is still bookable.
+
+*C5b tasks (after the cutover, lane A, Jan 11–12)*
+- C5b.1 Withdrawal: `withdraw_client_consent` + UI (« Retirer le consentement », note, confirmation), future appointments re-flagged, audit.
+- C5b.2 « Envoyer la copie signée » (email with the sealed PDF, logged), retention setting applied by `storage-cleanup` rules if Christine sets a duration.
+- C5b.3 Reports: `clients_consent_gaps` in Rapports (per template and professional), signatures and withdrawals per month, send → sign delay.
+- C5b.4 Re-sign campaign: « Demander une nouvelle signature à tous les clients actifs » from the settings section (batched sends, 100 a day, through the same function).
+- **Acceptance:** a withdrawn consent shows « Retiré le … » and the next appointment flags it; the gaps report counts match the record tabs.
+
+*Import (I1 / I2):* consent facts from the support export (template, GOrendezvous version label, date, signer when present) → `client_consents` with `source = 'import'`, no PDF; roadmap question 15.
 
 ### 6.4 Risks
 
@@ -350,9 +395,9 @@ To be written in full as `docs/runbooks/gorendezvous-cutover.md` during I3.
 | D3 | **Waitlist part 1:** registration from a demande (target, priority, criteria), « Liste d'attente » page per title / professional with rank and waiting time, consent sent (Clients C5 template « liste d'attente »), fee status and « Facturer l'inscription », follow-up job and notices, optional client email with Oui / Non links, exit with reason, offers noted by hand; Vitest + pgTAP (order, rank, state machine), Playwright `waitlist.spec.ts` | 5 d | B, Nov 17–23 |
 | D3b | Discovery-call tasks, proposals with acceptance link (Rendez-vous `.proposal` template, pending state; GOrendezvous auto-accepts and has no expiry, so the 48-h hold is ours) | 2 d | B, Nov 24–25 |
 | D3c | **Public discovery-call booking page** replacing Calendly (the website's « Réserver un appel découverte » points to calendly.com, visite §18): public function `demandes-book-call` (per-IP limit before any write, reCAPTCHA or Turnstile, counselor slots from a simple weekly rule, creates a « Nouvelle » demande with its call task, confirmation email, cancel link); the website button is repointed by Jonathan once live | 3 d | A, Dec 21–23 (first batch dropped if lane A slips: Calendly keeps working) |
-| D4 | Matching panel (Professionnels' rules, documented order, « Bon à savoir », insurance notes) **and waitlist part 2**: « Place disponible » notice, compatible registrants in list order, « Offrir la plage » (48-h link, next on refusal or expiry) | 6 d | A, Jan 11–18 |
-| D5 | Places left, capacity snapshots job, availability board | 3 d | A, Jan 19–21 |
-| D6 | KPIs (activity and cohort rates, delays, cancellations, waitlist length and wait times) feeding Rapports | 3 d | A, Jan 22–26 |
+| D4 | Matching panel (Professionnels' rules, documented order, « Bon à savoir », insurance notes) **and waitlist part 2**: « Place disponible » notice, compatible registrants in list order, « Offrir la plage » (48-h link, next on refusal or expiry) | 6 d | A, Jan 13–20 |
+| D5 | Places left, capacity snapshots job, availability board | 3 d | A, Jan 21–25 |
+| D6 | KPIs (activity and cohort rates, delays, cancellations, waitlist length and wait times) feeding Rapports | 3 d | A, Jan 26–28 |
 
 **Risks:** the waitlist fee refund / credit rule unknown (roadmap question 34; amount confirmed at 18,91 $ + taxes); Calendly bookings made before D3c ships are copied by hand into Demandes (as today); state mapping disagreements (validate with the counselors in D2's walkthrough); realtime channel authorisation (pgTAP on `realtime.messages` policy).
 
