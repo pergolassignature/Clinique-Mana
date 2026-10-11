@@ -16,7 +16,7 @@ import { sqlArgs } from './sql-args'
 /** Rows read per series. A professional has a handful; the cap only bounds the payload. */
 export const COMPENSATION_ROWS_MAX = 200
 
-/** The grid's services: « 60 min / couple », « 50 min », « 30 min ». */
+/** The grid's services: « 60 min (couple ou famille) », « 50 min », « 30 min ». */
 export const DURATIONS = [60, 50, 30] as const
 export type Duration = (typeof DURATIONS)[number]
 const duration = z.union([z.literal(60), z.literal(50), z.literal(30)])
@@ -72,7 +72,6 @@ export type PayLine = z.output<typeof payPayload>
 const stateColumns = {
   sessions_total: z.number(),
   applied: appliedPayload.nullable(),
-  previous_pct: z.number().nullable(),
   in_force_pct: z.number().nullable(),
   suggested: tierPayload.nullable(),
   next: tierPayload.nullable(),
@@ -82,7 +81,6 @@ const stateColumns = {
 const state = (s: {
   sessions_total: number
   applied: AppliedRate | null
-  previous_pct: number | null
   in_force_pct: number | null
   suggested: Tier | null
   next: Tier | null
@@ -91,7 +89,6 @@ const state = (s: {
 }) => ({
   sessionsTotal: s.sessions_total,
   applied: s.applied,
-  previousPct: s.previous_pct,
   inForcePct: s.in_force_pct,
   suggested: s.suggested,
   next: s.next,
@@ -105,8 +102,8 @@ const compensationPayload = z
     /** The primary title: its name, and its label in the professional's form (« Travailleuse sociale », P4-342). */
     title: z.object({ id: z.string(), name: z.string(), label: z.string() }).nullable(),
     grid: z
-      .object({ id: z.string(), effective_from: z.string(), floor_pct: z.number().nullable(), tiers: z.array(tierPayload) })
-      .transform((g) => ({ id: g.id, effectiveFrom: g.effective_from, floorPct: g.floor_pct, tiers: g.tiers }))
+      .object({ id: z.string(), effective_from: z.string(), tiers: z.array(tierPayload) })
+      .transform((g) => ({ id: g.id, effectiveFrom: g.effective_from, tiers: g.tiers }))
       .nullable(),
     ...stateColumns,
     other_rates: z.array(
@@ -359,19 +356,17 @@ const reviewRowPayload = z
       .transform((e) => ({ long: e.sessions_50_60, short: e.sessions_30, adjustment: e.adjustment, note: e.note, updatedAt: e.updated_at }))
       .nullable(),
     sessions_before: z.number(),
-    floor_pct: z.number().nullable(),
     increase_decided: z.boolean(),
     agreements: z.number(),
     ...stateColumns,
   })
-  .transform(({ id, first_name, last_name, title_label, entry, sessions_before, floor_pct, increase_decided, agreements, ...rest }) => ({
+  .transform(({ id, first_name, last_name, title_label, entry, sessions_before, increase_decided, agreements, ...rest }) => ({
     id,
     firstName: first_name,
     lastName: last_name,
     titleLabel: title_label,
     entry,
     sessionsBefore: sessions_before,
-    floorPct: floor_pct,
     increaseDecided: increase_decided,
     agreements,
     ...state(rest),

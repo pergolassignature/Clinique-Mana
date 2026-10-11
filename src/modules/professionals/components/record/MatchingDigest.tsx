@@ -55,9 +55,9 @@ export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps
           <Row label={t(`${M}.accepting`)}>{t(digest.acceptingNewClients ? `${M}.yes` : `${M}.no`)}</Row>
           <Row label={t(`${M}.places`)}>
             {digest.newClientPlaces === null ? (
-              <Empty>{placesLabel(null, null, Date.now())}</Empty>
+              <Empty>{placesLabel(null, null)}</Empty>
             ) : (
-              placesLabel(digest.newClientPlaces, digest.newClientPlacesSetAt, Date.now())
+              placesLabel(digest.newClientPlaces, digest.newClientPlacesSetAt)
             )}
           </Row>
           {digest.note && <Row label={t(`${M}.note`)}>{digest.note}</Row>}

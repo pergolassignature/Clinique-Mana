@@ -55,7 +55,7 @@ const submissionRowPayload = z
   }))
 export type SubmissionRow = z.output<typeof submissionRowPayload>
 
-/** « Questionnaire et mises à jour »: newest first, at most 50, never the answers. */
+/** « Profils envoyés et mises à jour »: newest first, at most 50, never the answers. */
 export async function fetchProfessionalSubmissions(id: string): Promise<SubmissionRow[]> {
   const { data, error } = await supabase.rpc('list_professional_submissions', { p_id: id })
   if (error) throw error

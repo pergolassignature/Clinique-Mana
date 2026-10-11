@@ -1,7 +1,7 @@
-import { t, type TranslationKey } from '@/i18n'
+import { frenchText, t, type TranslationKey } from '@/i18n'
 import { fieldLabel as auditFieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
-import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
+import { formatClinicDateFull, formatDateOnly, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
 import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compensation'
 import type { SubjectEmail } from '../api/invitations'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
@@ -220,7 +220,7 @@ function phrase(table: string, column: string): string {
     const text = t(key as TranslationKey)
     if (text !== key) return text
   }
-  return `« ${fieldLabel(table, column)} »`
+  return frenchText(`« ${fieldLabel(table, column)} »`)
 }
 
 /** Details of an update: « Champ : avant → après », or « Champ : (masqué) » for a redacted column. */
@@ -555,7 +555,8 @@ function documentRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.action !== 'update') return null
   const expiry = pairOf(fields.expires_on)
   if (expiry && typeof expiry.after === 'string' && DATE_ONLY.test(expiry.after)) {
-    const date = formatDateOnlyShort(expiry.after)
+    // A deadline is written long, as on Documents (C-3).
+    const date = formatDateOnly(expiry.after)
     return { kind: 'change', sentence: type ? t(`${S}.expiry`, { type, date }) : t(`${S}.expiryUnnamed`, { date }), lines: [] }
   }
   const status = pairOf(fields.status)?.after
@@ -608,6 +609,18 @@ function contractRow(entry: HistoryEntry): Described | null {
 }
 
 const PAPER_CONTRACT_TABLE = 'professional_paper_contracts'
+const CONTRACT_SNAPSHOTS_TABLE = 'professional_contract_snapshots'
+
+/**
+ * « Préparer le contrat », its preview, « Régénérer » and « Préparer un nouveau contrat » (T4,
+ * P4-545): each writes the snapshot of what the contract prints. `list_professional_history`
+ * returns only `{renewal}` for it (a contract was in force then), never what it prints.
+ */
+function contractSnapshotRow(entry: HistoryEntry): Described | null {
+  if (entry.action !== 'insert') return null
+  const S = `${H}.sentences.contract`
+  return { kind: 'change', sentence: t(fieldsOf(entry).renewal === true ? `${S}.preparedRenewal` : `${S}.prepared`), lines: [] }
+}
 
 /**
  * A service contract signed outside the app (P4-520, P4-526): « a téléversé un contrat de service
@@ -643,6 +656,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
   if (entry.tableName === PAPER_CONTRACT_TABLE) return paperContractRow(entry)
+  if (entry.tableName === CONTRACT_SNAPSHOTS_TABLE) return contractSnapshotRow(entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)

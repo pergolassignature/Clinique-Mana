@@ -12,8 +12,8 @@ describe('runStatusLabel', () => {
     expect(runStatusTone(status)).toBe(tone)
   })
 
-  it('shows an unknown status as is, with a neutral dot', () => {
-    expect(runStatusLabel('paused')).toBe('paused')
+  it('reads an unknown status as « Inconnu », never raw, with a neutral dot', () => {
+    expect(runStatusLabel('paused')).toBe('Inconnu')
     expect(runStatusTone('paused')).toBe('neutral')
   })
 })

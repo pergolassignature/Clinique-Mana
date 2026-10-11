@@ -1,6 +1,6 @@
 import { Fragment, useRef } from 'react'
 import { MoreHorizontal } from 'lucide-react'
-import { t, type TranslationKey } from '@/i18n'
+import { frenchText, t, type TranslationKey } from '@/i18n'
 import { softDisabledClasses } from '@/shared/components/soft-disabled'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
@@ -140,7 +140,7 @@ export function DocumentRow({ document, type, today, viewer, firstName, can, lab
                 type="button"
                 size="sm"
                 variant={action === 'verify' ? 'default' : 'outline'}
-                aria-label={`${t(ACTION_LABEL[action])} : ${name}`}
+                aria-label={frenchText(`${t(ACTION_LABEL[action])} : ${name}`)}
                 aria-disabled={pending || undefined}
                 onClick={(event) => {
                   if (pending) event.preventDefault()

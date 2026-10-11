@@ -32,7 +32,7 @@ interface DocumentsPanelProps {
   focusFallback: () => void
   /** Extra content of a required type's card (the record's image-consent signing, P4-485). */
   typeExtra?: (type: DocumentType) => ReactNode
-  /** Staff: brings « Questionnaire et mises à jour » into view (a card's « Voir le questionnaire à réviser », P4-495). */
+  /** Staff: brings « Profils envoyés et mises à jour » into view (a card's « Voir le profil à réviser », P4-495). */
   onShowReview?: () => void
   /** The groups' heading level: `h3` under the record tab's h2 (default), `h2` under « Mes documents »' h1. */
   groupAs?: 'h2' | 'h3'

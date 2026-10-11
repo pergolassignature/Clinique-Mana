@@ -12,16 +12,16 @@ afterEach(() => vi.clearAllMocks())
 describe('userAdminErrorMessage', () => {
   it('says an expired session (401 unauthenticated) in French, without a report', () => {
     expect(userAdminErrorMessage(new FunctionCallError('unauthenticated', 401, 'Invalid or expired token'))).toBe(
-      t('settings.users.invite.errors.unauthenticated'),
+      t('common.functionErrors.unauthenticated'),
     )
     expect(mocks.captureException).not.toHaveBeenCalled()
   })
 
   it('gives a 429 its delay and an unreachable function its text, without a report', () => {
     expect(userAdminErrorMessage(new FunctionCallError('rate_limited', 429, 'Too many attempts', {}, 2700))).toBe(
-      `${t('settings.users.invite.errors.rateLimited')} Réessayez dans environ 45 minutes.`,
+      `${t('common.functionErrors.rateLimited')} Réessayez dans environ 45 minutes.`,
     )
-    expect(userAdminErrorMessage(new FunctionCallError('network', 0, 'Function unreachable'))).toBe(t('settings.users.invite.errors.network'))
+    expect(userAdminErrorMessage(new FunctionCallError('network', 0, 'Function unreachable'))).toBe(t('common.functionErrors.network'))
     expect(mocks.captureException).not.toHaveBeenCalled()
   })
 

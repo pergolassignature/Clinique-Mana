@@ -37,12 +37,12 @@ describe('uploadErrorMessage', () => {
   })
 
   it.each([
-    ['unauthenticated', 401, 'Votre session a expiré. Reconnectez-vous.'],
+    ['unauthenticated', 401, 'Votre session a expiré. Reconnectez-vous, puis réessayez.'],
     ['forbidden', 403, t('common.errors.forbidden')],
     ['not_found', 404, t('storage.errors.expired')],
     ['conflict', 409, t('storage.errors.conflict')],
-    ['network', 0, t('storage.errors.network')],
-    ['not_configured', 503, t('storage.errors.unavailable')],
+    ['network', 0, t('common.functionErrors.network')],
+    ['not_configured', 503, t('common.functionErrors.unavailable')],
   ])('%s has its own text', (code, status, text) => {
     expect(uploadErrorMessage(fnError(code, status))).toBe(text)
     expect(captureException).not.toHaveBeenCalled()

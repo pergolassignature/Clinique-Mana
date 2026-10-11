@@ -433,7 +433,7 @@ describe('UsersSettingsPage', () => {
       await userEvent.click(within(rowOf('Nouvelle Personne')).getByRole('button', { name: t('settings.users.invitations.resendLabel', { name: 'Nouvelle Personne' }) }))
       await waitFor(() =>
         expect(mocks.toast.error).toHaveBeenCalledWith(t('settings.users.invitations.resendNotSent'), {
-          description: `${t('settings.users.invite.emailProblems.provider_error')} ${t('settings.users.invite.emailAdvice')}`,
+          description: `${t('email.failure.providerError')}. ${t('settings.users.invite.emailAdvice.resend')}`,
         }),
       )
     })

@@ -97,7 +97,7 @@ describe('EmailLogTable', () => {
     expect(screen.getByText(t('settings.email.log.end'))).toBeInTheDocument()
   })
 
-  it('names a known failure, and shows the code of an unknown one only', async () => {
+  it('names a known failure, and an unknown one in French, its code in a tooltip only (C-7)', async () => {
     renderLog([
       [
         row({ id: 'f1', status: 'failed', error_code: 'invalid_recipient', created_at: '2026-10-08T12:00:00Z' }),
@@ -110,7 +110,8 @@ describe('EmailLogTable', () => {
     expect(within(known).queryByText(/^Code/)).not.toBeInTheDocument()
     const unknown = rowOf('7 oct. 2026 à 08:00')
     expect(within(unknown).getByText('Échec')).toBeInTheDocument()
-    expect(within(unknown).getByText(/^Code.:.something_new$/)).toBeInTheDocument()
+    expect(within(unknown).getByText(t('email.failure.unexpected'))).toHaveAttribute('title', 'something_new')
+    expect(within(unknown).queryByText(/something_new/)).not.toBeInTheDocument()
   })
 
   it('says why the template filter is empty when the template list fails', async () => {

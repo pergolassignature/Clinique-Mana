@@ -71,11 +71,11 @@ grant execute on function pg_temp.as_user(text) to authenticated;
 -- =============================================================================
 select is((select a.attname::text from pg_catalog.pg_attribute a
             where a.attrelid = 'public.professionals_list'::regclass and a.attnum > 0 and not a.attisdropped
-            order by a.attnum desc limit 1),
-  'photo_file_id', 'photo_file_id is the view''s last column');
+            order by a.attnum desc limit 1 offset 1),
+  'photo_file_id', 'photo_file_id was appended (only documents_to_review, *_professionals_notices_watch_history.sql, follows it)');
 select is((select pg_catalog.array_agg(a.attname::text order by a.attnum) from pg_catalog.pg_attribute a
             where a.attrelid = 'public.professionals_list'::regclass and a.attnum > 0 and not a.attisdropped
-              and a.attname <> 'photo_file_id'),
+              and a.attname not in ('photo_file_id', 'documents_to_review')),
   array['id', 'org_id', 'first_name', 'last_name', 'email', 'status', 'status_changed_at', 'deactivation_reason_id',
         'has_account', 'primary_title_id', 'primary_licence_number', 'gender', 'language_ids', 'clientele_ids',
         'motif_ids', 'accepting_new_clients', 'matching_complete', 'ready', 'email_matches_login', 'created_at',
