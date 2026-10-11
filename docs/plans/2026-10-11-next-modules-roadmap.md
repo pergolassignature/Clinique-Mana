@@ -21,29 +21,29 @@
 | 3 | **Rendez-vous** (agenda, disponibilités, récurrence, rappels J-2 par courriel, liens confirmer / modifier / annuler, Zoom par pro) | `appointments` | Oui (chemin critique) | XL |
 | 4 | **Facturation et paiements** (facture → paiement → reçu, Interac, Stripe, QuickBooks, frais d'annulation) | `billing` | Oui (chemin critique) | XL |
 | 5 | **Importation GOrendezvous** | — | Oui : essais à blanc dès Clients, import final le 9–10 janvier | M–L |
-| 6 | **Demandes** lot (a) : boîte, accueil, liste d'attente, appels découverte | `demandes` | Oui : remplace les faux rendez-vous de l'agenda « conseillère » | L |
-| 7 | **Communications** lot (a) : branchement Gmail `info@`, synchro, boîte | `communications` | Oui si la voie B a le temps (avant Clients, elle l'a) | L |
-| 8 | **Communications** lot (b) : composeur Gmail, modèles, IA (OpenAI) | `communications` | Non : janvier–février | M |
-| 9 | **Demandes** lot (b) : jumelage, places, KPI | `demandes` | Non : janvier–février | L |
-| 10 | **Facturation** lot payeurs tiers (PAE, IVAC, employeurs, factures en lot) ; Google Meet ; occupé / libre Google | `billing`, `appointments` | Non : février | M |
+| 6 | **Demandes** lot (a) : boîte, accueil, appels découverte, **liste d'attente** (inscription, frais, consentement, ordre, relances, sorties) | `demandes` | Oui : remplace les faux rendez-vous de l'agenda « conseillère » et la liste par pro de GOrendezvous | L |
+| 7 | **Communications** lot (a) : branchement Gmail `info@` et synchro | `communications` | Oui (voie B, avant Clients) ; la boîte à l'écran vient après la bascule | M |
+| 8 | **Communications** lot (b) : boîte à l'écran, composeur Gmail, modèles, IA (OpenAI) | `communications` | Non : janvier–février | L |
+| 9 | **Demandes** lot (b) : jumelage, places, offre de plage aux inscrits de la liste d'attente, KPI | `demandes` | Non : janvier–février | L |
+| 10 | **Facturation** lot payeurs tiers (PAE, IVAC, employeurs, factures en lot) ; occupé / libre Google | `billing`, `appointments` | Non : février | M |
 | 11 | **Rapports** | `reports` | Non : février | M |
-| plus tard | SMS, portail client complet, réservation en ligne, B2B | — | Non | — |
+| plus tard | SMS, Google Meet (seulement si un pro le demande), portail client complet, réservation en ligne, B2B | — | Non | — |
 
-**Réponses de Jonathan (2026-10-11) intégrées :** IA par OpenAI comme PS Hub ; Gmail branché (`info@cliniquemana.com` pour les essais) ; visio Zoom et Google Meet ; QuickBooks Online oui ; GOrendezvous : tout importer ; SMS plus tard.
+**Réponses de Jonathan (2026-10-11) intégrées :** IA par OpenAI comme PS Hub ; Gmail branché (`info@cliniquemana.com` pour les essais) ; visio : **Zoom, un compte par professionnel** (Meet retiré) ; QuickBooks Online oui ; GOrendezvous : tout importer ; SMS plus tard ; **liste d'attente** des psys à incorporer (§2.3 bis).
 
 ### Calendrier à deux voies (détail : [plan de code §2](2026-10-11-modules-coding-plan.md))
 
 | Semaines | Voie A (chemin critique) | Voie B |
 |---|---|---|
 | 12 – 16 oct. | Services et tarifs | Gmail : branchement et synchro de `info@` |
-| 19 – 30 oct. | Clients | Gmail : boîte ; puis consentements clients signés |
-| 2 – 27 nov. | Rendez-vous (agenda, disponibilités, récurrence, états, rappels, liens) | Import : outil et essai à blanc des clients ; Demandes (a) |
-| 30 nov. – 18 déc. | Facturation (factures, paiements, reçus, relevé, frais d'annulation) | Zoom par pro ; Stripe et Interac ; QuickBooks |
+| 19 – 30 oct. | Clients | Gmail (fin) ; consentements clients signés ; outil d'import et essai à blanc des clients |
+| 2 – 27 nov. | Rendez-vous (agenda, disponibilités, récurrence, états, rappels, liens) | Demandes (a) avec la liste d'attente ; Zoom par pro |
+| 30 nov. – 18 déc. | Facturation (factures, paiements, reçus, relevé, frais d'annulation et d'inscription) | Zoom par pro (fin) ; Stripe et Interac ; QuickBooks |
 | 21 déc. – 8 janv. | Tampon : corrections, formation, répétition de bascule | Essais à blanc des rendez-vous et de la facturation ; répétition complète |
 | 9 – 11 janv. | **Bascule** | **Bascule** |
-| 11 janv. – fin févr. | Demandes (b), payeurs tiers, Meet | Composeur et IA, Rapports |
+| 11 janv. – fin févr. | Demandes (b) (jumelage, offres de plage), payeurs tiers, occupé / libre Google | Boîte Gmail, composeur et IA, Rapports |
 
-- **Chemin critique :** Services et tarifs → Clients → Rendez-vous → Facturation → QuickBooks → import final → bascule. Voie A : ~50 jours-agent d'ici le 18 décembre ; voie B : ~55 ; il reste deux semaines de tampon (période des fêtes) avant le gel.
+- **Chemin critique :** Services et tarifs → Clients → Rendez-vous → Facturation → QuickBooks → import final → bascule. Voie A : ~50 jours-agent d'ici le 18 décembre ; voie B : ~56 d'ici le 30 décembre (la boîte Gmail à l'écran a glissé après la bascule pour faire place à la liste d'attente) ; la voie A garde deux semaines de tampon (période des fêtes) avant le gel.
 - **Ce qui le menace :** l'export de l'historique des rendez-vous, qui ne se fait **que par le support de GOrendezvous** (à demander maintenant, question 1) ; les revues de Jonathan à chaque lot ; QuickBooks (accès au compte de la clinique).
 - **Total :** ~110 jours-agent avant la bascule, ~45 après.
 
@@ -67,7 +67,7 @@
 | Calendrier | **Adapter l'interface, construire le moteur** | Vues jour / semaine / mois / horaire, glisser-déposer, création au clic, synchro Google incrémentale | Pas de disponibilités, de réservation, de récurrence ni de rappels ; bogue d'heure d'été ; jetons Google en clair |
 | Courriels | **Porter (Gmail), failles corrigées** | Synchro Gmail incrémentale, rattachement aux dossiers, boîte, composeur unique (bureau et téléphone), TipTap, modèles, affichage HTML sûr | Jetons déchiffrés rendus sans contrôle, `state` non signé, URL externes, pièces jointes d'une autre organisation, webhook sans secret, pixel d'ouverture |
 | IA | **Porter (OpenAI, Chat Completions), avec nos garde-fous** | SDK `openai`, modèle en variable, invite (persona québécoise, formules interdites), Accepter / Rejeter / Affiner | Données de clients dans l'invite, lecture de n'importe quel dossier, aucune limite ni journal de coût, « style d'écriture » appris des courriels |
-| Visio | **Porter (Meet, en option)** | Création de Meet par l'API Calendar avec `requestId` stable | — |
+| Visio | **Rien à porter** (Zoom par pro décidé ; PS Hub ne fait que Meet) | Le principe d'un identifiant stable par réunion (`requestId`), pour que le lien ne change pas au déplacement | Meet |
 | SMS | **Plus tard** | Fils par numéro, interface boîte / fil / composeur, webhook signé | Centrale Yeastar propre à PS ; aucun STOP ni consentement |
 | Contacts | **Adapter** | Doublons par identité (jamais le nom seul), fusion, frise d'activités | Recherche à six voies, écoutes Realtime de tables entières |
 | Relances | **Adapter** | « Relances du jour » par urgence | Rappels de tâches jamais envoyés |
@@ -96,7 +96,7 @@
 - **Utilisateurs :** administration (modifie) ; conseillères, adjointe et professionnels (lisent).
 - **Fonctionnalités :**
   - Garder (§H) : liste avec recherche, filtre actifs / archivés, tri, création, archivage, restauration ; durée, couleur, « toujours taxable » ; services offerts par titre de profession (A2.17) ; aperçu taxes comprises.
-  - **De GOrendezvous** ([visite §3](../research/2026-10-11-gorendezvous-tour.md)) : **familles numérotées** 10xxx individuel (30 / 50 min, tarif étudiant, tarif réduit), 20xxx couple et famille (30 / 60 min), 30xxx IVAC, 40xxx PAE externe, 50xxx administratif (rapport, test psychométrique, discussion avec un intervenant, transfert de dossier, appel découverte 15 min, supervision), 60xxx ateliers, 70xxx annulation tardive / absence, 80xxx frais de déplacement ; le code sert d'article QuickBooks ; **service pour deux** (couple) facturé à deux personnes ; **variantes tarif étudiant et tarif réduit** ; services à 0 $ pour PAE et IVAC (sauf ouverture de dossier IVAC 43,49 $ taxable).
+  - **De GOrendezvous** ([visite §3](../research/2026-10-11-gorendezvous-tour.md)) : **familles numérotées** 10xxx individuel (30 / 50 min, tarif étudiant, tarif réduit), 20xxx couple et famille (30 / 60 min), 30xxx IVAC, 40xxx PAE externe, 50xxx administratif (rapport, test psychométrique, discussion avec un intervenant, transfert de dossier, appel découverte 15 min, supervision, **inscription à la liste d'attente**, §2.3 bis), 60xxx ateliers, 70xxx annulation tardive / absence, 80xxx frais de déplacement ; le code sert d'article QuickBooks ; **service pour deux** (couple) facturé à deux personnes ; **variantes tarif étudiant et tarif réduit** ; services à 0 $ pour PAE et IVAC (sauf ouverture de dossier IVAC 43,49 $ taxable).
   - Changer : **un catalogue unique** au lieu des services et prix copiés sur chaque pro depuis le faux employé « Z MATRICE » (~900 couples pro-service) ; **pas de copie des prix clients** : ils viennent des grilles de rétention (`retention_grid_prices`, datées, déjà lues par la fiche et l'Annexe A) ; un service dit « prix selon la grille, 50 min », « prix fixe » ou « gratuit » ; tarifs étudiant et réduit = un rabais daté par service (montant ou pourcentage) ; taxes des taux datés du socle (`tax_rate_on`) ; clé et code choisis une fois.
   - Nouveau : **politique d'annulation à deux paliers** en réglage daté (préavis 24 h ; 50 % à la 1re absence ou annulation tardive, puis 100 %), lue par Facturation pour poser les frais seuls ; frais d'ouverture de dossier daté ; modes vidéo et téléphone seulement.
   - Abandon proposé (ton OK requis) : modèles `by_profession_hourly_prorata` et `rule_cancellation_prorata` (§H) ; services **PRÉSENTIEL**, **location de bureau**, **vente d'article**, recherche-action ; champs de GOrendezvous non utilisés (salles, équipements, places, heures fixes, règles par étiquette, RAMQ, spécialité Lumino Santé).
@@ -158,7 +158,7 @@
   - Changer : motifs lus du catalogue (fini les 12 clés codées, §C) ; fermeture qui fonctionne ; ordre des suggestions expliqué (score, places, nom).
   - Nouveau (classeur) : boîte des demandes (âge vs 24–48 h, « sans réponse » et prochaine tentative) ; saisie rapide en 20 s ; propositions (qui, quand, réponse) ; liste d'attente avec pro « pont » ; annulations de premier rendez-vous et raison ; tableau des places ; KPI.
   - **De GOrendezvous** ([visite §7, §8](../research/2026-10-11-gorendezvous-tour.md)) : son nouveau formulaire « Requêtes de service » (automne 2026, non activé chez MANA) est une bonne référence. **États :** Nouveau, En évaluation, Accepté, Jumelé, Liste d'attente, Orienté ailleurs, Urgent (Urgent devient un drapeau, pas un état). **Champs d'accueil :** pour qui, thérapie antérieure, langue, mode (vidéo / téléphone), disponibilités, genre du pro souhaité, motif, préoccupations, payeur (assurance, PAE, aucun), assureur, note interne, référence, consentement. **Pas de dépistage PHQ-2 / GAD-2** : ce sont des outils cliniques (D8, question 17).
-  - **Remplace des contournements :** aujourd'hui, les appels découverte (« Consultation gratuite 15 min ») et la liste d'attente (« Inscription – Liste attente psychologie et psychothérapie », « LISTE ATTENTE À RAPPELER ») sont de faux rendez-vous dans l'agenda partagé « conseillère ». Demandes (a) les remplace avant la bascule, sinon on les recopierait dans le nouvel agenda : appel découverte = une tâche datée de la demande ; liste d'attente = `waiting_list_entries` (discipline, priorité, disponibilités, validité, pro « pont », invitation quand une plage se libère, comme la liste de GOrendezvous).
+  - **Remplace des contournements :** aujourd'hui, les appels découverte (« Consultation gratuite 15 min ») et la liste d'attente (« Inscription – Liste attente psychologie et psychothérapie », « LISTE ATTENTE À RAPPELER ») sont de faux rendez-vous dans l'agenda partagé « conseillère ». Demandes (a) les remplace avant la bascule, sinon on les recopierait dans le nouvel agenda : appel découverte = une tâche datée de la demande ; liste d'attente = la conception du §2.3 bis (Jonathan, 2026-10-11 : « pour les psy souvent nous avons une liste d'attente, il faut incorporer ça aussi »).
   - **Propositions :** « Requêtes > Rendez-vous » de GOrendezvous (rendez-vous proposé, accepté par courriel, hachuré d'ici là) devient la proposition de premier rendez-vous avec lien d'acceptation (question 7).
   - Abandon proposé (ton OK requis) : `deterministic-scorer`, `holistic-classifier` (naturopathie) et l'interprète d'horaire par Claude **dans le navigateur, clé lue côté client** (`_legacy/src/recommendations/schedule-interpreter.ts:236`).
   - Lot ultérieur : formulaires du site qui créent la demande.
@@ -169,13 +169,29 @@
 - **Modèle de données :**
   - `demandes` : reçue le / par, canal, provenance, type, principal, payeur, motifs, langue, préférences, urgence, statut, `notes` (sensibles : permission propre, jamais dans un journal, une notification ou une invite IA).
   - `demande_participants` ; `demande_events` (chaque changement de statut horodaté, tentatives de rappel) ; `demande_propositions` (professionnel, par / le, réponse, instantané).
-  - `first_appointment_cancellations`, `waiting_list_entries`, `capacity_snapshots` (photo du lundi par tâche planifiée).
-  - Publie : `demandes_summary`, `get_places_remaining(professional)`.
+  - `first_appointment_cancellations`, `capacity_snapshots` (photo du lundi par tâche planifiée) ; la liste d'attente au §2.3 bis.
+  - Publie : `demandes_summary`, `get_places_remaining(professional)`, `waitlist_summary` (Rapports).
 - **Intégrations :** Professionnels, Clients, Services et tarifs, socle (notifications « demande en retard », tâches), Temps réel (§3.1).
 - **IA :** **aucune au départ** : les notes d'accueil contiennent de l'information de santé (question 20).
 - **Dépendances :** Clients, Professionnels, Services et tarifs ; plus tard Rendez-vous (d'ici là, `availability_periods`, P4-4).
-- **Taille :** XL (20–22 jours) en deux lots : **(a) avant la bascule, voie B** (12 jours) : boîte, accueil, états, appels découverte, liste d'attente, propositions ; **(b) après la bascule** (10 jours) : jumelage, places, KPI.
-- **Questions :** 7, 16, 17, 18, 19, 20.
+- **Taille :** XL (24–26 jours) en deux lots : **(a) avant la bascule, voie B** (16 jours) : boîte, accueil, états, appels découverte, **liste d'attente** (§2.3 bis, partie 1), propositions ; **(b) après la bascule** (10–12 jours) : jumelage, places, **offres de plage aux inscrits** (§2.3 bis, partie 2), KPI.
+- **Questions :** 7, 17, 18, 19, 20 ; liste d'attente : 34 à 40.
+
+#### 2.3 bis Liste d'attente (dans Demandes)
+
+- **Ce qu'elle remplace :** (1) la liste d'attente par professionnel de GOrendezvous (priorité, disponibilités, validité, service, invitation quand une plage se libère, export) ; (2) les faux rendez-vous de l'agenda partagé « conseillère » : « Inscription – Liste attente psychologie et psychothérapie » (21,74 $) et « LISTE ATTENTE À RAPPELER » ([visite §8](../research/2026-10-11-gorendezvous-tour.md)).
+- **Où elle vit : dans Demandes.** Une demande passe à l'état **« Liste d'attente »** et porte une ou deux **inscriptions** : pour une **profession** (Psychologie, Psychothérapie, ou toute autre profession du catalogue) et / ou pour **un professionnel précis**. Pas de liste propre à chaque pro comme dans GOrendezvous : les conseillères la tiennent, le pro voit en lecture les inscriptions qui le visent (question 40).
+- **Ordre :** **priorité** (« Normale » ou « Prioritaire », posée par une conseillère avec une raison, visible) puis **date d'inscription** ; le rang s'affiche (« 7e sur 23 en psychologie »).
+- **Ce que l'inscription retient** (repris de la demande, modifiable) : disponibilités (matin, après-midi, fin de journée, soir, fin de semaine, et jours), mode (vidéo, téléphone), langue, motifs (étiquettes du catalogue), clientèle (âge), genre de pro souhaité, payeur ; un **pro « pont »** optionnel (un rendez-vous d'attente avec un autre pro, comme le classeur).
+- **Frais d'inscription :** un service de Services et tarifs, **« Inscription liste d'attente »** (famille 50xxx), facturé à l'inscription par Facturation (une facture sans rendez-vous). 21,74 $ ressemble à 18,91 $ + TPS et TVQ : à confirmer, comme le remboursement ou le crédit sur la 1re séance (question 34). Exonération possible avec une raison (PAE, IVAC, entente).
+- **Consentement « liste d'attente »** (un des 7 modèles, §2.2) envoyé à l'inscription ; l'inscription est **« Incomplète »** tant que le consentement n'est pas signé ou les frais réglés (ou exonérés), puis **« Active »**.
+- **Attente affichée :** jours depuis l'inscription, et l'**attente moyenne** de la liste (inscription → placement, sur 12 mois) comme estimation pour la conseillère, jamais promise au client.
+- **Suivi périodique :** une tâche quotidienne (`demandes.waitlist_followup`, heure de la clinique) marque **« À rappeler »** chaque inscription active sans contact depuis N semaines (8 par défaut, question 35) et l'annonce dans la cloche des conseillères ; en option, un **courriel au client** « Souhaitez-vous rester sur la liste d'attente ? » avec deux liens sécurisés (Oui / Non) ; sans réponse en 14 jours → « Sans réponse » à rappeler.
+- **Quand une place se libère** (un pro ajoute des disponibilités ou des places pour nouveaux clients, une série se termine ou s'annule, un nouveau pro de la profession est activé) : avis « Place disponible » dans la cloche ; le panneau de jumelage montre les **inscrits compatibles** dans l'ordre de la liste (filtres durs de Professionnels : clientèle, langue, âge minimum, « Femmes seulement », mode, disponibilités) ; la conseillère choisit, puis **« Offrir la plage »** : un courriel avec 1 à 3 plages et un **lien limité dans le temps** (48 h, question 38) ; l'acceptation réserve le rendez-vous et place le client ; un refus ou l'expiration passe au suivant. **Partie 1 (avant la bascule) :** inscription, frais, consentement, ordre, relances, sorties, offre par téléphone notée à la main. **Partie 2 (après) :** suggestions automatiques et offre par lien.
+- **Sortie de la liste, avec une raison :** Placé à la clinique, Orienté ailleurs, Ne souhaite plus, Sans réponse, Autre ; date et conseillère gardées.
+- **Rapports :** longueur de la liste par profession et par pro, attente moyenne et médiane, entrées et sorties par mois et par raison (Rapports, §2.8).
+- **Import :** l'export Excel de la liste d'attente de GOrendezvous (par pro) et les faux rendez-vous « Inscription – Liste attente … » et « LISTE ATTENTE À RAPPELER » de l'agenda « conseillère » (dans l'export des rendez-vous du support) deviennent des inscriptions : date d'inscription = date du faux rendez-vous ou de l'entrée ; frais réglés si une facture existe ; doublons fusionnés par client (§2.7).
+- **Modèle de données :** `waitlist_entries` (demande, client, cible : `profession_title_id` ou `professional_id`, priorité et raison, inscrit le, état `incomplete` / `active` / `to_call` / `offered` / `closed`, critères, pro « pont », `fee_status` (`to_invoice` / `invoiced` / `paid` / `waived`), `fee_invoice_id`, consentement, dernier contact, raison et date de sortie, `external_ref`), `waitlist_contacts` (appel, courriel de suivi, réponse), `waitlist_offers` (plages offertes, lien, expire le, réponse). Lecture : `demandes.view` ; un pro lit les inscriptions qui le visent (`demandes.self`, sans note interne).
 
 ### 2.4 Communications — boîte Gmail, courriels, modèles, IA (`communications`) — XL
 
@@ -204,7 +220,7 @@
 - **Fonctions Edge (catégories de CLAUDE.md §7) :** `gmail-connect` et `gmail-callback` (user, `communications.mailboxes_manage`) ; `gmail-webhook` (webhook) ; `gmail-sync` (job `communications.gmail_sync` et après chaque notification) et `gmail-watch-renew` (job) ; `gmail-send`, `gmail-modify` (user) ; `communications-draft` (user, IA).
 - **IA :** oui (§2.4 ter).
 - **Dépendances :** Clients.
-- **Taille :** **XL (22–27 jours)** : synchro Gmail et boîte 12–15, composeur 5, modèles 2, IA 3–4. En voie B, en deux lots : **(a) avant la bascule** (12–16 octobre et 19–28 octobre : il ne dépend que du socle, le rattachement aux clients vient dès que Clients est fusionné) ; **(b) après la bascule** : composeur, envoi Gmail, modèles, IA.
+- **Taille :** **XL (22–27 jours)** : synchro Gmail et boîte 12–15, composeur 5, modèles 2, IA 3–4. En voie B, en deux lots : **(a) avant la bascule** (12–21 octobre : branchement de `info@`, synchro et un écran d'état de la synchro pour les essais ; il ne dépend que du socle) ; **(b) après la bascule** : boîte à l'écran et rattachement aux clients, composeur, envoi Gmail, modèles, IA. La boîte à l'écran a glissé après la bascule pour faire place à la liste d'attente avant le 11 janvier.
 - **Questions :** 27, 28, 29, 30.
 
 #### 2.4 bis Ce que PS Hub apporte, et les failles corrigées
@@ -280,28 +296,31 @@
   - Pris : vues Jour / Semaine / Mois / « Horaire » 30 jours sans librairie (`src/pages/Calendar.tsx:63-110`) ; glisser-déposer par Pointer Events, aimanté aux 15 min, d'un jour à l'autre, position provisoire (`src/components/calendar/CalendarTimeGridView.tsx:225-312`, `:156-202`) ; création au clic (`:336-359`) ; avertissement de chevauchement (`CalendarEventDialog.tsx:222-237`) ; agenda d'un collègue pour un administrateur (ADR 0027, `Calendar.tsx:166-182`) → une conseillère voit l'agenda d'un pro ; synchro Google incrémentale par `syncToken`, repli complet au 410 (`supabase/functions/calendar-sync/index.ts:438-442`).
   - Changé : grille placée **à l'heure locale de la clinique** ; PS Hub place en minutes depuis minuit (`CalendarTimeGridView.tsx:100-110`), donc décale d'une heure les jours de changement d'heure, et affiche l'heure du navigateur (`src/hooks/useCalendarItems.ts:14-18`) ; période filtrée par **chevauchement**, pas par début (PS Hub perd les événements de plusieurs jours : `useCalendarItems.ts:216-217`) ; écritures par RPC en une transaction (PS Hub : deux appels, erreur du `delete` ignorée : `src/hooks/useCrmTasks.ts:612-636`) ; redimensionnement (absent) ; jetons Google **chiffrés** et illisibles du client (en clair chez PS Hub : `baseline.sql:21286-21301`) ; `state` OAuth signé et expirant (non signé : `google-calendar-oauth/index.ts:51`, `google-calendar-callback/index.ts:39-45`) ; déconnexion qui révoque chez Google (`useCalendarConnection.ts:105-111` ne fait que `is_active=false`).
   - Pas copié : la synchro qui lit encore `crm_tasks.google_event_id` alors que la poussée écrit dans `crm_task_assignees` (`calendar-sync/index.ts:324-329` vs `calendar-push-task/index.ts:565-580`) ; `action: "delete"` sans lien vérifié avec la tâche (`calendar-push-task/index.ts:800-806`) ; `reminder_at` jamais lu ; **le miroir complet du Google personnel visible des administrateurs** (`docs/adr/0027-admin-view-team-calendars.md:54-60`) : nos pros ont une pratique privée, on n'importe qu'**occupé / libre**, jamais un titre ni un participant.
-- **Visio : Zoom et Google Meet (décidé par Jonathan, 2026-10-11).**
-  - **Ce qui existe :** dans GOrendezvous, **chaque professionnel branche son propre compte Zoom** (OAuth) ; « Démarrer » envoie le lien au client, qui l'a aussi dans la confirmation ([visite §1](../research/2026-10-11-gorendezvous-tour.md)). Pas de Meet, pas de lien fixe.
-  - **Recommandation révisée : Zoom par professionnel en premier** (question 4) : chaque pro branche son compte Zoom (« Mon profil » → « Vidéoconférence ») ; un **lien est créé pour chaque rendez-vous** sur son compte, mis à jour au déplacement, supprimé à l'annulation, envoyé dans la confirmation et le rappel ; « Démarrer » l'ouvre. C'est ce que les pros connaissent : rien à changer pour eux à la bascule. **Google Meet en option** pour un pro sans Zoom : un événement « Rendez-vous MANA » sans nom de client dans un agenda de la clinique, avec Meet, comme PS Hub (`conferenceData.createRequest`, `hangoutsMeet`, `requestId` stable : `supabase/functions/calendar-push-task/index.ts:505-520` ; `conferenceDataVersion=1` : `:536`). **Lien fixe** en dernier recours.
-  - **Identifiants Zoom :** une application OAuth Zoom « General app » de la clinique (identifiant client et secret en secrets de fonction) ; portées minimales (créer, modifier, supprimer ses réunions, lire son profil) ; jetons de chaque pro **chiffrés** (règle PII, ADR 0004), jamais rendus au navigateur ; `state` signé et expirant ; déconnexion qui révoque ; le webhook de désautorisation de Zoom (obligatoire pour une application publiée) vérifié par signature. Si l'application reste privée au compte de la clinique, les pros doivent être membres de ce compte : à vérifier (question 4).
-  - **Identifiants Google (Meet) :** jetons chiffrés comme ceux de Gmail, application OAuth « Interne », portée `calendar.events`.
-  - **Loi 25 :** le titre de la réunion ne porte jamais le nom du client (« Rendez-vous MANA ») ; Zoom et Google ajoutés aux sous-traitants.
-  - **Taille :** Zoom par pro 5 jours (voie B, avant la bascule) ; Meet en option 3–4 jours et lien fixe 1 jour (après la bascule).
+- **Visio : Zoom, un compte par professionnel (décidé par Jonathan, 2026-10-11 : « on garde Zoom, puisque c'est ça aujourd'hui que chaque professionnel doit brancher »).** Comme dans GOrendezvous ([visite §1](../research/2026-10-11-gorendezvous-tour.md)) : chaque pro branche son propre compte Zoom par OAuth, et **un lien est créé pour chaque rendez-vous** sur son compte. Google Meet et le lien fixe sortent du plan (Meet « plus tard », seulement si un pro le demande, §2.9).
+  - **Brancher :** dans le portail du professionnel, « Mon agenda » → carte **« Vidéoconférence »** (Rendez-vous possède cette page ; « Mon profil » reste à Professionnels) → **« Connecter mon Zoom »** : la page d'autorisation de Zoom s'ouvre, le pro accepte, il revient sur sa carte qui dit « Zoom connecté : <adresse du compte Zoom> · depuis le … ». Le `state` OAuth est signé (HMAC, nonce à usage unique, 10 min) et le retour va toujours vers `APP_URL`.
+  - **Ce que voit le personnel :** un écran **« Vidéoconférence »** dans Paramètres (chaque professionnel : Connecté / Non connecté / À reconnecter, avec un filtre et « Relancer ») et une pastille dans le choix du professionnel de l'agenda (l'écran appartient à Rendez-vous, Professionnels ne change pas) ; avant la bascule, un rapport « Professionnels prêts pour la bascule » (§3.6) ; un pro peut aussi être relancé par courriel (« Connecter votre Zoom »).
+  - **Jetons :** chiffrés comme ceux de Gmail (`private.encrypt_pii`, liste de `private.pii_encrypted_values()`), lus seulement par les fonctions, jamais rendus au navigateur ; une tâche (`appointments.zoom_token_refresh`, toutes les heures) rafraîchit ceux qui expirent dans l'heure ; un échec de rafraîchissement (révoqué, mot de passe changé) passe la connexion à **« À reconnecter »** et avertit le pro et les conseillères (cloche).
+  - **Création des liens :** à la réservation, au déplacement et à l'annulation, une file (`video_tasks`) est vidée par une tâche (`appointments.video_sync`) qui crée, modifie ou supprime la réunion sur le compte du pro (titre « Rendez-vous MANA », jamais le nom du client) ; le lien va sur le rendez-vous, dans la confirmation, le rappel et le bouton **« Démarrer »**. Une erreur Zoom laisse le rendez-vous réservé et l'affiche « Lien à créer », avec « Réessayer ».
+  - **Pro non connecté :** l'éditeur de rendez-vous affiche un **avertissement avant de réserver en vidéo** (« Ce professionnel n'a pas connecté son Zoom : le client recevra le lien plus tard. ») ; on peut réserver quand même ou passer en téléphone ; dès que le pro se connecte, la file crée les liens des rendez-vous à venir et envoie un courriel « Votre lien de rencontre » aux clients concernés.
+  - **Débrancher et rebrancher :** « Déconnecter » (confirmation) révoque l'accès chez Zoom, efface les jetons et marque les rendez-vous à venir « Lien à créer » ; « Reconnecter » refait l'autorisation. Le webhook de désautorisation de Zoom (signé, vérifié avec `timingSafeEqual`) fait la même chose si le pro retire l'application depuis Zoom.
+  - **Application Zoom :** une application OAuth de la clinique (identifiant client et secret en secrets de fonction), portées minimales (réunions de l'utilisateur, profil). À vérifier au début du lot : si l'application doit être publiée sur la place de marché Zoom pour des comptes hors de celui de la clinique (question 41).
+  - **Loi 25 :** aucun nom de client chez Zoom ; Zoom ajouté aux sous-traitants.
+  - **Taille :** 6 jours en voie B, avant la bascule (au lieu de 5 : carte du pro, vue du personnel, rafraîchissement, avertissement).
 
 - **Modèle de données :**
   - `availability_rules` (jour, heures **locales**, services permis, du … au …) et `availability_exceptions` (congé, bloc ponctuel).
   - `appointment_series` (chaque semaine ou aux 2 à 12 semaines, jours cochés, nombre de séances, fuseau ; conflits ignorés notés).
   - `appointments` (pro, service, début / fin `timestamptz`, mode, état, série, raison et détails d'annulation, « garder à l'horaire », note interne, message au client, personnel, pour le travail) avec contrainte d'exclusion `tstzrange` par pro sur les états actifs ; `appointment_participants` (client, rôle, présence : Sera présent / Présent(e) / Absent(e), confirmation du client).
   - `cancellation_reasons` (liste de départ ci-dessus, modifiable).
-  - `video_connections` (Zoom par pro, Google de la clinique : jetons chiffrés, ADR 0004) ; `appointments.video_provider` (`zoom` / `meet` / `fixed`), `video_url`, `video_external_id`.
+  - `video_connections` (un compte Zoom par pro : compte Zoom, état `connected` / `needs_reconnect` / `disconnected`, jetons chiffrés, expiration, ADR 0004) ; `video_tasks` (file créer / modifier / supprimer) ; `appointments.video_url`, `video_external_id`, `video_status` (`ready` / `pending` / `failed`).
   - `calendar_connections` et `external_busy_blocks` (occupé / libre Google, après la bascule).
   - `appointment_reminders` (canal `email`, prévu le, envoyé le, statut ; idempotent) ; `appointment_actions` (liens confirmer / modifier / annuler : purposes du socle).
   - Publie : `get_open_slots(pro, from, to, service)`, `appointments_for_billing`, `first_appointments_confirmed`, `client_visits(client)`.
-- **Intégrations :** socle (`runJob` pour rappels et « terminé », courriel Resend, liens sécurisés, notifications), Zoom (OAuth par pro), Google (Meet, freeBusy, après la bascule).
+- **Intégrations :** socle (`runJob` pour rappels et « terminé », courriel Resend, liens sécurisés, notifications), Zoom (OAuth par pro), Google (occupé / libre, après la bascule).
 - **IA :** aucune.
 - **Dépendances :** Clients, Professionnels, Services et tarifs.
-- **Taille :** XL : **20 jours en voie A avant la bascule** (disponibilités et vues ; réservation, états, annulations ; récurrence ; rappels et liens ; « Mon agenda »), **Zoom 5 jours en voie B** ; après la bascule : Meet, lien fixe, occupé / libre Google (4–5 jours).
-- **Questions :** 4, 5, 6, 7, 8, 23.
+- **Taille :** XL : **20 jours en voie A avant la bascule** (disponibilités et vues ; réservation, états, annulations ; récurrence ; rappels et liens ; « Mon agenda »), **Zoom par pro 6 jours en voie B** ; après la bascule : occupé / libre Google (3 jours).
+- **Questions :** 5, 6, 7, 8, 23, 41 (question 4 répondue).
 
 ### 2.6 Facturation et paiements (`billing`) — XL
 
@@ -313,7 +332,7 @@
   - Nouveau : relevé mensuel de paie par pro ; export comptable.
   - **De GOrendezvous** ([visite §5, §15, §16](../research/2026-10-11-gorendezvous-tour.md)) :
     - **parcours :** facture envoyée après la séance, payable le jour même → paiement par **virement Interac** (dépôt automatique, rapproché par l'adjointe) ou **carte par le lien « PAYER »** (Stripe) → **reçu** envoyé dès le paiement enregistré (question 21) ; facture et reçu sont deux documents ;
-    - **une facture porte plusieurs lignes** (plusieurs rendez-vous ou services) ; une facture payée ou à plusieurs lignes ne s'annule pas : on fait une note de crédit ;
+    - **une facture porte plusieurs lignes** (plusieurs rendez-vous ou services) ; une facture peut aussi venir **sans rendez-vous** (frais d'inscription à la liste d'attente, §2.3 bis) ; une facture payée ou à plusieurs lignes ne s'annule pas : on fait une note de crédit ;
     - **couple : facture divisible**, un reçu par personne avec la part payée ;
     - **numérotation `AAAA-N`** (année + séquence) ; à la bascule, la séquence de 2027 continue celle de GOrendezvous ;
     - **modes de paiement** (Interac, carte de crédit / Stripe, comptant, chèque, virement bancaire, note de crédit, assurance) **chacun relié à un compte QuickBooks**, comme aujourd'hui ; Accès D, PayPal, Square, cartes cadeau et de fidélité : à confirmer ;
@@ -324,7 +343,7 @@
 - **Repris de PS Hub :** **porter le connecteur QuickBooks Online (décidé par Jonathan, 2026-10-11), construire la facturation clinique.**
   - Pris : le branchement OAuth (`quickbooks-oauth`, `quickbooks-callback`), la création de factures (`quickbooks-create-invoice/index.ts:363-523`), la synchro des paiements et la reprise (`sync-qbo-invoices`, `sync-single-qbo-payment`, `qbo-sync-cron`, `qbo-resync-worker`), la gestion des articles (`quickbooks-manage-item`, `quickbooks-sync-items`), le PDF (`qbo-download-invoice-pdf`).
   - **Ce qui se synchronise, et dans quel sens (l'app est la source) :**
-    - **clients → QBO** : un client QBO par client facturé (ou payeur : PAE, IVAC), nom et numéro de dossier seulement ;
+    - **clients → QBO** : chaque payeur devient un client QBO parent et chaque dossier un sous-client « facturé avec le parent » (§2.6 bis, décidé par Jonathan) ; nom et numéro de dossier seulement ;
     - **factures / reçus → QBO** : chaque facture finalisée, avec un article QBO par service (lignes sobres, p. ex. « Rencontre 50 min », jamais un motif) et les taxes appliquées ;
     - **paiements → QBO** : chaque paiement enregistré dans l'app (Stripe, Interac, comptant), rattaché à sa facture ;
     - **QBO → app** : seulement les identifiants QBO et l'état de synchro (et, si le comptable saisit des paiements directement dans QBO, leur lecture pour rapprochement : question 25) ;
@@ -336,7 +355,33 @@
 - **IA :** aucune.
 - **Dépendances :** Rendez-vous, Clients, Services et tarifs, Professionnels.
 - **Taille :** XL : **15 jours en voie A avant la bascule** (factures et lignes, paiements et reçus, relevé, frais d'annulation, couple) ; **Stripe et Interac 4 jours et QuickBooks 7 jours en voie B** ; payeurs tiers 6 jours après la bascule.
-- **Questions :** 21, 22, 23, 24, 25, 26.
+- **Questions :** 21, 22, 23, 24, 25, 26, 42.
+
+#### 2.6 bis « Facturé à » : le client et le payeur (décidé par Jonathan, 2026-10-11)
+
+- **Ses mots :** « pour QBO, je crois que le mieux c'est d'avoir un client "facturé à" et, dans QBO, un sous-client par dossier. C'est possible, pour un enfant par exemple, que le dossier soit au nom du client mais la facture au père ou à la mère. »
+- **Deux notions séparées :**
+  - le **client** : la personne servie, le dossier (`client_id`) ;
+  - le **payeur**, **« Facturé à »** (`payer`), l'un de :
+    - le client lui-même (par défaut) ;
+    - une **personne liée** : parent ou tuteur, un dossier de Clients relié avec le droit « recevoir reçus et factures » (§2.2) ;
+    - une **organisation** : PAE, IVAC ou employeur (modèle des payeurs tiers, §2.6).
+- **Payeur par défaut** sur le dossier (onglet « Visites et paiements » : « Facturé à »), **remplaçable** pour un rendez-vous, une série ou une facture (p. ex. un PAE pour les 3 premières séances, puis le client).
+- **Facture et reçu :**
+  - la **facture** est adressée au payeur (nom, adresse, courriel du payeur ; elle part à lui) ;
+  - le **reçu** nomme **la personne servie et le payeur** (« Services rendus à : Léa T. · Payé par : Marie T. »), ce dont l'assureur a besoin pour la réclamation d'un enfant ; il porte aussi le nom du professionnel, sa profession, son ordre et son numéro de permis, la date, la durée et la nature du service, le montant payé, le numéro de reçu, l'adresse de la clinique, et les taxes s'il y en a ;
+  - **à vérifier** (avec Rachel et un échantillon d'assureurs) : les mentions exactes que demandent les principaux assureurs (certains exigent la date de naissance du patient, le numéro de membre ou la signature du professionnel), la mention du titulaire du régime quand il n'est pas le payeur, et ce que le reçu doit dire pour le crédit d'impôt pour frais médicaux (le parent peut le réclamer pour son enfant : le reçu doit nommer l'enfant comme patient et la personne qui a payé).
+- **Dans QuickBooks :**
+  - **payeur = client QBO (parent)** ; **chaque dossier = sous-client QBO** sous ce payeur, avec **« Facturer avec le parent »** (`Job = true`, `ParentRef`, `BillWithParent = true`) : les factures vont au payeur, et restent traçables par dossier ;
+  - **un sous-client par paire (payeur, dossier)**, plutôt que re-parenter : quand le payeur d'un dossier change (PAE puis le client, ou un autre parent), on crée un nouveau sous-client sous le nouveau payeur et l'ancien reste avec son historique. **Pourquoi :** re-parenter un sous-client dans QuickBooks déplace tout son historique et son solde sous le nouveau parent, donc les anciennes factures et paiements sembleraient payés par le mauvais payeur ; la paire garde chaque facture sous celui qui l'a payée. Coût : quelques sous-clients de plus, rares ;
+  - **noms** : QuickBooks exige un nom d'affichage unique ; le sous-client s'appelle « N° de dossier · Prénom N. » (complété d'un suffixe si la paire se répète) ; aucune information de santé ;
+  - **le client qui paie pour lui-même** suit la même règle (client QBO = lui, sous-client = son dossier), pour une seule forme de rapport.
+- **Couples et familles :**
+  - une **facture divisée** = deux factures, chacune à son payeur, donc deux clients QBO parents (chacun avec le sous-client de son dossier) ;
+  - **un seul payeur pour la famille** (p. ex. un parent pour deux enfants) = un client QBO parent avec un sous-client par enfant ; le relevé du parent regroupe tout ;
+  - **parents séparés à 50 / 50** : deux payeurs avec une part chacun, deux factures et deux reçus (question 42).
+- **À la bascule, les clients QBO créés par GOrendezvous :** GOrendezvous synchronise déjà QuickBooks, donc les clients existent. **Étape de correspondance** (lot FQ, puis I3) : lire la liste des clients QBO par l'API ; les rapprocher de nos dossiers et payeurs (courriel, nom, numéro de client de GOrendezvous s'il est dans QBO) ; les correspondances sûres sont gardées (le client QBO existant devient le payeur parent, nos sous-clients sont créés dessous) ; les autres vont dans un rapport à trancher ; **aucun client QBO n'est créé tant qu'une correspondance probable existe**. L'historique de GOrendezvous reste sous ses clients QBO actuels et n'est jamais renvoyé.
+- **Modèle de données :** `invoices.client_id` (dossier) et `invoices.payer_kind` (`self` / `person` / `organisation`), `payer_client_id` ou `payer_organisation_id`, `payer_share_percent` ; `billing_payer_defaults` (dossier → payeur et part, datés) ; `billing_payer_overrides` (rendez-vous ou série → payeur) ; `qbo_links` (payeur → client QBO parent ; paire (payeur, dossier) → sous-client QBO). Une vérification en base refuse un payeur « personne » qui n'a pas le droit « recevoir reçus et factures » sur ce dossier.
 
 ### 2.7 Importation GOrendezvous (étape à part) — M–L
 
@@ -349,7 +394,9 @@
 | Clients | « Exporter mes clients », liste globale (propriétaire du compte seulement) | Excel, différé | Relations, assurances, étiquettes et archivés à vérifier dans l'export |
 | Factures, lignes, paiements | « Revenus » → Exporter (par facture, par service, par paiement) **et / ou QuickBooks** | Excel | L'export n'a que les factures non annulées ; QuickBooks a tout |
 | **Historique des rendez-vous** | **Support de GOrendezvous seulement** (aucun export dans l'app) | à négocier | **À demander maintenant** (question 1) |
-| Liste d'attente, annulations, clients à relancer | Exports par pro / impressions | Excel | Pour Demandes |
+| Liste d'attente (par pro) et faux rendez-vous « Inscription – Liste attente … », « LISTE ATTENTE À RAPPELER » | Export Excel par pro ; export des rendez-vous du support | Excel | Deviennent des inscriptions de liste d'attente (§2.3 bis) |
+| Annulations, clients à relancer | Impressions → Exporter | Excel | Pour Demandes et Rapports |
+| Clients QuickBooks créés par GOrendezvous | API QuickBooks | — | Rapprochés avant tout envoi, jamais recréés (§2.6 bis) |
 | Reçus d'assurance, consentements | PDF un par un | PDF | On garde le fait (n°, date, montant ; modèle, version, date de signature), pas les PDF (questions 15, 26) |
 
 - **Étapes :**
@@ -385,6 +432,7 @@
   - **« ARRÊT » / « STOP »** et **consentement** enregistré sur le client (LCAP), absents de PS Hub (seul un interrupteur `allow_sms` : `yeastar-send-sms/index.ts:85-93`) ;
   - repris de PS Hub : fils par les 10 derniers chiffres (`src/lib/sms/conversations.ts:1-40`), interface boîte / fil / composeur (`src/components/crm/sms/`), webhook signé HMAC (`yeastar-webhook/index.ts:874-895`) ;
   - données : `sms_messages` (corps effacés après 12 mois), `sms_consents`. Le modèle `appointment_reminders` prévoit déjà un canal, donc rien à refaire dans Rendez-vous.
+- **Google Meet** : retiré du plan (Jonathan, 2026-10-11 : on garde Zoom) ; à ajouter seulement si un professionnel le demande, en reprenant la création de Meet de PS Hub (`calendar-push-task/index.ts:505-520`).
 - **Portail du professionnel**, ajouté au fil des modules sous la permission `*.self` de chacun : « Mes clients » (Clients), « Mes demandes » (assignées, sans notes internes), « Mon agenda » et « Mes disponibilités » (Rendez-vous), « Mes reçus » et « Ma paie » (Facturation). Pas de module à part.
 - **Portail client** (reçus, rendez-vous, consentements), **réservation en ligne** de l'appel découverte, **B2B** (ateliers, conférences, PAE employeurs) : après la bascule. Rien de cela n'est dans l'ancienne app.
 
@@ -443,7 +491,9 @@
 
 - **IA :** OpenAI, comme PS Hub (§2.4 ter).
 - **Boîte courriel :** Gmail branché, `info@cliniquemana.com` d'abord (§2.4, §3.3).
-- **Visio :** Zoom et Google Meet (§2.5).
+- **Visio :** Zoom, un compte par professionnel, lien créé à chaque rendez-vous ; Google Meet retiré (plus tard si un pro le demande) (§2.5).
+- **Liste d'attente :** à incorporer, surtout pour les psys (§2.3 bis).
+- **« Facturé à » :** le payeur est séparé du dossier ; dans QuickBooks, un client parent par payeur et un sous-client par dossier (§2.6 bis).
 - **Comptabilité :** QuickBooks Online, oui (§2.6).
 - **GOrendezvous :** tout importer (§2.7, §3.6).
 - **SMS :** plus tard (§2.9, §3.4).
@@ -451,7 +501,7 @@
 
 ### Questions ouvertes
 
-Les questions de la première version, celles de la visite de GOrendezvous (§13 et addenda) et les nouvelles, fusionnées, une seule fois chacune. **À trancher en premier : 1, 2, 4, 9.**
+Les questions de la première version, celles de la visite de GOrendezvous (§13 et addenda) et les nouvelles, fusionnées, une seule fois chacune. **À trancher en premier : 1, 2, 9, 34.**
 
 **Bascule et import**
 1. **Export de l'historique des rendez-vous :** il ne se fait que par le support de GOrendezvous. Qui le demande ? *Reco : Christine (propriétaire du compte), cette semaine, en demandant aussi les reçus et les consentements en lot ; sans cet export, l'historique des rendez-vous ne peut pas être importé.*
@@ -459,7 +509,7 @@ Les questions de la première version, celles de la visite de GOrendezvous (§13
 3. **Conseillères :** combien, et toutes dans le compte partagé « conseillère » ? *Reco : chez nous, un compte par personne (rôle « Conseillère »), jamais de compte partagé.*
 
 **Rendez-vous**
-4. **Visio :** Zoom **par professionnel** (chacun branche son compte par OAuth ; un lien créé à chaque rendez-vous), comme aujourd'hui ; Google Meet de la clinique en option ; lien fixe en dernier recours. Les pros tiennent-ils à leur Zoom ? *Reco : ok, Zoom par pro d'abord.*
+4. *(Répondue : Zoom par professionnel ; voir « Réponses reçues ».)*
 5. **Lieux :** PRÉSENTIEL, À domicile, le CPE partenaire, le bureau d'un pro : encore utilisés ? *Reco : non ; garder vidéoconférence et téléphone, plus « Autre » si besoin.*
 6. **Séance de 50 min réservée en plage de 1 h :** battement voulu ? *Reco : oui, « pause après » de 10 min réglée par service.*
 7. **« Requêtes > Rendez-vous »** (rendez-vous proposés au client, acceptés par courriel) : c'est ainsi que se place le premier rendez-vous ? *Reco : oui ; repris comme « proposition » avec lien d'acceptation.*
@@ -477,7 +527,7 @@ Les questions de la première version, celles de la visite de GOrendezvous (§13
 15. **Consentements :** recréer les 7 modèles dans la signature du socle ; à l'import, garder le fait signé (modèle, version, date) sans les PDF un par un ; nouvelle signature seulement à la version suivante. *Reco : ok ; Christine relit les 7 textes.*
 
 **Demandes**
-16. **Liste d'attente :** celle de GOrendezvous ou les faux rendez-vous ? Frais d'inscription de 21,74 $ ? *Reco : la liste de Demandes ; les frais deviennent un service 50xxx s'ils restent.*
+16. *(Répondue : la liste d'attente vit dans Demandes, §2.3 bis ; les frais sont la question 34.)*
 17. **Dépistage PHQ-2 / GAD-2** du formulaire « Requêtes de service » : outils cliniques. *Reco : ne pas les reprendre (D8).*
 18. **Formulaires du site → Demandes :** lot après la v1. *Reco : oui.*
 19. **Les 7 questions du classeur** ([recherche §8.5](../research/2026-10-08-intake-workbook.md#85-open-questions-for-jonathan)). *Reco :* place rendue à l'annulation d'un premier rendez-vous ; une proposition retient la place 48 h ; exclusions en note surlignée ; liste d'attente pour toute discipline.
@@ -501,6 +551,19 @@ Les questions de la première version, celles de la visite de GOrendezvous (§13
 31. **Ordre :** chemin critique Services et tarifs → Clients → Rendez-vous → Facturation ; voie B : Gmail, consentements, import, Demandes (a), Zoom, Stripe, QuickBooks ; après la bascule : Demandes (b), composeur et IA, payeurs tiers, Meet, Rapports. *Reco : ok (Demandes passe après Rendez-vous à cause du 31 janvier).*
 32. **Abandons** (ton OK requis) : salles, équipements, groupes, inventaire, formulaires santé, services PRÉSENTIEL, location de bureau, vente d'article, cartes de visite ; de l'ancienne app : `deterministic-scorer`, `holistic-classifier`, l'interprète d'horaire par IA ; portail client complet et réservation en ligne après la bascule. *Reco : abandonner / reporter.*
 33. **Notes cliniques des pros :** où sont-elles tenues (GOrendezvous n'en a aucune) ? *Reco : hors de l'app (D8) ; Christine confirme l'outil.*
+
+**Liste d'attente (§2.3 bis)**
+34. **Frais d'inscription de 21,74 $ :** est-ce 18,91 $ + TPS et TVQ ? Remboursables ? Crédités sur la 1re séance ? Exonérés pour PAE et IVAC ? *Reco : garder la règle d'aujourd'hui (dis-la-moi) ; service « Inscription liste d'attente » facturé à l'inscription ; exonération possible avec une raison.*
+35. **Fréquence des relances :** *Reco : toutes les 8 semaines, un courriel « Souhaitez-vous rester sur la liste ? » puis un appel si pas de réponse en 14 jours.*
+36. **Plusieurs listes pour un client ?** *Reco : oui, au plus deux inscriptions (une profession et / ou un pro précis), un seul frais d'inscription.*
+37. **Priorité :** qui peut mettre « Prioritaire », et pour quelles raisons ? *Reco : une conseillère, avec une raison écrite et visible ; l'administration voit la liste des prioritaires.*
+38. **Offre de plage :** durée du lien et nombre de clients à la fois ? *Reco : 48 h, un client à la fois, dans l'ordre de la liste.*
+39. **Professions avec liste d'attente :** psychologie et psychothérapie seulement ? *Reco : toute profession peut en avoir une ; on commence avec ces deux-là.*
+40. **Listes des pros :** les pros tiennent-ils encore leur propre liste (comme dans GOrendezvous) ? *Reco : non, les conseillères la tiennent ; le pro voit en lecture les inscriptions qui le visent.*
+
+**Zoom et facturation**
+41. **Application Zoom :** si Zoom exige de publier l'application pour des comptes hors de celui de la clinique, tu crées le compte développeur Zoom de la clinique et soumets l'application ? *Reco : oui, au début du lot Zoom (fin novembre), avec ton feu vert à chaque étape.*
+42. **Parents séparés à 50 / 50 :** deux payeurs, deux factures et deux reçus, chacun avec sa part ? *Reco : oui, part réglée sur le dossier (« Facturé à » à deux payeurs).*
 
 ## 5. Prochaine étape
 
