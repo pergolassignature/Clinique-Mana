@@ -22,12 +22,12 @@ import { SubmissionReviewSheet } from './SubmissionReviewSheet'
 const C = 'modules.professionals.submission.card'
 
 /**
- * « Questionnaire et mises à jour » (Documents tab, Task 4b.5): the file's submissions, newest
+ * « Profils envoyés et mises à jour » (Documents tab, Task 4b.5): the file's submissions, newest
  * first (`professionals.view`), each with its state in words and its dates in the clinic's time.
  * A submission waiting for review offers « Réviser » to reviewers (`professionals.review`), except
  * on their own file (P4-304: the database refuses it, so the button is not offered). An open update
  * offers « Fermer la demande » to those who ask for updates (`professionals.invite`, P4-421).
- * `id`: the card's element, which a document card's « Voir le questionnaire à réviser » scrolls to
+ * `id`: the card's element, which a document card's « Voir le profil à réviser » scrolls to
  * and focuses (P4-495).
  */
 export function SubmissionsCard({ id }: { id?: string } = {}) {

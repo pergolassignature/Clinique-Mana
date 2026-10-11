@@ -25,14 +25,18 @@ type Period = (typeof PERIODS)[number]
  * not « Échec », when the provider may still have accepted it), with its second line if any.
  */
 function LogStatus({ status, errorCode }: { status: string; errorCode: string | null }) {
-  const { label, tone, detail } = emailStatusLabel(status, errorCode)
+  const { label, tone, detail, code } = emailStatusLabel(status, errorCode)
   return (
     <>
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap" title={code ?? undefined}>
         <StatusDot tone={tone} />
         {label}
       </span>
-      {detail && <span className="block text-xs text-muted-foreground">{detail}</span>}
+      {detail && (
+        <span className="block text-xs text-muted-foreground" title={code ?? undefined}>
+          {detail}
+        </span>
+      )}
     </>
   )
 }

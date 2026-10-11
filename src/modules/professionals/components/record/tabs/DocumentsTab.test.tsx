@@ -90,12 +90,12 @@ async function openSheet(options: TabOptions & { summary?: string } = {}) {
   return { ...rendered, sheet }
 }
 
-/** « Questionnaire et mises à jour »'s list (the documents have lists of their own). */
+/** « Profils envoyés et mises à jour »'s list (the documents have lists of their own). */
 const submissionsList = () => screen.getByRole('list', { name: t(`${C}.title`) })
 
 const applyAll = () => screen.getByRole('button', { name: t(`${S}.apply`, { count: String(REVIEW_CHANGED_FIELDS.length) }) })
 
-describe('« Questionnaire et mises à jour »', () => {
+describe('« Profils envoyés et mises à jour »', () => {
   it('lists the submissions newest first, each with its state in words and its dates in the clinic’s time', async () => {
     await openTab()
     const items = within(submissionsList()).getAllByRole('listitem')
@@ -345,7 +345,7 @@ describe('SubmissionReviewSheet', () => {
 
   it('says the kind and the date in agreement: « Questionnaire d’accueil envoyé le … »', async () => {
     const { sheet } = await openSheet()
-    expect(sheet).toHaveAccessibleDescription("Questionnaire d'accueil envoyé le 8 oct. 2026 à 10:00.")
+    expect(sheet).toHaveAccessibleDescription("Premier profil envoyé le 8 oct. 2026 à 10:00.")
   })
 
   it('reads a deposit left empty « Non fourni » (optional, P4-480), the other private fields « Non transmis »', async () => {

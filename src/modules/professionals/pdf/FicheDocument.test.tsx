@@ -252,7 +252,7 @@ describe('FicheDocument', () => {
     expect(priced).toContain('Rencontre 50\u00a0min\u00a0: 175\u00a0$')
     expect(priced).toContain('Rencontre 30\u00a0min\u00a0: 130\u00a0$')
     // The longest line wraps in its column; its words are all there.
-    expect(priced.replace(/\s+/g, ' ')).toContain('Rencontre 60 min (couple/famille) : 200 $')
+    expect(priced.replace(/\s+/g, ' ')).toContain('Rencontre 60 min (couple ou famille) : 200 $')
     expect(priced).not.toContain(t(`${P}.feesPending`))
   })
 

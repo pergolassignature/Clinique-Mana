@@ -809,8 +809,8 @@ describe('history — the documents (4c.2)', () => {
     ].map((r, i) => ({ ...r, createdAt: `2026-10-08T14:3${i}:00+00:00` }))
     expect(events(rows).map((e) => e.sentence)).toEqual([
       "a supprimé le document « Preuve d'assurance responsabilité »",
-      "a noté que le document « Preuve d'assurance responsabilité » est échu",
-      "a modifié l'échéance du document « Preuve d'assurance responsabilité » au 12 oct. 2026",
+      "a noté que le document « Preuve d'assurance responsabilité » est expiré",
+      "a modifié l'échéance du document « Preuve d'assurance responsabilité » au 12 octobre 2026",
       "a refusé le document « Preuve d'assurance responsabilité » (raison : Photo floue)",
       "a vérifié le document « Preuve d'assurance responsabilité »",
       "a téléversé le document « Preuve d'assurance responsabilité »",
@@ -826,13 +826,13 @@ describe('history — the documents (4c.2)', () => {
       'a vérifié le document « Diplôme »',
     )
     expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' }, document_type_name: 'Diplôme' })]).sentence).toBe(
-      "a modifié l'échéance du document « Diplôme » au 1 nov. 2026",
+      "a modifié l'échéance du document « Diplôme » au 1 novembre 2026",
     )
   })
 
   it('an update whose document is not on screen reads « un document »; other updates say nothing', () => {
     expect(only([docRow('update', { status: { before: 'pending', after: 'verified' } })]).sentence).toBe('a vérifié un document')
-    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' } })]).sentence).toBe("a modifié l'échéance d'un document au 1 nov. 2026")
+    expect(only([docRow('update', { expires_on: { before: null, after: '2026-11-01' } })]).sentence).toBe("a modifié l'échéance d'un document au 1 novembre 2026")
     expect(events([docRow('update', { metadata: { before: {}, after: { insurer: 'X' } } })])).toEqual([])
     expect(printed(events([inserted()]))).not.toContain(t(`${H}.sentences.other`))
   })

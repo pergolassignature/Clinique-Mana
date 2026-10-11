@@ -1,22 +1,19 @@
 import * as Sentry from '@sentry/react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
-import { FunctionCallError, refusalMessage } from '@/core/supabase/functions'
+import { FunctionCallError } from '@/core/supabase/functions'
+import { functionErrorText } from '@/core/supabase/function-errors'
 import { retryInText } from '@/shared/lib/retry-after'
 import { UploadSendError } from './api'
 
-/** The function codes that have their own text, not reported. */
-const UPLOAD_TEXTS: Readonly<Record<string, () => string>> = {
-  // 401: the session ended (signed out elsewhere, expired).
-  unauthenticated: () => t('storage.errors.unauthenticated'),
-  forbidden: () => t('common.errors.forbidden'),
+/** The codes whose meaning is the upload's own (C-4); the shared texts cover the others. */
+const OVERRIDES = {
   // storage-confirm: no pending upload of the caller's (older than 24 h, or the permission is gone).
   not_found: () => t('storage.errors.expired'),
   // storage-confirm: a concurrent call settled the file otherwise.
   conflict: () => t('storage.errors.conflict'),
-  network: () => t('storage.errors.network'),
-  not_configured: () => t('storage.errors.unavailable'),
-}
+  rate_limited: () => t('storage.errors.rateLimited'),
+} as const
 
 /** The generic text, after reporting the code and the function's message (no name, path or value). */
 function reported(error: FunctionCallError): string {
@@ -43,18 +40,14 @@ function sendErrorMessage(error: UploadSendError): string {
 /**
  * The French text of a failed upload (`uploadFile`, then `set_org_asset`): the functions'
  * French refusal as is (too large, wrong type, not received, image too large…); a 429 with its
- * delay, never retried; its own text for an ended session, a lost permission, an expired or
- * settled upload, the network, a failed or refused send (`sendErrorMessage`). An RPC error goes
+ * delay, never retried; its own text for an expired or settled upload and a failed or refused
+ * send (`sendErrorMessage`), the shared text for every other known code (`functionErrorText`). An RPC error goes
  * through `moduleErrorMessage`; anything else is the generic text, reported.
  */
 export function uploadErrorMessage(error: unknown): string {
   if (error instanceof UploadSendError) return sendErrorMessage(error)
   if (!(error instanceof FunctionCallError)) return moduleErrorMessage(error, t('common.errors.generic'), 'storage')
-  const refusal = refusalMessage(error)
-  if (refusal !== null) return refusal
-  if (error.code === 'rate_limited') return `${t('storage.errors.rateLimited')} ${retryInText(error.retryAfter)}`
-  const text = UPLOAD_TEXTS[error.code]
-  return text ? text() : reported(error)
+  return functionErrorText(error, { overrides: OVERRIDES }) ?? reported(error)
 }
 
 /**

@@ -158,12 +158,12 @@ describe('InviteDialog', () => {
 
   it.each([
     // « Renvoyer » cannot help: no advice to use it.
-    ['not_configured', null, t('settings.users.invite.emailProblems.not_configured')],
-    ['invalid_request', null, t('settings.users.invite.emailProblems.invalid_request')],
+    ['not_configured', null, `${t('email.failure.notConfigured')}.`],
+    ['invalid_request', null, `${t('email.failure.invalidRecipient')}. ${t('settings.users.invite.emailAdvice.invalidAddress')}`],
     // It can: when to retry.
-    ['provider_error', null, `${t('settings.users.invite.emailProblems.provider_error')} ${t('settings.users.invite.emailAdvice')}`],
-    ['module_disabled', null, `${t('settings.users.invite.emailProblems.other')} ${t('settings.users.invite.emailAdvice')}`],
-    ['rate_limited', 2700, `${t('settings.users.invite.emailProblems.rate_limited')} Réessayez dans environ 45 minutes.`],
+    ['provider_error', null, `${t('email.failure.providerError')}. ${t('settings.users.invite.emailAdvice.resend')}`],
+    ['internal', null, `${t('email.status.failed')}. ${t('settings.users.invite.emailAdvice.resend')}`],
+    ['rate_limited', 2700, `${t('email.failure.rateLimited')}. Réessayez dans environ 45 minutes.`],
   ])('the invitation exists but its email failed (%s): a warning with what to do, and the dialog closes', async (code, retryAfter, description) => {
     mocks.inviteStaff.mockResolvedValue({ invitationId: 'i1', expiresAt: null, emailProblem: { code, retryAfter } })
     renderDialog()
@@ -212,6 +212,6 @@ describe('InviteDialog', () => {
     renderDialog()
     const dialog = await fill()
     await userEvent.click(within(dialog).getByRole('button', { name: L.submit }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(`${t('settings.users.invite.errors.rateLimited')} Réessayez dans environ 45 minutes.`)
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(`${t('common.functionErrors.rateLimited')} Réessayez dans environ 45 minutes.`)
   })
 })

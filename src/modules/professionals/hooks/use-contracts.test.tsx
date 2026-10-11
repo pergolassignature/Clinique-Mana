@@ -32,10 +32,10 @@ describe('contractErrorMessage (P3-28)', () => {
       t(`${E}.missingVariable`, { label: 'Adresse du professionnel' }),
     )
     expect(contractErrorMessage(new FunctionCallError('missing_variable', 400, 'x'))).toBe(t(`${E}.missingVariableUnknown`))
-    expect(contractErrorMessage(new FunctionCallError('not_configured', 503, 'x'))).toBe(t(`${E}.notConfigured`))
+    expect(contractErrorMessage(new FunctionCallError('not_configured', 503, 'x'))).toBe(t('common.functionErrors.notConfigured.signing.staff'))
     expect(contractErrorMessage(new FunctionCallError('provider_error', 502, 'x'))).toBe(t(`${E}.providerError`))
     expect(contractErrorMessage(new FunctionCallError('conflict', 409, 'x'))).toBe(t(`${E}.inProgress`))
-    expect(contractErrorMessage(new FunctionCallError('network', 0, 'x'))).toBe(t(`${E}.network`))
+    expect(contractErrorMessage(new FunctionCallError('network', 0, 'x'))).toBe(t('common.functionErrors.network'))
     expect(contractErrorMessage(new FunctionCallError('rate_limited', 429, 'x', {}, 2700))).toBe(`${t(`${E}.rateLimited`)} Réessayez dans environ 45 minutes.`)
   })
 

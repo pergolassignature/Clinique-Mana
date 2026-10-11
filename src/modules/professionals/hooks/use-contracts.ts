@@ -5,7 +5,7 @@ import { moduleErrorMessage } from '@/core/modules/errors'
 import { syncSignatureRequest } from '@/core/signing/api'
 import { syncOutcomeText } from '@/core/signing/hooks'
 import { FunctionCallError } from '@/core/supabase/functions'
-import { retryInText } from '@/shared/lib/retry-after'
+import { functionErrorText } from '@/core/supabase/function-errors'
 import { toast } from '@/shared/ui/sonner'
 import {
   archiveTemplateVersion,
@@ -82,24 +82,19 @@ function refreshAfterContract(queryClient: QueryClient, id: string) {
 export function contractErrorMessage(error: unknown, form: SigningForm = 'service_contract'): string | null {
   if (!(error instanceof FunctionCallError)) return null
   const F = formTextRoot(form)
-  switch (error.code) {
-    case 'missing_variable': {
-      const label = typeof error.extra.label === 'string' ? error.extra.label : null
-      return label ? t(`${F}.errors.missingVariable`, { label }) : t(`${F}.errors.missingVariableUnknown`)
-    }
-    case 'not_configured':
-      return t(`${E}.notConfigured`)
-    case 'provider_error':
-      return t(`${E}.providerError`)
-    case 'conflict':
-      return t(`${F}.errors.inProgress`)
-    case 'rate_limited':
-      return `${t(`${E}.rateLimited`)} ${retryInText(error.retryAfter)}`
-    case 'network':
-      return t(`${E}.network`)
-    default:
-      return null
+  if (error.code === 'missing_variable') {
+    const label = typeof error.extra.label === 'string' ? error.extra.label : null
+    return label ? t(`${F}.errors.missingVariable`, { label }) : t(`${F}.errors.missingVariableUnknown`)
   }
+  return functionErrorText(error, {
+    service: 'signing',
+    overrides: {
+      // The retry resumes the same send (same key): said here, as nowhere else.
+      provider_error: () => t(`${E}.providerError`),
+      conflict: () => t(`${F}.errors.inProgress`),
+      rate_limited: () => t(`${E}.rateLimited`),
+    },
+  })
 }
 
 /**

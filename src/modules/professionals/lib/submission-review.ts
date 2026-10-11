@@ -163,7 +163,7 @@ export function plainValueText(field: SubmissionField, value: unknown): string |
 /** A long text (presentation, approach) keeps its paragraphs. */
 export const isLongText = (field: SubmissionField) => field === 'bio' || field === 'approach' || field === 'availability_note'
 
-// --- The file's submissions (« Questionnaire et mises à jour ») -----------------------------------
+// --- The file's submissions (« Profils envoyés et mises à jour ») -----------------------------------
 
 /** « Questionnaire d'accueil », « Mise à jour du profil ». */
 export function submissionKindLabel(kind: SubmissionKind): string {

@@ -54,7 +54,7 @@ describe('fetchProfessionalCompensation', () => {
       applied: { pct: 28, decision: 'initial', effectiveFrom: '2026-07-01' },
       suggested: { threshold: 51, pct: 27.5 },
       next: { threshold: 101, pct: 27 },
-      grid: { floorPct: 25, tiers: [{ threshold: 0, pct: 28 }, { threshold: 51, pct: 27.5 }, { threshold: 101, pct: 27 }] },
+      grid: { tiers: [{ threshold: 0, pct: 28 }, { threshold: 51, pct: 27.5 }, { threshold: 101, pct: 27 }] },
     })
     expect(data.pay[1]).toEqual({ duration: 50, clientPriceCents: 17500, appliedCents: 12600, suggestedCents: 12688, upcomingCents: null })
     expect(data.sessionRows).toEqual([

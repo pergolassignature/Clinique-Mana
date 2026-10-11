@@ -1,7 +1,7 @@
-import { t, type TranslationKey } from '@/i18n'
+import { frenchText, t, type TranslationKey } from '@/i18n'
 import { fieldLabel as auditFieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
-import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
+import { formatClinicDateFull, formatDateOnly, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
 import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compensation'
 import type { SubjectEmail } from '../api/invitations'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
@@ -220,7 +220,7 @@ function phrase(table: string, column: string): string {
     const text = t(key as TranslationKey)
     if (text !== key) return text
   }
-  return `« ${fieldLabel(table, column)} »`
+  return frenchText(`« ${fieldLabel(table, column)} »`)
 }
 
 /** Details of an update: « Champ : avant → après », or « Champ : (masqué) » for a redacted column. */
@@ -555,7 +555,8 @@ function documentRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.action !== 'update') return null
   const expiry = pairOf(fields.expires_on)
   if (expiry && typeof expiry.after === 'string' && DATE_ONLY.test(expiry.after)) {
-    const date = formatDateOnlyShort(expiry.after)
+    // A deadline is written long, as on Documents (C-3).
+    const date = formatDateOnly(expiry.after)
     return { kind: 'change', sentence: type ? t(`${S}.expiry`, { type, date }) : t(`${S}.expiryUnnamed`, { date }), lines: [] }
   }
   const status = pairOf(fields.status)?.after

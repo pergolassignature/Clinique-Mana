@@ -4,6 +4,7 @@ import { moduleErrorMessage } from '@/core/modules/errors'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { retryInText } from '@/shared/lib/retry-after'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
+import { emailProblemLabel } from '@/core/email/status'
 import { toast } from '@/shared/ui/sonner'
 import {
   copyProfessionalInvitationLink,
@@ -69,16 +70,14 @@ export function invitationFunctionMessage(error: unknown): string | null {
   return functionErrorMessage(error)
 }
 
-const EMAIL_PROBLEMS = ['not_configured', 'rate_limited', 'provider_error', 'invalid_request', 'module_disabled'] as const
-const isKnownProblem = (code: string): code is (typeof EMAIL_PROBLEMS)[number] => (EMAIL_PROBLEMS as readonly string[]).includes(code)
-
 /** What the email that did not leave was about: an invitation link, or an update request (and to whom). */
 type EmailAbout = { kind: 'invitation' } | { kind: 'update'; firstName: string }
 
 /**
- * Why the email did not leave, and what to do (the toast's second line).
+ * Why the email did not leave, in the words of every email status (`emailProblemLabel`, C3), and
+ * what to do (the toast's second line).
  * - An invitation: the link exists (P4-490). « Utilisez « Renvoyer l'invitation » dans un moment. »
- *   only where re-sending can help: a refused address must be corrected first (the cause says
+ *   only where re-sending can help: a refused address must be corrected first (the advice says
  *   where), an unconfigured sender or a module switched off fails again until someone acts; a
  *   sending limit says when. Except for a refused address (the link is bound to it, P4-300), it
  *   ends with « Copier le lien d'invitation », to hand it over another way (P4-491).
@@ -88,17 +87,16 @@ type EmailAbout = { kind: 'invitation' } | { kind: 'update'; firstName: string }
  *   exists): there is no invitation to re-send.
  */
 export function emailProblemText({ code, retryAfter }: EmailProblem, about: EmailAbout): string {
-  const known = isKnownProblem(code) ? code : 'other'
+  const cause = `${emailProblemLabel(code)}.`
   if (about.kind === 'update') {
     const { firstName } = about
-    const cause = known === 'invalid_request' ? t(`${I}.emailProblems.invalid_request_update`, { firstName }) : t(`${I}.emailProblems.${known}`)
-    return `${cause} ${t(`${I}.emailAdvice.update`, { firstName })}`
+    const fix = code === 'invalid_request' ? ` ${t(`${I}.emailAdvice.invalidAddressUpdate`, { firstName })}` : ''
+    return `${cause}${fix} ${t(`${I}.emailAdvice.update`, { firstName })}`
   }
-  const cause = t(`${I}.emailProblems.${known}`)
-  if (known === 'invalid_request') return cause
+  if (code === 'invalid_request') return `${cause} ${t(`${I}.emailAdvice.invalidAddress`)}`
   const copy = t(`${I}.emailAdvice.copyLink`)
-  if (known === 'rate_limited') return `${cause} ${retryInText(retryAfter)} ${copy}`
-  if (known === 'not_configured' || known === 'module_disabled') return `${cause} ${copy}`
+  if (code === 'rate_limited') return `${cause} ${retryInText(retryAfter)} ${copy}`
+  if (code === 'not_configured' || code === 'module_disabled') return `${cause} ${copy}`
   return `${cause} ${t(`${I}.emailAdvice.invitation`)} ${copy}`
 }
 

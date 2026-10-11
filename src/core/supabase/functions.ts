@@ -1,5 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { frenchText } from '@/i18n'
 import { supabase } from './client'
 
 /**
@@ -32,12 +33,12 @@ export class FunctionCallError extends Error {
  * The French text of a refusal the user can act on, or null: a 400 `invalid_request` that the
  * function flagged `refusal: true` (`refusalResponse` in `supabase/functions/_shared/auth.ts`): an
  * RPC's P0001 passed on, or a function's own French sentence (« Ce fichier n'est pas du type
- * annoncé. »). Any other 400 carries an English message, which the caller replaces with its
+ * annoncé. »), with French spacing (`frenchText`, C1). Any other 400 carries an English message, which the caller replaces with its
  * generic text.
  */
 export function refusalMessage(error: FunctionCallError): string | null {
   return error.status === 400 && error.code === 'invalid_request' && error.extra.refusal === true && error.message !== ''
-    ? error.message
+    ? frenchText(error.message)
     : null
 }
 

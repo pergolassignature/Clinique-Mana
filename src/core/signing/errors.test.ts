@@ -12,11 +12,11 @@ afterEach(() => vi.clearAllMocks())
 describe('signingErrorMessage', () => {
   it.each([
     [new FunctionCallError('not_configured', 503, 'Signing is not configured'), 'settings.signing.errors.not_configured'],
-    [new FunctionCallError('provider_error', 502, 'Documenso did not answer'), 'settings.signing.errors.provider_error'],
+    [new FunctionCallError('provider_error', 502, 'Documenso did not answer'), 'common.functionErrors.providerError.signing'],
     [new FunctionCallError('conflict', 409, 'Un envoi est déjà en cours.'), 'settings.signing.errors.conflict'],
     [new FunctionCallError('not_found', 404, 'Not found'), 'settings.signing.errors.not_found'],
-    [new FunctionCallError('unauthenticated', 401, 'Missing token'), 'settings.signing.errors.unauthenticated'],
-    [new FunctionCallError('network', 0, 'Function unreachable'), 'settings.signing.errors.network'],
+    [new FunctionCallError('unauthenticated', 401, 'Missing token'), 'common.functionErrors.unauthenticated'],
+    [new FunctionCallError('network', 0, 'Function unreachable'), 'common.functionErrors.network'],
     [new FunctionCallError('forbidden', 403, 'Forbidden'), 'common.errors.forbidden'],
   ] as const)('reads %s in French, without reporting it', (error, key) => {
     expect(signingErrorMessage(error)).toBe(t(key))

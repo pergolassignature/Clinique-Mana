@@ -4,14 +4,12 @@ import {
   clinicDaysSince,
   displayStatus,
   EMAIL_PENDING_MS,
-  emailFailureReason,
   invitationEmail,
   invitationLine,
   invitationState,
   isLiveInvitation,
   onboardingActions,
   questionnaireLine,
-  shortDate,
   type InvitationEmail,
 } from './onboarding'
 
@@ -86,13 +84,6 @@ describe('onboardingActions', () => {
 })
 
 describe('dates, in the clinic’s timezone', () => {
-  it('« 8 oct. » this year, with the year otherwise', () => {
-    expect(shortDate('2026-10-08T14:00:00Z', NOW)).toBe('8 oct.')
-    expect(shortDate('2025-12-30T14:00:00Z', NOW)).toBe('30 déc. 2025')
-    // 1 January 03:00 UTC is still 31 December in Toronto.
-    expect(shortDate('2026-01-01T03:00:00Z', NOW)).toBe('31 déc. 2025')
-  })
-
   it('counts clinic days', () => {
     expect(clinicDaysSince('2026-10-08T05:00:00Z', NOW)).toBe(0)
     expect(clinicDaysSince('2026-10-08T03:00:00Z', NOW)).toBe(1)
@@ -103,10 +94,10 @@ describe('dates, in the clinic’s timezone', () => {
 describe('invitationLine (A2.5)', () => {
   it.each<[InvitationInfo | null, string]>([
     [null, 'Aucune invitation envoyée.'],
-    [invitation('sent'), 'Invitation envoyée le 5 oct. · expire le 12 oct.'],
-    [invitation('opened', { openedAt: '2026-10-06T14:00:00Z' }), 'Invitation envoyée le 5 oct. · ouverte le 6 oct. · expire le 12 oct.'],
-    [invitation('expired'), 'Lien expiré le 12 oct. : envoyez un nouveau lien.'],
-    [invitation('used', { usedAt: '2026-10-07T14:00:00Z' }), 'Invitation acceptée le 7 oct.'],
+    [invitation('sent'), 'Invitation envoyée le 5 oct. 2026 · expire le 12 oct. 2026'],
+    [invitation('opened', { openedAt: '2026-10-06T14:00:00Z' }), 'Invitation envoyée le 5 oct. 2026 · ouverte le 6 oct. 2026 · expire le 12 oct. 2026'],
+    [invitation('expired'), 'Lien expiré le 12 oct. 2026 : envoyez un nouveau lien.'],
+    [invitation('used', { usedAt: '2026-10-07T14:00:00Z' }), 'Invitation acceptée le 7 oct. 2026'],
     [invitation('revoked'), 'Invitation révoquée : le lien ne fonctionne plus.'],
   ])('%o', (link, line) => {
     expect(invitationLine(link, NOW)).toBe(line)
@@ -123,23 +114,23 @@ describe('invitationEmail: never « envoyée » without an email (P4-490)', () =
     ['delivered', 'delivered', null, { kind: 'sent' }],
     ['delayed', 'delivery_delayed', null, { kind: 'sent' }],
     ['outcome unknown', 'failed', 'provider_unavailable', { kind: 'unknown' }],
-    ['bounced', 'bounced', null, { kind: 'failed', reason: 'refused' }],
-    ['address refused by the provider', 'failed', 'invalid_recipient', { kind: 'failed', reason: 'refused' }],
-    ['rejected', 'failed', 'provider_rejected', { kind: 'failed', reason: 'other' }],
-    ['not queued: not configured', null, 'not_configured', { kind: 'failed', reason: 'not_configured' }],
-    ['not queued: module off', null, 'module_disabled', { kind: 'failed', reason: 'not_configured' }],
-    ['not queued: address refused', null, 'invalid_recipient', { kind: 'failed', reason: 'refused' }],
-    ['not queued: limit', null, 'rate_limited', { kind: 'failed', reason: 'rate_limited' }],
-    ['not queued: internal', null, 'internal', { kind: 'failed', reason: 'other' }],
+    ['bounced', 'bounced', null, { kind: 'failed', label: 'Adresse introuvable' }],
+    ['address refused by the provider', 'failed', 'invalid_recipient', { kind: 'failed', label: 'Adresse invalide' }],
+    ['rejected', 'failed', 'provider_rejected', { kind: 'failed', label: "Refusé par le service d'envoi" }],
+    ['not queued: not configured', null, 'not_configured', { kind: 'failed', label: 'Envoi de courriels non configuré (Paramètres → Courriels)' }],
+    ['not queued: module off', null, 'module_disabled', { kind: 'failed', label: 'Module désactivé pour la clinique' }],
+    ['not queued: address refused', null, 'invalid_recipient', { kind: 'failed', label: 'Adresse invalide' }],
+    ['not queued: limit', null, 'rate_limited', { kind: 'failed', label: "Limite d'envoi atteinte" }],
+    ['not queued: internal', null, 'internal', { kind: 'failed', label: 'Échec' }],
   ])('%s', (_, status, error, expected) => {
     expect(email(status, error)).toEqual(expected)
   })
 
   it('no email at all: pending for two minutes after the link, then « pas parti »', () => {
     expect(email(null, null, { sentAt: new Date(NOW - EMAIL_PENDING_MS + 1000).toISOString() })).toEqual({ kind: 'pending' })
-    expect(email(null, null, { sentAt: new Date(NOW - EMAIL_PENDING_MS).toISOString() })).toEqual({ kind: 'failed', reason: 'other' })
+    expect(email(null, null, { sentAt: new Date(NOW - EMAIL_PENDING_MS).toISOString() })).toEqual({ kind: 'failed', label: 'Échec' })
     // Olivier on staging: no Resend key, no email_log row, no stamp (a link issued before P4-490).
-    expect(email(null, null)).toEqual({ kind: 'failed', reason: 'other' })
+    expect(email(null, null)).toEqual({ kind: 'failed', label: 'Échec' })
   })
 
   it('a copied link expects no email', () => {
@@ -148,20 +139,16 @@ describe('invitationEmail: never « envoyée » without an email (P4-490)', () =
 
   it('the « Dossier » line says how the link was handed over', () => {
     const line = (extra: Partial<InvitationInfo>) => invitationLine(invitation('sent', extra), NOW)
-    expect(line({ emailStatus: null, emailError: 'not_configured' })).toBe("Courriel d'invitation non parti · lien créé le 5 oct., expire le 12 oct.")
-    expect(line({ delivery: 'copied', emailStatus: null })).toBe("Lien d'invitation copié le 5 oct. · expire le 12 oct.")
-    expect(line({ emailStatus: 'failed', emailError: 'provider_unavailable' })).toBe('Invitation du 5 oct. : Résultat inconnu · expire le 12 oct.')
-    expect(line({ emailStatus: null, sentAt: new Date(NOW - 1000).toISOString() })).toBe("Envoi de l'invitation en cours · expire le 12 oct.")
+    expect(line({ emailStatus: null, emailError: 'not_configured' })).toBe("Courriel d'invitation non parti · lien créé le 5 oct. 2026, expire le 12 oct. 2026")
+    expect(line({ delivery: 'copied', emailStatus: null })).toBe("Lien d'invitation copié le 5 oct. 2026 · expire le 12 oct. 2026")
+    expect(line({ emailStatus: 'failed', emailError: 'provider_unavailable' })).toBe('Invitation du 5 oct. 2026 : Résultat inconnu · expire le 12 oct. 2026')
+    expect(line({ emailStatus: null, sentAt: new Date(NOW - 1000).toISOString() })).toBe("Envoi de l'invitation en cours · expire le 12 oct. 2026")
     // Opened: the link reached her, whatever the email says.
     expect(invitationLine(invitation('opened', { openedAt: '2026-10-06T14:00:00Z', emailStatus: null, emailError: 'not_configured' }), NOW)).toBe(
-      'Invitation envoyée le 5 oct. · ouverte le 6 oct. · expire le 12 oct.',
+      'Invitation envoyée le 5 oct. 2026 · ouverte le 6 oct. 2026 · expire le 12 oct. 2026',
     )
   })
 
-  it('the reasons in plain words', () => {
-    expect(emailFailureReason('not_configured')).toBe("La clinique n'a pas encore configuré l'envoi de courriels (Paramètres → Courriels).")
-    expect(emailFailureReason('refused')).toBe("L'adresse a refusé le courriel.")
-  })
 })
 
 describe('invitationState: the link as of now', () => {
@@ -178,29 +165,29 @@ describe('invitationState: the link as of now', () => {
   })
 
   it('« Lien expiré » for a link past its expiry, before the server says so', () => {
-    expect(invitationLine(invitation('sent', { expiresAt: '2026-10-08T14:00:00Z' }), NOW)).toBe('Lien expiré le 8 oct. : envoyez un nouveau lien.')
+    expect(invitationLine(invitation('sent', { expiresAt: '2026-10-08T14:00:00Z' }), NOW)).toBe('Lien expiré le 8 oct. 2026 : envoyez un nouveau lien.')
   })
 })
 
 describe('questionnaireLine', () => {
   it('says where the questionnaire is, nothing once approved', () => {
-    expect(questionnaireLine({ profileId: null }, null, NOW)).toBe("S'ouvre quand l'invitation est acceptée.")
-    expect(questionnaireLine({ profileId: 'u1' }, onboarding({ submission: { id: 's', kind: 'onboarding', status: 'draft', submittedAt: null } }), NOW)).toBe(
+    expect(questionnaireLine({ profileId: null }, null)).toBe("S'ouvre quand l'invitation est acceptée.")
+    expect(questionnaireLine({ profileId: 'u1' }, onboarding({ submission: { id: 's', kind: 'onboarding', status: 'draft', submittedAt: null } }))).toBe(
       'En cours : pas encore envoyé.',
     )
     expect(
-      questionnaireLine({ profileId: 'u1' }, onboarding({ submission: { id: 's', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' } }), NOW),
-    ).toBe('Envoyé le 7 oct., à réviser.')
-    expect(questionnaireLine({ profileId: 'u1' }, null, NOW)).toBe('Aucun questionnaire en cours.')
-    expect(questionnaireLine({ profileId: 'u1' }, onboarding({ onboardingApproved: true }), NOW)).toBeNull()
+      questionnaireLine({ profileId: 'u1' }, onboarding({ submission: { id: 's', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' } })),
+    ).toBe('Envoyé le 7 oct. 2026, à réviser.')
+    expect(questionnaireLine({ profileId: 'u1' }, null)).toBe('Aucun questionnaire en cours.')
+    expect(questionnaireLine({ profileId: 'u1' }, onboarding({ onboardingApproved: true }))).toBeNull()
   })
 
   it('an update open on a file without an approved questionnaire reads the same way, never « Aucun questionnaire en cours » (P4-497)', () => {
     const update = (status: 'draft' | 'submitted', submittedAt: string | null) => onboarding({ submission: { id: 's', kind: 'update', status, submittedAt } })
-    expect(questionnaireLine({ profileId: 'u1' }, update('submitted', '2026-10-07T14:00:00Z'), NOW)).toBe('Mise à jour envoyée le 7 oct., à réviser.')
-    expect(questionnaireLine({ profileId: 'u1' }, update('submitted', null), NOW)).toBe('Mise à jour envoyée, à réviser.')
-    expect(questionnaireLine({ profileId: 'u1' }, update('draft', null), NOW)).toBe('Mise à jour en cours : pas encore envoyée.')
+    expect(questionnaireLine({ profileId: 'u1' }, update('submitted', '2026-10-07T14:00:00Z'))).toBe('Mise à jour envoyée le 7 oct. 2026, à réviser.')
+    expect(questionnaireLine({ profileId: 'u1' }, update('submitted', null))).toBe('Mise à jour envoyée, à réviser.')
+    expect(questionnaireLine({ profileId: 'u1' }, update('draft', null))).toBe('Mise à jour en cours : pas encore envoyée.')
     // Once the onboarding questionnaire was approved, the item is done: no line.
-    expect(questionnaireLine({ profileId: 'u1' }, { ...update('submitted', '2026-10-07T14:00:00Z'), onboardingApproved: true }, NOW)).toBeNull()
+    expect(questionnaireLine({ profileId: 'u1' }, { ...update('submitted', '2026-10-07T14:00:00Z'), onboardingApproved: true })).toBeNull()
   })
 })
