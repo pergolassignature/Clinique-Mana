@@ -10,9 +10,11 @@ import type { UploadStep } from '@/shared/lib/files'
 import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
+import { useMyProfessionalRecord } from '../../hooks/use-my-profile'
 import { isRefusal } from '../../hooks/use-my-submission'
 import { nextMarch31, sectionFileId } from '../../lib/questionnaire'
 import { insuranceSchema, type InsuranceValues } from '../../schemas/questionnaire'
+import { ProfessionalPhoto } from '../ProfessionalPhoto'
 import { useImageRetry } from '../use-image-retry'
 import { StepActions, StepAlert, StepForm } from './StepParts'
 import { refusalTarget, useStepForm, type StepContext } from './use-step-form'
@@ -85,9 +87,15 @@ function RemoveFileButton({
   )
 }
 
-/** « Photo » (required, P4-173): JPEG or PNG, 5 MB at most, shown as the fiche will show it. */
+/**
+ * « Photo » (required, P4-173): JPEG or PNG, 5 MB at most, shown as the fiche will show it. In an
+ * update, before a new one is chosen, her current photo (the file's newest verified one, from « Mon
+ * profil »'s read) is shown as such, never « Aucune photo » (gap audit V1).
+ */
 export function PhotoStep({ ctx }: { ctx: StepContext }) {
   const fileId = sectionFileId(ctx.autosave.answered, 'photo')
+  const myRecord = useMyProfessionalRecord(ctx.submission.kind === 'update')
+  const currentPhoto = ctx.submission.kind === 'update' ? (myRecord.data?.photoFileId ?? null) : null
   const preview = useSignedFileUrl(fileId, { variant: 'card' })
   const image = useImageRetry(fileId, preview.data?.url, preview.refetch)
   const [pending, setPending] = useState(false)
@@ -124,6 +132,11 @@ export function PhotoStep({ ctx }: { ctx: StepContext }) {
             <p className="text-sm text-foreground">{t(`${F}.photoReceived`)}</p>
             <RemoveFileButton ctx={ctx} section="photo" label={t(`${F}.removePhoto`)} onRemoved={setAlert} focusAfter={dropzoneButton} />
           </div>
+        </div>
+      ) : currentPhoto ? (
+        <div className="flex items-center gap-4">
+          <ProfessionalPhoto fileId={currentPhoto} alt={t(`${F}.photoCurrentAlt`)} size={96} />
+          <p className="min-w-0 text-sm text-foreground">{t(`${F}.photoCurrent`)}</p>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">{t(`${F}.photoNone`)}</p>

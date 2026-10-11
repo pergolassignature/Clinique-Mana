@@ -2254,6 +2254,17 @@
           "availability": "Disponibilités"
         },
         "publicProfile": {
+          "photo": {
+            "title": "Photo et fiche",
+            "description": "La photo vérifiée la plus récente, celle que la fiche montre.",
+            "alt": "Photo de {name}",
+            "verified": "Photo vérifiée.",
+            "none": "Aucune photo vérifiée : la fiche montre les initiales.",
+            "manage": "Gérer dans Documents",
+            "consentOnFile": "Consentement au droit à l'image au dossier : la fiche montre la photo.",
+            "noConsent": "Aucun consentement au droit à l'image en vigueur : la fiche montre les initiales.",
+            "preview": "Aperçu de la fiche"
+          },
           "portrait": {
             "title": "Portrait",
             "description": "Ces textes figurent sur la fiche remise au client.",
@@ -2696,6 +2707,15 @@
         "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis créez le dossier."
       },
       "fiche": {
+        "preview": {
+          "title": "Aperçu de la fiche de {name}",
+          "description": "La fiche telle que « Télécharger » et « Envoyer par courriel » la produisent. Rien n'est envoyé.",
+          "titles": "Titre présenté",
+          "loading": "Préparation de la fiche…",
+          "frameTitle": "Fiche de {name}",
+          "openTab": "Ouvrir dans un nouvel onglet",
+          "download": "Télécharger"
+        },
         "menu": {
           "trigger": "Fiche PDF",
           "download": "Télécharger",
@@ -3636,6 +3656,9 @@
           "maskAccount": "Au dossier : se termine par {last4}",
           "maskSin": "Au dossier : se termine par {last3}",
           "photoAlt": "Photo transmise par le professionnel",
+          "photoCurrentAlt": "Photo actuelle du dossier",
+          "photoCurrent": "Photo actuelle, celle de la fiche.",
+          "photoNoneOnFile": "Aucune photo au dossier.",
           "photoSent": "Nouvelle photo transmise. Une fois appliquée, elle est jointe au dossier.",
           "insuranceSent": "Preuve d'assurance transmise, valide jusqu'au {date}.",
           "insuranceSentUndated": "Preuve d'assurance transmise.",
@@ -4483,6 +4506,8 @@
           "photoHint": "JPEG ou PNG, 5 Mo au plus. Une photo de face, sur fond neutre, convient le mieux.",
           "photoAlt": "Votre photo",
           "photoNone": "Aucune photo pour l'instant.",
+          "photoCurrentAlt": "Votre photo actuelle",
+          "photoCurrent": "Votre photo actuelle, celle de votre fiche. Téléversez la nouvelle pour la remplacer.",
           "photoReceived": "Photo reçue.",
           "photoRequired": "Ajoutez une photo pour continuer.",
           "chooseInsurance": "Choisir le fichier",

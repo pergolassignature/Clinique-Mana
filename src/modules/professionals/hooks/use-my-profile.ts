@@ -3,9 +3,12 @@ import { fetchMyProfessionalRecord, startMyProfileUpdate } from '../api/self'
 import type { SubmissionSection } from '../lib/constants'
 import { professionalKeys } from './keys'
 
-/** « Mon profil »: the signed-in professional's own record (null: no file linked to the account). */
-export function useMyProfessionalRecord() {
-  return useQuery({ queryKey: professionalKeys.myRecord(), queryFn: fetchMyProfessionalRecord })
+/**
+ * « Mon profil »: the signed-in professional's own record (null: no file linked to the account).
+ * `enabled`: only for a screen that uses it (the questionnaire's photo step, for an update).
+ */
+export function useMyProfessionalRecord(enabled = true) {
+  return useQuery({ queryKey: professionalKeys.myRecord(), queryFn: fetchMyProfessionalRecord, enabled })
 }
 
 /**

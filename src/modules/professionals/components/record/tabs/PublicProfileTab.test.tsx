@@ -11,6 +11,11 @@ import { PublicProfileTab } from './PublicProfileTab'
 const mocks = vi.hoisted(() => ({
   record: { fetchProfessionalRecord: vi.fn(), updatePublicProfile: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
+  fetchProfessionalDocuments: vi.fn(async () => null),
+}))
+vi.mock('../../../api/documents', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../api/documents')>()),
+  fetchProfessionalDocuments: mocks.fetchProfessionalDocuments,
 }))
 vi.mock('../../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/record')>()), ...mocks.record }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
@@ -86,7 +91,8 @@ describe('PublicProfileTab', () => {
     stored = { ...stored, publicProfile: { ...stored.publicProfile, bio: 'Vingt ans en pratique.' } }
     renderRecordTab(<PublicProfileTab />, { record: stored, role: 'counselor' })
     expect(screen.getAllByText(t('common.readOnlyNotice.title'))).toHaveLength(1)
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    // The only button opens the fiche's preview (gap audit H3): nothing to edit.
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${P}.photo.preview`)])
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.getByText(t(`${P}.portrait.bio`), { selector: 'dt' }).nextElementSibling).toHaveTextContent('Vingt ans en pratique.')
   })
