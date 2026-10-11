@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { moduleErrorMessage, rpcErrorCode } from '@/core/modules/errors'
 import { FunctionCallError } from '@/core/supabase/functions'
-import { retryInText } from '@/shared/lib/retry-after'
+import { functionErrorText } from '@/core/supabase/function-errors'
 import { toast } from '@/shared/ui/sonner'
 import { fetchMyImageConsent, startConsentSigning, syncMyConsent, type SigningLink, type SigningReturn } from '../api/consent-sign'
 import { professionalKeys } from './keys'
@@ -15,24 +15,18 @@ export function useMyImageConsent(enabled = true) {
   return useQuery({ queryKey: professionalKeys.myImageConsent(), queryFn: fetchMyImageConsent, enabled })
 }
 
-/** The French text of a failed « Signer » (P3-28): a refusal as written, else by code. */
+/**
+ * The French text of a failed « Signer » (P3-28): a refusal as written, else as every feature
+ * says the code to a professional (`functionErrorText`, C-4: never « Documenso », never Paramètres).
+ */
 function consentSignErrorMessage(error: unknown): string {
-  if (rpcErrorCode(error) === 'P0001') return moduleErrorMessage(error, t(`${S}.errors.generic`), 'professionals')
   if (!(error instanceof FunctionCallError)) return moduleErrorMessage(error, t(`${S}.errors.generic`), 'professionals')
-  switch (error.code) {
-    case 'provider_error':
-      return t(`${S}.errors.provider`)
-    case 'not_configured':
-      return t(`${S}.errors.notConfigured`)
-    case 'conflict':
-      return t(`${S}.errors.inProgress`)
-    case 'rate_limited':
-      return `${t(`${S}.errors.rateLimited`)} ${retryInText(error.retryAfter)}`
-    case 'network':
-      return t(`${S}.errors.network`)
-    default:
-      return t(`${S}.errors.generic`)
-  }
+  const text = functionErrorText(error, {
+    service: 'signing',
+    audience: 'professional',
+    overrides: { conflict: () => t(`${S}.errors.inProgress`), rate_limited: () => t(`${S}.errors.rateLimited`) },
+  })
+  return text ?? t(`${S}.errors.generic`)
 }
 
 /**

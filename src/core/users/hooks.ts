@@ -4,8 +4,10 @@ import { accessKeys, useAccess } from '@/core/access/access-context'
 import { roleKeys, useOrgId } from '@/core/access/org-roles'
 import { moduleErrorMessage, rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import { FunctionCallError } from '@/core/supabase/functions'
+import { functionErrorText } from '@/core/supabase/function-errors'
 import { retryInText } from '@/shared/lib/retry-after'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
+import { emailProblemLabel } from '@/core/email/status'
 import { toast } from '@/shared/ui/sonner'
 import {
   clearPermissionOverride,
@@ -112,18 +114,13 @@ function invalidateUser(queryClient: QueryClient, userId: string, callerId: stri
 }
 
 /**
- * The French text of a failed user-admin change. The functions' own refusals (`staff-invite`'s
- * per-caller limit, with how long to wait from `Retry-After`; an unreachable function; an expired
- * session, 401 `unauthenticated`, expected and not reported) have their text; RPC refusals,
- * including those the functions pass on (`asRpcRefusal`), go through `moduleErrorMessage`.
+ * The French text of a failed user-admin change. The functions' own refusals (a per-caller limit,
+ * with how long to wait from `Retry-After`; an unreachable function; an expired session, 401
+ * `unauthenticated`; expected and not reported) read as everywhere (`functionErrorText`); RPC
+ * refusals, including those the functions pass on (`asRpcRefusal`), go through `moduleErrorMessage`.
  */
 export function userAdminErrorMessage(error: unknown): string {
-  if (error instanceof FunctionCallError) {
-    if (error.code === 'rate_limited') return `${t('settings.users.invite.errors.rateLimited')} ${retryInText(error.retryAfter)}`
-    if (error.code === 'network') return t('settings.users.invite.errors.network')
-    if (error.code === 'unauthenticated') return t('settings.users.invite.errors.unauthenticated')
-  }
-  return moduleErrorMessage(error, t('common.errors.generic'), 'settings')
+  return functionErrorText(error) ?? moduleErrorMessage(error, t('common.errors.generic'), 'settings')
 }
 
 /** The toast for a failed user-admin change, and the caller's access after a `42501`. */
@@ -465,26 +462,25 @@ export function useStaffInvitations() {
   return useQuery({ queryKey: userKeys.invitations(), queryFn: listStaffInvitations, staleTime: 0 })
 }
 
-const EMAIL_PROBLEMS = ['not_configured', 'rate_limited', 'provider_error', 'invalid_request'] as const
-const isKnownEmailProblem = (code: string): code is (typeof EMAIL_PROBLEMS)[number] => (EMAIL_PROBLEMS as readonly string[]).includes(code)
-
 /**
- * Why an invitation's email did not leave (`InvitationSendResult.emailProblem`), and what to do.
- * « Renvoyer » is advised only when it can help: a refused recipient (`invalid_request`) needs a
- * new invitation at the right address, and an unconfigured sender (`not_configured`) fails again
- * until someone configures it. The email limit says how long to wait (`Retry-After`).
+ * Why an invitation's email did not leave (`InvitationSendResult.emailProblem`), in the words of
+ * every email status (`emailProblemLabel`, C3), then what to do. « Renvoyer » is advised only when
+ * it can help: a refused address (`invalid_request`) needs a new invitation at the right address,
+ * and an unconfigured sender or a module switched off fails again until someone acts. The email
+ * limit says how long to wait (`Retry-After`).
  */
 export function emailProblemText({ code, retryAfter }: EmailProblem): string {
-  const known = isKnownEmailProblem(code) ? code : 'other'
-  const cause = t(`settings.users.invite.emailProblems.${known}`)
-  switch (known) {
+  const cause = `${emailProblemLabel(code)}.`
+  switch (code) {
     case 'invalid_request':
+      return `${cause} ${t('settings.users.invite.emailAdvice.invalidAddress')}`
     case 'not_configured':
+    case 'module_disabled':
       return cause
     case 'rate_limited':
       return `${cause} ${retryInText(retryAfter)}`
     default:
-      return `${cause} ${t('settings.users.invite.emailAdvice')}`
+      return `${cause} ${t('settings.users.invite.emailAdvice.resend')}`
   }
 }
 

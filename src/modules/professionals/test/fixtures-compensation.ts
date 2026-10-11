@@ -73,7 +73,6 @@ export function compensationFixture(overrides: Partial<ProfessionalCompensation>
     grid: {
       id: COMP_IDS.grid,
       effectiveFrom: '2026-07-01',
-      floorPct: 25,
       tiers: [
         { threshold: 0, pct: 28 },
         { threshold: 51, pct: 27.5 },
@@ -82,7 +81,6 @@ export function compensationFixture(overrides: Partial<ProfessionalCompensation>
     },
     sessionsTotal: 55.5,
     applied: { id: COMP_IDS.rate, pct: 28, decision: 'initial', effectiveFrom: '2026-07-01', tierThreshold: 0, note: null },
-    previousPct: null,
     inForcePct: 28,
     suggested: { threshold: 51, pct: 27.5 },
     next: { threshold: 101, pct: 27 },

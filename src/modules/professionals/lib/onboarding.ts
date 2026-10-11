@@ -1,7 +1,7 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { t } from '@/i18n'
-import { emailStatusLabel } from '@/core/email/status'
-import { formatInClinicTimezone, getClinicDateString } from '@/shared/lib/timezone'
+import { emailProblemLabel, emailStatusLabel } from '@/core/email/status'
+import { formatClinicDateShort, getClinicDateString } from '@/shared/lib/timezone'
 import type { InvitationInfo, Onboarding, Professional } from '../api/parse'
 import type { DisplayStatus, InvitationState, ProfessionalStatus, SubmissionSection } from './constants'
 
@@ -50,13 +50,11 @@ export function isLiveInvitation(invitation: InvitationInfo | null | undefined, 
  *   arrived);
  * - `unknown`: `failed` + `provider_unavailable`, « Résultat inconnu » (`emailStatusLabel`);
  * - `failed`: bounced, failed, or never queued (the function's stamp: `not_configured`, …); also
- *   no email at all once EMAIL_PENDING_MS have passed (the function never finished);
+ *   no email at all once EMAIL_PENDING_MS have passed (the function never finished). `label` is
+ *   why, in the words of every email status (`emailStatusLabel` / `emailProblemLabel`, C3);
  * - `pending`: no email yet, the link issued less than EMAIL_PENDING_MS ago (the send is running).
  */
-export type InvitationEmail =
-  | { kind: 'copied' | 'sent' | 'unknown' | 'pending' }
-  | { kind: 'failed'; reason: InvitationEmailFailure }
-export type InvitationEmailFailure = 'not_configured' | 'refused' | 'rate_limited' | 'other'
+export type InvitationEmail = { kind: 'copied' | 'sent' | 'unknown' | 'pending' } | { kind: 'failed'; label: string }
 
 /** How long a link may wait for its email before it reads « pas parti ». */
 export const EMAIL_PENDING_MS = 2 * 60_000
@@ -70,19 +68,10 @@ export function invitationEmail(invitation: InvitationInfo, now: number = Date.n
   if (status !== null) {
     if (SENT_STATUSES.has(status)) return { kind: 'sent' }
     if (status === 'failed' && code === 'provider_unavailable') return { kind: 'unknown' }
-    if (status === 'bounced' || code === 'invalid_recipient') return { kind: 'failed', reason: 'refused' }
-    return status === 'failed' ? { kind: 'failed', reason: 'other' } : { kind: 'unknown' }
+    return status === 'failed' || status === 'bounced' ? { kind: 'failed', label: emailStatusLabel(status, code).label } : { kind: 'unknown' }
   }
-  if (code === 'not_configured' || code === 'module_disabled') return { kind: 'failed', reason: 'not_configured' }
-  if (code === 'invalid_recipient') return { kind: 'failed', reason: 'refused' }
-  if (code === 'rate_limited') return { kind: 'failed', reason: 'rate_limited' }
-  if (code !== null) return { kind: 'failed', reason: 'other' }
-  return now - Date.parse(invitation.sentAt) < EMAIL_PENDING_MS ? { kind: 'pending' } : { kind: 'failed', reason: 'other' }
-}
-
-/** Why the email did not leave, in one plain sentence (« La clinique n'a pas encore configuré … »). */
-export function emailFailureReason(reason: InvitationEmailFailure): string {
-  return t(`${O}.emailFailure.${reason}`)
+  if (code !== null) return { kind: 'failed', label: emailProblemLabel(code) }
+  return now - Date.parse(invitation.sentAt) < EMAIL_PENDING_MS ? { kind: 'pending' } : { kind: 'failed', label: emailProblemLabel(null) }
 }
 
 /** « Résultat inconnu » and its hint, as every email status reads (`emailStatusLabel`). */
@@ -139,15 +128,6 @@ export function sectionLabel(section: SubmissionSection): string {
   return t(`${O}.sections.${section}`)
 }
 
-/**
- * « 8 oct. » within the clinic's current year, « 8 oct. 2025 » otherwise (an invitation's dates
- * are recent; the year only when it would be ambiguous).
- */
-export function shortDate(iso: string, now: number): string {
-  const sameYear = getClinicDateString(iso).slice(0, 4) === getClinicDateString(new Date(now)).slice(0, 4)
-  return formatInClinicTimezone(iso, sameYear ? 'd MMM' : 'd MMM yyyy')
-}
-
 /** Whole clinic days from `iso` to `now` (0 on the same clinic day). */
 export function clinicDaysSince(iso: string, now: number): number {
   return differenceInCalendarDays(parseISO(getClinicDateString(new Date(now))), parseISO(getClinicDateString(iso)))
@@ -162,7 +142,7 @@ export function clinicDaysSince(iso: string, now: number): number {
  */
 export function invitationLine(invitation: InvitationInfo | null, now: number): string {
   if (!invitation) return t(`${O}.invitation.none`)
-  const d = (iso: string) => shortDate(iso, now)
+  const d = (iso: string) => formatClinicDateShort(iso)
   switch (invitationState(invitation, now) ?? invitation.state) {
     case 'sent': {
       const values = { sent: d(invitation.sentAt), expires: d(invitation.expiresAt) }
@@ -192,13 +172,13 @@ export function invitationLine(invitation: InvitationInfo | null, now: number): 
  * « Mise à jour envoyée le …, à réviser. » or « Mise à jour en cours : pas encore envoyée. »
  * (P4-497), never « Aucun questionnaire en cours ».
  */
-export function questionnaireLine(professional: Pick<Professional, 'profileId'>, onboarding: Onboarding | null, now: number): string | null {
+export function questionnaireLine(professional: Pick<Professional, 'profileId'>, onboarding: Onboarding | null): string | null {
   if (onboarding?.onboardingApproved) return null
   const submission = onboarding?.submission ?? null
   const update = submission?.kind === 'update' ? 'Update' : ''
   if (submission?.status === 'submitted') {
     return submission.submittedAt
-      ? t(`${O}.questionnaire.submitted${update}`, { date: shortDate(submission.submittedAt, now) })
+      ? t(`${O}.questionnaire.submitted${update}`, { date: formatClinicDateShort(submission.submittedAt) })
       : t(`${O}.questionnaire.submitted${update}Undated`)
   }
   if (professional.profileId === null) return t(`${O}.questionnaire.afterInvitation`)

@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import { formatClinicDateShort, formatDateOnlyShort } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnly } from '@/shared/lib/timezone'
 import type { InsuranceStatus, ProfessionalStatus, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from './catalog-view'
@@ -93,15 +93,15 @@ function onboardingFlags({ hasAccount, onboarding }: WatchSubject, now: number):
 
 /**
  * The insurance's flag, always with its last valid day (P4-456, P4-511, as the Documents tab):
- * « Assurance expire bientôt : valide jusqu'au 12 oct. 2026 » or « Assurance expirée : valide
- * jusqu'au 5 oct. 2026 ». An expired one comes first of all.
+ * « Assurance expire bientôt : valide jusqu'au 12 octobre 2026 » or « Assurance expirée : valide
+ * jusqu'au 5 octobre 2026 » (a deadline is written long, C-3). An expired one comes first of all.
  */
 function insuranceFlag({ insuranceStatus, insuranceExpiresOn }: WatchSubject): WatchFlag | null {
   if (!insuranceExpiresOn || (insuranceStatus !== 'expiring' && insuranceStatus !== 'expired')) return null
   if (insuranceStatus === 'expiring') {
-    return { key: 'insurance_expiring', label: t(`${W}.insurance_expiring`, { date: formatDateOnlyShort(insuranceExpiresOn) }), tone: 'danger' }
+    return { key: 'insurance_expiring', label: t(`${W}.insurance_expiring`, { date: formatDateOnly(insuranceExpiresOn) }), tone: 'danger' }
   }
-  return { key: 'insurance_expired', label: t(`${W}.insurance_expired`, { date: formatDateOnlyShort(insuranceExpiresOn) }), tone: 'danger' }
+  return { key: 'insurance_expired', label: t(`${W}.insurance_expired`, { date: formatDateOnly(insuranceExpiresOn) }), tone: 'danger' }
 }
 
 /** The flags, most important first (the list shows the first one). `now` dates the invitation's silence. */

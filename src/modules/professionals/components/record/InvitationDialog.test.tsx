@@ -65,11 +65,11 @@ describe('InvitationDialog', () => {
     expect(invalidated()).toEqual(expect.arrayContaining([professionalKeys.record(ID), professionalKeys.lists(), professionalKeys.history(ID)]))
   })
 
-  // P4-372: a short date (« 12 oct. ») never runs into a sentence's period.
+  // P4-372: a short date (« 12 oct. 2026 ») never runs into a sentence's period.
   it('« Envoyer un nouveau lien »: the dates of the expired link, never « oct.. »', async () => {
     const expired: Onboarding = { ...live, invitation: { ...live.invitation!, state: 'expired', sentAt: '2026-09-28T14:00:00Z', expiresAt: '2026-10-05T14:00:00Z' } }
     const { dialog } = await choose(t(`${A}.new_link`), { onboarding: expired })
-    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Le lien du 28 sept\. a expiré le 5 oct\. : un nouveau lien sera envoyé à marie\.t@exemple\.ca\./))
+    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Le lien du 28 sept\. 2026 a expiré le 5 oct\. 2026 : un nouveau lien sera envoyé à marie\.t@exemple\.ca\./))
     expect(dialog.textContent).not.toMatch(/\.\./)
   })
 
@@ -78,7 +78,7 @@ describe('InvitationDialog', () => {
     const { dialog } = await choose(t(`${A}.resend`), { onboarding: live })
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${A}.resend`) }))
     await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.createdNotSent`), {
-      description: `${t(`${O}.emailProblems.provider_error`)} ${t(`${O}.emailAdvice.invitation`)} ${t(`${O}.emailAdvice.copyLink`)}`,
+      description: `${t('email.failure.providerError')}. ${t(`${O}.emailAdvice.invitation`)} ${t(`${O}.emailAdvice.copyLink`)}`,
     }))
   })
 
@@ -86,7 +86,7 @@ describe('InvitationDialog', () => {
     mocks.invitations.sendProfessionalInvitation.mockResolvedValue({ expiresAt: null, emailProblem: { code: 'invalid_request', retryAfter: null } })
     const { dialog } = await choose(t(`${A}.send`))
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${A}.send`) }))
-    await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.createdNotSent`), { description: t(`${O}.emailProblems.invalid_request`) }))
+    await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.createdNotSent`), { description: `${t('email.failure.invalidRecipient')}. ${t(`${O}.emailAdvice.invalidAddress`)}` }))
   })
 
   it('too many calls (the file’s 5 s guard or the hourly count): one plain sentence that names neither, in the dialog', async () => {
@@ -181,7 +181,7 @@ describe('RequestUpdateDialog', () => {
     await userEvent.click(within(dialog).getByRole('checkbox', { name: t(`${O}.sections.photo`) }))
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${U}.confirm`) }))
     await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.updateNotSent`), {
-      description: `${t(`${O}.emailProblems.provider_error`)} ${t(`${O}.emailAdvice.update`, { firstName: 'Marie' })}`,
+      description: `${t('email.failure.providerError')}. ${t(`${O}.emailAdvice.update`, { firstName: 'Marie' })}`,
     }))
   })
 
@@ -192,7 +192,7 @@ describe('RequestUpdateDialog', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${U}.confirm`) }))
     await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.updateNotSent`), {
       description:
-        "Le service d'envoi a refusé l'adresse du dossier. Marie a un compte : c'est dans « Mon compte » que cette adresse se modifie (il n'y a pas d'invitation à renvoyer). " +
+        "Adresse invalide. Marie a un compte : c'est dans « Mon compte » que son adresse se modifie (il n'y a pas d'invitation à renvoyer). " +
         "La demande reste ouverte : dites à Marie qu'une mise à jour l'attend dans son questionnaire.",
     }))
   })

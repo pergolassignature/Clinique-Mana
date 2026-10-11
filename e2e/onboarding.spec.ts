@@ -183,7 +183,7 @@ test('the adjointe invites a professional, who completes the questionnaire, and 
 
   // Aperçu: the questionnaire is approved; the file waits for activation (« En préparation », P4-43).
   await page.getByRole('tab', { name: 'Aperçu' }).click()
-  await expect(page.getByText('Questionnaire approuvé (terminé)')).toBeVisible()
+  await expect(page.getByText('Profil approuvé (terminé)')).toBeVisible()
   await expect(page.getByText('Compte créé (invitation acceptée) (terminé)')).toBeVisible()
   await expect(page.getByText('En préparation', { exact: true }).first()).toBeVisible()
 })

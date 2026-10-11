@@ -175,7 +175,7 @@ describe('MyProfilePage', () => {
   it('a profile sent: the date in the clinic’s time, waiting for the review', async () => {
     submission = mySubmission({ status: 'submitted', submitted_at: '2026-10-08T14:00:00+00:00' })
     renderPage()
-    expect(await screen.findByText(t(`${Q}.sent.onboarding`, { date: 'jeudi 8 octobre 2026' }))).toBeInTheDocument()
+    expect(await screen.findByText(t(`${Q}.sent.onboarding`, { date: '8 oct. 2026' }))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t(`${Q}.update.action`) })).not.toBeInTheDocument()
   })
 

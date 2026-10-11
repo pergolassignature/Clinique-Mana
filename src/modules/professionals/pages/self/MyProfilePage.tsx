@@ -8,7 +8,7 @@ import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { formatTaxNumber } from '@/shared/lib/format'
-import { formatClinicDateFull } from '@/shared/lib/timezone'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -183,7 +183,7 @@ function QuestionnaireCard({ record, submission }: { record: MyProfessionalRecor
             ? t(`${Q}.continue.${kind}`)
             : action === 'sent'
               ? submission?.submittedAt
-                ? t(`${Q}.sent.${kind}`, { date: formatClinicDateFull(submission.submittedAt) })
+                ? t(`${Q}.sent.${kind}`, { date: formatClinicDateShort(submission.submittedAt) })
                 : t(`${Q}.sentUndated.${kind}`)
               : t(`${Q}.update.body`)}
         </CardDescription>

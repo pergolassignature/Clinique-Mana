@@ -11,17 +11,16 @@ describe('moduleLabel', () => {
 })
 
 describe('syncFailureLabel', () => {
-  it('says each stored failure in plain French, a 404 apart from a 500', () => {
-    expect(syncFailureLabel('provider_not_found')).toBe(t('settings.signing.unverified.failures.provider_not_found'))
-    expect(syncFailureLabel('provider_error')).toBe(t('settings.signing.unverified.failures.provider_error'))
+  it('says each stored failure as every signing status does, a 404 apart from a 500 (C-7)', () => {
+    expect(syncFailureLabel('provider_not_found')).toBe(t('signing.failure.providerNotFound'))
+    expect(syncFailureLabel('provider_error')).toBe(t('signing.failure.providerError'))
     expect(syncFailureLabel('provider_not_found')).not.toBe(syncFailureLabel('provider_error'))
-    for (const code of ['provider_rejected', 'provider_unreachable', 'provider_invalid_request', 'not_configured', 'signing_foreign_document'] as const) {
-      expect(syncFailureLabel(code)).toBe(t(`settings.signing.unverified.failures.${code}`))
-    }
+    expect(syncFailureLabel('signing_foreign_document')).toBe(t('signing.failure.foreignDocument'))
   })
 
-  it('a request never failed is one the runs have not reached; an unknown code is shown in brackets', () => {
+  it('a request never failed is one the runs have not reached; an unknown code reads in French, never raw', () => {
     expect(syncFailureLabel(null)).toBe(t('settings.signing.unverified.failures.none'))
-    expect(syncFailureLabel('apply_failed')).toBe(t('settings.signing.unverified.failures.other', { code: 'apply_failed' }))
+    expect(syncFailureLabel('apply_failed')).toBe(t('signing.failure.unexpected'))
+    expect(syncFailureLabel('apply_failed')).not.toContain('apply_failed')
   })
 })

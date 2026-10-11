@@ -2,7 +2,7 @@ import { t } from '@/i18n'
 import type { BadgeProps } from '@/shared/ui/badge'
 import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type DisplayStatus, type Gender, type MotifCategoryIcon } from './constants'
 import { titleOrder, type CatalogView } from './catalog-view'
-import { shortDate } from './onboarding'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { titleLabel } from './title-label'
 import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
 
@@ -133,15 +133,14 @@ export function primaryProfession(record: Pick<ProfessionalRecord, 'professions'
 }
 
 /**
- * « Places offertes » in words (P4-382): « 4 places offertes · depuis le 8 oct. » (the year only
- * when it is not the clinic's current one), « Aucune place offerte · depuis … », or « Non suivies »
+ * « Places offertes » in words (P4-382): « 4 places offertes · depuis le 8 oct. 2026 », « Aucune place offerte · depuis … », or « Non suivies »
  * when the number is not tracked. The places left are Demandes' (they need its first appointments).
  */
-export function placesLabel(count: number | null, setAt: string | null, now: number): string {
+export function placesLabel(count: number | null, setAt: string | null): string {
   const M = 'modules.professionals.record.overview.matching'
   if (count === null) return t(`${M}.placesNotTracked`)
   const places = count === 0 ? t(`${M}.placesCount.none`) : count === 1 ? t(`${M}.placesCount.one`) : t(`${M}.placesCount.other`, { count: String(count) })
-  return setAt ? t(`${M}.placesSince`, { places, date: shortDate(setAt, now) }) : places
+  return setAt ? t(`${M}.placesSince`, { places, date: formatClinicDateShort(setAt) }) : places
 }
 
 /**

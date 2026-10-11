@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react'
-import { t } from '@/i18n'
+import { frenchText, t } from '@/i18n'
 
 /**
  * The message to show for a failed module RPC, from an allow-list of SQLSTATE codes.
@@ -20,7 +20,8 @@ export function moduleErrorMessage(error: unknown, fallback: string, area = 'mod
   const code = rpcErrorCode(error)
   const message = stringField(error, 'message')
 
-  if (code === 'P0001' && typeof message === 'string' && message !== '') return message
+  // The database writes plain spaces before « : ? ! »: spaced here, as `t()` spaces its texts (C1).
+  if (code === 'P0001' && typeof message === 'string' && message !== '') return frenchText(message)
   if (code === '42501') return t('common.errors.forbidden')
 
   const reportedCode = code !== undefined && code !== '' ? code : 'unknown'
