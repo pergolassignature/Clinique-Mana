@@ -17,7 +17,7 @@ const P = 'modules.professionals.record.publicProfile.photo'
 /**
  * Profil public's first section (gap audit V1 and H3): the photo the fiche prints (the newest
  * verified one, `record.photoFileId`, the `card` copy at 128 px), where it is managed (Documents),
- * whether the fiche may show it (an image consent on file, P4-512: from the documents' read, the
+ * whether the fiche may show it (an image consent in force, P4-512, not withdrawn, P4-549: from the documents' read, the
  * one the fiche uses), and « Aperçu de la fiche ». The same for every reader of the tab.
  */
 export function PublicPhotoSection() {
@@ -27,7 +27,7 @@ export function PublicPhotoSection() {
   const [previewing, setPreviewing] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const name = `${record.professional.firstName} ${record.professional.lastName}`
-  const consent = documents.data ? imageConsentOnFile(documents.data.documents) : null
+  const consent = documents.data ? imageConsentOnFile(documents.data.documents, documents.data.today) : null
   const hasPhoto = record.photoFileId !== null
 
   return (
