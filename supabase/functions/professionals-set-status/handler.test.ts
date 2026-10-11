@@ -59,6 +59,8 @@ function harness(opts: {
   account?: RpcRoute
   updateUser?: AdminRoute
   serviceDown?: boolean
+  /** The caller's limit: refused, or the limiter down. */
+  limit?: 'refused' | 'down'
 } = {}) {
   /** Both clients' writes, in one order. */
   const events: string[] = []
@@ -89,6 +91,16 @@ function harness(opts: {
     },
   })
   const service = fakeSupabase({
+    rpc: {
+      consume_rate_limit: () =>
+        opts.limit === 'down' ? { error: { code: 'XX000' } } : {
+          data: [{
+            allowed: opts.limit !== 'refused',
+            hits: opts.limit === 'refused' ? 121 : 1,
+            retry_after_seconds: opts.limit === 'refused' ? 900 : 0,
+          }],
+        },
+    },
     admin: {
       updateUserById: (...args) => {
         const attrs = args[1] as { ban_duration: string }
@@ -115,7 +127,11 @@ function harness(opts: {
 }
 
 const run = (fn: () => Promise<void>) =>
-  withEnv({ SENTRY_DSN: undefined, ALLOWED_ORIGINS: APP }, fn)
+  withEnv({
+    INTERNAL_FUNCTION_SECRET: 'local-dev-internal-function-secret',
+    SENTRY_DSN: undefined,
+    ALLOWED_ORIGINS: APP,
+  }, fn)
 
 async function errorOf(res: Response) {
   return { status: res.status, ...(await res.json()).error }
@@ -181,6 +197,46 @@ Deno.test('professionals-set-status: CORS, method, auth, permission, module and 
       [...denied.service.adminCalls, ...off.service.adminCalls],
       [],
     )
+    // Refused before the limit: nothing counted.
+    assertEquals(
+      [...ok.service.calls, ...denied.service.calls, ...off.service.calls],
+      [],
+    )
+  })
+})
+
+Deno.test("professionals-set-status: the caller's limit (120 an hour, every action) → 429 with Retry-After, nothing changed; the limiter down → 503", async () => {
+  await run(async () => {
+    for (const body of [DEACTIVATE, ACTIVATE, SYNC]) {
+      const ok = harness()
+      assertEquals((await ok.handler(post(body))).status, 200, body.action)
+      assertEquals(
+        ok.service.calls.map((c) => [c.fn, c.args.p_bucket]),
+        [['consume_rate_limit', 'professionals.set_status_user']],
+        body.action,
+      )
+
+      const limited = harness({ limit: 'refused' })
+      const res = await limited.handler(post(body))
+      assertEquals(res.status, 429, body.action)
+      assertEquals(res.headers.get('Retry-After'), '900', body.action)
+      assertEquals((await res.json()).error.code, 'rate_limited', body.action)
+      assertEquals(limited.events, [], body.action)
+      assertEquals(limited.service.adminCalls, [], body.action)
+      assertEquals(
+        limited.user.calls.map((c) => c.fn),
+        ['get_my_access'],
+        body.action,
+      )
+    }
+
+    const down = harness({ limit: 'down' })
+    const logged = await reports(async () => {
+      const closed = await errorOf(await down.handler(post(DEACTIVATE)))
+      assertEquals([closed.status, closed.code], [503, 'not_configured'])
+    })
+    assertEquals(logged.map((l) => l.code), ['rate_limit_unavailable'])
+    assertEquals([down.events, down.service.adminCalls], [[], []])
   })
 })
 

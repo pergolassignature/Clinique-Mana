@@ -299,6 +299,74 @@ Deno.test('staff-invite: the per-caller limit → 429 before any token or RPC', 
   })
 })
 
+Deno.test("staff-invite: « Renvoyer » twice within 5 s → the second is 429 before the caller's limit, the first link stays live; another invitation or an invite is not guarded", async () => {
+  await run(async () => {
+    // A stateful limiter: hits per bucket and key within the test.
+    const hits = new Map<string, number>()
+    const { handler, service, http } = harness({
+      rpc: {
+        consume_rate_limit: (a) => {
+          const key = `${a.p_bucket}:${a.p_key_hash}`
+          const n = (hits.get(key) ?? 0) + 1
+          hits.set(key, n)
+          const allowed = n <= Number(a.p_max)
+          return {
+            data: [{ allowed, hits: n, retry_after_seconds: allowed ? 0 : 5 }],
+          }
+        },
+      },
+    })
+    const buckets = () =>
+      service.calls.filter((c) => c.fn === 'consume_rate_limit')
+        .map((c) => c.args.p_bucket)
+
+    assertEquals(
+      (await handler(post({ invitation_id: INVITATION_ID }))).status,
+      200,
+    )
+    // The guard first, then the caller's limit.
+    assertEquals(buckets().slice(0, 2), [
+      'invites.staff_resend',
+      'invites.staff_user',
+    ])
+    const before = buckets().length
+
+    // The double click, in another case: the same invitation.
+    const second = await handler(
+      post({ invitation_id: INVITATION_ID.toUpperCase() }),
+    )
+    assertEquals(second.status, 429)
+    assertEquals(second.headers.get('Retry-After'), '5')
+    assertEquals((await second.json()).error.code, 'rate_limited')
+    // Refused by the guard alone: the caller's hourly count is untouched.
+    assertEquals(buckets().slice(before), ['invites.staff_resend'])
+    assertEquals(
+      service.calls.filter((c) => c.fn === 'renew_staff_invitation').length,
+      1,
+    )
+    assertEquals(http.calls.length, 1)
+
+    // Another invitation is its own guard: renewed (the fake renews the
+    // same address, so its email meets the send path's own 5 s guard).
+    await handler(post({ invitation_id: OTHER_ID }))
+    assertEquals(
+      service.calls.filter((c) => c.fn === 'renew_staff_invitation')
+        .map((c) => c.args.p_id),
+      [INVITATION_ID, OTHER_ID],
+    )
+    // An invite is not guarded (the RPC refuses a second pending one).
+    await handler(post(INVITE))
+    assertEquals(
+      service.calls.filter((c) => c.fn === 'create_staff_invitation').length,
+      1,
+    )
+    assertEquals(
+      buckets().filter((b) => b === 'invites.staff_resend').length,
+      3,
+    )
+  })
+})
+
 Deno.test('staff-invite: an invalid body → 400 naming the refused field, nothing done', async () => {
   await run(async () => {
     for (

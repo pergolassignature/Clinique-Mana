@@ -32,6 +32,8 @@ function harness(opts: {
   permissions?: string[]
   setStatus?: RpcRoute
   updateUser?: AdminRoute
+  /** The caller's limit: refused, or the limiter down. */
+  limit?: 'refused' | 'down'
 } = {}) {
   /** Both clients' writes, in one order. */
   const events: string[] = []
@@ -51,6 +53,16 @@ function harness(opts: {
     },
   })
   const service = fakeSupabase({
+    rpc: {
+      consume_rate_limit: () =>
+        opts.limit === 'down' ? { error: { code: 'XX000' } } : {
+          data: [{
+            allowed: opts.limit !== 'refused',
+            hits: opts.limit === 'refused' ? 61 : 1,
+            retry_after_seconds: opts.limit === 'refused' ? 900 : 0,
+          }],
+        },
+    },
     admin: {
       updateUserById: (...args) => {
         const attrs = args[1] as { ban_duration: string }
@@ -70,7 +82,11 @@ function harness(opts: {
 }
 
 const run = (fn: () => Promise<void>) =>
-  withEnv({ SENTRY_DSN: undefined, ALLOWED_ORIGINS: undefined }, fn)
+  withEnv({
+    INTERNAL_FUNCTION_SECRET: 'local-dev-internal-function-secret',
+    SENTRY_DSN: undefined,
+    ALLOWED_ORIGINS: undefined,
+  }, fn)
 
 async function errorOf(res: Response) {
   return { status: res.status, ...(await res.json()).error }
@@ -94,7 +110,38 @@ Deno.test('users-set-status: disable → set_user_status (as the caller), then t
     assertEquals(service.adminCalls[0].args, [TARGET, {
       ban_duration: '876000h',
     }])
-    assertEquals(service.calls, [])
+    // The caller's limit, before the change.
+    assertEquals(
+      service.calls.map((c) => [c.fn, c.args.p_bucket]),
+      [['consume_rate_limit', 'users.set_status_user']],
+    )
+  })
+})
+
+Deno.test("users-set-status: the caller's limit (60 an hour) → 429 with Retry-After, nothing changed; the limiter down → 503", async () => {
+  await run(async () => {
+    for (const status of ['disabled', 'active']) {
+      const limited = harness({ limit: 'refused' })
+      const res = await limited.handler(post({ user_id: TARGET, status }))
+      assertEquals(res.status, 429, status)
+      assertEquals(res.headers.get('Retry-After'), '900', status)
+      assertEquals((await res.json()).error.code, 'rate_limited', status)
+      assertEquals(limited.events, [], status)
+      assertEquals(limited.service.adminCalls, [], status)
+    }
+
+    const down = harness({ limit: 'down' })
+    const logged = await captureConsole('error', async () => {
+      const closed = await errorOf(
+        await down.handler(post({ user_id: TARGET, status: 'disabled' })),
+      )
+      assertEquals([closed.status, closed.code], [503, 'not_configured'])
+    })
+    assertEquals(
+      logged.map((l) => JSON.parse(String(l[0])).code),
+      ['rate_limit_unavailable'],
+    )
+    assertEquals([down.events, down.service.adminCalls], [[], []])
   })
 })
 
@@ -267,10 +314,11 @@ Deno.test('users-set-status: no users.manage → 403; no token → 401; a bad bo
         { user_id: TARGET, status: 'banned' },
       ]
     ) {
-      const { handler, events } = harness()
+      const { handler, events, service } = harness()
       const bad = await errorOf(await handler(post(body)))
       assertEquals([bad.status, bad.code], [400, 'invalid_request'])
       assertEquals(events, [])
+      assertEquals(service.calls, [])
     }
   })
 })
