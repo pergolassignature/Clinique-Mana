@@ -9,12 +9,16 @@
  *
  * 1. CORS; `POST` only; `verifyAuth` with `users.manage`.
  * 2. Body `{ user_id, status: 'active' | 'disabled' }`.
- * 3. `set_user_status` with the **caller's** client: every Phase 2 guard
+ * 3. `users.set_status_user` (60 per hour per caller): a runaway-loop brake
+ *    on the Auth calls, far above what a clinic ever does. Refused → 429
+ *    `rate_limited` with `Retry-After`, nothing changed; the limiter down →
+ *    503 `not_configured`.
+ * 4. `set_user_status` with the **caller's** client: every Phase 2 guard
  *    (same org, admin rules, the last admin) decides, as the caller. Auth is
  *    called only once it succeeded, so a refused change never touches Auth.
- * 4. With the service client, `auth.admin.updateUserById(user_id,
+ * 5. With the service client, `auth.admin.updateUserById(user_id,
  *    { ban_duration })`: `876000h` (100 years) to disable, `none` to enable.
- * 5. Disable, ban failed: the disable stays (data access and the sessions
+ * 6. Disable, ban failed: the disable stays (data access and the sessions
  *    have ended; that is the safe side), 200 `{ status, signin_blocked: false
  *    }`, reported. `signin_blocked` says only whether the Auth ban was
  *    applied; the UI offers « Réessayez ». A retry is the same call:
@@ -23,7 +27,7 @@
  *    `signin_blocked` reports the new attempt. Never skip the ban because the
  *    status already reads `disabled`: that would leave a failed ban
  *    unretryable.
- * 6. Enable, unban failed: a still-banned person cannot sign in, so the
+ * 7. Enable, unban failed: a still-banned person cannot sign in, so the
  *    status is put back to `disabled` (as the caller), and the answer is 502
  *    `provider_error` (« Réessayez »). The database never shows an account
  *    as active while Auth refuses it. A failed roll-back is reported too.
@@ -31,7 +35,9 @@
  * Status mapping: 200 `{ status: 'disabled', signin_blocked }` or
  * `{ status: 'active' }`; 400 `invalid_request` (body; P0001 with its French
  * message; 22023); 401 / 403 / 503 from `verifyAuth`; 403 `forbidden`
- * (42501); 405; 413; 502 `provider_error` (unban failed); 500 `internal`
+ * (42501); 405; 413; 429 `rate_limited` with `Retry-After`; 503
+ * `not_configured` (limiter failed closed); 502 `provider_error` (unban
+ * failed); 500 `internal`
  * (another RPC error, reported) or `server_misconfigured`. Reports carry the
  * org and user ids only.
  */
@@ -45,6 +51,7 @@ import {
 import type { Deps } from '../_shared/deps.ts'
 import { isExpectedRpcError, rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
+import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
 const FN = 'users-set-status'
@@ -77,6 +84,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     // status changed without the ban.
     const service = deps.serviceClient()
     if (service instanceof Response) return service
+
+    const limited = limitResponse(
+      await consume(service, LIMITS.usersSetStatusUser, [
+        auth.access.org_id,
+        auth.access.user_id,
+      ]),
+      req,
+    )
+    if (limited) return limited
 
     const ids = { org_id: auth.access.org_id, user_id: input.user_id }
     const report = (code: string) =>

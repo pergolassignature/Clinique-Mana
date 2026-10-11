@@ -67,6 +67,28 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `staff-invite` « Renvoyer », per invitation (org + invitation), whoever
+   * clicks: each call replaces the live link and emails a new one, so a
+   * double click, or two colleagues at once, would leave the first email's
+   * link dead. Consumed before the caller's limit and before the link is
+   * renewed, as `professionalInviteFile`.
+   */
+  staffInviteResend: {
+    bucket: 'invites.staff_resend',
+    max: 1,
+    windowSeconds: 5,
+  },
+  /**
+   * `users-set-status` (« Désactiver », « Réactiver » and their retries), per
+   * caller: each call changes an account and calls Auth. A brake on a
+   * runaway loop, far above what a clinic of a few dozen staff ever does.
+   */
+  usersSetStatusUser: {
+    bucket: 'users.set_status_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
+  /**
    * `users-delete` (« Supprimer le compte » and its retries), per caller: a
    * brake on a runaway loop, far above what a clinic ever deletes.
    */
@@ -105,6 +127,28 @@ export const LIMITS = {
   professionalSubmitUser: {
     bucket: 'professionals.submit_user',
     max: 10,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `professionals-set-status` (« Activer », « Réactiver », « Désactiver »,
+   * « Réessayer »), per caller: each call may change an account and call
+   * Auth. A brake on a runaway loop, far above real use: activating every
+   * file of a freshly imported roster (~50) fits in one hour.
+   */
+  professionalSetStatusUser: {
+    bucket: 'professionals.set_status_user',
+    max: 120,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `professionals-documents` (« Refuser » a document), per caller, before
+   * the refusal: each call may email the professional, on top of the email
+   * limits. A review goes document by document, so 60 an hour is above any
+   * real session.
+   */
+  professionalDocumentsUser: {
+    bucket: 'professionals.documents_user',
+    max: 60,
     windowSeconds: 3_600,
   },
   /**

@@ -1,5 +1,5 @@
 import { assert, assertEquals } from '@std/assert'
-import { createHandler } from './handler.ts'
+import { createHandler, REVIEWER_SEND_CONCURRENCY } from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { fakeFetch, type Responder } from '../_shared/testing/fake-fetch.ts'
 import {
@@ -162,7 +162,7 @@ Deno.test('professionals-submit: CORS, method, auth, permission and module gates
   })
 })
 
-Deno.test('professionals-submit: submit as the caller, then one email per reviewer, in parallel; 200 { ok } only', async () => {
+Deno.test('professionals-submit: submit as the caller, then one email per reviewer; 200 { ok } only', async () => {
   await run(async () => {
     const { handler, user, service, http } = harness()
     // Never trusted: the actor and the submission are the server's.
@@ -214,6 +214,42 @@ Deno.test('professionals-submit: submit as the caller, then one email per review
     )
     assert(buckets.includes('emails.repeat_guard'))
     assert(!buckets.includes('emails.same_address'))
+  })
+})
+
+Deno.test('professionals-submit: the reviewers are emailed two at a time, never all at once; every one is sent', async () => {
+  await run(async () => {
+    assertEquals(REVIEWER_SEND_CONCURRENCY, 2)
+    const reviewers = Array.from({ length: 7 }, (_, i) => ({
+      user_id: `00000000-0000-4000-8000-0000000002${
+        String(i).padStart(2, '0')
+      }`,
+      email: `revision${i + 10}@mana.test`,
+    }))
+    let inFlight = 0
+    let peak = 0
+    const slow: Responder = async () => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      inFlight--
+      return new Response(JSON.stringify({ ID: 'm' }), { status: 200 })
+    }
+    const { handler, http, service } = harness({
+      notice: { data: { ...NOTICE, reviewers } },
+      mailpit: slow,
+    })
+    const logged = await reports(async () => {
+      const res = await handler(post())
+      assertEquals([res.status, await res.json()], [200, { ok: true }])
+    })
+    assertEquals(logged, [])
+    assertEquals(peak, REVIEWER_SEND_CONCURRENCY)
+    assertEquals(http.calls.length, reviewers.length)
+    assertEquals(
+      calls(service.calls, 'queue_email').map((q) => q.p_to_email).sort(),
+      reviewers.map((r) => r.email).sort(),
+    )
   })
 })
 

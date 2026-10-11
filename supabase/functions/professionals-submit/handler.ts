@@ -25,8 +25,9 @@
  *    service client (the actor `verifyAuth` verified; her clinic's active
  *    members holding `professionals.review`, at most 20, the provider
  *    excluded; more than 20 is refused as `notice_invalid`, nothing sent),
- *    then one send per reviewer, in parallel, subject `professional` / id,
- *    button to the file's documents tab. Each is an explicit send (P4-264):
+ *    then one send per reviewer, `REVIEWER_SEND_CONCURRENCY` (2) at a time
+ *    (the provider takes about two requests a second, as the reminders job),
+ *    subject `professional` / id, button to the file's documents tab. Each is an explicit send (P4-264):
  *    the 5 s guard per reviewer and provider instead of the 60 s
  *    same-address limit, so two providers submitting within a minute both
  *    reach the reviewers. The caller's signal is not passed: the submission
@@ -66,6 +67,9 @@ const FN = 'professionals-submit'
 
 /** At most this many reviewers are emailed (the RPC caps it too). */
 const MAX_REVIEWERS = 20
+
+/** Reviewer emails in flight at once (the provider's ~2 requests a second). */
+export const REVIEWER_SEND_CONCURRENCY = 2
 
 /** `get_professional_submission_notice_for_service`'s answer. */
 const noticeSchema = z.object({
@@ -152,30 +156,43 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return ok()
     }
 
-    const results = await Promise.all(
-      notice.reviewers.map(async (reviewer): Promise<string> => {
-        let result: SendResult
-        try {
-          result = await sendTemplatedEmail(
-            { fn: FN, client, env: deps.env, fetch: deps.fetch },
-            {
-              orgId,
-              templateKey: 'professionals.submission_received',
-              to: { email: reviewer.email, profileId: reviewer.user_id },
-              subject: { type: 'professional', id: notice.professional_id },
-              values: submissionReceivedValues({ fullName: notice.full_name }),
-              actionUrl,
-              sentBy: actor,
-              explicitResend: true,
-            },
-          )
-        } catch (error) {
-          // The send path reports its own failures before throwing them.
-          return error instanceof FunctionError ? 'reported' : 'unexpected'
-        }
-        return result.ok ? 'sent' : result.code
-      }),
-    )
+    const sendOne = async (
+      reviewer: (typeof notice.reviewers)[number],
+    ): Promise<string> => {
+      let result: SendResult
+      try {
+        result = await sendTemplatedEmail(
+          { fn: FN, client, env: deps.env, fetch: deps.fetch },
+          {
+            orgId,
+            templateKey: 'professionals.submission_received',
+            to: { email: reviewer.email, profileId: reviewer.user_id },
+            subject: { type: 'professional', id: notice.professional_id },
+            values: submissionReceivedValues({ fullName: notice.full_name }),
+            actionUrl,
+            sentBy: actor,
+            explicitResend: true,
+          },
+        )
+      } catch (error) {
+        // The send path reports its own failures before throwing them.
+        return error instanceof FunctionError ? 'reported' : 'unexpected'
+      }
+      return result.ok ? 'sent' : result.code
+    }
+    // A few at a time, never all at once (up to 20 reviewers).
+    const results: string[] = []
+    for (
+      let start = 0;
+      start < notice.reviewers.length;
+      start += REVIEWER_SEND_CONCURRENCY
+    ) {
+      const batch = notice.reviewers.slice(
+        start,
+        start + REVIEWER_SEND_CONCURRENCY,
+      )
+      results.push(...await Promise.all(batch.map(sendOne)))
+    }
     // One report per failure kind (the provider's answer does not change).
     const failures = new Set(
       results.filter((r) => r !== 'sent' && r !== 'reported'),
