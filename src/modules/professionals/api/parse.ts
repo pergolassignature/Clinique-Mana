@@ -284,6 +284,8 @@ const readinessShape = z.object({
    * `expires_on` its last valid day). Optional: bundles older than *_professionals_readiness_insurance.sql.
    */
   insurance: z.object({ status: z.enum(INSURANCE_STATUSES), expires_on: z.string().nullable() }).optional(),
+  /** Documents waiting for review (« À surveiller », V7). Optional: bundles older than *_professionals_notices_watch_history.sql. */
+  documents_to_review: z.number().int().optional(),
 })
 export type Readiness = z.output<typeof readinessShape>
 export type ReadinessItem = Readiness['items'][number]
@@ -482,6 +484,8 @@ export const listRowPayload = z
     documents_required: z.number().int().nullish(),
     // The verified photo's stored file (null without one, or unreadable): signed in batches for the visible rows.
     photo_file_id: z.string().nullish(),
+    // Documents waiting for review (« À surveiller », V7).
+    documents_to_review: z.number().int().nullish(),
   })
   .transform((r) => ({
     id: r.id,
@@ -509,6 +513,9 @@ export const listRowPayload = z
     documentsDone: r.documents_done ?? 0,
     documentsRequired: r.documents_required ?? 0,
     photoFileId: r.photo_file_id ?? null,
+    documentsToReview: r.documents_to_review ?? 0,
+    /** « À surveiller » (V7): fewer required documents in order than required. */
+    documentsMissing: (r.documents_required ?? 0) > 0 && (r.documents_done ?? 0) < (r.documents_required ?? 0),
     /**
      * Not a column of the view: the list joins `list_professional_invitation_states` in memory
      * (`withOnboarding`, P4-270); null until then, and for a file without link or submission.

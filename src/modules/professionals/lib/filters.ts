@@ -4,7 +4,7 @@ import { foldSearch } from '@/shared/lib/list-search'
 import { DISPLAY_STATUSES, MAX_SET_SIZE, PAGE_SIZE, type DisplayStatus } from './constants'
 import type { CatalogView } from './catalog-view'
 import { displayStatus } from './onboarding'
-import { watchFlags } from './watch'
+import { watchFlags, type WatchOptions } from './watch'
 import type { Onboarding, ProfessionalListRow } from '../api/parse'
 
 /**
@@ -196,6 +196,7 @@ export function filterProfessionals(
   filters: ProfessionalsFilters,
   catalog: CatalogView,
   haystacks: SearchHaystacks = searchHaystacks(rows),
+  watchOptions: WatchOptions = {},
 ): ProfessionalListRow[] {
   const words = foldSearch(filters.q).split(/\s+/).filter(Boolean)
   const titleId = known(filters.titleId, catalog.byId.titles)
@@ -210,7 +211,7 @@ export function filterProfessionals(
     if (clienteleId && !row.clienteleIds.includes(clienteleId)) return false
     if (motifIds.length > 0 && !motifIds.some((id) => row.motifIds.includes(id))) return false
     if (filters.acceptingNewClients && !row.acceptingNewClients) return false
-    if (filters.watch && watchFlags(row).length === 0) return false
+    if (filters.watch && watchFlags(row, Date.now(), watchOptions).length === 0) return false
     if (filters.documentsIncomplete && !hasMissingDocuments(row)) return false
     if (words.length === 0) return true
     const haystack = haystacks.get(row) ?? ''

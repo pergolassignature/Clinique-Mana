@@ -13,14 +13,18 @@ import { clinicDaysSince, invitationEmail, invitationState } from './onboarding'
  * INVITATION_UNANSWERED_DAYS; an invitation email that did not leave (danger) or whose outcome is
  * unknown (P4-490, as Aperçu says). 4c: the insurance expiring (within its reminder days) or
  * expired (danger), from `insurance_status` / `insurance_expires_on` (the list's columns, the
- * record's `readiness.insurance`). Inactive files are not watched: the list says why and since
- * when instead (`inactiveLabel`, P4-510).
+ * record's `readiness.insurance`). Gap audit V7 (P4-540): an active file whose required documents
+ * are not all in order (« Documents requis manquants », the notice's files), and documents waiting
+ * for review. Gap audit V14 (P4-546): « sans réponse » after the clinic's reminder delay. Inactive
+ * files are not watched: the list says why and since when instead (`inactiveLabel`, P4-510).
  */
 type WatchFlagKey =
   | 'insurance_expired'
   | 'insurance_expiring'
+  | 'documents_missing'
   | 'submission_to_review'
   | 'update_to_review'
+  | 'documents_to_review'
   | 'invitation_expired'
   | 'invitation_not_sent'
   | 'invitation_unknown'
@@ -40,10 +44,26 @@ export const WATCH_TAB: Readonly<Partial<Record<WatchFlagKey, RecordTab>>> = {
   login_email_mismatch: 'identite',
   insurance_expired: 'documents',
   insurance_expiring: 'documents',
+  documents_missing: 'documents',
+  documents_to_review: 'documents',
 }
 
-/** An invitation is « sans réponse » after this many clinic days without being opened (Task 4b.3). */
+/**
+ * An invitation is « sans réponse » after this many clinic days without being opened (Task 4b.3),
+ * when the clinic sends no reminder; otherwise after its reminder delay (V14, P4-546).
+ */
 export const INVITATION_UNANSWERED_DAYS = 3
+
+/** The days after which an invitation reads « sans réponse »: the clinic's reminder delay, else 3. */
+export function unansweredDays(settings: { invitationReminderAfterDays: number | null } | undefined): number {
+  return settings?.invitationReminderAfterDays ?? INVITATION_UNANSWERED_DAYS
+}
+
+/** What the flags need besides the subject: the clinic's settings. */
+export interface WatchOptions {
+  /** `unansweredDays(settings)`; INVITATION_UNANSWERED_DAYS when absent. */
+  unansweredDays?: number
+}
 
 interface WatchFlag {
   key: WatchFlagKey
@@ -62,12 +82,16 @@ export interface WatchSubject {
   /** The insurance's state and last valid day (`yyyy-MM-dd`); absent or null: nothing to say. */
   insuranceStatus?: InsuranceStatus | null
   insuranceExpiresOn?: string | null
+  /** Whether a required document is missing, expired or not verified (list: done < required; record: readiness). */
+  documentsMissing?: boolean
+  /** Documents waiting for review (`documents_to_review`). */
+  documentsToReview?: number
 }
 
 const W = 'modules.professionals.watch'
 
 /** The onboarding flags: a review waiting first, then the invitation that needs staff. */
-function onboardingFlags({ hasAccount, onboarding }: WatchSubject, now: number): WatchFlag[] {
+function onboardingFlags({ hasAccount, onboarding }: WatchSubject, now: number, unanswered: number): WatchFlag[] {
   const flags: WatchFlag[] = []
   const submission = onboarding?.submission
   if (submission?.status === 'submitted') {
@@ -84,7 +108,7 @@ function onboardingFlags({ hasAccount, onboarding }: WatchSubject, now: number):
   if (email?.kind === 'unknown') flags.push({ key: 'invitation_unknown', label: t(`${W}.invitation_unknown`), tone: 'muted' })
   if (email?.kind === 'sent' || email?.kind === 'copied') {
     const days = clinicDaysSince(invitation.sentAt, now)
-    if (days >= INVITATION_UNANSWERED_DAYS) {
+    if (days >= unanswered) {
       flags.push({ key: 'invitation_unanswered', label: t(`${W}.invitation_unanswered`, { count: String(days) }), tone: 'muted' })
     }
   }
@@ -104,11 +128,29 @@ function insuranceFlag({ insuranceStatus, insuranceExpiresOn }: WatchSubject): W
   return { key: 'insurance_expired', label: t(`${W}.insurance_expired`, { date: formatDateOnlyShort(insuranceExpiresOn) }), tone: 'danger' }
 }
 
-/** The flags, most important first (the list shows the first one). `now` dates the invitation's silence. */
-export function watchFlags(subject: WatchSubject, now: number = Date.now()): WatchFlag[] {
+/** Documents waiting for review: « 1 document à vérifier », « 3 documents à vérifier ». */
+function toReviewFlag({ documentsToReview }: WatchSubject): WatchFlag | null {
+  if (!documentsToReview || documentsToReview < 1) return null
+  const label =
+    documentsToReview === 1 ? t(`${W}.documents_to_review_one`) : t(`${W}.documents_to_review_other`, { count: String(documentsToReview) })
+  return { key: 'documents_to_review', label, tone: 'muted' }
+}
+
+/**
+ * The flags, most important first (the list shows the first one). `now` dates the invitation's
+ * silence. Missing documents are flagged on an active file only, as the weekly notice counts them
+ * (before activation, « Dossier » lists them); an expired insurance says it more precisely.
+ */
+export function watchFlags(subject: WatchSubject, now: number = Date.now(), options: WatchOptions = {}): WatchFlag[] {
   if (subject.status === 'inactive') return []
   const insurance = insuranceFlag(subject)
-  const flags = [...(insurance && insurance.key === 'insurance_expired' ? [insurance] : []), ...onboardingFlags(subject, now)]
+  const flags = [...(insurance && insurance.key === 'insurance_expired' ? [insurance] : [])]
+  if (subject.status === 'active' && subject.documentsMissing && insurance?.key !== 'insurance_expired') {
+    flags.push({ key: 'documents_missing', label: t(`${W}.documents_missing`), tone: 'danger' })
+  }
+  flags.push(...onboardingFlags(subject, now, options.unansweredDays ?? INVITATION_UNANSWERED_DAYS))
+  const toReview = toReviewFlag(subject)
+  if (toReview) flags.push(toReview)
   if (insurance && insurance.key === 'insurance_expiring') flags.push(insurance)
   if (!subject.matchingComplete) flags.push({ key: 'matching_incomplete', label: t(`${W}.matching_incomplete`), tone: 'muted' })
   if (!subject.emailMatchesLogin) flags.push({ key: 'login_email_mismatch', label: t(`${W}.login_email_mismatch`), tone: 'muted' })
@@ -140,5 +182,7 @@ export function recordWatchSubject(record: Pick<ProfessionalRecord, 'professiona
     onboarding,
     insuranceStatus: record.readiness.insurance?.status ?? null,
     insuranceExpiresOn: record.readiness.insurance?.expires_on ?? null,
+    documentsMissing: record.readiness.items.find((i) => i.key === 'documents')?.done === false,
+    documentsToReview: record.readiness.documents_to_review ?? 0,
   }
 }

@@ -4846,6 +4846,7 @@ export type Database = {
           deactivation_reason_id: string | null
           documents_done: number | null
           documents_required: number | null
+          documents_to_review: number | null
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null
@@ -5583,6 +5584,7 @@ export type Database = {
           deactivation_reason_id: string | null
           documents_done: number | null
           documents_required: number | null
+          documents_to_review: number | null
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null

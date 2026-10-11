@@ -182,7 +182,7 @@ select results_eq($$ select n.title, n.body, n.importance, n.recipient_permissio
                             n.expires_at > now() + interval '59 days'
                        from public.notifications n
                       where n.kind = 'professionals.insurance_expiring' and n.subject_id = 'c0000000-0000-0000-0000-000000000002' $$,
-  $$ values ('Assurance bientôt échue'::text,
+  $$ values ('Assurance expire bientôt'::text,
              'L''assurance de Pia Deux est valide jusqu''au ' || private.format_date_fr(current_setting('test.t')::date + 7) || '.',
              'important'::text, 'professionals.manage'::text, '/professionnels/c0000000-0000-0000-0000-000000000002/documents'::text,
              'professional'::text,
@@ -206,11 +206,12 @@ select ok((select n.expires_at <= now() from public.notifications n
             where n.kind = 'professionals.insurance_expired' and n.subject_id = 'c0000000-0000-0000-0000-000000000011'),
   'an insurance notice of a file no longer active is closed (P4-408)');
 select results_eq($$ select n.title, n.body, n.importance, n.recipient_permission, n.link_path, n.subject_type, n.subject_id,
-                            n.dedupe_key, n.expires_at > now() + interval '6 days'
+                            n.dedupe_key like 'documents_missing:' || to_char(current_setting('test.t')::date, 'IYYY-"W"IW') || ':11:%',
+                            n.expires_at > now() + interval '6 days'
                        from public.notifications n where n.kind = 'professionals.documents_missing' $$,
   $$ values ('Documents requis manquants'::text, '11 professionnels actifs n''ont pas tous leurs documents requis.'::text,
-             'normal'::text, 'professionals.manage'::text, '/professionnels'::text, 'organization'::text,
-             current_setting('test.a')::uuid, 'documents_missing:' || to_char(current_setting('test.t')::date, 'IYYY-"W"IW'), true) $$,
+             'normal'::text, 'professionals.manage'::text, '/professionnels?statut=actif&documents=incomplets'::text, 'organization'::text,
+             current_setting('test.a')::uuid, true, true) $$,
   'one count for the clinic and the week, no name');
 
 -- A second run the same day (« Exécuter maintenant »): the emails it sent are in the log.

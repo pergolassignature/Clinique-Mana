@@ -12,14 +12,16 @@ interface WatchCardProps {
   record: Pick<ProfessionalRecord, 'professional' | 'readiness'>
   onboarding: Onboarding | null
   now: number
+  /** « Sans réponse » after this many days (the clinic's reminder delay, V14). */
+  unansweredDays?: number
 }
 
 /**
  * The rail's « À surveiller » (every tab): the list's flags (`watchFlags`), each a link to the tab that settles it;
  * a flag settled in the rail itself (the invitation, « Prochaine action ») is plain text.
  */
-export function WatchCard({ record, onboarding, now }: WatchCardProps) {
-  const flags = watchFlags(recordWatchSubject(record, onboarding), now)
+export function WatchCard({ record, onboarding, now, unansweredDays }: WatchCardProps) {
+  const flags = watchFlags(recordWatchSubject(record, onboarding), now, { unansweredDays })
   return (
     <Card className="min-w-0">
       <CardHeader>

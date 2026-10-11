@@ -779,6 +779,21 @@ describe('history — the service contract (Task 4d.1)', () => {
   })
 })
 
+describe('history — the contract’s preparation (gap audit T4, P4-545)', () => {
+  const snapshot = (fields: Record<string, unknown>, action: HistoryEntry['action'] = 'insert') =>
+    row('professional_contract_snapshots', action, fields, { recordId: `${P}:00000000-0000-4000-8000-00000000c0a1` })
+
+  it('« a préparé le contrat de service », or « un nouveau » when a contract was in force; nothing it prints', () => {
+    expect(only([snapshot({ renewal: false })]).sentence).toBe('a préparé le contrat de service (aperçu ou envoi)')
+    expect(only([snapshot({ renewal: true })]).sentence).toBe('a préparé un nouveau contrat de service (aperçu ou envoi)')
+    expect(only([snapshot({ renewal: false })]).lines).toEqual([])
+  })
+
+  it('only the insert is an event', () => {
+    expect(events([snapshot({ renewal: false }, 'update')])).toEqual([])
+  })
+})
+
 describe('history — the documents (4c.2)', () => {
   const DOC = '00000000-0000-4000-8000-0000000d0c01'
   const docRow = (action: HistoryEntry['action'], fields: Record<string, unknown>, over: Partial<HistoryEntry> = {}) =>
