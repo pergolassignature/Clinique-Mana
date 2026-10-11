@@ -38,11 +38,23 @@ export function profileUpdateValues(input: {
   }
 }
 
-/** `professionals.submission_received` (to the reviewers). */
+/**
+ * `professionals.submission_received` (to the reviewers). `submission.description` says what was
+ * sent, in the in-app notice's words (gap audit V19, P4-544): « son profil » for the first one,
+ * « une mise à jour de son profil » for an update.
+ */
 export function submissionReceivedValues(input: {
   fullName: string
+  kind: 'onboarding' | 'update'
 }): Record<string, unknown> {
-  return { professional: { full_name: input.fullName } }
+  return {
+    professional: { full_name: input.fullName },
+    submission: {
+      description: input.kind === 'onboarding'
+        ? 'son profil'
+        : 'une mise à jour de son profil',
+    },
+  }
 }
 
 /** The provider's « Mes documents » (Task 4c.6): the document emails' button, behind sign-in. */

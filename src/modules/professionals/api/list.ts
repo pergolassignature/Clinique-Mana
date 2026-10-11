@@ -18,7 +18,7 @@ export const PROFESSIONALS_LIST_MAX = 500
  * `updated_at`, which no list screen reads.
  */
 export const LIST_COLUMNS =
-  'id, first_name, last_name, email, status, status_changed_at, deactivation_reason_id, has_account, primary_title_id, primary_licence_number, gender, language_ids, clientele_ids, motif_ids, accepting_new_clients, matching_complete, email_matches_login, insurance_status, insurance_expires_on, documents_done, documents_required, photo_file_id' as const
+  'id, first_name, last_name, email, status, status_changed_at, deactivation_reason_id, has_account, primary_title_id, primary_licence_number, gender, language_ids, clientele_ids, motif_ids, accepting_new_clients, matching_complete, email_matches_login, insurance_status, insurance_expires_on, documents_done, documents_required, photo_file_id, documents_to_review' as const
 
 const listRows = z.array(listRowPayload)
 

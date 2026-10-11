@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { inactiveLabel, INVITATION_UNANSWERED_DAYS, recordWatchSubject, WATCH_TAB, watchFlags, type WatchSubject } from './watch'
+import { inactiveLabel, INVITATION_UNANSWERED_DAYS, recordWatchSubject, unansweredDays, WATCH_TAB, watchFlags, type WatchSubject } from './watch'
 import type { InvitationInfo, Onboarding } from '../api/parse'
 import { CATALOG, CATALOG_VIEW, listRowFixture, recordFixture } from '../test/fixtures-domain'
 
@@ -63,6 +63,55 @@ describe('watchFlags', () => {
 
   it('reads a list row as is', () => {
     expect(watchFlags(listRowFixture({ matchingComplete: false }), NOW).map((f) => f.key)).toEqual(['matching_incomplete'])
+  })
+})
+
+describe('watchFlags: the documents (gap audit V7, P4-540)', () => {
+  it('an active file with a required document missing: « Documents requis manquants », danger, to Documents', () => {
+    expect(watchFlags(subject({ documentsMissing: true }), NOW)).toEqual([
+      { key: 'documents_missing', label: 'Documents requis manquants', tone: 'danger' },
+    ])
+    expect(WATCH_TAB.documents_missing).toBe('documents')
+  })
+
+  it('only an active file: before activation « Dossier » lists the gaps', () => {
+    expect(watchFlags(subject({ status: 'in_review', documentsMissing: true }), NOW)).toEqual([])
+  })
+
+  it('an expired insurance says it more precisely: no second flag', () => {
+    const keys = watchFlags(subject({ documentsMissing: true, insuranceStatus: 'expired', insuranceExpiresOn: '2026-10-05' }), NOW).map((f) => f.key)
+    expect(keys).toEqual(['insurance_expired'])
+  })
+
+  it('documents waiting for review, counted, on any watched file', () => {
+    expect(watchFlags(subject({ documentsToReview: 1 }), NOW)).toEqual([{ key: 'documents_to_review', label: '1 document à vérifier', tone: 'muted' }])
+    expect(watchFlags(subject({ status: 'invited', documentsToReview: 3 }), NOW).map((f) => f.label)).toEqual(['3 documents à vérifier'])
+    expect(watchFlags(subject({ status: 'inactive', documentsToReview: 3 }), NOW)).toEqual([])
+    expect(WATCH_TAB.documents_to_review).toBe('documents')
+  })
+
+  it('reads a list row’s counts', () => {
+    const row = listRowFixture({ status: 'active', documentsMissing: true, documentsToReview: 2 })
+    expect(watchFlags(row, NOW).map((f) => f.key)).toEqual(['documents_missing', 'documents_to_review'])
+  })
+})
+
+describe('watchFlags: « sans réponse » after the clinic’s reminder delay (gap audit V14, P4-546)', () => {
+  const sent = (sentAt: string): Onboarding => invited('sent', sentAt)
+  const flags = (days: number | undefined) =>
+    watchFlags(subject({ status: 'invited', hasAccount: false, onboarding: sent('2026-10-05T14:00:00Z') }), NOW, { unansweredDays: days }).map((f) => f.key)
+
+  it('the reminder delay, else 3 days', () => {
+    expect(flags(undefined)).toEqual(['invitation_unanswered'])
+    expect(flags(3)).toEqual(['invitation_unanswered'])
+    expect(flags(5)).toEqual([])
+    expect(flags(2)).toEqual(['invitation_unanswered'])
+  })
+
+  it('unansweredDays: the setting, 3 without a reminder or before the settings load', () => {
+    expect(unansweredDays({ invitationReminderAfterDays: 5 })).toBe(5)
+    expect(unansweredDays({ invitationReminderAfterDays: null })).toBe(INVITATION_UNANSWERED_DAYS)
+    expect(unansweredDays(undefined)).toBe(3)
   })
 })
 
@@ -131,6 +180,8 @@ describe('recordWatchSubject', () => {
       onboarding: null,
       insuranceStatus: null,
       insuranceExpiresOn: null,
+      documentsMissing: false,
+      documentsToReview: 0,
     })
     const complete = {
       ...record,
@@ -146,6 +197,8 @@ describe('recordWatchSubject', () => {
       onboarding,
       insuranceStatus: null,
       insuranceExpiresOn: null,
+      documentsMissing: false,
+      documentsToReview: 0,
     })
   })
 })
