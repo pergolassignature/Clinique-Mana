@@ -300,13 +300,13 @@ describe('TaxSettingsPage', () => {
 
     it('shows a refused rate (P0001) in the dialog and keeps it open', async () => {
       // Another admin added a QST rate from 2027-03-01 since the page loaded.
-      mocks.tax.addTaxRate.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 2027-03-01.' })
+      mocks.tax.addTaxRate.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 1 mars 2027.' })
       await renderPage()
       await openAddDialog('qst')
       await userEvent.type(rateField(), '11')
       setDate('2027-02-01')
       await userEvent.click(within(dialog()).getByRole('button', { name: t('settings.tax.dialog.submit') }))
-      expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Le nouveau taux doit commencer après le 2027-03-01.')
+      expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Le nouveau taux doit commencer après le 1 mars 2027.')
       expect(rateField()).toHaveValue('11')
       expect(mocks.toast.error).not.toHaveBeenCalled()
     })

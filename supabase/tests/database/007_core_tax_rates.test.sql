@@ -89,6 +89,9 @@ delete from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000
 -- Clinic today, from org A's time zone (org B has the same default).
 select set_config('test.today',
   ((now() at time zone (select timezone from public.organizations where id = 'b0000000-0000-0000-0000-00000000000a'))::date)::text, true);
+-- The open rate's start in short French, as the refusal says it (format_date_short_fr, C5): read here, as
+-- postgres, since no test role may execute the helper.
+select set_config('test.today_30_fr', private.format_date_short_fr(current_setting('test.today')::date + 30), true);
 -- The seeded rows were created in this transaction: move org A's and B's out of
 -- the 24-hour correction window so « in force » rules apply to them. Org C keeps
 -- fresh rows, as a newly created org (or staging right after the backfill) has.
@@ -121,7 +124,7 @@ select is((select created_by from public.tax_rates where org_id = 'b0000000-0000
   'a0000000-0000-0000-0000-000000000001'::uuid, 'the new rate records who added it');
 
 select throws_ok($$ select public.add_tax_rate('qst', 0.11, '2013-01-01') $$,
-  'P0001', 'Le nouveau taux doit commencer après le ' || to_char(current_setting('test.today')::date + 30, 'YYYY-MM-DD') || '.',
+  'P0001', 'Le nouveau taux doit commencer après le ' || current_setting('test.today_30_fr') || '.',
   'a new rate must start after the open one');
 select throws_ok($$ select public.add_tax_rate('hst', 0.13, '2030-01-01') $$,
   '22023', null, 'unknown tax is a technical error');

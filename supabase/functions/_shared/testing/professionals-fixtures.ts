@@ -103,7 +103,7 @@ const TEMPLATES: Record<
   'professionals.submission_received': {
     subject: '{{professional.full_name}} a envoyé son profil',
     body: 'Bonjour,\n\n{{professional.full_name}} a envoyé son profil.',
-    button: 'Réviser le dossier',
+    button: 'Réviser le profil',
     paths: ['professional.full_name'],
   },
   'professionals.document_rejected': {
@@ -127,7 +127,7 @@ const TEMPLATES: Record<
     paths: ['professional.first_name', 'clinic.name', 'document.expires_on'],
   },
   'professionals.document_expired': {
-    subject: 'Votre assurance est échue',
+    subject: 'Votre assurance est expirée',
     body: 'Bonjour {{professional.first_name}},\n\n' +
       "Votre preuve chez {{clinic.name}} était valide jusqu'au {{document.expires_on}}.",
     button: 'Téléverser ma preuve',
