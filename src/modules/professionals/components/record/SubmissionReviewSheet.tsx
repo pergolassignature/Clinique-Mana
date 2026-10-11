@@ -434,6 +434,7 @@ function maskOnFile(field: SubmissionField, masks: Masks): string | null {
 }
 
 function ChangedValue({ field, ctx, masks }: { field: ReviewField; ctx: ValueContext; masks: Masks }) {
+  const { record } = useRecordData()
   const key = field.field
   if (field.kind === 'private') {
     return (
@@ -443,7 +444,7 @@ function ChangedValue({ field, ctx, masks }: { field: ReviewField; ctx: ValueCon
       />
     )
   }
-  if (key === 'photo' || key === 'insurance') return <FileProposal field={key} value={field.submitted} />
+  if (key === 'photo' || key === 'insurance') return <FileProposal field={key} value={field.submitted} currentPhotoFileId={record.photoFileId} />
   if (isSetDiffField(key)) return <SetChange field={key} current={field.current} submitted={field.submitted} ctx={ctx} />
   return (
     <SideBySide

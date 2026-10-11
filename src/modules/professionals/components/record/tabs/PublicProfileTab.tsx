@@ -16,6 +16,7 @@ import { useSavePublicProfile } from '../../../hooks/use-card-saves'
 import { publicProfileSchema, toPublicProfileFormValues } from '../../../schemas/public-profile'
 import { editingHelp } from '../editing-help'
 import { ProfessionalCard } from '../ProfessionalCard'
+import { PublicPhotoSection } from '../PublicPhotoSection'
 import { useRecordData } from '../record-context'
 
 const P = 'modules.professionals.record.publicProfile'
@@ -44,7 +45,7 @@ function CharacterCount({ control, name }: { control: PortraitControl; name: 'bi
 /**
  * « Profil public » (design §5.3, A2.11): what the client's fiche shows, two sections of one surface
  * (audit 2026-10-09 §2.4). Editable with `professionals.manage`, empty or not; read-only otherwise.
- * 4c adds the photo and the fiche preview.
+ * First, the photo the fiche prints and « Aperçu de la fiche » (gap audit V1, H3: `PublicPhotoSection`).
  */
 export function PublicProfileTab() {
   const readOnly = !useAccess().can('professionals.manage')
@@ -55,6 +56,7 @@ export function PublicProfileTab() {
     <div className="space-y-5">
       {readOnly && <ReadOnlyNotice body={t('modules.professionals.record.identity.readOnly')} />}
       <SectionSurface>
+      <PublicPhotoSection />
       <ProfessionalCard
         layout="section"
         title={t(`${P}.portrait.title`)}
@@ -115,6 +117,7 @@ function PublicProfileReadOnly() {
     <div className="space-y-5">
       <ReadOnlyNotice body={t('modules.professionals.record.identity.readOnly')} />
       <SectionSurface>
+        <PublicPhotoSection />
         <SettingsCard as="section" layout="section" title={t(`${P}.portrait.title`)} description={t(`${P}.portrait.description`)}>
           <DescriptionList
             items={[

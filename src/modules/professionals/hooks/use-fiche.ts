@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import * as Sentry from '@sentry/react'
@@ -33,7 +34,7 @@ export function preloadFicheRenderer(): void {
   void loadRenderer().catch(() => undefined)
 }
 
-interface FicheTarget {
+export interface FicheTarget {
   record: ProfessionalRecord
   catalog: CatalogView
   titleId: string | null
@@ -72,8 +73,18 @@ async function renderFiche(queryClient: QueryClient, { record, catalog, titleId 
   return { blob, fileName: ficheFileName(record.professional) }
 }
 
+/**
+ * « Aperçu de la fiche » (gap audit H3): renders the fiche exactly as « Télécharger » does, for the
+ * preview dialog to show; nothing is saved nor stamped (`fiche_generated_at` is a download's or a
+ * send's). The renderer's chunk loads on the first call.
+ */
+export function useRenderFiche(): (target: FicheTarget) => Promise<{ blob: Blob; fileName: string }> {
+  const queryClient = useQueryClient()
+  return useCallback((target: FicheTarget) => renderFiche(queryClient, target), [queryClient])
+}
+
 /** The French text for a fiche that could not be made (or sent): a new deploy, a refusal, else the generic one. */
-function ficheErrorMessage(error: unknown, fallback: string): string {
+export function ficheErrorMessage(error: unknown, fallback: string): string {
   if (isChunkLoadError(error)) return t('modules.professionals.fiche.errors.appUpdated')
   return moduleErrorMessage(error, fallback, 'professionals')
 }

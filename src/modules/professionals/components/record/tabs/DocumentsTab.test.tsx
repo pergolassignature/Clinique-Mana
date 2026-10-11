@@ -243,9 +243,20 @@ describe('SubmissionReviewSheet', () => {
     expect(insurance).not.toHaveTextContent(/échue/)
     const photo = within(sheet).getByRole('checkbox', { name: t(`${F}.photo`) }).closest('li') as HTMLElement
     expect(within(photo).getByRole('img', { name: t(`${V}.photoAlt`) })).toBeInTheDocument()
+    // « Actuel » beside it (gap audit V1): none on this file.
+    expect(photo).toHaveTextContent(t(`${V}.photoNoneOnFile`))
     const titles = within(sheet).getByRole('checkbox', { name: t(`${F}.professions`) }).closest('li') as HTMLElement
     expect(titles).toHaveTextContent('Psychologue · OPQ 12345')
     expect(titles).toHaveTextContent('Naturopathe')
+  })
+
+  it('shows the file’s current photo beside the proposed one (gap audit V1)', async () => {
+    const { sheet } = await openSheet({ record: { ...recordFixture(), photoFileId: '00000000-0000-4000-8000-0000000f0c01' } })
+    const photo = within(sheet).getByRole('checkbox', { name: t(`${F}.photo`) }).closest('li') as HTMLElement
+    const current = within(photo).getByRole('img', { name: t(`${V}.photoCurrentAlt`) })
+    expect(current).toHaveAttribute('loading', 'lazy')
+    expect(current).toHaveAttribute('width', '64')
+    expect(within(photo).getByRole('img', { name: t(`${V}.photoAlt`) })).toBeInTheDocument()
   })
 
   it('a consent signed through Documenso in the questionnaire: « Signé électroniquement le … », never « Pas encore signé », nothing to apply (P4-505)', async () => {
