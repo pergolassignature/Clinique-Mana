@@ -68,6 +68,14 @@ describe('PublicPhotoSection (gap audit V1, H3)', () => {
     expect(await screen.findByText(t(`${P}.noConsent`))).toBeInTheDocument()
   })
 
+  it('a withdrawn consent (P4-549): the fiche shows the initials', async () => {
+    mocks.fetchProfessionalDocuments.mockResolvedValue(
+      documentsFixture({ documents: [documentJson(), PHOTO_JSON, { ...CONSENT_DOC_JSON, withdrawn_on: '2026-10-09', withdrawn_at: '2026-10-09T15:00:00Z' }] }),
+    )
+    renderRecordTab(<PublicPhotoSection />, { record: withPhoto(), role: 'counselor' })
+    expect(await screen.findByText(t(`${P}.noConsent`))).toBeInTheDocument()
+  })
+
   it('without a photo: says so, signs nothing', async () => {
     renderRecordTab(<PublicPhotoSection />, { record: recordWithStatus('active', true), role: 'counselor' })
     expect(screen.getByText(t(`${P}.none`), { exact: false })).toBeInTheDocument()

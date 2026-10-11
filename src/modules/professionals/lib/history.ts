@@ -553,6 +553,14 @@ function documentRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   }
   if (entry.action === 'delete') return sentence('deleted')
   if (entry.action !== 'update') return null
+  // « Retrait du consentement » (P4-549): the day it stops being in force, and its note.
+  const withdrawn = pairOf(fields.withdrawn_on)
+  if (withdrawn && typeof withdrawn.after === 'string' && DATE_ONLY.test(withdrawn.after)) {
+    const note = pairOf(fields.withdrawal_note)?.after
+    const lines: HistoryLine[] =
+      typeof note === 'string' && note.trim() !== '' && note !== REDACTED ? [{ kind: 'value', field: t(`${S}.withdrawalNote`), value: note }] : []
+    return { kind: 'change', sentence: t(`${S}.withdrawn`, { date: formatDateOnlyShort(withdrawn.after) }), lines }
+  }
   const expiry = pairOf(fields.expires_on)
   if (expiry && typeof expiry.after === 'string' && DATE_ONLY.test(expiry.after)) {
     // A deadline is written long, as on Documents (C-3).

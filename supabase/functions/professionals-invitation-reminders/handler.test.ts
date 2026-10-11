@@ -99,6 +99,7 @@ function harness(opts: {
         opts.reissue?.(String(args.p_id)) ?? {
           data: {
             link_id: pid(900),
+            previous_link_id: pid(800),
             email: addressOf(String(args.p_id)),
             first_name: 'Nadia',
             expires_at: EXPIRES,
@@ -117,6 +118,7 @@ function harness(opts: {
       mark_email_sent: { data: null },
       mark_email_failed: { data: null },
       record_professional_invitation_email_failure_for_service: { data: null },
+      restore_professional_invitation_for_service: { data: true },
       ...opts.rpc,
     },
   })
@@ -744,5 +746,57 @@ Deno.test('professionals-invitation-reminders: a reminder not even queued is sta
       await provider.handler(await jobRequest())
     })
     assertEquals(callsTo(provider.service.calls, stamp), [])
+  })
+})
+
+Deno.test('professionals-invitation-reminders: a reminder that does not go out puts the previous link back (gap audit H7, P4-550)', async () => {
+  await run(async () => {
+    const restore = 'restore_professional_invitation_for_service'
+    const expected = [{
+      p_org: ORG_ID,
+      p_id: pid(1),
+      p_link_id: pid(900),
+      p_previous_link_id: pid(800),
+    }]
+    // Not even queued (no email setup), or refused by the provider once queued.
+    const unconfigured = harness({ env: { EMAIL_TRANSPORT: 'carrier-pigeon' } })
+    await captureConsole('error', async () => {
+      await unconfigured.handler(await jobRequest())
+    })
+    assertEquals(callsTo(unconfigured.service.calls, restore), expected)
+    const provider = harness({ mailpit: mailpitFailing([pid(1)], 500) })
+    await captureConsole('error', async () => {
+      await provider.handler(await jobRequest())
+    })
+    assertEquals(callsTo(provider.service.calls, restore), expected)
+    // Sent: the new link stays.
+    const sent = harness()
+    await sent.handler(await jobRequest())
+    assertEquals(callsTo(sent.service.calls, restore), [])
+  })
+})
+
+Deno.test('professionals-invitation-reminders: a failed restore is reported with ids only; the run goes on', async () => {
+  await run(async () => {
+    const failing = harness({
+      env: { EMAIL_TRANSPORT: 'carrier-pigeon' },
+      rpc: {
+        restore_professional_invitation_for_service: {
+          error: { code: 'XX000' },
+        },
+      },
+    })
+    const logged = await captureConsole('error', async () => {
+      await failing.handler(await jobRequest())
+    })
+    const lines = logged.map((l) => JSON.parse(String(l[0])))
+    const restoreFailed = lines.find((l) =>
+      l.code === 'reminder_link_restore_failed'
+    )
+    assertEquals(restoreFailed?.ids, {
+      org_id: ORG_ID,
+      professional_id: pid(1),
+    })
+    assert(!JSON.stringify(logged).includes('@'))
   })
 })
