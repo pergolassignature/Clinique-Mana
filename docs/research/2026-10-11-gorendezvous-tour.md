@@ -133,3 +133,66 @@ Source : aide en ligne (help.gorendezvous.com, ~60 articles) + l'app en direct, 
 - MANA : réservation en ligne désactivée ; portail utilisé via les liens des courriels, reçus partagés, consentements.
 - À reproduire : liens confirmer/modifier/annuler dans les courriels avec la règle 24 h ; consentements par lien ; reçus par courriel. Portail complet plus tard.
 - Nouvelles questions : comment PAE et IVAC sont facturés aujourd'hui (QBO ? relevé mensuel ? n° de dossier ?) ; la politique 50 % puis 100 % est-elle appliquée ? ; le forfait « Entreprise » est discontinué : le renouvellement du 31 janvier 2027 forcerait Essentiel ou Premium.
+
+## 18. Faits chiffrés (2e passe en lecture seule, compte Administration, période 2026-01-01 → 2026-10-11)
+
+Comptes et réglages seulement ; aucun nom de client ni de professionnel.
+
+### Visites et lieux
+- 8 635 visites : Vidéoconférence 7 681 ; « Bureau administratif » 911 (vraisemblablement les entrées administratives et du compte conseillère : à expliquer à l'import) ; bureau d'un pro 35 ; PRÉSENTIEL ≈ 47 lignes facturées ; CPE 3 ; Téléphone 5 ; À domicile 0. → Vidéo et téléphone suffisent.
+- Le filtre « service » de la vue Visites compte 916 entrées (une par couple pro-service).
+
+### Catalogue (gabarit « Z MATRICE », 28 services) et lignes facturées (8 661 lignes, 895 771 $ TTC)
+| Code | Service | Lignes 2026 | Prix observés | Taxable |
+|---|---|---|---|---|
+| 10100 | Ouverture de dossier – Individuel | 589 | 43,49 (= 37,83 + taxes) ; 21,74 | oui |
+| 10130 | Consultation individuelle 30 min | 146 | 85 / 100 / 110 / 120 / 130 selon la profession | non |
+| 10131 | … 30 min tarif étudiant | 2 | 80, 96 | non |
+| 10150 | Consultation individuelle 50 min | 5 062 | 120 / 140 / 150 / 160 / 175 selon la profession | non |
+| 10151 | … 50 min tarif étudiant | 68 | 100, 120 | non |
+| 10152 | … 50 min tarif réduit | 3 | 130 | non |
+| 10154 / 10155 | PRÉSENTIEL (ouverture, 50 min) | 2 / 43 | — | — |
+| 10157 | Consultation naturopathie | 9 | 113,07 ; 121,76 (taxée) | oui |
+| 20100 / 20102 | Ouverture de dossier couple-famille | 78 | 43,49 | oui |
+| 20150 | Consultation individuelle – couple-famille 60 | 93 | 150 / 165 / 175 / 185 | non |
+| 20160 | Consultation couple-famille 60 (pour deux) | 403 | 150 / 165 / 175 / 185 | non |
+| 20170 | Consultation couple-famille 30 | 3 | 110, 150 | oui (gabarit) |
+| 30100 | Ouverture de dossier IVAC | 23 | 43,49 | oui |
+| 30150 / 30152 | IVAC 50 min (part client) / tarif réduit | 235 / 20 | 0 à 80,50 / 0 | non |
+| 40130 / 40150 / 40160 | PAE externe 30 / 50 / couple 60 | 4 / 288 / 16 | 0 (130 fois sur 288), sinon 48–173 | non |
+| 50100 | Inscription à la liste d'attente | 51 (compte conseillère) | 21,74 (= 18,91 + taxes) | oui |
+| 50400 | Rédaction de rapport | 8 | 0 au catalogue, 56–208 tapé | non |
+| 50401 | Test psychométrique | 3 | 40 | non |
+| 50500 | Discussion avec un autre intervenant | 15 | 0 au catalogue, 33–84 tapé (≈ par tranche) | non |
+| 50600 / 50601 | Transfert de dossier / Appel découverte 15 min | 40 / 5 | 0 | non |
+| 50602 | Supervision | 24 | 0 ou 100 | oui |
+| 60100 / 60200 | Atelier – animation / participation | 5 / 0 | 0 ; 1 500–1 899 tapé | non |
+| 70300 / 70360 | Annulation tardive / absence – individuel / couple | 549 / 56 | 0 (446 / 52 fois) ; sinon 17,75–140 tapé | non |
+| 80100 | Frais de déplacement | 1 | 57,80 | oui |
+- Anciens services sans code encore facturés : « 50 minutes – Rencontre d'intervention web » 447 lignes, « Annulation tardive ou absence non motivée » 92 lignes (640 $), « Ouverture de dossier » 66, « PAE externe – 50 minutes » 38, « Service de consultation » 28, « Inscription – Liste attente services de psychologie et de psychothérapie » 51 × 21,74 $, etc.
+- **Prix par profession, identiques entre les pros d'une même profession** (30 min / 50 min / couple 60) : travail social 85 / 120 / 150 ; psychoéducation 100 / 140 / 165 ; sexologie 110 / 150 / 175 ; psychothérapie 120 / 160 / 185 ; psychologie 130 / 175 (étudiant 96 / 120 ; pas de service couple, IVAC ni PAE). Un pro offre 13 à 18 des 28 services du gabarit.
+- Taxes pratiquées : taxées = ouverture de dossier, inscription à la liste d'attente, couple 30 min, supervision, frais de déplacement, naturopathie ; toutes les consultations (sexologie et orientation comprises) non taxées. Aucune date de taxe, aucun lieu (sauf 10100), pas de pause, pas de règle par étiquette ; tous « non disponible en ligne ».
+- Compte conseillère : 7 services (ouverture IVAC, annulation tardive 0 $, consultation gratuite 15 min, inscription liste d'attente 21,74 $, « LISTE ATTENTE À RAPPELER » 0 $, ouverture de dossier moins de 14 ans 0 $, préparation de la téléconsultation 0 $) ; 119 lignes en 2026 = 51 inscriptions + 56 annulations 0 $ + 12 ouvertures IVAC.
+
+### Paiements (7 154 paiements, 904 812 $)
+- Argent comptant 4 955 / 631 687 $ ; Interac 1 800 / 221 011 $ ; Stripe 268 / 33 678 $ ; note de crédit 119 / 11 448 $ ; chèque 2 ; virement bancaire 4 ; Accès D 4 ; carte de crédit 2. 24 remboursements. « Argent comptant » est très probablement le dépôt automatique Interac saisi comme comptant.
+- Factures 2026 : affichage « 1 à 10 de 8 000 » (plafond probable). Format du numéro de facture « [yyyy]-[7] » ; note par défaut (fr) = texte Interac (adresse de la clinique, dépôt auto) + lien PAYER + « reçu sous 24 h ouvrables » ; note anglaise vide.
+- Modes de paiement → compte QuickBooks : Argent comptant → Cash → Compte courant ; Carte de crédit → QuickBooks Payments → Fonds non déposés ; Chèque → Compte courant ; Interac → Interac → Virement bancaire à recevoir ; note de crédit → Compte courant ; Stripe → Banque Stripe ; Virement bancaire → Dépôt direct → Compte courant ; Accès D et « seulement TPS » non mappés ; désactivés : Assurance, Carte cadeau, Carte de fidélité, PayPal, Square.
+- Stripe : connecté au niveau entreprise ; aucun dépôt à la réservation, aucune carte enregistrée ; remboursement automatique sauf à moins de 24 h. TELUS eRéclamations : 0 réclamation, 0 prédétermination. Lumino Santé : inactif. QuickBooks : activé (synchronisation). Zapier : clé active, zaps inconnus.
+
+### Agenda, rappels, annulation
+- Rappels : **1 jour avant**, « ne pas envoyer durant la fin de semaine » = oui (le rappel du lundi part le vendredi) ; aucun réglage d'heure ; aucune personnalisation par service, message d'entreprise vide.
+- **SMS actifs** : rappels par texto envoyés chaque jour (« Pour confirmer ou annuler, cliquez … »), ~165 SMS en octobre 2026, inclus au forfait.
+- Annulation : « Les clients doivent appeler pour annuler » = **oui, en tout temps** pour presque tous les pros (1 TS sur 3 = non) ; « accepter automatiquement les demandes » = oui partout ; aucun frais automatique (voir 70300 / 70360).
+- Zoom : activé par employé, la plupart cochés (une dizaine non). Réglage de durée ou d'expiration d'une proposition : introuvable. Requêtes de service : désactivées. Réservation en ligne : non. Liste d'attente (fonction) : **vide** pour tous les comptes vérifiés ; « permettre aux clients de s'ajouter » = oui, invitation automatique = non.
+
+### Clients
+- 7 390 actifs, 8 468 avec les archivés (≈ 1 078 archivés) ; 2 635 actifs sans professionnel principal ; 31 étiquettes (« IVAC » et « Nouveau client » en double). Filtre par étiquette masqué dans la liste ; pas de colonne « sans courriel ».
+
+### Reçus et permissions
+- Numéro de reçu unique pour l'entreprise (option « séquentiel par professionnel » = non). Modèle de reçu par pro : nom, titre (TS, Psychologue), « Membre de l'OTSTCFQ / OPQ : n° », adresse de la clinique, adresse du client oui, signature oui, « montant payé seulement » non, « payé par » non ; numéros de taxes imprimés automatiquement. Relevé : pas dans les paramètres (fiche client ou portail).
+- Compte conseillère partagé : administrateur, gestionnaire, horaires de tous, tous les clients et leurs coordonnées ; **pas** la suppression. Compte Administration : tout. Pros : gérer son horaire + voir les coordonnées de ses clients, rien d'autre.
+- Requêtes > Rendez-vous (en cours) : acceptées 52, envoyées 28, refus 2.
+
+### Site web
+- « Prendre rendez-vous » → « Réserver un appel découverte » ouvre **Calendly** (pas GOrendezvous) ; « Nous écrire » = formulaire Elementor (nom, courriel, téléphone, message, « Comment avez-vous entendu parler de MANA ? », consentement, reCAPTCHA) → « une conseillère communiquera avec vous dans un délai de 24 à 48 heures ouvrables ».
