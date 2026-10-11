@@ -7,12 +7,16 @@
  *    `professionals.documents.review`.
  * 2. Body: `{ action: 'reject', document_id, reason }` (the reason capped at
  *    4000 characters here; the RPC trims it and checks 1–1000, in French).
- * 3. `reject_professional_document(p_doc_id, p_reason)` as the caller: a
+ * 3. One hit on `LIMITS.professionalDocumentsUser` (60 an hour per caller),
+ *    before the refusal: each call may email the professional (step 5).
+ *    Refused → 429 `rate_limited` with `Retry-After`, nothing refused; the
+ *    limiter down → 503 `not_configured`.
+ * 4. `reject_professional_document(p_doc_id, p_reason)` as the caller: a
  *    pending or verified document becomes `rejected` with the reason, its file
  *    soft-deleted (P4-404), never on one's own record. P0001 → 400 with its
  *    French message and its HINT as `field` (`reason`, `document`,
  *    `status`); 42501 → 403; 22023 → 400; anything else → 500, reported.
- * 4. Once refused, the answer is 200 whatever the email does. With the
+ * 5. Once refused, the answer is 200 whatever the email does. With the
  *    service client, `get_professional_document_rejection_for_service(p_actor,
  *    p_doc_id)` (the actor `verifyAuth` verified): it answers only for a
  *    document this actor has just refused in their own clinic, with the
@@ -21,7 +25,7 @@
  *    (`notice_failed`), null (`notice_missing`), a malformed answer or
  *    another clinic (`notice_invalid`) → reported, `email_problem:
  *    'internal'`.
- * 5. The email `professionals.document_rejected` (P4-451) goes only for a file
+ * 6. The email `professionals.document_rejected` (P4-451) goes only for a file
  *    the professional sent (`uploaded_by_professional`): a file staff
  *    uploaded is theirs to replace, so nothing is sent (`emailed: false,
  *    email_problem: null`). Recipient: the professional's own address, subject
@@ -33,7 +37,7 @@
  *    a professional's documents within a minute reaches her twice. The
  *    caller's signal is not passed: the refusal is done, its email goes out
  *    even if the tab closes.
- * 6. 200 `{ ok: true, emailed, email_problem }` (+ `retry_after` seconds when
+ * 7. 200 `{ ok: true, emailed, email_problem }` (+ `retry_after` seconds when
  *    the send was rate-limited). `email_problem` is null when sent or when
  *    nothing was due; else a send's code (`rate_limited`, `not_configured`,
  *    `module_disabled`, `missing_variable`, `recipient_not_allowed`,
@@ -43,8 +47,9 @@
  *    send path's own failure, or anything unexpected, reported).
  *
  * Status mapping: 200; 400 `invalid_request` (body, P0001, 22023); 401 / 403
- * / 503 from `verifyAuth`; 403 `forbidden` (42501); 405; 413; 500
- * `internal` (another RPC error, reported). Never an address or a name in an
+ * / 503 from `verifyAuth`; 403 `forbidden` (42501); 405; 413; 429
+ * `rate_limited` with `Retry-After`; 503 `not_configured` (limiter failed
+ * closed); 500 `internal` (another RPC error, reported). Never an address or a name in an
  * answer, a log or a report: codes and row ids only.
  */
 import { z } from 'zod'
@@ -65,6 +70,7 @@ import {
   MY_DOCUMENTS_PATH,
   professionalsRpcError,
 } from '../_shared/professionals.ts'
+import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
 const FN = 'professionals-documents'
@@ -124,6 +130,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const docIds = { document_id: body.document_id }
     const report = (code: string, ids: Record<string, string> = {}) =>
       reportError({ fn: FN, code, ids: { org_id: orgId, ...ids } }, deps.fetch)
+
+    const limited = limitResponse(
+      await consume(client, LIMITS.professionalDocumentsUser, [orgId, actor]),
+      req,
+    )
+    if (limited) return limited
 
     const rejected = await auth.client.rpc('reject_professional_document', {
       p_doc_id: body.document_id,
