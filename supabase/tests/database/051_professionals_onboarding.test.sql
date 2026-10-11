@@ -178,7 +178,7 @@ select set_config('test.audit_start', (select coalesce(max(id), 0)::text from pu
 -- =============================================================================
 select results_eq($$ select key, description from public.permissions where key in ('professionals.invite', 'professionals.review') order by key $$,
   $$ values ('professionals.invite'::text, 'Inviter les professionnels et demander des mises à jour'::text),
-            ('professionals.review', 'Réviser et appliquer les soumissions') $$, 'the two permissions');
+            ('professionals.review', 'Réviser et appliquer les profils envoyés') $$, 'the two permissions');
 select set_eq($$ select role || ':' || permission_key from public.org_role_permissions
                   where org_id = current_setting('test.a')::uuid and permission_key in ('professionals.invite', 'professionals.review') $$,
   array['admin:professionals.invite', 'admin:professionals.review', 'admin_assistant:professionals.invite', 'admin_assistant:professionals.review'],
@@ -596,9 +596,9 @@ select lives_ok($$ select public.save_my_submission_draft('photo', '{"file_id": 
 select throws_ok($$ select public.save_my_submission_draft('insurance', '{"file_id": "e0000000-0000-0000-0000-000000000002", "expires_on": "2027-02-30"}') $$,
   'P0001', 'Date invalide.', 'an impossible date');
 select throws_ok($$ select public.save_my_submission_draft('insurance', jsonb_build_object('file_id', 'e0000000-0000-0000-0000-000000000002',
-  'expires_on', (current_date - 2)::text)) $$, 'P0001', 'Cette assurance est déjà échue : joignez une preuve en vigueur.', 'an expired proof');
+  'expires_on', (current_date - 2)::text)) $$, 'P0001', 'Cette assurance est déjà expirée : joignez une preuve en vigueur.', 'an expired proof');
 select throws_ok($$ select public.save_my_submission_draft('insurance', '{"file_id": "e0000000-0000-0000-0000-000000000002", "expires_on": "2101-03-31"}') $$,
-  'P0001', 'La date doit être au plus tard le 2100-12-31.', 'no absurd year');
+  'P0001', 'La date doit être au plus tard le 31 décembre 2100.', 'no absurd year');
 select lives_ok($$ select public.save_my_submission_draft('insurance', jsonb_build_object('file_id', 'e0000000-0000-0000-0000-000000000002',
   'expires_on', ((current_date + 200))::text)) $$, 'the insurance');
 
@@ -682,14 +682,14 @@ select is((select count(*)::int from public.professional_submissions s where s.p
   'admin B reads nothing of org A');
 select ok(public.get_submission_review((current_setting('test.inv1')::jsonb ->> 'submission_id')::uuid) is null, 'admin B reviews nothing of org A');
 select throws_ok($$ select public.apply_professional_submission((current_setting('test.inv1')::jsonb ->> 'submission_id')::uuid) $$,
-  'P0001', 'Soumission introuvable.', 'admin B cannot apply org A''s submission');
+  'P0001', 'Ce profil envoyé n''existe plus.', 'admin B cannot apply org A''s submission');
 select throws_ok($$ select public.reject_professional_submission((current_setting('test.inv1')::jsonb ->> 'submission_id')::uuid, 'Non') $$,
-  'P0001', 'Soumission introuvable.', '… nor reject it');
+  'P0001', 'Ce profil envoyé n''existe plus.', '… nor reject it');
 
 -- Submit.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.apply_professional_submission((current_setting('test.inv1')::jsonb ->> 'submission_id')::uuid) $$,
-  'P0001', 'Cette soumission n''attend pas de révision.', 'a draft cannot be applied');
+  'P0001', 'Ce profil n''attend pas de révision.', 'a draft cannot be applied');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select lives_ok($$ select public.submit_my_submission() $$, 'the complete questionnaire is sent');
 select throws_ok($$ select public.save_my_submission_draft('personal', '{}') $$, 'P0001', 'Votre profil a déjà été envoyé.', 'a sent profile is read-only');
@@ -802,7 +802,7 @@ update public.professional_submissions
  where id = current_setting('test.s1')::uuid;
 set local role authenticated;
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['insurance']) $$,
-  'P0001', 'Cette assurance est échue depuis l''envoi du profil.', 'apply: an insurance that expired since it was sent');
+  'P0001', 'Cette assurance a expiré depuis l''envoi du profil.', 'apply: an insurance that expired since it was sent');
 select is(private.test_error_hint($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['insurance']) $$),
   'Renvoyez le profil au professionnel : il joindra une preuve en vigueur.', '… with the sheet''s button in its hint (P4-369)');
 reset role;
@@ -902,7 +902,7 @@ select throws_ok($$ select public.request_professional_update(current_setting('t
 select set_config('test.u2', public.request_professional_update(current_setting('test.p2')::uuid, array['motifs', 'availability', 'motifs'])::text, true);
 select is(current_setting('test.u2')::jsonb - 'submission_id', '{"email": "provider@a.test", "first_name": "Pia"}'::jsonb, 'what the email needs');
 select throws_ok($$ select public.request_professional_update(current_setting('test.p2')::uuid, array['motifs']) $$,
-  'P0001', 'Une soumission est déjà en cours.', 'one open submission at a time');
+  'P0001', 'Un questionnaire est déjà en cours ou attend une révision.', 'one open submission at a time');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.request_professional_update(current_setting('test.p2')::uuid, array['motifs']) $$, '42501', null,
   'the conseillère cannot request an update');
@@ -910,7 +910,7 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select results_eq($$ select s ->> 'kind', s -> 'requested_sections', s -> 'prefill' -> 'availability' -> 'accepting_new_clients'
                        from public.get_my_submission() s $$,
   $$ values ('update'::text, '["motifs", "availability"]'::jsonb, 'true'::jsonb) $$, 'the provider sees the sections asked, prefilled');
-select throws_ok($$ select public.start_my_profile_update(array['portrait']) $$, 'P0001', 'Une soumission est déjà en cours.',
+select throws_ok($$ select public.start_my_profile_update(array['portrait']) $$, 'P0001', 'Un questionnaire est déjà en cours ou attend une révision.',
   'no second submission from « Mon profil »');
 select throws_ok($$ select public.save_my_submission_draft('portrait', '{"bio": "x"}') $$, '22023', null, 'a section not asked is refused');
 select lives_ok($$ select public.save_my_submission_draft('motifs', jsonb_build_object('motif_ids', jsonb_build_array(current_setting('test.deuil')))) $$, 'motifs');

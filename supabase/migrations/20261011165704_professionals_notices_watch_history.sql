@@ -4,7 +4,8 @@
 -- =============================================================================
 -- Asked:   gap audit 2026-10-09 (docs/audit/2026-10-09-gap-audit.md) V7, V18, T3, T4; decisions
 --          P4-540 – P4-545
--- Needs:   *_professionals_review_notices_important.sql (submit_my_submission,
+-- Needs:   *_core_module_helpers.sql (expire_notifications_for_subjects, last_subject_emails,
+--          extend_stored_files_retention), *_professionals_review_notices_important.sql (submit_my_submission,
 --          attach_professional_document), *_professionals_insurance_dates_wording.sql
 --          (run_professionals_document_notices_for_service), *_professionals_list_photo.sql
 --          (professionals_list), *_professionals_readiness_insurance.sql
@@ -29,6 +30,7 @@
 --   own file (P4-304: she cannot review it), P4-543. Notices are addressed by permission (P3-15),
 --   so the notice is marked read for her at once (core helper private.mark_notification_read_for,
 --   reviewed as a core change, as private.expire_notifications): no unread count, no Accueil.
+--   private.open_notification_key (core) finds the open « Documents requis manquants » of a count.
 -- * « Documents requis manquants » opens the list filtered on the files it counts:
 --   `/professionnels?statut=actif&documents=incomplets` (V7, P4-540); the open ones are relinked.
 -- * « À surveiller » (V7, P4-540): professionals_list gains `documents_to_review` (pending
@@ -42,7 +44,8 @@
 --   it was prepared), never its values or its Annexe A (they print the pay). The send, the
 --   signatures and the paper contract were already listed.
 -- * Every function: its latest definition with only what is said here changed (same signature,
---   grants and checks). Additive; production-safe.
+--   grants and checks), through core's helpers for core tables (T1, *_core_module_helpers.sql).
+--   Additive; production-safe.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_notices_watch_history', true);
@@ -66,6 +69,32 @@ as $$
   on conflict do nothing
 $$;
 revoke all on function private.mark_notification_read_for(uuid, uuid) from public, anon, authenticated, service_role;
+
+-- The dedupe key of the newest open notice of p_org of kind p_kind about (p_subject_type,
+-- p_subject_id) whose key starts with p_key_prefix; null without one. For a module that renews a
+-- notice only when what it says changes. Security invoker, granted to no role.
+create function private.open_notification_key(
+  p_org uuid,
+  p_kind text,
+  p_subject_type text,
+  p_subject_id uuid,
+  p_key_prefix text
+)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select n.dedupe_key
+    from public.notifications n
+   where n.org_id = p_org and n.kind = p_kind
+     and n.subject_type = p_subject_type and n.subject_id = p_subject_id
+     and (n.expires_at is null or n.expires_at > pg_catalog.now())
+     and pg_catalog.starts_with(n.dedupe_key, p_key_prefix)
+   order by n.created_at desc
+   limit 1
+$$;
+revoke all on function private.open_notification_key(uuid, text, text, uuid, text) from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- « Envoyer mon profil »: *_professionals_review_notices_important.sql's, the sender spared
@@ -99,14 +128,9 @@ begin
      set status = 'submitted', submitted_at = v_now, decision_note = null, reviewed_at = null, reviewed_by = null
    where s.id = v_sub.id and s.org_id = v_org;
 
-  update public.stored_files f
-     set retain_until = v_now + interval '90 days'
-   where f.org_id = v_org and f.purpose = 'professional_submission_file'
-     and f.subject_type = 'professional_submission' and f.subject_id = v_sub.id
-     and f.status = 'ready' and f.retain_until is not null and f.retain_until < v_now + interval '90 days'
-     and f.id in (select (v_sub.submitted_values #>> '{photo,file_id}')::uuid
-                  union all
-                  select (v_sub.submitted_values #>> '{insurance,file_id}')::uuid);
+  perform private.extend_stored_files_retention(v_org, 'professional_submission_file', 'professional_submission', v_sub.id,
+    array[(v_sub.submitted_values #>> '{photo,file_id}')::uuid, (v_sub.submitted_values #>> '{insurance,file_id}')::uuid],
+    v_now + interval '90 days');
 
   select * into v_row from public.professionals p where p.id = v_pid and p.org_id = v_org;
   if v_sub.kind = 'onboarding' and v_row.status in ('draft', 'invited') then
@@ -420,13 +444,9 @@ begin
 
   -- 2. The insurance notices of active professionals. A file no longer active is not chased
   -- (P4-408): its open insurance notices close.
-  update public.notifications n
-     set expires_at = pg_catalog.now()
-   where n.org_id = p_org and n.subject_type = 'professional'
-     and n.kind in ('professionals.insurance_expiring', 'professionals.insurance_expired')
-     and (n.expires_at is null or n.expires_at > pg_catalog.now())
-     and exists (select 1 from public.professionals p
-                  where p.id = n.subject_id and p.org_id = p_org and p.status <> 'active');
+  perform private.expire_notifications_for_subjects(p_org, 'professional',
+    array(select p.id from public.professionals p where p.org_id = p_org and p.status <> 'active'),
+    array['professionals.insurance_expiring', 'professionals.insurance_expired']);
   for r in
     select s.professional_id, s.expires_on, s.state, s.dedupe_key, p.first_name, p.last_name
       from private.professional_insurance_state(p_org, v_today, null) s
@@ -463,14 +483,8 @@ begin
    where rd.org_id = p_org and not rd.documents_ok;
   if v_missing > 0 then
     v_week := pg_catalog.to_char(v_today, 'IYYY-"W"IW');
-    select n.dedupe_key into v_open
-      from public.notifications n
-     where n.org_id = p_org and n.kind = 'professionals.documents_missing'
-       and n.subject_type = 'organization' and n.subject_id = p_org
-       and (n.expires_at is null or n.expires_at > pg_catalog.now())
-       and n.dedupe_key like 'documents_missing:' || v_week || ':' || v_missing || ':%'
-     order by n.created_at desc
-     limit 1;
+    v_open := private.open_notification_key(p_org, 'professionals.documents_missing', 'organization', p_org,
+      'documents_missing:' || v_week || ':' || v_missing || ':');
     -- The open notice of this week and count stays; otherwise a new key (week, count and the
     -- clock time: a count that comes back within the week is a new notice, never a closed one).
     v_missing_key := coalesce(v_open,
@@ -515,13 +529,9 @@ begin
            max((e.created_at at time zone v_tz)::date)
              filter (where e.template_key in ('professionals.document_expired', 'professionals.document_expired_reminder'))
              as last_any_expired
-      from public.email_log e
-     where e.org_id = p_org and e.subject_type = 'professional'
-       and e.subject_id in (select due.professional_id from due)
-       and e.template_key in ('professionals.document_expiring', 'professionals.document_expired',
-                              'professionals.document_expired_reminder')
-       and (e.status <> 'failed' or e.error_code = 'provider_unavailable')
-       and e.created_at > pg_catalog.now() - interval '400 days'
+      from private.last_subject_emails(p_org, 'professional', array(select due.professional_id from due),
+             array['professionals.document_expiring', 'professionals.document_expired', 'professionals.document_expired_reminder'],
+             pg_catalog.now() - interval '400 days') e
      group by e.subject_id
   ),
   pick as (

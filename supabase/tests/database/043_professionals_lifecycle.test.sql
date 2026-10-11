@@ -297,7 +297,7 @@ select is(private.test_error_hint($$ select public.activate_professional(current
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, E'  \t\n ') $$,
   'P0001', 'Indiquez la raison (au moins 5 caractères).', 'a blank reason is no reason');
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, repeat('x', 501)) $$,
-  'P0001', 'La raison compte au plus 500 caractères.', 'the reason has at most 500 characters');
+  'P0001', 'La raison ne peut pas dépasser 500 caractères.', 'the reason has at most 500 characters');
 select is(private.test_error_hint($$ select public.activate_professional(current_setting('test.p1')::uuid, repeat('x', 501)) $$), 'reason',
   'a long override reason: HINT reason');
 select results_eq($$ select * from public.activate_professional(current_setting('test.p1')::uuid, '  Dossier complété hors application  ') $$,
@@ -327,7 +327,7 @@ select is(private.test_error_hint($$ select public.deactivate_professional(curre
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid, E' \t ') $$,
   'P0001', 'Précisez la raison.', 'a blank note is no note');
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid, repeat('n', 501)) $$,
-  'P0001', 'La note compte au plus 500 caractères.', 'the note has at most 500 characters');
+  'P0001', 'La note ne peut pas dépasser 500 caractères.', 'the note has at most 500 characters');
 select is(private.test_error_hint($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid, repeat('n', 501)) $$), 'note',
   'a long note: HINT note');
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.b_leave')::uuid) $$,
