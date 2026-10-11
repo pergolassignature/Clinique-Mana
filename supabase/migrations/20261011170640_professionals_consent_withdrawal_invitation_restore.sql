@@ -36,6 +36,8 @@
 --   questionnaire points to it again. So a failed reminder never leaves her without a working
 --   link. Core helper private.restore_secure_link (reviewed as a core change, as
 --   private.issue_secure_link).
+-- * T1: the signed consent's trigger (private.professional_image_consent_signed) gives her the
+--   signed file through core's private.set_stored_files_owner, no longer by writing stored_files.
 -- * Additive (nullable columns, a check, a new RPC), production-safe.
 -- =============================================================================
 
@@ -326,6 +328,64 @@ begin
                        and (f.retain_until is null or f.retain_until > pg_catalog.now())
                        and (v_staff or f.uploaded_by = auth.uid())) end), '[]'::jsonb)
   );
+end;
+$$;
+
+-- The signed consent's document (P4-485): *_professionals_image_consent.sql's trigger function,
+-- the file made hers through core's private.set_stored_files_owner (T1) instead of a direct write
+-- to stored_files; nothing else changes. A consent signed after a withdrawal is a new document,
+-- not withdrawn: in force again.
+create or replace function private.professional_image_consent_signed()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pro public.professionals;
+  v_type public.document_types;
+  v_tz text;
+  v_signed timestamptz;
+  v_day date;
+  v_expires date;
+  v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
+begin
+  if new.signed_file_id is null or new.subject_type <> 'professional' then
+    return null;
+  end if;
+  begin
+    select * into v_pro from public.professionals p where p.org_id = new.org_id and p.id = new.subject_id;
+    select * into v_type from public.document_types t where t.org_id = new.org_id and t.key = 'image_consent';
+    select o.timezone into v_tz from public.organizations o where o.id = new.org_id;
+    if v_pro.id is null or v_type.id is null or v_tz is null then
+      return null;
+    end if;
+    select max(s.signed_at) into v_signed
+      from public.signature_request_signers s where s.request_id = new.id and s.role = 'professional';
+    v_signed := coalesce(v_signed, new.completed_at, pg_catalog.now());
+    v_day := (v_signed at time zone v_tz)::date;
+    v_expires := private.document_default_expiry(v_type.expiry_rule, v_day);
+
+    perform pg_catalog.set_config('app.audit_source', 'trigger:professional_image_consent_signed', true);
+    -- The signed PDF core's capture stored for this very request (its signed_file_id) becomes hers.
+    perform private.set_stored_files_owner(new.org_id, array[new.signed_file_id], v_pro.profile_id,
+      case when v_pro.profile_id is not null then 'professionals.self' end);
+    insert into public.professional_documents
+      (org_id, professional_id, document_type_id, stored_file_id, status, expires_on, uploaded_by, uploaded_at,
+       reviewed_by, reviewed_at, signature_request_id)
+    values
+      (new.org_id, v_pro.id, v_type.id, new.signed_file_id,
+       case when v_expires < (pg_catalog.now() at time zone v_tz)::date then 'expired' else 'verified' end,
+       v_expires, null, v_signed, null, pg_catalog.now(), new.id)
+    on conflict do nothing;
+    if found then
+      perform private.after_professional_documents_change(new.org_id, v_pro.id);
+    end if;
+    perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
+  exception when others then
+    raise warning 'professional_image_consent_signed: % (request %)', sqlstate, new.id;
+  end;
+  return null;
 end;
 $$;
 
