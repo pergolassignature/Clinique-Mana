@@ -6,8 +6,15 @@ import { SectionGroup } from '@/shared/components/SectionHeading'
 import { Card } from '@/shared/ui/card'
 import type { ProfessionalDocument, ProfessionalDocuments } from '../../api/documents'
 import type { DocumentType } from '../../api/parse'
-import { groupDocuments, requiredSummary, type DocumentPermissions, type DocumentViewer } from '../../lib/documents'
-import { DeleteDocumentDialog, RedateDocumentDialog, RejectDocumentDialog, VerifyDocumentDialog, type DocumentOwner } from './DocumentReviewDialogs'
+import { groupDocuments, requiredSummary, scheduledWithdrawal, withdrawalOffered, type DocumentPermissions, type DocumentViewer } from '../../lib/documents'
+import {
+  DeleteDocumentDialog,
+  RedateDocumentDialog,
+  RejectDocumentDialog,
+  VerifyDocumentDialog,
+  WithdrawConsentDialog,
+  type DocumentOwner,
+} from './DocumentReviewDialogs'
 import { DocumentPreview } from './DocumentPreview'
 import { DocumentRow, type DocumentDialogAction } from './DocumentRow'
 import { RequiredDocumentCard } from './RequiredDocumentCard'
@@ -16,7 +23,10 @@ import { UploadDocumentDialog } from './UploadDocumentDialog'
 
 const D = 'modules.professionals.documents'
 
-type OpenDialog = { kind: 'upload'; type: DocumentType | null } | { kind: DocumentDialogAction; document: ProfessionalDocument }
+type OpenDialog =
+  | { kind: 'upload'; type: DocumentType | null }
+  | { kind: DocumentDialogAction; document: ProfessionalDocument }
+  | { kind: 'withdraw'; scheduled: string | null }
 
 interface DocumentsPanelProps {
   /** `get_professional_documents`'s payload (its `today` is the clinic's date). */
@@ -93,6 +103,15 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
                 // The professional never uploads her image consent: she fills it in and signs it (P4-489).
                 can={viewer === 'self' && entry.type.key === 'image_consent' ? { ...can, upload: false } : can}
                 onUpload={(button) => onUpload(entry.type, button)}
+                // « Retrait du consentement » (P4-549): staff who review documents, on a consent in force.
+                onWithdraw={
+                  withdrawalOffered(entry, viewer, can)
+                    ? (button) => {
+                        opener.current = button
+                        setOpen({ kind: 'withdraw', scheduled: scheduledWithdrawal(entry, data.today) })
+                      }
+                    : undefined
+                }
                 extra={typeExtra?.(entry.type)}
                 onShowReview={onShowReview}
                 headingAs={groupAs === 'h2' ? 'h3' : 'h4'}
@@ -144,7 +163,10 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
       {open?.kind === 'preview' && open.document.file && (
         <DocumentPreview file={open.document.file} typeName={typeById.get(open.document.typeId)?.name ?? ''} onClose={close} onCloseAutoFocus={afterClose} />
       )}
-      {open && open.kind !== 'upload' && open.kind !== 'preview' && (
+      {open?.kind === 'withdraw' && (
+        <WithdrawConsentDialog owner={owner} today={data.today} scheduled={open.scheduled} onClose={close} onCloseAutoFocus={afterClose} />
+      )}
+      {open && open.kind !== 'upload' && open.kind !== 'preview' && open.kind !== 'withdraw' && (
         <ReviewDialog kind={open.kind} document={open.document} type={typeById.get(open.document.typeId)} owner={owner} today={data.today} onClose={close} onCloseAutoFocus={afterClose} />
       )}
     </div>

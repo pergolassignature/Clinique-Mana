@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
     setProfessionalDocumentExpiry: vi.fn(),
     deleteProfessionalDocument: vi.fn(),
     documentDownloadUrl: vi.fn(),
+    withdrawImageConsent: vi.fn(),
   },
   signedUrl: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -319,6 +320,65 @@ describe('Documents tab — upload', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ce fichier ne peut plus être joint : envoyez-le de nouveau.')
     expect(within(dialog).queryByRole('button', { name: t(`${D}.upload.attachKept`) })).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: t(`${D}.upload.choose`) })).toBeInTheDocument()
+  })
+})
+
+describe('Documents tab — « Retrait du consentement » (gap audit V5, P4-549)', () => {
+  const withdrawn = (on: string, note: string | null = null) =>
+    documentsFixture({
+      documents: [
+        documentJson(),
+        PHOTO_JSON,
+        { ...CONSENT_DOC_JSON, withdrawn_on: on, withdrawal_note: note, withdrawn_at: '2026-10-09T15:00:00+00:00', withdrawn_by_name: 'Julie Adjointe' },
+      ],
+    })
+
+  it('the adjointe records it: the date (today by default) and a note; the database is asked once', async () => {
+    mocks.documents.withdrawImageConsent.mockResolvedValue(undefined)
+    await openTab({ role: 'admin_assistant' })
+    await userEvent.click(within(card(CONSENT)).getByRole('button', { name: t(`${D}.actions.withdraw`) }))
+    const dialog = await screen.findByRole('alertdialog', { name: t(`${D}.withdraw.title`) })
+    const date = within(dialog).getByLabelText(new RegExp(t(`${D}.withdraw.date`)))
+    expect(date).toHaveValue('2026-10-09')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: t(`${D}.withdraw.note`) }), '  Demande par courriel.  ')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${D}.withdraw.confirm`) }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.documents.withdrawImageConsent).toHaveBeenCalledExactlyOnceWith(IDS.professional, '2026-10-09', 'Demande par courriel.')
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${D}.withdraw.done`))
+  })
+
+  it('a date more than a year ahead is refused before anything is sent', async () => {
+    await openTab({ role: 'admin_assistant' })
+    await userEvent.click(within(card(CONSENT)).getByRole('button', { name: t(`${D}.actions.withdraw`) }))
+    const dialog = await screen.findByRole('alertdialog', { name: t(`${D}.withdraw.title`) })
+    fireEvent.change(within(dialog).getByLabelText(new RegExp(t(`${D}.withdraw.date`))), { target: { value: '2028-01-01' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${D}.withdraw.confirm`) }))
+    expect(await within(dialog).findByText(t(`${D}.withdraw.dateTooFar`))).toBeInTheDocument()
+    expect(mocks.documents.withdrawImageConsent).not.toHaveBeenCalled()
+  })
+
+  it('withdrawn: « Retiré depuis le … », its note and who recorded it; no second withdrawal', async () => {
+    await openTab({ role: 'admin_assistant', documents: withdrawn('2026-10-09', 'Demande par courriel.') })
+    expect(stateOf(CONSENT)).toBe('Retiré depuis le 9 octobre 2026')
+    const consent = within(card(CONSENT))
+    expect(consent.getByText(t(`${D}.lines.withdrawalNote`, { note: 'Demande par courriel.' }))).toBeInTheDocument()
+    expect(consent.getByText(t(`${D}.lines.withdrawalRecorded`, { date: '9 oct. 2026', name: 'Julie Adjointe' }))).toBeInTheDocument()
+    expect(consent.getByText(t(`${D}.lines.withdrawnNewConsent`))).toBeInTheDocument()
+    expect(consent.queryByRole('button', { name: t(`${D}.actions.withdraw`) })).not.toBeInTheDocument()
+    expect(screen.getByText(t(`${D}.required.summary`, { done: '2', total: '3' }))).toBeInTheDocument()
+  })
+
+  it('a notice period: still in force, « Retrait du consentement en vigueur le … », the date can be corrected', async () => {
+    await openTab({ role: 'admin_assistant', documents: withdrawn('2026-11-01') })
+    expect(within(card(CONSENT)).getByText(t(`${D}.lines.withdrawalScheduled`, { date: '1 novembre 2026' }))).toBeInTheDocument()
+    await userEvent.click(within(card(CONSENT)).getByRole('button', { name: t(`${D}.actions.withdraw`) }))
+    const dialog = await screen.findByRole('alertdialog', { name: t(`${D}.withdraw.title`) })
+    expect(within(dialog).getByLabelText(new RegExp(t(`${D}.withdraw.date`)))).toHaveValue('2026-11-01')
+  })
+
+  it('the conseillère (no review right) is not offered it', async () => {
+    await openTab({ role: 'counselor' })
+    expect(within(card(CONSENT)).queryByRole('button', { name: t(`${D}.actions.withdraw`) })).not.toBeInTheDocument()
   })
 })
 

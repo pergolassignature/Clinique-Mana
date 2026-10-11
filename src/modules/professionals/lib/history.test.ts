@@ -786,6 +786,14 @@ describe('history — the documents (4c.2)', () => {
   const inserted = (extra: Record<string, unknown> = {}, over: Partial<HistoryEntry> = {}) =>
     docRow('insert', { org_id: ORG, professional_id: P, document_type_id: IDS.photoType, status: 'verified', submission_id: null, signature_request_id: null, ...extra }, over)
 
+  it('a withdrawn consent (P4-549): « a enregistré le retrait … à partir du … », its note in the details', () => {
+    const withdrawn = only([
+      docRow('update', { withdrawn_on: { before: null, after: '2026-10-09' }, withdrawal_note: { before: null, after: 'Par courriel.' }, withdrawn_at: { before: null, after: '2026-10-09T15:00:00Z' } }),
+    ])
+    expect(withdrawn.sentence).toBe("a enregistré le retrait du consentement au droit à l'image, à partir du 9 oct. 2026")
+    expect(withdrawn.lines).toEqual([{ kind: 'value', field: 'Note', value: 'Par courriel.' }])
+  })
+
   it('an upload: « a téléversé le document « Photo professionnelle » », by staff or by the professional herself', () => {
     expect(only([inserted()]).sentence).toBe('a téléversé le document « Photo professionnelle »')
     const own = only([inserted({ status: 'pending' }, { actorName: 'Aurélie Essai', actorRole: 'provider' })])

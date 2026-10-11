@@ -10,8 +10,8 @@ import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
 import type { ProfessionalDocument } from '../../api/documents'
 import type { DocumentType } from '../../api/parse'
-import { useDeleteDocument, useRejectDocument, useSetDocumentExpiry, useVerifyDocument } from '../../hooks/use-documents'
-import { expiryError, proposedExpiry } from '../../lib/documents'
+import { useDeleteDocument, useRejectDocument, useSetDocumentExpiry, useVerifyDocument, useWithdrawImageConsent } from '../../hooks/use-documents'
+import { expiryError, proposedExpiry, withdrawalDateError, withdrawalLatest } from '../../lib/documents'
 import type { StatusDialogProps } from './status-dialog'
 import { DialogCancel, DialogRefusal } from './StatusDialogParts'
 
@@ -255,6 +255,82 @@ export function RedateDocumentDialog({ document, type, owner, today, onClose, on
       onCloseAutoFocus={onCloseAutoFocus}
     >
       <ExpiryField value={expiresOn} onChange={setExpiresOn} error={state.fieldError} inputRef={dateInput} />
+    </ReviewDialogFrame>
+  )
+}
+
+const NOTE_MAX = 1000
+
+/**
+ * « Retrait du consentement » (`professionals.documents.review`, gap audit V5, P4-549): the day the
+ * image consent stops being in force (today by default; a scheduled one shows its date, to correct)
+ * and an optional note. From that day the fiche shows the initials and the consent is missing from
+ * the file; the signed document stays as proof, and a new consent can be signed later.
+ */
+export function WithdrawConsentDialog({ owner, today, scheduled, onClose, onCloseAutoFocus }: StatusDialogProps & { owner: DocumentOwner; today: string; scheduled: string | null }) {
+  const [withdrawnOn, setWithdrawnOn] = useState(scheduled ?? today)
+  const [note, setNote] = useState('')
+  const dateInput = useRef<HTMLInputElement>(null)
+  const noteInput = useRef<HTMLTextAreaElement>(null)
+  const state = useRefusal('withdrawn_on')
+  const [noteError, setNoteError] = useState<string | null>(null)
+  const withdraw = useWithdrawImageConsent({
+    onErrorMessage: (message, error) => (rpcErrorHint(error) === 'note' ? setNoteError(message) : state.onErrorMessage(message, error)),
+  })
+  const pending = withdraw.isPending
+
+  const confirm = () => {
+    state.clear()
+    setNoteError(null)
+    const problem = withdrawalDateError(withdrawnOn, today)
+    if (problem) {
+      state.setFieldError(problem)
+      dateInput.current?.focus()
+      return
+    }
+    const text = note.trim()
+    if (text.length > NOTE_MAX) {
+      setNoteError(t(`${D}.withdraw.noteTooLong`))
+      noteInput.current?.focus()
+      return
+    }
+    withdraw.mutate({ professionalId: owner.id, withdrawnOn: withdrawnOn.trim(), note: text === '' ? null : text }, { onSuccess: onClose })
+  }
+
+  return (
+    <ReviewDialogFrame
+      title={t(`${D}.withdraw.title`)}
+      description={t(`${D}.withdraw.body`, { name: owner.name })}
+      pending={pending}
+      refusal={state.refusal}
+      confirmLabel={t(`${D}.withdraw.confirm`)}
+      pendingLabel={t(`${D}.withdraw.pending`)}
+      destructive
+      onConfirm={confirm}
+      onClose={onClose}
+      onCloseAutoFocus={onCloseAutoFocus}
+    >
+      <FormField label={t(`${D}.withdraw.date`)} help={t(`${D}.withdraw.dateHelp`)} required error={state.fieldError ?? undefined}>
+        {(field) => (
+          <Input
+            {...field}
+            ref={dateInput}
+            type="date"
+            value={withdrawnOn}
+            min="2000-01-01"
+            max={withdrawalLatest(today)}
+            onChange={(event) => setWithdrawnOn(event.target.value)}
+            className="max-w-[12rem] tabular"
+          />
+        )}
+      </FormField>
+      <FormField
+        label={t(`${D}.withdraw.note`)}
+        help={t(`${D}.withdraw.noteHelp`, { count: String(note.trim().length), max: String(NOTE_MAX) })}
+        error={noteError ?? undefined}
+      >
+        {(field) => <Textarea {...field} ref={noteInput} value={note} onChange={(event) => setNote(event.target.value)} rows={3} />}
+      </FormField>
     </ReviewDialogFrame>
   )
 }

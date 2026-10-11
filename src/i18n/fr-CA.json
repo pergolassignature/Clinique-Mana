@@ -1393,7 +1393,11 @@
             "reviewed_at": "Vérifié le",
             "rejection_reason": "Raison du refus",
             "submission_id": "Questionnaire",
-            "signature_request_id": "Signature électronique"
+            "signature_request_id": "Signature électronique",
+            "withdrawn_on": "Consentement retiré à partir du",
+            "withdrawal_note": "Note du retrait",
+            "withdrawn_at": "Retrait enregistré le",
+            "withdrawn_by": "Retrait enregistré par"
           },
           "professional_consents": {
             "professional_id": "Professionnel",
@@ -2412,6 +2416,8 @@
             "expired": "a noté que {doc} est échu",
             "expiry": "a modifié l'échéance du document « {type} » au {date}",
             "expiryUnnamed": "a modifié l'échéance d'un document au {date}",
+            "withdrawn": "a enregistré le retrait du consentement au droit à l'image, à partir du {date}",
+            "withdrawalNote": "Note",
             "deleted": "a supprimé {doc}"
           },
           "consent": {
@@ -3770,10 +3776,17 @@
           "inDraftSelf": "Ajouté à votre questionnaire, pas encore envoyé",
           "inDraftSelfConsent": "Signé dans votre questionnaire, pas encore envoyé",
           "rejected": "Refusé",
-          "missing": "Manquant"
+          "missing": "Manquant",
+          "withdrawn": "Consentement retiré",
+          "withdrawnOn": "Retiré depuis le {date}"
         },
         "lines": {
           "uploadedByClinic": "Téléversé le {date} par la clinique",
+          "withdrawalScheduled": "Retrait du consentement en vigueur le {date}",
+          "withdrawalRecorded": "Retrait enregistré le {date} par {name}",
+          "withdrawalRecordedOn": "Retrait enregistré le {date}",
+          "withdrawalNote": "Note : {note}",
+          "withdrawnNewConsent": "Un nouveau consentement doit être signé pour que la photo figure de nouveau sur la fiche.",
           "signedElectronically": "Signé électroniquement le {date} (Documenso)",
           "signedPdf": "PDF signé électroniquement (Documenso)",
           "uploadedByProfessional": "Téléversé le {date} par {firstName}",
@@ -3807,6 +3820,7 @@
           "verify": "Vérifier",
           "reject": "Refuser",
           "redate": "Modifier l'échéance",
+          "withdraw": "Retrait du consentement",
           "delete": "Supprimer",
           "more": "Autres actions : {name}",
           "documentName": "{type}, {state}"
@@ -3841,6 +3855,21 @@
           "datePast": "La date doit être aujourd'hui ou plus tard.",
           "dateTooFar": "La date ne peut pas dépasser le 31 décembre 2100.",
           "fieldTooLong": "120 caractères au plus."
+        },
+        "withdraw": {
+          "title": "Retrait du consentement au droit à l'image",
+          "body": "{name} retire son consentement. À partir de la date indiquée, la fiche n'affiche plus sa photo et le consentement manque au dossier. Le document signé reste au dossier : il prouve ce qui a été consenti jusque-là.",
+          "date": "Retrait en vigueur le",
+          "dateHelp": "Le premier jour sans consentement : aujourd'hui, une date passée ou, pour un préavis, une date à venir (au plus dans un an).",
+          "note": "Note",
+          "noteHelp": "Facultatif. Par exemple, comment le retrait a été demandé. {count} / {max} caractères",
+          "dateRequired": "Indiquez la date du retrait.",
+          "dateInvalid": "Cette date n'est pas valide.",
+          "dateTooFar": "La date ne peut pas dépasser un an à partir d'aujourd'hui.",
+          "noteTooLong": "1000 caractères au plus.",
+          "confirm": "Enregistrer le retrait",
+          "pending": "Enregistrement…",
+          "done": "Retrait du consentement enregistré."
         },
         "verify": {
           "title": "Vérifier : {type}",

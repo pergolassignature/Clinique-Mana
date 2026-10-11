@@ -66,6 +66,7 @@ const COLUMNS = {
   professional_documents: [
     'id', 'org_id', 'professional_id', 'document_type_id', 'stored_file_id', 'status', 'expires_on', 'metadata', 'uploaded_by', 'uploaded_at',
     'reviewed_by', 'reviewed_at', 'rejection_reason', 'submission_id', 'signature_request_id', 'created_at', 'updated_at',
+    'withdrawn_on', 'withdrawal_note', 'withdrawn_at', 'withdrawn_by',
   ],
   // 4b: the questionnaire, its private data, the invitation deliveries; 4c–4d: consents and contracts.
   professional_submissions: [
