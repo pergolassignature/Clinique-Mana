@@ -48,7 +48,7 @@ describe('useAddTaxRate', () => {
 
   it('leaves a failure to the dialog (no toast), and still refreshes the rates: another admin may have changed them', async () => {
     const { wrapper, invalidate } = setup()
-    mocks.api.addTaxRate.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 2013-01-01.' })
+    mocks.api.addTaxRate.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 1 janv. 2013.' })
     const { result } = renderHook(() => useAddTaxRate(), { wrapper })
     result.current.mutate({ tax: 'qst', rate: 0.1, effectiveFrom: '2012-01-01' })
     await waitFor(() => expect(result.current.isError).toBe(true))

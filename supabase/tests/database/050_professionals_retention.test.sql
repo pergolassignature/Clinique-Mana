@@ -443,14 +443,14 @@ select throws_ok($$ select public.decide_retention(current_setting('test.p4')::u
 select is(public.get_professional_compensation(current_setting('test.p1')::uuid, '2026-06-15') ->> 'status', 'profession_unconfirmed',
   'before 2026-07-01 no grid is in force');
 select throws_ok($$ select public.get_professional_compensation(current_setting('test.p1')::uuid, '1999-01-01') $$,
-  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'p_on is bounded');
+  'P0001', 'La date doit être comprise entre le 1 janv. 2000 et le 31 déc. 2100.', 'p_on is bounded');
 
 -- =============================================================================
 -- Grids
 -- =============================================================================
 select throws_ok(format($$ select public.set_retention_grid(%L, '2026-07-01', '[{"threshold_sessions": 0, "retention_pct": 28}]', '[{"duration": 50, "client_price_cents": 17500}]', null) $$,
                         current_setting('test.psy_a')),
-  'P0001', 'La nouvelle grille doit commencer après le 2026-07-01.', 'a new version starts after the open one');
+  'P0001', 'La nouvelle grille doit commencer après le 1 juil. 2026.', 'a new version starts after the open one');
 select is(private.test_error_hint(format($$ select public.set_retention_grid(%L, '2027-01-01', '[{"threshold_sessions": 51, "retention_pct": 28}]', '[{"duration": 50, "client_price_cents": 17500}]', null) $$,
                         current_setting('test.psy_a'))), 'tiers', 'no tier at 0: HINT tiers');
 select throws_ok(format($$ select public.set_retention_grid(%L, '2027-01-01', '[{"threshold_sessions": 0, "retention_pct": 28}, {"threshold_sessions": 51, "retention_pct": 29}]', '[{"duration": 50, "client_price_cents": 17500}]', null) $$,
@@ -571,7 +571,7 @@ select throws_ok(format($$ select public.end_professional_client_agreement(%L, '
   'P0001', 'Seule la dernière entente d''un client et d''une durée peut prendre fin.', 'only the last agreement ends');
 select lives_ok(format($$ select public.end_professional_client_agreement(%L, '2027-03-01') $$, current_setting('test.ag2')), 'the agreement ends');
 select throws_ok($$ select public.set_professional_client_agreement(current_setting('test.p1')::uuid, 'AB-123', 50, 9000, 12000, '2027-02-01', null) $$,
-  'P0001', 'La nouvelle entente doit commencer au plus tôt le 2027-03-01.', 'the next one starts at its end or later');
+  'P0001', 'La nouvelle entente doit commencer au plus tôt le 1 mars 2027.', 'the next one starts at its end or later');
 select is((public.get_professional_compensation(current_setting('test.p1')::uuid, '2027-03-15') -> 'agreements') @> '[{"client_label": "AB-123"}]', false,
   'ended: no longer in force');
 select lives_ok(format($$ select public.delete_professional_client_agreement(%L) $$, current_setting('test.ag2')), 'the new one is deleted');

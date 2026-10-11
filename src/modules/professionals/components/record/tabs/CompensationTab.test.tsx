@@ -487,7 +487,7 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
   })
 
   it('puts a date refusal (HINT effective_from) under the date field', async () => {
-    mocks.compensation.decideRetention.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 2026-11-01.', hint: 'effective_from' })
+    mocks.compensation.decideRetention.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 1 nov. 2026.', hint: 'effective_from' })
     render(COMPENSATION_ONLY)
     const card = await retention()
     await userEvent.click(within(card).getByRole('button', { name: 'Maintenir 28\u00A0%' }))
@@ -496,7 +496,7 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
     // The open rate started on 2026-07-01: the next one from the 2nd.
     expect(date).toHaveAttribute('min', '2026-07-02')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
-    await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('Le nouveau taux doit commencer après le 2026-11-01.')))
+    await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('Le nouveau taux doit commencer après le 1 nov. 2026.')))
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
   })
 

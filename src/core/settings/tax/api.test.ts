@@ -57,7 +57,7 @@ describe('addTaxRate', () => {
   })
 
   it('throws the RPC error (French P0001 message)', async () => {
-    const error = { code: 'P0001', message: 'Le nouveau taux doit commencer après le 2013-01-01.' }
+    const error = { code: 'P0001', message: 'Le nouveau taux doit commencer après le 1 janv. 2013.' }
     mocks.rpc.mockResolvedValue({ data: null, error })
     await expect(addTaxRate('qst', 0.1, '2012-01-01')).rejects.toBe(error)
   })

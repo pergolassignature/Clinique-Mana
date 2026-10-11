@@ -151,7 +151,7 @@ select is((select count(*)::int from public.audit_log a where a.table_name = 'pr
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.set_professional_matching_note('c0000000-0000-0000-0000-000000000001', repeat('x', 1001)) $$,
-  'P0001', 'La note compte au plus 1000 caractères.', '1001 characters are refused');
+  'P0001', 'La note ne peut pas dépasser 1000 caractères.', '1001 characters are refused');
 select lives_ok($$ select public.set_professional_matching_note('c0000000-0000-0000-0000-000000000001', repeat('x', 1000)) $$,
   '1000 characters are accepted');
 select is(public.set_professional_matching_note('c0000000-0000-0000-0000-000000000001', 'Pas de couples le vendredi.') ->> 'note',

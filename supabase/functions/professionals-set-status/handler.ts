@@ -19,7 +19,12 @@
  *    `{ action: 'sync_signin', professional_id }`. Any other field (a profile
  *    id, an org) is ignored: the account comes from the RPC.
  * 3. The service client before any change: a misconfigured one must not leave
- *    an account disabled without the ban.
+ *    an account disabled without the ban. Then one hit on
+ *    `LIMITS.professionalSetStatusUser` (120 an hour per caller, every
+ *    action, `sync_signin` included): a runaway-loop brake on the Auth
+ *    calls, far above real use. Refused → 429 `rate_limited` with
+ *    `Retry-After`, nothing changed; the limiter down → 503
+ *    `not_configured`.
  * 4. `deactivate_professional` / `activate_professional` with the **caller's**
  *    client: every guard of 4a.4 decides, as the caller. They answer
  *    `(status, account_change, profile_id)`: `account_change` is `disabled`
@@ -48,7 +53,9 @@
  * `reason`, `note`; 22023); 401 / 403 / 503 from `verifyAuth` (403
  * `module_disabled` with the module off); 403 `forbidden` (42501); 405; 409
  * `conflict` (40001: the account was linked or unlinked meanwhile, « Le
- * dossier vient de changer. Réessayez. »); 413; 500 `internal` (another RPC
+ * dossier vient de changer. Réessayez. »); 413; 429 `rate_limited` with
+ * `Retry-After`; 503 `not_configured` (limiter failed closed); 500
+ * `internal` (another RPC
  * error or an unexpected answer, reported) or `server_misconfigured`.
  * Reports carry the org, professional and user ids only.
  */
@@ -66,6 +73,7 @@ import {
   professionalsRpcError,
   type RpcError,
 } from '../_shared/professionals.ts'
+import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
 const FN = 'professionals-set-status'
@@ -123,6 +131,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (input instanceof Response) return input
     const service = deps.serviceClient()
     if (service instanceof Response) return service
+
+    const limited = limitResponse(
+      await consume(service, LIMITS.professionalSetStatusUser, [
+        auth.access.org_id,
+        auth.access.user_id,
+      ]),
+      req,
+    )
+    if (limited) return limited
 
     const ids = {
       org_id: auth.access.org_id,

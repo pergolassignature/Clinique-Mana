@@ -166,12 +166,12 @@ describe('MatchingTab — places offertes and « Bon à savoir » (P4-382, P4-38
   })
 
   it('shows the note’s refusal under the field (HINT note)', async () => {
-    mocks.api.setMatchingNote.mockRejectedValue({ code: 'P0001', message: 'La note compte au plus 1000 caractères.', hint: 'note' })
+    mocks.api.setMatchingNote.mockRejectedValue({ code: 'P0001', message: 'La note ne peut pas dépasser 1000 caractères.', hint: 'note' })
     renderTab()
     const note = card(t(`${N}.title`))
     await userEvent.type(within(note).getByRole('textbox', { name: t(`${N}.label`) }), 'Texte')
     await userEvent.click(within(note).getByRole('button', { name: t('common.save') }))
-    expect(await within(note).findByText('La note compte au plus 1000 caractères.')).toBeInTheDocument()
+    expect(await within(note).findByText('La note ne peut pas dépasser 1000 caractères.')).toBeInTheDocument()
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
 

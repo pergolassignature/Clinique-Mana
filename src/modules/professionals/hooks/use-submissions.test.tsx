@@ -18,7 +18,7 @@ afterEach(() => vi.clearAllMocks())
 const SUBMISSION = '00000000-0000-4000-8000-00000000e101'
 
 async function applyFields(fields: Parameters<ReturnType<typeof useApplySubmission>['mutateAsync']>[0]['fields'], { fail = false } = {}) {
-  if (fail) mocks.apply.mockRejectedValueOnce({ code: 'P0001', message: 'Cette soumission n’attend pas de révision.', hint: 'status' })
+  if (fail) mocks.apply.mockRejectedValueOnce({ code: 'P0001', message: 'Ce profil n’attend pas de révision.', hint: 'status' })
   else mocks.apply.mockResolvedValueOnce(undefined)
   const { wrapper, invalidated } = setupQueryClient()
   const { result } = renderHook(() => useApplySubmission({ onErrorMessage: () => undefined }), { wrapper })

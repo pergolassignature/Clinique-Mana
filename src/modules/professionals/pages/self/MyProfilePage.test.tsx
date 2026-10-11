@@ -148,12 +148,12 @@ describe('MyProfilePage', () => {
   })
 
   it('a refusal stays in the dialog', async () => {
-    mocks.self.startMyProfileUpdate.mockRejectedValue({ code: 'P0001', message: 'Une soumission est déjà en cours.', hint: 'submission' })
+    mocks.self.startMyProfileUpdate.mockRejectedValue({ code: 'P0001', message: 'Un questionnaire est déjà en cours ou attend une révision.', hint: 'submission' })
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: t(`${Q}.update.action`) }))
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${P}.update.confirm`) }))
-    expect(await within(dialog).findByText('Une soumission est déjà en cours.')).toBeInTheDocument()
+    expect(await within(dialog).findByText('Un questionnaire est déjà en cours ou attend une révision.')).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/mon-profil')
   })
 
