@@ -121,7 +121,7 @@ select is(private.test_p1_emails(), null, 'a new insurance in her sent questionn
 select is((select count(*)::int from public.notifications n
             where n.subject_id = 'c0000000-0000-0000-0000-000000000001' and n.kind = 'professionals.insurance_expiring'
               and (n.expires_at is null or n.expires_at > now())), 1,
-  '… the staff notice « Assurance bientôt échue » stays');
+  '… the staff notice « Assurance expire bientôt » stays');
 update public.professional_submissions
    set submitted_values = jsonb_set(submitted_values, '{insurance,expires_on}', to_jsonb((current_setting('test.today')::date - 1)::text))
  where id = 'd0000000-0000-0000-0000-000000000001';

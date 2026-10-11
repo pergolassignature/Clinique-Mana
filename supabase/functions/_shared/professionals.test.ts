@@ -18,22 +18,39 @@ const MIGRATIONS = new URL('../../migrations/', import.meta.url)
 
 /**
  * The `variables` paths a seeded template declares, from the text of the
- * module's migration that seeds it (4b.1: onboarding; 4c.2: documents).
+ * module's migration that seeds it (4b.1: onboarding; 4c.2: documents), plus
+ * those a later migration's `update public.email_template_defaults … where
+ * key = '<key>'` appends (V19: `submission.description`).
  */
 async function declaredPaths(key: string): Promise<string[]> {
+  const paths = new Set<string>()
+  let seeded = false
   for await (const entry of Deno.readDir(MIGRATIONS)) {
     if (!/_professionals_[a-z_]+\.sql$/.test(entry.name)) continue
     const text = await Deno.readTextFile(new URL(entry.name, MIGRATIONS))
+    for (
+      const update of text.matchAll(
+        /update public\.email_template_defaults[\s\S]*?;/g,
+      )
+    ) {
+      if (!update[0].includes(`key = '${key}'`)) continue
+      for (const m of update[0].matchAll(/"path": "([a-z_.]+)"/g)) {
+        paths.add(m[1])
+      }
+    }
     const seeds = text.indexOf('insert into public.email_template_defaults')
     const start = seeds < 0
       ? -1
       : text.indexOf(`('${key}', 'professionals',`, seeds)
     if (start < 0) continue
+    seeded = true
     const end = text.indexOf("'professionals.view')", start)
-    return [...text.slice(start, end).matchAll(/"path": "([a-z_.]+)"/g)]
-      .map((m) => m[1]).sort()
+    for (const m of text.slice(start, end).matchAll(/"path": "([a-z_.]+)"/g)) {
+      paths.add(m[1])
+    }
   }
-  throw new Error(`template ${key} not seeded`)
+  if (!seeded) throw new Error(`template ${key} not seeded`)
+  return [...paths].sort()
 }
 
 /** The dotted paths of a values object's leaves. */
@@ -63,8 +80,22 @@ Deno.test('professionals: each builder fills exactly the variables its template 
     await declaredPaths('professionals.profile_update'),
   )
   assertEquals(
-    leafPaths(submissionReceivedValues({ fullName: 'Nadia Côté' })),
+    leafPaths(
+      submissionReceivedValues({ fullName: 'Nadia Côté', kind: 'update' }),
+    ),
     await declaredPaths('professionals.submission_received'),
+  )
+  assertEquals(
+    submissionReceivedValues({ fullName: 'Nadia Côté', kind: 'onboarding' }),
+    {
+      professional: { full_name: 'Nadia Côté' },
+      submission: { description: 'son profil' },
+    },
+  )
+  assertEquals(
+    submissionReceivedValues({ fullName: 'Nadia Côté', kind: 'update' })
+      .submission,
+    { description: 'une mise à jour de son profil' },
   )
   assertEquals(invite, {
     professional: { first_name: 'Nadia' },

@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { toast } from '@/shared/ui/sonner'
 import { fetchProfessionalsSettings, saveProfessionalsSettings } from '../api/settings'
 import type { ProfessionalsSettings } from '../api/parse'
+import { unansweredDays } from '../lib/watch'
 import { professionalsSettingsKeys } from './keys'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
 
@@ -13,6 +14,14 @@ const settingsQuery = professionalsSettingsQuery
 /** The module's settings (`collectSin`…). `enabled`: only for a screen that uses them. */
 export function useProfessionalsSettings(enabled = true) {
   return useQuery({ ...settingsQuery, enabled })
+}
+
+/**
+ * The days after which an invitation reads « sans réponse » in « À surveiller »: the clinic's
+ * reminder delay (V14, P4-546), 3 until the settings load or when they cannot.
+ */
+export function useUnansweredDays(): number {
+  return unansweredDays(useProfessionalsSettings().data)
 }
 
 /** On the « Rémunération et fiscalité » tab's hover or focus (the SIN card reads `collectSin`). */

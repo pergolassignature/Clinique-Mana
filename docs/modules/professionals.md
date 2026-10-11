@@ -286,6 +286,17 @@ From the gap audit of 2026-10-09 (`docs/audit/2026-10-09-gap-audit.md`, PR #26: 
 - **One rule for an insurance's dates (P4-511, V12):** always its last valid day, « valide jusqu'au {date} » (P4-456): « Expire bientôt : valide jusqu'au … », « Expiré : valide jusqu'au … », « Assurance expirée : valide jusqu'au … » (list and Aperçu), the review sheet's warning, « Mes documents »' banner, « Preuve d'assurance transmise, valide jusqu'au … », and in SQL the staff notices and the three insurance email defaults (« est / était valide jusqu'au »; a clinic's own copy of a template is left as written). Short dates have no leading zero (`formatClinicDateShort`, `formatDateOnlyShort`). Migration `…221549_professionals_insurance_dates_wording`, pgTAP `062`, `090`.
 - **The fiche's photo needs a consent on file (P4-512):** see [Image consent](#image-consent-documenso).
 
+## Gap audit, second pass (P4-540 – P4-546)
+
+Open and partial items of the gap audit's « État au 2026-10-10 », Professionnels side. Migration `…_professionals_notices_watch_history`, pgTAP `094` (and `043`, `051`, `061`, `062`, `074`, `083` updated).
+
+- **« À surveiller » flags documents (P4-540, V7):** « Documents requis manquants » (active files only, as the weekly notice) and « N document(s) à vérifier » (`professionals_list.documents_to_review`, `get_professional_readiness.documents_to_review`); the weekly notice opens `/professionnels?statut=actif&documents=incomplets`.
+- **« Document à vérifier » names who uploaded (P4-541, V18).**
+- **Notices close with their cause (P4-542, T3):** a newer document of the type closes the older pending ones' notice (trigger `professional_documents_supersede_notices`), an inactive file's document notices close (trigger `professionals_close_document_notices`), « Documents requis manquants » is renewed when its count changes. **The owner is never alerted by her own file (P4-543)**: the notice is read for her at once (`private.mark_notification_read_for`, a core helper).
+- **The reviewers' email says profile or update (P4-544, V19):** `submission.description` (`professionals-submit`).
+- **Historique shows the contract's preparation (P4-545, T4):** `professional_contract_snapshots` rows, as `{renewal}` only.
+- **« Sans réponse » follows the reminder delay (P4-546, V14):** `useUnansweredDays()` (`unansweredDays`, `lib/watch.ts`).
+
 ## Import of the existing professionals (4a.19)
 
 - **RPC** `import_professional(p_row jsonb, p_dry_run boolean default true)`, security **invoker** (P4-121): it calls the module's own RPCs and the « Coordonnées » column update, so grants, RLS, guards, readiness and audit (source `import`, the person running it as actor) are the app's. A dry run writes everything and rolls it back (deferred checks included). Results `ok` / `skipped` (an email the clinic's professionals already use: re-runs are idempotent, P4-123) / `error` with every data error of the row under the client schemas' field names (P4-122). Permissions: `.manage`, `.matching`, `.view`, and `.activate_override` when the row asks to activate (« Dossier complété hors application », P4-124).

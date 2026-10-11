@@ -860,7 +860,7 @@ select is(public.get_professional_readiness(current_setting('test.p1')::uuid) ->
     {"key": "submission_approved", "done": true, "missing": []}, {"key": "documents", "done": false, "missing": ["insurance", "image_consent"]},
     {"key": "contract_signed", "done": false, "missing": []}]'::jsonb,
   'readiness: matching, account, questionnaire; of the documents (4c.2), the approved photo counts, the insurance (not chosen) and the image consent (none signed through Documenso, P4-507) are missing; the contract (4d.1) still to sign');
-select is(public.get_professional_readiness(current_setting('test.p1')::uuid) - 'items' - 'insurance',
+select is(public.get_professional_readiness(current_setting('test.p1')::uuid) - 'items' - 'insurance' - 'documents_to_review',
   '{"complete": false, "done": 3, "total": 5, "warnings": []}'::jsonb, 'the file waits for its insurance and its contract');
 select results_eq($$ select r.account_created, r.submission_approved, r.ready from public.professionals_readiness r
                       where r.professional_id in (current_setting('test.p5')::uuid, current_setting('test.p2')::uuid) order by r.professional_id $$,

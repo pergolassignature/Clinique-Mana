@@ -1758,6 +1758,9 @@
         "login_email_mismatch": "Courriel de connexion différent",
         "insurance_expiring": "Assurance expire bientôt : valide jusqu'au {date}",
         "insurance_expired": "Assurance expirée : valide jusqu'au {date}",
+        "documents_missing": "Documents requis manquants",
+        "documents_to_review_one": "1 document à vérifier",
+        "documents_to_review_other": "{count} documents à vérifier",
         "inactiveSince": "Inactif depuis le {date}",
         "inactiveSinceFor": "Inactif depuis le {date} · {reason}"
       },
@@ -2410,6 +2413,8 @@
             "withdrawn": "a enregistré le retrait du consentement au droit à l'image"
           },
           "contract": {
+            "prepared": "a préparé le contrat de service (aperçu ou envoi)",
+            "preparedRenewal": "a préparé un nouveau contrat de service (aperçu ou envoi)",
             "sent": "a envoyé le contrat de service pour signature",
             "signed": "a conservé au dossier le contrat de service signé (PDF signé)",
             "rejected": "a enregistré le refus du contrat de service",

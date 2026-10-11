@@ -278,7 +278,7 @@ reset role;
 select results_eq($$ select kind, recipient_permission, title, body, link_path, subject_type, subject_id, expires_at
                        from public.notifications where dedupe_key = 'document:' || current_setting('test.d_photo1') || ':uploaded' $$,
   $$ values ('professionals.document_to_review'::text, 'professionals.documents.review'::text, 'Document à vérifier'::text,
-             'Paul Un a téléversé un document : Photo professionnelle.'::text,
+             'Paul Un · Photo professionnelle · téléversé par Adjointe Deux.'::text,
              '/professionnels/c0000000-0000-0000-0000-000000000001/documents'::text, 'professional_document'::text,
              current_setting('test.d_photo1')::uuid, null::timestamptz) $$,
   'a pending document notifies the reviewers (name and type only)');

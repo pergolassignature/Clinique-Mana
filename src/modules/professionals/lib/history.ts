@@ -609,6 +609,18 @@ function contractRow(entry: HistoryEntry): Described | null {
 }
 
 const PAPER_CONTRACT_TABLE = 'professional_paper_contracts'
+const CONTRACT_SNAPSHOTS_TABLE = 'professional_contract_snapshots'
+
+/**
+ * « Préparer le contrat », its preview, « Régénérer » and « Préparer un nouveau contrat » (T4,
+ * P4-545): each writes the snapshot of what the contract prints. `list_professional_history`
+ * returns only `{renewal}` for it (a contract was in force then), never what it prints.
+ */
+function contractSnapshotRow(entry: HistoryEntry): Described | null {
+  if (entry.action !== 'insert') return null
+  const S = `${H}.sentences.contract`
+  return { kind: 'change', sentence: t(fieldsOf(entry).renewal === true ? `${S}.preparedRenewal` : `${S}.prepared`), lines: [] }
+}
 
 /**
  * A service contract signed outside the app (P4-520, P4-526): « a téléversé un contrat de service
@@ -644,6 +656,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
   if (entry.tableName === PAPER_CONTRACT_TABLE) return paperContractRow(entry)
+  if (entry.tableName === CONTRACT_SNAPSHOTS_TABLE) return contractSnapshotRow(entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)

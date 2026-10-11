@@ -204,9 +204,17 @@ describe('listRowPayload', () => {
       documentsDone: 3,
       documentsRequired: 3,
       photoFileId: null,
+      documentsToReview: 0,
+      documentsMissing: false,
       // Joined by the list page from list_professional_invitation_states (P4-270).
       onboarding: null,
     })
+  })
+
+  it('reads the documents waiting for review and whether a required one is missing (V7)', () => {
+    const row = parseRpc(listRowPayload, { ...LIST_ROW_JSON, documents_to_review: 2, documents_done: 1, documents_required: 3 })
+    expect(row).toMatchObject({ documentsToReview: 2, documentsMissing: true })
+    expect(parseRpc(listRowPayload, { ...LIST_ROW_JSON, documents_done: 0, documents_required: 0 }).documentsMissing).toBe(false)
   })
 
   it('reads the photo’s stored file, null without one', () => {
