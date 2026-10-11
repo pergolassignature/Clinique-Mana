@@ -17,8 +17,13 @@
  *    org) is ignored. An invitation body the schema refuses answers 400
  *    `invalid_request` with the first refused `field` (`email`,
  *    `display_name` or `role`), for the dialog to mark it.
- * 3. `invites.staff_user` (30 per hour per caller), on top of the email
- *    limits of the send path.
+ * 3. « Renvoyer » only: `invites.staff_resend` (one per 5 s per invitation,
+ *    whoever clicks), first, so that a refused double click does not use up
+ *    the caller's hourly count: each « Renvoyer » replaces the live link, so
+ *    a second click would leave the first email's link dead. Then
+ *    `invites.staff_user` (30 per hour per caller), on top of the email
+ *    limits of the send path. Either refused → 429 `rate_limited` with
+ *    `Retry-After`, nothing renewed or sent.
  * 4. `generateToken`, `hashToken` and the link URL (an unusable `APP_URL` →
  *    500 before anything is created).
  * 5. With the service client, `p_actor` = the caller `verifyAuth` verified,
@@ -34,7 +39,8 @@
  *
  * Status mapping: 200; 400 `invalid_request` (body, P0001, 22023); 401 / 403
  * / 503 from `verifyAuth`; 403 `forbidden` (42501); 405; 413; 429
- * `rate_limited` with `Retry-After` (the caller's limit); 503
+ * `rate_limited` with `Retry-After` (the resend guard or the caller's
+ * limit); 503
  * `not_configured` (limiter failed closed); 500 `internal` (another RPC
  * error, reported) or `server_misconfigured` (`APP_URL`). Once the invitation
  * exists, a failure answers with `invitation_id` next to the error, so the UI
@@ -164,6 +170,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const report = (code: string, ids: Record<string, string> = {}) =>
       reportError({ fn: FN, code, ids: { org_id: orgId, ...ids } }, deps.fetch)
 
+    // The invitation's guard first, so that a refused double click does not
+    // use up the caller's hourly count.
+    if ('invitation_id' in input) {
+      const busy = limitResponse(
+        await consume(client, LIMITS.staffInviteResend, [
+          orgId,
+          input.invitation_id.toLowerCase(),
+        ]),
+        req,
+      )
+      if (busy) return busy
+    }
     const refused = limitResponse(
       await consume(client, LIMITS.staffInviteUser, [orgId, actor]),
       req,

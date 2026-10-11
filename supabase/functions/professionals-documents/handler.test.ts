@@ -212,7 +212,7 @@ Deno.test('professionals-documents: the RPC refusals are passed on (P0001 → 40
         })
       })
       assertEquals(logged, [], hint)
-      assertEquals(service.calls, [], hint)
+      assertEquals(service.calls.map((c) => c.fn), ['consume_rate_limit'], hint)
       assertEquals(http.calls, [], hint)
     }
 
@@ -222,7 +222,7 @@ Deno.test('professionals-documents: the RPC refusals are passed on (P0001 → 40
     const forbidden = await denied.handler(post())
     assertEquals(forbidden.status, 403)
     assertEquals((await forbidden.json()).error.code, 'forbidden')
-    assertEquals(denied.service.calls, [])
+    assertEquals(denied.service.calls.map((c) => c.fn), ['consume_rate_limit'])
 
     const broken = harness({ reject: { error: { code: 'XX000' } } })
     const logged = await reports(async () => {
@@ -234,7 +234,40 @@ Deno.test('professionals-documents: the RPC refusals are passed on (P0001 → 40
       'reject_failed',
       { org_id: ORG_ID, document_id: DOC_ID },
     ]])
-    assertEquals(broken.service.calls, [])
+    assertEquals(broken.service.calls.map((c) => c.fn), ['consume_rate_limit'])
+  })
+})
+
+Deno.test("professionals-documents: the caller's limit (60 an hour) → 429 with Retry-After before the refusal; the limiter down → 503", async () => {
+  await run(async () => {
+    const limited = harness({
+      limits: { 'professionals.documents_user': { allowed: false } },
+    })
+    const res = await limited.handler(post())
+    assertEquals(res.status, 429)
+    assertEquals(res.headers.get('Retry-After'), '4')
+    assertEquals((await res.json()).error.code, 'rate_limited')
+    assertEquals(limited.user.calls.map((c) => c.fn), ['get_my_access'])
+    assertEquals(limited.service.calls.map((c) => c.fn), [
+      'consume_rate_limit',
+    ])
+    assertEquals(
+      calls(limited.service.calls, 'consume_rate_limit').map((a) => a.p_bucket),
+      ['professionals.documents_user'],
+    )
+    assertEquals(limited.http.calls, [])
+
+    const down = harness({
+      rpc: { consume_rate_limit: { error: { code: 'XX000' } } },
+    })
+    const logged = await reports(async () => {
+      const closed = await down.handler(post())
+      assertEquals(closed.status, 503)
+      assertEquals((await closed.json()).error.code, 'not_configured')
+    })
+    assertEquals(logged.map((l) => l.code), ['rate_limit_unavailable'])
+    assertEquals(down.user.calls.map((c) => c.fn), ['get_my_access'])
+    assertEquals(down.http.calls, [])
   })
 })
 
@@ -268,8 +301,11 @@ Deno.test('professionals-documents: refuse as the caller, then the email to the 
       calls(service.calls, 'get_professional_document_rejection_for_service'),
       [{ p_actor: ADMIN_ID, p_doc_id: DOC_ID }],
     )
+    // The caller's limit before the refusal, then the notice.
+    assertEquals(service.calls[0].fn, 'consume_rate_limit')
+    assertEquals(service.calls[0].args.p_bucket, 'professionals.documents_user')
     assertEquals(
-      service.calls[0].fn,
+      service.calls[1].fn,
       'get_professional_document_rejection_for_service',
     )
 
@@ -323,6 +359,7 @@ Deno.test('professionals-documents: a file staff uploaded is refused but not ema
     })
     assertEquals(logged, [])
     assertEquals(service.calls.map((c) => c.fn), [
+      'consume_rate_limit',
       'get_professional_document_rejection_for_service',
     ])
     assertEquals(http.calls, [])
