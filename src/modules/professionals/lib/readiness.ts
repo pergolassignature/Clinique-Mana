@@ -1,13 +1,12 @@
 import { t } from '@/i18n'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import type { ReadinessItemKey, ReadinessMissing, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
 import {
-  emailFailureReason,
   invitationEmail,
   invitationState,
   onboardingActionLabel,
   onboardingActions,
-  shortDate,
   unknownEmailOutcome,
   type InviteAction,
 } from './onboarding'
@@ -116,7 +115,7 @@ export function nextAction(
   const firstName = professional.firstName
   const submission = onboarding?.submission ?? null
   if (submission?.status === 'submitted') {
-    const date = submission.submittedAt ? shortDate(submission.submittedAt, now) : null
+    const date = submission.submittedAt ? formatClinicDateShort(submission.submittedAt) : null
     // The reviewer's own file: another authorised person reviews it (P4-304), so no button.
     const own = viewerId !== null && professional.profileId === viewerId
     const kind = submission.kind === 'onboarding' ? 'Onboarding' : 'Update'
@@ -135,7 +134,7 @@ export function nextAction(
   const state = invitationState(invitation, now)
   const noAccount = professional.profileId === null
   if (noAccount && invitation && state === 'expired') {
-    return { message: t(`${N}.invitationExpired`, { date: shortDate(invitation.expiresAt, now) }), action: inviteButton }
+    return { message: t(`${N}.invitationExpired`, { date: formatClinicDateShort(invitation.expiresAt) }), action: inviteButton }
   }
   const copyButton: NextActionButton | null = copyLink ? { kind: 'copyLink', label: onboardingActionLabel('copyLink') } : null
   // An email that did not leave comes before the gaps too, as an expired link: the professional
@@ -143,7 +142,7 @@ export function nextAction(
   const email = noAccount && invitation && state === 'sent' ? invitationEmail(invitation, now) : null
   if (invitation && email?.kind === 'failed') {
     return {
-      message: `${t(`${N}.invitationNotSent`, { firstName, date: shortDate(invitation.sentAt, now) })} ${emailFailureReason(email.reason)}`,
+      message: t(`${N}.invitationNotSent`, { firstName, date: formatClinicDateShort(invitation.sentAt), reason: email.label }),
       action: inviteButton,
       secondary: copyButton,
     }
@@ -153,13 +152,13 @@ export function nextAction(
   // their gaps stay listed in « Dossier » but are not the next step; every branch below returns.
   if (noAccount && invitation && state === 'revoked') return { message: t(`${N}.invitationRevoked`, { firstName }), action: inviteButton }
   if (noAccount && invitation && state === 'used') {
-    return { message: t(`${N}.invitationUsedNoAccount`, { firstName, date: shortDate(invitation.usedAt ?? invitation.sentAt, now) }), action: inviteButton }
+    return { message: t(`${N}.invitationUsedNoAccount`, { firstName, date: formatClinicDateShort(invitation.usedAt ?? invitation.sentAt) }), action: inviteButton }
   }
   if (noAccount && !invitation) return { message: t(`${N}.notInvited`, { firstName }), action: inviteButton }
   if (noAccount && invitation) {
-    const date = shortDate(invitation.sentAt, now)
+    const date = formatClinicDateShort(invitation.sentAt)
     if (state === 'opened' && invitation.openedAt) {
-      return { message: t(`${N}.invitationOpened`, { firstName, date: shortDate(invitation.openedAt, now) }), action: null }
+      return { message: t(`${N}.invitationOpened`, { firstName, date: formatClinicDateShort(invitation.openedAt) }), action: null }
     }
     switch (invitationEmail(invitation, now).kind) {
       case 'copied':

@@ -146,7 +146,7 @@ describe('RecordActions — the invitation menu (Task 4b.3)', () => {
     await userEvent.click(screen.getByRole('button', { name: MORE }))
     await userEvent.click(await screen.findByRole('menuitem', { name: t(`${A}.resend`) }))
     const dialog = await screen.findByRole('alertdialog', { name: "Renvoyer l'invitation à Marie Tremblay ?" })
-    expect(dialog).toHaveAccessibleDescription(/Un nouveau lien sera envoyé à marie\.t@exemple\.ca\. Le lien du 5 oct\. ne fonctionnera plus\./)
+    expect(dialog).toHaveAccessibleDescription(/Un nouveau lien sera envoyé à marie\.t@exemple\.ca\. Le lien du 5 oct\. 2026 ne fonctionnera plus\./)
     expect(within(dialog).getByRole('button', { name: t(`${A}.resend`) })).toHaveClass('bg-primary')
   })
 

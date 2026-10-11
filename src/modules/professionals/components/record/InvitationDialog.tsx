@@ -2,13 +2,14 @@ import { useRef, useState } from 'react'
 import { t } from '@/i18n'
 import { rpcErrorHint } from '@/core/modules/errors'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/ui/alert-dialog'
 import { Button } from '@/shared/ui/button'
 import { useProfessionalsSettings } from '../../hooks/use-professionals-settings'
 import { useRevokeInvitation, useSendInvitation } from '../../hooks/use-invitations'
 import { fullName } from '../../lib/display'
-import { onboardingActionLabel, shortDate, type InviteAction } from '../../lib/onboarding'
+import { onboardingActionLabel, type InviteAction } from '../../lib/onboarding'
 import { useRecordData } from './record-context'
 import type { StatusDialogProps } from './status-dialog'
 import { DialogCancel, DialogRefusal } from './StatusDialogParts'
@@ -54,14 +55,13 @@ export function InvitationDialog({ action, onClose, onCloseAutoFocus }: Invitati
   // The lifetime for « Le lien sera valide 7 jours. » (any professionals permission reads it).
   const settings = useProfessionalsSettings(action !== 'revoke')
   const pending = send.isPending || revoke.isPending
-  const now = Date.now()
   const invitation = onboarding?.invitation ?? null
   const values = {
     name: fullName(professional),
     firstName: professional.firstName,
     email: professional.email,
-    sent: invitation ? shortDate(invitation.sentAt, now) : '',
-    expires: invitation ? shortDate(invitation.expiresAt, now) : '',
+    sent: invitation ? formatClinicDateShort(invitation.sentAt) : '',
+    expires: invitation ? formatClinicDateShort(invitation.expiresAt) : '',
   }
   const days = settings.data?.invitationExpiryDays
   // Without an account the questionnaire cannot be opened (it is behind the sign-in): revoking

@@ -158,7 +158,7 @@ describe('RetentionReviewPage (P4-190)', () => {
   it('labels the count fields with the professional and says how a 30-minute session counts', async () => {
     renderPage()
     const un = await itemOf('Paul Un')
-    expect(within(un).getByRole('textbox', { name: 'Séances de 50/60 min — Paul Un' })).toHaveValue('20')
+    expect(within(un).getByRole('textbox', { name: 'Séances de 50 ou 60 min — Paul Un' })).toHaveValue('20')
     expect(within(un).getByRole('textbox', { name: 'Séances de 30 min — Paul Un' })).toHaveAccessibleDescription('30 min compte pour ½ séance')
     expect(screen.getByText(t(`${R}.legend`))).toBeInTheDocument()
   })

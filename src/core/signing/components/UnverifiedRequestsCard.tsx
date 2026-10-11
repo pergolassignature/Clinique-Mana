@@ -2,6 +2,7 @@ import { t } from '@/i18n'
 import type { UnverifiedSignatureRequest } from '@/core/signing/api'
 import { useUnverifiedSignatureRequests } from '@/core/signing/hooks'
 import { moduleLabel, syncFailureLabel } from '@/core/signing/labels'
+import { isKnownSigningFailure } from '@/core/signing/status'
 import { LoadError } from '@/shared/components/LoadState'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
@@ -54,7 +55,7 @@ function UnverifiedRequest({ request }: { request: UnverifiedSignatureRequest })
           </>
         )}
         <dt className="text-muted-foreground">{t('settings.signing.unverified.reason')}</dt>
-        <dd>{syncFailureLabel(request.error_code)}</dd>
+        <dd title={request.error_code !== null && !isKnownSigningFailure(request.error_code) ? request.error_code : undefined}>{syncFailureLabel(request.error_code)}</dd>
       </dl>
     </li>
   )

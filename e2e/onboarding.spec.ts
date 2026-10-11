@@ -12,7 +12,7 @@ import type { Locator, Page } from '@playwright/test'
  *
  * The adjointe creates and invites a professional → the invitation email is read in Mailpit → its
  * link is opened, a password chosen → every questionnaire step, with fixture files for the photo and
- * the insurance → « Envoyer mon profil » → the adjointe reviews and applies it → « Questionnaire
+ * the insurance → « Envoyer mon profil » → the adjointe reviews and applies it → « Profil
  * approuvé » is done. Each run uses a fresh address, so a second run on the same database passes.
  */
 
@@ -179,11 +179,11 @@ test('the adjointe invites a professional, who completes the questionnaire, and 
   await expect(apply).toBeEnabled()
   await apply.click()
   await expect(sheet).toBeHidden({ timeout: 15_000 })
-  await expect(page.getByText(/^Questionnaire approuvé\s:\s\d+ changements? appliqués? au dossier\.$/)).toBeVisible()
+  await expect(page.getByText(/^Profil approuvé\s:\s\d+ changements? appliqués? au dossier\.$/)).toBeVisible()
 
   // Aperçu: the questionnaire is approved; the file waits for activation (« En préparation », P4-43).
   await page.getByRole('tab', { name: 'Aperçu' }).click()
-  await expect(page.getByText('Questionnaire approuvé (terminé)')).toBeVisible()
+  await expect(page.getByText('Profil approuvé (terminé)')).toBeVisible()
   await expect(page.getByText('Compte créé (invitation acceptée) (terminé)')).toBeVisible()
   await expect(page.getByText('En préparation', { exact: true }).first()).toBeVisible()
 })

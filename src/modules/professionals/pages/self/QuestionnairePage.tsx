@@ -9,7 +9,7 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { useClinicDate } from '@/shared/lib/use-clinic-date'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { UnsavedChangesContext, useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
-import { formatClinicDateFull } from '@/shared/lib/timezone'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import type { MySubmission } from '../../api/self'
@@ -147,7 +147,7 @@ function SentProfile({ submission, catalog }: { submission: MySubmission; catalo
       <PageHeader
         level={1}
         title={t(`${Q}.states.submitted.pageTitle`)}
-        description={submission.submittedAt ? t(`${Q}.states.submitted.sentOn`, { date: formatClinicDateFull(submission.submittedAt) }) : undefined}
+        description={submission.submittedAt ? t(`${Q}.states.submitted.sentOn`, { date: formatClinicDateShort(submission.submittedAt) }) : undefined}
       />
       <Alert variant="success" role="status">
         <CircleCheck aria-hidden />

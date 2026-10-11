@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { frenchText } from '@/i18n'
 import { supabase } from '@/core/supabase/client'
 
 /** Notices per page of the bell's list (the RPC clamps the limit to 1–50; a page asks for one more). */
@@ -10,15 +11,16 @@ export const IMPORTANT_NOTICES_LIMIT = 5
 /**
  * One notice of the caller, as `list_my_notifications` returns it. The generated types say
  * non-null everywhere, but `body`, `link_path` and the subject are optional. `title` and `body`
- * are French, written by the module that created the notice, ready to display.
+ * are French, written by the module that created the notice, ready to display once spaced
+ * (`frenchText`: the database writes plain spaces before « : ? ! », C1).
  */
 const noticeSchema = z.object({
   id: z.string(),
   module_key: z.string(),
   kind: z.string(),
   importance: z.enum(['normal', 'important']),
-  title: z.string(),
-  body: z.string().nullable(),
+  title: z.string().transform(frenchText),
+  body: z.string().transform(frenchText).nullable(),
   /** App-relative (checked by the database); still guarded before navigating (noticeLinkPath). */
   link_path: z.string().nullable(),
   subject_type: z.string().nullable(),

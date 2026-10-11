@@ -18,13 +18,13 @@ const D = 'modules.professionals.documents'
  * « Documents » (P4-13, Tasks 4b.5, 4c.3, 4d.3): « Contrat de service » first (`ContractCard`, A5.1),
  * the image consent's Documenso signing inside its required card (`ImageConsentSigning`, P4-485;
  * its own card when the clinic made the type optional),
- * then « Questionnaire et mises à jour » (where a submission is reviewed, `REVIEW_TAB`), then the
+ * then « Profils envoyés et mises à jour » (where a submission is reviewed, `REVIEW_TAB`), then the
  * documents themselves (`get_professional_documents`, one read): « Documents requis » and « Autres
  * documents » (`DocumentsPanel`). Actions by permission: Téléverser (`professionals.manage`),
  * Vérifier / Refuser / Modifier l'échéance (`professionals.documents.review`), Supprimer
  * (`professionals.documents.delete`); the review and the deletion are not offered on one's own
  * record (P4-401: the database refuses them, HINT `document`), which says so. A required document
- * the questionnaire to review holds links up to its card (« Voir le questionnaire à réviser », P4-495).
+ * the questionnaire to review holds links up to its card (« Voir le profil à réviser », P4-495).
  */
 export function DocumentsTab() {
   const { record, catalog, focusHeading } = useRecordData()

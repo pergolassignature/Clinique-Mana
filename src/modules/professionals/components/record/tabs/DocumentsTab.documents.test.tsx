@@ -119,7 +119,7 @@ describe('Documents tab — states by the clinic’s date', () => {
     expect(screen.getByText('Documents requis en règle : 0 sur 3 · 1 en attente de vérification')).toBeInTheDocument()
   })
 
-  it('sent with the questionnaire: « Dans le questionnaire à réviser », a link up to it, never « Manquant » (P4-495)', async () => {
+  it('sent with the questionnaire: « Dans le profil à réviser », a link up to it, never « Manquant » (P4-495)', async () => {
     const user = userEvent.setup()
     const staged = [
       stagedJson(),
@@ -127,14 +127,14 @@ describe('Documents tab — states by the clinic’s date', () => {
       stagedJson({ type_key: 'image_consent', kind: 'consent' }),
     ]
     await openTab({ documents: documentsFixture({ documents: [], consent: null, staged }) })
-    expect(stateOf(PHOTO)).toBe('Dans le questionnaire à réviser (envoyé le 8 oct. 2026)')
-    expect(stateOf(INSURANCE)).toBe('Dans le questionnaire à réviser (envoyé le 8 oct. 2026)')
-    expect(stateOf(CONSENT)).toBe('Signé dans le questionnaire à réviser (envoyé le 8 oct. 2026)')
+    expect(stateOf(PHOTO)).toBe('Dans le profil à réviser (envoyé le 8 oct. 2026)')
+    expect(stateOf(INSURANCE)).toBe('Dans le profil à réviser (envoyé le 8 oct. 2026)')
+    expect(stateOf(CONSENT)).toBe('Signé dans le profil à réviser (envoyé le 8 oct. 2026)')
     expect(card(PHOTO)).not.toHaveTextContent(t(`${D}.lines.none`))
     expect(screen.getByText('Documents requis en règle : 0 sur 3 · 3 en attente de vérification')).toBeInTheDocument()
     // Staff keep « Téléverser ».
     expect(within(card(PHOTO)).getByRole('button', { name: `Téléverser : ${PHOTO}` })).toBeInTheDocument()
-    // « Voir le questionnaire à réviser » brings « Questionnaire et mises à jour » into focus.
+    // « Voir le profil à réviser » brings « Profils envoyés et mises à jour » into focus.
     await user.click(within(card(INSURANCE)).getByRole('button', { name: t(`${D}.lines.showReview`) }))
     expect(document.activeElement).toHaveTextContent(t('modules.professionals.submission.card.title'))
   })

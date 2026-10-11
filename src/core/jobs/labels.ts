@@ -8,10 +8,10 @@ const STATUSES: Readonly<Record<string, { label: 'ok' | 'error' | 'skipped' | 'r
   running: { label: 'running', tone: 'warning' },
 }
 
-/** « Réussie », « Erreur », « Ignorée », « En cours »; an unknown status as is. */
+/** « Réussie », « Erreur », « Ignorée », « En cours »; « Inconnu » for any other value, never raw (C-7). */
 export function runStatusLabel(status: string): string {
   const known = Object.hasOwn(STATUSES, status) ? STATUSES[status] : undefined
-  return known ? t(`settings.jobs.status.${known.label}`) : status
+  return known ? t(`settings.jobs.status.${known.label}`) : t('settings.jobs.status.unknown')
 }
 
 /** The dot next to the status word. */

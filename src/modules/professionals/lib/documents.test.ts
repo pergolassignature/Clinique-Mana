@@ -128,7 +128,7 @@ describe('the questionnaire’s documents (P4-495)', () => {
     const [photo, insurance, consent] = required as [NonNullable<(typeof required)[0]>, NonNullable<(typeof required)[0]>, NonNullable<(typeof required)[0]>]
     expect(typeStateLabel(photo, true)).toBe(t(`${D}.state.submittedSelf`, { date }))
     expect(typeStateLabel(insurance, true)).toBe(`Envoyé avec votre questionnaire le ${date} · en attente de vérification par la clinique`)
-    expect(typeStateLabel(insurance, false)).toBe(`Dans le questionnaire à réviser (envoyé le ${date})`)
+    expect(typeStateLabel(insurance, false)).toBe(`Dans le profil à réviser (envoyé le ${date})`)
     expect(typeStateLabel(consent, true)).toBe(t(`${D}.state.submittedSelfConsent`, { date }))
     expect(typeStateLabel(consent, false)).toBe(t(`${D}.state.submittedConsent`, { date }))
     expect(typeCardTone(photo, true)).toBe('warning')

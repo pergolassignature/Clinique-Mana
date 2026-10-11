@@ -286,7 +286,7 @@ describe('QuestionnairePage — steps', () => {
     renderPage('consentement')
     await stepTitle('consent')
     await userEvent.click(await screen.findByRole('button', { name: t('modules.professionals.consentSign.sign') }))
-    expect(await screen.findByText(t('modules.professionals.consentSign.errors.provider'))).toBeInTheDocument()
+    expect(await screen.findByText(t('common.functionErrors.providerError.signing'))).toBeInTheDocument()
     mocks.consentSign.startConsentSigning.mockResolvedValue({ requestId: 'r1', token: 'tok_1', signingUrl: 'http://x.test/sign/tok_1', host: 'http://x.test' })
     await userEvent.click(screen.getByRole('button', { name: t('modules.professionals.consentSign.retry') }))
     expect(await screen.findByTestId('documenso-frame')).toBeInTheDocument()

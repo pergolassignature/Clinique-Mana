@@ -88,7 +88,6 @@ describe('recordPayload', () => {
       gender: null,
       status: 'draft',
       deactivationDisabledAccount: false,
-      createdBy: IDS.admin,
     })
     expect(record?.publicProfile).toEqual({ bio: null, approach: null, publicEmail: null, publicPhone: null, updatedAt: '2026-10-08T12:00:00+00:00' })
     expect(record?.matchingProfile).toEqual({
@@ -199,10 +198,7 @@ describe('listRowPayload', () => {
       motifIds: [IDS.anxiete],
       acceptingNewClients: true,
       matchingComplete: true,
-      ready: true,
       emailMatchesLogin: true,
-      createdAt: '2026-10-08T12:00:00+00:00',
-      updatedAt: '2026-10-08T12:00:00+00:00',
       insuranceStatus: null,
       insuranceExpiresOn: null,
       documentsDone: 3,
