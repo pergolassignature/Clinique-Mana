@@ -9,6 +9,7 @@ import type { Gender, SubmissionField } from '../../lib/constants'
 import { summarizeMotifs } from '../../lib/motif-summary'
 import { clienteleDiff, clienteleRefs, idList, idsDiff, isLongText, plainValueText, type SetField } from '../../lib/submission-review'
 import { submittedProfessions } from '../../schemas/questionnaire'
+import { ProfessionalPhoto } from '../ProfessionalPhoto'
 import { useImageRetry } from '../use-image-retry'
 import { CategoryNames, Disclosure, type NamedGroup } from './MotifsSummary'
 
@@ -170,27 +171,38 @@ export function SetValue({ field, value, ctx }: { field: SetField; value: unknow
 // --- Files ---------------------------------------------------------------------------------------
 
 /**
- * The staged photo or insurance (readable by `professionals.review`, P4-177): the photo shown, the
- * insurance with its expiry (a date-only value) and « Ouvrir le fichier ». The record holds no
- * file before 4c, so there is nothing to put beside it.
+ * The staged photo or insurance (readable by `professionals.review`, P4-177): the photo beside the
+ * file's current one (« Actuel », the newest verified photo, gap audit V1), the insurance with its
+ * expiry (a date-only value) and « Ouvrir le fichier ».
  */
-export function FileProposal({ field, value }: { field: 'photo' | 'insurance'; value: unknown }) {
+export function FileProposal({ field, value, currentPhotoFileId = null }: { field: 'photo' | 'insurance'; value: unknown; currentPhotoFileId?: string | null }) {
   const fileId = text(value, 'file_id')
   const preview = useSignedFileUrl(fileId, field === 'photo' ? { variant: 'card' } : { refresh: true })
   const image = useImageRetry(fileId, preview.data?.url, preview.refetch)
-  if (!fileId) return <NotIndicated />
   if (field === 'photo') {
-    return (
+    const proposed = !fileId ? (
+      <NotIndicated />
+    ) : (
       <div className="flex items-center gap-3">
         {preview.data && !image.dead ? (
-          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} width={64} height={64} loading="lazy" decoding="async" onError={image.onError} className="size-16 shrink-0 rounded-full border border-border object-cover" />
+          <img src={preview.data.url} alt={t(`${V}.photoAlt`)} width={64} height={64} loading="lazy" decoding="async" onError={image.onError} className="size-16 shrink-0 rounded-full border border-border bg-primary-soft object-cover object-top" />
         ) : (
           <div aria-hidden className="size-16 shrink-0 rounded-full bg-muted" />
         )}
         <p>{preview.isError || image.dead ? t(`${V}.fileUnavailable`) : t(`${V}.photoSent`)}</p>
       </div>
     )
+    const current = currentPhotoFileId ? (
+      <div className="flex items-center gap-3">
+        <ProfessionalPhoto fileId={currentPhotoFileId} alt={t(`${V}.photoCurrentAlt`)} size={64} />
+        <p>{t(`${V}.photoCurrent`)}</p>
+      </div>
+    ) : (
+      <span className="text-muted-foreground">{t(`${V}.photoNoneOnFile`)}</span>
+    )
+    return <SideBySide current={current} submitted={proposed} />
   }
+  if (!fileId) return <NotIndicated />
   const expiry = text(value, 'expires_on')
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

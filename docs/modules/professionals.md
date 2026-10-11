@@ -296,6 +296,9 @@ Open and partial items of the gap audit's « État au 2026-10-10 », Professionn
 - **The reviewers' email says profile or update (P4-544, V19):** `submission.description` (`professionals-submit`).
 - **Historique shows the contract's preparation (P4-545, T4):** `professional_contract_snapshots` rows, as `{renewal}` only.
 - **« Sans réponse » follows the reminder delay (P4-546, V14):** `useUnansweredDays()` (`unansweredDays`, `lib/watch.ts`).
+## Photo and fiche preview (P4-547, P4-548)
+
+Gap audit V1 and H3. Profil public opens with « Photo et fiche » (`PublicPhotoSection`): the photo (`ProfessionalPhoto`, the `card` copy at 128 px, lazy, fixed size), « Gérer dans Documents », whether the fiche shows it (an image consent in force, `imageConsentOnFile`, P4-512) and « Aperçu de la fiche » (`FichePreviewDialog`, `useRenderFiche`: the download's renderer, nothing stored or stamped). The review sheet shows « Actuel » beside the proposed photo; the update questionnaire's photo step shows « Votre photo actuelle » before a new one is chosen. No migration.
 
 ## Import of the existing professionals (4a.19)
 
