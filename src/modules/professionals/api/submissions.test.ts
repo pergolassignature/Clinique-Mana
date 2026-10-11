@@ -74,7 +74,7 @@ describe('decisions', () => {
   })
 
   it('passes a refusal on unchanged', async () => {
-    const error = { code: 'P0001', message: 'Cette soumission n’attend pas de révision.', hint: 'status' }
+    const error = { code: 'P0001', message: 'Ce profil n’attend pas de révision.', hint: 'status' }
     mocks.rpc.mockResolvedValue({ data: null, error })
     await expect(applyProfessionalSubmission(SUBMISSION_ID, [])).rejects.toBe(error)
   })

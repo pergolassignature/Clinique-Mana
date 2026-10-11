@@ -153,7 +153,7 @@ describe('« Mon profil »', () => {
   })
 
   it('passes a refusal on unchanged', async () => {
-    const error = { code: 'P0001', message: 'Une soumission est déjà en cours.', hint: 'submission' }
+    const error = { code: 'P0001', message: 'Un questionnaire est déjà en cours ou attend une révision.', hint: 'submission' }
     mocks.rpc.mockResolvedValue({ data: null, error })
     await expect(startMyProfileUpdate(['portrait'])).rejects.toBe(error)
   })

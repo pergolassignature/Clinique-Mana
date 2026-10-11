@@ -13,7 +13,7 @@ const N = 'modules.professionals.record.matching.matchingNote'
 
 const noteValues = (record: ProfessionalRecord) => toMatchingNoteFormValues(record.matchingNote)
 
-/** The RPC's refusal (« La note compte au plus 1000 caractères. ») goes under the field. */
+/** The RPC's refusal (« La note ne peut pas dépasser 1000 caractères. ») goes under the field. */
 const noteError = (error: unknown) => (rpcErrorCode(error) === 'P0001' && rpcErrorHint(error) === 'note' ? ('note' as const) : null)
 
 /**
