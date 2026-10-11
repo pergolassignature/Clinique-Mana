@@ -30,7 +30,7 @@ interface RequiredDocumentCardProps {
   onUpload: (opener: HTMLButtonElement) => void
   /** Below the state: the image consent's Documenso signing on the record (P4-485). */
   extra?: ReactNode
-  /** Staff: « Voir le questionnaire à réviser », for a type the questionnaire holds (P4-495). */
+  /** Staff: « Voir le profil à réviser », for a type the questionnaire holds (P4-495). */
   onShowReview?: () => void
   /** The type's heading level: one under its group's heading (h4 on the record, h3 in « Mes documents »). */
   headingAs?: 'h3' | 'h4'
@@ -48,7 +48,7 @@ interface RequiredDocumentCardProps {
  * documents fold under « Voir les documents précédents (n) ». « Téléverser » (« Remplacer » once a
  * document counts) for whoever may upload. While the open questionnaire holds the type (P4-495):
  * « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » (her side)
- * or « Dans le questionnaire à réviser (envoyé le …) » with a link to the review (staff), never
+ * or « Dans le profil à réviser (envoyé le …) » with a link to the review (staff), never
  * « Manquant »; in her draft, « Ajouté à votre questionnaire, pas encore envoyé ». She is not
  * offered an upload then (the questionnaire's review settles it).
  */

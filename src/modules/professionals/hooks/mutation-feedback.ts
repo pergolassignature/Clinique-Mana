@@ -2,8 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
 import { moduleErrorMessage, rpcErrorCode } from '@/core/modules/errors'
-import { FunctionCallError } from '@/core/supabase/functions'
-import { retryInText } from '@/shared/lib/retry-after'
+import { functionErrorText } from '@/core/supabase/function-errors'
 import { toast } from '@/shared/ui/sonner'
 import { professionalCatalogKeys, professionalKeys } from './keys'
 
@@ -16,31 +15,14 @@ export interface MutationFeedback {
   onErrorMessage?: (message: string, error: unknown) => void
 }
 
-const E = 'modules.professionals.onboarding.errors'
-
 /**
- * The French text of a module function's failure that is not the database's (P3-28): a sending
- * limit (with when to retry), the module switched off, the connection, an expired session, the
- * service unavailable. Null for anything else (a refusal passed on is an RPC error, `asRpcRefusal`).
- * These are expected: shown, never reported.
+ * The French text of a module function's failure that is not the database's (P3-28): a limit
+ * (with when to retry), the module switched off, the connection, an expired session, the service
+ * unavailable, as every feature says them (`functionErrorText`, C-4). Null for anything else (a
+ * refusal passed on is an RPC error, `asRpcRefusal`). These are expected: shown, never reported.
  */
 export function functionErrorMessage(error: unknown): string | null {
-  if (!(error instanceof FunctionCallError)) return null
-  switch (error.code) {
-    case 'rate_limited':
-      return `${t(`${E}.rateLimited`)} ${retryInText(error.retryAfter)}`
-    case 'module_disabled':
-      return t(`${E}.moduleDisabled`)
-    case 'network':
-      return t(`${E}.network`)
-    case 'unauthenticated':
-      return t(`${E}.unauthenticated`)
-    case 'not_configured':
-    case 'auth_unavailable':
-      return t(`${E}.unavailable`)
-    default:
-      return null
-  }
+  return functionErrorText(error)
 }
 
 /**

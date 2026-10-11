@@ -68,7 +68,7 @@ function BriefCard() {
       <CardContent>
         <dl className="divide-y divide-border-light">
           <Row label={t(`${M}.places`)}>
-            <Muted when={digest.newClientPlaces === null}>{placesLabel(digest.newClientPlaces, digest.newClientPlacesSetAt, Date.now())}</Muted>
+            <Muted when={digest.newClientPlaces === null}>{placesLabel(digest.newClientPlaces, digest.newClientPlacesSetAt)}</Muted>
           </Row>
           <Row label={t(`${B}.accepting`)}>{t(digest.acceptingNewClients ? `${M}.yes` : `${M}.no`)}</Row>
           <Row label={t(`${B}.availability`)}>

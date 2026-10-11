@@ -14,7 +14,7 @@ import type { CopiedInvitationLink } from '../../api/invitations'
 import { useCopyInvitationLink } from '../../hooks/use-invitations'
 import { useProfessionalsSettings } from '../../hooks/use-professionals-settings'
 import { fullName } from '../../lib/display'
-import { isLiveInvitation, shortDate } from '../../lib/onboarding'
+import { isLiveInvitation } from '../../lib/onboarding'
 import { useRecordData } from './record-context'
 import type { StatusDialogProps } from './status-dialog'
 import { DialogCancel, DialogRefusal } from './StatusDialogParts'
@@ -96,7 +96,7 @@ export function CopyInvitationLinkDialog({ onClose, onCloseAutoFocus }: StatusDi
               <AlertDialogTitle>{t(`${D}.title`, values)}</AlertDialogTitle>
               <AlertDialogDescription>
                 {t(`${D}.body`, values)}
-                {live && invitation && ` ${t(`${D}.previous`, { sent: shortDate(invitation.sentAt, now) })}`}
+                {live && invitation && ` ${t(`${D}.previous`, { sent: formatClinicDateShort(invitation.sentAt) })}`}
                 {days !== undefined &&
                   ` ${t(days > 1 ? 'modules.professionals.onboarding.dialog.validForOther' : 'modules.professionals.onboarding.dialog.validForOne', { count: String(days) })}`}
               </AlertDialogDescription>

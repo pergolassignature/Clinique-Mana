@@ -13,8 +13,8 @@ const fail = (code: string, status: number, message = 'x', variable?: string) =>
 
 describe('emailErrorMessage', () => {
   it.each([
-    ['not_configured', 503, "L'envoi de courriels n'est pas encore configuré."],
-    ['provider_error', 502, "Le service d'envoi n'a pas répondu. Réessayez."],
+    ['not_configured', 503, "L'envoi de courriels n'est pas encore configuré (Paramètres → Courriels)."],
+    ['provider_error', 502, "Le service d'envoi de courriels n'a pas répondu. Réessayez dans quelques minutes."],
   ])('says %s in French', (code, status, text) => {
     expect(emailErrorMessage(fail(code, status))).toBe(text)
     expect(mocks.captureException).not.toHaveBeenCalled()
@@ -49,10 +49,10 @@ describe('emailErrorMessage', () => {
 
   it('maps the permission, module, template and network refusals', () => {
     expect(emailErrorMessage(fail('forbidden', 403))).toBe(t('common.errors.forbidden'))
-    expect(emailErrorMessage(fail('module_disabled', 403))).toBe(t('settings.email.errors.module_disabled'))
+    expect(emailErrorMessage(fail('module_disabled', 403))).toBe(t('common.functionErrors.moduleDisabled'))
     expect(emailErrorMessage(fail('not_found', 404))).toBe(t('settings.email.errors.not_found'))
-    expect(emailErrorMessage(fail('unauthenticated', 401))).toBe(t('settings.email.errors.unauthenticated'))
-    expect(emailErrorMessage(fail('network', 0))).toBe(t('settings.email.errors.network'))
+    expect(emailErrorMessage(fail('unauthenticated', 401))).toBe(t('common.functionErrors.unauthenticated'))
+    expect(emailErrorMessage(fail('network', 0))).toBe(t('common.functionErrors.network'))
     expect(mocks.captureException).not.toHaveBeenCalled()
   })
 

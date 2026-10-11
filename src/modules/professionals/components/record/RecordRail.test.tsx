@@ -146,7 +146,7 @@ describe('RecordRail — À surveiller and Prochaine action', () => {
 })
 
 describe('RecordRail — the onboarding (Task 4b.3)', () => {
-  // Thursday 8 October 2026, 16:00 in Toronto: the dates read « 8 oct. ».
+  // Thursday 8 October 2026, 16:00 in Toronto: the dates read « 8 oct. 2026 ».
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
@@ -172,16 +172,16 @@ describe('RecordRail — the onboarding (Task 4b.3)', () => {
   it('says where the invitation stands under « Compte créé », in plain words', () => {
     renderRail(awaitingOnboarding, 'admin_assistant', CATALOG_VIEW, sent('opened'))
     const dossier = card(t(`${O}.readiness.title`))
-    expect(within(dossier).getByText('Invitation envoyée le 5 oct. · ouverte le 6 oct. · expire le 12 oct.')).toBeInTheDocument()
+    expect(within(dossier).getByText('Invitation envoyée le 5 oct. 2026 · ouverte le 6 oct. 2026 · expire le 12 oct. 2026')).toBeInTheDocument()
     expect(within(dossier).getByText(t('modules.professionals.onboarding.questionnaire.afterInvitation'))).toBeInTheDocument()
   })
 
   it('an expired link: the line says to send a new one, « Prochaine action » offers it, « À surveiller » flags it', () => {
     renderRail(awaitingOnboarding, 'admin_assistant', CATALOG_VIEW, { ...sent('expired') })
-    expect(within(card(t(`${O}.readiness.title`))).getByText('Lien expiré le 12 oct. : envoyez un nouveau lien.')).toBeInTheDocument()
+    expect(within(card(t(`${O}.readiness.title`))).getByText('Lien expiré le 12 oct. 2026 : envoyez un nouveau lien.')).toBeInTheDocument()
     expect(within(card(t(`${O}.watch.title`))).getByText('Invitation expirée')).toBeInTheDocument()
     const next = card(t(`${O}.nextAction.title`))
-    expect(within(next).getByText(t(`${R}.nextAction.invitationExpired`, { date: '12 oct.' }))).toBeInTheDocument()
+    expect(within(next).getByText(t(`${R}.nextAction.invitationExpired`, { date: '12 oct. 2026' }))).toBeInTheDocument()
   })
 
   it('no invitation yet: « Envoyer l’invitation » for an inviter opens its confirmation, naming the address', async () => {
@@ -222,12 +222,12 @@ describe('RecordRail — the onboarding (Task 4b.3)', () => {
     expect(within(next).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('a questionnaire sent: « Dossier à réviser » and « Envoyé le …, à réviser »', () => {
+  it('a questionnaire sent: « Profil à réviser » and « Envoyé le …, à réviser »', () => {
     const submitted: Onboarding = { invitation: sent('used').invitation, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T15:00:00Z' }, onboardingApproved: false }
     renderRail((r) => ({ ...awaitingOnboarding(r), professional: { ...r.professional, status: 'in_review', profileId: 'user-1' } }), 'admin', CATALOG_VIEW, submitted)
-    expect(within(card(t(`${O}.readiness.title`))).getByText('Envoyé le 7 oct., à réviser.')).toBeInTheDocument()
-    expect(within(card(t(`${O}.watch.title`))).getByText('Dossier à réviser')).toBeInTheDocument()
-    expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewOnboarding`, { firstName: 'Marie', date: '7 oct.' }))).toBeInTheDocument()
+    expect(within(card(t(`${O}.readiness.title`))).getByText('Envoyé le 7 oct. 2026, à réviser.')).toBeInTheDocument()
+    expect(within(card(t(`${O}.watch.title`))).getByText('Profil à réviser')).toBeInTheDocument()
+    expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewOnboarding`, { firstName: 'Marie', date: '7 oct. 2026' }))).toBeInTheDocument()
   })
 
   it('a questionnaire sent: the documents gap says they count once it is approved; the review stays the next action (P4-495)', () => {
@@ -247,14 +247,14 @@ describe('RecordRail — the onboarding (Task 4b.3)', () => {
     const dossier = card(t(`${O}.readiness.title`))
     expect(within(dossier).getByRole('link', { name: t(`${R}.missing.photo`) })).toHaveAttribute('href', `${base}/documents`)
     expect(dossier).toHaveTextContent(`la preuve d'assurance. ${t(`${O}.readiness.questionnaireDocuments`)}`)
-    expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewUpdate`, { firstName: 'Marie', date: '7 oct.' }))).toBeInTheDocument()
+    expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewUpdate`, { firstName: 'Marie', date: '7 oct. 2026' }))).toBeInTheDocument()
   })
 
   it('an update sent on a file activated without an approved questionnaire: « Mise à jour envoyée le …, à réviser. » (P4-497)', () => {
     const submitted: Onboarding = { invitation: sent('used').invitation, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-07T15:00:00Z' }, onboardingApproved: false }
     renderRail((r) => ({ ...awaitingOnboarding(r), professional: { ...r.professional, status: 'active', profileId: 'user-1' } }), 'admin', CATALOG_VIEW, submitted)
     const dossier = card(t(`${O}.readiness.title`))
-    expect(within(dossier).getByText('Mise à jour envoyée le 7 oct., à réviser.')).toBeInTheDocument()
+    expect(within(dossier).getByText('Mise à jour envoyée le 7 oct. 2026, à réviser.')).toBeInTheDocument()
     expect(within(dossier).queryByText(t('modules.professionals.onboarding.questionnaire.none'))).not.toBeInTheDocument()
   })
 })

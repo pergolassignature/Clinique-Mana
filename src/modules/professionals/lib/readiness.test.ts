@@ -99,7 +99,7 @@ describe('nextAction', () => {
 
   it('names the two onboarding items (4b.1)', () => {
     expect(readinessItemLabel('account_created')).toBe('Compte créé (invitation acceptée)')
-    expect(readinessItemLabel('submission_approved')).toBe('Questionnaire approuvé')
+    expect(readinessItemLabel('submission_approved')).toBe('Profil approuvé')
   })
 })
 
@@ -149,7 +149,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
   it('an expired link comes before the matching gaps, with « Envoyer un nouveau lien »', () => {
     const gaps = { ...withReadiness(['motif'], 'invited', false) }
     expect(nextAction(gaps, invitation('expired'), can(...INVITE), NOW)).toEqual({
-      message: t(`${N}.invitationExpired`, { date: '15 oct.' }),
+      message: t(`${N}.invitationExpired`, { date: '15 oct. 2026' }),
       action: { kind: 'invite', label: "Envoyer un nouveau lien", action: 'new_link' },
     })
   })
@@ -161,14 +161,14 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
       action: send,
     })
     expect(nextAction(onboardingFile(null, 'draft'), invitation('used', { usedAt: '2026-10-09T13:00:00Z' }), can(...INVITE), NOW)).toEqual({
-      message: "Marie a créé son accès avec le lien d'invitation le 9 oct., mais ce compte n'existe plus.",
+      message: "Marie a créé son accès avec le lien d'invitation le 9 oct. 2026, mais ce compte n'existe plus.",
       action: send,
     })
   })
 
   it('a link read as sent but past its expiry reads expired, with « Envoyer un nouveau lien »', () => {
     expect(nextAction(onboardingFile(), invitation('sent', { expiresAt: '2026-10-08T19:00:00Z' }), can(...INVITE), NOW)).toEqual({
-      message: t(`${N}.invitationExpired`, { date: '8 oct.' }),
+      message: t(`${N}.invitationExpired`, { date: '8 oct. 2026' }),
       action: { kind: 'invite', label: 'Envoyer un nouveau lien', action: 'new_link' },
     })
   })
@@ -177,32 +177,32 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     const failed = invitation('sent', { emailStatus: null, emailError: 'not_configured' })
     expect(nextAction(onboardingFile(), failed, can(...INVITE), NOW)).toEqual({
       message:
-        "Le courriel d'invitation du 8 oct. n'est pas parti : Marie n'a pas reçu son lien. La clinique n'a pas encore configuré l'envoi de courriels (Paramètres → Courriels).",
+        "Le courriel d'invitation du 8 oct. 2026 n'est pas parti : Marie n'a pas reçu son lien. Raison : Envoi de courriels non configuré (Paramètres → Courriels).",
       action: { kind: 'invite', label: "Renvoyer l'invitation", action: 'resend' },
       secondary: { kind: 'copyLink', label: "Copier le lien d'invitation" },
     })
     // Before the matching gaps, as an expired link.
-    expect(nextAction(withReadiness(['motif'], 'invited', false), failed, can(...INVITE), NOW).message).toMatch(/^Le courriel d'invitation du 8 oct\. n'est pas parti/)
+    expect(nextAction(withReadiness(['motif'], 'invited', false), failed, can(...INVITE), NOW).message).toMatch(/^Le courriel d'invitation du 8 oct\. 2026 n'est pas parti/)
     const bounced = nextAction(onboardingFile(), invitation('sent', { emailStatus: 'bounced' }), can(...INVITE), NOW)
-    expect(bounced.message).toMatch(/n'est pas parti.*L'adresse a refusé le courriel\.$/)
+    expect(bounced.message).toMatch(/n'est pas parti.*Raison : Adresse introuvable\.$/)
     // Without professionals.invite: the sentence, no button.
     const reader = nextAction(onboardingFile(), failed, can('professionals.manage', 'professionals.matching'), NOW)
     expect([reader.action, reader.secondary]).toEqual([null, null])
-    expect(reader.message).toMatch(/^Le courriel d'invitation du 8 oct\. n'est pas parti/)
+    expect(reader.message).toMatch(/^Le courriel d'invitation du 8 oct\. 2026 n'est pas parti/)
   })
 
   it('never « Invitation envoyée » without an email: copied, sending, unknown', () => {
     expect(nextAction(onboardingFile(), invitation('sent', { delivery: 'copied', emailStatus: null }), can(...INVITE), NOW)).toEqual({
-      message: "Lien d'invitation copié le 8 oct. : Marie n'a pas encore créé son accès.",
+      message: "Lien d'invitation copié le 8 oct. 2026 : Marie n'a pas encore créé son accès.",
       action: null,
     })
     const justNow = invitation('sent', { emailStatus: null, sentAt: new Date(NOW - 1000).toISOString() })
     expect(nextAction(onboardingFile(), justNow, can(...INVITE), NOW)).toEqual({ message: "L'invitation de Marie est en cours d'envoi.", action: null })
     const unknown = nextAction(onboardingFile(), invitation('sent', { emailStatus: 'failed', emailError: 'provider_unavailable' }), can(...INVITE), NOW)
-    expect(unknown.message).toBe(`Invitation du 8 oct. : ${t('email.failure.unknownOutcome')}. ${t('email.failure.unknownOutcomeHint')}`)
+    expect(unknown.message).toBe(`Invitation du 8 oct. 2026 : ${t('email.failure.unknownOutcome')}. ${t('email.failure.unknownOutcomeHint')}`)
     expect(unknown.secondary).toEqual({ kind: 'copyLink', label: "Copier le lien d'invitation" })
     expect(nextAction(onboardingFile(), invitation('sent', { emailStatus: 'delivered' }), can(...INVITE), NOW).message).toBe(
-      "Invitation envoyée le 8 oct. : Marie n'a pas encore créé son accès.",
+      "Invitation envoyée le 8 oct. 2026 : Marie n'a pas encore créé son accès.",
     )
   })
 
@@ -216,7 +216,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     }
     // Once sent, the file waits for the professional, whose questionnaire fills the gaps.
     expect(nextAction(withReadiness(['motif'], 'invited', false), invitation('sent'), can(...INVITE), NOW).message).toBe(
-      t(`${N}.invitationSent`, { firstName: 'Marie', date: '8 oct.' }),
+      t(`${N}.invitationSent`, { firstName: 'Marie', date: '8 oct. 2026' }),
     )
     // With an account (onboarded, imported, activated), the gaps stay first.
     expect(nextAction(withReadiness(['motif'], 'draft'), null, can(...INVITE), NOW).message).toBe(t(`${N}.completeMatching`))
@@ -224,11 +224,11 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
 
   it('a live link: waiting for the professional, no button (the menu re-sends)', () => {
     expect(nextAction(onboardingFile(), invitation('sent'), can(...INVITE), NOW)).toEqual({
-      message: t(`${N}.invitationSent`, { firstName: 'Marie', date: '8 oct.' }),
+      message: t(`${N}.invitationSent`, { firstName: 'Marie', date: '8 oct. 2026' }),
       action: null,
     })
     expect(nextAction(onboardingFile(), invitation('opened', { openedAt: '2026-10-09T13:00:00Z' }), can(...INVITE), NOW).message).toBe(
-      t(`${N}.invitationOpened`, { firstName: 'Marie', date: '9 oct.' }),
+      t(`${N}.invitationOpened`, { firstName: 'Marie', date: '9 oct. 2026' }),
     )
   })
 
@@ -238,7 +238,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     const submitted: Onboarding = { ...draft, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' } }
     // « Réviser le profil » leads reviewers to Documents (Task 4b.5); others read the sentence alone.
     expect(nextAction(onboardingFile('user-1', 'in_review'), submitted, can('professionals.review'), NOW)).toEqual({
-      message: t(`${N}.reviewOnboarding`, { firstName: 'Marie', date: '10 oct.' }),
+      message: t(`${N}.reviewOnboarding`, { firstName: 'Marie', date: '10 oct. 2026' }),
       action: { kind: 'tab', label: t(`${N}.review`), tab: 'documents' },
     })
     expect(nextAction(onboardingFile('user-1', 'in_review'), submitted, can(...INVITE), NOW).action).toBeNull()
@@ -247,7 +247,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
   it('never offers « Réviser le profil » on the reviewer’s own file (P4-304)', () => {
     const submitted: Onboarding = { invitation: null, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' }, onboardingApproved: true }
     expect(nextAction(onboardingFile('user-1', 'active'), submitted, can('professionals.review'), NOW, 'user-1')).toEqual({
-      message: 'Vous avez envoyé une mise à jour de votre profil le 10 oct. : une autre personne autorisée doit la réviser.',
+      message: 'Vous avez envoyé une mise à jour de votre profil le 10 oct. 2026 : une autre personne autorisée doit la réviser.',
       action: null,
     })
     // Another reviewer's file keeps the button.
@@ -260,7 +260,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
 
   it('an update waiting for review comes first, even on an active file', () => {
     const update: Onboarding = { invitation: null, submission: { id: 's2', kind: 'update', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' }, onboardingApproved: true }
-    expect(nextAction(withReadiness([], 'active'), update, can(...INVITE), NOW).message).toBe(t(`${N}.reviewUpdate`, { firstName: 'Marie', date: '10 oct.' }))
+    expect(nextAction(withReadiness([], 'active'), update, can(...INVITE), NOW).message).toBe(t(`${N}.reviewUpdate`, { firstName: 'Marie', date: '10 oct. 2026' }))
   })
 
   it('an account without an approved questionnaire and nothing open', () => {

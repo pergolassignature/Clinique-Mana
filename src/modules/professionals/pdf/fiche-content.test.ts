@@ -185,7 +185,7 @@ describe('buildFicheContent', () => {
       { duration: 50, clientPriceCents: 17500 },
     ] as const
     expect(buildFicheContent(input({ fees, photo: 'data:image/png;base64,x' }))).toMatchObject({
-      fees: ['Rencontre 50\u00a0min\u00a0: 175\u00a0$', 'Rencontre 30\u00a0min\u00a0: 130\u00a0$', 'Rencontre 60\u00a0min (couple/famille)\u00a0: 200\u00a0$'],
+      fees: ['Rencontre 50\u00a0min\u00a0: 175\u00a0$', 'Rencontre 30\u00a0min\u00a0: 130\u00a0$', 'Rencontre 60\u00a0min (couple ou famille)\u00a0: 200\u00a0$'],
       photo: 'data:image/png;base64,x',
     })
   })

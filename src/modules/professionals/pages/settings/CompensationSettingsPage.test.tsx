@@ -100,7 +100,7 @@ describe('CompensationSettingsPage — grids (P4-185)', () => {
     expect(within(table).getAllByRole('columnheader').map((head) => head.textContent)).toEqual([
       t(`${S}.grids.columns.profession`),
       t(`${S}.grids.retention`),
-      '60 min / couple',
+      '60 min (couple ou famille)',
       '50 min',
       '30 min',
       t(`${S}.grids.columns.actions`),

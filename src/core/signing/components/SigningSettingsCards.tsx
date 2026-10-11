@@ -297,7 +297,7 @@ const OPEN = new Set(['sent', 'viewed'])
 
 /** The last test's state, with « Actualiser l'état » while open. */
 function LastTest({ request, refreshing, onRefresh }: { request: SignatureRequestRow; refreshing: boolean; onRefresh: () => void }) {
-  const { label, tone, detail } = signatureStatusLabel(request.status, request.last_error)
+  const { label, tone, detail, code } = signatureStatusLabel(request.status, request.last_error)
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
       <p className="flex flex-wrap items-center gap-x-1.5">
@@ -306,7 +306,11 @@ function LastTest({ request, refreshing, onRefresh }: { request: SignatureReques
           <StatusDot tone={tone} />
           {label}
         </span>
-        {detail && <span className="basis-full text-xs">{detail}</span>}
+        {detail && (
+          <span className="basis-full text-xs" title={code ?? undefined}>
+            {detail}
+          </span>
+        )}
       </p>
       {OPEN.has(request.status) && (
         <Button
