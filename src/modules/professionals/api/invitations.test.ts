@@ -83,8 +83,8 @@ describe('requestProfessionalUpdate', () => {
     await expect(requestProfessionalUpdate(ID, ['portrait'])).resolves.toEqual({ submissionId: 's1', emailProblem: { code: 'provider_error', retryAfter: null } })
   })
 
-  it('« Une soumission est déjà en cours. » is thrown as the refusal', async () => {
-    mocks.invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, 'Une soumission est déjà en cours.', { refusal: true, field: 'submission' }))
+  it('« Un questionnaire est déjà en cours ou attend une révision. » is thrown as the refusal', async () => {
+    mocks.invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, 'Un questionnaire est déjà en cours ou attend une révision.', { refusal: true, field: 'submission' }))
     await expect(requestProfessionalUpdate(ID, ['portrait'])).rejects.toMatchObject({ code: 'P0001', hint: 'submission' })
   })
 })

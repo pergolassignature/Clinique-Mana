@@ -326,19 +326,19 @@ describe('SubmissionReviewSheet', () => {
   it('a refusal stays in the sheet with its sentence; one decided elsewhere leaves « Fermer » only', async () => {
     mocks.submissions.applyProfessionalSubmission.mockRejectedValueOnce({
       code: 'P0001',
-      message: 'Cette assurance est échue depuis l’envoi du profil.',
+      message: 'Cette assurance a expiré depuis l’envoi du profil.',
       hint: 'Renvoyez le profil au professionnel : il joindra une preuve en vigueur.',
     })
     const { sheet } = await openSheet()
     await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.apply`, { count: String(REVIEW_CHANGED_FIELDS.length) }) }))
     const alert = await within(sheet).findByRole('alert')
-    expect(alert).toHaveTextContent('Cette assurance est échue depuis l’envoi du profil.')
+    expect(alert).toHaveTextContent('Cette assurance a expiré depuis l’envoi du profil.')
     expect(alert).toHaveTextContent('Renvoyez le profil au professionnel')
     expect(within(sheet).getByRole('button', { name: t(`${S}.return`) })).toBeInTheDocument()
 
-    mocks.submissions.applyProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'Cette soumission n’attend pas de révision.', hint: 'status' })
+    mocks.submissions.applyProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'Ce profil n’attend pas de révision.', hint: 'status' })
     await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.apply`, { count: String(REVIEW_CHANGED_FIELDS.length) }) }))
-    await within(sheet).findByText('Cette soumission n’attend pas de révision.')
+    await within(sheet).findByText('Ce profil n’attend pas de révision.')
     expect(within(sheet).queryByRole('button', { name: t(`${S}.return`) })).not.toBeInTheDocument()
     expect(within(sheet).getByText(t('common.close'), { selector: 'button' })).toBeInTheDocument()
   })
@@ -411,21 +411,21 @@ describe('SubmissionReviewSheet', () => {
   })
 
   it('a refused send-back stays in the note form; one decided elsewhere leaves « Fermer » only', async () => {
-    mocks.submissions.rejectProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'La note compte au plus 1000 caractères.', hint: 'note' })
+    mocks.submissions.rejectProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'La note ne peut pas dépasser 1000 caractères.', hint: 'note' })
     const { sheet } = await openSheet()
     await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.return`) }))
     const note = within(sheet).getByRole('textbox', { name: new RegExp(t(`${S}.noteLabel`, { firstName: 'Marie' })) })
     await userEvent.type(note, 'Précisez vos langues.')
     await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.sendBack`) }))
-    expect(await within(sheet).findByRole('alert')).toHaveTextContent('La note compte au plus 1000 caractères.')
+    expect(await within(sheet).findByRole('alert')).toHaveTextContent('La note ne peut pas dépasser 1000 caractères.')
     // The note stays, and so do the buttons.
     expect(note).toHaveValue('Précisez vos langues.')
     expect(within(sheet).getByRole('button', { name: t(`${S}.sendBack`) })).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
 
-    mocks.submissions.rejectProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'Cette soumission n’attend pas de révision.', hint: 'status' })
+    mocks.submissions.rejectProfessionalSubmission.mockRejectedValueOnce({ code: 'P0001', message: 'Ce profil n’attend pas de révision.', hint: 'status' })
     await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.sendBack`) }))
-    await within(sheet).findByText('Cette soumission n’attend pas de révision.')
+    await within(sheet).findByText('Ce profil n’attend pas de révision.')
     expect(within(sheet).queryByRole('button', { name: t(`${S}.sendBack`) })).not.toBeInTheDocument()
     expect(within(sheet).getByText(t('common.close'), { selector: 'button' })).toBeInTheDocument()
     expect(mocks.toast.success).not.toHaveBeenCalled()

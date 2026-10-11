@@ -101,7 +101,7 @@ select is(public.get_my_submission() ->> 'id', 'd0000000-0000-0000-0000-00000000
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.cancel_professional_submission('d0000000-0000-0000-0000-000000000002') $$, 'P0001',
-  'Soumission introuvable.', 'another clinic''s submission is unknown');
+  'Cette demande de mise à jour n''existe plus.', 'another clinic''s submission is unknown');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok($$ select public.cancel_professional_submission('d0000000-0000-0000-0000-000000000001') $$, 'P0001',
   'Le questionnaire d''accueil ne se ferme pas : révoquez l''invitation ou renvoyez le profil au professionnel.',
