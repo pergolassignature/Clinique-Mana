@@ -5145,9 +5145,204 @@
     "communications": {
       "name": "Communications",
       "audit": {
-        "tables": {},
-        "fields": {},
-        "values": {}
+        "tables": {
+          "sms_consents": "Consentements aux textos"
+        },
+        "fields": {
+          "sms_consents": {
+            "phone_e164": "Numéro de téléphone",
+            "status": "Consentement",
+            "source": "Obtenu par",
+            "subject_type": "Type de personne",
+            "subject_id": "Personne",
+            "granted_at": "Donné le",
+            "withdrawn_at": "Retiré le",
+            "note": "Note"
+          }
+        },
+        "values": {
+          "sms_consents": {
+            "status": {
+              "opted_in": "Donné",
+              "opted_out": "Retiré"
+            },
+            "source": {
+              "staff": "L'équipe (téléphone, en personne)",
+              "sms_reply": "Réponse par texto",
+              "import": "Importation",
+              "form": "Formulaire"
+            }
+          }
+        }
+      },
+      "sms": {
+        "nav": "Textos",
+        "title": "Textos",
+        "description": "Les textos échangés avec les clients au numéro de la clinique.",
+        "phone": {
+          "invalid": "Indiquez un numéro à 10 chiffres (par exemple 514 555-1234)."
+        },
+        "threads": {
+          "label": "Conversations",
+          "countOne": "1 conversation",
+          "countOther": "{count} conversations",
+          "loadError": "Impossible de charger les conversations.",
+          "emptyTitle": "Aucun texto pour l'instant",
+          "emptyBody": "Les textos reçus au numéro de la clinique et ceux qu'elle envoie s'afficheront ici.",
+          "you": "Vous : {text}",
+          "purged": "Contenu effacé (plus de 12 mois)",
+          "attachment": "Pièce jointe",
+          "noText": "(sans texte)",
+          "messagesOne": "1 texto",
+          "messagesOther": "{count} textos"
+        },
+        "consent": {
+          "opted_in": "Consentement donné",
+          "opted_out": "Consentement retiré",
+          "none": "Aucun consentement",
+          "record": "Enregistrer le consentement",
+          "withdraw": "Retirer le consentement",
+          "newNumber": "Nouveau numéro",
+          "dialogTitle": "Consentement aux textos",
+          "dialogDescription": "Notez le consentement que la personne a donné (au téléphone, en personne). Un texto lui est envoyé aussitôt avec le texte de consentement de la clinique, qui dit comment se désabonner (ARRÊT).",
+          "withdrawTitle": "Retirer le consentement aux textos",
+          "withdrawDescription": "Plus aucun texto ne sera envoyé à ce numéro, sauf si la personne donne de nouveau son consentement.",
+          "phone": "Numéro de téléphone",
+          "note": "Comment le consentement a été obtenu",
+          "noteHelp": "Facultatif, au plus 500 caractères. Par exemple : « Au téléphone, le 12 octobre ».",
+          "noteTooLong": "La note doit compter au plus 500 caractères.",
+          "withdrawNote": "Note",
+          "submit": "Enregistrer le consentement",
+          "submitting": "Enregistrement…",
+          "withdrawSubmit": "Retirer le consentement",
+          "withdrawing": "Retrait…",
+          "saved": "Consentement enregistré. Le texto de consentement part dans les prochaines minutes.",
+          "savedAgain": "Consentement enregistré.",
+          "withdrawn": "Consentement retiré. Plus aucun texto ne sera envoyé à ce numéro.",
+          "error": "Impossible d'enregistrer le consentement."
+        },
+        "thread": {
+          "back": "Retour aux conversations",
+          "label": "Conversation avec {phone}",
+          "select": "Choisissez une conversation pour lire les textos.",
+          "loadError": "Impossible de charger cette conversation.",
+          "notFound": "Ce texto est introuvable : il a peut-être été effacé.",
+          "older": "Seuls les 200 derniers textos sont affichés.",
+          "inbound": "Reçu",
+          "attachment": "Pièce jointe : {name} (non conservée)",
+          "attachmentUnnamed": "Pièce jointe (non conservée)",
+          "purged": "Contenu effacé après 12 mois.",
+          "scheduled": "En attente : part le {date}"
+        },
+        "kind": {
+          "inbound": "Reçu",
+          "reply": "Réponse",
+          "reminder": "Rappel",
+          "confirmation": "Confirmation",
+          "changed": "Modification",
+          "consent_notice": "Texte de consentement",
+          "opt_out_ack": "Confirmation du retrait",
+          "test": "Test",
+          "other": "Autre"
+        },
+        "status": {
+          "queued": "En attente",
+          "sending": "Envoi en cours",
+          "sent": "Envoyé",
+          "failed": "Échec",
+          "received": "Reçu"
+        },
+        "errorCode": {
+          "provider_unreachable": "La centrale téléphonique ne répond pas.",
+          "provider_error": "La centrale téléphonique a répondu par une erreur.",
+          "provider_rejected": "La centrale téléphonique a refusé ce numéro.",
+          "token_limit": "La centrale refuse de nouvelles connexions : trop de connexions ouvertes.",
+          "token_invalid": "La centrale a refusé la connexion : vérifiez l'identifiant et le secret de l'application.",
+          "channel_not_found": "Le numéro de la clinique n'est pas un canal de textos de la centrale.",
+          "not_configured": "Les textos ne sont pas encore réglés (Paramètres → Textos).",
+          "module_disabled": "Le module Communications est désactivé.",
+          "lock_timeout": "La centrale était occupée. Réessayez dans un instant.",
+          "provider_unavailable": "L'envoi a été interrompu avant d'être confirmé.",
+          "consent_withdrawn": "La personne a retiré son consentement avant l'envoi.",
+          "internal": "Erreur inattendue.",
+          "other": "Le texto n'a pas été livré (code de la centrale : {code})."
+        },
+        "composer": {
+          "label": "Votre réponse",
+          "help": "{count} / 1600 caractères. Les longs textos partent en plusieurs parties.",
+          "send": "Envoyer",
+          "sending": "Envoi…",
+          "required": "Écrivez le texto à envoyer.",
+          "tooLong": "Le texto doit compter au plus 1600 caractères.",
+          "noConsent": "Cette personne n'a pas donné son consentement aux textos : aucune réponse ne peut lui être envoyée. Enregistrez d'abord son consentement.",
+          "withdrawn": "Cette personne a retiré son consentement : aucun texto ne peut lui être envoyé.",
+          "sent": "Texto envoyé.",
+          "failed": "Le texto n'est pas parti. {reason}",
+          "error": "Impossible d'envoyer le texto.",
+          "rateLimited": "Trop de textos envoyés en peu de temps.",
+          "notConfigured": "Les textos ne sont pas encore réglés (Paramètres → Textos)."
+        },
+        "settings": {
+          "title": "Textos",
+          "description": "La centrale téléphonique par laquelle la clinique envoie et reçoit ses textos, et les textes envoyés automatiquement.",
+          "loadError": "Impossible de charger les réglages des textos.",
+          "secretsLoadError": "Impossible de lire l'état des secrets.",
+          "saved": "Réglages des textos enregistrés.",
+          "saveError": "Impossible d'enregistrer les réglages des textos.",
+          "pbx": {
+            "title": "Centrale téléphonique",
+            "description": "L'application OpenAPI créée sur la centrale (Intégrations → API) et le numéro de textos de la clinique.",
+            "baseUrl": "Adresse de la centrale",
+            "baseUrlHelp": "Par exemple https://pbx.exemple.com, sans chemin.",
+            "baseUrlInvalid": "L'adresse doit commencer par https:// et ne contenir que le nom d'hôte.",
+            "clientId": "Identifiant de l'application (Client ID)",
+            "clientIdHelp": "Tel que la centrale l'affiche pour l'application OpenAPI.",
+            "clientIdTooLong": "L'identifiant doit compter au plus 200 caractères.",
+            "clientSecret": "Secret de l'application (Client Secret)",
+            "clientSecretHelp": "Gardé dans le coffre de secrets ; jamais affiché.",
+            "did": "Numéro de textos de la clinique",
+            "didHelp": "Le numéro réservé à la clinique sur la centrale ; les textos partent de ce numéro."
+          },
+          "webhook": {
+            "title": "Textos reçus",
+            "description": "Sur la centrale, une entrée « Webhook Event Push » envoie à la clinique les textos reçus et les accusés de livraison.",
+            "url": "Adresse à donner à la centrale",
+            "urlHelp": "À coller dans Intégrations → API → Webhook Event Push, avec les événements de messages (30030, 30031, 30032).",
+            "secret": "Secret du webhook",
+            "secretHelp": "Le même secret que celui de l'entrée sur la centrale : il prouve que les événements viennent d'elle.",
+            "lastEvent": "Dernier événement reçu le {date}.",
+            "noEvent": "Aucun événement reçu pour l'instant.",
+            "lastEventError": "Impossible de lire le dernier événement reçu."
+          },
+          "texts": {
+            "title": "Textes envoyés automatiquement",
+            "description": "Envoyés tels quels, en français.",
+            "consentText": "Texte de consentement",
+            "consentHelp": "Envoyé dès qu'un consentement est enregistré. Doit contenir le mot ARRÊT (20 à 480 caractères).",
+            "consentNeedsStop": "Le texte doit contenir le mot ARRÊT, pour dire comment se désabonner.",
+            "optOutReply": "Réponse au retrait",
+            "optOutHelp": "Envoyée à la personne qui répond ARRÊT (20 à 480 caractères).",
+            "length": "Le texte doit compter de 20 à 480 caractères."
+          },
+          "send": {
+            "title": "Envoi",
+            "description": "Les rappels partent aux heures ouvrables (du lundi au vendredi, de 8 h à 17 h) ; les réponses et confirmations, sans délai.",
+            "jobOn": "La tâche « Envoi des textos » est activée : elle passe toutes les 15 minutes.",
+            "jobOff": "La tâche « Envoi des textos » est désactivée : les textos en attente (rappels, textes de consentement) ne partent pas.",
+            "jobUnknown": "La tâche « Envoi des textos » est introuvable.",
+            "jobLoadError": "Impossible de lire l'état de la tâche.",
+            "jobEnable": "Activer la tâche planifiée",
+            "jobEnabling": "Activation…",
+            "jobAskAdmin": "Une personne qui gère les paramètres peut l'activer.",
+            "jobOpen": "Ouvrir Tâches planifiées",
+            "testTo": "Numéro pour le test",
+            "testHelp": "Le texte de consentement, précédé de « Texto de test. », est envoyé à ce numéro (5 tests par heure).",
+            "test": "Envoyer un texto de test",
+            "testing": "Envoi…",
+            "testSent": "Texto de test envoyé.",
+            "testFailed": "Le texto de test n'est pas parti. {reason}"
+          }
+        }
       }
     }
   },
