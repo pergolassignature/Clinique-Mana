@@ -3,7 +3,7 @@
 -- See docs/standards/database-conventions.md §12.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 
 select is_empty($$
   select c.relname from pg_class c
@@ -89,6 +89,14 @@ select is_empty($$
   except
   select x.org_id, x.permission_key from public.org_role_permissions x where x.role = 'admin'
 $$, 'admin holds every permission in every org');
+
+-- PostgREST's role loads pg-safeupdate: a DELETE without WHERE fails (« DELETE requires a WHERE
+-- clause ») in any function an RPC reaches, though it passes here as postgres. Clear a temp table
+-- with `truncate`.
+select is_empty($$
+  select n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname in ('public', 'private') and p.prosrc ~* '\mdelete\s+from\s+[a-z0-9_."]+\s*;'
+$$, 'no function deletes without a WHERE clause (pg-safeupdate)');
 
 select * from finish();
 rollback;

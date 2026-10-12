@@ -338,6 +338,11 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     placesOrg: ['places.org', 3_000, 3_600],
     resendWebhookIp: ['webhooks.resend_ip', 600, 60],
     documensoWebhookIp: ['webhooks.documenso_ip', 600, 60],
+    gmailWebhookIp: ['webhooks.gmail_ip', 600, 60],
+    gmailConnectUser: ['gmail.connect_user', 20, 3_600],
+    oauthStateNonce: ['oauth.state_nonce', 1, 600],
+    gmailCallbackUser: ['gmail.callback_user', 20, 3_600],
+    gmailSyncUser: ['gmail.sync_user', 60, 3_600],
   })
   for (const l of Object.values(LIMITS)) {
     assertMatch(l.bucket, /^[a-z][a-z0-9_.]{0,62}$/)

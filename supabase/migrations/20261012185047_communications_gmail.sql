@@ -1098,7 +1098,7 @@ begin
     reply_to_address text, subject text, snippet text, sent_at timestamptz, label_ids text[],
     body_html text, body_text text, size_estimate int, attachments jsonb
   ) on commit drop;
-  delete from tmp_mail_in;
+  truncate tmp_mail_in;
   insert into tmp_mail_in
   select x.gmail_message_id, x.gmail_thread_id,
          pg_catalog.left(x.rfc_message_id, 998), pg_catalog.left(x.in_reply_to, 998),
@@ -1126,7 +1126,7 @@ begin
 
   -- Messages: new rows, or the mutable fields of known ones.
   create temp table if not exists tmp_mail_out (message_id uuid, gmail_message_id text, inserted boolean) on commit drop;
-  delete from tmp_mail_out;
+  truncate tmp_mail_out;
   with written as (
       insert into public.mail_messages as m (
         org_id, connection_id, thread_id, gmail_message_id, rfc_message_id, in_reply_to,
@@ -1317,7 +1317,7 @@ declare
 begin
   loop
     create temp table if not exists tmp_mail_purge (id uuid) on commit drop;
-    delete from tmp_mail_purge;
+    truncate tmp_mail_purge;
     insert into tmp_mail_purge
     select m.id from public.mail_messages m
      where m.body_purged_at is null and m.sent_at < pg_catalog.now() - interval '24 months'
@@ -1351,7 +1351,7 @@ values
    'Relit les boîtes Gmail connectées toutes les 15 minutes, au cas où une notification de Google se serait perdue.',
    'function', 'gmail-sync', null, 'communications.gmail_sync', null, false),
   ('communications.gmail_watch_renew', 'communications', 'Renouvellement de la surveillance Gmail',
-   'Renouvelle chaque jour la surveillance Pub/Sub des boîtes Gmail connectées (Google la limite à 7 jours).',
+   'Renouvelle la surveillance Pub/Sub des boîtes Gmail connectées deux jours avant son échéance (Google la limite à 7 jours). Vérifiée chaque heure.',
    'function', 'gmail-watch-renew', null, 'communications.gmail_watch_renew', null, false),
   ('communications.mail_bodies_purge', 'communications', 'Effacement des courriels de plus de 24 mois',
    'Efface le contenu et les pièces jointes des courriels synchronisés il y a plus de 24 mois. Les en-têtes restent.',

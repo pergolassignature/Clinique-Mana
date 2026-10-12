@@ -14,7 +14,7 @@ import { Label } from '@/shared/ui/label'
 import { Select } from '@/shared/ui/select'
 import { ReferenceListCard, type ReferenceColumn, type ReferenceFormProps } from '../../components/settings/ReferenceListCard'
 import { ReferenceSettingsPage } from '../../components/settings/ReferenceSettingsPage'
-import { ScheduledJobState } from '../../components/settings/ScheduledJobState'
+import { ScheduledJobState } from '@/core/jobs/components/ScheduledJobState'
 import { DOCUMENT_EXPIRY_RULES, DOCUMENT_MIME_TYPES, PHOTO_MIME_TYPES } from '../../lib/constants'
 import { megabytesLabel, mimeLabel, mimeListLabel, remindersLabel } from '../../lib/documents'
 
