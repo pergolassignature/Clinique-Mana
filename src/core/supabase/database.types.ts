@@ -74,6 +74,77 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_policies: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          fee_mode: string
+          file_opening_service_id: string | null
+          first_fee_percent: number
+          id: string
+          late_notice_hours: number
+          next_fee_percent: number
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          fee_mode?: string
+          file_opening_service_id?: string | null
+          first_fee_percent?: number
+          id?: string
+          late_notice_hours?: number
+          next_fee_percent?: number
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          fee_mode?: string
+          file_opening_service_id?: string | null
+          first_fee_percent?: number
+          id?: string
+          late_notice_hours?: number
+          next_fee_percent?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_policies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "billing_policies_file_opening_fkey"
+            columns: ["org_id", "file_opening_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "billing_policies_file_opening_fkey"
+            columns: ["org_id", "file_opening_service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "billing_policies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clienteles: {
         Row: {
           created_at: string
@@ -3909,6 +3980,272 @@ export type Database = {
           },
         ]
       }
+      service_families: {
+        Row: {
+          code: number
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: number
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: number
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_families_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_rate_variants: {
+        Row: {
+          amount_cents: number | null
+          created_at: string
+          created_by: string | null
+          discount_kind: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          percent: number | null
+          profession_title_id: string | null
+          service_id: string
+          variant: string
+        }
+        Insert: {
+          amount_cents?: number | null
+          created_at?: string
+          created_by?: string | null
+          discount_kind: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          org_id: string
+          percent?: number | null
+          profession_title_id?: string | null
+          service_id: string
+          variant: string
+        }
+        Update: {
+          amount_cents?: number | null
+          created_at?: string
+          created_by?: string | null
+          discount_kind?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          percent?: number | null
+          profession_title_id?: string | null
+          service_id?: string
+          variant?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_rate_variants_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      service_titles: {
+        Row: {
+          created_at: string
+          org_id: string
+          profession_title_id: string
+          service_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          profession_title_id: string
+          service_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          profession_title_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_titles_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_titles_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_titles_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          buffer_after_minutes: number
+          code: number
+          colour: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration_minutes: number
+          family_id: string
+          fixed_price_cents: number | null
+          for_two: boolean
+          grid_duration: number | null
+          id: string
+          is_active: boolean
+          key: string
+          kind: string
+          name: string
+          org_id: string
+          price_source: string
+          sort_order: number
+          tax_rule: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          buffer_after_minutes?: number
+          code: number
+          colour?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_minutes?: number
+          family_id: string
+          fixed_price_cents?: number | null
+          for_two?: boolean
+          grid_duration?: number | null
+          id?: string
+          is_active?: boolean
+          key: string
+          kind: string
+          name: string
+          org_id: string
+          price_source: string
+          sort_order?: number
+          tax_rule?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          buffer_after_minutes?: number
+          code?: number
+          colour?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_minutes?: number
+          family_id?: string
+          fixed_price_cents?: number | null
+          for_two?: boolean
+          grid_duration?: number | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          kind?: string
+          name?: string
+          org_id?: string
+          price_source?: string
+          sort_order?: number
+          tax_rule?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "services_family_fkey"
+            columns: ["org_id", "family_id"]
+            isOneToOne: false
+            referencedRelation: "service_families"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "services_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       signature_request_signers: {
         Row: {
           created_at: string
@@ -4207,215 +4544,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      sms_consents: {
-        Row: {
-          created_at: string
-          granted_at: string | null
-          id: string
-          note: string | null
-          org_id: string
-          phone_e164: string
-          source: string
-          status: string
-          subject_id: string | null
-          subject_type: string | null
-          updated_at: string
-          updated_by: string | null
-          withdrawn_at: string | null
-        }
-        Insert: {
-          created_at?: string
-          granted_at?: string | null
-          id?: string
-          note?: string | null
-          org_id: string
-          phone_e164: string
-          source: string
-          status: string
-          subject_id?: string | null
-          subject_type?: string | null
-          updated_at?: string
-          updated_by?: string | null
-          withdrawn_at?: string | null
-        }
-        Update: {
-          created_at?: string
-          granted_at?: string | null
-          id?: string
-          note?: string | null
-          org_id?: string
-          phone_e164?: string
-          source?: string
-          status?: string
-          subject_id?: string | null
-          subject_type?: string | null
-          updated_at?: string
-          updated_by?: string | null
-          withdrawn_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sms_consents_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sms_consents_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      sms_messages: {
-        Row: {
-          attempts: number
-          body: string | null
-          body_purged_at: string | null
-          claimed_at: string | null
-          created_at: string
-          did_e164: string | null
-          direction: string
-          error_code: string | null
-          id: string
-          kind: string
-          media: Json
-          org_id: string
-          peer_e164: string | null
-          provider: string
-          provider_msg_id: number | null
-          provider_session_id: number | null
-          request_id: string | null
-          send_after: string | null
-          sent_at: string | null
-          sent_by: string | null
-          status: string
-          subject_id: string | null
-          subject_type: string | null
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          body?: string | null
-          body_purged_at?: string | null
-          claimed_at?: string | null
-          created_at?: string
-          did_e164?: string | null
-          direction: string
-          error_code?: string | null
-          id?: string
-          kind: string
-          media?: Json
-          org_id: string
-          peer_e164?: string | null
-          provider?: string
-          provider_msg_id?: number | null
-          provider_session_id?: number | null
-          request_id?: string | null
-          send_after?: string | null
-          sent_at?: string | null
-          sent_by?: string | null
-          status: string
-          subject_id?: string | null
-          subject_type?: string | null
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          body?: string | null
-          body_purged_at?: string | null
-          claimed_at?: string | null
-          created_at?: string
-          did_e164?: string | null
-          direction?: string
-          error_code?: string | null
-          id?: string
-          kind?: string
-          media?: Json
-          org_id?: string
-          peer_e164?: string | null
-          provider?: string
-          provider_msg_id?: number | null
-          provider_session_id?: number | null
-          request_id?: string | null
-          send_after?: string | null
-          sent_at?: string | null
-          sent_by?: string | null
-          status?: string
-          subject_id?: string | null
-          subject_type?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sms_messages_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sms_messages_sent_by_fkey"
-            columns: ["sent_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      sms_provider_sessions: {
-        Row: {
-          access_expires_at: string | null
-          access_secret_id: string | null
-          base_url: string | null
-          channel_cached_at: string | null
-          channel_name: string | null
-          lock_owner: string | null
-          locked_until: string | null
-          org_id: string
-          refresh_expires_at: string | null
-          refresh_secret_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          access_expires_at?: string | null
-          access_secret_id?: string | null
-          base_url?: string | null
-          channel_cached_at?: string | null
-          channel_name?: string | null
-          lock_owner?: string | null
-          locked_until?: string | null
-          org_id: string
-          refresh_expires_at?: string | null
-          refresh_secret_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          access_expires_at?: string | null
-          access_secret_id?: string | null
-          base_url?: string | null
-          channel_cached_at?: string | null
-          channel_name?: string | null
-          lock_owner?: string | null
-          locked_until?: string | null
-          org_id?: string
-          refresh_expires_at?: string | null
-          refresh_secret_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sms_provider_sessions_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: true
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -5149,25 +5277,35 @@ export type Database = {
           },
         ]
       }
-      sms_threads: {
+      services_catalog: {
         Row: {
-          consent_status: string | null
-          last_body: string | null
-          last_body_purged: boolean | null
-          last_direction: string | null
-          last_has_media: boolean | null
-          last_inbound_at: string | null
-          last_message_at: string | null
-          last_status: string | null
-          message_count: number | null
+          buffer_after_minutes: number | null
+          code: number | null
+          colour: string | null
+          description: string | null
+          duration_minutes: number | null
+          family_code: number | null
+          family_id: string | null
+          family_name: string | null
+          family_sort_order: number | null
+          fixed_price_cents: number | null
+          for_two: boolean | null
+          grid_duration: number | null
+          id: string | null
+          key: string | null
+          kind: string | null
+          name: string | null
           org_id: string | null
-          peer_e164: string | null
-          subject_id: string | null
-          subject_type: string | null
+          price_source: string | null
+          sort_order: number | null
+          tax_rule: string | null
+          title_ids: string[] | null
+          title_keys: string[] | null
+          updated_at: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "sms_messages_org_id_fkey"
+            foreignKeyName: "services_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -5181,10 +5319,6 @@ export type Database = {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
         Returns: Json
       }
-      acquire_sms_provider_lock: {
-        Args: { p_org_id: string; p_owner: string; p_ttl_seconds?: number }
-        Returns: boolean
-      }
       activate_professional: {
         Args: { p_id: string; p_override_reason?: string }
         Returns: {
@@ -5192,6 +5326,29 @@ export type Database = {
           profile_id: string
           status: string
         }[]
+      }
+      add_billing_policy: {
+        Args: {
+          p_effective_from: string
+          p_fee_mode: string
+          p_file_opening_service_id: string
+          p_first_fee_percent: number
+          p_late_notice_hours: number
+          p_next_fee_percent: number
+        }
+        Returns: string
+      }
+      add_service_rate_variant: {
+        Args: {
+          p_amount_cents: number
+          p_discount_kind: string
+          p_effective_from: string
+          p_percent: number
+          p_service_id: string
+          p_title_id: string
+          p_variant: string
+        }
+        Returns: string
       }
       add_tax_rate: {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
@@ -5228,15 +5385,6 @@ export type Database = {
           request_id: string
         }[]
       }
-      apply_sms_delivery_event: {
-        Args: {
-          p_error_code: string
-          p_org_id: string
-          p_provider_msg_id: number
-          p_status: string
-        }
-        Returns: string
-      }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
       attach_professional_document: {
         Args: {
@@ -5252,6 +5400,28 @@ export type Database = {
         Args: { p_id: string; p_org_id: string; p_stale_after: string }
         Returns: boolean
       }
+      billing_policy_on: {
+        Args: { p_on: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          fee_mode: string
+          file_opening_service_id: string | null
+          first_fee_percent: number
+          id: string
+          late_notice_hours: number
+          next_fee_percent: number
+          org_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "billing_policies"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       cancel_professional_submission: {
         Args: { p_submission_id: string }
         Returns: undefined
@@ -5259,16 +5429,6 @@ export type Database = {
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
         Returns: boolean
-      }
-      claim_sms_batch_for_service: {
-        Args: { p_limit?: number; p_org_id: string }
-        Returns: {
-          body: string
-          id: string
-          kind: string
-          request_id: string
-          to_e164: string
-        }[]
       }
       claim_webhook_event: {
         Args: {
@@ -5448,6 +5608,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
       delete_compensation_rate: { Args: { p_id: string }; Returns: undefined }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_professional_client_agreement: {
@@ -5477,6 +5638,10 @@ export type Database = {
       }
       end_professional_client_agreement: {
         Args: { p_effective_to: string; p_row_id: string }
+        Returns: undefined
+      }
+      end_service_rate_variant: {
+        Args: { p_effective_to: string; p_id: string }
         Returns: undefined
       }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
@@ -5586,6 +5751,21 @@ export type Database = {
       }
       get_professionals_catalog: { Args: never; Returns: Json }
       get_professionals_settings: { Args: never; Returns: Json }
+      get_service_price: {
+        Args: {
+          p_on: string
+          p_service_id: string
+          p_tax_exempt?: boolean
+          p_title_id: string
+          p_variant: string
+        }
+        Returns: {
+          price_cents: number
+          source: string
+          tax_rule: string
+          variant_applied: boolean
+        }[]
+      }
       get_signature_request: {
         Args: { p_id: string }
         Returns: {
@@ -5620,8 +5800,6 @@ export type Database = {
         Args: { p_id: string; p_org_id: string }
         Returns: Json
       }
-      get_sms_provider_context: { Args: { p_org_id: string }; Returns: Json }
-      get_sms_settings: { Args: never; Returns: Json }
       get_submission_review: {
         Args: { p_submission_id: string }
         Returns: Json
@@ -6055,19 +6233,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      mark_sms_failed: {
-        Args: { p_error_code: string; p_id: string; p_org_id: string }
-        Returns: undefined
-      }
-      mark_sms_sent: {
-        Args: {
-          p_id: string
-          p_org_id: string
-          p_provider_msg_id: number
-          p_provider_session_id: number
-        }
-        Returns: undefined
-      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
@@ -6116,29 +6281,6 @@ export type Database = {
           p_view_permission: string
         }
         Returns: string
-      }
-      queue_sms_for_service: {
-        Args: {
-          p_actor: string
-          p_body: string
-          p_kind: string
-          p_org_id: string
-          p_to: string
-        }
-        Returns: Json
-      }
-      record_inbound_sms: {
-        Args: {
-          p_body: string
-          p_did: string
-          p_from: string
-          p_media: Json
-          p_org_id: string
-          p_provider_msg_id: number
-          p_provider_session_id: number
-          p_received_at: string
-        }
-        Returns: Json
       }
       record_monthly_sessions: {
         Args: { p_entries: Json; p_month: string }
@@ -6207,10 +6349,6 @@ export type Database = {
         Returns: undefined
       }
       reject_stored_file: { Args: { p_file_id: string }; Returns: undefined }
-      release_sms_provider_lock: {
-        Args: { p_org_id: string; p_owner: string }
-        Returns: undefined
-      }
       rename_role: {
         Args: { p_name: string; p_role: string }
         Returns: undefined
@@ -6365,6 +6503,27 @@ export type Database = {
           p_licence_label: string
           p_licence_pattern: string
           p_name: string
+        }
+        Returns: string
+      }
+      save_service: {
+        Args: {
+          p_buffer_after_minutes: number
+          p_code: number
+          p_colour: string
+          p_description: string
+          p_duration_minutes: number
+          p_family_id: string
+          p_fixed_price_cents: number
+          p_for_two: boolean
+          p_grid_duration: number
+          p_id: string
+          p_key: string
+          p_kind: string
+          p_name: string
+          p_price_source: string
+          p_sort_order: number
+          p_tax_rule: string
         }
         Returns: string
       }
@@ -6533,22 +6692,15 @@ export type Database = {
         Args: { p_enabled: boolean; p_key: string }
         Returns: undefined
       }
-      set_signing_settings: { Args: { p: Json }; Returns: Json }
-      set_sms_consent: {
-        Args: {
-          p_note?: string
-          p_phone: string
-          p_status: string
-          p_subject_id?: string
-          p_subject_type?: string
-        }
-        Returns: Json
-      }
-      set_sms_provider_channel: {
-        Args: { p_channel_name: string; p_org_id: string }
+      set_service_active: {
+        Args: { p_active: boolean; p_id: string }
         Returns: undefined
       }
-      set_sms_settings: { Args: { p_patch: Json }; Returns: Json }
+      set_service_titles: {
+        Args: { p_id: string; p_title_ids: string[] }
+        Returns: undefined
+      }
+      set_signing_settings: { Args: { p: Json }; Returns: Json }
       set_user_preference: {
         Args: { p_key: string; p_user_id: string; p_value: Json }
         Returns: undefined
@@ -6561,14 +6713,6 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
       }
-      sms_event_known_for_service: {
-        Args: {
-          p_org_id: string
-          p_provider_msg_id: number
-          p_provider_session_id: number
-        }
-        Returns: string
-      }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }
         Returns: string
@@ -6576,17 +6720,6 @@ export type Database = {
       start_my_profile_update: {
         Args: { p_sections: string[] }
         Returns: string
-      }
-      store_sms_provider_session: {
-        Args: {
-          p_access_expires_at: string
-          p_access_token: string
-          p_base_url: string
-          p_org_id: string
-          p_refresh_expires_at: string
-          p_refresh_token: string
-        }
-        Returns: undefined
       }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }

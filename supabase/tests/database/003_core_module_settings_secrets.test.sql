@@ -130,6 +130,8 @@ select functions_are('public', array[
   'search_professionals',
   'delete_staff_account',
   'withdraw_professional_image_consent', 'restore_professional_invitation_for_service',
+  'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
+  'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy',
   -- Communications, batch SM (textos).
   'get_sms_settings', 'set_sms_settings', 'set_sms_consent',
   'queue_sms_for_service', 'claim_sms_batch_for_service', 'mark_sms_sent', 'mark_sms_failed',

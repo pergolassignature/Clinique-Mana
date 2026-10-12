@@ -4765,6 +4765,107 @@
         }
       }
     },
+    "services": {
+      "name": "Services et tarifs",
+      "audit": {
+        "tables": {
+          "service_families": "Familles de services",
+          "services": "Services",
+          "service_titles": "Professions offrant un service",
+          "service_rate_variants": "Tarifs étudiant et réduit",
+          "billing_policies": "Politiques d'annulation"
+        },
+        "fields": {
+          "service_families": {
+            "code": "Code",
+            "name": "Nom",
+            "sort_order": "Ordre"
+          },
+          "services": {
+            "family_id": "Famille",
+            "code": "Code",
+            "key": "Clé",
+            "name": "Nom",
+            "description": "Description",
+            "kind": "Type",
+            "duration_minutes": "Durée (min)",
+            "buffer_after_minutes": "Pause après (min)",
+            "for_two": "Pour deux personnes",
+            "price_source": "Source du prix",
+            "fixed_price_cents": "Prix fixe",
+            "grid_duration": "Colonne de la grille",
+            "tax_rule": "Taxes",
+            "colour": "Couleur",
+            "is_active": "Actif",
+            "sort_order": "Ordre"
+          },
+          "service_titles": {
+            "service_id": "Service",
+            "profession_title_id": "Profession"
+          },
+          "service_rate_variants": {
+            "service_id": "Service",
+            "variant": "Variante",
+            "profession_title_id": "Profession",
+            "discount_kind": "Type de rabais",
+            "amount_cents": "Montant",
+            "percent": "Pourcentage",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)"
+          },
+          "billing_policies": {
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "late_notice_hours": "Préavis (heures)",
+            "first_fee_percent": "Frais la première fois (%)",
+            "next_fee_percent": "Frais les fois suivantes (%)",
+            "file_opening_service_id": "Service d'ouverture de dossier",
+            "fee_mode": "Mode des frais"
+          }
+        },
+        "values": {
+          "services": {
+            "kind": {
+              "session": "Séance",
+              "call": "Appel",
+              "fee": "Frais",
+              "workshop": "Atelier",
+              "admin": "Administratif"
+            },
+            "price_source": {
+              "grid": "Selon la grille",
+              "fixed": "Prix fixe",
+              "free": "Gratuit",
+              "entered": "Montant saisi à la facture"
+            },
+            "tax_rule": {
+              "exempt": "Non taxable",
+              "taxable": "Taxable"
+            }
+          },
+          "service_rate_variants": {
+            "variant": {
+              "student": "Tarif étudiant",
+              "reduced": "Tarif réduit"
+            },
+            "discount_kind": {
+              "price": "Prix",
+              "amount": "Montant en moins",
+              "percent": "Pourcentage en moins"
+            }
+          },
+          "billing_policies": {
+            "fee_mode": {
+              "confirm": "Décidé par le professionnel",
+              "automatic": "Automatique"
+            }
+          }
+        },
+        "sources": {
+          "seed:services_catalogue": "Catalogue initial"
+        }
+      }
+    },
     "communications": {
       "name": "Communications",
       "audit": {
