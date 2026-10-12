@@ -1,6 +1,7 @@
 import type { ModuleManifest } from '@/core/modules/types'
+import { communicationsManifest } from '@/modules/communications'
 import { professionalsManifest } from '@/modules/professionals'
 import { servicesManifest } from '@/modules/services'
 
 /** Every module the app knows about. A module only appears when enabled for the org (access.modules). */
-export const ALL_MODULES: ModuleManifest[] = [professionalsManifest, servicesManifest]
+export const ALL_MODULES: ModuleManifest[] = [professionalsManifest, servicesManifest, communicationsManifest]
