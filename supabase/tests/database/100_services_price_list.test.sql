@@ -5,7 +5,7 @@
 -- off and a missing permission refuse.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(16);
 
 select function_privs_are('public', 'list_service_prices', array['date'], 'anon', array[]::text[], 'anon cannot call it');
 select function_privs_are('public', 'list_service_prices', array['date'], 'authenticated', array['EXECUTE'], 'authenticated may call it');
@@ -40,8 +40,17 @@ select set_config('test.s50400', (select s.id::text from public.services s where
 insert into public.service_rate_variants (org_id, service_id, variant, discount_kind, percent, effective_from)
 values (current_setting('test.org_a')::uuid, current_setting('test.s10150')::uuid, 'reduced', 'percent', 20, date '2026-07-01');
 
+-- A grid service offered by no title yet.
+insert into public.services (org_id, family_id, code, key, name, kind, duration_minutes, price_source, grid_duration)
+select f.org_id, f.id, 60999, 'grid_no_title', 'Atelier selon la grille', 'workshop', 50, 'grid', 50
+  from public.service_families f where f.org_id = current_setting('test.org_a')::uuid and f.code = 60;
+
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select p.title_id, p.price_cents, p.source from public.list_service_prices(date '2026-11-01') p
+                       join public.services s on s.id = p.service_id where s.key = 'grid_no_title' $$,
+  $$ values (null::uuid, null::int, 'grid') $$, 'a grid service offered by no title: one title-less row, no price');
+select throws_ok($$ select * from public.list_service_prices(null) $$, '22023', 'La date est requise.', 'the date is required');
 select is((select count(*)::int from public.list_service_prices(date '2026-11-01') p where p.service_id = current_setting('test.s10150')::uuid), 7,
   'the 50 min session: one row per title that offers it');
 select results_eq($$ select p.price_cents, p.student_price_cents, p.reduced_price_cents, p.tax_rule, p.source

@@ -43,7 +43,7 @@ export function RateVariantsCard({ data, canEdit }: RateVariantsCardProps) {
   const addRef = useRef<HTMLButtonElement>(null)
 
   const serviceOf = (row: RateVariantRow) => services.find((s) => s.id === row.serviceId)
-  const titleName = (id: string | null) => (id === null ? t(`${V}.allTitles`) : (titles.find((title) => title.id === id)?.name ?? '—'))
+  const titleName = (id: string | null) => (id === null ? t(`${V}.allTitles`) : (titles.find((title) => title.id === id)?.name ?? t(`${V}.archivedTitle`)))
   const seriesOf = (row: RateVariantRow) => rowsOf(variants, (other) => other.serviceId === row.serviceId && other.variant === row.variant && other.titleId === row.titleId)
   // One group per service holding rates, in the catalogue's order.
   const groups = services.filter((s) => variants.some((row) => row.serviceId === s.id)).map((s) => ({ service: s, rows: rowsOf(variants, (row) => row.serviceId === s.id) }))

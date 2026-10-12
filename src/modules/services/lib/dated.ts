@@ -34,10 +34,16 @@ export function periodLabel(row: Pick<DatedRow, 'effectiveFrom' | 'effectiveTo'>
   return end === null ? t('modules.services.dated.since', { from }) : t('modules.services.dated.between', { from, to: formatDateOnlyShort(end) })
 }
 
-/** The earliest start the `add_*` RPCs accept: the day after the open row's start; null without one. */
+/**
+ * The earliest start the `add_*` RPCs accept: the day after the open row's start; with no open
+ * row, the series' last end (a row ended on a coming date: the next one starts on its end or
+ * after); null for an empty series.
+ */
 export function earliestStart(rows: readonly DatedRow[]): string | null {
   const open = rows.find((row) => row.effectiveTo === null)
-  return open ? shiftCalendarDay(open.effectiveFrom, 1) : null
+  if (open) return shiftCalendarDay(open.effectiveFrom, 1)
+  const ends = rows.map((row) => row.effectiveTo).filter((end): end is string => end !== null)
+  return ends.length === 0 ? null : ends.reduce((a, b) => (b > a ? b : a))
 }
 
 /** The rows of one series, newest start first. */

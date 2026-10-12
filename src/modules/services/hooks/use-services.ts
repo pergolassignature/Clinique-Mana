@@ -44,9 +44,12 @@ export function useServicesSettings() {
   return useQuery({ queryKey: serviceKeys.settings(), queryFn: fetchServicesSettings, staleTime: 5 * 60_000 })
 }
 
-/** Every price of the active catalogue on `on` (the clinic's date). */
+/**
+ * Every price of the active catalogue on `on` (the clinic's date). Always refetched on mount: the
+ * grids change in Paramètres → Rémunération, which does not invalidate this module's keys.
+ */
 export function useServicePrices(on: string) {
-  return useQuery({ queryKey: serviceKeys.prices(on), queryFn: () => fetchServicePrices(on), staleTime: 5 * 60_000 })
+  return useQuery({ queryKey: serviceKeys.prices(on), queryFn: () => fetchServicePrices(on), staleTime: 0 })
 }
 
 /**

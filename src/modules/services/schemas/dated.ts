@@ -17,6 +17,8 @@ const V = 'modules.services.validation'
 /** The bounds of `private.assert_services_start`, also the date inputs' `min` / `max`. */
 export const FIRST_DATE = '2000-01-01'
 export const LAST_DATE = '2100-12-31'
+/** The last « dernier jour » a rate may have: its exclusive end (the day after) must stay within LAST_DATE. */
+export const LAST_END_DAY = '2100-12-30'
 
 const calendarDate = z
   .string()
@@ -84,6 +86,7 @@ export function variantSchema(minDateFor: (serviceId: string, variant: string, t
 export function endVariantSchema(effectiveFrom: string) {
   return z
     .object({ lastDay: calendarDate })
+    .refine((values) => values.lastDay <= LAST_END_DAY, { path: ['lastDay'], error: t(`${V}.lastDayBounds`) })
     .refine((values) => values.lastDay >= effectiveFrom, { path: ['lastDay'], error: t(`${V}.endAfterStart`, { date: formatDateOnlyShort(effectiveFrom) }) })
     .transform((values) => ({ effectiveTo: shiftCalendarDay(values.lastDay, 1) }))
 }

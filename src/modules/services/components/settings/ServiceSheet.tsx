@@ -122,7 +122,8 @@ function ServicePanel({ service, titleIds, families, services, titles, onClose, 
     void form.handleSubmit((output) => {
       clear()
       const { titleIds: nextTitles, ...fields } = output
-      const sameTitles = editing && [...titleIds].sort().join() === [...nextTitles].sort().join()
+      // Unchanged titles (or none on a new service) are not written: no audit row for nothing.
+      const sameTitles = [...titleIds].sort().join() === [...nextTitles].sort().join()
       save.mutate({ input: { id: service?.id ?? null, ...fields }, titleIds: sameTitles ? null : nextTitles }, { onSuccess: onClose })
     })(event)
   }

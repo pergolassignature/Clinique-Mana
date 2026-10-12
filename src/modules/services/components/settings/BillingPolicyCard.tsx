@@ -65,7 +65,7 @@ export function BillingPolicyCard({ data, canEdit }: BillingPolicyCardProps) {
     { label: t(`${P}.fields.nextFee`), value: formatPercent(policy.nextFeePercent) },
     {
       label: t(`${P}.fields.fileOpening`),
-      value: policy.fileOpeningServiceId === null ? null : (services.find((s) => s.id === policy.fileOpeningServiceId)?.name ?? '—'),
+      value: policy.fileOpeningServiceId === null ? null : (services.find((s) => s.id === policy.fileOpeningServiceId)?.name ?? t(`${P}.unknownService`)),
       empty: t(`${P}.noFileOpening`),
     },
     { label: t(`${P}.fields.feeMode`), value: feeModeLabel(policy.feeMode) },

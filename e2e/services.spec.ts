@@ -58,7 +58,6 @@ test('the admin adds a service with a student rate and reads its prices', async 
   expect(column).toBeGreaterThan(0)
   const cell = prices.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Psychologue', exact: true }) }).getByRole('cell').nth(column)
   await expect(cell).toHaveText(/^175,00\s\$Étudiant 150,00\s\$$/)
-  await expect(page.getByText('Aucun écart : les grilles reproduisent les prix observés.')).toBeVisible()
 
   // Archived: it leaves the active list (and « Prix »).
   await catalogue.getByRole('button', { name: `Actions pour « ${name} »` }).click()

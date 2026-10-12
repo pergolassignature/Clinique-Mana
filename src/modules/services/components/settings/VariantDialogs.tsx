@@ -14,7 +14,7 @@ import { useAddRateVariant, useEndRateVariant } from '../../hooks/use-services'
 import { DISCOUNT_KINDS, RATE_VARIANTS, type DiscountKind } from '../../lib/constants'
 import { earliestStart, rowsOf } from '../../lib/dated'
 import { discountKindLabel, variantLabel } from '../../lib/display'
-import { endVariantSchema, FIRST_DATE, LAST_DATE, variantSchema, type VariantFormValues } from '../../schemas/dated'
+import { endVariantSchema, FIRST_DATE, LAST_END_DAY, variantSchema, type VariantFormValues } from '../../schemas/dated'
 import { useDialogRefusal, useRefusalOnField } from '../../hooks/use-dialog-refusal'
 import { DialogForm, EffectiveFromField } from './DatedParts'
 
@@ -284,7 +284,7 @@ function EndVariantForm({
       pendingLabel={t(`${V}.endDialog.confirming`)}
     >
       <FormField label={t(`${V}.endDialog.lastDay`)} width="sm" required error={errors.lastDay?.message}>
-        {(field) => <Input {...field} {...form.register('lastDay')} type="date" min={row.effectiveFrom > FIRST_DATE ? row.effectiveFrom : FIRST_DATE} max={LAST_DATE} autoFocus />}
+        {(field) => <Input {...field} {...form.register('lastDay')} type="date" min={row.effectiveFrom > FIRST_DATE ? row.effectiveFrom : FIRST_DATE} max={LAST_END_DAY} autoFocus />}
       </FormField>
     </DialogForm>
   )
