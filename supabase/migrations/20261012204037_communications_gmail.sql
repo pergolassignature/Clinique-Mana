@@ -116,7 +116,7 @@ begin
       raise exception 'Le nom du sujet Pub/Sub doit avoir la forme projects/<projet>/topics/<sujet>.'
         using errcode = 'P0001', hint = 'pubsub_topic';
     end if;
-    p_patch := jsonb_set(p_patch, '{pubsub_topic}', to_jsonb(v_topic));
+    p_patch := jsonb_set(p_patch, '{pubsub_topic}', coalesce(to_jsonb(v_topic), 'null'::jsonb));
   end if;
   if p_patch ? 'pubsub_service_account' then
     if jsonb_typeof(p_patch->'pubsub_service_account') not in ('string', 'null') then
@@ -127,7 +127,7 @@ begin
       raise exception 'Le compte de service doit avoir la forme nom@projet.iam.gserviceaccount.com.'
         using errcode = 'P0001', hint = 'pubsub_service_account';
     end if;
-    p_patch := jsonb_set(p_patch, '{pubsub_service_account}', to_jsonb(v_account));
+    p_patch := jsonb_set(p_patch, '{pubsub_service_account}', coalesce(to_jsonb(v_account), 'null'::jsonb));
   end if;
 
   perform pg_catalog.set_config('app.audit_source', 'rpc:set_communications_settings', true);
