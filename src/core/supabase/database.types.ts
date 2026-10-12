@@ -2876,6 +2876,13 @@ export type Database = {
             referencedRelation: "profession_titles"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "professional_professions_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       professional_public_profiles: {
@@ -3618,6 +3625,13 @@ export type Database = {
             referencedRelation: "profession_titles"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "retention_grids_title_fkey"
+            columns: ["org_id", "title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       role_permissions: {
@@ -4097,6 +4111,13 @@ export type Database = {
             referencedRelation: "profession_titles"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "service_rate_variants_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       service_titles: {
@@ -4138,6 +4159,13 @@ export type Database = {
             columns: ["org_id", "profession_title_id"]
             isOneToOne: false
             referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_titles_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles_catalog"
             referencedColumns: ["org_id", "id"]
           },
         ]
@@ -5362,6 +5390,64 @@ export type Database = {
           },
         ]
       }
+      profession_titles_catalog: {
+        Row: {
+          category_id: string | null
+          id: string | null
+          key: string | null
+          name: string | null
+          name_feminine: string | null
+          name_masculine: string | null
+          order_id: string | null
+          org_id: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          category_id?: string | null
+          id?: string | null
+          key?: string | null
+          name?: string | null
+          name_feminine?: string | null
+          name_masculine?: string | null
+          order_id?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          category_id?: string | null
+          id?: string | null
+          key?: string | null
+          name?: string | null
+          name_feminine?: string | null
+          name_masculine?: string | null
+          order_id?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profession_titles_category_fkey"
+            columns: ["org_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "profession_categories"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "profession_titles_order_fkey"
+            columns: ["org_id", "order_id"]
+            isOneToOne: false
+            referencedRelation: "professional_orders"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "profession_titles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professionals_directory: {
         Row: {
           accepting_new_clients: boolean | null
@@ -6370,6 +6456,18 @@ export type Database = {
           last_status: string
           local_hour: number
           schedule: string
+        }[]
+      }
+      list_service_prices: {
+        Args: { p_on: string }
+        Returns: {
+          price_cents: number
+          reduced_price_cents: number
+          service_id: string
+          source: string
+          student_price_cents: number
+          tax_rule: string
+          title_id: string
         }[]
       }
       list_signature_requests_to_reconcile: {

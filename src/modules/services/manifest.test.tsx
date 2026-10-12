@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import { coreSettingsSections } from '@/core/settings/sections'
+import { isSectionReadOnly } from '@/core/settings/section-context'
+import { canOpenSection } from '@/core/settings/visible-sections'
+import { ROLE_PERMISSIONS, type FixtureRole } from '@/test/role-fixtures'
 import { servicesManifest } from './index'
 
 describe('servicesManifest', () => {
@@ -22,6 +25,26 @@ describe('servicesManifest', () => {
     expect(labels?.value('billing_policies', 'first_fee_percent', 50)).toBe('50 %')
     expect(labels?.sourceLabel('seed:services_catalogue')).toBe('Catalogue initial')
     expect(labels?.tableLabel('professionals')).toBeUndefined()
+  })
+
+  it('shows « Services et tarifs » to the admin and the adjointe (editable), never to a counselor or a professional (S-8)', () => {
+    const section = servicesManifest.settingsSections.find((s) => s.id === 'services')
+    if (!section) throw new Error('no section')
+    expect(section).toMatchObject({ id: 'services', path: 'services-et-tarifs', group: 'modules', editPermission: 'services.manage' })
+    expect(t(section.labelKey)).toBe('Services et tarifs')
+    const canFor = (role: FixtureRole) => (key: string) => (ROLE_PERMISSIONS[role] as readonly string[]).includes(key)
+    expect(canOpenSection(section, canFor('admin'))).toBe(true)
+    expect(canOpenSection(section, canFor('admin_assistant'))).toBe(true)
+    expect(isSectionReadOnly(section, canFor('admin_assistant'))).toBe(false)
+    // Both hold services.view for the published reads, not the settings section.
+    expect(canFor('counselor')('services.view')).toBe(true)
+    expect(canOpenSection(section, canFor('counselor'))).toBe(false)
+    expect(canFor('provider')('services.view')).toBe(true)
+    expect(canOpenSection(section, canFor('provider'))).toBe(false)
+    // A custom role seeing Paramètres without services.manage reads it only.
+    const viewer = (key: string) => key === 'settings.view' || key === 'services.view'
+    expect(canOpenSection(section, viewer)).toBe(true)
+    expect(isSectionReadOnly(section, viewer)).toBe(true)
   })
 
   it('has section ids and paths unique against the core sections', () => {

@@ -6,7 +6,7 @@ import { testAccess } from './contexts'
  * (20261007140517_core_access, 20261007140859_professionals_module, 20261007192359_core_roles_split,
  * 20261008015825_core_editable_roles, 20261008033613_core_shared_permissions,
  * 20261008133511_professionals_reference_data, 20261008191219_professionals_onboarding,
- * 20261009000253_professionals_documents, 20261009030158_professionals_contracts, 20261012184103_services_module, 20261012185751_communications_sms), which
+ * 20261009000253_professionals_documents, 20261009030158_professionals_contracts, 20261012184103_services_module, 20261012203302_communications_sms), which
  * every clinic starts from (org_role_permissions). Update it with the migrations.
  */
 export const ROLE_PERMISSIONS = {

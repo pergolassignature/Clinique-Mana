@@ -5,7 +5,7 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 - **Registry:** `modules.key = 'communications'` (migration `20261012184051_communications_module`), no dependency besides core (Clients is optional: the thread → client link waits for it). It **starts disabled** in every clinic; an admin enables it in Paramètres → Modules.
 - **Permissions:** `communications.inbox` (read the shared mailboxes: admin, counselor, admin_assistant), `communications.mailboxes_manage` (connect, disconnect, synchronise, the « Courriels Gmail » settings: admin). `communications.sms` (« Textos »: read the texts, reply, record a consent) and `communications.sms_manage` (Paramètres → Textos, the test text) (SM: admin defaults only, SM-11). Later: `communications.send` (CM3), `communications.ai_draft` (CM4).
 - **Frontend:** `src/modules/communications/` (manifest, `index.ts`, `lib/audit-labels.ts`; SM: `api/sms.ts`, `api/sms-settings.ts`, `hooks/keys.ts` `smsKeys`, `pages/SmsPage.tsx`, `pages/settings/SmsSettingsPage.tsx`); i18n `modules.communications.*`.
-- **Tests:** pgTAP `096_communications_module`, `099_communications_sms`; Deno tests of `_shared/sms/*` and the three SMS functions; Vitest next to each file; Playwright `e2e/sms.spec.ts`.
+- **Tests:** pgTAP `096_communications_module`, `102_communications_sms`; Deno tests of `_shared/sms/*` and the three SMS functions; Vitest next to each file; Playwright `e2e/sms.spec.ts`.
 
 ## Batches
 
@@ -20,7 +20,7 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 
 ## Textos (batch SM)
 
-Texts go through the clinic's dedicated SMS channel and number on a **Yeastar P-Series PBX**, by its OpenAPI, the system PS Hub uses (R-73, SM-1). Migration `20261012185751_communications_sms`; decisions SM-1 … SM-13 in the [decisions log](../plans/2026-10-07-decisions-log.md#communications-decisions-2026-10-12). The live setup (the PBX application, the channel, the webhook entry) is in the [status doc](../plans/2026-10-07-status.md) (« Mise en service des textos »).
+Texts go through the clinic's dedicated SMS channel and number on a **Yeastar P-Series PBX**, by its OpenAPI, the system PS Hub uses (R-73, SM-1). Migration `20261012203302_communications_sms`; decisions SM-1 … SM-13 in the [decisions log](../plans/2026-10-07-decisions-log.md#communications-decisions-2026-10-12). The live setup (the PBX application, the channel, the webhook entry) is in the [status doc](../plans/2026-10-07-status.md) (« Mise en service des textos »).
 
 - **Consent (SM-2, SM-6):** `sms_consents`, one row per clinic and number (E.164): `opted_in` / `opted_out`, how (`source`: staff, sms_reply, import, form), when given and withdrawn (the grant's date is kept after a withdrawal), the optional person (`subject_type`, `subject_id`, for Clients), a note. Audited, the number and the note redacted. **No text leaves to a number without a consent in force**, except the acknowledgement of a withdrawal and an admin's test. The staff records one in « Textos » (`set_sms_consent`): a new consent queues the clinic's consent text (it must contain « ARRÊT »), sent at the next dispatch.
 - **Texts (SM-3, SM-8):** `sms_messages`, every text in and out, keyed by the other party's number (the thread; view `sms_threads`). Operational, not audited (listed in `000_invariants`); `communications.sms_purge` nulls bodies and attachment names after 12 months and numbers after 24. Inbound MMS: attachment names, types and sizes only, never downloaded (SM-12).
