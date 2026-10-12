@@ -4,7 +4,7 @@ import type { CommunicationsSettings } from '../api/mailboxes'
 
 /**
  * Google's full topic name, as `set_communications_settings` checks it
- * (20261012185047_communications_gmail.sql): `projects/<project id>/topics/<topic>`, the project id
+ * (20261012204037_communications_gmail.sql): `projects/<project id>/topics/<topic>`, the project id
  * 6–30 lower-case letters, digits or hyphens, the topic 3–255 characters starting with a letter.
  * Empty clears it (the watch is then not started).
  */

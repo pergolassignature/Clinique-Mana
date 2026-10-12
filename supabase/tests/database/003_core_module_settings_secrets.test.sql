@@ -135,8 +135,10 @@ select functions_are('public', array[
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',
   'acquire_mail_sync_lease', 'finish_mail_sync', 'reset_mail_history', 'set_mail_watch',
   'upsert_mail_labels', 'upsert_mail_messages', 'delete_mail_messages', 'apply_mail_label_changes',
-  'list_mail_attachments_to_store', 'record_mail_attachment'
-],'public schema exposes exactly the intended RPCs');
+  'list_mail_attachments_to_store', 'record_mail_attachment',
+  'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
+  'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices'
+], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
   '23514', null, 'module settings must be a JSON object');

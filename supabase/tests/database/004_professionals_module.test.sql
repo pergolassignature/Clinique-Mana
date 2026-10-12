@@ -32,8 +32,9 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
 select ok(not public.module_enabled('professionals'), 'professionals starts disabled in a new org');
-select results_eq($$ select key, depends_on, enabled from public.list_modules() where key = 'professionals' $$,
-  $$ values ('professionals'::text, array[]::text[], false) $$, 'list_modules shows professionals, disabled');
+select results_eq($$ select key, depends_on, enabled from public.list_modules() where key in ('professionals', 'services') $$,
+  $$ values ('professionals'::text, array[]::text[], false), ('services', array['professionals'], false) $$,
+  'list_modules shows professionals (and services, which depends on it), disabled');
 
 -- Module gate: a disabled module grants nothing.
 select ok(not private.has_permission('professionals.view'), 'disabled module: role default does not apply');

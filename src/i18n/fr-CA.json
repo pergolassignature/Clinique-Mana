@@ -4765,6 +4765,383 @@
         }
       }
     },
+    "services": {
+      "name": "Services et tarifs",
+      "settings": {
+        "title": "Services et tarifs",
+        "description": "Le catalogue des services de la clinique, codé par famille comme dans GOrendezvous : durée, taxes et source du prix (la grille de rétention de la profession, un prix fixe, gratuit, ou un montant saisi à la facture). Rendez-vous et Facturation le lisent.",
+        "loadError": "Les services et les tarifs n'ont pas pu être chargés.",
+        "catalogue": {
+          "title": "Catalogue",
+          "description": "Un service par ligne, dans sa famille. Le code est l'article QuickBooks : il se choisit une fois.",
+          "add": "Ajouter un service",
+          "search": "Rechercher…",
+          "searchLabel": "Rechercher dans le catalogue",
+          "table": "Catalogue des services",
+          "columns": {
+            "code": "Code",
+            "name": "Service",
+            "duration": "Durée",
+            "price": "Prix et taxes",
+            "titles": "Professions",
+            "actions": "Actions"
+          },
+          "titlesCount": {
+            "none": "Aucune",
+            "one": "1 profession",
+            "other": "{count} professions"
+          },
+          "forTwo": "Pour deux personnes",
+          "archived": "Archivé",
+          "menu": "Actions pour « {name} »",
+          "edit": "Modifier",
+          "archive": "Archiver",
+          "restore": "Restaurer",
+          "created": "Service ajouté.",
+          "saved": "Service enregistré.",
+          "archivedToast": "Service archivé.",
+          "restored": "Service restauré.",
+          "empty": {
+            "title": "Aucun service",
+            "body": "Ajoutez le premier service du catalogue.",
+            "noMatchTitle": "Aucun résultat",
+            "noMatchBody": "Modifiez la recherche ou le filtre.",
+            "noArchived": "Aucun service archivé",
+            "noArchivedBody": "Un service archivé reste sur les factures passées, mais ne peut plus être choisi."
+          }
+        },
+        "sheet": {
+          "createTitle": "Ajouter un service",
+          "editTitle": "Modifier le service",
+          "createDescription": "Le code, la clé et la famille se choisissent une fois.",
+          "editDescription": "Le code, la clé et la famille ne changent pas.",
+          "sections": {
+            "identity": "Identité",
+            "slot": "Durée",
+            "price": "Prix et taxes",
+            "titles": "Professions qui l'offrent"
+          },
+          "fields": {
+            "family": "Famille",
+            "code": "Code",
+            "key": "Clé",
+            "name": "Nom",
+            "description": "Description",
+            "kind": "Type",
+            "duration": "Durée (min)",
+            "buffer": "Pause après (min)",
+            "forTwo": "Pour deux personnes",
+            "priceSource": "Source du prix",
+            "fixedPrice": "Prix fixe ($)",
+            "gridDuration": "Colonne de la grille",
+            "taxRule": "Taxes",
+            "colour": "Couleur",
+            "sortOrder": "Ordre",
+            "titles": "Professions"
+          },
+          "help": {
+            "code": "Cinq chiffres dans la plage de la famille (10 000 à 10 999 pour Individuel).",
+            "codeRange": "Cinq chiffres, de {from} à {to}.",
+            "key": "Lettres minuscules, chiffres et _ ; identifiant technique, jamais affiché.",
+            "buffer": "Une séance de 50 min avec 10 min de pause occupe 60 min à l'agenda.",
+            "forTwo": "Facturé à deux personnes (couple).",
+            "fixedPrice": "Avant taxes.",
+            "gridDuration": "Le prix vient de la grille de rétention de la profession, pour cette durée.",
+            "titles": "Le prix selon la grille s'affiche pour ces professions. Aucune : un service de la clinique (liste d'attente, appel découverte)."
+          },
+          "familyPlaceholder": "Choisir…",
+          "noTitles": "Aucune profession active.",
+          "create": "Ajouter",
+          "creating": "Ajout…",
+          "confirmClose": {
+            "title": "Fermer sans enregistrer ?",
+            "body": "Les modifications du service seront perdues.",
+            "stay": "Rester",
+            "leave": "Fermer sans enregistrer"
+          }
+        },
+        "variants": {
+          "title": "Tarifs étudiant et réduit",
+          "description": "Un rabais daté par service : un prix, un montant en moins ou un pourcentage, pour toutes les professions ou une seule. Le tarif se pose sur le client.",
+          "add": "Nouveau tarif",
+          "saved": "Tarif enregistré.",
+          "ended": "Tarif terminé.",
+          "deleted": "Tarif supprimé.",
+          "columns": {
+            "variant": "Variante",
+            "title": "Profession",
+            "discount": "Rabais",
+            "from": "Du",
+            "to": "Au",
+            "status": "Statut",
+            "actions": "Actions"
+          },
+          "allTitles": "Toutes les professions",
+          "noEnd": "Sans fin",
+          "archivedTitle": "Profession archivée",
+          "empty": "Aucun tarif étudiant ou réduit.",
+          "end": "Terminer",
+          "endLabel": "Terminer le tarif {variant} de « {service} »",
+          "delete": "Supprimer",
+          "deleteLabel": "Supprimer le tarif {variant} de « {service} » dès le {date}",
+          "deleteTitle": "Supprimer ce tarif ?",
+          "deleteBody": "Le tarif {variant} de « {service} » dès le {date} sera supprimé. Le tarif précédent s'appliquera de nouveau.",
+          "dialog": {
+            "title": "Nouveau tarif",
+            "description": "Le tarif s'applique à partir de la date choisie et remplace celui en vigueur pour le même service, la même variante et la même profession.",
+            "service": "Service",
+            "servicePlaceholder": "Choisir…",
+            "variant": "Variante",
+            "titleField": "Profession",
+            "discountKind": "Rabais",
+            "value": "Valeur",
+            "valueHelp": {
+              "price": "Le prix du tarif, en dollars, avant taxes.",
+              "amount": "Le montant en moins, en dollars.",
+              "percent": "Le pourcentage en moins (0,01 à 100)."
+            },
+            "fromHelp": "Le tarif en vigueur de cette série se terminera la veille de cette date."
+          },
+          "endDialog": {
+            "title": "Terminer le tarif",
+            "description": "Le tarif {variant} de « {service} » ne s'appliquera plus après ce jour.",
+            "lastDay": "Dernier jour",
+            "confirm": "Terminer",
+            "confirming": "Fin en cours…"
+          }
+        },
+        "policy": {
+          "title": "Politique d'annulation",
+          "description": "Le préavis, les frais d'une annulation tardive ou d'une absence, et l'ouverture de dossier d'un premier rendez-vous. Facturation lit la politique en vigueur ; le professionnel décide d'appliquer les frais ou non.",
+          "add": "Nouvelle politique",
+          "saved": "Politique enregistrée.",
+          "deleted": "Politique supprimée.",
+          "current": "En vigueur",
+          "upcoming": "À venir",
+          "none": "Aucune politique : Facturation ne proposera pas de frais.",
+          "fields": {
+            "lateNotice": "Préavis",
+            "firstFee": "Frais la première fois",
+            "nextFee": "Frais les fois suivantes",
+            "fileOpening": "Ouverture de dossier",
+            "feeMode": "Mode des frais"
+          },
+          "hours": "{hours} h",
+          "noFileOpening": "Aucune",
+          "unknownService": "Service introuvable",
+          "history": "Historique",
+          "historyLabel": "Politiques d'annulation",
+          "columns": {
+            "period": "Période",
+            "notice": "Préavis",
+            "fees": "Frais",
+            "mode": "Mode",
+            "actions": "Actions"
+          },
+          "fees": "{first} puis {next}",
+          "delete": "Supprimer",
+          "deleteLabel": "Supprimer la politique dès le {date}",
+          "deleteTitle": "Supprimer cette politique ?",
+          "deleteBody": "La politique dès le {date} sera supprimée. La politique précédente s'appliquera de nouveau.",
+          "dialog": {
+            "title": "Nouvelle politique",
+            "description": "La nouvelle politique s'applique à partir de la date choisie.",
+            "lateNotice": "Préavis (heures)",
+            "firstFee": "Frais la première fois (%)",
+            "nextFee": "Frais les fois suivantes (%)",
+            "fileOpening": "Service d'ouverture de dossier",
+            "fileOpeningNone": "Aucune",
+            "feeMode": "Mode des frais",
+            "feeModeHelp": "« Automatique » seulement avec l'accord explicite de la direction.",
+            "fromHelp": "La politique en vigueur se terminera la veille de cette date."
+          }
+        },
+        "prices": {
+          "title": "Prix",
+          "description": "Le prix client de chaque service selon la grille de rétention de la profession, aujourd'hui. Les grilles se modifient dans Paramètres → Rémunération.",
+          "table": "Prix par profession",
+          "columns": {
+            "title": "Profession"
+          },
+          "toConfirm": "À confirmer",
+          "notOffered": "Non offert",
+          "forTwo": "à deux",
+          "student": "Étudiant {price}",
+          "reduced": "Réduit {price}",
+          "empty": "Aucun service au prix selon la grille.",
+          "compensationLink": "Modifier les grilles de rétention",
+          "gaps": {
+            "title": "Écarts avec GOrendezvous",
+            "description": "Les prix par profession observés dans GOrendezvous en 2026 (30 min, 50 min et couple 60 min), comparés aux grilles d'aujourd'hui.",
+            "none": "Aucun écart : les grilles reproduisent les prix observés.",
+            "columns": {
+              "title": "Profession",
+              "duration": "Durée",
+              "grid": "Grille",
+              "observed": "GOrendezvous"
+            },
+            "missing": "Aucune grille"
+          }
+        }
+      },
+      "dated": {
+        "since": "Dès le {from}",
+        "between": "Du {from} au {to}",
+        "until": "Jusqu'au {date}",
+        "statuses": {
+          "current": "En vigueur",
+          "upcoming": "À venir"
+        },
+        "from": "À partir du",
+        "backdated": "Cette date est passée : la nouvelle valeur s'appliquera aussi depuis cette date.",
+        "add": "Ajouter",
+        "adding": "Ajout…",
+        "delete": "Supprimer",
+        "deleting": "Suppression…"
+      },
+      "display": {
+        "minutes": "{minutes} min",
+        "withBuffer": "{base} + {buffer}",
+        "grid60": "60 min (couple ou famille)",
+        "gridMinutes": "{minutes} min",
+        "gridPrice": "Grille, {duration}",
+        "noDuration": "Aucune"
+      },
+      "validation": {
+        "maxChars": "Au plus {max} caractères.",
+        "invisibleChars": "Le texte contient un caractère invisible.",
+        "family": "Choisissez une famille.",
+        "code": "Un code de cinq chiffres (10000 à 89999).",
+        "codeFamily": "Le code doit être dans la plage de sa famille ({from} à {to}).",
+        "codeTaken": "Ce code est déjà utilisé par un autre service.",
+        "key": "Une lettre minuscule, puis des lettres minuscules, des chiffres ou _ (50 caractères au plus).",
+        "keyTaken": "Cette clé est déjà utilisée par un autre service.",
+        "name": "Indiquez le nom du service.",
+        "kind": "Choisissez un type.",
+        "duration": "Une durée entière de 0 à 480 minutes.",
+        "buffer": "Une pause entière de 0 à 120 minutes.",
+        "priceSource": "Choisissez la source du prix.",
+        "fixedPrice": "Un prix entre 0,01 $ et 10 000 $.",
+        "gridDuration": "Choisissez la colonne de la grille.",
+        "taxRule": "Choisissez la règle de taxe.",
+        "colour": "Un code hexadécimal (#1a2b3c), ou rien.",
+        "sortOrder": "Un nombre entier de 0 à 100 000.",
+        "date": "Date requise.",
+        "dateBounds": "La date doit être comprise entre le 1 janv. 2000 et le 31 déc. 2100.",
+        "afterOpen": "La date doit être postérieure au {date}.",
+        "service": "Choisissez un service.",
+        "variant": "Choisissez une variante.",
+        "discountKind": "Choisissez le type de rabais.",
+        "percent": "Un pourcentage entre 0,01 et 100.",
+        "amount": "Un montant entre 0 $ et 10 000 $.",
+        "endAfterStart": "Le dernier jour doit suivre le début ({date}).",
+        "lastDayBounds": "Le dernier jour doit être au plus tard le 30 déc. 2100.",
+        "lateNotice": "Un nombre entier d'heures, de 1 à 168.",
+        "feePercent": "Un pourcentage entre 0 et 100.",
+        "feeMode": "Choisissez le mode des frais."
+      },
+      "errors": {
+        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant."
+      },
+      "audit": {
+        "tables": {
+          "service_families": "Familles de services",
+          "services": "Services",
+          "service_titles": "Professions offrant un service",
+          "service_rate_variants": "Tarifs étudiant et réduit",
+          "billing_policies": "Politiques d'annulation"
+        },
+        "fields": {
+          "service_families": {
+            "code": "Code",
+            "name": "Nom",
+            "sort_order": "Ordre"
+          },
+          "services": {
+            "family_id": "Famille",
+            "code": "Code",
+            "key": "Clé",
+            "name": "Nom",
+            "description": "Description",
+            "kind": "Type",
+            "duration_minutes": "Durée (min)",
+            "buffer_after_minutes": "Pause après (min)",
+            "for_two": "Pour deux personnes",
+            "price_source": "Source du prix",
+            "fixed_price_cents": "Prix fixe",
+            "grid_duration": "Colonne de la grille",
+            "tax_rule": "Taxes",
+            "colour": "Couleur",
+            "is_active": "Actif",
+            "sort_order": "Ordre"
+          },
+          "service_titles": {
+            "service_id": "Service",
+            "profession_title_id": "Profession"
+          },
+          "service_rate_variants": {
+            "service_id": "Service",
+            "variant": "Variante",
+            "profession_title_id": "Profession",
+            "discount_kind": "Type de rabais",
+            "amount_cents": "Montant",
+            "percent": "Pourcentage",
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)"
+          },
+          "billing_policies": {
+            "effective_from": "En vigueur du",
+            "effective_to": "Fin (exclue)",
+            "late_notice_hours": "Préavis (heures)",
+            "first_fee_percent": "Frais la première fois (%)",
+            "next_fee_percent": "Frais les fois suivantes (%)",
+            "file_opening_service_id": "Service d'ouverture de dossier",
+            "fee_mode": "Mode des frais"
+          }
+        },
+        "values": {
+          "services": {
+            "kind": {
+              "session": "Séance",
+              "call": "Appel",
+              "fee": "Frais",
+              "workshop": "Atelier",
+              "admin": "Administratif"
+            },
+            "price_source": {
+              "grid": "Selon la grille",
+              "fixed": "Prix fixe",
+              "free": "Gratuit",
+              "entered": "Montant saisi à la facture"
+            },
+            "tax_rule": {
+              "exempt": "Non taxable",
+              "taxable": "Taxable"
+            }
+          },
+          "service_rate_variants": {
+            "variant": {
+              "student": "Tarif étudiant",
+              "reduced": "Tarif réduit"
+            },
+            "discount_kind": {
+              "price": "Prix",
+              "amount": "Montant en moins",
+              "percent": "Pourcentage en moins"
+            }
+          },
+          "billing_policies": {
+            "fee_mode": {
+              "confirm": "Décidé par le professionnel",
+              "automatic": "Automatique"
+            }
+          }
+        },
+        "sources": {
+          "seed:services_catalogue": "Catalogue initial"
+        }
+      }
+    },
     "communications": {
       "name": "Communications",
       "audit": {

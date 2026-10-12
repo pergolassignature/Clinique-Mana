@@ -5,7 +5,7 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 - **Registry:** `modules.key = 'communications'` (migration `20261012184051_communications_module`), no dependency besides core (Clients is optional: the thread → client link waits for it). It **starts disabled** in every clinic; an admin enables it in Paramètres → Modules.
 - **Permissions:** `communications.inbox` (read the shared mailboxes), `communications.mailboxes_manage` (connect, disconnect, synchronise, the « Courriels Gmail » settings). Template defaults: admin only (CM-1); the clinic gives `communications.inbox` to Conseillère and Adjointe in Rôles. Later: `communications.send` (CM3), `communications.ai_draft` (CM4), `communications.sms` / `communications.sms_manage` (SM).
 - **Frontend:** `src/modules/communications/` (manifest, `index.ts`, `api/`, `hooks/` (`mailKeys`), `lib/`, `schemas/`, `pages/`); i18n `modules.communications.*`.
-- **Tests:** pgTAP `096_communications_module`, `097_communications_gmail`; Deno tests next to each function and `_shared/gmail/*`; Vitest next to each file.
+- **Tests:** pgTAP `096_communications_module`, `103_communications_gmail`; Deno tests next to each function and `_shared/gmail/*`; Vitest next to each file.
 
 ## Batches
 
@@ -21,7 +21,7 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 
 ## CM1: Gmail
 
-Migrations `20261012185047_communications_gmail` (tables, RPCs, jobs) and `20261012191632_core_webhook_events_gmail_provider` (`gmail` joins `webhook_events`' providers and `claim_webhook_event`).
+Migrations `20261012204037_communications_gmail` (tables, RPCs, jobs) and `20261012204041_core_webhook_events_gmail_provider` (`gmail` joins `webhook_events`' providers and `claim_webhook_event`).
 
 ### Tables
 
