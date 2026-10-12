@@ -96,6 +96,26 @@ values
    vault.create_secret('local-dev-documenso-webhook-secret',
                        'org:00000000-0000-0000-0000-000000000001:documenso_webhook_secret'));
 
+-- Local textos (batch SM): the module on, the fake PBX's credentials, number and webhook secret
+-- (`npm run fake:yeastar`, port 55393; the functions reach it through YEASTAR_BASE_URL). The address
+-- stored here is a placeholder the override replaces while APP_URL is local. No role grant: the
+-- template holds admin only (SM-11) and pgTAP 014 checks every org against it; the local
+-- conseillère gets communications.sms through « Utilisateurs et accès », as a clinic would.
+insert into public.org_modules (org_id, module_key, enabled, updated_by) values
+  ('00000000-0000-0000-0000-000000000001', 'communications', true, '11111111-1111-1111-1111-111111111111');
+insert into public.org_module_settings (org_id, module_key, settings, updated_by)
+values ('00000000-0000-0000-0000-000000000001', 'communications',
+        '{"sms_base_url": "https://pbx.local.test", "sms_client_id": "local-dev-yeastar-client", "sms_did": "+14185550199"}',
+        '11111111-1111-1111-1111-111111111111')
+on conflict (org_id, module_key) do update set settings = public.org_module_settings.settings || excluded.settings;
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'yeastar_client_secret',
+   vault.create_secret('local-dev-yeastar-secret', 'org:00000000-0000-0000-0000-000000000001:yeastar_client_secret')),
+  ('00000000-0000-0000-0000-000000000001', 'yeastar_webhook_secret',
+   vault.create_secret('local-dev-yeastar-webhook-secret',
+                       'org:00000000-0000-0000-0000-000000000001:yeastar_webhook_secret'));
+
 -- =============================================================================
 -- Local test professionals (plan Task 4a.20 « Seed »)
 -- =============================================================================

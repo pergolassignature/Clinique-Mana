@@ -34,7 +34,8 @@
     "e2e:install": "playwright install chromium",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "fake:documenso": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_DOCUMENSO_WEBHOOK_URL,FAKE_DOCUMENSO_HOST,FAKE_DOCUMENSO_PORT,FAKE_DOCUMENSO_DENY_FRAMING scripts/fake-documenso.ts",
-    "fake:places": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_PLACES_HOST,FAKE_PLACES_PORT scripts/fake-places.ts"
+    "fake:places": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_PLACES_HOST,FAKE_PLACES_PORT scripts/fake-places.ts",
+    "fake:yeastar": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_YEASTAR_HOST,FAKE_YEASTAR_PORT,FAKE_YEASTAR_WEBHOOK_URL,FAKE_YEASTAR_WEBHOOK_SECRET scripts/fake-yeastar.ts"
   },
   "dependencies": {
     "@documenso/embed-react": "0.6.2",

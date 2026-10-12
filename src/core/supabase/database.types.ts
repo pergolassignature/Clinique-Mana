@@ -5344,6 +5344,215 @@ export type Database = {
           },
         ]
       }
+      sms_consents: {
+        Row: {
+          created_at: string
+          granted_at: string | null
+          id: string
+          note: string | null
+          org_id: string
+          phone_e164: string
+          source: string
+          status: string
+          subject_id: string | null
+          subject_type: string | null
+          updated_at: string
+          updated_by: string | null
+          withdrawn_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          granted_at?: string | null
+          id?: string
+          note?: string | null
+          org_id: string
+          phone_e164: string
+          source: string
+          status: string
+          subject_id?: string | null
+          subject_type?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          withdrawn_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          granted_at?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          phone_e164?: string
+          source?: string
+          status?: string
+          subject_id?: string | null
+          subject_type?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_consents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_consents_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      sms_messages: {
+        Row: {
+          attempts: number
+          body: string | null
+          body_purged_at: string | null
+          claimed_at: string | null
+          created_at: string
+          did_e164: string | null
+          direction: string
+          error_code: string | null
+          id: string
+          kind: string
+          media: Json
+          org_id: string
+          peer_e164: string | null
+          provider: string
+          provider_msg_id: number | null
+          provider_session_id: number | null
+          request_id: string | null
+          send_after: string | null
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          subject_id: string | null
+          subject_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          body?: string | null
+          body_purged_at?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          did_e164?: string | null
+          direction: string
+          error_code?: string | null
+          id?: string
+          kind: string
+          media?: Json
+          org_id: string
+          peer_e164?: string | null
+          provider?: string
+          provider_msg_id?: number | null
+          provider_session_id?: number | null
+          request_id?: string | null
+          send_after?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status: string
+          subject_id?: string | null
+          subject_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          body?: string | null
+          body_purged_at?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          did_e164?: string | null
+          direction?: string
+          error_code?: string | null
+          id?: string
+          kind?: string
+          media?: Json
+          org_id?: string
+          peer_e164?: string | null
+          provider?: string
+          provider_msg_id?: number | null
+          provider_session_id?: number | null
+          request_id?: string | null
+          send_after?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject_id?: string | null
+          subject_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      sms_provider_sessions: {
+        Row: {
+          access_expires_at: string | null
+          access_secret_id: string | null
+          base_url: string | null
+          channel_cached_at: string | null
+          channel_name: string | null
+          lock_owner: string | null
+          locked_until: string | null
+          org_id: string
+          refresh_expires_at: string | null
+          refresh_secret_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_expires_at?: string | null
+          access_secret_id?: string | null
+          base_url?: string | null
+          channel_cached_at?: string | null
+          channel_name?: string | null
+          lock_owner?: string | null
+          locked_until?: string | null
+          org_id: string
+          refresh_expires_at?: string | null
+          refresh_secret_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_expires_at?: string | null
+          access_secret_id?: string | null
+          base_url?: string | null
+          channel_cached_at?: string | null
+          channel_name?: string | null
+          lock_owner?: string | null
+          locked_until?: string | null
+          org_id?: string
+          refresh_expires_at?: string | null
+          refresh_secret_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_provider_sessions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_invitations: {
         Row: {
           accepted_at: string | null
@@ -6342,11 +6551,41 @@ export type Database = {
           },
         ]
       }
+      sms_threads: {
+        Row: {
+          consent_status: string | null
+          last_body: string | null
+          last_body_purged: boolean | null
+          last_direction: string | null
+          last_has_media: boolean | null
+          last_inbound_at: string | null
+          last_message_at: string | null
+          last_status: string | null
+          message_count: number | null
+          org_id: string | null
+          peer_e164: string | null
+          subject_id: string | null
+          subject_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_staff_invitation: {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
         Returns: Json
+      }
+      acquire_sms_provider_lock: {
+        Args: { p_org_id: string; p_owner: string; p_ttl_seconds?: number }
+        Returns: boolean
       }
       activate_professional: {
         Args: { p_id: string; p_override_reason?: string }
@@ -6414,6 +6653,15 @@ export type Database = {
           request_id: string
         }[]
       }
+      apply_sms_delivery_event: {
+        Args: {
+          p_error_code: string
+          p_org_id: string
+          p_provider_msg_id: number
+          p_status: string
+        }
+        Returns: string
+      }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
       attach_professional_document: {
         Args: {
@@ -6458,6 +6706,16 @@ export type Database = {
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
         Returns: boolean
+      }
+      claim_sms_batch_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          body: string
+          id: string
+          kind: string
+          request_id: string
+          to_e164: string
+        }[]
       }
       claim_webhook_event: {
         Args: {
@@ -6829,6 +7087,8 @@ export type Database = {
         Args: { p_id: string; p_org_id: string }
         Returns: Json
       }
+      get_sms_provider_context: { Args: { p_org_id: string }; Returns: Json }
+      get_sms_settings: { Args: never; Returns: Json }
       get_submission_review: {
         Args: { p_submission_id: string }
         Returns: Json
@@ -7164,6 +7424,23 @@ export type Database = {
           status: string
         }[]
       }
+      list_sms_thread: {
+        Args: { p_limit?: number; p_phone: string }
+        Returns: {
+          body: string
+          body_purged_at: string
+          created_at: string
+          direction: string
+          error_code: string
+          id: string
+          kind: string
+          media: Json
+          peer_e164: string
+          send_after: string
+          sent_at: string
+          status: string
+        }[]
+      }
       list_staff_invitations: {
         Args: never
         Returns: {
@@ -7274,6 +7551,19 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_sms_failed: {
+        Args: { p_error_code: string; p_id: string; p_org_id: string }
+        Returns: undefined
+      }
+      mark_sms_sent: {
+        Args: {
+          p_id: string
+          p_org_id: string
+          p_provider_msg_id: number
+          p_provider_session_id: number
+        }
+        Returns: undefined
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
@@ -7322,6 +7612,29 @@ export type Database = {
           p_view_permission: string
         }
         Returns: string
+      }
+      queue_sms_for_service: {
+        Args: {
+          p_actor: string
+          p_body: string
+          p_kind: string
+          p_org_id: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      record_inbound_sms: {
+        Args: {
+          p_body: string
+          p_did: string
+          p_from: string
+          p_media: Json
+          p_org_id: string
+          p_provider_msg_id: number
+          p_provider_session_id: number
+          p_received_at: string
+        }
+        Returns: Json
       }
       record_monthly_sessions: {
         Args: { p_entries: Json; p_month: string }
@@ -7390,6 +7703,14 @@ export type Database = {
         Returns: undefined
       }
       reject_stored_file: { Args: { p_file_id: string }; Returns: undefined }
+      release_sms_claims_for_service: {
+        Args: { p_ids: string[]; p_org_id: string }
+        Returns: number
+      }
+      release_sms_provider_lock: {
+        Args: { p_org_id: string; p_owner: string }
+        Returns: undefined
+      }
       rename_role: {
         Args: { p_name: string; p_role: string }
         Returns: undefined
@@ -7742,6 +8063,21 @@ export type Database = {
         Returns: undefined
       }
       set_signing_settings: { Args: { p: Json }; Returns: Json }
+      set_sms_consent: {
+        Args: {
+          p_note?: string
+          p_phone: string
+          p_status: string
+          p_subject_id?: string
+          p_subject_type?: string
+        }
+        Returns: Json
+      }
+      set_sms_provider_channel: {
+        Args: { p_channel_name: string; p_org_id: string }
+        Returns: undefined
+      }
+      set_sms_settings: { Args: { p_patch: Json }; Returns: Json }
       set_user_preference: {
         Args: { p_key: string; p_user_id: string; p_value: Json }
         Returns: undefined
@@ -7754,6 +8090,14 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
       }
+      sms_event_known_for_service: {
+        Args: {
+          p_org_id: string
+          p_provider_msg_id: number
+          p_provider_session_id: number
+        }
+        Returns: string
+      }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }
         Returns: string
@@ -7761,6 +8105,17 @@ export type Database = {
       start_my_profile_update: {
         Args: { p_sections: string[] }
         Returns: string
+      }
+      store_sms_provider_session: {
+        Args: {
+          p_access_expires_at: string
+          p_access_token: string
+          p_base_url: string
+          p_org_id: string
+          p_refresh_expires_at: string
+          p_refresh_token: string
+        }
+        Returns: undefined
       }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }

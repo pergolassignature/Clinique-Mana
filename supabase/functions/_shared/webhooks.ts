@@ -26,8 +26,8 @@ export function webhookResponse(status: number, body?: unknown): Response {
 
 /** One provider event to claim. */
 export interface ClaimInput {
-  provider: 'resend' | 'documenso'
-  /** Resend: the `svix-id`; Documenso: `<org_id>:<event>:<envelope_id>[:<version>]` (design §2.7, `documensoEventId`). */
+  provider: 'resend' | 'documenso' | 'yeastar'
+  /** Resend: the `svix-id`; Documenso: `<org_id>:<event>:<envelope_id>[:<version>]` (design §2.7, `documensoEventId`); Yeastar: `<org_id>:<type>:<msg_id>[:<delivery_status>]` (`yeastarEventId`). */
   eventId: string
   /** The org whose secret verified the signature (`?org=`), never from the payload. */
   orgId: string
