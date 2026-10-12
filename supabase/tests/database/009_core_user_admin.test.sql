@@ -48,7 +48,8 @@ insert into public.user_permission_overrides (user_id, org_id, permission_key, g
 -- role unassignable by a non-admin: « fails closed », set_user_role).
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
-  ('b0000000-0000-0000-0000-00000000000a', 'services', true);
+  ('b0000000-0000-0000-0000-00000000000a', 'services', true),
+  ('b0000000-0000-0000-0000-00000000000a', 'clients', true);
 
 -- =============================================================================
 -- Privileges
