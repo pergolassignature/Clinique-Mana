@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { TriangleAlert, X } from 'lucide-react'
 import { t } from '@/i18n'
 import type { ModuleTesters } from '@/core/modules/testers-api'
@@ -10,6 +10,16 @@ import {
 import type { OrgUser } from '@/core/users/api'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
@@ -21,7 +31,9 @@ const T = 'settings.modules.testers'
 interface ModuleTestersControlsProps {
   moduleKey: string
   moduleName: string
-  /** The module's flag and testers; undefined while they load or for a module never toggled. */
+  /** Reserving an enabled module takes it from everyone else at once: asked first. */
+  moduleEnabled: boolean
+  /** The module's flag and testers; undefined for a module never toggled. */
   testers: ModuleTesters | undefined
   /** The clinic's users (names and status); undefined when they cannot be read (no users.view). */
   users: readonly OrgUser[] | undefined
@@ -30,15 +42,18 @@ interface ModuleTestersControlsProps {
 /**
  * « Réservé aux testeurs » (R-72), under a module's switch: on, only the listed testers see the
  * module (the administration too only when listed); the list names each tester with « Retirer »,
- * and « Ajouter un testeur » offers the clinic's active users not listed yet. While a change saves,
- * the controls are inactive (`aria-disabled`, focus kept).
+ * and « Ajouter un testeur » offers the clinic's active users not listed yet. Reserving an enabled
+ * module asks first (everyone else loses it at once). While a change saves, the controls are
+ * inactive (`aria-disabled`, focus kept).
  */
 export function ModuleTestersControls({
   moduleKey,
   moduleName,
+  moduleEnabled,
   testers,
   users,
 }: ModuleTestersControlsProps) {
+  const [confirming, setConfirming] = useState(false)
   const switchId = useId()
   const helpId = useId()
   const pickerId = useId()
@@ -80,8 +95,9 @@ export function ModuleTestersControls({
           aria-disabled={pending || undefined}
           className={cn(pending && 'cursor-progress')}
           onCheckedChange={(checked) => {
-            if (!pending)
-              setTestersOnly.mutate({ key: moduleKey, testersOnly: checked })
+            if (pending) return
+            if (checked && moduleEnabled) setConfirming(true)
+            else setTestersOnly.mutate({ key: moduleKey, testersOnly: checked })
           }}
         />
       </div>
@@ -156,6 +172,28 @@ export function ModuleTestersControls({
           )}
         </div>
       )}
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t(`${T}.confirm.title`, { module: moduleName })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(`${T}.confirm.body`)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                setTestersOnly.mutate({ key: moduleKey, testersOnly: true })
+              }
+            >
+              {t(`${T}.confirm.action`)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

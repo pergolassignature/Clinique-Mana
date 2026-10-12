@@ -169,4 +169,23 @@ describe('ModulesSettingsPage', () => {
     await waitFor(() => expect(mocks.testers.setModuleTestersOnly).toHaveBeenCalledWith('billing', true))
     expect(await screen.findAllByText(t('settings.modules.testers.none'))).toHaveLength(2)
   })
+
+  it('asks before reserving an enabled module, which everyone else loses at once', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.setModuleTestersOnly.mockResolvedValue(undefined)
+    renderPage()
+    await userEvent.click(await screen.findByRole('switch', { name: t('settings.modules.testers.switchLabel', { module: 'Professionnels' }) }))
+    const dialog = await screen.findByRole('alertdialog', { name: t('settings.modules.testers.confirm.title', { module: 'Professionnels' }) })
+    expect(mocks.testers.setModuleTestersOnly).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: t('settings.modules.testers.confirm.action') }))
+    await waitFor(() => expect(mocks.testers.setModuleTestersOnly).toHaveBeenCalledWith('professionals', true))
+  })
+
+  it('never shows « not reserved » when the testers cannot be loaded', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.fetchModuleTesters.mockRejectedValue(new Error('boom'))
+    renderPage()
+    expect(await screen.findByText(t('settings.modules.testers.loadError'))).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: t('settings.modules.testers.switchLabel', { module: 'Professionnels' }) })).not.toBeInTheDocument()
+  })
 })

@@ -127,9 +127,9 @@ Deno.test('a reply: queued and claimed by the RPC, sent through the transport, m
     requestId: `mana-${MESSAGE_ID}`,
   }])
   assertEquals(rpcNames(s), [
-    'consume_rate_limit',
-    'consume_rate_limit',
     'module_open_to_all_for_org',
+    'consume_rate_limit',
+    'consume_rate_limit',
     'queue_sms_for_service',
     'mark_sms_sent',
   ])
@@ -209,7 +209,10 @@ Deno.test('the limits: the caller first, then the clinic day; a refusal queues n
   const refused = await user.handler(post({ to: '514 555-1234', body: 'x' }))
   assertEquals(refused.status, 429)
   assertEquals(refused.headers.get('Retry-After'), '120')
-  assertEquals(rpcNames(user), ['consume_rate_limit'])
+  assertEquals(rpcNames(user), [
+    'module_open_to_all_for_org',
+    'consume_rate_limit',
+  ])
   const org = setup({
     limits: {
       'sms.org_day': { allowed: false, hits: 501, retry_after_seconds: 3600 },
@@ -219,7 +222,11 @@ Deno.test('the limits: the caller first, then the clinic day; a refusal queues n
     (await org.handler(post({ to: '514 555-1234', body: 'x' }))).status,
     429,
   )
-  assertEquals(rpcNames(org), ['consume_rate_limit', 'consume_rate_limit'])
+  assertEquals(rpcNames(org), [
+    'module_open_to_all_for_org',
+    'consume_rate_limit',
+    'consume_rate_limit',
+  ])
 })
 
 Deno.test('the RPC refusals pass through: no consent (P0001 → 400 refusal), 42501 → 403', async () => {
@@ -298,11 +305,15 @@ Deno.test('a reply while Communications is reserved for its testers: refused, no
   assertEquals(res.status, 400)
   const json = await res.json()
   assertEquals(json.error.refusal, true)
-  assert(!rpcNames(s).includes('queue_sms_for_service'))
+  assertEquals(
+    rpcNames(s),
+    ['module_open_to_all_for_org'],
+    'no quota used, nothing queued',
+  )
   assertEquals(s.sent.length, 0)
 })
 
-Deno.test('the test to oneself still goes while Communications is reserved for its testers', async () => {
+Deno.test('the admin test still goes while Communications is reserved for its testers', async () => {
   const s = setup({
     permissions: ['communications.sms_manage'],
     rpc: { module_open_to_all_for_org: { data: false } },

@@ -16,8 +16,11 @@
 -- for a testers-only module. get_my_access (the UI's modules) and module_enabled (the caller's
 -- view) follow; module_enabled_for_org (jobs, webhooks: no user) stays org-level, and
 -- module_open_to_all_for_org tells a function sending to people outside the clinic that the
--- module is still in testing (core.md: such sends are refused then, unless a job or a setting
--- enables them explicitly).
+-- module is still in testing (P3-40: such sends are refused or held then). Dependencies stay
+-- consistent: a module is reserved only if no open, enabled module depends on it, opened only if
+-- none of its dependencies is reserved, and enabled open only if none of them is reserved.
+-- private.send_sms (Communications' one choke point for texts) holds every text to a client while
+-- Communications is reserved.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:core_module_testers', true);
@@ -233,6 +236,7 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.current_user_org_id();
+  v_blockers text[];
 begin
   if not private.has_permission('modules.manage') then
     raise exception 'Permission refusée : modules.manage' using errcode = '42501';
@@ -242,6 +246,27 @@ begin
   end if;
   perform 1 from public.organizations o where o.id = v_org for no key update;
   perform private.ensure_org_module(v_org, p_key);
+  if p_testers_only then
+    -- An open, enabled module that needs this one would keep its permissions for non-testers.
+    select array_agg(m.name order by m.name) into v_blockers
+      from public.module_dependencies d
+      join public.org_modules om on om.org_id = v_org and om.module_key = d.module_key and om.enabled and not om.testers_only
+      join public.modules m on m.key = d.module_key
+     where d.depends_on = p_key;
+    if v_blockers is not null then
+      raise exception 'Réservez d''abord aux testeurs : %', pg_catalog.array_to_string(v_blockers, ', ') using errcode = 'P0001';
+    end if;
+  else
+    -- Opened while a module it needs stays reserved: non-testers would use it without that one.
+    select array_agg(m.name order by m.name) into v_blockers
+      from public.module_dependencies d
+      join public.org_modules om on om.org_id = v_org and om.module_key = d.depends_on and om.testers_only
+      join public.modules m on m.key = d.depends_on
+     where d.module_key = p_key;
+    if v_blockers is not null then
+      raise exception 'Ouvrez d''abord à tous : %', pg_catalog.array_to_string(v_blockers, ', ') using errcode = 'P0001';
+    end if;
+  end if;
   update public.org_modules om
      set testers_only = p_testers_only, updated_at = now(), updated_by = auth.uid()
    where om.org_id = v_org and om.module_key = p_key and om.testers_only is distinct from p_testers_only;
@@ -294,3 +319,142 @@ revoke all on function public.list_module_testers(), public.set_module_testers_o
 grant execute on function public.list_module_testers(), public.set_module_testers_only(text, boolean),
                           public.add_module_tester(text, uuid), public.remove_module_tester(text, uuid)
   to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- set_module_enabled: an open module is not enabled on a reserved dependency
+-- -----------------------------------------------------------------------------
+-- Same signature, grants and body as *_core_user_admin.sql, plus one check when enabling: a module
+-- that is not reserved itself needs every dependency open to all (else non-testers would use it
+-- without what it needs). Reserving it first, or opening the dependency, lifts the refusal.
+create or replace function public.set_module_enabled(p_key text, p_enabled boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_blockers text[];
+begin
+  if not private.has_permission('modules.manage') then
+    raise exception 'Permission refusée : modules.manage' using errcode = '42501';
+  end if;
+
+  -- Serialize toggles per org so two concurrent calls cannot break a dependency (I10).
+  perform 1 from public.organizations o where o.id = v_org for no key update;
+
+  if not exists (select 1 from public.modules m where m.key = p_key) then
+    raise exception 'Module inconnu : %', p_key using errcode = '22023';
+  end if;
+  if p_key = 'core' then
+    raise exception 'Le module core est toujours actif' using errcode = '22023';
+  end if;
+
+  if p_enabled then
+    -- Every dependency must already be enabled (core is implicit, never listed).
+    -- The message is user-facing (P0001), so it lists module names, not keys.
+    select array_agg(m.name order by m.name)
+      into v_blockers
+      from public.module_dependencies d
+      join public.modules m on m.key = d.depends_on
+     where d.module_key = p_key
+       and not exists (
+         select 1 from public.org_modules om
+          where om.org_id = v_org and om.module_key = d.depends_on and om.enabled);
+    if v_blockers is not null then
+      raise exception 'Activez d''abord : %', array_to_string(v_blockers, ', ') using errcode = 'P0001';
+    end if;
+    -- R-72: an open module never rests on a dependency reserved for testers.
+    if not exists (select 1 from public.org_modules om where om.org_id = v_org and om.module_key = p_key and om.testers_only) then
+      select array_agg(m.name order by m.name)
+        into v_blockers
+        from public.module_dependencies d
+        join public.org_modules om on om.org_id = v_org and om.module_key = d.depends_on and om.testers_only
+        join public.modules m on m.key = d.depends_on
+       where d.module_key = p_key;
+      if v_blockers is not null then
+        raise exception 'Réservez d''abord ce module aux testeurs, comme : %', array_to_string(v_blockers, ', ') using errcode = 'P0001';
+      end if;
+    end if;
+  else
+    -- No enabled module may depend on this one (names, as above).
+    select array_agg(m.name order by m.name)
+      into v_blockers
+      from public.module_dependencies d
+      join public.org_modules om
+        on om.org_id = v_org and om.module_key = d.module_key and om.enabled
+      join public.modules m on m.key = d.module_key
+     where d.depends_on = p_key;
+    if v_blockers is not null then
+      raise exception 'Désactivez d''abord : %', array_to_string(v_blockers, ', ') using errcode = 'P0001';
+    end if;
+  end if;
+
+  insert into public.org_modules (org_id, module_key, enabled, updated_at, updated_by)
+  values (v_org, p_key, p_enabled, now(), auth.uid())
+  on conflict (org_id, module_key) do update
+    set enabled = excluded.enabled,
+        updated_at = excluded.updated_at,
+        updated_by = excluded.updated_by;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- private.send_sms: no text to a client while Communications is reserved (P3-40)
+-- -----------------------------------------------------------------------------
+-- Same signature, grants and body as *_communications_sms.sql, plus the first check: while the
+-- module is reserved for testers, a text a person types (reply, other) is refused in French, and
+-- an automatic one (consent notice, reminder, confirmation, change) is not queued at all (null:
+-- every automatic caller uses `perform`), so nothing piles up to leave at the go-live. The test
+-- and the « ARRÊT » acknowledgement still go.
+create or replace function private.send_sms(
+  p_org uuid,
+  p_to text,
+  p_body text,
+  p_kind text,
+  p_subject_type text default null,
+  p_subject_id uuid default null,
+  p_at_once boolean default false,
+  p_actor uuid default null
+)
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_to text := private.sms_normalize_e164(p_to);
+  v_body text := pg_catalog.btrim(coalesce(p_body, ''));
+  v_consent text;
+  v_id uuid;
+begin
+  if p_kind not in ('opt_out_ack', 'test') and not public.module_open_to_all_for_org(p_org, 'communications') then
+    if p_kind in ('reply', 'other') then
+      raise exception 'Les textos aux clients sont suspendus : le module Communications est réservé aux testeurs.'
+        using errcode = 'P0001', hint = 'module_reserved';
+    end if;
+    return null;
+  end if;
+  if v_to is null then
+    raise exception 'Le numéro de téléphone n''est pas valide : indiquez un numéro à 10 chiffres.' using errcode = 'P0001';
+  end if;
+  if v_body = '' or pg_catalog.length(v_body) > 1600 then
+    raise exception 'Le texto doit compter de 1 à 1600 caractères.' using errcode = 'P0001';
+  end if;
+  if p_kind is null or p_kind not in ('reply', 'reminder', 'confirmation', 'changed', 'consent_notice', 'opt_out_ack', 'test', 'other') then
+    raise exception 'Invalid kind' using errcode = '22023';
+  end if;
+  if p_kind not in ('opt_out_ack', 'test') then
+    v_consent := private.sms_consent_status(p_org, v_to);
+    if v_consent is distinct from 'opted_in' then
+      raise exception 'Aucun texto ne peut être envoyé à ce numéro : la personne n''a pas donné son consentement, ou l''a retiré.'
+        using errcode = 'P0001', hint = coalesce(v_consent, 'no_consent');
+    end if;
+  end if;
+  insert into public.sms_messages (org_id, direction, peer_e164, kind, body, status, subject_type, subject_id, send_after, sent_by)
+  values (p_org, 'out', v_to, p_kind, v_body, 'queued', p_subject_type, p_subject_id,
+          case when p_at_once then null else private.sms_business_send_after(p_org, pg_catalog.now()) end,
+          p_actor)
+  returning id into v_id;
+  return v_id;
+end;
+$$;
