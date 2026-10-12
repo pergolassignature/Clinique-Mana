@@ -129,7 +129,12 @@ select functions_are('public', array[
   'prepare_professional_image_consent', 'get_professional_image_consent', 'prepare_my_image_consent', 'get_my_image_consent',
   'search_professionals',
   'delete_staff_account',
-  'withdraw_professional_image_consent', 'restore_professional_invitation_for_service'
+  'withdraw_professional_image_consent', 'restore_professional_invitation_for_service',
+  -- Communications, batch SM (textos).
+  'get_sms_settings', 'set_sms_settings', 'set_sms_consent',
+  'queue_sms_for_service', 'claim_sms_batch_for_service', 'mark_sms_sent', 'mark_sms_failed',
+  'record_inbound_sms', 'apply_sms_delivery_event', 'get_sms_provider_context',
+  'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

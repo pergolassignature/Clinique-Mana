@@ -63,9 +63,14 @@ select is_empty($$
      -- every filter change; the search text may hold a client's name (Loi 25).
      -- signature_request_syncs: the signing reconcile's per-request state (codes and times),
      -- rewritten every hour for every open request; deleted once the request closes.
+     -- sms_messages: every text in and out (numbers and bodies, purged after 12 and 24 months);
+     -- auditing it would keep them in audit_log forever (Loi 25), like email_log.
+     -- sms_provider_sessions: the PBX session's Vault ids, expiries and refresh lease, rewritten
+     -- at every token refresh; no business data.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
                            'scheduled_job_dispatches', 'notifications', 'notification_reads',
-                           'user_preferences', 'signature_request_syncs')
+                           'user_preferences', 'signature_request_syncs', 'sms_messages',
+                           'sms_provider_sessions')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');

@@ -302,6 +302,22 @@ export const LIMITS = {
     max: 600,
     windowSeconds: 60,
   },
+  /** `sms-webhook`, per IP, before the org's secret is read (as above; the PBX posts from one address). */
+  yeastarWebhookIp: {
+    bucket: 'webhooks.yeastar_ip',
+    max: 600,
+    windowSeconds: 60,
+  },
+  /**
+   * `sms-send` (a staff reply), per caller: each call texts a client through
+   * the PBX. A conversation is a handful of texts; 60 an hour is far above a
+   * day of replies.
+   */
+  smsSendUser: { bucket: 'sms.send_user', max: 60, windowSeconds: 3_600 },
+  /** `sms-send` « M'envoyer un texto de test », per caller. */
+  smsTestUser: { bucket: 'sms.test_user', max: 5, windowSeconds: 3_600 },
+  /** Every text `sms-send` sends, per org: a runaway-loop brake (the dispatch has the queue's own pace). */
+  smsOrgDay: { bucket: 'sms.org_day', max: 500, windowSeconds: 86_400 },
 } as const satisfies Record<string, RateLimit>
 
 /**
