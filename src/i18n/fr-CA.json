@@ -4782,8 +4782,7 @@
             "code": "Code",
             "name": "Service",
             "duration": "Durée",
-            "price": "Prix",
-            "taxes": "Taxes",
+            "price": "Prix et taxes",
             "titles": "Professions",
             "actions": "Actions"
           },
@@ -4794,12 +4793,10 @@
           },
           "forTwo": "Pour deux personnes",
           "archived": "Archivé",
+          "menu": "Actions pour « {name} »",
           "edit": "Modifier",
-          "editLabel": "Modifier « {name} »",
           "archive": "Archiver",
-          "archiveLabel": "Archiver « {name} »",
           "restore": "Restaurer",
-          "restoreLabel": "Restaurer « {name} »",
           "created": "Service ajouté.",
           "saved": "Service enregistré.",
           "archivedToast": "Service archivé.",
@@ -4844,6 +4841,7 @@
           },
           "help": {
             "code": "Cinq chiffres dans la plage de la famille (10 000 à 10 999 pour Individuel).",
+            "codeRange": "Cinq chiffres, de {from} à {to}.",
             "key": "Lettres minuscules, chiffres et _ ; identifiant technique, jamais affiché.",
             "buffer": "Une séance de 50 min avec 10 min de pause occupe 60 min à l'agenda.",
             "forTwo": "Facturé à deux personnes (couple).",
@@ -4879,6 +4877,7 @@
             "actions": "Actions"
           },
           "allTitles": "Toutes les professions",
+          "noEnd": "Sans fin",
           "empty": "Aucun tarif étudiant ou réduit.",
           "end": "Terminer",
           "endLabel": "Terminer le tarif {variant} de « {service} »",
@@ -4963,7 +4962,8 @@
             "title": "Profession"
           },
           "toConfirm": "À confirmer",
-          "notOffered": "—",
+          "notOffered": "Non offert",
+          "forTwo": "à deux",
           "student": "Étudiant {price}",
           "reduced": "Réduit {price}",
           "empty": "Aucun service au prix selon la grille.",
@@ -5002,7 +5002,8 @@
         "withBuffer": "{base} + {buffer}",
         "grid60": "60 min (couple ou famille)",
         "gridMinutes": "{minutes} min",
-        "gridPrice": "Selon la grille ({duration})"
+        "gridPrice": "Grille, {duration}",
+        "noDuration": "Aucune"
       },
       "validation": {
         "maxChars": "Au plus {max} caractères.",

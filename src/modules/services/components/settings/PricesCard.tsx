@@ -48,9 +48,13 @@ export function PricesCard({ data }: PricesCardProps) {
               <TableRow className="[&>th]:whitespace-nowrap">
                 <TableHead>{t(`${R}.columns.title`)}</TableHead>
                 {gridServices.map((service) => (
-                  <TableHead key={service.id} align="right">
+                  // The code and the grid column, short (« 10150 · 50 min »): the full name on hover.
+                  <TableHead key={service.id} align="right" title={service.name}>
                     {service.code}
-                    <span className="block normal-case tracking-normal">{service.gridDuration === null ? service.name : gridDurationLabel(service.gridDuration)}</span>
+                    <span className="block normal-case tracking-normal">
+                      {service.gridDuration === null ? service.name : t('modules.services.display.minutes', { minutes: String(service.gridDuration) })}
+                      {service.forTwo && <span className="block">{t(`${R}.forTwo`)}</span>}
+                    </span>
                   </TableHead>
                 ))}
               </TableRow>
@@ -58,7 +62,7 @@ export function PricesCard({ data }: PricesCardProps) {
             <TableBody>
               {offering.map((title) => (
                 <TableRow key={title.id} className="align-top">
-                  <TableCell className="font-medium">{title.name}</TableCell>
+                  <TableCell className="min-w-[160px] font-medium">{title.name}</TableCell>
                   {gridServices.map((service) => {
                     const offered = (titleIdsByService.get(service.id) ?? []).includes(title.id)
                     const price = offered ? priceOf(service.id, title.id) : undefined

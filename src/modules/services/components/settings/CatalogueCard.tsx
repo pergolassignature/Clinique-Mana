@@ -1,5 +1,5 @@
 import { useId, useMemo, useRef, useState } from 'react'
-import { Archive, ArchiveRestore, Pencil, Plus, Search } from 'lucide-react'
+import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { HighlightedText } from '@/shared/components/HighlightedText'
@@ -9,6 +9,7 @@ import { matchesSearch, searchWords } from '@/shared/lib/list-search'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/ui/dropdown-menu'
 import { Input } from '@/shared/ui/input'
 import { Table, TableBody, TableCell, TableGroupRow, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import type { ServicesSettings } from '../../api/catalogue'
@@ -37,7 +38,7 @@ interface CatalogueCardProps {
  * « Catalogue » (plan S3.2): the services grouped by family, with their code, duration (and pause
  * after), the price's source, the taxes and the professions offering them; « Actifs · Archivés ·
  * Tous », a search on the name, the code and the key (accents ignored, the match highlighted);
- * « Ajouter un service » and, per row, « Modifier » (the sheet) and « Archiver » / « Restaurer ».
+ * « Ajouter un service » and, per row, a « … » menu: « Modifier » (the sheet), « Archiver » / « Restaurer ».
  * Read-only (`canEdit` false): the rows, the filter and the search only.
  */
 export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
@@ -77,7 +78,7 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
     const button = focusRow.current === null ? undefined : editButtons.current.get(focusRow.current)
     ;(button?.isConnected ? button : addRef.current)?.focus()
   }
-  const columnCount = canEdit ? 7 : 6
+  const columnCount = canEdit ? 6 : 5
 
   let empty: { title: string; body: string } | null = null
   if (shown.length === 0) {
@@ -120,7 +121,6 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
               <TableHead>{t(`${C}.columns.name`)}</TableHead>
               <TableHead>{t(`${C}.columns.duration`)}</TableHead>
               <TableHead>{t(`${C}.columns.price`)}</TableHead>
-              <TableHead className="max-sm:hidden">{t(`${C}.columns.taxes`)}</TableHead>
               <TableHead className="max-md:hidden">{t(`${C}.columns.titles`)}</TableHead>
               {canEdit && (
                 <TableHead>
@@ -143,36 +143,23 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
                     </span>
                   </th>
                   <TableCell className="whitespace-nowrap">{durationLabel(service)}</TableCell>
-                  <TableCell className="whitespace-nowrap">{priceSummary(service)}</TableCell>
-                  <TableCell className="whitespace-nowrap max-sm:hidden">{taxRuleLabel(service.taxRule)}</TableCell>
+                  <TableCell className="min-w-[132px]">
+                    {priceSummary(service)}
+                    <span className="block text-xs text-muted-foreground">{taxRuleLabel(service.taxRule)}</span>
+                  </TableCell>
                   <TableCell className="max-md:hidden">{titleNames(service.id)}</TableCell>
                   {canEdit && (
                     <TableCell className="w-0 whitespace-nowrap py-1 pl-1 pr-2 text-right">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t(`${C}.editLabel`, { name: service.name })}
-                        ref={(element) => {
+                      <RowMenu
+                        name={service.name}
+                        isActive={service.isActive}
+                        buttonRef={(element) => {
                           if (element) editButtons.current.set(service.id, element)
                           else editButtons.current.delete(service.id)
                         }}
-                        onClick={() => openSheet(service)}
-                      >
-                        <Pencil aria-hidden className="sm:hidden" />
-                        <span className="max-sm:sr-only">{t(`${C}.edit`)}</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t(service.isActive ? `${C}.archiveLabel` : `${C}.restoreLabel`, { name: service.name })}
-                        aria-disabled={toggleActive.isPending || undefined}
-                        onClick={() => !toggleActive.isPending && toggleActive.mutate({ id: service.id, active: !service.isActive })}
-                      >
-                        {service.isActive ? <Archive aria-hidden className="sm:hidden" /> : <ArchiveRestore aria-hidden className="sm:hidden" />}
-                        <span className="max-sm:sr-only">{t(service.isActive ? `${C}.archive` : `${C}.restore`)}</span>
-                      </Button>
+                        onEdit={() => openSheet(service)}
+                        onToggleActive={() => !toggleActive.isPending && toggleActive.mutate({ id: service.id, active: !service.isActive })}
+                      />
                     </TableCell>
                   )}
                 </TableRow>
@@ -192,5 +179,51 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
         onCloseAutoFocus={returnFocus}
       />
     </SettingsCard>
+  )
+}
+
+interface RowMenuProps {
+  name: string
+  isActive: boolean
+  buttonRef: (button: HTMLButtonElement | null) => void
+  onEdit: () => void
+  onToggleActive: () => void
+}
+
+/**
+ * A row's « … » menu, as Professionnels' lists: « Modifier », then « Archiver » or « Restaurer ».
+ * The chosen action runs once the menu has closed and given focus back to its button, so the
+ * sheet it opens takes focus cleanly (and returns it there).
+ */
+function RowMenu({ name, isActive, buttonRef, onEdit, onToggleActive }: RowMenuProps) {
+  const pendingAction = useRef<(() => void) | null>(null)
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button ref={buttonRef} type="button" variant="ghost" size="icon-sm" aria-label={t(`${C}.menu`, { name })}>
+          <MoreHorizontal aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        onCloseAutoFocus={(event) => {
+          const action = pendingAction.current
+          pendingAction.current = null
+          if (!action) return
+          event.preventDefault()
+          action()
+        }}
+      >
+        <DropdownMenuItem onSelect={() => (pendingAction.current = onEdit)}>
+          <Pencil className="text-subtle" aria-hidden />
+          {t(`${C}.edit`)}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => (pendingAction.current = onToggleActive)}>
+          {isActive ? <Archive className="text-subtle" aria-hidden /> : <ArchiveRestore className="text-subtle" aria-hidden />}
+          {t(isActive ? `${C}.archive` : `${C}.restore`)}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

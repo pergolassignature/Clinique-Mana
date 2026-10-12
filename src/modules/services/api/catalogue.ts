@@ -61,8 +61,16 @@ export async function fetchServicesSettings(): Promise<ServicesSettings> {
       .order('code')
       .limit(ROWS_MAX),
     supabase.from('service_titles').select('service_id, profession_title_id').limit(ROWS_MAX * 10),
-    supabase.from('service_rate_variants').select('*').order('effective_from', { ascending: false }).limit(ROWS_MAX),
-    supabase.from('billing_policies').select('*').order('effective_from', { ascending: false }).limit(ROWS_MAX),
+    supabase
+      .from('service_rate_variants')
+      .select('id, service_id, variant, profession_title_id, discount_kind, amount_cents, percent, effective_from, effective_to, created_at')
+      .order('effective_from', { ascending: false })
+      .limit(ROWS_MAX),
+    supabase
+      .from('billing_policies')
+      .select('id, effective_from, effective_to, late_notice_hours, first_fee_percent, next_fee_percent, file_opening_service_id, fee_mode, created_at')
+      .order('effective_from', { ascending: false })
+      .limit(ROWS_MAX),
     supabase.from('profession_titles_catalog').select('id, key, name, sort_order').order('sort_order').order('key').limit(ROWS_MAX),
   ])
   for (const result of [families, services, serviceTitles, variants, policies, titles]) if (result.error) throw result.error
@@ -136,7 +144,7 @@ export async function saveService(input: ServiceInput): Promise<string> {
     }),
   )
   if (error) throw error
-  return z.string().parse(data)
+  return parseRpc(z.string(), data)
 }
 
 /** Replaces the titles that offer a service (`set_service_titles`). */
@@ -179,7 +187,7 @@ export async function addRateVariant(input: VariantInput): Promise<string> {
     }),
   )
   if (error) throw error
-  return z.string().parse(data)
+  return parseRpc(z.string(), data)
 }
 
 /** Ends an open variant on a date (its last day is the day before), or deletes it (null) while the database allows. */
@@ -211,7 +219,7 @@ export async function addBillingPolicy(input: PolicyInput): Promise<string> {
     }),
   )
   if (error) throw error
-  return z.string().parse(data)
+  return parseRpc(z.string(), data)
 }
 
 /** Deletes the coming policy (the previous one opens again). */

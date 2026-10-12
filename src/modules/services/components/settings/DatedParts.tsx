@@ -1,8 +1,7 @@
-import { useEffect, useState, type FormEvent, type ReactNode, type RefObject } from 'react'
-import type { FieldValues, Path, UseFormRegisterReturn, UseFormSetError } from 'react-hook-form'
+import type { FormEvent, ReactNode, RefObject } from 'react'
+import type { UseFormRegisterReturn } from 'react-hook-form'
 import { CircleAlert, TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
-import { rpcErrorHint } from '@/core/modules/errors'
 import { SaveButton } from '@/shared/components/SaveButton'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { useClinicDate } from '@/shared/lib/use-clinic-date'
@@ -22,14 +21,13 @@ import { Button } from '@/shared/ui/button'
 import { DialogClose, DialogFooter } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
-import type { MutationFeedback } from '../../hooks/use-services'
 import type { DatedStatus } from '../../lib/dated'
 import { FIRST_DATE, LAST_DATE } from '../../schemas/dated'
 
 /**
  * Pieces the module's dated cards share (rates, policy): a row's status, a refusal where the user
- * acts, a dialog's form footer, the start-date field, the « Supprimer » confirmation, and the
- * routing of a refusal to the date field by its HINT (as the compensation dialogs of Professionnels).
+ * acts, a dialog's form footer, the start-date field and the « Supprimer » confirmation
+ * (the routing of a refusal to its field: `hooks/use-dialog-refusal.ts`).
  */
 
 const D = 'modules.services.dated'
@@ -203,40 +201,4 @@ export function ConfirmDeleteDialog({
       </AlertDialogContent>
     </AlertDialog>
   )
-}
-
-/** A refusal the database tied to a field (its HINT), or none. */
-export interface FieldRefusal {
-  field: string
-  message: string
-}
-
-/**
- * Where a dialog shows a refusal: under the field the database named in its HINT (never by its
- * wording, e.g. `effective_from`, `code`), else above the buttons. `clear` before each submit and
- * when the dialog closes. `fields` maps HINTs to the form's field names.
- */
-export function useDialogRefusal(fields: Readonly<Record<string, string>>) {
-  const [refusal, setRefusal] = useState<string | null>(null)
-  const [fieldRefusal, setFieldRefusal] = useState<FieldRefusal | null>(null)
-  const feedback: MutationFeedback = {
-    onErrorMessage: (message, error) => {
-      const hint = rpcErrorHint(error)
-      const field = hint === undefined ? undefined : fields[hint]
-      if (field) setFieldRefusal({ field, message })
-      else setRefusal(message)
-    },
-  }
-  const clear = () => {
-    setRefusal(null)
-    setFieldRefusal(null)
-  }
-  return { refusal, fieldRefusal, feedback, clear }
-}
-
-/** Puts a field refusal under its field and focuses it (each refusal is a new object). */
-export function useRefusalOnField<T extends FieldValues>(setError: UseFormSetError<T>, fieldRefusal: FieldRefusal | null) {
-  useEffect(() => {
-    if (fieldRefusal) setError(fieldRefusal.field as Path<T>, { message: fieldRefusal.message }, { shouldFocus: true })
-  }, [setError, fieldRefusal])
 }

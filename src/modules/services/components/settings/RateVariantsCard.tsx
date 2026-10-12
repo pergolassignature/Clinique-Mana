@@ -96,7 +96,7 @@ export function RateVariantsCard({ data, canEdit }: RateVariantsCardProps) {
                       {formatDateOnlyShort(row.effectiveFrom)}
                       {end !== null && <span className="block text-xs text-muted-foreground sm:hidden">{t('modules.services.dated.until', { date: formatDateOnlyShort(end) })}</span>}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap max-sm:hidden">{end === null ? '—' : formatDateOnlyShort(end)}</TableCell>
+                    <TableCell className="whitespace-nowrap max-sm:hidden">{end === null ? t(`${V}.noEnd`) : formatDateOnlyShort(end)}</TableCell>
                     <TableCell>
                       <DatedStatusBadge status={status} />
                     </TableCell>

@@ -22,7 +22,8 @@ import { canDeleteDated, datedStatus, earliestStart, periodLabel, rowsOf, shownR
 import { feeModeLabel } from '../../lib/display'
 import { formatPercent, percentInput } from '../../lib/format'
 import { policySchema, type PolicyFormValues } from '../../schemas/dated'
-import { ConfirmDeleteDialog, DatedStatusBadge, DialogForm, EffectiveFromField, useDialogRefusal, useRefusalOnField } from './DatedParts'
+import { useDialogRefusal, useRefusalOnField } from '../../hooks/use-dialog-refusal'
+import { ConfirmDeleteDialog, DatedStatusBadge, DialogForm, EffectiveFromField } from './DatedParts'
 
 const P = 'modules.services.settings.policy'
 

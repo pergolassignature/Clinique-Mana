@@ -15,7 +15,8 @@ import { DISCOUNT_KINDS, RATE_VARIANTS, type DiscountKind } from '../../lib/cons
 import { earliestStart, rowsOf } from '../../lib/dated'
 import { discountKindLabel, variantLabel } from '../../lib/display'
 import { endVariantSchema, FIRST_DATE, LAST_DATE, variantSchema, type VariantFormValues } from '../../schemas/dated'
-import { DialogForm, EffectiveFromField, useDialogRefusal, useRefusalOnField } from './DatedParts'
+import { useDialogRefusal, useRefusalOnField } from '../../hooks/use-dialog-refusal'
+import { DialogForm, EffectiveFromField } from './DatedParts'
 
 const V = 'modules.services.settings.variants'
 

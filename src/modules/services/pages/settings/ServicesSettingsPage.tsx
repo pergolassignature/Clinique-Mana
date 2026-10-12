@@ -15,7 +15,7 @@ const S = 'modules.services.settings'
 /**
  * Paramètres → Services et tarifs (plan S3.2; UI-4: the section title is the page's H1): the
  * catalogue, the student and reduced rates, the cancellation policy and the prices per
- * profession. Seen with `services.view`, changed with `services.manage` (else the one « Lecture
+ * profession. Seen as the manifest says (S-8), changed with `services.manage` (else the one « Lecture
  * seule » notice and no action).
  */
 export function ServicesSettingsPage() {

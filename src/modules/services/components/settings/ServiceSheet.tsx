@@ -33,7 +33,8 @@ import { useSaveService } from '../../hooks/use-services'
 import { GRID_DURATIONS, PRICE_SOURCES, SERVICE_KINDS, TAX_RULES } from '../../lib/constants'
 import { gridDurationLabel, kindLabel, priceSourceLabel, taxRuleLabel } from '../../lib/display'
 import { emptyServiceForm, serviceFormValues, serviceSchema, type ServiceFormOutput, type ServiceFormValues } from '../../schemas/service'
-import { RefusalAlert, useDialogRefusal, useRefusalOnField } from './DatedParts'
+import { useDialogRefusal, useRefusalOnField } from '../../hooks/use-dialog-refusal'
+import { RefusalAlert } from './DatedParts'
 
 const S = 'modules.services.settings.sheet'
 
@@ -105,6 +106,7 @@ function ServicePanel({ service, titleIds, families, services, titles, onClose, 
     defaultValues: service ? serviceFormValues(service, titleIds) : emptyServiceForm(families[0]?.id ?? ''),
   })
   const { errors, isDirty } = form.formState
+  const { ref: nameRef, ...nameField } = form.register('name')
   useRefusalOnField(form.setError, fieldRefusal)
   useUnsavedChanges(isDirty)
   const [priceSource, familyId] = useWatch({ control: form.control, name: ['priceSource', 'familyId'] })
@@ -190,7 +192,7 @@ function ServicePanel({ service, titleIds, families, services, titles, onClose, 
                 width="sm"
                 required
                 readOnly={editing}
-                help={editing ? undefined : family ? t(`modules.services.validation.codeFamily`, { from: `${family.code} 000`, to: `${family.code} 999` }).replace(/^.*\(/, '').replace(/\)\.$/, '') : t(`${S}.help.code`)}
+                help={editing ? undefined : family ? t(`${S}.help.codeRange`, { from: `${family.code} 000`, to: `${family.code} 999` }) : t(`${S}.help.code`)}
                 error={errors.code?.message}
               >
                 {(field) => <Input {...field} {...form.register('code')} inputMode="numeric" autoComplete="off" />}
@@ -203,11 +205,10 @@ function ServicePanel({ service, titleIds, families, services, titles, onClose, 
               {(field) => (
                 <Input
                   {...field}
-                  {...form.register('name', {
-                    // The first field an existing service lets you change.
-                  })}
+                  {...nameField}
                   ref={(element) => {
-                    form.register('name').ref(element)
+                    nameRef(element)
+                    // The first field an existing service lets you change.
                     if (editing) firstField.current = element
                   }}
                   autoComplete="off"

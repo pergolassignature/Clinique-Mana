@@ -85,7 +85,7 @@ export function useSaveService(feedback?: MutationFeedback) {
 export function useSetServiceActive(feedback?: MutationFeedback) {
   return useServicesMutation(
     ({ id, active }: { id: string; active: boolean }) => setServiceActive(id, active),
-    (_, { active }) => t(active ? `${S}.catalogue.restored` : `${S}.catalogue.archived`),
+    (_, { active }) => t(active ? `${S}.catalogue.restored` : `${S}.catalogue.archivedToast`),
     feedback,
   )
 }
