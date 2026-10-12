@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Clinique MANA" },
+  "app": {
+    "name": "Clinique MANA"
+  },
   "nav": {
     "label": "Menu principal",
     "skipToContent": "Aller au contenu",
@@ -37,10 +39,26 @@
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "cancel": "Annuler",
-    "listFilter": { "label": "Afficher", "option": "{label} ({count})", "active": "Actifs", "archived": "Archivés", "all": "Tous" },
-    "form": { "required": "(requis)", "unsavedChanges": "Modifications non enregistrées" },
-    "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
-    "toast": { "region": "Notifications", "close": "Fermer la notification" },
+    "listFilter": {
+      "label": "Afficher",
+      "option": "{label} ({count})",
+      "active": "Actifs",
+      "archived": "Archivés",
+      "all": "Tous"
+    },
+    "form": {
+      "required": "(requis)",
+      "unsavedChanges": "Modifications non enregistrées"
+    },
+    "status": {
+      "complete": "(terminé)",
+      "pending": "(en attente)",
+      "warning": "(à vérifier)"
+    },
+    "toast": {
+      "region": "Notifications",
+      "close": "Fermer la notification"
+    },
     "errors": {
       "forbidden": "Vous n'avez pas la permission de faire cette action.",
       "invalidValue": "Une des valeurs saisies n'est pas valide. Vérifiez le formulaire.",
@@ -77,12 +95,24 @@
       "add": "Marquer comme spécialisé",
       "remove": "Retirer la spécialisation"
     },
-    "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
+    "notFound": {
+      "title": "Page introuvable",
+      "body": "Cette page n'existe pas ou a été déplacée."
+    },
     "backHome": "Retour à l'accueil",
     "notProvided": "Non indiqué",
-    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
-    "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
-    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" },
+    "moduleError": {
+      "title": "Cette section a rencontré un problème",
+      "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard."
+    },
+    "appError": {
+      "title": "L'application a rencontré un problème",
+      "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page."
+    },
+    "appUpdate": {
+      "title": "Une nouvelle version de l'application est disponible.",
+      "reload": "Recharger"
+    },
     "retryIn": {
       "later": "Réessayez plus tard.",
       "moment": "Réessayez dans un instant.",
@@ -175,7 +205,9 @@
     "latestEmailHint": "Si vous avez reçu plus d'un courriel d'invitation, utilisez le courriel le plus récent : chaque nouvel envoi remplace le lien précédent.",
     "signIn": "Se connecter",
     "activated": "Votre compte est activé. Connectez-vous avec votre courriel et votre mot de passe.",
-    "errors": { "generic": "Votre compte n'a pas pu être activé. Réessayez dans un instant." }
+    "errors": {
+      "generic": "Votre compte n'a pas pu être activé. Réessayez dans un instant."
+    }
   },
   "account": {
     "title": "Mon compte",
@@ -226,7 +258,10 @@
     }
   },
   "access": {
-    "error": { "title": "Erreur de connexion", "body": "Impossible de vérifier vos accès. Vérifiez votre connexion internet." },
+    "error": {
+      "title": "Erreur de connexion",
+      "body": "Impossible de vérifier vos accès. Vérifiez votre connexion internet."
+    },
     "denied": {
       "profile_not_found": "Votre compte n'est pas encore configuré. Contactez la clinique.",
       "profile_disabled": "Votre compte est désactivé. Contactez la clinique.",
@@ -255,20 +290,29 @@
   "home": {
     "title": "Bienvenue",
     "body": "Ce qui demande votre attention s'affiche ici.",
-    "empty": { "title": "Rien ne demande votre attention pour l'instant.", "shortcuts": "Accès rapide" }
+    "empty": {
+      "title": "Rien ne demande votre attention pour l'instant.",
+      "shortcuts": "Accès rapide"
+    }
   },
   "storage": {
     "dropzone": {
       "drop": "Glissez un fichier ici, ou",
       "choose": "Choisir un fichier",
       "progressLabel": "Téléversement",
-      "steps": { "preparing": "Préparation de {name}…", "sending": "Envoi de {name}…", "confirming": "Vérification de {name}…" },
+      "steps": {
+        "preparing": "Préparation de {name}…",
+        "sending": "Envoi de {name}…",
+        "confirming": "Vérification de {name}…"
+      },
       "tooLarge": "Ce fichier dépasse la taille permise ({size} Mo).",
       "imageTooLarge": "Cette image dépasse la taille permise ({side} pixels de côté).",
       "empty": "Ce fichier est vide.",
       "wrongType": "Ce type de fichier n'est pas accepté."
     },
-    "preview": { "unavailable": "L'aperçu n'est pas disponible." },
+    "preview": {
+      "unavailable": "L'aperçu n'est pas disponible."
+    },
     "errors": {
       "rateLimited": "Trop de téléversements.",
       "signRateLimited": "Trop d'aperçus demandés.",
@@ -399,7 +443,12 @@
     "title": "Paramètres",
     "navLabel": "Sections des paramètres",
     "empty": "Aucune section de paramètres n'est disponible pour votre rôle.",
-    "groups": { "clinique": "Clinique", "plateforme": "Plateforme", "modules": "Modules", "compte": "Mon compte" },
+    "groups": {
+      "clinique": "Clinique",
+      "plateforme": "Plateforme",
+      "modules": "Modules",
+      "compte": "Mon compte"
+    },
     "sections": {
       "identity": "Identité légale",
       "tax": "Fiscalité",
@@ -781,9 +830,18 @@
     },
     "identity": {
       "description": "Le nom, l'adresse et les coordonnées figurent au bas des courriels de la clinique, les coordonnées sur la fiche PDF des professionnels, la raison sociale et l'adresse dans le contrat de service. Le NEQ n'est repris dans aucun document pour l'instant.",
-      "clinic": { "title": "Clinique", "saved": "Identité enregistrée." },
-      "address": { "title": "Adresse du siège social", "saved": "Adresse enregistrée." },
-      "contact": { "title": "Coordonnées", "saved": "Coordonnées enregistrées." },
+      "clinic": {
+        "title": "Clinique",
+        "saved": "Identité enregistrée."
+      },
+      "address": {
+        "title": "Adresse du siège social",
+        "saved": "Adresse enregistrée."
+      },
+      "contact": {
+        "title": "Coordonnées",
+        "saved": "Coordonnées enregistrées."
+      },
       "fields": {
         "name": "Nom affiché",
         "nameHelp": "Le nom qui apparaît dans l'application.",
@@ -811,7 +869,11 @@
         "remove": "Retirer",
         "saved": "Logo enregistré.",
         "removed": "Logo retiré.",
-        "removeConfirm": { "title": "Retirer le logo ?", "body": "La fiche PDF des professionnels affichera le logo de Clinique MANA à la place.", "confirm": "Retirer" }
+        "removeConfirm": {
+          "title": "Retirer le logo ?",
+          "body": "La fiche PDF des professionnels affichera le logo de Clinique MANA à la place.",
+          "confirm": "Retirer"
+        }
       }
     },
     "signatory": {
@@ -837,7 +899,11 @@
         "remove": "Retirer",
         "saved": "Image de signature enregistrée.",
         "removed": "Image de signature retirée.",
-        "removeConfirm": { "title": "Retirer l'image de signature ?", "body": "Aucun document ne l'affiche pour l'instant.", "confirm": "Retirer" }
+        "removeConfirm": {
+          "title": "Retirer l'image de signature ?",
+          "body": "Aucun document ne l'affiche pour l'instant.",
+          "confirm": "Retirer"
+        }
       }
     },
     "region": {
@@ -904,10 +970,22 @@
     },
     "users": {
       "description": "Qui utilise l'application, avec quel rôle et quelles permissions.",
-      "tabs": { "users": "Utilisateurs", "roles": "Rôles" },
+      "tabs": {
+        "users": "Utilisateurs",
+        "roles": "Rôles"
+      },
       "tableLabel": "Utilisateurs de la clinique",
-      "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "activity": "Activité" },
-      "status": { "active": "Actif", "disabled": "Désactivé" },
+      "columns": {
+        "name": "Nom",
+        "email": "Courriel",
+        "role": "Rôle",
+        "status": "Statut",
+        "activity": "Activité"
+      },
+      "status": {
+        "active": "Actif",
+        "disabled": "Désactivé"
+      },
       "never": "Jamais",
       "noRole": "Aucun rôle",
       "countOne": "1 utilisateur",
@@ -933,7 +1011,11 @@
           "emailInvalid": "Courriel invalide.",
           "roleRequired": "Choisissez un rôle."
         },
-        "adminConfirm": { "title": "Inviter un administrateur ?", "body": "Cette personne aura toutes les permissions.", "confirm": "Inviter" },
+        "adminConfirm": {
+          "title": "Inviter un administrateur ?",
+          "body": "Cette personne aura toutes les permissions.",
+          "confirm": "Inviter"
+        },
         "sent": "Invitation envoyée à {email}.",
         "sentExpires": "Invitation envoyée à {email}. Le lien expire le {date}.",
         "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé.",
@@ -943,7 +1025,11 @@
         }
       },
       "invitations": {
-        "status": { "sent": "Invitation envoyée", "expired": "Expirée", "notDelivered": "Courriel non remis" },
+        "status": {
+          "sent": "Invitation envoyée",
+          "expired": "Expirée",
+          "notDelivered": "Courriel non remis"
+        },
         "email": "Courriel : {status}",
         "emailNone": "Courriel : non envoyé",
         "expires": "Expire le {date}",
@@ -957,7 +1043,11 @@
         "resendNotSent": "Le nouveau courriel n'a pas pu être envoyé, et l'ancien lien ne fonctionne plus.",
         "revoke": "Révoquer",
         "revokeLabel": "Révoquer l'invitation de {name}",
-        "revokeConfirm": { "title": "Révoquer l'invitation de {name} ?", "body": "Le lien envoyé à {email} ne fonctionnera plus.", "confirm": "Révoquer" },
+        "revokeConfirm": {
+          "title": "Révoquer l'invitation de {name} ?",
+          "body": "Le lien envoyé à {email} ne fonctionnera plus.",
+          "confirm": "Révoquer"
+        },
         "revoked": "Invitation révoquée.",
         "countOne": "1 invitation en attente",
         "countOther": "{count} invitations en attente",
@@ -1028,7 +1118,10 @@
             "role": "{permission} : selon le rôle ({value}).",
             "exception": "{permission} : {value} (exception)."
           },
-          "values": { "on": "activée", "off": "désactivée" },
+          "values": {
+            "on": "activée",
+            "off": "désactivée"
+          },
           "loadError": "Les permissions n'ont pas pu être chargées.",
           "reset": {
             "label": "Rétablir les permissions du rôle",
@@ -1108,7 +1201,10 @@
     },
     "tax": {
       "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ qui seront appliqués à la facturation, à venir. Aucun document ne les reprend pour l'instant.",
-      "numbers": { "title": "Numéros d'inscription", "saved": "Numéros d'inscription enregistrés." },
+      "numbers": {
+        "title": "Numéros d'inscription",
+        "saved": "Numéros d'inscription enregistrés."
+      },
       "fields": {
         "gst": "Numéro de TPS",
         "gstHelp": "9 chiffres + RT + 4 chiffres",
@@ -1116,8 +1212,14 @@
         "qstHelp": "10 chiffres + TQ + 4 chiffres"
       },
       "taxes": {
-        "gst": { "title": "TPS", "description": "Taxe sur les produits et services." },
-        "qst": { "title": "TVQ", "description": "Taxe de vente du Québec." }
+        "gst": {
+          "title": "TPS",
+          "description": "Taxe sur les produits et services."
+        },
+        "qst": {
+          "title": "TVQ",
+          "description": "Taxe de vente du Québec."
+        }
       },
       "rates": {
         "rate": "Taux",
@@ -1127,7 +1229,11 @@
         "actions": "Actions",
         "scrollLabel": "Historique des taux de {tax}",
         "until": "au {date}",
-        "statuses": { "current": "En vigueur", "upcoming": "À venir", "ended": "Terminé" },
+        "statuses": {
+          "current": "En vigueur",
+          "upcoming": "À venir",
+          "ended": "Terminé"
+        },
         "loadError": "Impossible de charger les taux.",
         "empty": "Aucun taux enregistré.",
         "add": "Nouveau taux",
@@ -1149,7 +1255,11 @@
         "submitting": "Ajout…",
         "added": "Nouveau taux enregistré."
       },
-      "validation": { "rate": "Taux invalide.", "date": "Date requise.", "afterOpen": "Le nouveau taux doit commencer après le {date}." }
+      "validation": {
+        "rate": "Taux invalide.",
+        "date": "Date requise.",
+        "afterOpen": "Le nouveau taux doit commencer après le {date}."
+      }
     },
     "bank": {
       "description": "Visibles par les administrateurs seulement. Chaque affichage du numéro de compte est inscrit au journal d'audit.",
@@ -1828,8 +1938,8 @@
           "revoke": {
             "title": "Révoquer l'invitation de {name} ?",
             "body": "Le lien d'invitation de {firstName} ne fonctionnera plus.",
-          "closesQuestionnaire": "Le questionnaire envoyé sera fermé sans être appliqué.",
-          "inviteAgain": "Vous pourrez inviter {firstName} de nouveau.",
+            "closesQuestionnaire": "Le questionnaire envoyé sera fermé sans être appliqué.",
+            "inviteAgain": "Vous pourrez inviter {firstName} de nouveau.",
             "backToDraft": "Le dossier redeviendra « À inviter »."
           },
           "validForOne": "Le lien sera valide {count} jour.",
@@ -2209,7 +2319,11 @@
             "accepting": "Accepte de nouveaux clients",
             "note": "Note",
             "places": "Places offertes",
-            "placesCount": { "none": "Aucune place offerte", "one": "1 place offerte", "other": "{count} places offertes" },
+            "placesCount": {
+              "none": "Aucune place offerte",
+              "one": "1 place offerte",
+              "other": "{count} places offertes"
+            },
             "placesSince": "{places} · depuis le {date}",
             "placesNotTracked": "Non suivies",
             "matchingNote": "Bon à savoir",
@@ -2620,7 +2734,10 @@
           "label": "Rechercher un professionnel",
           "placeholder": "Nom, courriel ou n° de permis…"
         },
-        "statusFilter": { "label": "Statut", "all": "Tous les statuts" },
+        "statusFilter": {
+          "label": "Statut",
+          "all": "Tous les statuts"
+        },
         "filters": {
           "button": "Filtres",
           "buttonCount": "Filtres ({count})",
@@ -2682,7 +2799,10 @@
           "body": "Ajoutez le premier professionnel de la clinique.",
           "bodyReadOnly": "Les professionnels de la clinique s'afficheront ici."
         },
-        "noMatch": { "title": "Aucun professionnel ne correspond", "body": "Modifiez la recherche ou les filtres." },
+        "noMatch": {
+          "title": "Aucun professionnel ne correspond",
+          "body": "Modifiez la recherche ou les filtres."
+        },
         "review": "Révision mensuelle"
       },
       "create": {
@@ -2915,7 +3035,10 @@
           "50": "50 min",
           "30": "30 min"
         },
-        "sessionsCount": { "one": "{count} séance", "other": "{count} séances" },
+        "sessionsCount": {
+          "one": "{count} séance",
+          "other": "{count} séances"
+        },
         "tierRange": "{from} à {to}",
         "tierRangeOpen": "{from} et plus",
         "tierShort": "{from}–{to}",
@@ -3062,8 +3185,15 @@
           "add": "Ajouter un motif",
           "createTitle": "Ajouter un motif",
           "editTitle": "Modifier le motif",
-          "view": { "label": "Affichage", "byCategory": "Par catégorie", "alphabetical": "Liste A–Z" },
-          "categoryFilter": { "label": "Catégorie", "all": "Toutes les catégories" },
+          "view": {
+            "label": "Affichage",
+            "byCategory": "Par catégorie",
+            "alphabetical": "Liste A–Z"
+          },
+          "categoryFilter": {
+            "label": "Catégorie",
+            "all": "Toutes les catégories"
+          },
           "category": "Catégorie",
           "categoryNone": "Sans catégorie",
           "categoryHelp": "Un motif sans catégorie active s'affiche sous « Sans catégorie ».",
@@ -3091,7 +3221,11 @@
             "descriptionLabel": "Description",
             "noDescription": "Aucune description",
             "descriptionHelp": "Ce que la catégorie regroupe, par exemple « Deuil, santé et transitions de vie ».",
-            "motifCount": { "one": "1 motif", "other": "{count} motifs", "none": "Aucun motif" },
+            "motifCount": {
+              "one": "1 motif",
+              "other": "{count} motifs",
+              "none": "Aucun motif"
+            },
             "archive": {
               "bodyNone": "Aucun motif actif n'est dans cette catégorie. Elle ne pourra plus être choisie.",
               "bodyOne": "Son motif actif s'affichera sous « Autres » tant qu'elle sera archivée.",
@@ -3525,8 +3659,14 @@
           "kept": "Maintenus ou taux particuliers ({count})",
           "profession_unconfirmed": "Profession à confirmer ({count})"
         },
-        "todoGap": { "one": "{count} écart à valider", "other": "{count} écarts à valider" },
-        "todoNoRate": { "one": "{count} taux de départ à fixer", "other": "{count} taux de départ à fixer" },
+        "todoGap": {
+          "one": "{count} écart à valider",
+          "other": "{count} écarts à valider"
+        },
+        "todoNoRate": {
+          "one": "{count} taux de départ à fixer",
+          "other": "{count} taux de départ à fixer"
+        },
         "legend": "Retenue : la part conservée par la clinique.",
         "help": "Cumul : les séances depuis le début du suivi. Une rencontre de 30 min compte pour ½ séance : un cumul de 100,5 reste dans le palier qui se termine à 100.",
         "listLabel": "Professionnels, {month}",
@@ -3680,12 +3820,30 @@
             "title": "Aucun profil envoyé pour l'instant.",
             "body": "Le premier profil apparaît ici dès l'envoi de l'invitation."
           },
-          "sentOn": { "onboarding": "Envoyé le {date}", "update": "Envoyée le {date}" },
-          "startedOn": { "onboarding": "Commencé le {date}", "update": "Commencée le {date}" },
-          "appliedOn": { "onboarding": "Approuvé le {date}", "update": "Approuvée le {date}" },
-          "appliedOnBy": { "onboarding": "Approuvé le {date} par {name}", "update": "Approuvée le {date} par {name}" },
-          "returnedOn": { "onboarding": "Renvoyé le {date}", "update": "Renvoyée le {date}" },
-          "returnedOnBy": { "onboarding": "Renvoyé le {date} par {name}", "update": "Renvoyée le {date} par {name}" },
+          "sentOn": {
+            "onboarding": "Envoyé le {date}",
+            "update": "Envoyée le {date}"
+          },
+          "startedOn": {
+            "onboarding": "Commencé le {date}",
+            "update": "Commencée le {date}"
+          },
+          "appliedOn": {
+            "onboarding": "Approuvé le {date}",
+            "update": "Approuvée le {date}"
+          },
+          "appliedOnBy": {
+            "onboarding": "Approuvé le {date} par {name}",
+            "update": "Approuvée le {date} par {name}"
+          },
+          "returnedOn": {
+            "onboarding": "Renvoyé le {date}",
+            "update": "Renvoyée le {date}"
+          },
+          "returnedOnBy": {
+            "onboarding": "Renvoyé le {date} par {name}",
+            "update": "Renvoyée le {date} par {name}"
+          },
           "origin": {
             "clinic": "Demandée par la clinique",
             "self": "Commencée par {firstName}"
@@ -3769,7 +3927,9 @@
       "documents": {
         "or": "ou",
         "loadError": "Les documents n'ont pas pu être chargés.",
-        "groups": { "contract": "Contrat et questionnaire" },
+        "groups": {
+          "contract": "Contrat et questionnaire"
+        },
         "required": {
           "title": "Documents requis",
           "summary": "Documents requis en règle : {done} sur {total}",
@@ -4604,6 +4764,14 @@
           "sinRequired": "Saisissez votre NAS."
         }
       }
+    },
+    "communications": {
+      "name": "Communications",
+      "audit": {
+        "tables": {},
+        "fields": {},
+        "values": {}
+      }
     }
   },
   "roles": {
@@ -4611,8 +4779,7 @@
     "counselor": "Conseillère",
     "admin_assistant": "Adjointe administrative",
     "provider": "Professionnel"
-  }
-,
+  },
   "audit": {
     "description": "Les numéros bancaires n'y figurent jamais : seul le fait que les coordonnées ont changé y figure.",
     "tables": {
