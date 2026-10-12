@@ -654,8 +654,9 @@ as $$
 declare
   v_org uuid := private.current_user_org_id();
   v_phone text := private.sms_normalize_e164(p_phone);
-  v_note text := pg_catalog.nullif(pg_catalog.btrim(coalesce(p_note, '')), '');
+  v_note text := nullif(pg_catalog.btrim(coalesce(p_note, '')), '');
   v_row public.sms_consents%rowtype;
+  v_prev text;
 begin
   if not private.has_permission('communications.sms') then
     raise exception 'Permission refusée : communications.sms' using errcode = '42501';
@@ -673,6 +674,9 @@ begin
     raise exception 'Invalid subject' using errcode = '22023';
   end if;
 
+  -- The row locked first: a second entry at the same moment sees the first one's status.
+  select c.status into v_prev from public.sms_consents c where c.org_id = v_org and c.phone_e164 = v_phone for update;
+
   if p_status = 'opted_in' then
     insert into public.sms_consents as c (org_id, phone_e164, status, source, subject_type, subject_id, granted_at, withdrawn_at, note, updated_by)
     values (v_org, v_phone, 'opted_in', 'staff', p_subject_type, p_subject_id, pg_catalog.now(), null, v_note, auth.uid())
@@ -686,7 +690,7 @@ begin
            note = coalesce(excluded.note, c.note),
            updated_by = excluded.updated_by
     returning * into v_row;
-    if v_row.granted_at = pg_catalog.now() then
+    if v_prev is distinct from 'opted_in' then
       -- A new consent: the notice with the withdrawal word, at once.
       perform private.send_sms(v_org, v_phone, private.sms_settings(v_org) ->> 'sms_consent_text', 'consent_notice',
                                null, null, true, auth.uid());
@@ -881,7 +885,7 @@ begin
 
   insert into public.sms_messages (org_id, direction, peer_e164, did_e164, kind, body, media, status,
                                    provider_msg_id, provider_session_id, created_at, sent_at)
-  values (p_org_id, 'in', v_from, v_did, 'inbound', pg_catalog.nullif(v_body, ''), v_media, 'received',
+  values (p_org_id, 'in', v_from, v_did, 'inbound', nullif(v_body, ''), v_media, 'received',
           p_provider_msg_id, p_provider_session_id, coalesce(p_received_at, pg_catalog.now()), coalesce(p_received_at, pg_catalog.now()))
   on conflict (org_id, provider, provider_msg_id) where provider_msg_id is not null do nothing
   returning id into v_id;
@@ -924,6 +928,27 @@ begin
     'ack', case when v_ack.id is null then null
                 else pg_catalog.jsonb_build_object('id', v_ack.id, 'to_e164', v_ack.peer_e164, 'body', v_ack.body, 'request_id', v_ack.request_id) end);
 end;
+$$;
+
+-- Whether an event's ids belong to this clinic (the PBX is shared with other tenants, SM-13: the
+-- webhook keeps another tenant's traffic out before any claim): 'message' when a text of the
+-- clinic carries the PBX's message id, else 'session' when one carries the session id, else 'none'.
+create function public.sms_event_known_for_service(p_org_id uuid, p_provider_msg_id bigint, p_provider_session_id bigint)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+           when p_provider_msg_id is not null and exists (
+             select 1 from public.sms_messages m
+              where m.org_id = p_org_id and m.provider = 'yeastar' and m.provider_msg_id = p_provider_msg_id) then 'message'
+           when p_provider_session_id is not null and exists (
+             select 1 from public.sms_messages m
+              where m.org_id = p_org_id and m.provider = 'yeastar' and m.provider_session_id = p_provider_session_id) then 'session'
+           else 'none'
+         end
 $$;
 
 -- A delivery report (event 30032) for a text we sent: `sent` (delivered by the PBX's account) or
@@ -1243,6 +1268,7 @@ revoke all on function
   public.mark_sms_failed(uuid, uuid, text),
   public.record_inbound_sms(uuid, text, text, text, jsonb, bigint, bigint, timestamptz),
   public.apply_sms_delivery_event(uuid, bigint, text, text),
+  public.sms_event_known_for_service(uuid, bigint, bigint),
   public.get_sms_provider_context(uuid),
   public.acquire_sms_provider_lock(uuid, uuid, int),
   public.release_sms_provider_lock(uuid, uuid),
@@ -1263,6 +1289,7 @@ grant execute on function
   public.mark_sms_failed(uuid, uuid, text),
   public.record_inbound_sms(uuid, text, text, text, jsonb, bigint, bigint, timestamptz),
   public.apply_sms_delivery_event(uuid, bigint, text, text),
+  public.sms_event_known_for_service(uuid, bigint, bigint),
   public.get_sms_provider_context(uuid),
   public.acquire_sms_provider_lock(uuid, uuid, int),
   public.release_sms_provider_lock(uuid, uuid),

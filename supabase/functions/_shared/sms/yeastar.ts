@@ -130,7 +130,9 @@ async function call(
   }
   const body = data as Record<string, unknown>
   const errcode = typeof body.errcode === 'number' ? body.errcode : null
-  if (errcode === TOKEN_LIMIT_ERRCODE) throw new YeastarError('token_limit', errcode, res.status)
+  if (errcode === TOKEN_LIMIT_ERRCODE) {
+    throw new YeastarError('token_limit', errcode, res.status)
+  }
   if (errcode !== null && TOKEN_ERRCODES.has(errcode)) {
     throw new YeastarError('token_invalid', errcode, res.status)
   }
@@ -180,7 +182,10 @@ export async function requestTokens(
 ): Promise<YeastarTokens> {
   const body = await call(ctx, 'get_token', {
     method: 'POST',
-    body: { username: credentials.clientId, password: credentials.clientSecret },
+    body: {
+      username: credentials.clientId,
+      password: credentials.clientSecret,
+    },
   })
   return tokensFrom(body, ctx.now(), null)
 }
@@ -220,6 +225,43 @@ export async function findSmsChannel(
     ) return channel.channel
   }
   throw new YeastarError('channel_not_found')
+}
+
+/** A message session as the PBX describes it (`message_session/get`). */
+export interface SessionInfo {
+  /** The clinic number the session runs on (the channel's DID). */
+  didNumber: string | null
+  channelName: string | null
+  channelType: string | null
+}
+
+/**
+ * The session `id`: which number and channel it runs on. The 30031 event
+ * names no channel, so this is how the webhook tells the clinic's texts from
+ * another tenant's on a shared PBX (SM-13). A session the PBX does not know
+ * is `provider_rejected`.
+ */
+export async function getSession(
+  ctx: YeastarCall,
+  token: string,
+  sessionId: number,
+): Promise<SessionInfo> {
+  const body = await call(
+    ctx,
+    `message_session/get?id=${encodeURIComponent(String(sessionId))}`,
+    { method: 'GET', token },
+  )
+  const info = body.list !== null && typeof body.list === 'object' &&
+      !Array.isArray(body.list)
+    ? body.list as Record<string, unknown>
+    : {}
+  const text = (value: unknown) =>
+    typeof value === 'string' && value.trim() !== '' ? value.trim() : null
+  return {
+    didNumber: text(info.did_number),
+    channelName: text(info.channel_name),
+    channelType: text(info.channel_type),
+  }
 }
 
 /** The PBX's ids for a sent text. */

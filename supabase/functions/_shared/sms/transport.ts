@@ -31,8 +31,10 @@ import { z } from 'zod'
 import { isLocalAppUrl } from '../local.ts'
 import { UUID } from '../patterns.ts'
 import { reportError } from '../report.ts'
+import { lastDigits } from './phone.ts'
 import {
   findSmsChannel,
+  getSession,
   refreshTokens,
   requestTokens,
   sendText,
@@ -66,12 +68,28 @@ export interface OutboundText {
   requestId: string
 }
 
+/** Whose number a PBX session runs on (SM-13). */
+export interface SessionOwner {
+  /** True when the session's DID is the clinic's number. */
+  ours: boolean
+}
+
 export interface SmsTransport {
   send(
     orgId: string,
     text: OutboundText,
     signal?: AbortSignal,
   ): Promise<SentMessage>
+  /**
+   * Whether a PBX message session belongs to the clinic (its DID is the
+   * clinic's number): the 30031 event names no channel, and the PBX may be
+   * shared with other tenants. Same failures as `send`.
+   */
+  sessionOwner(
+    orgId: string,
+    sessionId: number,
+    signal?: AbortSignal,
+  ): Promise<SessionOwner>
 }
 
 /** What the transport needs: a service-role client, the outside world. */
@@ -165,7 +183,9 @@ function usableToken(
 ): string | null {
   const session = context.session
   if (!session || session.base_url !== baseUrl) return null
-  const at = session.access_expires_at ? Date.parse(session.access_expires_at) : NaN
+  const at = session.access_expires_at
+    ? Date.parse(session.access_expires_at)
+    : NaN
   return Number.isFinite(at) && at > now.getTime() + TOKEN_MARGIN_MS
     ? session.access_token
     : null
@@ -223,7 +243,11 @@ async function releaseLock(
   })
   if (error) {
     await reportError(
-      { fn: 'sms-transport', code: 'lock_release_failed', ids: { org_id: orgId } },
+      {
+        fn: 'sms-transport',
+        code: 'lock_release_failed',
+        ids: { org_id: orgId },
+      },
       deps.fetch,
     )
   }
@@ -325,67 +349,113 @@ async function smsChannel(
   })
   if (error) {
     await reportError(
-      { fn: 'sms-transport', code: 'channel_cache_failed', ids: { org_id: orgId } },
+      {
+        fn: 'sms-transport',
+        code: 'channel_cache_failed',
+        ids: { org_id: orgId },
+      },
       deps.fetch,
     )
   }
   return channel
 }
 
+/** The clinic's context and credentials, or the typed failure. */
+async function prepare(
+  deps: TransportDeps,
+  orgId: string,
+): Promise<{ context: ProviderContext; credentials: Credentials }> {
+  if (!UUID.test(orgId)) throw new SmsTransportError('internal')
+  const context = await readProviderContext(deps, orgId)
+  if (!context.module_enabled) throw new SmsTransportError('module_disabled')
+  return { context, credentials: credentialsOf(deps, context) }
+}
+
+/**
+ * Runs `work` with a token; a `token_invalid` answer gets one retry with
+ * tokens requested afresh. PBX failures become `SmsTransportError`s.
+ */
+async function withToken<T>(
+  deps: TransportDeps,
+  orgId: string,
+  context: ProviderContext,
+  credentials: Credentials,
+  signal: AbortSignal | undefined,
+  work: (token: string) => Promise<T>,
+): Promise<T> {
+  const attempt = async (forceNew: boolean) =>
+    await work(
+      await accessToken(deps, orgId, context, credentials, signal, forceNew),
+    )
+  try {
+    try {
+      return await attempt(false)
+    } catch (error) {
+      if (error instanceof YeastarError && error.code === 'token_invalid') {
+        return await attempt(true)
+      }
+      throw error
+    }
+  } catch (error) {
+    if (error instanceof YeastarError) throw new SmsTransportError(error.code)
+    throw error
+  }
+}
+
 /** The Yeastar transport; see the module comment. */
 export function createYeastarTransport(deps: TransportDeps): SmsTransport {
   return {
     async send(orgId, text, signal) {
-      if (!UUID.test(orgId)) throw new SmsTransportError('internal')
-      const context = await readProviderContext(deps, orgId)
-      if (!context.module_enabled) throw new SmsTransportError('module_disabled')
-      const credentials = credentialsOf(deps, context)
+      const { context, credentials } = await prepare(deps, orgId)
       const call = {
         baseUrl: credentials.baseUrl,
         fetch: deps.fetch,
         now: deps.now,
         signal,
       }
-      const attempt = async (forceNew: boolean): Promise<SentMessage> => {
-        const token = await accessToken(
-          deps,
-          orgId,
-          context,
-          credentials,
-          signal,
-          forceNew,
-        )
-        const channel = await smsChannel(
-          deps,
-          orgId,
-          context,
-          credentials,
-          token,
-          signal,
-        )
-        return await sendText(call, token, {
-          channel,
-          did: credentials.did,
-          to: text.to,
-          body: text.body,
-          requestId: text.requestId,
-        })
+      return await withToken(
+        deps,
+        orgId,
+        context,
+        credentials,
+        signal,
+        async (token) => {
+          const channel = await smsChannel(
+            deps,
+            orgId,
+            context,
+            credentials,
+            token,
+            signal,
+          )
+          return await sendText(call, token, {
+            channel,
+            did: credentials.did,
+            to: text.to,
+            body: text.body,
+            requestId: text.requestId,
+          })
+        },
+      )
+    },
+    async sessionOwner(orgId, sessionId, signal) {
+      const { context, credentials } = await prepare(deps, orgId)
+      const call = {
+        baseUrl: credentials.baseUrl,
+        fetch: deps.fetch,
+        now: deps.now,
+        signal,
       }
-      try {
-        try {
-          return await attempt(false)
-        } catch (error) {
-          if (error instanceof YeastarError && error.code === 'token_invalid') {
-            return await attempt(true)
-          }
-          throw error
-        }
-      } catch (error) {
-        if (error instanceof YeastarError) {
-          throw new SmsTransportError(error.code)
-        }
-        throw error
-      }
+      const session = await withToken(
+        deps,
+        orgId,
+        context,
+        credentials,
+        signal,
+        (token) => getSession(call, token, sessionId),
+      )
+      const did = lastDigits(session.didNumber)
+      return { ours: did !== '' && did === lastDigits(credentials.did) }
     },
   }
 }

@@ -37,7 +37,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Deps } from '../_shared/deps.ts'
 import { isExpectedRpcError, rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
-import { consume, LIMITS, limitResponse } from '../_shared/rate-limit.ts'
+import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import { normalizeE164 } from '../_shared/sms/phone.ts'
 import { sendClaimedText } from '../_shared/sms/send.ts'
@@ -97,7 +97,8 @@ export function createHandler(
     const orgId = auth.access.org_id
     const userId = auth.user.id
     const ids: Record<string, string> = { org_id: orgId, user_id: userId }
-    const report = (code: string) => reportError({ fn: FN, code, ids }, deps.fetch)
+    const report = (code: string) =>
+      reportError({ fn: FN, code, ids }, deps.fetch)
 
     if (normalizeE164(body.to) === null) {
       return refusalResponse(
@@ -122,9 +123,14 @@ export function createHandler(
     let text: string
     if (isTest) {
       // The consent text, as the clinic wrote it (what a client receives first).
-      const context = await client.rpc('get_sms_provider_context', { p_org_id: orgId })
-      const consentText = (context.data as { consent_text?: unknown } | null)?.consent_text
-      if (context.error || typeof consentText !== 'string' || consentText === '') {
+      const context = await client.rpc('get_sms_provider_context', {
+        p_org_id: orgId,
+      })
+      const consentText = (context.data as { consent_text?: unknown } | null)
+        ?.consent_text
+      if (
+        context.error || typeof consentText !== 'string' || consentText === ''
+      ) {
         await report('sms_context_unavailable')
         return errorResponse('internal', 'Request failed', 500, req)
       }
@@ -165,7 +171,11 @@ export function createHandler(
       row.data,
     )
     if (outcome.ok) {
-      return jsonResponse({ sms_message_id: row.data.id, status: 'sent' }, 200, req)
+      return jsonResponse(
+        { sms_message_id: row.data.id, status: 'sent' },
+        200,
+        req,
+      )
     }
     if (SETUP_CODES.has(outcome.code)) {
       return jsonResponse(

@@ -136,7 +136,11 @@ function text(value: unknown): string | null {
 }
 
 function integer(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : typeof value === 'string' && /^[0-9]{1,18}$/.test(value) ? Number(value) : NaN
+  const n = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && /^[0-9]{1,18}$/.test(value)
+    ? Number(value)
+    : NaN
   return Number.isFinite(n) && Number.isInteger(n) ? n : null
 }
 
@@ -164,7 +168,8 @@ export function parseYeastarEnvelope(rawBody: string): YeastarEnvelope | null {
 }
 
 export function isMessageEvent(type: number | null): type is MessageEventType {
-  return type !== null && (MESSAGE_EVENT_TYPES as readonly number[]).includes(type)
+  return type !== null &&
+    (MESSAGE_EVENT_TYPES as readonly number[]).includes(type)
 }
 
 /** `msg_files`: a JSON string or an array of File_Info; names, types and sizes only. */
@@ -191,7 +196,10 @@ function mediaOf(raw: unknown): MessageMedia[] {
 
 /** A safe code from the PBX's `send_error`, or null. */
 function errorCode(value: unknown): string | null {
-  const code = text(value)?.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '')
+  const code = text(value)?.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(
+    /^_+|_+$/g,
+    '',
+  )
   return code && code.length <= 64 ? code : null
 }
 
@@ -223,8 +231,12 @@ export function normalizeMessageEvent(
     direction,
     sessionId: integer(msg.session_id),
     msgId: integer(msg.msg_id),
-    from: envelope.type === 30031 && direction === 'in' ? text(sender?.user_no) : null,
-    body: typeof msg.msg_body === 'string' && msg.msg_body !== '' ? msg.msg_body : null,
+    from: envelope.type === 30031 && direction === 'in'
+      ? text(sender?.user_no)
+      : null,
+    body: typeof msg.msg_body === 'string' && msg.msg_body !== ''
+      ? msg.msg_body
+      : null,
     media: mediaOf(msg.msg_files),
     deliveryStatus: integer(msg.delivery_status),
     sendError: errorCode(msg.send_error),

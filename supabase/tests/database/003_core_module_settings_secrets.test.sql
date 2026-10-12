@@ -133,7 +133,7 @@ select functions_are('public', array[
   -- Communications, batch SM (textos).
   'get_sms_settings', 'set_sms_settings', 'set_sms_consent',
   'queue_sms_for_service', 'claim_sms_batch_for_service', 'mark_sms_sent', 'mark_sms_failed',
-  'record_inbound_sms', 'apply_sms_delivery_event', 'get_sms_provider_context',
+  'record_inbound_sms', 'apply_sms_delivery_event', 'sms_event_known_for_service', 'get_sms_provider_context',
   'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel'
 ], 'public schema exposes exactly the intended RPCs');
 

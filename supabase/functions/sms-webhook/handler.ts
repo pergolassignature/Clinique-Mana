@@ -18,6 +18,15 @@
  *    any type that is not a message event (the PBX's call events) → 200
  *    `{ outcome: 'skipped' }`, nothing claimed. A message event with no
  *    `msg_id` → 200 `skipped` too.
+ * 6b. **Whose event (SM-13):** the PBX may serve other tenants, and a 30031
+ *    names no channel. `sms_event_known_for_service`: an event whose message
+ *    or session id the clinic already holds is the clinic's; otherwise a
+ *    delivery report is acked `ignored` (a text we never sent), and an inbound
+ *    text's session is asked of the PBX (`message_session/get`): a DID that
+ *    is not the clinic's number → 200 `ignored`, nothing claimed or stored.
+ *    A clinic that cannot ask (PBX settings incomplete, module off) → 200
+ *    `ignored`, reported `sms_inbound_unverifiable` once an hour; a PBX
+ *    outage → 500 (the PBX retries).
  * 7. `claimEvent('yeastar', <org>:<type>:<msg_id>[:<delivery_status>], …)`
  *    with ids only (never the number or the body): `duplicate` → 200,
  *    `in_progress` → 409 (the PBX retries), an RPC error → 500.
@@ -48,6 +57,7 @@ import { sendClaimedText } from '../_shared/sms/send.ts'
 import {
   createYeastarTransport,
   type SmsTransport,
+  SmsTransportError,
 } from '../_shared/sms/transport.ts'
 import {
   type MessageEvent,
@@ -85,7 +95,9 @@ export interface HandlerOptions {
 /** The claim id of an event: the org, the type and the PBX's message id (and the delivery outcome for a report). */
 export function yeastarEventId(orgId: string, event: MessageEvent): string {
   const base = `${orgId.toLowerCase()}:${event.type}:${event.msgId}`
-  return event.type === 30032 ? `${base}:${event.deliveryStatus ?? 'none'}` : base
+  return event.type === 30032
+    ? `${base}:${event.deliveryStatus ?? 'none'}`
+    : base
 }
 
 /** The webhook handler; see the module comment. */
@@ -94,6 +106,7 @@ export function createHandler(
   options: HandlerOptions = {},
 ): (req: Request) => Promise<Response> {
   const reportMissingSecret = createReportThrottle()
+  const reportUnverifiable = createReportThrottle()
   return async (req) => {
     if (req.method !== 'POST') return webhookResponse(405)
     const orgId = new URL(req.url).searchParams.get('org') ?? ''
@@ -115,7 +128,9 @@ export function createHandler(
 
     const client = deps.serviceClient()
     if (client instanceof Response) return webhookResponse(500)
-    const limit = await consume(client, LIMITS.yeastarWebhookIp, [clientIp(req)])
+    const limit = await consume(client, LIMITS.yeastarWebhookIp, [
+      clientIp(req),
+    ])
     if (!limit.allowed) {
       if (limit.reason === 'unavailable') return webhookResponse(503)
       const res = webhookResponse(429)
@@ -135,7 +150,11 @@ export function createHandler(
         await report('yeastar_webhook_secret_missing')
       } else {
         console.warn(
-          JSON.stringify({ fn: FN, code: 'yeastar_webhook_secret_missing', ids }),
+          JSON.stringify({
+            fn: FN,
+            code: 'yeastar_webhook_secret_missing',
+            ids,
+          }),
         )
       }
       return webhookResponse(401)
@@ -162,6 +181,47 @@ export function createHandler(
       event.deliveryStatus !== 2
     ) {
       return webhookResponse(200, { outcome: 'skipped' })
+    }
+
+    // SM-13: a shared PBX posts every tenant's events; only the clinic's pass, before any claim.
+    const makeTransport = () =>
+      options.transport ? options.transport(client) : createYeastarTransport({
+        client,
+        fetch: deps.fetch,
+        now: deps.now,
+        env: deps.env,
+      })
+    const known = await client.rpc('sms_event_known_for_service', {
+      p_org_id: orgId,
+      p_provider_msg_id: event.msgId,
+      p_provider_session_id: event.sessionId,
+    })
+    if (known.error || !['message', 'session', 'none'].includes(known.data)) {
+      await report('sms_event_known_failed')
+      return webhookResponse(500)
+    }
+    if (known.data === 'none') {
+      // A delivery report of a text we never sent; an inbound text with no session to check.
+      if (event.type === 30032 || event.sessionId === null) {
+        return webhookResponse(200, { outcome: 'ignored' })
+      }
+      try {
+        const owner = await makeTransport().sessionOwner(orgId, event.sessionId)
+        if (!owner.ours) return webhookResponse(200, { outcome: 'ignored' })
+      } catch (error) {
+        if (
+          error instanceof SmsTransportError &&
+          (error.code === 'not_configured' || error.code === 'module_disabled')
+        ) {
+          // The clinic cannot ask its PBX: nothing of this text can be kept.
+          if (reportUnverifiable(orgId.toLowerCase(), deps.now().getTime())) {
+            await report('sms_inbound_unverifiable')
+          }
+          return webhookResponse(200, { outcome: 'ignored' })
+        }
+        await report('sms_session_lookup_failed')
+        return webhookResponse(500)
+      }
     }
 
     let claim
@@ -222,19 +282,13 @@ export function createHandler(
           throw new Error('record_inbound_sms failed')
         }
         outcome = recorded.data.outcome
-        if (recorded.data.message_id) ids.sms_message_id = recorded.data.message_id
+        if (recorded.data.message_id) {
+          ids.sms_message_id = recorded.data.message_id
+        }
         if (recorded.data.ack) {
           // The withdrawal is recorded; its acknowledgement is best effort.
-          const transport = options.transport
-            ? options.transport(client)
-            : createYeastarTransport({
-              client,
-              fetch: deps.fetch,
-              now: deps.now,
-              env: deps.env,
-            })
           await sendClaimedText(
-            { fn: FN, client, transport, fetch: deps.fetch },
+            { fn: FN, client, transport: makeTransport(), fetch: deps.fetch },
             orgId,
             recorded.data.ack,
           )

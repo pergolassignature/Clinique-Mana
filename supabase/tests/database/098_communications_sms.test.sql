@@ -8,7 +8,7 @@
 -- jobs' catalogue rows and cron entries; claim_webhook_event accepting yeastar.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(123);
+select plan(185);
 
 -- =============================================================================
 -- Privileges
@@ -33,6 +33,7 @@ select function_privs_are('public', f.name, f.args, 'anon', array[]::text[], f.n
     ('mark_sms_failed', array['uuid', 'uuid', 'text']),
     ('record_inbound_sms', array['uuid', 'text', 'text', 'text', 'jsonb', 'bigint', 'bigint', 'timestamp with time zone']),
     ('apply_sms_delivery_event', array['uuid', 'bigint', 'text', 'text']),
+    ('sms_event_known_for_service', array['uuid', 'bigint', 'bigint']),
     ('get_sms_provider_context', array['uuid']),
     ('acquire_sms_provider_lock', array['uuid', 'uuid', 'integer']),
     ('release_sms_provider_lock', array['uuid', 'uuid']),
@@ -47,6 +48,7 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array[]::te
     ('mark_sms_failed', array['uuid', 'uuid', 'text']),
     ('record_inbound_sms', array['uuid', 'text', 'text', 'text', 'jsonb', 'bigint', 'bigint', 'timestamp with time zone']),
     ('apply_sms_delivery_event', array['uuid', 'bigint', 'text', 'text']),
+    ('sms_event_known_for_service', array['uuid', 'bigint', 'bigint']),
     ('get_sms_provider_context', array['uuid']),
     ('acquire_sms_provider_lock', array['uuid', 'uuid', 'integer']),
     ('release_sms_provider_lock', array['uuid', 'uuid']),
@@ -319,8 +321,8 @@ select results_eq($$ select r ->> 'keyword', r ->> 'confirmed', r ->> 'opted_out
 -- « ARRÊT »: the consent is withdrawn, the acknowledgement claimed for the webhook to send.
 select results_eq($$ select r ->> 'keyword', r ->> 'opted_out', r -> 'ack' ->> 'to_e164', r -> 'ack' ->> 'body'
                        from public.record_inbound_sms('b0000000-0000-0000-0000-00000000000a', '514 555 1234', '+14185550199', ' Arrêt ', '[]', 20004, 3089, null) r $$,
-  $$ values ('stop', 'true', '+15145551234', (private.sms_settings('b0000000-0000-0000-0000-00000000000a') ->> 'sms_opt_out_reply')) $$,
-  '« Arrêt » withdraws the consent and answers the clinic''s text');
+  $$ values ('stop', 'true', '+15145551234', 'Vous ne recevrez plus de textos de la clinique. Pour les recevoir de nouveau, communiquez avec nous.') $$,
+  '« Arrêt » withdraws the consent and answers the clinic''s default text');
 reset role;
 select results_eq($$ select c.status, c.source, c.granted_at is not null, c.withdrawn_at is not null, c.note
                        from public.sms_consents c where c.phone_e164 = '+15145551234' $$,
@@ -331,7 +333,7 @@ select results_eq($$ select m.kind, m.status, m.attempts, m.did_e164 from public
 select isnt_empty($$ select 1 from public.notifications n where n.kind = 'communications.sms_opted_out' and n.org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
   'the staff is told of the withdrawal');
 select is((select count(*)::int from public.audit_log a where a.table_name = 'sms_consents' and a.action = 'update'
-             and a.changed_fields ->> 'status' = 'opted_out' and a.org_id = 'b0000000-0000-0000-0000-00000000000a'), 1,
+             and a.changed_fields -> 'status' ->> 'after' = 'opted_out' and a.org_id = 'b0000000-0000-0000-0000-00000000000a'), 1,
   'the withdrawal is in the audit trail (status only)');
 select throws_ok($$ select private.send_sms('b0000000-0000-0000-0000-00000000000a', '514 555 1234', 'Rappel', 'reminder') $$, 'P0001', null,
   'from then on nothing goes to that number');
@@ -346,6 +348,14 @@ select results_eq($$ select c.source, c.withdrawn_at, c.subject_type, c.subject_
   $$ values ('staff', null::timestamptz, 'client', 'c0000000-0000-0000-0000-000000000001'::uuid) $$, '… in force again, linked to the person');
 select is((select count(*)::int from public.sms_messages m where m.kind = 'consent_notice' and m.org_id = 'b0000000-0000-0000-0000-00000000000a'), 2,
   '… with a new consent notice');
+
+-- Whose event is it (SM-13): the clinic's message, its session, or another tenant's.
+set local role service_role;
+select is(public.sms_event_known_for_service('b0000000-0000-0000-0000-00000000000a', 10325, null), 'message', 'our message id is known');
+select is(public.sms_event_known_for_service('b0000000-0000-0000-0000-00000000000a', 77777, 3089), 'session', 'an unknown message of our session is known by the session');
+select is(public.sms_event_known_for_service('b0000000-0000-0000-0000-00000000000a', 77777, 77), 'none', 'another tenant''s ids are unknown');
+select is(public.sms_event_known_for_service('b0000000-0000-0000-0000-00000000000b', 10325, 3089), 'none', '… and so are ours to another clinic');
+reset role;
 
 -- Delivery reports.
 set local role service_role;
@@ -378,7 +388,7 @@ values ('b0000000-0000-0000-0000-00000000000a', 'yeastar_client_secret',
 set local role service_role;
 select results_eq($$ select c ->> 'base_url', c ->> 'client_id', c ->> 'client_secret', c ->> 'did', c -> 'session', c -> 'channel', c ->> 'clinic_name'
                        from public.get_sms_provider_context('b0000000-0000-0000-0000-00000000000a') c $$,
-  $$ values ('https://pbx.exemple.com', 'mana-app', 'local-test-client-secret', '+14185550199', null::jsonb, null::jsonb, 'Org A') $$,
+  $$ values ('https://pbx.exemple.com', 'mana-app', 'local-test-client-secret', '+14185550199', 'null'::jsonb, 'null'::jsonb, 'Org A') $$,
   'the context: the settings, the client secret from Vault, no session yet');
 select is(public.acquire_sms_provider_lock('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000001', 120), true, 'the first owner takes the lease');
 select is(public.acquire_sms_provider_lock('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 120), false, 'a second owner waits');
@@ -411,7 +421,7 @@ select is((public.get_sms_provider_context('b0000000-0000-0000-0000-00000000000a
 reset role;
 update public.sms_provider_sessions set channel_cached_at = now() - interval '11 minutes' where org_id = 'b0000000-0000-0000-0000-00000000000a';
 set local role service_role;
-select is((public.get_sms_provider_context('b0000000-0000-0000-0000-00000000000a')) -> 'channel', null::jsonb, '… not after 10 minutes');
+select is((public.get_sms_provider_context('b0000000-0000-0000-0000-00000000000a')) -> 'channel', 'null'::jsonb, '… not after 10 minutes');
 reset role;
 delete from public.sms_provider_sessions where org_id = 'b0000000-0000-0000-0000-00000000000a';
 select is((select count(*)::int from vault.secrets v where v.name like 'sms_session:b0000000-0000-0000-0000-00000000000a:%'), 0,

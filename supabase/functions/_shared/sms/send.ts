@@ -59,7 +59,10 @@ export async function sendClaimedText(
       p_provider_session_id: sent.sessionId,
     })
     if (error) {
-      await reportError({ fn: ctx.fn, code: 'mark_sms_sent_failed', ids }, ctx.fetch)
+      await reportError(
+        { fn: ctx.fn, code: 'mark_sms_sent_failed', ids },
+        ctx.fetch,
+      )
       return { ok: false, code: 'internal' }
     }
     return { ok: true }
@@ -80,7 +83,10 @@ export async function sendClaimedText(
     p_error_code: code,
   })
   if (error) {
-    await reportError({ fn: ctx.fn, code: 'mark_sms_failed_failed', ids }, ctx.fetch)
+    await reportError(
+      { fn: ctx.fn, code: 'mark_sms_failed_failed', ids },
+      ctx.fetch,
+    )
   }
   return { ok: false, code }
 }
