@@ -335,7 +335,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not private.has_permission('communications.sms') then
+  -- « Textos » reads them with communications.sms, Paramètres → Textos with .sms_manage.
+  if not (private.has_permission('communications.sms') or private.has_permission('communications.sms_manage')) then
     raise exception 'Permission refusée : communications.sms' using errcode = '42501';
   end if;
   return private.sms_settings(private.current_user_org_id());
@@ -766,10 +767,15 @@ security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
+declare
+  -- A text held for the business hours (`send_after` set) leaves only while they are open: a
+  -- backlog never runs into the evening (SM-5).
+  v_open boolean;
 begin
   if p_org_id is null or p_limit is null or p_limit not between 1 and 200 then
     raise exception 'Arguments invalides.' using errcode = '22023';
   end if;
+  v_open := private.sms_business_send_after(p_org_id, pg_catalog.now()) = pg_catalog.now();
   update public.sms_messages m
      set status = 'failed', error_code = 'provider_unavailable'
    where m.org_id = p_org_id and m.status = 'sending' and m.claimed_at < pg_catalog.now() - interval '15 minutes';
@@ -785,7 +791,7 @@ begin
       select m.id
         from public.sms_messages m
        where m.org_id = p_org_id and m.status = 'queued'
-         and (m.send_after is null or m.send_after <= pg_catalog.now())
+         and (m.send_after is null or (v_open and m.send_after <= pg_catalog.now()))
        order by m.created_at
        limit p_limit
          for update skip locked
@@ -871,7 +877,7 @@ declare
   v_keyword text;
   v_ack public.sms_messages%rowtype;
   v_confirmed boolean := false;
-  v_was_opted_in boolean;
+  v_already_out boolean;
 begin
   if p_org_id is null or p_provider_msg_id is null then
     raise exception 'Arguments invalides.' using errcode = '22023';
@@ -895,19 +901,22 @@ begin
 
   v_keyword := private.sms_keyword(v_body);
   if v_keyword = 'stop' then
-    v_was_opted_in := private.sms_consent_status(p_org_id, v_from) = 'opted_in';
+    v_already_out := private.sms_consent_status(p_org_id, v_from) is not distinct from 'opted_out';
     perform private.sms_record_opt_out(p_org_id, v_from, 'sms_reply');
-    -- The acknowledgement, claimed for the webhook to send now (best effort: a failure shows in
-    -- the thread as « Échec », the withdrawal itself stands).
-    insert into public.sms_messages (org_id, direction, peer_e164, did_e164, kind, body, status, claimed_at, attempts)
-    values (p_org_id, 'out', v_from, v_did, 'opt_out_ack', private.sms_settings(p_org_id) ->> 'sms_opt_out_reply', 'sending', pg_catalog.now(), 1)
-    returning * into v_ack;
-    update public.sms_messages m set request_id = 'mana-' || v_ack.id::text where m.id = v_ack.id returning * into v_ack;
-    perform private.notify(
-      p_org_id, 'communications', 'communications.sms_opted_out', 'normal', 'Retrait du consentement aux textos',
-      'Une personne a répondu ARRÊT : plus aucun texto ne lui sera envoyé.',
-      '/textos?message=' || v_id::text, 'sms_message', v_id,
-      'communications.sms', null, 'sms_opted_out:' || v_id::text, pg_catalog.now() + interval '30 days');
+    -- One acknowledgement per withdrawal (SM-6): a stop word from a number already withdrawn is
+    -- only recorded. The acknowledgement is claimed for the webhook to send now (best effort: a
+    -- failure shows in the thread as « Échec », the withdrawal itself stands).
+    if not v_already_out then
+      insert into public.sms_messages (org_id, direction, peer_e164, did_e164, kind, body, status, claimed_at, attempts)
+      values (p_org_id, 'out', v_from, v_did, 'opt_out_ack', private.sms_settings(p_org_id) ->> 'sms_opt_out_reply', 'sending', pg_catalog.now(), 1)
+      returning * into v_ack;
+      update public.sms_messages m set request_id = 'mana-' || v_ack.id::text where m.id = v_ack.id returning * into v_ack;
+      perform private.notify(
+        p_org_id, 'communications', 'communications.sms_opted_out', 'normal', 'Retrait du consentement aux textos',
+        'Une personne a répondu ARRÊT : plus aucun texto ne lui sera envoyé.',
+        '/textos?message=' || v_id::text, 'sms_message', v_id,
+        'communications.sms', null, 'sms_opted_out:' || v_id::text, pg_catalog.now() + interval '30 days');
+    end if;
   else
     if v_keyword = 'yes' then
       v_confirmed := private.sms_confirmation_hook(p_org_id, v_from, v_id);
@@ -1256,14 +1265,64 @@ select cron.schedule('communications.sms_purge', '35 8 * * *',
   $$select private.run_sql_job('communications.sms_purge')$$);
 
 -- -----------------------------------------------------------------------------
+-- A thread's texts for « Textos » (communications.sms, RLS), and the dispatch's release
+-- -----------------------------------------------------------------------------
+-- One number's latest texts, newest first (p_limit, at most 501). An RPC rather than a table read:
+-- a read filtered by the number would put it in the request's URL (PostgREST GET), and URLs are
+-- logged by the API gateway; the RPC's body carries it. Security invoker: the table's RLS scopes it
+-- to the caller's clinic and to communications.sms.
+create function public.list_sms_thread(p_phone text, p_limit int default 201)
+returns table (
+  id uuid, direction text, peer_e164 text, kind text, body text, body_purged_at timestamptz, media jsonb,
+  status text, error_code text, send_after timestamptz, created_at timestamptz, sent_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select m.id, m.direction, m.peer_e164, m.kind, m.body, m.body_purged_at, m.media,
+         m.status, m.error_code, m.send_after, m.created_at, m.sent_at
+    from public.sms_messages m
+   where m.peer_e164 = p_phone
+   order by m.created_at desc, m.id desc
+   limit least(greatest(coalesce(p_limit, 201), 1), 501)
+$$;
+
+-- The dispatch gives back texts it claimed but never handed to the PBX (a run stopped by a PBX
+-- outage, the clinic's setup, or its deadline): `queued` again, for the next run, instead of
+-- failing them at the next sweep. Only rows still `sending`; returns how many.
+create function public.release_sms_claims_for_service(p_org_id uuid, p_ids uuid[])
+returns int
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count int;
+begin
+  if p_org_id is null or p_ids is null or pg_catalog.cardinality(p_ids) > 200 then
+    raise exception 'Arguments invalides.' using errcode = '22023';
+  end if;
+  update public.sms_messages m
+     set status = 'queued', claimed_at = null, attempts = greatest(m.attempts - 1, 0)
+   where m.org_id = p_org_id and m.id = any (p_ids) and m.status = 'sending';
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
 -- Privileges
 -- -----------------------------------------------------------------------------
 revoke all on function
   public.get_sms_settings(),
   public.set_sms_settings(jsonb),
   public.set_sms_consent(text, text, text, uuid, text),
+  public.list_sms_thread(text, int),
   public.queue_sms_for_service(uuid, uuid, text, text, text),
   public.claim_sms_batch_for_service(uuid, int),
+  public.release_sms_claims_for_service(uuid, uuid[]),
   public.mark_sms_sent(uuid, uuid, bigint, bigint),
   public.mark_sms_failed(uuid, uuid, text),
   public.record_inbound_sms(uuid, text, text, text, jsonb, bigint, bigint, timestamptz),
@@ -1279,12 +1338,14 @@ from public, anon, authenticated;
 grant execute on function
   public.get_sms_settings(),
   public.set_sms_settings(jsonb),
-  public.set_sms_consent(text, text, text, uuid, text)
+  public.set_sms_consent(text, text, text, uuid, text),
+  public.list_sms_thread(text, int)
 to authenticated;
 
 grant execute on function
   public.queue_sms_for_service(uuid, uuid, text, text, text),
   public.claim_sms_batch_for_service(uuid, int),
+  public.release_sms_claims_for_service(uuid, uuid[]),
   public.mark_sms_sent(uuid, uuid, bigint, bigint),
   public.mark_sms_failed(uuid, uuid, text),
   public.record_inbound_sms(uuid, text, text, text, jsonb, bigint, bigint, timestamptz),

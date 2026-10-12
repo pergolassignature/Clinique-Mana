@@ -8,7 +8,7 @@
 -- jobs' catalogue rows and cron entries; claim_webhook_event accepting yeastar.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(185);
+select plan(201);
 
 -- =============================================================================
 -- Privileges
@@ -27,8 +27,10 @@ select function_privs_are('public', f.name, f.args, 'anon', array[]::text[], f.n
     ('get_sms_settings', array[]::text[]),
     ('set_sms_settings', array['jsonb']),
     ('set_sms_consent', array['text', 'text', 'text', 'uuid', 'text']),
+    ('list_sms_thread', array['text', 'integer']),
     ('queue_sms_for_service', array['uuid', 'uuid', 'text', 'text', 'text']),
     ('claim_sms_batch_for_service', array['uuid', 'integer']),
+    ('release_sms_claims_for_service', array['uuid', 'uuid[]']),
     ('mark_sms_sent', array['uuid', 'uuid', 'bigint', 'bigint']),
     ('mark_sms_failed', array['uuid', 'uuid', 'text']),
     ('record_inbound_sms', array['uuid', 'text', 'text', 'text', 'jsonb', 'bigint', 'bigint', 'timestamp with time zone']),
@@ -44,6 +46,7 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array[]::te
   from (values
     ('queue_sms_for_service', array['uuid', 'uuid', 'text', 'text', 'text']),
     ('claim_sms_batch_for_service', array['uuid', 'integer']),
+    ('release_sms_claims_for_service', array['uuid', 'uuid[]']),
     ('mark_sms_sent', array['uuid', 'uuid', 'bigint', 'bigint']),
     ('mark_sms_failed', array['uuid', 'uuid', 'text']),
     ('record_inbound_sms', array['uuid', 'text', 'text', 'text', 'jsonb', 'bigint', 'bigint', 'timestamp with time zone']),
@@ -59,7 +62,8 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array['EXEC
   from (values
     ('get_sms_settings', array[]::text[]),
     ('set_sms_settings', array['jsonb']),
-    ('set_sms_consent', array['text', 'text', 'text', 'uuid', 'text'])
+    ('set_sms_consent', array['text', 'text', 'text', 'uuid', 'text']),
+    ('list_sms_thread', array['text', 'integer'])
   ) as f(name, args);
 select function_privs_are('private', f.name, f.args, r.role, array[]::text[], f.name || ': no EXECUTE for ' || r.role)
   from (values
@@ -280,14 +284,26 @@ insert into public.sms_consents (org_id, phone_e164, status, source, granted_at,
 values ('b0000000-0000-0000-0000-00000000000a', '+15145557777', 'opted_out', 'sms_reply', now() - interval '1 day', now());
 insert into public.sms_messages (org_id, direction, peer_e164, kind, body, status)
 values ('b0000000-0000-0000-0000-00000000000a', 'out', '+15145557777', 'reminder', 'Rappel', 'queued');
+select set_config('test.sms_open', (private.sms_business_send_after('b0000000-0000-0000-0000-00000000000a', now()) = now())::text, true);
 set local role service_role;
 select results_eq($$ select c.kind, c.to_e164 from public.claim_sms_batch_for_service('b0000000-0000-0000-0000-00000000000a', 10) c order by c.kind $$,
-  $$ values ('consent_notice', '+15145551234'), ('reminder', '+15145551234') $$, 'the dispatch claims the due texts of consented numbers');
+  $$ select x.kind, x.to_e164 from (values ('consent_notice', '+15145551234', true), ('reminder', '+15145551234', current_setting('test.sms_open')::boolean)) x(kind, to_e164, due)
+      where x.due order by x.kind $$,
+  'the dispatch claims the due texts of consented numbers; a held reminder only while the business hours are open (SM-5)');
 select results_eq($$ select m.status, m.error_code from public.sms_messages m where m.body = 'Perdu' $$,
   $$ values ('failed', 'provider_unavailable') $$, 'a text left `sending` for 15 minutes fails, outcome unknown');
 select results_eq($$ select m.status, m.error_code from public.sms_messages m where m.peer_e164 = '+15145557777' $$,
   $$ values ('failed', 'consent_withdrawn') $$, 'a due text to a withdrawn number is never sent (SM-6)');
+select is(public.release_sms_claims_for_service('b0000000-0000-0000-0000-00000000000b', array(select m.id from public.sms_messages m where m.kind = 'consent_notice')),
+  0, 'another clinic cannot release the texts');
+select is(public.release_sms_claims_for_service('b0000000-0000-0000-0000-00000000000a', array(select m.id from public.sms_messages m where m.kind = 'consent_notice')),
+  1, 'a claimed text never handed to the PBX is released');
+select results_eq($$ select m.status, m.claimed_at, m.attempts from public.sms_messages m where m.kind = 'consent_notice' $$,
+  $$ values ('queued', null::timestamptz, 0) $$, '… `queued` again, its attempt given back');
+select is((select count(*)::int from public.claim_sms_batch_for_service('b0000000-0000-0000-0000-00000000000a', 10) c where c.kind = 'consent_notice'), 1,
+  'the next run claims it again');
 select is((select count(*)::int from public.claim_sms_batch_for_service('b0000000-0000-0000-0000-00000000000a', 10)), 0, 'a second claim finds nothing');
+select throws_ok($$ select public.release_sms_claims_for_service('b0000000-0000-0000-0000-00000000000a', null) $$, '22023', null, 'the ids are required');
 select throws_ok($$ select * from public.claim_sms_batch_for_service('b0000000-0000-0000-0000-00000000000a', 0) $$, '22023', null, 'the batch size is bounded');
 reset role;
 
@@ -337,6 +353,14 @@ select is((select count(*)::int from public.audit_log a where a.table_name = 'sm
   'the withdrawal is in the audit trail (status only)');
 select throws_ok($$ select private.send_sms('b0000000-0000-0000-0000-00000000000a', '514 555 1234', 'Rappel', 'reminder') $$, 'P0001', null,
   'from then on nothing goes to that number');
+set local role service_role;
+select results_eq($$ select r ->> 'outcome', r ->> 'opted_out', r -> 'ack'
+                       from public.record_inbound_sms('b0000000-0000-0000-0000-00000000000a', '514 555 1234', '+14185550199', 'STOP', '[]', 20009, 3089, null) r $$,
+  $$ values ('recorded', 'true', 'null'::jsonb) $$, 'a second stop word is recorded without a second acknowledgement (SM-6)');
+reset role;
+select is((select count(*)::int from public.sms_messages m where m.kind = 'opt_out_ack'), 1, '… one acknowledgement in all');
+select is((select count(*)::int from public.notifications n where n.kind = 'communications.sms_opted_out' and n.org_id = 'b0000000-0000-0000-0000-00000000000a'), 1,
+  '… and one notice');
 
 -- A staff re-consent (the person asked by phone) grants again and notes the new date.
 set local role authenticated;
@@ -348,6 +372,18 @@ select results_eq($$ select c.source, c.withdrawn_at, c.subject_type, c.subject_
   $$ values ('staff', null::timestamptz, 'client', 'c0000000-0000-0000-0000-000000000001'::uuid) $$, '… in force again, linked to the person');
 select is((select count(*)::int from public.sms_messages m where m.kind = 'consent_notice' and m.org_id = 'b0000000-0000-0000-0000-00000000000a'), 2,
   '… with a new consent notice');
+
+-- « Textos » reads a thread through list_sms_thread (the number in the body, never a URL).
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select ok((select count(*) from public.list_sms_thread('+15145551234')) >= 5, 'the conseillère reads the thread');
+select results_eq($$ select t.kind, t.body from public.list_sms_thread('+15145551234', 1) t $$, $$ values ('inbound', 'Merci, à demain') $$,
+  '… newest first (the PBX''s time), bounded by p_limit');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is((select count(*)::int from public.list_sms_thread('+15145551234')), 0, 'a provider reads nothing (RLS)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is((select count(*)::int from public.list_sms_thread('+15145551234')), 0, 'another clinic reads nothing (RLS)');
+reset role;
 
 -- Whose event is it (SM-13): the clinic's message, its session, or another tenant's.
 set local role service_role;

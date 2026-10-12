@@ -93,8 +93,6 @@ const messageSchema = z
   }))
 export type SmsMessage = z.output<typeof messageSchema>
 
-const MESSAGE_COLUMNS = 'id, direction, peer_e164, kind, body, body_purged_at, media, status, error_code, send_after, created_at, sent_at'
-
 /** The clinic's threads, the latest first (RLS: the caller's clinic, `communications.sms`). */
 export async function listSmsThreads(): Promise<SmsThread[]> {
   const { data, error } = await supabase
@@ -106,15 +104,13 @@ export async function listSmsThreads(): Promise<SmsThread[]> {
   return parse(z.array(threadSchema), data)
 }
 
-/** A thread's latest texts, oldest first (what the conversation shows); `truncated` when older ones exist. */
+/**
+ * A thread's latest texts, oldest first (what the conversation shows); `truncated` when older ones
+ * exist. Through `list_sms_thread` (RLS, communications.sms): the number travels in the RPC's body,
+ * never in a request URL (a filtered table read would put it in the query string, which gateways log).
+ */
 export async function listSmsThread(phone: string): Promise<{ messages: SmsMessage[]; truncated: boolean }> {
-  const { data, error } = await supabase
-    .from('sms_messages')
-    .select(MESSAGE_COLUMNS)
-    .eq('peer_e164', phone)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(THREAD_LIMIT + 1)
+  const { data, error } = await supabase.rpc('list_sms_thread', { p_phone: phone, p_limit: THREAD_LIMIT + 1 })
   if (error) throw error
   const rows = parse(z.array(messageSchema), data)
   return { messages: rows.slice(0, THREAD_LIMIT).reverse(), truncated: rows.length > THREAD_LIMIT }

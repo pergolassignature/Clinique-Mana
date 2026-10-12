@@ -65,15 +65,15 @@ describe('listSmsThreads', () => {
 })
 
 describe('listSmsThread', () => {
-  it("one number's latest texts, oldest first; truncated past the cap", async () => {
-    mocks.limit.mockResolvedValue({ data: [message(2), message(1)], error: null })
+  it("one number's latest texts through the RPC (never a URL filter), oldest first; truncated past the cap", async () => {
+    mocks.rpc.mockResolvedValue({ data: [message(2), message(1)], error: null })
     const result = await listSmsThread('+15145551234')
-    expect(mocks.eq).toHaveBeenCalledWith('peer_e164', '+15145551234')
-    expect(mocks.limit).toHaveBeenCalledWith(THREAD_LIMIT + 1)
+    expect(mocks.rpc).toHaveBeenCalledWith('list_sms_thread', { p_phone: '+15145551234', p_limit: THREAD_LIMIT + 1 })
+    expect(mocks.from).not.toHaveBeenCalled()
     expect(result.messages.map((m) => m.id)).toEqual(['m1', 'm2'])
     expect(result.truncated).toBe(false)
 
-    mocks.limit.mockResolvedValue({ data: Array.from({ length: THREAD_LIMIT + 1 }, (_, i) => message(i)), error: null })
+    mocks.rpc.mockResolvedValue({ data: Array.from({ length: THREAD_LIMIT + 1 }, (_, i) => message(i)), error: null })
     const long = await listSmsThread('+15145551234')
     expect(long.messages).toHaveLength(THREAD_LIMIT)
     expect(long.truncated).toBe(true)

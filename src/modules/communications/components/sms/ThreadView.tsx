@@ -193,7 +193,8 @@ function Composer({ phone }: { phone: string }) {
           // ⌘/Ctrl + Entrée sends; Entrée alone is a new line.
           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
             event.preventDefault()
-            void submit()
+            // Never a second send while the first is on its way.
+            if (!send.isPending) void submit()
           }
         }}
       />

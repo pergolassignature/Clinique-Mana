@@ -6383,6 +6383,23 @@ export type Database = {
           status: string
         }[]
       }
+      list_sms_thread: {
+        Args: { p_limit?: number; p_phone: string }
+        Returns: {
+          body: string
+          body_purged_at: string
+          created_at: string
+          direction: string
+          error_code: string
+          id: string
+          kind: string
+          media: Json
+          peer_e164: string
+          send_after: string
+          sent_at: string
+          status: string
+        }[]
+      }
       list_staff_invitations: {
         Args: never
         Returns: {
@@ -6645,6 +6662,10 @@ export type Database = {
         Returns: undefined
       }
       reject_stored_file: { Args: { p_file_id: string }; Returns: undefined }
+      release_sms_claims_for_service: {
+        Args: { p_ids: string[]; p_org_id: string }
+        Returns: number
+      }
       release_sms_provider_lock: {
         Args: { p_org_id: string; p_owner: string }
         Returns: undefined

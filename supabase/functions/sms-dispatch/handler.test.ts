@@ -54,6 +54,9 @@ function harness(opts: {
         { data: opts.claimed ?? [text(1), text(2), text(3)] },
       mark_sms_sent: { data: null },
       mark_sms_failed: { data: null },
+      release_sms_claims_for_service: (args) => ({
+        data: (args.p_ids as string[]).length,
+      }),
     },
   })
   const sent: OutboundText[] = []
@@ -215,6 +218,41 @@ Deno.test('sms-dispatch: module off, claim error, bad claim answer → the run f
   })
 })
 
+Deno.test('sms-dispatch: a release that fails is reported (ids only); the run still ends with its code', async () => {
+  await run(async () => {
+    const s = harness({
+      claimed: [text(1), text(2), text(3)],
+      send: () => Promise.reject(new SmsTransportError('token_limit')),
+    })
+    const failing = fakeSupabase({
+      rpc: {
+        module_enabled_for_org: { data: true },
+        claim_sms_batch_for_service: { data: [text(1), text(2), text(3)] },
+        mark_sms_failed: { data: null },
+        release_sms_claims_for_service: { error: { code: 'XX000' } },
+      },
+    })
+    const lines = await captureConsole('error', async () => {
+      let code: string | undefined
+      try {
+        await dispatchOrg(
+          s.deps,
+          ORG_ID,
+          failing.client,
+          new AbortController().signal,
+          { transport: () => s.transport },
+        )
+      } catch (error) {
+        code = (error as { code?: string }).code
+      }
+      assertEquals(code, 'sms_stopped_token_limit')
+    })
+    const codes = lines.map((l) => JSON.parse(String(l[0])).code)
+    assert(codes.includes('release_sms_claims_failed'))
+    assert(!lines.some((l) => String(l[0]).includes('+1514')), 'never a number')
+  })
+})
+
 Deno.test('sms-dispatch: a refused number is marked failed and counted; the others go on', async () => {
   await run(async () => {
     const refused = text(2).to_e164
@@ -255,6 +293,11 @@ Deno.test('sms-dispatch: a clinic setup gap ends the run sms_not_configured, unr
     )
     assertEquals(finished(service.calls), [['error', 'sms_not_configured']])
     assertEquals(
+      callsTo(service.calls, 'release_sms_claims_for_service'),
+      [{ p_org_id: ORG_ID, p_ids: [mid(3), mid(4)] }],
+      'the texts never handed to the PBX are queued again',
+    )
+    assertEquals(
       lines.filter((l) => String(l[0]).includes('sms_not_configured')).length,
       1,
       'the run failure only (runJob reports it); the texts themselves are not incidents',
@@ -276,6 +319,11 @@ Deno.test('sms-dispatch: a PBX outage ends the run after its batch; the rest wai
       'error',
       'sms_stopped_provider_unreachable',
     ]])
+    assertEquals(
+      callsTo(service.calls, 'release_sms_claims_for_service'),
+      [{ p_org_id: ORG_ID, p_ids: [mid(3), mid(4), mid(5)] }],
+      'the rest waits for the next run, never failed unsent',
+    )
   })
 })
 
@@ -296,6 +344,10 @@ Deno.test('sms-dispatch: no batch starts after the soft deadline; the texts left
   )
   assertEquals(s.sent.length, 4)
   assertEquals(detail, 'claimed=7 sent=4 failed=0 deferred=3')
+  assertEquals(
+    callsTo(s.service.calls, 'release_sms_claims_for_service'),
+    [{ p_org_id: ORG_ID, p_ids: [mid(5), mid(6), mid(7)] }],
+  )
 })
 
 Deno.test('sms-dispatch: an aborted signal (runJob cut) stops before the next batch', async () => {
@@ -312,4 +364,10 @@ Deno.test('sms-dispatch: an aborted signal (runJob cut) stops before the next ba
   }
   assertEquals(code, 'timeout')
   assertEquals(s.sent, [])
+  assertEquals(
+    callsTo(s.service.calls, 'release_sms_claims_for_service').map((a) =>
+      (a.p_ids as string[]).length
+    ),
+    [3],
+  )
 })

@@ -17,11 +17,13 @@
  *    `sms_not_configured`: nothing else would leave either (the texts stay
  *    `failed` with that code, visible in « Textos »); a PBX outage
  *    (`provider_unreachable`, `token_limit`, `lock_timeout`) ends it
- *    `sms_stopped_<code>` after the batch, the rest waits for the next run;
- *    a refused number (`provider_rejected`) is counted and the others go on.
- *    No batch starts after SOFT_DEADLINE_MS, before `runJob`'s 60 s cut; the
- *    texts left are `deferred` (claimed, they fail `provider_unavailable`
- *    at the next run's sweep: a deferred text is not sent twice).
+ *    `sms_stopped_<code>` after the batch; a refused number
+ *    (`provider_rejected`) is counted and the others go on. No batch starts
+ *    after SOFT_DEADLINE_MS, before `runJob`'s 60 s cut, nor once the run's
+ *    signal aborted. In every one of these stops the texts never handed to
+ *    the PBX are released (`release_sms_claims_for_service`: `queued` again,
+ *    for the next run; counted `deferred`); a release that fails leaves them
+ *    to the next sweep (`provider_unavailable`), reported.
  * 4. The detail: counts only (`claimed=… sent=… failed=…`, plus
  *    `deferred=…`), never a number.
  */
@@ -35,6 +37,8 @@ import {
   createYeastarTransport,
   type SmsTransport,
 } from '../_shared/sms/transport.ts'
+
+import { reportError } from '../_shared/report.ts'
 
 const FN = 'sms-dispatch'
 export const JOB_KEY = 'communications.sms_dispatch'
@@ -71,6 +75,26 @@ export interface HandlerOptions {
 /** A failure that ends the clinic's run with this code (`runJob` records it). */
 function stop(code: string): never {
   throw Object.assign(new Error(code), { code })
+}
+
+/** Gives back claimed texts never handed to the PBX (best effort: else the next sweep fails them). */
+async function release(
+  deps: Deps,
+  client: SupabaseClient,
+  orgId: string,
+  texts: ClaimedText[],
+): Promise<void> {
+  if (texts.length === 0) return
+  const { error } = await client.rpc('release_sms_claims_for_service', {
+    p_org_id: orgId,
+    p_ids: texts.map((t) => t.id),
+  })
+  if (error) {
+    await reportError(
+      { fn: FN, code: 'release_sms_claims_failed', ids: { org_id: orgId } },
+      deps.fetch,
+    )
+  }
 }
 
 /** The job handler; see the module comment. */
@@ -124,9 +148,13 @@ export async function dispatchOrg(
   let deferred = 0
   const startedAt = deps.now().getTime()
   for (let start = 0; start < texts.length; start += BATCH_SIZE) {
-    if (signal.aborted) stop('timeout')
+    if (signal.aborted) {
+      await release(deps, client, orgId, texts.slice(start))
+      stop('timeout')
+    }
     if (deps.now().getTime() - startedAt >= SOFT_DEADLINE_MS) {
       deferred = texts.length - start
+      await release(deps, client, orgId, texts.slice(start))
       break
     }
     const outcomes = await Promise.all(
@@ -137,11 +165,16 @@ export async function dispatchOrg(
     const failures = outcomes.flatMap((o) => (o.ok ? [] : [o.code]))
     failed += failures.length
     sent += outcomes.length - failures.length
+    const rest = texts.slice(start + BATCH_SIZE)
     if (failures.some((code) => SETUP_FAILURES.has(code))) {
+      await release(deps, client, orgId, rest)
       stop('sms_not_configured')
     }
     const fatal = failures.find((code) => BATCH_STOP_FAILURES.has(code))
-    if (fatal) stop(`sms_stopped_${fatal}`)
+    if (fatal) {
+      await release(deps, client, orgId, rest)
+      stop(`sms_stopped_${fatal}`)
+    }
   }
   const detail = `claimed=${texts.length} sent=${sent} failed=${failed}`
   return deferred > 0 ? `${detail} deferred=${deferred}` : detail
