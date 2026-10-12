@@ -116,6 +116,25 @@ values
    vault.create_secret('local-dev-yeastar-webhook-secret',
                        'org:00000000-0000-0000-0000-000000000001:yeastar_webhook_secret'));
 
+-- Local Gmail (Communications, CM1; the module is enabled above): the fake Google's OAuth client
+-- (`npm run fake:gmail`, port 55392; _shared/testing/fake-gmail.ts FAKE_CLIENT_ID / _SECRET), the
+-- service account its signed pushes name (scripts/fake-gmail.ts) and a topic, stored as
+-- set_org_secret and set_communications_settings store them. Like the template (CM-1), only Admin holds
+-- communications.* here (pgTAP 014 compares each org's role defaults with the template).
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'google_oauth_client_id',
+   vault.create_secret('local-dev-google-client-id.apps.googleusercontent.com',
+                       'org:00000000-0000-0000-0000-000000000001:google_oauth_client_id')),
+  ('00000000-0000-0000-0000-000000000001', 'google_oauth_client_secret',
+   vault.create_secret('local-dev-google-client-secret',
+                       'org:00000000-0000-0000-0000-000000000001:google_oauth_client_secret'));
+insert into public.org_module_settings (org_id, module_key, settings) values
+  ('00000000-0000-0000-0000-000000000001', 'communications',
+   '{"pubsub_topic": "projects/mana-local/topics/gmail-push",
+     "pubsub_service_account": "gmail-push@mana-local.iam.gserviceaccount.com"}')
+on conflict (org_id, module_key) do update set settings = public.org_module_settings.settings || excluded.settings;
+
 -- =============================================================================
 -- Local test professionals (plan Task 4a.20 « Seed »)
 -- =============================================================================

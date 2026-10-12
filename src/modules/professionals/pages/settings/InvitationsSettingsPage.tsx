@@ -15,7 +15,7 @@ import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { ProfessionalsSettings } from '../../api/parse'
-import { ScheduledJobState } from '../../components/settings/ScheduledJobState'
+import { ScheduledJobState } from '@/core/jobs/components/ScheduledJobState'
 import { useProfessionalsSettings, useSaveProfessionalsSettings } from '../../hooks/use-professionals-settings'
 import { INVITATION_REMINDER_MAX, invitationsSchema, toInvitationsFormValues } from '../../schemas/invitations'
 

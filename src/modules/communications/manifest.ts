@@ -1,4 +1,4 @@
-import { MessageSquareText } from 'lucide-react'
+import { Mail, MessageSquareText } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -19,10 +19,28 @@ export const communicationsManifest: ModuleManifest = {
     // « Textos » (batch SM): the conversations with the clinic's SMS number.
     { path: '/textos', labelKey: 'modules.communications.sms.nav', icon: MessageSquareText, permission: 'communications.sms', order: 21 },
   ],
-  routes: [{ path: 'textos', permission: 'communications.sms', component: lazyPage(() => import('./pages/SmsPage'), 'SmsPage') }],
+  routes: [
+    { path: 'textos', permission: 'communications.sms', component: lazyPage(() => import('./pages/SmsPage'), 'SmsPage') },
+    // Where Google sends the browser back after « Connecter une boîte » (CM1): fixed, the
+    // functions build the same address from APP_URL (`_shared/gmail/env.ts` RETURN_PATH).
+    {
+      path: 'courriels/retour-google',
+      permission: 'communications.mailboxes_manage',
+      component: lazyPage(() => import('./pages/GoogleReturnPage'), 'GoogleReturnPage'),
+    },
+  ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.communicationsAuditLabels),
   settingsSections: [
+    {
+      id: 'gmail',
+      path: 'courriels-gmail',
+      labelKey: 'modules.communications.settings.gmail.title',
+      icon: Mail,
+      permission: 'communications.mailboxes_manage',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/GmailSettingsPage'), 'GmailSettingsPage'),
+    },
     {
       // Paramètres → Textos (batch SM): the PBX, the webhook, the automatic texts, the test.
       id: 'sms',

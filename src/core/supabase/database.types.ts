@@ -1647,6 +1647,640 @@ export type Database = {
           },
         ]
       }
+      mail_attachments: {
+        Row: {
+          attempts: number
+          content_id: string | null
+          created_at: string
+          filename: string | null
+          gmail_attachment_id: string | null
+          id: string
+          is_inline: boolean
+          message_id: string
+          mime_type: string | null
+          org_id: string
+          part_id: string
+          size_bytes: number | null
+          status: string
+          stored_file_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          content_id?: string | null
+          created_at?: string
+          filename?: string | null
+          gmail_attachment_id?: string | null
+          id?: string
+          is_inline?: boolean
+          message_id: string
+          mime_type?: string | null
+          org_id: string
+          part_id: string
+          size_bytes?: number | null
+          status?: string
+          stored_file_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          content_id?: string | null
+          created_at?: string
+          filename?: string | null
+          gmail_attachment_id?: string | null
+          id?: string
+          is_inline?: boolean
+          message_id?: string
+          mime_type?: string | null
+          org_id?: string
+          part_id?: string
+          size_bytes?: number | null
+          status?: string
+          stored_file_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_attachments_message_fkey"
+            columns: ["org_id", "message_id"]
+            isOneToOne: false
+            referencedRelation: "mail_messages"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "mail_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_attachments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_attachments_stored_file_id_fkey"
+            columns: ["stored_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_connection_tokens: {
+        Row: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at: string
+          key_version: number
+          org_id: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at?: string
+          key_version?: number
+          org_id: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          access_token_expires_at?: string
+          connection_id?: string
+          created_at?: string
+          key_version?: number
+          org_id?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_connection_tokens_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_connection_tokens_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: true
+            referencedRelation: "mail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_connection_tokens_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_connections: {
+        Row: {
+          connected_at: string
+          connected_by: string | null
+          created_at: string
+          disconnected_at: string | null
+          disconnected_by: string | null
+          email_address: string
+          id: string
+          kind: string
+          org_id: string
+          owner_profile_id: string | null
+          scopes: string[]
+          status: string
+          status_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          disconnected_by?: string | null
+          email_address: string
+          id?: string
+          kind?: string
+          org_id: string
+          owner_profile_id?: string | null
+          scopes?: string[]
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          disconnected_by?: string | null
+          email_address?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          owner_profile_id?: string | null
+          scopes?: string[]
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_connections_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "mail_connections_disconnected_by_fkey"
+            columns: ["disconnected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "mail_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_connections_owner_fkey"
+            columns: ["owner_profile_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
+      }
+      mail_labels: {
+        Row: {
+          color_background: string | null
+          color_text: string | null
+          connection_id: string
+          created_at: string
+          gmail_label_id: string
+          name: string
+          org_id: string
+          type: string
+          updated_at: string
+          visibility: string | null
+        }
+        Insert: {
+          color_background?: string | null
+          color_text?: string | null
+          connection_id: string
+          created_at?: string
+          gmail_label_id: string
+          name: string
+          org_id: string
+          type: string
+          updated_at?: string
+          visibility?: string | null
+        }
+        Update: {
+          color_background?: string | null
+          color_text?: string | null
+          connection_id?: string
+          created_at?: string
+          gmail_label_id?: string
+          name?: string
+          org_id?: string
+          type?: string
+          updated_at?: string
+          visibility?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_labels_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_labels_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_labels_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_messages: {
+        Row: {
+          bcc_addresses: Json
+          body_html: string | null
+          body_purged_at: string | null
+          body_text: string | null
+          cc_addresses: Json
+          connection_id: string
+          created_at: string
+          from_address: string | null
+          from_name: string | null
+          gmail_message_id: string
+          has_attachments: boolean
+          id: string
+          in_reply_to: string | null
+          is_inbound: boolean
+          is_unread: boolean
+          label_ids: string[]
+          org_id: string
+          reply_to_address: string | null
+          rfc_message_id: string | null
+          search_vector: unknown
+          sent_at: string
+          size_estimate: number | null
+          snippet: string | null
+          subject: string | null
+          thread_id: string
+          to_addresses: Json
+          updated_at: string
+        }
+        Insert: {
+          bcc_addresses?: Json
+          body_html?: string | null
+          body_purged_at?: string | null
+          body_text?: string | null
+          cc_addresses?: Json
+          connection_id: string
+          created_at?: string
+          from_address?: string | null
+          from_name?: string | null
+          gmail_message_id: string
+          has_attachments?: boolean
+          id?: string
+          in_reply_to?: string | null
+          is_inbound?: boolean
+          is_unread?: boolean
+          label_ids?: string[]
+          org_id: string
+          reply_to_address?: string | null
+          rfc_message_id?: string | null
+          search_vector?: unknown
+          sent_at: string
+          size_estimate?: number | null
+          snippet?: string | null
+          subject?: string | null
+          thread_id: string
+          to_addresses?: Json
+          updated_at?: string
+        }
+        Update: {
+          bcc_addresses?: Json
+          body_html?: string | null
+          body_purged_at?: string | null
+          body_text?: string | null
+          cc_addresses?: Json
+          connection_id?: string
+          created_at?: string
+          from_address?: string | null
+          from_name?: string | null
+          gmail_message_id?: string
+          has_attachments?: boolean
+          id?: string
+          in_reply_to?: string | null
+          is_inbound?: boolean
+          is_unread?: boolean
+          label_ids?: string[]
+          org_id?: string
+          reply_to_address?: string | null
+          rfc_message_id?: string | null
+          search_vector?: unknown
+          sent_at?: string
+          size_estimate?: number | null
+          snippet?: string | null
+          subject?: string | null
+          thread_id?: string
+          to_addresses?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_messages_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_messages_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_messages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_messages_thread_fkey"
+            columns: ["org_id", "thread_id"]
+            isOneToOne: false
+            referencedRelation: "mail_threads"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "mail_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_sync_state: {
+        Row: {
+          connection_id: string
+          history_id: number | null
+          initial_sync_done: boolean
+          initial_sync_page_token: string | null
+          last_error_at: string | null
+          last_error_code: string | null
+          last_sync_at: string | null
+          last_sync_started_at: string | null
+          last_sync_status: string | null
+          lease_token: string | null
+          lease_until: string | null
+          messages_synced: number
+          org_id: string
+          sync_requested_at: string | null
+          updated_at: string
+          watch_expires_at: string | null
+          watch_history_id: number | null
+        }
+        Insert: {
+          connection_id: string
+          history_id?: number | null
+          initial_sync_done?: boolean
+          initial_sync_page_token?: string | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_sync_at?: string | null
+          last_sync_started_at?: string | null
+          last_sync_status?: string | null
+          lease_token?: string | null
+          lease_until?: string | null
+          messages_synced?: number
+          org_id: string
+          sync_requested_at?: string | null
+          updated_at?: string
+          watch_expires_at?: string | null
+          watch_history_id?: number | null
+        }
+        Update: {
+          connection_id?: string
+          history_id?: number | null
+          initial_sync_done?: boolean
+          initial_sync_page_token?: string | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_sync_at?: string | null
+          last_sync_started_at?: string | null
+          last_sync_status?: string | null
+          lease_token?: string | null
+          lease_until?: string | null
+          messages_synced?: number
+          org_id?: string
+          sync_requested_at?: string | null
+          updated_at?: string
+          watch_expires_at?: string | null
+          watch_history_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_sync_state_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_sync_state_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: true
+            referencedRelation: "mail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_sync_state_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_thread_links: {
+        Row: {
+          candidate_client_ids: string[]
+          client_id: string | null
+          created_at: string
+          linked_at: string | null
+          linked_by: string | null
+          org_id: string
+          source: string | null
+          status: string
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          candidate_client_ids?: string[]
+          client_id?: string | null
+          created_at?: string
+          linked_at?: string | null
+          linked_by?: string | null
+          org_id: string
+          source?: string | null
+          status?: string
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          candidate_client_ids?: string[]
+          client_id?: string | null
+          created_at?: string
+          linked_at?: string | null
+          linked_by?: string | null
+          org_id?: string
+          source?: string | null
+          status?: string
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_thread_links_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "mail_thread_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_thread_links_thread_fkey"
+            columns: ["org_id", "thread_id"]
+            isOneToOne: false
+            referencedRelation: "mail_threads"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_thread_links_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "mail_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_threads: {
+        Row: {
+          connection_id: string
+          created_at: string
+          first_message_at: string | null
+          gmail_thread_id: string
+          has_attachments: boolean
+          id: string
+          label_ids: string[]
+          last_from_address: string | null
+          last_from_name: string | null
+          last_message_at: string | null
+          message_count: number
+          org_id: string
+          snippet: string | null
+          subject: string | null
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          first_message_at?: string | null
+          gmail_thread_id: string
+          has_attachments?: boolean
+          id?: string
+          label_ids?: string[]
+          last_from_address?: string | null
+          last_from_name?: string | null
+          last_message_at?: string | null
+          message_count?: number
+          org_id: string
+          snippet?: string | null
+          subject?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          first_message_at?: string | null
+          gmail_thread_id?: string
+          has_attachments?: boolean
+          id?: string
+          label_ids?: string[]
+          last_from_address?: string | null
+          last_from_name?: string | null
+          last_message_at?: string | null
+          message_count?: number
+          org_id?: string
+          snippet?: string | null
+          subject?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_threads_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "mail_threads_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_threads_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       module_dependencies: {
         Row: {
           depends_on: string
@@ -6583,6 +7217,15 @@ export type Database = {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
         Returns: Json
       }
+      acquire_mail_sync_lease: {
+        Args: {
+          p_connection_id: string
+          p_org_id: string
+          p_seconds?: number
+          p_token: string
+        }
+        Returns: boolean
+      }
       acquire_sms_provider_lock: {
         Args: { p_org_id: string; p_owner: string; p_ttl_seconds?: number }
         Returns: boolean
@@ -6631,6 +7274,10 @@ export type Database = {
           p_status: string
         }
         Returns: string
+      }
+      apply_mail_label_changes: {
+        Args: { p_changes: Json; p_connection_id: string; p_org_id: string }
+        Returns: number
       }
       apply_professional_submission: {
         Args: { p_fields?: string[]; p_submission_id: string }
@@ -6897,6 +7544,14 @@ export type Database = {
       }
       delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
       delete_compensation_rate: { Args: { p_id: string }; Returns: undefined }
+      delete_mail_messages: {
+        Args: {
+          p_connection_id: string
+          p_gmail_message_ids: string[]
+          p_org_id: string
+        }
+        Returns: number
+      }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_professional_client_agreement: {
         Args: { p_row_id: string }
@@ -6923,6 +7578,10 @@ export type Database = {
         Args: { p_file_id: string; p_org_id: string }
         Returns: boolean
       }
+      disconnect_mail_connection: {
+        Args: { p_actor: string; p_connection_id: string; p_org_id: string }
+        Returns: boolean
+      }
       end_professional_client_agreement: {
         Args: { p_effective_to: string; p_row_id: string }
         Returns: undefined
@@ -6940,6 +7599,20 @@ export type Database = {
         Args: { p_detail: string; p_id: string; p_status: string }
         Returns: undefined
       }
+      finish_mail_sync: {
+        Args: {
+          p_connection_id: string
+          p_error_code: string
+          p_history_id: number
+          p_initial_sync_done: boolean
+          p_initial_sync_page_token: string
+          p_messages: number
+          p_org_id: string
+          p_status: string
+          p_token: string
+        }
+        Returns: boolean
+      }
       get_bank_details: {
         Args: never
         Returns: {
@@ -6951,10 +7624,28 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_communications_settings: { Args: never; Returns: Json }
+      get_communications_settings_for_org: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       get_consent_versions: { Args: { p_key?: string }; Returns: Json }
       get_email_context: {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
+      }
+      get_mail_connection_credentials: {
+        Args: { p_connection_id: string; p_org_id: string }
+        Returns: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          email_address: string
+          kind: string
+          refresh_token: string
+          scopes: string[]
+          status: string
+        }[]
       }
       get_my_access: { Args: never; Returns: Json }
       get_my_image_consent: { Args: never; Returns: Json }
@@ -7218,6 +7909,59 @@ export type Database = {
         }[]
       }
       list_job_orgs: { Args: { p_key: string }; Returns: string[] }
+      list_mail_attachments_to_store: {
+        Args: { p_connection_id: string; p_limit?: number; p_org_id: string }
+        Returns: {
+          attachment_id: string
+          attempts: number
+          filename: string
+          gmail_attachment_id: string
+          gmail_message_id: string
+          message_id: string
+          mime_type: string
+          part_id: string
+          size_bytes: number
+        }[]
+      }
+      list_mail_connections: {
+        Args: never
+        Returns: {
+          connected_at: string
+          connected_by_name: string
+          disconnected_at: string
+          email_address: string
+          id: string
+          initial_sync_done: boolean
+          kind: string
+          last_error_at: string
+          last_error_code: string
+          last_sync_at: string
+          last_sync_status: string
+          messages_synced: number
+          scopes: string[]
+          status: string
+          status_reason: string
+          sync_in_progress: boolean
+          thread_count: number
+          unread_count: number
+          watch_expires_at: string
+        }[]
+      }
+      list_mail_connections_to_sync: {
+        Args: { p_org_id: string }
+        Returns: {
+          connection_id: string
+          email_address: string
+          history_id: number
+          initial_sync_done: boolean
+          initial_sync_page_token: string
+          last_sync_at: string
+          lease_until: string
+          status: string
+          sync_requested_at: string
+          watch_expires_at: string
+        }[]
+      }
       list_modules: {
         Args: never
         Returns: {
@@ -7636,6 +8380,15 @@ export type Database = {
         }
         Returns: Json
       }
+      record_mail_attachment: {
+        Args: {
+          p_attachment_id: string
+          p_org_id: string
+          p_status: string
+          p_stored_file_id: string
+        }
+        Returns: undefined
+      }
       record_monthly_sessions: {
         Args: { p_entries: Json; p_month: string }
         Returns: number
@@ -7727,11 +8480,19 @@ export type Database = {
         Args: { p_ids: string[]; p_kind: string }
         Returns: undefined
       }
+      request_mail_sync: {
+        Args: { p_email_address: string; p_org_id: string }
+        Returns: string
+      }
       request_professional_update: {
         Args: { p_id: string; p_sections: string[] }
         Returns: Json
       }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
+      reset_mail_history: {
+        Args: { p_connection_id: string; p_org_id: string; p_token?: string }
+        Returns: boolean
+      }
       resolve_professional_invitation: {
         Args: { p_link_id: string }
         Returns: Json
@@ -7911,6 +8672,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_communications_settings: { Args: { p_patch: Json }; Returns: Json }
       set_compensation_rate: {
         Args: {
           p_effective_from: string
@@ -7933,6 +8695,33 @@ export type Database = {
       }
       set_email_sending_domain: {
         Args: { p_domain: string }
+        Returns: undefined
+      }
+      set_mail_access_token: {
+        Args: {
+          p_access_token: string
+          p_connection_id: string
+          p_expires_at: string
+          p_org_id: string
+        }
+        Returns: undefined
+      }
+      set_mail_connection_status: {
+        Args: {
+          p_connection_id: string
+          p_org_id: string
+          p_reason: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      set_mail_watch: {
+        Args: {
+          p_connection_id: string
+          p_expires_at: string
+          p_history_id: number
+          p_org_id: string
+        }
         Returns: undefined
       }
       set_module_enabled: {
@@ -8106,6 +8895,19 @@ export type Database = {
         Args: { p_sections: string[] }
         Returns: string
       }
+      store_mail_connection: {
+        Args: {
+          p_access_token: string
+          p_access_token_expires_at: string
+          p_actor: string
+          p_email_address: string
+          p_kind: string
+          p_org_id: string
+          p_refresh_token: string
+          p_scopes: string[]
+        }
+        Returns: string
+      }
       store_sms_provider_session: {
         Args: {
           p_access_expires_at: string
@@ -8129,6 +8931,18 @@ export type Database = {
           p_variables: Json
         }
         Returns: undefined
+      }
+      upsert_mail_labels: {
+        Args: { p_connection_id: string; p_labels: Json; p_org_id: string }
+        Returns: number
+      }
+      upsert_mail_messages: {
+        Args: { p_connection_id: string; p_messages: Json; p_org_id: string }
+        Returns: {
+          gmail_message_id: string
+          inserted: boolean
+          message_id: string
+        }[]
       }
       verify_professional_document: {
         Args: { p_doc_id: string; p_expires_on?: string }
