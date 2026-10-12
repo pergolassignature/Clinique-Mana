@@ -6,7 +6,8 @@ import { testAccess } from './contexts'
  * (20261007140517_core_access, 20261007140859_professionals_module, 20261007192359_core_roles_split,
  * 20261008015825_core_editable_roles, 20261008033613_core_shared_permissions,
  * 20261008133511_professionals_reference_data, 20261008191219_professionals_onboarding,
- * 20261009000253_professionals_documents, 20261009030158_professionals_contracts, 20261012184103_services_module, 20261012203302_communications_sms, 20261012213428_clients_module), which
+ * 20261009000253_professionals_documents, 20261009030158_professionals_contracts, 20261012184103_services_module, 20261012184051_communications_module, 20261012203302_communications_sms, 20261012213428_clients_module,
+ * 20261012214809_demandes_module), which
  * every clinic starts from (org_role_permissions). Update it with the migrations.
  */
 export const ROLE_PERMISSIONS = {
@@ -36,6 +37,8 @@ export const ROLE_PERMISSIONS = {
     'professionals.contracts.send',
     'services.view',
     'services.manage',
+    'communications.inbox',
+    'communications.mailboxes_manage',
     'communications.sms',
     'communications.sms_manage',
     'clients.view',
@@ -43,6 +46,11 @@ export const ROLE_PERMISSIONS = {
     'clients.merge',
     'clients.privacy',
     'clients.self',
+    'demandes.view',
+    'demandes.manage',
+    'demandes.notes',
+    'demandes.waitlist',
+    'demandes.self',
   ],
   admin_assistant: [
     'settings.view',
@@ -57,9 +65,23 @@ export const ROLE_PERMISSIONS = {
     'clients.view',
     'clients.manage',
     'clients.merge',
+    'demandes.view',
+    'demandes.manage',
+    'demandes.notes',
+    'demandes.waitlist',
   ],
-  counselor: ['professionals.view', 'professionals.matching', 'services.view', 'clients.view', 'clients.manage'],
-  provider: ['professionals.self', 'services.view', 'clients.self'],
+  counselor: [
+    'professionals.view',
+    'professionals.matching',
+    'services.view',
+    'clients.view',
+    'clients.manage',
+    'demandes.view',
+    'demandes.manage',
+    'demandes.notes',
+    'demandes.waitlist',
+  ],
+  provider: ['professionals.self', 'services.view', 'clients.self', 'demandes.self'],
 } as const satisfies Record<string, readonly string[]>
 
 export type FixtureRole = keyof typeof ROLE_PERMISSIONS
