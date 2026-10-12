@@ -302,6 +302,54 @@ export const LIMITS = {
     max: 600,
     windowSeconds: 60,
   },
+  /**
+   * `gmail-webhook` (Pub/Sub pushes), per IP, before the org's token is
+   * read (anyone can post there). Google pushes each mailbox's changes as
+   * they happen, from a handful of addresses; a refusal only delays the
+   * sync (Pub/Sub retries, and the 15-minute job catches up).
+   */
+  gmailWebhookIp: {
+    bucket: 'webhooks.gmail_ip',
+    max: 600,
+    windowSeconds: 60,
+  },
+  /**
+   * `gmail-connect` (« Connecter une boîte », « Déconnecter »), per caller:
+   * each start issues a signed state; each disconnect revokes a grant.
+   */
+  gmailConnectUser: {
+    bucket: 'gmail.connect_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /**
+   * An OAuth state's nonce (`_shared/oauth-state.ts`): one hit per nonce
+   * within its lifetime, so a replayed state is refused like a second click.
+   * The window is the state's own 10 minutes.
+   */
+  oauthStateNonce: {
+    bucket: 'oauth.state_nonce',
+    max: 1,
+    windowSeconds: 600,
+  },
+  /**
+   * `gmail-callback` (the code exchange), per caller: each call reaches
+   * Google's token endpoint and stores a connection.
+   */
+  gmailCallbackUser: {
+    bucket: 'gmail.callback_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `gmail-sync` (« Synchroniser »), per caller: each call reads the mailbox
+   * from Google (the webhook and the job do the rest).
+   */
+  gmailSyncUser: {
+    bucket: 'gmail.sync_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**
