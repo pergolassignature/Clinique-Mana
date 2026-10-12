@@ -197,13 +197,6 @@ export type Database = {
             referencedRelation: "clients_directory"
             referencedColumns: ["org_id", "id"]
           },
-          {
-            foreignKeyName: "client_insurances_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
-            referencedColumns: ["org_id", "id"]
-          },
         ]
       }
       client_merges: {
@@ -250,13 +243,6 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "client_merges_kept_fkey"
-            columns: ["org_id", "kept_client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
             foreignKeyName: "client_merges_merged_by_fkey"
             columns: ["merged_by"]
             isOneToOne: false
@@ -275,13 +261,6 @@ export type Database = {
             columns: ["org_id", "merged_client_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "client_merges_merged_fkey"
-            columns: ["org_id", "merged_client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
             referencedColumns: ["org_id", "id"]
           },
         ]
@@ -324,13 +303,6 @@ export type Database = {
             columns: ["org_id", "client_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "client_notes_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -413,13 +385,6 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "client_payers_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
             foreignKeyName: "client_payers_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -466,13 +431,6 @@ export type Database = {
             columns: ["org_id", "client_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "client_professional_links_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -579,13 +537,6 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "client_relations_a_fkey"
-            columns: ["org_id", "client_a_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
             foreignKeyName: "client_relations_b_fkey"
             columns: ["org_id", "client_b_id"]
             isOneToOne: false
@@ -597,13 +548,6 @@ export type Database = {
             columns: ["org_id", "client_b_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "client_relations_b_fkey"
-            columns: ["org_id", "client_b_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -647,13 +591,6 @@ export type Database = {
             columns: ["org_id", "client_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "client_tag_links_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -923,13 +860,6 @@ export type Database = {
             columns: ["org_id", "merged_into_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "clients_merged_into_fkey"
-            columns: ["org_id", "merged_into_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -2575,13 +2505,6 @@ export type Database = {
             columns: ["org_id", "client_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "professional_client_agreements_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -6081,13 +6004,6 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "clients_merged_into_fkey"
-            columns: ["org_id", "merged_into_id"]
-            isOneToOne: false
-            referencedRelation: "my_clients"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
             foreignKeyName: "clients_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -6206,15 +6122,7 @@ export type Database = {
           pronouns: string | null
           reason: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "clients_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       profession_titles_catalog: {
         Row: {

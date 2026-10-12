@@ -45,7 +45,7 @@ All per clinic (`org_id`), RLS on, `select` only for clients (every write is an 
 Other modules read these, never the raw tables (CLAUDE.md §5):
 
 - **`clients_directory`** (security invoker, `clients.view`): `id, org_id, client_number, first_name, last_name, display_name, pronouns, sex, birthday, language, email, mobile_e164, reminders_by_sms, reminders_by_email, primary_professional_id, referral_source_id, rate_variant, tax_exempt, is_banned, file_incomplete, special_agreement, shared_custody, external_ref, is_archived, archived_at, merged_into_id, is_anonymized, created_at, updated_at`. Later batches only append columns.
-- **`my_clients`** (security invoker, `clients.self`): the professional's linked clients with `display_name`, pronouns, birthday, language, email, mobile, `is_primary`, the link's reason and dates, `is_archived`; never notes, insurance, payers or tags.
+- **`my_clients`** (security invoker over the definer `private.my_clients_rows()`, which checks `clients.self` first): the professional's linked clients (anonymised ones left out) with `display_name`, pronouns, birthday, language, email, mobile, `is_primary`, the link's reason and dates, `is_archived`; never notes, insurance, payers or tags. **A professional has no policy on any client table** (only on her own rows of `client_professional_links`): `my_clients` is her only read (CL-5).
 - **`private.clients_link_professional(p_org, p_client_id, p_professional_id, p_reason)`**: for definer callers (Rendez-vous on booking, Demandes on assignment, C2, the import), after their own permission check, with the org they verified; keeps the first reason. Granted to no role.
 - **`private.client_visible_to_professional(p_client_id, p_professional_id)`**: for the provider reads of Rendez-vous and Facturation. Granted to no role.
 - **For Services et tarifs' prices:** a client's `rate_variant` is the `p_variant` and `tax_exempt` the `p_tax_exempt` of `service_price` (S-1, S-2).
@@ -58,3 +58,12 @@ Other modules read these, never the raw tables (CLAUDE.md §5):
 - An invoice is never split: Facturation chooses one payer per invoice among the client and the relations with `*_receives_invoices` (R-61).
 - `special_agreement`: the invoices wait in the morning queue for validation (R-56); the note is staff-only.
 - Testing in production uses dry-run-imported clients and named testers only (R-72; « core: module testers », next PR).
+
+## For C2 and the import (from the C1 review)
+
+- **Merge** (`merge_clients`): delete the relation between the two files first; for a person related to both, OR the rights into the kept file's row and drop the merged one; resolve `client_insurances` (rank), `client_payers` (one active per kind), tags (shared, > 5 combined) and links (primary key) before moving the rest; follow `merged_into_id` chains. Moving a relation side re-sorts the pair and swaps it whole (the trigger), which keeps who holds which right.
+- **Ententes particulières:** `set_professional_client_agreement` finds the open agreement by label when `client_id` is null, and the no-overlap key is `coalesce(client_id, label)`: I1 fills `client_id` on every row of a series at once, and the RPC learns to match on `client_id` or the label in the same release; a merge re-points agreements through a Professionnels hook.
+- **Links:** they never end today; add an end (or an unlink helper) before Demandes writes links on reassignment. `clients_link_professional` moves `last_linked_at` at most once a day.
+- **Anonymisation:** `anonymize_client` deletes the relations and tag links (their audit rows would still tie the person to a relative), blanks the identity and `external_ref`; `anonymized_at` can never be cleared (trigger).
+- **File numbers:** a transaction-level advisory lock per clinic (not the org row), also for an explicit number (the import's).
+- **Search:** at ~8 500 rows a scan is fine; C2 may add an `unaccent` expression index (Professionnels' immutable normaliser) for accent-insensitive search and the phone digit matches.

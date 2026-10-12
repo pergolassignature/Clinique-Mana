@@ -6,7 +6,7 @@
 -- Data:      docs/research/2026-10-11-gorendezvous-tour.md §2 (the client record, the 31 tags)
 -- Answers:   docs/research/2026-10-12-christine-answers.md (both parents, one payer per invoice,
 --            « Statut Indien », « Entente particulière », SMS and / or email per person)
--- Decisions: R-5, R-7, R-8, R-9, R-48, R-54, R-61, R-64, CL-1 … CL-10 (decisions log)
+-- Decisions: R-5, R-7, R-8, R-9, R-48, R-54, R-61, R-64, CL-1 … CL-11 (decisions log)
 -- Recipe:    docs/standards/database-conventions.md §9
 --
 -- The clinic's clients (~7 400 active, ~1 080 archived in GOrendezvous). One row per person:
@@ -14,9 +14,10 @@
 -- per direction (manage appointments and forms, receive communications, receive receipts and
 -- invoices) replace a « responsible » column. GOrendezvous's tags become fields where a rule
 -- reads them (rate variant, tax exemption, banned, incomplete file, special agreement); the
--- rest are ≤ 5 free tags from a clinic list. Staff-only notes live in `client_notes`, so a
--- professional can read her clients' rows (`my_clients`) without them. Every write goes
--- through RPCs (C2); the module starts disabled everywhere.
+-- rest are ≤ 5 free tags from a clinic list. Staff-only notes live in `client_notes`. A
+-- professional never reads the tables: `my_clients` gives her linked clients' published columns
+-- through a definer function (CL-5). Every write goes through RPCs (C2); the module starts
+-- disabled everywhere.
 --
 -- Published (other modules read these, never the tables): `clients_directory` (staff),
 -- `my_clients` (the professional's own clients), `private.clients_link_professional(…)` (for
@@ -212,8 +213,9 @@ create index clients_archived_by_idx on public.clients (archived_by);
 create index clients_anonymized_by_idx on public.clients (anonymized_by);
 create index clients_created_by_idx on public.clients (created_by);
 
--- The next file number of the clinic, given in order: the org row is locked (the RPCs lock it
--- first anyway, conventions §6), then the highest number + 1 (an index-only read).
+-- The next file number of the clinic, given in order: a transaction lock per clinic and purpose
+-- (not the org row, so a long import never blocks the other modules' org-locking RPCs), taken
+-- for an explicit number too (the import's), then the highest number + 1 (an index-only read).
 create function private.clients_assign_number()
 returns trigger
 language plpgsql
@@ -221,8 +223,8 @@ security definer
 set search_path = ''
 as $$
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('clients.client_number:' || new.org_id::text, 0));
   if new.client_number is null then
-    perform 1 from public.organizations o where o.id = new.org_id for no key update;
     select coalesce(max(c.client_number), 0) + 1 into new.client_number
       from public.clients c where c.org_id = new.org_id;
   end if;
@@ -233,7 +235,7 @@ revoke all on function private.clients_assign_number() from public, anon, authen
 create trigger clients_assign_number before insert on public.clients
   for each row execute function private.clients_assign_number();
 
--- The clinic and the file number of a client never change.
+-- The clinic and the file number of a client never change; an anonymisation is never undone.
 create function private.clients_freeze_identity()
 returns trigger
 language plpgsql
@@ -243,6 +245,9 @@ as $$
 begin
   if new.org_id is distinct from old.org_id or new.client_number is distinct from old.client_number then
     raise exception 'La clinique et le numéro d''un dossier client ne changent pas.' using errcode = '23514';
+  end if;
+  if old.anonymized_at is not null and new.anonymized_at is distinct from old.anonymized_at then
+    raise exception 'Un dossier anonymisé le reste.' using errcode = '23514';
   end if;
   return new;
 end;
@@ -442,7 +447,8 @@ begin
 end;
 $$;
 revoke all on function private.client_tag_links_max_five() from public, anon, authenticated, service_role;
-create trigger client_tag_links_max_five after insert on public.client_tag_links
+-- Also when a link moves to another client (C2's merge).
+create trigger client_tag_links_max_five after insert or update of client_id on public.client_tag_links
   for each row execute function private.client_tag_links_max_five();
 
 -- -----------------------------------------------------------------------------
@@ -479,8 +485,8 @@ create table public.client_merges (
   moved jsonb not null default '{}',
   merged_at timestamptz not null default now(),
   merged_by uuid references public.profiles(user_id) on delete set null,
-  constraint client_merges_kept_fkey foreign key (org_id, kept_client_id) references public.clients (org_id, id),
-  constraint client_merges_merged_fkey foreign key (org_id, merged_client_id) references public.clients (org_id, id),
+  constraint client_merges_kept_fkey foreign key (org_id, kept_client_id) references public.clients (org_id, id) on delete cascade,
+  constraint client_merges_merged_fkey foreign key (org_id, merged_client_id) references public.clients (org_id, id) on delete cascade,
   constraint client_merges_distinct_check check (kept_client_id <> merged_client_id),
   constraint client_merges_moved_check check (jsonb_typeof(moved) = 'object'),
   constraint client_merges_merged_client_key unique (merged_client_id)
@@ -544,19 +550,11 @@ create policy client_merges_select on public.client_merges
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.has_permission('clients.view')));
 
--- The professional (clients.self): her own links, and the rows of the clients they name. Notes,
--- relations, insurance, payers, tags and merges stay staff-only (CL-5).
+-- The professional (clients.self): her own links (ids only). She never reads a client table:
+-- my_clients gives her linked clients' published columns (CL-5).
 create policy client_professional_links_select_self on public.client_professional_links
   for select to authenticated
   using (professional_id = (select private.current_professional_id()) and (select private.has_permission('clients.self')));
-create policy clients_select_self on public.clients
-  for select to authenticated
-  using (
-    org_id = (select private.current_user_org_id())
-    and (select private.has_permission('clients.self'))
-    and exists (select 1 from public.client_professional_links l
-                 where l.client_id = clients.id
-                   and l.professional_id = (select private.current_professional_id())));
 
 create trigger referral_sources_set_updated_at before update on public.referral_sources
   for each row execute function private.set_updated_at();
@@ -586,7 +584,7 @@ create trigger clients_audit after insert or update or delete on public.clients
   for each row execute function private.audit_trigger(
     'first_name', 'last_name', 'birth_first_name', 'pronouns', 'sex', 'birthday', 'email',
     'mobile_e164', 'home_e164', 'work_e164', 'work_ext', 'time_zone', 'address_line1', 'address_line2',
-    'city', 'province', 'postal_code', 'country', 'referred_by', 'custom_field', 'tax_exempt');
+    'city', 'province', 'postal_code', 'country', 'referred_by', 'custom_field', 'tax_exempt', 'external_ref');
 create trigger client_notes_audit after insert or update or delete on public.client_notes
   for each row execute function private.audit_trigger('admin_notes', 'special_agreement_note');
 create trigger client_relations_audit after insert or update or delete on public.client_relations
@@ -607,7 +605,8 @@ create trigger client_merges_audit after insert or update or delete on public.cl
 -- -----------------------------------------------------------------------------
 -- clients_directory (staff, clients.view): one row per client with what other modules show and
 -- decide on (Demandes' matching and intake, Rendez-vous' booking, Facturation's payer and
--- prices). Ids and codes, never labels; later batches only append columns.
+-- prices). Ids and codes, never labels; later batches only append columns. The table's RLS
+-- scopes it to the clinic and to clients.view.
 create view public.clients_directory with (security_invoker = true) as
 select c.id, c.org_id, c.client_number,
        c.first_name, c.last_name, c.first_name || ' ' || c.last_name as display_name,
@@ -620,32 +619,51 @@ select c.id, c.org_id, c.client_number,
        c.anonymized_at is not null as is_anonymized,
        c.created_at, c.updated_at
   from public.clients c
- -- The table's RLS scopes to the clinic; this term keeps a professional's own clients (readable
- -- through clients_select_self) out of the staff view.
  where (select private.has_permission('clients.view'));
 revoke all on public.clients_directory from anon, authenticated;
 grant select on public.clients_directory to authenticated;
 
 -- my_clients (the professional, clients.self): her linked clients, with what she needs to reach
--- them, never staff notes, insurance or payers.
+-- them and nothing else (no tax exemption, notes, insurance, payers, address). She has no policy
+-- on clients: the rows come from a definer function that checks clients.self first and returns
+-- only these columns, through a security-invoker view (filters and paging work as on a table).
+create function private.my_clients_rows()
+returns table (id uuid, org_id uuid, client_number int, first_name text, last_name text, display_name text,
+               pronouns text, birthday date, language text, email text, mobile_e164 text,
+               is_primary boolean, reason text, first_linked_at timestamptz, last_linked_at timestamptz, is_archived boolean)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select c.id, c.org_id, c.client_number,
+         c.first_name, c.last_name, c.first_name || ' ' || c.last_name,
+         c.pronouns, c.birthday, c.language, c.email, c.mobile_e164,
+         coalesce(c.primary_professional_id = l.professional_id, false),
+         l.reason, l.first_linked_at, l.last_linked_at,
+         c.archived_at is not null
+    from public.client_professional_links l
+    join public.clients c on c.id = l.client_id and c.org_id = l.org_id
+   where private.has_permission('clients.self')
+     and l.professional_id = private.current_professional_id()
+     and l.org_id = private.current_user_org_id()
+     and c.anonymized_at is null
+$$;
+revoke all on function private.my_clients_rows() from public, anon;
+grant execute on function private.my_clients_rows() to authenticated;
+
 create view public.my_clients with (security_invoker = true) as
-select c.id, c.org_id, c.client_number,
-       c.first_name, c.last_name, c.first_name || ' ' || c.last_name as display_name,
-       c.pronouns, c.birthday, c.language, c.email, c.mobile_e164,
-       coalesce(c.primary_professional_id = l.professional_id, false) as is_primary,
-       l.reason, l.first_linked_at, l.last_linked_at,
-       c.archived_at is not null as is_archived
-  from public.clients c
-  join public.client_professional_links l on l.client_id = c.id
- where l.professional_id = (select private.current_professional_id())
-   and (select private.has_permission('clients.self'))
-   and c.anonymized_at is null;
+select r.id, r.org_id, r.client_number, r.first_name, r.last_name, r.display_name,
+       r.pronouns, r.birthday, r.language, r.email, r.mobile_e164,
+       r.is_primary, r.reason, r.first_linked_at, r.last_linked_at, r.is_archived
+  from private.my_clients_rows() r;
 revoke all on public.my_clients from anon, authenticated;
 grant select on public.my_clients to authenticated;
 
 -- Links a client to a professional (Rendez-vous on booking, Demandes on assignment, C2 on
--- creation and primary, the import): first reason kept, last time moved. For definer callers,
--- after their own permission check, with the org they verified. Granted to no role.
+-- creation and primary, the import): first reason kept; the last link's date moves at most once
+-- a day (no audit row per booking). For definer callers, after their own permission check, with
+-- the org they verified. Granted to no role.
 create function private.clients_link_professional(p_org uuid, p_client_id uuid, p_professional_id uuid, p_reason text)
 returns void
 language plpgsql
@@ -660,7 +678,8 @@ begin
   end if;
   insert into public.client_professional_links (client_id, professional_id, org_id, reason)
   values (p_client_id, p_professional_id, p_org, p_reason)
-  on conflict (client_id, professional_id) do update set last_linked_at = now();
+  on conflict (client_id, professional_id) do update set last_linked_at = now()
+    where client_professional_links.last_linked_at < pg_catalog.date_trunc('day', now());
 end;
 $$;
 revoke all on function private.clients_link_professional(uuid, uuid, uuid, text) from public, anon, authenticated, service_role;

@@ -4,13 +4,14 @@
 -- the personal columns redacted; the referral sources seed; the file number (in order, per
 -- clinic, frozen); checks (names, email, phones, province and postal code by country, rate
 -- variant); the relation pair stored in order with its rights swapped, no self relation, valid
--- inverse types; ≤ 5 tags; one active payer per kind, an IVAC file once per clinic; RLS per role
--- (staff read; a professional reads only her linked clients, never notes, relations, insurance,
--- payers or tags; another clinic sees nothing; the module off hides all); the published views
--- and helpers; the agreements' FK to clients.
+-- inverse types (also on update); ≤ 5 tags (also when a link moves); one active payer per kind,
+-- an IVAC file once per clinic; RLS per role (staff read; a professional reads no client table,
+-- only her linked clients' published columns through my_clients, anonymised ones hidden; another
+-- clinic sees nothing; the module off hides all); the published views and helpers; the
+-- agreements' FK to clients.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(105);
+select plan(114);
 
 -- =============================================================================
 -- Registry
@@ -54,6 +55,7 @@ select function_privs_are('private', f.name, f.args, r.role, array[]::text[], f.
   from (values
     ('clients_link_professional', array['uuid', 'uuid', 'uuid', 'text']),
     ('client_visible_to_professional', array['uuid', 'uuid']),
+    ('clients_assign_number', array[]::text[]),
     ('seed_clients_reference', array['uuid'])
   ) as f(name, args)
   cross join (values ('anon'), ('authenticated'), ('service_role')) as r(role);
@@ -111,6 +113,8 @@ select results_eq($$ select client_number from public.clients where org_id = 'b0
   array[1], '… and from 1 in clinic B');
 select throws_ok($$ update public.clients set client_number = 99 where id = 'd0000000-0000-0000-0000-000000000001' $$,
   '23514', 'La clinique et le numéro d''un dossier client ne changent pas.', 'a file number never changes');
+select throws_ok($$ update public.clients set org_id = 'b0000000-0000-0000-0000-00000000000b' where id = 'd0000000-0000-0000-0000-000000000001' $$,
+  '23514', 'La clinique et le numéro d''un dossier client ne changent pas.', '… nor its clinic');
 select is((select a.changed_fields ->> 'first_name' from public.audit_log a where a.table_name = 'clients' and a.action = 'insert'
             and a.record_id = 'd0000000-0000-0000-0000-000000000001'), '[redacted]', 'audit: the first name is redacted');
 select is((select a.changed_fields ->> 'email' from public.audit_log a where a.table_name = 'clients' and a.action = 'insert'
@@ -135,7 +139,7 @@ select throws_ok($$ insert into public.clients (org_id, first_name, last_name, r
   '23514', null, 'the rate variant is student or reduced');
 select throws_ok($$ insert into public.clients (org_id, first_name, last_name, external_ref) values ('b0000000-0000-0000-0000-00000000000a', 'Bob', 'X', 'GO-1') $$,
   '23505', null, 'an external reference is the clinic''s once');
-select throws_ok($$ update public.clients set merged_into_id = id where id = 'd0000000-0000-0000-0000-000000000003' $$,
+select throws_ok($$ update public.clients set merged_into_id = id, archived_at = now() where id = 'd0000000-0000-0000-0000-000000000003' $$,
   '23514', null, 'a client is never merged into itself');
 
 -- Relations: the parent (C3) written as a, though C2 < C3: stored the other way round.
@@ -153,6 +157,11 @@ select throws_ok($$ insert into public.client_relations (org_id, client_a_id, cl
   '23514', null, 'the types are inverse');
 select throws_ok($$ insert into public.client_relations (org_id, client_a_id, client_b_id, type_a_to_b, type_b_to_a) values ('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000009', 'other', 'other') $$,
   '23503', null, 'no relation with another clinic''s client');
+-- A merge replaces one side: when the kept client sorts first, the row is swapped whole.
+update public.client_relations set client_b_id = 'd0000000-0000-0000-0000-000000000001'
+ where org_id = 'b0000000-0000-0000-0000-00000000000a';
+select results_eq($$ select client_a_id, client_b_id, type_a_to_b, a_manages_appointments, b_manages_appointments from public.client_relations where org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, 'd0000000-0000-0000-0000-000000000002'::uuid, 'parent', true, false) $$, 'a side replaced (merge) keeps who has which right');
 
 -- Tags: at most 5 per client.
 insert into public.client_tags (org_id, name, sort_order)
@@ -167,6 +176,11 @@ select throws_ok($$ insert into public.client_tag_links (client_id, tag_id, org_
   'P0001', 'Un client a au plus 5 étiquettes.', 'a sixth is refused');
 select throws_ok($$ insert into public.client_tags (org_id, name) values ('b0000000-0000-0000-0000-00000000000a', 'étiquette 1') $$,
   '23505', null, 'tag names are unique in a clinic (case ignored)');
+insert into public.client_tag_links (client_id, tag_id, org_id)
+select 'd0000000-0000-0000-0000-000000000003', t.id, t.org_id from public.client_tags t
+ where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.sort_order = 6;
+select throws_ok($$ update public.client_tag_links set client_id = 'd0000000-0000-0000-0000-000000000001' where client_id = 'd0000000-0000-0000-0000-000000000003' $$,
+  'P0001', 'Un client a au plus 5 étiquettes.', 'a link moved to a client with five already is refused (merge)');
 
 -- Payers: one active per kind; an IVAC file once per clinic.
 insert into public.client_payers (client_id, org_id, kind, file_number, session_amount_cents) values
@@ -233,7 +247,7 @@ select is((select count(*)::int from public.client_notes), 1, '… the notes');
 select is((select count(*)::int from public.client_relations), 1, '… the relations');
 select is((select count(*)::int from public.client_payers), 1, '… the payers');
 select is((select count(*)::int from public.client_insurances), 1, '… the insurance');
-select is((select count(*)::int from public.client_tag_links), 5, '… the tags');
+select is((select count(*)::int from public.client_tag_links), 6, '… the tags');
 select is((select count(*)::int from public.my_clients), 0, 'my_clients is empty for staff');
 select is((select count(*)::int from public.clients where org_id = 'b0000000-0000-0000-0000-00000000000b'), 0, 'nothing of clinic B');
 select throws_ok($$ update public.clients set first_name = 'Zoé' where id = 'd0000000-0000-0000-0000-000000000001' $$,
@@ -241,9 +255,11 @@ select throws_ok($$ update public.clients set first_name = 'Zoé' where id = 'd0
 
 -- The professional: her linked clients only, and only what she needs.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select results_eq($$ select id from public.clients $$, array['d0000000-0000-0000-0000-000000000001'::uuid], 'the provider reads only her linked client');
+select is((select count(*)::int from public.clients), 0, 'the provider reads no client table');
 select results_eq($$ select id, is_primary, reason from public.my_clients $$,
-  $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, true, 'primary') $$, 'my_clients: her client, primary');
+  $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, true, 'primary') $$, 'my_clients: her linked client, primary');
+select results_eq($$ select display_name, email from public.my_clients $$,
+  $$ values ('Alice Tremblay', 'alice@exemple.test') $$, '… with what she needs to reach her');
 select is((select count(*)::int from public.clients_directory), 0, 'the staff directory is empty for her');
 select is((select count(*)::int from public.client_notes), 0, 'no notes');
 select is((select count(*)::int from public.client_relations), 0, 'no relations');
@@ -251,6 +267,15 @@ select is((select count(*)::int from public.client_payers), 0, 'no payers');
 select is((select count(*)::int from public.client_insurances), 0, 'no insurance');
 select is((select count(*)::int from public.client_tag_links), 0, 'no tags');
 select results_eq($$ select client_id from public.client_professional_links $$, array['d0000000-0000-0000-0000-000000000001'::uuid], 'her own links only');
+reset role;
+update public.clients set anonymized_at = now() where id = 'd0000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is((select count(*)::int from public.my_clients), 0, 'an anonymised client leaves my_clients');
+reset role;
+select throws_ok($$ update public.clients set anonymized_at = null where id = 'd0000000-0000-0000-0000-000000000001' $$,
+  '23514', 'Un dossier anonymisé le reste.', 'an anonymisation is never undone');
+set local role authenticated;
 
 -- Another clinic.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
@@ -263,7 +288,7 @@ insert into public.user_permission_overrides (user_id, org_id, permission_key, g
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'clients.self', false);
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select is((select count(*)::int from public.clients), 0, 'without clients.self, the provider reads nothing');
+select is((select count(*)::int from public.client_professional_links), 0, 'without clients.self, the provider reads no link');
 select is((select count(*)::int from public.my_clients), 0, '… and my_clients is empty');
 
 select * from finish();
