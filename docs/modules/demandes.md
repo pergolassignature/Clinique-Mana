@@ -23,7 +23,7 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 | `demandes.manage` | admin, conseillère, adjointe | create and work requests (the RPCs below) |
 | `demandes.notes` | admin, conseillère, adjointe | read and write a request's internal note |
 | `demandes.waitlist` | admin, conseillère, adjointe | manage the waiting list (D3) |
-| `demandes.self` | admin, professionnel | read the requests matched to her and the waiting-list entries naming her, never the note |
+| `demandes.self` | admin, professionnel | read, through `my_demandes` and `my_waitlist_entries` only, the requests matched to her and the open waiting-list entries naming her; no table policy |
 
 The conseillère and the adjointe hold the same set (D-1): core's role guard refuses, to a manager, a role carrying a permission she does not hold.
 
@@ -33,16 +33,21 @@ All per clinic (`org_id`), RLS on, `select` only for clients (every write is an 
 
 | Table | What | Rules |
 |---|---|---|
-| `demandes` | the request: `reference` « DEM-AAAA-NNNN » (year of reception in clinic time, then in order; frozen), received at / by, `channel`, source (`referral_source_id` → Clients' list, `source_campaign`, `source_utm` utm_* only, `source_referrer`: R-74), the person (`client_id` once known, else `contact_name` / `_email` / `_phone_e164`), intake (`beneficiary`, `previous_therapy`, `language`, `modality`, `availability_periods` / `_days`, `preferred_pro_gender`, `profession_title_id`, `clientele_id`, `concerns`, `payer_kind`, `insurer`), `state` (D-2), `closed_reason` / `closed_at`, `is_urgent`, `assigned_to`, `matched_professional_id`, contact attempts (`last_contact_at`, `next_contact_at`, `contact_attempts`), `external_ref` | someone to call back (a file, a name, an email or a phone); closed ⇔ reason and date; matched ⇒ a professional. Redacted: contact, concerns, referrer and UTM |
+| `demandes` | the request: `reference` « DEM-AAAA-NNNN » (year of reception in clinic time, then in order; frozen), received at / by, `channel`, source (`referral_source_id` → Clients' list, `source_campaign`, `source_utm` utm_* only, `source_referrer`: R-74), the person (`client_id` once known, else `contact_name` / `_email` / `_phone_e164`), intake (`beneficiary`, `previous_therapy`, `language`, `modality`, `availability_periods` (Professionnels' periods: am, pm, end_of_day, evening, weekend) / `_days`, `preferred_pro_gender`, `profession_title_id`, `clientele_id`, `concerns`, `payer_kind`, `insurer`), `state` (D-2), `closed_reason` / `closed_at`, `is_urgent`, `assigned_to`, `matched_professional_id`, contact attempts (`last_contact_at`, `next_contact_at`, `contact_attempts`), `external_ref` | someone to call back (a file, a name, an email or a phone); closed ⇔ reason and date; matched ⇒ a professional (kept when the request is closed). `received_at` never in the future. Open = neither matched nor closed (the inbox's indexes). Redacted: contact, concerns, referrer and UTM |
 | `demande_motifs` | the request's motifs (Professionnels' catalogue: orientation tags, never a diagnosis) | composite FK to `motifs` |
 | `demande_notes` | the internal note | `demandes.notes` only; redacted; never copied into an event, a notice or an AI prompt |
 | `demande_participants` | who the request is for (a couple, a family, a child and a parent): a client or a name, the relationship, one main person | name and birthday redacted |
 | `demande_events` | the history in codes: created, state changed, assigned, contact attempt (channel, outcome), task done, urgent set / cleared | no free text; the KPIs read it (D6) |
 | `demande_tasks` | dated work: the discovery call (not a fake appointment), a callback, a follow-up; open / done (outcome) / cancelled | |
-| `demande_propositions` | a professional proposed: by, at, response, decline reason, the directory snapshot shown | written from D3b |
-| `waitlist_entries` | a place on the list (§2.3 bis): target profession and / or professional, priority (with its reason) then `registered_at`, the criteria copied from the request, a bridge professional, `state` incomplete → active → to_call → offered → closed (exit reason), the fee (`to_invoice` / `invoiced` / `paid` / `waived` with a reason, `fee_invoice_id` without FK until Facturation), consent signed at, contacts | the rank is computed, never stored; written from D3 |
+| `demande_propositions` | a professional proposed: by, at, response, decline reason, the acceptance link (`secure_link_id`, `expires_at`), the directory snapshot shown and its `directory_updated_at` (« profil modifié depuis ») | written from D3b |
+| `waitlist_entries` | a place on the list (§2.3 bis): one target per entry (a profession or a professional; a request may hold one of each), one open entry per request and target, priority (with its reason) then `registered_at`, the criteria copied from the request, a bridge professional, `state` incomplete → active → to_call → offered → closed (exit reason), the fee (`to_invoice` / `invoiced` / `paid` / `waived` with a reason, `fee_invoice_id` without FK until Facturation), consent signed at, contacts | the rank is computed, never stored; written from D3 |
 | `waitlist_contacts` | each follow-up of an entry (call, the « still waiting? » email, the answer) | D3 |
 | `waitlist_offers` | a slot offered (by phone in part 1, a 48-h link in part 2) | D3, D4 |
+
+The professional reads no table of the module. Two read models, definer functions behind `security_invoker` views that check `demandes.self` and her own professional file first, give her only what she needs:
+
+- `my_demandes`: the requests matched to her while they are matched: reference, dates, `client_id`, the intake, `motif_ids`, `participants` (jsonb). Never the contact details (Clients' `my_clients` gives those), the source, the counselor, the history, the tasks or the note.
+- `my_waitlist_entries`: the open entries naming her, with the criteria and her `rank` (priority first, then the oldest). Never the priority's reason or the fee.
 
 Not in D1 (D-6): `first_appointment_cancellations` (with Rendez-vous), `capacity_snapshots` (D5).
 
@@ -53,14 +58,14 @@ All `security definer`, permission first, the caller's clinic only, the request'
 | RPC | Permission | Does |
 |---|---|---|
 | `create_demande(p_data)` | `demandes.manage` (+ `demandes.notes` for `internal_note`) | the full intake or the « saisie rapide » (a name and a phone): intake keys, `received_at`, `channel`, the source (utm_* keys only; the campaign taken from `utm_campaign` when not given), `assigned_to` (someone who works requests), `motif_ids`, `internal_note`. Returns the id |
-| `update_demande(p_id, p_patch)` | `demandes.manage` | the intake keys given only; motifs replaced; urgent set / cleared logged; a closed request is not edited |
-| `set_demande_state(p_id, p_state, p_closed_reason, p_professional_id)` | `demandes.manage` | the moves of D-2; closing needs a reason; matching needs an active professional of the clinic, links the client to her (Clients' `clients_link_professional`, reason `demande`) and lets her read the request; leaving matched takes that away; reopening clears the closing |
+| `update_demande(p_id, p_patch)` | `demandes.manage` | the intake keys given only; motifs replaced; urgent set / cleared logged; a file added to a matched request is linked to the professional; a closed request is not edited |
+| `set_demande_state(p_id, p_state, p_closed_reason, p_professional_id)` | `demandes.manage` | the moves of D-2; closing needs a reason; matching needs an active professional of the clinic, links the request's client and the participants' clients to her (Clients' `clients_link_professional`, reason `demande`) and lets her read the request in `my_demandes`; leaving matched takes that away (closing keeps who was matched); reopening clears the closing |
 | `assign_demande(p_id, p_assignee)` | `demandes.manage` | the counselor in charge (null: the shared inbox) |
-| `log_demande_contact(p_id, p_channel, p_outcome, p_next_contact_at)` | `demandes.manage` | a contact attempt: counted, the last contact, the next try (in the future) |
-| `add_demande_task`, `complete_demande_task`, `cancel_demande_task` | `demandes.manage` | tasks; a call done counts as a contact attempt |
+| `log_demande_contact(p_id, p_channel, p_outcome, p_next_contact_at)` | `demandes.manage` | a contact attempt (channel and outcome required): counted, the last contact, the next try (in the future) |
+| `add_demande_task`, `complete_demande_task`, `cancel_demande_task` | `demandes.manage` | tasks; a call done counts as a contact attempt; reaching the person clears the next try |
 | `set_demande_note(p_id, p_note)` | `demandes.notes` | the internal note (empty removes it) |
-| `set_demande_participants(p_id, p_participants)` | `demandes.manage` | who the request is for, as a set (≤ 10, one main person) |
+| `set_demande_participants(p_id, p_participants)` | `demandes.manage` | who the request is for, as a set (≤ 10, exactly one main person, each id once; an id of another request is a new row); not on a closed request; on a matched request the clients added are linked to the professional |
 
 ## What the module publishes
 
-Nothing yet. Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the public booking function's write path (D3c).
+For the professional: `my_demandes` and `my_waitlist_entries` (above). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the public booking function's write path (D3c).

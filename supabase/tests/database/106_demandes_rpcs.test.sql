@@ -9,7 +9,7 @@
 -- another clinic refused); the journal names each RPC.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(63);
+select plan(78);
 
 -- =============================================================================
 -- Privileges
@@ -61,7 +61,9 @@ insert into public.professionals (id, org_id, profile_id, first_name, last_name,
   ('c0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', null, 'Pro', 'Deux', 'pro2@dem2.test', 'draft'),
   ('c0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000b', null, 'Pro', 'B', 'pro3@dem2.test', 'active');
 insert into public.clients (id, org_id, first_name, last_name) values
-  ('d0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Alice', 'Tremblay');
+  ('d0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Alice', 'Tremblay'),
+  ('d0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Bruno', 'Tremblay'),
+  ('d0000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-00000000000b', 'Autre', 'Clinique');
 select set_config('test.m1', (select id::text from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000a' order by key limit 1), true);
 select set_config('test.m2', (select id::text from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000a' order by key offset 1 limit 1), true);
 select set_config('test.src', (select id::text from public.referral_sources where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'google'), true);
@@ -85,7 +87,7 @@ select set_config('test.full', public.create_demande(jsonb_build_object(
   'beneficiary', 'self', 'language', 'fr', 'modality', 'video', 'availability_periods', jsonb_build_array('evening', 'weekend'),
   'availability_days', jsonb_build_array(2, 4), 'preferred_pro_gender', 'female', 'concerns', 'Anxiété', 'payer_kind', 'insurance',
   'insurer', 'Desjardins', 'is_urgent', true, 'motif_ids', jsonb_build_array(current_setting('test.m1'), current_setting('test.m2')),
-  'referral_source_id', current_setting('test.src'), 'source_utm', jsonb_build_object('utm_source', 'facebook', 'utm_campaign', 'automne', 'evil', 'x'),
+  'referral_source_id', current_setting('test.src'), 'source_utm', jsonb_build_object('utm_source', 'facebook', 'utm_campaign', ' automne ', 'evil', 'x', 'utm_zzz', 'y'),
   'source_referrer', 'https://www.facebook.com/', 'assigned_to', 'a0000000-0000-0000-0000-000000000004',
   'internal_note', 'Rappeler après 17 h.'))::text, true);
 select results_eq($$
@@ -100,7 +102,12 @@ select throws_ok($$ select public.create_demande('{"contact_name": "X", "diagnos
 select throws_ok($$ select public.create_demande('{"contact_name": "X", "is_urgent": "yes"}') $$, '22023', null, 'a wrong type is refused');
 select throws_ok($$ select public.create_demande('{"contact_name": "X", "assigned_to": "a0000000-0000-0000-0000-000000000003"}') $$,
   'P0001', 'Cette personne ne peut pas traiter les demandes.', 'a professional cannot be assigned');
-select throws_ok($$ select public.create_demande('{}') $$, '23514', null, 'nobody to call back: refused by the table');
+select throws_ok($$ select public.create_demande('{}') $$, 'P0001',
+  'Indiquez comment joindre la personne : un dossier, un nom, un courriel ou un téléphone.', 'nobody to call back: a French refusal');
+select throws_ok($$ select public.create_demande(jsonb_build_object('contact_name', 'X', 'received_at', (now() + interval '1 day')::text)) $$,
+  'P0001', 'La date de réception ne peut pas être dans le futur.', 'a request is never received in the future');
+select lives_ok($$ select public.create_demande('{"contact_name": "Tableaux nuls", "availability_periods": null, "motif_ids": null}') $$,
+  'a JSON null for a list is an empty list');
 
 -- The adjointe as the counselor; the professional and clinic B's admin: no request of clinic A.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
@@ -151,14 +158,27 @@ select results_eq($$ select from_state, to_state, professional_id::text from pub
 -- The professional reads it now.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select is((select count(*)::int from public.demandes where id = current_setting('test.full')::uuid), 1, 'P1 reads the request matched to her');
+select is((select count(*)::int from public.my_demandes where id = current_setting('test.full')::uuid), 1, 'P1 reads the request matched to her (my_demandes)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.set_demande_state(current_setting('test.full')::uuid, 'closed') $$, 'P0001',
   'Indiquez pourquoi la demande est fermée.', 'closing needs a reason');
+select lives_ok($$ select public.set_demande_participants(current_setting('test.full')::uuid,
+  '[{"display_name": "Alice Tremblay", "relationship": "self", "is_primary": true}, {"client_id": "d0000000-0000-0000-0000-000000000002", "relationship": "partner"}]') $$,
+  'a participant with a file added to the matched request');
+reset role;
+select is((select reason from public.client_professional_links where client_id = 'd0000000-0000-0000-0000-000000000002'
+            and professional_id = 'c0000000-0000-0000-0000-000000000001'), 'demande', 'the participant''s file is linked to P1 too');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select lives_ok($$ select public.set_demande_state(current_setting('test.full')::uuid, 'accepted') $$, 'matched → accepted (first appointment cancelled)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is((select count(*)::int from public.demandes where id = current_setting('test.full')::uuid), 0, 'P1 no longer reads it');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select lives_ok($$ select public.set_demande_state(current_setting('test.full')::uuid, 'matched', null, 'c0000000-0000-0000-0000-000000000001') $$,
+  'matched again');
+select lives_ok($$ select public.set_demande_state(current_setting('test.full')::uuid, 'closed', 'other') $$, 'matched → closed');
+select is((select matched_professional_id::text from public.demandes where id = current_setting('test.full')::uuid),
+  'c0000000-0000-0000-0000-000000000001', 'closing keeps who was matched');
 select lives_ok($$ select public.set_demande_state(current_setting('test.quick')::uuid, 'closed', 'no_answer') $$, 'closed: no answer');
 select results_eq($$ select state, closed_reason, closed_at is not null from public.demandes where id = current_setting('test.quick')::uuid $$,
   $$ values ('closed', 'no_answer', true) $$, 'closed with its reason and date');
@@ -181,12 +201,14 @@ select results_eq($$ select contact_attempts, last_contact_at is not null, next_
   $$ values (1, true, true) $$, 'the attempts, the last contact and the next try');
 select throws_ok($$ select public.log_demande_contact(current_setting('test.quick')::uuid, 'phone', 'voicemail', now() - interval '1 day') $$,
   'P0001', 'La prochaine tentative doit être dans le futur.', 'the next try is in the future');
+select throws_ok($$ select public.log_demande_contact(current_setting('test.quick')::uuid, null, null) $$,
+  'P0001', 'Indiquez le moyen de contact et le résultat.', 'a contact attempt says how and what');
 select set_config('test.task', public.add_demande_task(current_setting('test.quick')::uuid, 'discovery_call', now() + interval '2 hours')::text, true);
 select lives_ok($$ select public.complete_demande_task(current_setting('test.quick')::uuid, current_setting('test.task')::uuid, 'reached') $$,
   'the discovery call done: reached');
-select results_eq($$ select t.state, t.outcome, d.contact_attempts from public.demande_tasks t join public.demandes d on d.id = t.demande_id
+select results_eq($$ select t.state, t.outcome, d.contact_attempts, d.next_contact_at from public.demande_tasks t join public.demandes d on d.id = t.demande_id
                      where t.id = current_setting('test.task')::uuid $$,
-  $$ values ('done', 'reached', 2) $$, 'done, and a contact attempt of the request');
+  $$ values ('done', 'reached', 2, null::timestamptz) $$, 'done, a contact attempt of the request, the next try cleared (reached)');
 select throws_ok($$ select public.complete_demande_task(current_setting('test.quick')::uuid, current_setting('test.task')::uuid, 'reached') $$,
   'P0001', 'Cette tâche n''est plus ouverte.', 'a done task is closed');
 select set_config('test.task2', public.add_demande_task(current_setting('test.quick')::uuid, 'callback', now() + interval '1 day',
@@ -210,6 +232,24 @@ select results_eq($$ select display_name, is_primary from public.demande_partici
 select throws_ok($$ select public.set_demande_participants(current_setting('test.quick')::uuid,
   '[{"display_name": "A", "is_primary": true}, {"display_name": "B", "is_primary": true}]') $$, 'P0001',
   'Une seule personne est la personne principale.', 'one main person');
+select throws_ok($$ select public.set_demande_participants(current_setting('test.quick')::uuid, '[{"display_name": "A"}]') $$, 'P0001',
+  'Une seule personne est la personne principale.', '… and not none');
+select lives_ok($$ select public.set_demande_participants(current_setting('test.quick')::uuid, jsonb_build_array(jsonb_build_object(
+  'id', (select id from public.demande_participants where demande_id = current_setting('test.full')::uuid and is_primary),
+  'display_name', 'Volée', 'is_primary', true))) $$, 'another request''s participant id …');
+select is((select count(*)::int from public.demande_participants where display_name = 'Alice Tremblay'), 1, '… becomes a new row, the other request untouched');
+select throws_ok($$ select public.set_demande_participants(current_setting('test.quick')::uuid,
+  '[{"client_id": "d0000000-0000-0000-0000-000000000009", "is_primary": true}]') $$, '23503', null, 'a client of another clinic is refused');
+
+-- A counselor whose role is overridden without demandes.notes reads and writes no note.
+reset role;
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'demandes.notes', false);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is((select count(*)::int from public.demande_notes), 0, 'without demandes.notes: no note read');
+select throws_ok($$ select public.set_demande_note(current_setting('test.quick')::uuid, 'X') $$, '42501', null, '… none written');
+select throws_ok($$ select public.create_demande('{"contact_name": "X", "internal_note": "Y"}') $$, '42501', null, '… none at creation');
 
 -- The journal names the RPC.
 reset role;

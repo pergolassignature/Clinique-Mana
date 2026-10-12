@@ -8,7 +8,7 @@
 -- hides all).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(60);
+select plan(71);
 
 -- =============================================================================
 -- Registry
@@ -30,10 +30,16 @@ select is((select count(*)::int from public.role_permissions where role = 'admin
 -- =============================================================================
 select table_privs_are('public', t.name, 'anon', array[]::text[], t.name || ': anon has nothing')
   from (values ('demandes'), ('demande_motifs'), ('demande_notes'), ('demande_participants'), ('demande_events'),
-               ('demande_tasks'), ('demande_propositions'), ('waitlist_entries'), ('waitlist_contacts'), ('waitlist_offers')) as t(name);
+               ('demande_tasks'), ('demande_propositions'), ('waitlist_entries'), ('waitlist_contacts'), ('waitlist_offers'),
+               ('my_demandes'), ('my_waitlist_entries')) as t(name);
 select table_privs_are('public', t.name, 'authenticated', array['SELECT'], t.name || ': authenticated reads only')
   from (values ('demandes'), ('demande_motifs'), ('demande_notes'), ('demande_participants'), ('demande_events'),
-               ('demande_tasks'), ('demande_propositions'), ('waitlist_entries'), ('waitlist_contacts'), ('waitlist_offers')) as t(name);
+               ('demande_tasks'), ('demande_propositions'), ('waitlist_entries'), ('waitlist_contacts'), ('waitlist_offers'),
+               ('my_demandes'), ('my_waitlist_entries')) as t(name);
+select is_empty($$
+  select p.tablename from pg_policies p
+   where p.schemaname = 'public' and p.qual like '%demandes.self%'
+$$, 'no table policy for the professional: she reads my_demandes and my_waitlist_entries only');
 select is_empty($$
   select p.tablename || '.' || p.policyname from pg_policies p
    where p.schemaname = 'public'
@@ -54,6 +60,11 @@ select is_empty($$
      and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('service_role', p.oid, 'execute')
           or has_function_privilege('anon', p.oid, 'execute'))
 $$, 'the module''s private helpers are granted to no role');
+select is_empty($$
+  select p.proname from pg_proc p
+   where p.pronamespace = 'private'::regnamespace and p.proname in ('my_demandes_rows', 'my_waitlist_entries_rows')
+     and (not p.prosecdef or not has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))
+$$, 'the professional''s read models: definer functions for authenticated (they check demandes.self first)');
 
 -- =============================================================================
 -- Fixtures (as postgres): orgs A and B; in A an admin, an adjointe, a provider (professional P1),
@@ -97,9 +108,11 @@ insert into public.demande_notes (demande_id, org_id, internal_note) values
   ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Préfère être appelée le soir.');
 insert into public.demande_participants (demande_id, org_id, display_name, relationship, is_primary) values
   ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Alice Tremblay', 'self', true);
-insert into public.waitlist_entries (id, org_id, demande_id, target_professional_id, state) values
-  ('f0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', 'active'),
-  ('f0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', 'active');
+insert into public.waitlist_entries (id, org_id, demande_id, target_professional_id, state, registered_at) values
+  ('f0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', 'active', '2026-09-01'),
+  ('f0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', 'active', '2026-09-01');
+insert into public.waitlist_entries (id, org_id, demande_id, target_professional_id, state, registered_at, priority, priority_reason) values
+  ('f0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'active', '2026-10-01', 'priority', 'Situation familiale');
 
 -- =============================================================================
 -- The reference
@@ -137,6 +150,15 @@ select throws_ok($$ insert into public.demandes (org_id, contact_name, channel) 
   '23514', null, 'a known channel');
 select throws_ok($$ insert into public.waitlist_entries (org_id, demande_id) values ('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002') $$,
   '23514', null, 'an entry targets a profession or a professional');
+select throws_ok($$ insert into public.waitlist_entries (org_id, demande_id, target_professional_id, target_profession_title_id)
+  values ('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002',
+          (select id from public.profession_titles where org_id = 'b0000000-0000-0000-0000-00000000000a' limit 1)) $$,
+  '23514', null, '… exactly one: its rank is in one list');
+select throws_ok($$ insert into public.waitlist_entries (org_id, demande_id, target_professional_id)
+  values ('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001') $$,
+  '23505', null, 'one open entry per request and target');
+select throws_ok($$ insert into public.demandes (org_id, contact_name, availability_periods) values ('b0000000-0000-0000-0000-00000000000a', 'X', '{am,am}') $$,
+  '23514', null, 'availability periods without duplicates (Professionnels'' vocabulary)');
 select throws_ok($$ insert into public.waitlist_entries (org_id, demande_id, target_professional_id, priority)
   values ('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', 'priority') $$,
   '23514', null, 'a priority needs its reason');
@@ -164,7 +186,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select count(*)::int from public.demandes where org_id = 'b0000000-0000-0000-0000-00000000000a'), 4, 'the counselor reads every request of her clinic');
 select is((select count(*)::int from public.demande_notes), 1, 'and the note (demandes.notes)');
-select is((select count(*)::int from public.waitlist_entries), 2, 'and the waiting list');
+select is((select count(*)::int from public.waitlist_entries), 3, 'and the waiting list');
 select is((select count(*)::int from public.demandes where org_id = 'b0000000-0000-0000-0000-00000000000b'), 0, 'nothing of clinic B');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
@@ -172,13 +194,27 @@ select is((select count(*)::int from public.demandes), 4, 'the adjointe reads th
 select is((select count(*)::int from public.demande_notes), 1, 'and the note');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select results_eq($$ select id from public.demandes $$, array['e0000000-0000-0000-0000-000000000001'::uuid],
-  'the professional reads only the request matched to her');
-select is((select count(*)::int from public.demande_participants), 1, 'with its participants');
-select is((select count(*)::int from public.demande_notes), 0, 'never the internal note');
-select results_eq($$ select id from public.waitlist_entries $$, array['f0000000-0000-0000-0000-000000000001'::uuid],
-  'the waiting-list entries naming her only');
-select is((select count(*)::int from public.demande_events), 0, 'no history or tasks (staff only)');
+select is((select count(*)::int from public.demandes) + (select count(*)::int from public.demande_participants)
+          + (select count(*)::int from public.demande_notes) + (select count(*)::int from public.demande_events)
+          + (select count(*)::int from public.demande_tasks) + (select count(*)::int from public.demande_propositions)
+          + (select count(*)::int from public.waitlist_entries) + (select count(*)::int from public.waitlist_contacts)
+          + (select count(*)::int from public.waitlist_offers) + (select count(*)::int from public.demande_motifs), 0,
+  'the professional reads no table of the module');
+select results_eq($$ select id, reference, jsonb_array_length(participants) from public.my_demandes $$,
+  $$ values ('e0000000-0000-0000-0000-000000000001'::uuid, 'DEM-2026-0001', 1) $$,
+  'my_demandes: the request matched to her, with its participants');
+select is_empty($$ select 1 from information_schema.columns where table_schema = 'public' and table_name = 'my_demandes'
+                    and column_name in ('contact_name', 'contact_email', 'contact_phone_e164', 'source_utm', 'source_referrer',
+                                        'assigned_to', 'internal_note', 'closed_reason', 'external_ref') $$,
+  'my_demandes never carries the contact, the source, the counselor or the note');
+select results_eq($$ select id, rank, priority from public.my_waitlist_entries order by rank $$,
+  $$ values ('f0000000-0000-0000-0000-000000000003'::uuid, 1::bigint, 'priority'), ('f0000000-0000-0000-0000-000000000001'::uuid, 2::bigint, 'normal') $$,
+  'my_waitlist_entries: the entries naming her, priority first then the oldest, ranked');
+select is_empty($$ select 1 from information_schema.columns where table_schema = 'public' and table_name = 'my_waitlist_entries'
+                    and column_name in ('priority_reason', 'fee_status', 'fee_waived_reason') $$,
+  'never the priority''s reason or the fee');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is((select count(*)::int from public.my_demandes), 0, 'a counselor (no demandes.self, no professional file) reads nothing there');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is((select count(*)::int from public.demandes), 1, 'clinic B''s admin reads her one request');
@@ -190,6 +226,9 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is((select count(*)::int from public.demandes), 0, 'module off: no request');
 select is((select count(*)::int from public.waitlist_entries), 0, 'module off: no entry');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is((select count(*)::int from public.my_demandes) + (select count(*)::int from public.my_waitlist_entries), 0,
+  'module off: the professional''s read models are empty');
 
 select * from finish();
 rollback;

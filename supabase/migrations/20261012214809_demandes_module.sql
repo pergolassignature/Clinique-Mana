@@ -76,7 +76,8 @@ on conflict do nothing;
 -- booking page (D3c) and the website form. client_id: the person's file once known (none for a
 -- first call); contact_*: who called, before a file exists (personal data, redacted).
 -- beneficiary: for whom (GOrendezvous's « pour qui »). availability_periods / _days: when the
--- person can meet (the workbook's periods; ISO days 1–7). profession_title_id / clientele_id:
+-- person can meet (Professionnels' periods, P4-250: am, pm, end_of_day, evening, weekend, so the
+-- matching compares like with like; ISO days 1–7). profession_title_id / clientele_id:
 -- what is sought (orientation, never a diagnosis). concerns: what the person describes (health
 -- information: redacted, never notified, never sent to an AI). state (D-2): new, evaluating,
 -- accepted, proposed, matched, waitlist, closed (with closed_reason). is_urgent: a flag, not a
@@ -133,7 +134,7 @@ create table public.demandes (
   constraint demandes_client_fkey foreign key (org_id, client_id) references public.clients (org_id, id),
   constraint demandes_profession_title_fkey foreign key (org_id, profession_title_id) references public.profession_titles (org_id, id),
   constraint demandes_clientele_fkey foreign key (org_id, clientele_id) references public.clienteles (org_id, id),
-  constraint demandes_assigned_to_fkey foreign key (assigned_to, org_id) references public.profiles (user_id, org_id),
+  constraint demandes_assigned_to_fkey foreign key (assigned_to, org_id) references public.profiles (user_id, org_id) on delete set null (assigned_to),
   constraint demandes_matched_professional_fkey foreign key (org_id, matched_professional_id) references public.professionals (org_id, id),
   constraint demandes_reference_check check (reference ~ '^DEM-[0-9]{4}-[0-9]{4,6}$'),
   constraint demandes_reference_seq_check check (reference_seq >= 1),
@@ -148,7 +149,7 @@ create table public.demandes (
   constraint demandes_language_check check (language in ('fr', 'en')),
   constraint demandes_modality_check check (modality in ('video', 'phone', 'any')),
   constraint demandes_availability_periods_check check (
-    availability_periods <@ array['morning', 'afternoon', 'late_afternoon', 'evening', 'weekend']::text[]),
+    availability_periods <@ array['am', 'pm', 'end_of_day', 'evening', 'weekend']::text[] and private.has_no_duplicates(availability_periods)),
   constraint demandes_availability_days_check check (availability_days <@ array[1, 2, 3, 4, 5, 6, 7]::smallint[]),
   constraint demandes_preferred_pro_gender_check check (preferred_pro_gender in ('female', 'male', 'any')),
   constraint demandes_concerns_check check (char_length(concerns) between 1 and 4000),
@@ -164,10 +165,13 @@ create table public.demandes (
   constraint demandes_contact_check check (client_id is not null or contact_name is not null or contact_email is not null or contact_phone_e164 is not null)
 );
 create unique index demandes_org_external_ref_key on public.demandes (org_id, external_ref) where external_ref is not null;
--- The inbox: open requests newest first, per state, per counselor, the callbacks due.
+-- The inbox: open requests (neither matched nor closed: a match is the inbox's success) newest
+-- first, per state, per counselor, the callbacks due.
 create index demandes_org_state_received_idx on public.demandes (org_id, state, received_at desc, id desc);
-create index demandes_org_assigned_idx on public.demandes (org_id, assigned_to) where state <> 'closed';
-create index demandes_org_next_contact_idx on public.demandes (org_id, next_contact_at) where state <> 'closed';
+create index demandes_org_open_received_idx on public.demandes (org_id, received_at desc, id desc)
+  where state not in ('matched', 'closed');
+create index demandes_org_assigned_idx on public.demandes (org_id, assigned_to) where state not in ('matched', 'closed');
+create index demandes_org_next_contact_idx on public.demandes (org_id, next_contact_at) where state not in ('matched', 'closed');
 create index demandes_org_referral_source_idx on public.demandes (org_id, referral_source_id);
 create index demandes_org_client_idx on public.demandes (org_id, client_id);
 create index demandes_org_profession_title_idx on public.demandes (org_id, profession_title_id);
@@ -305,7 +309,7 @@ create table public.demande_events (
   constraint demande_events_id_key unique (id),
   constraint demande_events_demande_fkey foreign key (org_id, demande_id) references public.demandes (org_id, id) on delete cascade,
   constraint demande_events_professional_fkey foreign key (org_id, professional_id) references public.professionals (org_id, id),
-  constraint demande_events_assignee_fkey foreign key (assignee) references public.profiles (user_id) on delete set null,
+  constraint demande_events_assignee_fkey foreign key (assignee, org_id) references public.profiles (user_id, org_id) on delete set null (assignee),
   constraint demande_events_kind_check check (kind in ('created', 'state_changed', 'assigned', 'contact', 'task_done', 'urgent_set', 'urgent_cleared')),
   constraint demande_events_states_check check (
     (from_state is null or from_state in ('new', 'evaluating', 'accepted', 'proposed', 'matched', 'waitlist', 'closed'))
@@ -317,7 +321,7 @@ create table public.demande_events (
 create index demande_events_org_demande_at_idx on public.demande_events (org_id, demande_id, at);
 create index demande_events_org_kind_at_idx on public.demande_events (org_id, kind, at);
 create index demande_events_org_professional_idx on public.demande_events (org_id, professional_id);
-create index demande_events_assignee_idx on public.demande_events (assignee);
+create index demande_events_assignee_idx on public.demande_events (assignee, org_id);
 create index demande_events_by_user_idx on public.demande_events (by_user);
 
 -- -----------------------------------------------------------------------------
@@ -340,7 +344,7 @@ create table public.demande_tasks (
   constraint demande_tasks_pkey primary key (demande_id, id),
   constraint demande_tasks_id_key unique (id),
   constraint demande_tasks_demande_fkey foreign key (org_id, demande_id) references public.demandes (org_id, id) on delete cascade,
-  constraint demande_tasks_assigned_to_fkey foreign key (assigned_to, org_id) references public.profiles (user_id, org_id),
+  constraint demande_tasks_assigned_to_fkey foreign key (assigned_to, org_id) references public.profiles (user_id, org_id) on delete set null (assigned_to),
   constraint demande_tasks_kind_check check (kind in ('discovery_call', 'callback', 'follow_up', 'other')),
   constraint demande_tasks_state_check check (state in ('open', 'done', 'cancelled')),
   constraint demande_tasks_outcome_check check (outcome in ('reached', 'voicemail', 'no_answer', 'message_sent', 'wrong_number', 'not_needed')),
@@ -367,6 +371,11 @@ create table public.demande_propositions (
   response text not null default 'pending',
   responded_at timestamptz,
   decline_reason text,
+  -- D3b: the acceptance link (core's secure links) and its expiry; the directory's updated_at at
+  -- the time (« profil modifié depuis », Professionnels' rule 10).
+  expires_at timestamptz,
+  secure_link_id uuid,
+  directory_updated_at timestamptz,
   directory_snapshot jsonb not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -386,10 +395,11 @@ create index demande_propositions_proposed_by_idx on public.demande_propositions
 -- -----------------------------------------------------------------------------
 -- waitlist_entries: a place on the waiting list (roadmap §2.3 bis)
 -- -----------------------------------------------------------------------------
--- A request in state « Liste d'attente » holds one or two entries: for a profession
--- (target_profession_title_id: psychologie, psychothérapie, any title) and / or a professional.
--- Order: priority (`priority` before `normal`, with a reason) then registered_at; the rank is
--- computed, never stored. Criteria copied from the request (and editable): availability, mode,
+-- A request in state « Liste d'attente » holds one or two entries: one for a profession
+-- (target_profession_title_id: psychologie, psychothérapie, any title) and / or one for a
+-- professional; each entry has exactly one target, so its rank is in one list. Order: priority
+-- (`priority` before `normal`: `priority desc`, with a reason) then registered_at; the rank is
+-- computed, never stored. One open entry per request and target. Criteria copied from the request (and editable): availability, mode,
 -- language, motifs (catalogue ids, checked by the RPCs), clientèle, preferred gender, payer.
 -- bridge_professional_id: a professional seen meanwhile (« pont »). state: `incomplete` until
 -- the « liste d'attente » consent is signed and the fee paid or waived, then `active`, `to_call`
@@ -435,13 +445,13 @@ create table public.waitlist_entries (
   constraint waitlist_entries_professional_fkey foreign key (org_id, target_professional_id) references public.professionals (org_id, id),
   constraint waitlist_entries_bridge_fkey foreign key (org_id, bridge_professional_id) references public.professionals (org_id, id),
   constraint waitlist_entries_clientele_fkey foreign key (org_id, clientele_id) references public.clienteles (org_id, id),
-  constraint waitlist_entries_target_check check (target_profession_title_id is not null or target_professional_id is not null),
+  constraint waitlist_entries_target_check check (num_nonnulls(target_profession_title_id, target_professional_id) = 1),
   constraint waitlist_entries_priority_check check (priority in ('normal', 'priority')),
   constraint waitlist_entries_priority_reason_check check (
     (priority = 'priority') = (priority_reason is not null)
     and (priority_reason is null or (char_length(priority_reason) between 1 and 300 and private.is_tidy_text(priority_reason)))),
   constraint waitlist_entries_availability_periods_check check (
-    availability_periods <@ array['morning', 'afternoon', 'late_afternoon', 'evening', 'weekend']::text[]),
+    availability_periods <@ array['am', 'pm', 'end_of_day', 'evening', 'weekend']::text[] and private.has_no_duplicates(availability_periods)),
   constraint waitlist_entries_availability_days_check check (availability_days <@ array[1, 2, 3, 4, 5, 6, 7]::smallint[]),
   constraint waitlist_entries_modality_check check (modality in ('video', 'phone', 'any')),
   constraint waitlist_entries_language_check check (language in ('fr', 'en')),
@@ -458,11 +468,16 @@ create table public.waitlist_entries (
   constraint waitlist_entries_external_ref_check check (char_length(external_ref) between 1 and 64 and private.is_tidy_text(external_ref))
 );
 create unique index waitlist_entries_org_external_ref_key on public.waitlist_entries (org_id, external_ref) where external_ref is not null;
--- The list of a profession or a professional, in order (open entries: priority, then date).
-create index waitlist_entries_org_title_order_idx on public.waitlist_entries (org_id, target_profession_title_id, priority, registered_at)
+-- The list of a profession or a professional, in order (open entries: priority first, then the
+-- oldest), and one open entry per request and target.
+create index waitlist_entries_org_title_order_idx on public.waitlist_entries (org_id, target_profession_title_id, priority desc, registered_at)
   where state <> 'closed';
-create index waitlist_entries_org_professional_order_idx on public.waitlist_entries (org_id, target_professional_id, priority, registered_at)
+create index waitlist_entries_org_professional_order_idx on public.waitlist_entries (org_id, target_professional_id, priority desc, registered_at)
   where state <> 'closed';
+create unique index waitlist_entries_open_title_key on public.waitlist_entries (demande_id, target_profession_title_id)
+  where state <> 'closed' and target_profession_title_id is not null;
+create unique index waitlist_entries_open_professional_key on public.waitlist_entries (demande_id, target_professional_id)
+  where state <> 'closed' and target_professional_id is not null;
 create index waitlist_entries_org_demande_idx on public.waitlist_entries (org_id, demande_id);
 create index waitlist_entries_org_client_idx on public.waitlist_entries (org_id, client_id);
 create index waitlist_entries_org_bridge_idx on public.waitlist_entries (org_id, bridge_professional_id);
@@ -548,32 +563,19 @@ alter table public.waitlist_contacts enable row level security;
 alter table public.waitlist_offers enable row level security;
 
 -- -----------------------------------------------------------------------------
--- RLS: staff with demandes.view; the professional (demandes.self) her matched requests and the
--- entries naming her; the internal note with demandes.notes only
+-- RLS: staff with demandes.view; the internal note with demandes.notes only. The professional
+-- (demandes.self) has no policy on any table: `my_demandes` and `my_waitlist_entries` below give
+-- her the columns she needs (as Clients' my_clients, CL-5)
 -- -----------------------------------------------------------------------------
 create policy demandes_select_staff on public.demandes
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.has_permission('demandes.view')));
-create policy demandes_select_self on public.demandes
-  for select to authenticated
-  using (matched_professional_id = (select private.current_professional_id()) and (select private.has_permission('demandes.self')));
-
--- The children follow the request: whatever request the caller may read (the demandes policies
--- above apply inside the subquery: an invoker read).
 create policy demande_motifs_select on public.demande_motifs
   for select to authenticated
-  using (
-    org_id = (select private.current_user_org_id())
-    and ((select private.has_permission('demandes.view')) or (select private.has_permission('demandes.self')))
-    and demande_id in (select d.id from public.demandes d)
-  );
+  using (org_id = (select private.current_user_org_id()) and (select private.has_permission('demandes.view')));
 create policy demande_participants_select on public.demande_participants
   for select to authenticated
-  using (
-    org_id = (select private.current_user_org_id())
-    and ((select private.has_permission('demandes.view')) or (select private.has_permission('demandes.self')))
-    and demande_id in (select d.id from public.demandes d)
-  );
+  using (org_id = (select private.current_user_org_id()) and (select private.has_permission('demandes.view')));
 create policy demande_notes_select on public.demande_notes
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.has_permission('demandes.notes')));
@@ -589,9 +591,6 @@ create policy demande_propositions_select on public.demande_propositions
 create policy waitlist_entries_select_staff on public.waitlist_entries
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.has_permission('demandes.view')));
-create policy waitlist_entries_select_self on public.waitlist_entries
-  for select to authenticated
-  using (target_professional_id = (select private.current_professional_id()) and (select private.has_permission('demandes.self')));
 create policy waitlist_contacts_select on public.waitlist_contacts
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.has_permission('demandes.view')));
@@ -638,3 +637,76 @@ create trigger waitlist_contacts_audit after insert or update or delete on publi
   for each row execute function private.audit_trigger();
 create trigger waitlist_offers_audit after insert or update or delete on public.waitlist_offers
   for each row execute function private.audit_trigger();
+
+-- -----------------------------------------------------------------------------
+-- The professional's reads (demandes.self): published columns only, through definer functions
+-- -----------------------------------------------------------------------------
+-- my_demandes: the requests matched to her while they are (state `matched`): who and what for
+-- (the intake, the motifs, the participants), never the contact details (Clients' my_clients
+-- gives those), the source, the counselor, the history, the tasks or the note.
+create function private.my_demandes_rows()
+returns table (id uuid, org_id uuid, reference text, received_at timestamptz, matched_at timestamptz, client_id uuid,
+               beneficiary text, previous_therapy boolean, language text, modality text, availability_periods text[],
+               availability_days smallint[], preferred_pro_gender text, profession_title_id uuid, clientele_id uuid,
+               concerns text, payer_kind text, insurer text, motif_ids uuid[], participants jsonb)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select d.id, d.org_id, d.reference, d.received_at, d.matched_at, d.client_id,
+         d.beneficiary, d.previous_therapy, d.language, d.modality, d.availability_periods,
+         d.availability_days, d.preferred_pro_gender, d.profession_title_id, d.clientele_id,
+         d.concerns, d.payer_kind, d.insurer,
+         coalesce((select array_agg(m.motif_id order by m.motif_id) from public.demande_motifs m where m.demande_id = d.id), '{}'),
+         coalesce((select jsonb_agg(jsonb_build_object('client_id', p.client_id, 'display_name', p.display_name,
+                                                        'relationship', p.relationship, 'is_primary', p.is_primary)
+                                    order by p.is_primary desc, p.created_at)
+                     from public.demande_participants p where p.demande_id = d.id), '[]')
+    from public.demandes d
+   where private.has_permission('demandes.self')
+     and d.org_id = private.current_user_org_id()
+     and d.state = 'matched'
+     and d.matched_professional_id = private.current_professional_id()
+$$;
+revoke all on function private.my_demandes_rows() from public, anon;
+grant execute on function private.my_demandes_rows() to authenticated;
+
+create view public.my_demandes with (security_invoker = true) as
+select r.id, r.org_id, r.reference, r.received_at, r.matched_at, r.client_id, r.beneficiary, r.previous_therapy,
+       r.language, r.modality, r.availability_periods, r.availability_days, r.preferred_pro_gender,
+       r.profession_title_id, r.clientele_id, r.concerns, r.payer_kind, r.insurer, r.motif_ids, r.participants
+  from private.my_demandes_rows() r;
+revoke all on public.my_demandes from anon, authenticated;
+grant select on public.my_demandes to authenticated;
+
+-- my_waitlist_entries: the open entries naming her, in order, with the criteria and her rank;
+-- never the priority's or the waived fee's reason, the fee, the contacts or the note.
+create function private.my_waitlist_entries_rows()
+returns table (id uuid, org_id uuid, demande_id uuid, client_id uuid, priority text, registered_at timestamptz,
+               state text, availability_periods text[], availability_days smallint[], modality text, language text,
+               preferred_pro_gender text, clientele_id uuid, motif_ids uuid[], rank bigint)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select e.id, e.org_id, e.demande_id, e.client_id, e.priority, e.registered_at, e.state,
+         e.availability_periods, e.availability_days, e.modality, e.language, e.preferred_pro_gender,
+         e.clientele_id, e.motif_ids,
+         row_number() over (order by e.priority desc, e.registered_at, e.id)
+    from public.waitlist_entries e
+   where private.has_permission('demandes.self')
+     and e.org_id = private.current_user_org_id()
+     and e.target_professional_id = private.current_professional_id()
+     and e.state <> 'closed'
+$$;
+revoke all on function private.my_waitlist_entries_rows() from public, anon;
+grant execute on function private.my_waitlist_entries_rows() to authenticated;
+
+create view public.my_waitlist_entries with (security_invoker = true) as
+select r.id, r.org_id, r.demande_id, r.client_id, r.priority, r.registered_at, r.state, r.availability_periods,
+       r.availability_days, r.modality, r.language, r.preferred_pro_gender, r.clientele_id, r.motif_ids, r.rank
+  from private.my_waitlist_entries_rows() r;
+revoke all on public.my_waitlist_entries from anon, authenticated;
+grant select on public.my_waitlist_entries to authenticated;

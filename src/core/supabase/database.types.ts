@@ -1132,10 +1132,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "demande_events_assignee_fkey"
-            columns: ["assignee"]
+            columns: ["assignee", "org_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
+            referencedColumns: ["user_id", "org_id"]
           },
           {
             foreignKeyName: "demande_events_by_user_fkey"
@@ -1330,6 +1330,8 @@ export type Database = {
           decline_reason: string | null
           demande_id: string
           directory_snapshot: Json
+          directory_updated_at: string | null
+          expires_at: string | null
           id: string
           org_id: string
           professional_id: string
@@ -1337,6 +1339,7 @@ export type Database = {
           proposed_by: string | null
           responded_at: string | null
           response: string
+          secure_link_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1344,6 +1347,8 @@ export type Database = {
           decline_reason?: string | null
           demande_id: string
           directory_snapshot?: Json
+          directory_updated_at?: string | null
+          expires_at?: string | null
           id?: string
           org_id: string
           professional_id: string
@@ -1351,6 +1356,7 @@ export type Database = {
           proposed_by?: string | null
           responded_at?: string | null
           response?: string
+          secure_link_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1358,6 +1364,8 @@ export type Database = {
           decline_reason?: string | null
           demande_id?: string
           directory_snapshot?: Json
+          directory_updated_at?: string | null
+          expires_at?: string | null
           id?: string
           org_id?: string
           professional_id?: string
@@ -1365,6 +1373,7 @@ export type Database = {
           proposed_by?: string | null
           responded_at?: string | null
           response?: string
+          secure_link_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -7985,6 +7994,51 @@ export type Database = {
           org_id: string | null
           pronouns: string | null
           reason: string | null
+        }
+        Relationships: []
+      }
+      my_demandes: {
+        Row: {
+          availability_days: number[] | null
+          availability_periods: string[] | null
+          beneficiary: string | null
+          client_id: string | null
+          clientele_id: string | null
+          concerns: string | null
+          id: string | null
+          insurer: string | null
+          language: string | null
+          matched_at: string | null
+          modality: string | null
+          motif_ids: string[] | null
+          org_id: string | null
+          participants: Json | null
+          payer_kind: string | null
+          preferred_pro_gender: string | null
+          previous_therapy: boolean | null
+          profession_title_id: string | null
+          received_at: string | null
+          reference: string | null
+        }
+        Relationships: []
+      }
+      my_waitlist_entries: {
+        Row: {
+          availability_days: number[] | null
+          availability_periods: string[] | null
+          client_id: string | null
+          clientele_id: string | null
+          demande_id: string | null
+          id: string | null
+          language: string | null
+          modality: string | null
+          motif_ids: string[] | null
+          org_id: string | null
+          preferred_pro_gender: string | null
+          priority: string | null
+          rank: number | null
+          registered_at: string | null
+          state: string | null
         }
         Relationships: []
       }

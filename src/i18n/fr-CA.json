@@ -5886,6 +5886,9 @@
             "response": "Réponse",
             "responded_at": "Répondu le",
             "decline_reason": "Raison du refus",
+            "expires_at": "Lien valide jusqu’au",
+            "secure_link_id": "Lien d’acceptation",
+            "directory_updated_at": "Profil mis à jour le",
             "directory_snapshot": "Profil présenté"
           },
           "waitlist_entries": {
