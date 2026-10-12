@@ -521,7 +521,7 @@ Reports read only published views through definer RPCs that check `reports.view`
 |---|---|---|
 | OAuth helpers in `_shared/` (`oauth-state.ts`: HMAC-signed state with nonce and 10-min expiry; `oauth-tokens.ts`: store / read through module service-role RPCs that use `private.encrypt_pii` / `decrypt_pii`) | CM1 | reused by RZ, FQ, R6 (Google busy) |
 | `private.pii_encrypted_values()` extended for each token column | each batch adding one | CM1, RZ, FQ, R6 (Google busy) |
-| Yeastar OpenAPI client in `_shared/yeastar/` (ported from PS Hub: token and refresh, send by DID, webhook signature, event codes, keyword handling), secrets `YEASTAR_BASE_URL`, `YEASTAR_CLIENT_ID`, `YEASTAR_CLIENT_SECRET`, `YEASTAR_WEBHOOK_SECRET`, `YEASTAR_SMS_DID` (function secrets, pasted by Jonathan), `fake:yeastar` for local runs | SM | reused by R4 (reminders), later two-way SMS |
+| Yeastar OpenAPI client in `_shared/sms/` (ported from PS Hub: token and refresh, send by DID, webhook signature, event codes; keywords in SQL), per-clinic settings in Paramètres → Textos (address, client id, number) and org secrets in Vault (`yeastar_client_secret`, `yeastar_webhook_secret`; as built, SM-10), `fake:yeastar` for local runs | SM | reused by R4 (reminders), later two-way SMS |
 | Stripe client in `_shared/stripe/` (payment link, setup session, off-session charge, webhook signature) and secrets | FS | Facturation only |
 | Realtime: `useOrgRealtime` hook, `private.broadcast_change(module, table, id, op)` trigger helper, `realtime.messages` policy | D2 | Demandes, then Rendez-vous |
 | Secure-link purposes for appointment actions (module rows, resolve / accept RPCs) | R4 | appointments |
