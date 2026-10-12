@@ -1,0 +1,9 @@
+Revenus par facture
+Période : 2026-09-01 au 2026-10-31
+
+Date,Facture,Client,Professionnel,Sous-total,TPS,TVQ,Total,Payé,Solde,Payé par
+2026-09-02,2026-0000101,Client Fictif Un,Pro Alpha,"175,00","0,00","0,00","175,00 $","175,00 $","0,00 $",
+2026-09-03,2026-0000102,Client Fictif Deux,Pro Beta,"37,83","1,89","3,77","43,49 $","43,49 $","0,00 $",
+2026-09-04,2026-0000103,Client Fictif Trois,Pro Alpha,"120,00","0,00","0,00","125,00 $","0,00 $","125,00 $",IVAC
+2026-10-01,2026-103,Client Fictif Un,Pro Alpha,,,,"94,50 $",,"94,50 $",
+2026-10-02,FACT-9,Client Fictif Quatre,Pro Beta,,,,"50,00 $",,,

@@ -1,0 +1,16 @@
+Liste globale des clients (données fictives)
+
+ClientId,FirstName,LastName,Email,Sex,Language,CellPhone,CellPhoneCountryCode,HomePhone,HomePhoneCountryCode,WorkPhone,WorkPhoneCountryCode,WorkPhoneExtension,StreetNumber,StreetName,Apartment,City,Province,Country,PostalCode,Birthday,LastAppointment,Tags,Archived,PrimaryProfessional
+1001,Camille,Tremblay-Fictif,camille.fictive@exemple.test,F,fr,5145550101,1,,,,,,12,rue des Essais,,Montréal,Québec,Canada,h2x1a1,1990-04-12,2026-09-30,"IVAC, Tarif étudiant, Satisfaite",Non,Pro Alpha
+1002,CAMILLE,TREMBLAY-FICTIF,Camille.Fictive@Exemple.test,F,Français,514 555-0101,+1,,,,,,,,,,,,,1990-04-12,,,Non,
+1003,Léo,Fictif,parent.fictif@exemple.test,M,en,438 555 0102,1,,,,,,,,,Laval,QC,Canada,H7A 0A1,2010-02-03,2026-10-01,Nouveau client,Non,Pro Beta
+1004,Maude,Fictif,parent.fictif@exemple.test,F,fr,4385550102,1,,,,,,,,,Laval,QC,Canada,H7A0A1,2012-06-15,,,Non,Pro Beta
+1005,Hélène,Essai,,F,fr,,,,,,,,,,,,,,,1985-07-08,,,Non,
+1006,Helene,Essai,,F,fr,,,4505550103,1,,,,,,,,,,,1985-07-08,,,Non,
+1007,Jean,Exemple,jean.exemple@exemple.test,M,fr,,,,,8195550104,1,22,,,,,,,,1970-01-01,,PAE externe,Non,
+1008,Jean,Exemple,autre.adresse@exemple.test,M,fr,,,,,,,,,,,,,,,1980-01-01,,,Non,
+,Sans,Identifiant,sans.id@exemple.test,F,fr,,,,,,,,,,,,,,,,,,,
+1009,,,personne@exemple.test,F,fr,,,,,,,,,,,,,,,,,,,
+1001,Camille,Doublon-De-Ligne,autre@exemple.test,F,fr,,,,,,,,,,,,,,,,,,,
+1010,Zoé,Test,pas-un-courriel,Z,es,555-1234,1,,,,,,,,,,,,,2099-01-01,hier,"Tarif étudiant;Tarif réduit;Étiquette maison",Peut-être,
+1011,noah,essai-fictif,noah@exemple.test,M,fr,,,,,,,,,,,,,,,44259,,"Atelier,Couple,Famille,Offert,Payeur,Fin de suivi",Oui,

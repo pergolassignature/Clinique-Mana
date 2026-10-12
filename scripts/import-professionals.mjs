@@ -53,12 +53,13 @@ export class InputError extends Error {}
 /**
  * RFC 4180 records with the physical line each starts on (1 = the header): quoted fields may hold
  * the delimiter, doubled quotes and line breaks; CRLF, LF and CR all end a record; a leading UTF-8
- * BOM is dropped. The delimiter is the header line's: « ; » when it has more of them than commas.
+ * BOM is dropped. The delimiter is the header line's: « ; » when it has more of them than commas;
+ * a caller that knows better (an export with a title line above its header) passes `delimiter`.
  */
-export function parseCsv(text) {
+export function parseCsv(text, { delimiter: given } = {}) {
   const source = text.startsWith('\uFEFF') ? text.slice(1) : text
   const headerLine = source.split(/\r\n|\n|\r/, 1)[0] ?? ''
-  const delimiter = count(headerLine, ';') > count(headerLine, ',') ? ';' : ','
+  const delimiter = given ?? (count(headerLine, ';') > count(headerLine, ',') ? ';' : ',')
   const records = []
   let cells = []
   let cell = ''
