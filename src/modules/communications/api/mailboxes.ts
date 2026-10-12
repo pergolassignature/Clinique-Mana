@@ -42,7 +42,7 @@ export async function listMailConnections(): Promise<MailConnection[]> {
   return z.array(mailConnectionSchema).parse(data)
 }
 
-const settingsSchema = z.object({ pubsub_topic: z.string().nullable() })
+const settingsSchema = z.object({ pubsub_topic: z.string().nullable(), pubsub_service_account: z.string().nullable() })
 export type CommunicationsSettings = z.infer<typeof settingsSchema>
 
 /** The effective settings (`communications.mailboxes_manage`). */
@@ -52,7 +52,7 @@ export async function fetchCommunicationsSettings(): Promise<CommunicationsSetti
   return settingsSchema.parse(data)
 }
 
-/** Saves the topic (null clears it); a malformed name is a French P0001. Returns the effective settings. */
+/** Saves the topic and the push's service account (null clears one); a malformed one is a French P0001 whose HINT names it. Returns the effective settings. */
 export async function saveCommunicationsSettings(patch: Partial<CommunicationsSettings>): Promise<CommunicationsSettings> {
   const { data, error } = await supabase.rpc('set_communications_settings', { p_patch: patch })
   if (error) throw error
@@ -61,9 +61,9 @@ export async function saveCommunicationsSettings(patch: Partial<CommunicationsSe
 
 const startSchema = z.object({ url: z.url({ protocol: /^https?$/ }) })
 
-/** « Connecter une boîte »: Google's consent page for the clinic's OAuth application (signed state, 10 minutes). */
-export async function startGmailConnect(kind: 'shared' | 'personal' = 'shared'): Promise<string> {
-  return startSchema.parse(await invokeFunction('gmail-connect', { action: 'start', kind })).url
+/** « Connecter une boîte » (a shared mailbox, CM-10): Google's consent page for the clinic's OAuth application (signed state, 10 minutes). */
+export async function startGmailConnect(): Promise<string> {
+  return startSchema.parse(await invokeFunction('gmail-connect', { action: 'start', kind: 'shared' })).url
 }
 
 const callbackSchema = z.object({ connection_id: z.string(), email_address: z.string() })
@@ -96,11 +96,15 @@ export async function disconnectMailConnection(connectionId: string): Promise<{ 
   return { revoked }
 }
 
+/** The push endpoint to give Pub/Sub's subscription: `org` routes the push, nothing secret (CM-4). */
+export function gmailWebhookUrl(orgId: string): string {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-webhook?org=${encodeURIComponent(orgId)}`
+}
+
 /**
- * The push endpoint to give Pub/Sub's subscription. `org` routes the push; the token is the
- * secret « Jeton Pub/Sub » and is never shown again once saved, so the address carries a
- * placeholder the person replaces with it.
+ * The audience the push subscription sets, which `gmail-webhook` requires in Google's token:
+ * the same string as `pushAudience` in `supabase/functions/_shared/gmail/env.ts`.
  */
-export function gmailWebhookUrl(orgId: string, tokenPlaceholder: string): string {
-  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-webhook?org=${encodeURIComponent(orgId)}&token=${tokenPlaceholder}`
+export function gmailPushAudience(orgId: string): string {
+  return `clinique-mana:gmail-push:${orgId.toLowerCase()}`
 }

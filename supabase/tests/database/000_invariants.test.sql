@@ -90,13 +90,15 @@ select is_empty($$
   select x.org_id, x.permission_key from public.org_role_permissions x where x.role = 'admin'
 $$, 'admin holds every permission in every org');
 
--- PostgREST's role loads pg-safeupdate: a DELETE without WHERE fails (« DELETE requires a WHERE
--- clause ») in any function an RPC reaches, though it passes here as postgres. Clear a temp table
--- with `truncate`.
+-- PostgREST's role loads pg-safeupdate: a DELETE or an UPDATE without WHERE fails (« DELETE
+-- requires a WHERE clause ») in any function an RPC reaches, though it passes here as postgres.
+-- Clear a temp table with `truncate`; an UPDATE of every row says `where true`.
 select is_empty($$
   select n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname in ('public', 'private') and p.prosrc ~* '\mdelete\s+from\s+[a-z0-9_."]+\s*;'
-$$, 'no function deletes without a WHERE clause (pg-safeupdate)');
+   where n.nspname in ('public', 'private')
+     and (p.prosrc ~* '\mdelete\s+from\s+[a-z0-9_."]+\s*;'
+          or p.prosrc ~* '\mupdate\s+[a-z0-9_."]+(\s+(as\s+)?[a-z_]+)?\s+set\s((?!\mwhere\M)[^;])*;')
+$$, 'no function deletes or updates without a WHERE clause (pg-safeupdate)');
 
 select * from finish();
 rollback;

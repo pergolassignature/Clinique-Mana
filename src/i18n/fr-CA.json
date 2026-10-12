@@ -4858,6 +4858,7 @@
           "title": "Courriels Gmail",
           "description": "Les boîtes Gmail de la clinique (info@, administration@) lues par l'application : leur état, leur synchronisation et leur configuration chez Google.",
           "secretsLoadError": "L'état des clés n'a pas pu être chargé.",
+          "secretsUnknown": "L'état de cette clé n'est visible qu'avec la permission de voir les paramètres.",
           "mailboxes": {
             "title": "Boîtes connectées",
             "description": "Chaque boîte est lue toutes les 15 minutes et dès que Google signale un nouveau courriel. Les courriels restent dans Gmail.",
@@ -4910,7 +4911,8 @@
               "invalidGrant": "Google a retiré l'accès (mot de passe changé ou accès révoqué). Reconnectez la boîte.",
               "scopeMissing": "Un accès nécessaire n'a pas été accordé chez Google. Reconnectez la boîte et acceptez chaque accès.",
               "other": "Google refuse l'accès à cette boîte. Reconnectez-la."
-            }
+            },
+            "unwatched": "Google ne signale pas les nouveaux courriels de cette boîte : vérifiez le sujet Pub/Sub et le rôle de gmail-api-push@system.gserviceaccount.com, puis « Synchroniser ». Elle reste lue toutes les 15 minutes si la tâche est activée."
           },
           "app": {
             "title": "Application Google",
@@ -4925,19 +4927,21 @@
           },
           "push": {
             "title": "Notifications de Google",
-            "description": "Google signale chaque nouveau courriel par Pub/Sub : l'application lit alors la boîte sans attendre les 15 minutes.",
-            "token": "Jeton Pub/Sub",
-            "tokenHelp": "Une longue suite de caractères au hasard, choisie par vous : elle authentifie les notifications de Google.",
-            "tokenPlaceholder": "JETON",
+            "description": "Google signale chaque nouveau courriel par Pub/Sub : l'application lit alors la boîte sans attendre les 15 minutes. Chaque notification porte un jeton signé par Google, vérifié ici.",
+            "account": "Compte de service de l'abonnement",
+            "accountHelp": "Le compte de service choisi dans l'abonnement push, avec l'authentification activée (nom@projet.iam.gserviceaccount.com). Vide : toutes les notifications sont refusées.",
+            "accountInvalid": "Le compte de service doit avoir la forme nom@projet.iam.gserviceaccount.com.",
             "url": "Adresse de l'abonnement push",
-            "urlHelp": "Dans Pub/Sub, créez un abonnement de type push vers cette adresse en remplaçant JETON par le jeton Pub/Sub, avec un délai d'accusé de réception de 60 secondes."
+            "urlHelp": "Dans Pub/Sub, créez un abonnement de type push vers cette adresse, délai d'accusé de réception de 60 secondes.",
+            "audience": "Audience de l'abonnement",
+            "audienceHelp": "Dans le même abonnement, activez l'authentification avec le compte de service ci-dessus et collez cette audience."
           },
           "topic": {
             "label": "Sujet Pub/Sub",
             "help": "Le nom complet du sujet, de la forme projects/<projet>/topics/<sujet>. Vide : Google ne signale rien et les boîtes sont lues toutes les 15 minutes seulement.",
             "invalid": "Le nom du sujet Pub/Sub doit avoir la forme projects/<projet>/topics/<sujet>.",
-            "saved": "Le sujet Pub/Sub est enregistré.",
-            "saveError": "Le sujet Pub/Sub n'a pas pu être enregistré.",
+            "saved": "Les réglages des notifications sont enregistrés.",
+            "saveError": "Les réglages des notifications n'ont pas pu être enregistrés.",
             "loadError": "Les paramètres n'ont pas pu être chargés."
           },
           "jobs": {

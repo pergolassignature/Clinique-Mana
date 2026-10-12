@@ -43,7 +43,7 @@ export function useSaveCommunicationsSettings() {
  */
 export function useStartGmailConnect() {
   return useMutation({
-    mutationFn: (kind: 'shared' | 'personal') => startGmailConnect(kind),
+    mutationFn: () => startGmailConnect(),
     onSuccess: (url) => leaveFor(url),
     onError: (error) => toast.error(communicationsErrorMessage(error)),
   })
@@ -59,7 +59,8 @@ export function useStartGmailConnect() {
 export function useFinishGmailConnect(code: string | null, state: string | null) {
   const queryClient = useQueryClient()
   return useQuery({
-    queryKey: [...mailKeys.all, 'google-return', state] as const,
+    // Its own root, outside `mailKeys.all`: no invalidation of the module's queries may ever post the spent code again.
+    queryKey: ['communications-google-return', state] as const,
     queryFn: async () => {
       try {
         const mailbox = await finishGmailConnect(code!, state!)

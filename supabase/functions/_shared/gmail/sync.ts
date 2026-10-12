@@ -341,7 +341,9 @@ export async function syncMailbox(
     }
 
     const incrementalPass = async () => {
-      let startId = historyId!
+      // Fixed for the whole listing: Gmail ties a page token to the query that issued it, so
+      // only the id saved at the end (`historyId`) moves forward, never the request's start.
+      const startId = historyId!
       let token: string | undefined
       let applied: string | null = null
       let lastResponseId: string | null = null
@@ -355,9 +357,11 @@ export async function syncMailbox(
           })
         } catch (error) {
           if (error instanceof GmailError && error.code === 'history_gone') {
+            // Under this pass's own lease: the reset is accepted.
             await ctx.client.rpc('reset_mail_history', {
               p_org_id: ctx.orgId,
               p_connection_id: mailbox.connection_id,
+              p_token: token,
             })
             historyId = null
             initialDone = false
@@ -439,7 +443,6 @@ export async function syncMailbox(
           applied ?? (page.nextPageToken ? null : lastResponseId),
         )
         token = page.nextPageToken
-        startId = historyId!
       } while (token)
     }
 
@@ -454,12 +457,12 @@ export async function syncMailbox(
       )
     }
     if (!ctx.signal.aborted) {
-      outcome.watchRenewed = await renewWatch(
+      outcome.watchRenewed = (await renewWatch(
         ctx,
         gmail,
         mailbox,
         ctx.pubsubTopic,
-      )
+      )) === 'renewed'
     }
     await finish('ok', null)
     return outcome
@@ -688,23 +691,27 @@ export function safeFileName(name: string | null, mime: string): string {
 
 /**
  * Renews the mailbox's Pub/Sub watch when it is missing or expires within 2
- * days and a topic is set. True when renewed. A refused watch (a topic Gmail
- * cannot publish to) is recorded as a failure code without ending the pass.
+ * days and a topic is set: `renewed`, or `not_due` (no topic, or not yet).
+ * A refused watch (a topic Gmail cannot publish to: a wrong name, or
+ * `gmail-api-push@…` not a publisher) is `refused`, never thrown: a sync pass
+ * goes on (the mail is still read, and « Courriels Gmail » shows the mailbox
+ * as not watched while a topic is set); `gmail-watch-renew` fails its run
+ * with `watch_refused`, so « Tâches planifiées » says so.
  */
 export async function renewWatch(
   ctx: SyncContext,
   gmail: GmailClient,
   mailbox: Pick<MailboxToSync, 'connection_id' | 'watch_expires_at'>,
   topic: string | null,
-): Promise<boolean> {
-  if (!topic) return false
+): Promise<'renewed' | 'not_due' | 'refused'> {
+  if (!topic) return 'not_due'
   const expires = mailbox.watch_expires_at
     ? Date.parse(mailbox.watch_expires_at)
     : NaN
   if (
     Number.isFinite(expires) &&
     expires - ctx.now().getTime() > WATCH_RENEW_AHEAD_MS
-  ) return false
+  ) return 'not_due'
   let result
   try {
     result = await gmail.watch(topic)
@@ -713,7 +720,7 @@ export async function renewWatch(
       error instanceof GmailError &&
       (error.code === 'bad_request' || error.code === 'forbidden')
     ) {
-      throw failure('watch_refused')
+      return 'refused'
     }
     throw error
   }
@@ -730,7 +737,7 @@ export async function renewWatch(
     z.unknown(),
     'watch_record_failed',
   )
-  return true
+  return 'renewed'
 }
 
 /** « 2 boîtes : 12 messages, 1 pièce jointe » (counts only, never an address). */

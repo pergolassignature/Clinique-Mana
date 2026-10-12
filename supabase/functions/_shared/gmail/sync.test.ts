@@ -218,6 +218,42 @@ Deno.test('sync: the incremental pass applies deletions, label changes and addit
   assertEquals(s.state.sync.history_id, s.google.history.at(-1)!.id)
 })
 
+Deno.test('sync: a history listed over several pages keeps its start id, so no record is skipped', async () => {
+  const s = setup()
+  s.google.deliver({ from: 'a@example.test', subject: 'A', text: 'a' })
+  await syncMailbox(s.ctx(), s.mailbox())
+  const afterFirst = s.state.sync.history_id!
+  s.state.upserted.length = 0
+  const later = Array.from(
+    { length: 7 },
+    (_, i) =>
+      s.google.deliver({
+        from: `p${i}@example.test`,
+        subject: `P${i}`,
+        text: 'p',
+      }).id,
+  )
+  // Pages of 3 records: the fake's page token is an offset from the request's start id, as
+  // Google's tokens are bound to their query.
+  const starts: string[] = []
+  const paged: typeof fetch = (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input))
+    if (url.pathname.endsWith('/history')) {
+      url.searchParams.set('maxResults', '3')
+      starts.push(url.searchParams.get('startHistoryId')!)
+    }
+    return s.google.fetch(url.toString(), init)
+  }
+  const outcome = await syncMailbox(s.ctx({ fetch: paged }), s.mailbox())
+  assertEquals(outcome.status, 'ok')
+  assertEquals(starts, [afterFirst, afterFirst, afterFirst])
+  assertEquals(
+    s.state.upserted.map((r) => r.gmail_message_id).sort(),
+    [...later].sort(),
+  )
+  assertEquals(s.state.sync.history_id, s.google.history.at(-1)!.id)
+})
+
 Deno.test('sync: a start id Google no longer has (404) forgets the history and runs the first pass again', async () => {
   const s = setup()
   s.google.deliver({ from: 'a@example.test', subject: 'A', text: 'a' })
@@ -293,7 +329,6 @@ Deno.test('sync: an attachment whose bytes are not what it declares is not copie
       secrets: {
         google_oauth_client_id: null,
         google_oauth_client_secret: null,
-        gmail_pubsub_token: null,
       },
     }),
   })

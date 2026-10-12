@@ -3,17 +3,22 @@ import { createHandler } from './handler.ts'
 import { captureConsole, withEnv } from '../_shared/testing/env.ts'
 import {
   gmailHarness,
-  initialState,
   MAILBOX,
+  NOW,
   ORG_ID,
-  PUBSUB_TOKEN,
+  PUSH_ACCOUNT,
+  PUSH_SIGNER,
 } from '../_shared/testing/gmail-fixtures.ts'
+import { pushClaims } from '../_shared/testing/google-oidc-signer.ts'
+import { pushAudience } from '../_shared/gmail/env.ts'
 
 const BASE = 'http://fn.test/functions/v1/gmail-webhook'
-const url = (org = ORG_ID, token: string | null = PUBSUB_TOKEN) =>
-  `${BASE}?org=${org}${
-    token === null ? '' : `&token=${encodeURIComponent(token)}`
-  }`
+const url = (org = ORG_ID) => `${BASE}?org=${org}`
+const nowS = Date.parse(NOW) / 1000
+/** The token Pub/Sub puts on a push to the clinic's endpoint. */
+const TOKEN = await PUSH_SIGNER.sign(
+  pushClaims(pushAudience(ORG_ID), PUSH_ACCOUNT, nowS),
+)
 
 /** A Pub/Sub push body for `emailAddress`. */
 function push(
@@ -27,12 +32,22 @@ function push(
     subscription: 'projects/x/subscriptions/y',
   })
 }
-const post = (body: string, target = url()) =>
+const post = (
+  body: string,
+  target = url(),
+  token: string | null = TOKEN,
+) =>
   new Request(target, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
+    },
     body,
   })
+/** Google's calls but the keys' (read once, then cached by the verifier). */
+const apiCalls = (calls: { path: string }[]) =>
+  calls.filter((c) => c.path !== '/oauth2/v3/certs')
 
 /** The env the shared helpers read themselves (`consume` hashes with the secret; CORS echoes the origin). */
 const run = (fn: () => Promise<void>) =>
@@ -46,7 +61,7 @@ Deno.test('gmail-webhook: method, org, token, size and payload checks before any
     const handler = createHandler(h.deps)
     assertEquals((await handler(new Request(url()))).status, 405)
     assertEquals((await handler(post(push(), url('nope')))).status, 400)
-    assertEquals((await handler(post(push(), url(ORG_ID, null)))).status, 401)
+    assertEquals((await handler(post(push(), url(), null))).status, 401)
     assertEquals(h.service.calls.length, 0)
     assertEquals((await handler(post('x'.repeat(64 * 1024 + 1)))).status, 413)
     assertEquals((await handler(post('{not json'))).status, 400)
@@ -63,32 +78,47 @@ Deno.test('gmail-webhook: method, org, token, size and payload checks before any
     assertFalse(h.rpcNames().includes('claim_webhook_event'))
   }))
 
-Deno.test("gmail-webhook: one hit per IP, then the org's token compared timing-safe; missing or wrong → 401", () =>
+Deno.test("gmail-webhook: one hit per IP, then Google's signed token for the clinic's service account and audience; anything else → 401", () =>
   run(async () => {
-    const compared: [string, string][] = []
     const h = gmailHarness()
-    const handler = createHandler(h.deps, {
-      timingSafeEqual: (a, b) => {
-        compared.push([a, b])
-        return a === b
-      },
-    })
-    const req = post(push(), url(ORG_ID, 'wrong'))
+    const handler = createHandler(h.deps)
+    const forged = `${TOKEN.slice(0, -4)}AAAA`
+    const req = post(push(), url(), forged)
     req.headers.set('x-forwarded-for', '198.51.100.7, 203.0.113.9')
-    assertEquals((await handler(req)).status, 401)
-    assertEquals(h.rpcNames(), ['consume_rate_limit', 'get_org_secret'])
-    assertEquals(h.service.calls[0].args.p_bucket, 'webhooks.gmail_ip')
-    assertEquals(compared, [['wrong', PUBSUB_TOKEN]])
-
-    const none = gmailHarness({
-      state: initialState({
-        secrets: {
-          google_oauth_client_id: null,
-          google_oauth_client_secret: null,
-          gmail_pubsub_token: null,
-        },
-      }),
+    await captureConsole('warn', async () => {
+      assertEquals((await handler(req)).status, 401)
     })
+    assertEquals(h.rpcNames(), [
+      'consume_rate_limit',
+      'get_communications_settings_for_org',
+    ])
+    assertEquals(h.service.calls[0].args.p_bucket, 'webhooks.gmail_ip')
+
+    // Another audience (another clinic's subscription), another service account, expired.
+    for (
+      const over of [
+        { aud: pushAudience('00000000-0000-4000-8000-000000000002') },
+        { email: 'someone@other-project.iam.gserviceaccount.com' },
+        { exp: nowS - 600 },
+      ]
+    ) {
+      const warned = await captureConsole('warn', async () => {
+        assertEquals(
+          (await handler(post(push(), url(), await h.pushToken(over))))
+            .status,
+          401,
+        )
+      })
+      assertFalse(
+        JSON.stringify(warned).includes('eyJ'),
+        'the token never reaches a log',
+      )
+    }
+    assertFalse(h.rpcNames().includes('claim_webhook_event'))
+
+    // No service account set: fail closed.
+    const none = gmailHarness()
+    none.state.settings.pubsub_service_account = null
     await captureConsole('warn', async () => {
       assertEquals((await createHandler(none.deps)(post(push()))).status, 401)
     })
@@ -104,7 +134,7 @@ Deno.test("gmail-webhook: one hit per IP, then the org's token compared timing-s
     assertEquals(
       limited.rpcNames(),
       ['consume_rate_limit'],
-      'the secret was never read',
+      'the settings were never read',
     )
   }))
 
@@ -138,7 +168,7 @@ Deno.test('gmail-webhook: a mailbox not connected here is acked as unknown; a di
     const h = gmailHarness()
     let res = await createHandler(h.deps)(post(push('other@clinique.test')))
     assertEquals(await res.json(), { outcome: 'unknown_mailbox' })
-    assertEquals(h.google.calls.length, 0)
+    assertEquals(apiCalls(h.google.calls).length, 0)
 
     const off = gmailHarness({
       rpc: { module_enabled_for_org: { data: false } },
@@ -158,15 +188,19 @@ Deno.test('gmail-webhook: a mailbox not connected here is acked as unknown; a di
     assertEquals((await createHandler(busy.deps)(post(push()))).status, 409)
   }))
 
-Deno.test('gmail-webhook: a sync under another lease is acked as skipped (the request stays), a provider failure fails the claim with 500', () =>
+Deno.test('gmail-webhook: a sync under another lease fails the claim with 503 (Pub/Sub redelivers), a provider failure fails it with 500', () =>
   run(async () => {
     const h = gmailHarness()
     h.state.sync.lease_token = '00000000-0000-4000-8000-00000000beef'
     h.state.sync.lease_until = Date.parse('2026-10-12T15:04:00.000Z')
     let res = await createHandler(h.deps)(post(push()))
-    assertEquals(await res.json(), { outcome: 'skipped' })
+    assertEquals(res.status, 503)
     assert(h.state.sync.sync_requested_at !== null)
-    assert(h.rpcNames().includes('complete_webhook_event'))
+    assertFalse(h.rpcNames().includes('complete_webhook_event'))
+    assertEquals(
+      h.service.calls.find((c) => c.fn === 'fail_webhook_event')!.args.p_error,
+      'lease_held',
+    )
 
     const down = gmailHarness()
     down.deps.fetch = (() =>

@@ -17,10 +17,15 @@ import {
   type FakeGmailOptions,
 } from './fake-gmail.ts'
 import { accessFixture, ADMIN_ID, ORG_ID } from './email-fixtures.ts'
+import { createOidcSigner, pushClaims } from './google-oidc-signer.ts'
+import { pushAudience } from '../gmail/env.ts'
 
 export const CONNECTION_ID = '00000000-0000-4000-8000-00000000c001'
 export const MAILBOX = 'info@clinique.test'
-export const PUBSUB_TOKEN = 'local-dev-gmail-pubsub-token'
+/** The push subscription's service account (`pubsub_service_account`), as the seed sets it. */
+export const PUSH_ACCOUNT = 'gmail-push@mana-local.iam.gserviceaccount.com'
+/** Google's stand-in signer for the push tokens (one per test run). */
+export const PUSH_SIGNER = await createOidcSigner('fake-google-key')
 export const TOPIC = 'projects/mana-local/topics/gmail-push'
 export const FAKE_ORIGIN = 'http://fake-google.test'
 export const NOW = '2026-10-12T15:00:00.000Z'
@@ -74,7 +79,10 @@ export interface MailState {
     size: number
     name: string
   }[]
-  settings: { pubsub_topic: string | null }
+  settings: {
+    pubsub_topic: string | null
+    pubsub_service_account: string | null
+  }
   secrets: Record<string, string | null>
 }
 
@@ -111,11 +119,10 @@ export function initialState(over: Partial<MailState> = {}): MailState {
     labels: [],
     attachments: [],
     files: [],
-    settings: { pubsub_topic: TOPIC },
+    settings: { pubsub_topic: TOPIC, pubsub_service_account: PUSH_ACCOUNT },
     secrets: {
       google_oauth_client_id: FAKE_CLIENT_ID,
       google_oauth_client_secret: FAKE_CLIENT_SECRET,
-      gmail_pubsub_token: PUBSUB_TOKEN,
     },
     ...over,
   }
@@ -251,11 +258,16 @@ export function mailRpcRoutes(
       s.messages += args.p_messages as number
       return ok(true)
     },
-    reset_mail_history: () => {
+    reset_mail_history: (args) => {
+      // As the RPC: refused while another pass holds a live lease.
+      const held = state.sync.lease_until !== null &&
+        state.sync.lease_until > now() &&
+        state.sync.lease_token !== (args.p_token ?? null)
+      if (held) return ok(false)
       state.sync.history_id = null
       state.sync.initial_sync_done = false
       state.sync.initial_sync_page_token = null
-      return ok()
+      return ok(true)
     },
     set_mail_watch: (args) => {
       state.sync.watch_expires_at = args.p_expires_at as string | null
@@ -390,7 +402,12 @@ export function gmailHarness(opts: GmailHarnessOptions = {}) {
   const state = opts.state ?? initialState()
   let clock = Date.parse(NOW)
   const now = opts.now ?? (() => clock)
-  const google = fakeGmail({ emailAddress: MAILBOX, now, ...opts.gmail })
+  const google = fakeGmail({
+    emailAddress: MAILBOX,
+    now,
+    signer: PUSH_SIGNER,
+    ...opts.gmail,
+  })
   const uploads: {
     bucket: string
     path: string
@@ -431,6 +448,7 @@ export function gmailHarness(opts: GmailHarnessOptions = {}) {
     GMAIL_API_BASE_URL: FAKE_ORIGIN,
     GOOGLE_OAUTH_BASE_URL: FAKE_ORIGIN,
     GOOGLE_ACCOUNTS_BASE_URL: FAKE_ORIGIN,
+    GOOGLE_CERTS_BASE_URL: FAKE_ORIGIN,
     GOOGLE_ACCOUNTS_PUBLIC_URL: 'http://127.0.0.1:55392',
     ...opts.env,
   }
@@ -461,6 +479,13 @@ export function gmailHarness(opts: GmailHarnessOptions = {}) {
     },
     advance(ms: number) {
       clock += ms
+    },
+    /** The bearer token Pub/Sub would put on a push to the clinic (`over` changes claims). */
+    pushToken(over: Record<string, unknown> = {}) {
+      return PUSH_SIGNER.sign({
+        ...pushClaims(pushAudience(ORG_ID), PUSH_ACCOUNT, now() / 1000),
+        ...over,
+      })
     },
     rpcNames: () => service.calls.map((c) => c.fn),
   }

@@ -168,6 +168,25 @@ Deno.test('mime: a multipart message → headers, bodies, attachments (inline an
   assertEquals(parsed.body_refs, [])
 })
 
+Deno.test('mime: a single-part attachment message (Gmail\'s root `partId: ""`) keeps its attachment under the walk\'s id', () => {
+  const parsed = parseMessage({
+    id: 'm4',
+    threadId: 't4',
+    internalDate: String(NOW.getTime()),
+    payload: {
+      partId: '',
+      mimeType: 'application/pdf',
+      filename: 'facture.pdf',
+      headers: [{ name: 'Subject', value: 'Facture' }],
+      body: { size: 1200, attachmentId: 'att-root' },
+    },
+  } as GmailMessage, NOW)
+  assertEquals(parsed.attachments.map((a) => [a.part_id, a.filename]), [[
+    '0',
+    'facture.pdf',
+  ]])
+})
+
 Deno.test('mime: a body handed out by attachment id is referenced for the sync; the date falls back', () => {
   const parsed = parseMessage({
     id: 'm2',

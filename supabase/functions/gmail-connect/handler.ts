@@ -3,7 +3,7 @@
  * its disconnection. User function: `verifyAuth` with module
  * `communications` and `communications.mailboxes_manage`.
  *
- * `{ action: 'start', kind?: 'shared' | 'personal' }` → `{ url }`, Google's
+ * `{ action: 'start', kind?: 'shared' }` → `{ url }`, Google's
  * consent page for the clinic's OAuth application (the two org secrets set
  * in « Courriels Gmail »; none → 503 `not_configured`): scopes
  * `gmail.modify` and `gmail.send` only, `access_type=offline` and
@@ -39,7 +39,11 @@ import {
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
 import { GmailClient, GmailError } from '../_shared/gmail/client.ts'
-import { oauthApp, revokeToken } from '../_shared/gmail/credentials.ts'
+import {
+  mailboxCredentials,
+  oauthApp,
+  revokeToken,
+} from '../_shared/gmail/credentials.ts'
 import {
   GMAIL_SCOPES,
   gmailOrigins,
@@ -57,7 +61,8 @@ export const STATE_PURPOSE = 'gmail_connect'
 const bodySchema = z.discriminatedUnion('action', [
   z.strictObject({
     action: z.literal('start'),
-    kind: z.enum(['shared', 'personal']).default('shared'),
+    // Shared mailboxes only (CM-10): a personal one needs ownership checks end to end first.
+    kind: z.literal('shared').default('shared'),
   }),
   z.strictObject({ action: z.literal('disconnect'), connection_id: z.guid() }),
 ])
@@ -156,10 +161,32 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     let revoked = false
     const row = credentials.data[0]
     if (row) {
+      // A fresh access token for `users.stop` (the stored one may have expired); any failure
+      // falls back to the stored one: stopping the watch is best effort.
+      let accessToken = row.access_token
+      try {
+        const app = await oauthApp(service, orgId)
+        if (app) {
+          accessToken = (await mailboxCredentials(
+            {
+              client: service,
+              fetch: deps.fetch,
+              origins,
+              now: deps.now,
+              orgId,
+              signal: req.signal,
+            },
+            input.connection_id,
+            app,
+          )).accessToken
+        }
+      } catch {
+        // The stored token, as is.
+      }
       const gmail = new GmailClient({
         fetch: deps.fetch,
         origin: origins.api,
-        accessToken: row.access_token,
+        accessToken,
         signal: req.signal,
       })
       try {

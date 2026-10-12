@@ -94,7 +94,7 @@ Deno.test("gmail-connect: on a hosted project the URL is Google's, and a stray f
   run(async () => {
     const h = gmailHarness({ env: { APP_URL: 'https://app.cliniquemana.com' } })
     const res = await createHandler(h.deps)(
-      post({ action: 'start', kind: 'personal' }),
+      post({ action: 'start' }),
     )
     assertEquals(res.status, 200)
     const { url } = await res.json() as { url: string }
@@ -113,7 +113,6 @@ Deno.test('gmail-connect: no OAuth application → 503 not_configured; no usable
         secrets: {
           google_oauth_client_id: null,
           google_oauth_client_secret: 'x',
-          gmail_pubsub_token: null,
         },
       }),
     })

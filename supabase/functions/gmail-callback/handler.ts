@@ -122,7 +122,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         ? limitResponse(nonce, req)!
         : errorResponse('link_used', 'State already used', 410, req)
     }
-    const kind = state.data?.kind === 'personal' ? 'personal' : 'shared'
+    // Shared mailboxes only (CM-10); the RPC refuses any other kind too.
+    const kind = 'shared'
 
     let app
     try {

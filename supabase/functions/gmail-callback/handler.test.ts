@@ -199,7 +199,6 @@ Deno.test("gmail-callback: the RPC's own refusal is passed on; no OAuth applicat
         secrets: {
           google_oauth_client_id: null,
           google_oauth_client_secret: null,
-          gmail_pubsub_token: null,
         },
       }),
     })
@@ -214,7 +213,6 @@ Deno.test("gmail-callback: the RPC's own refusal is passed on; no OAuth applicat
         secrets: {
           google_oauth_client_id: 'other-client',
           google_oauth_client_secret: 'other',
-          gmail_pubsub_token: null,
         },
       }),
     })

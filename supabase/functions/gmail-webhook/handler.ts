@@ -3,22 +3,26 @@
  * changes → a sync of that mailbox. Not browser-facing: no CORS,
  * `webhookResponse` only.
  *
- * The push subscription's endpoint is
- * `…/functions/v1/gmail-webhook?org=<org id>&token=<gmail_pubsub_token>`
- * (« Courriels Gmail » shows it): the org names whose secret verifies the
- * call, the token is that secret (Google's documented way to authenticate a
- * push without OIDC). The payload is only a hint: the mailbox it names is
+ * The push subscription's endpoint is `…/functions/v1/gmail-webhook?org=<org id>`
+ * (« Courriels Gmail » shows it), **with authentication** (CM-4): Pub/Sub
+ * signs each push with a Google ID token for the service account the clinic
+ * set (`pubsub_service_account`) and the audience `pushAudience(org)`. No
+ * secret travels in the address (PS Hub's token in the query string reached
+ * the request logs). The payload is only a hint: the mailbox it names is
  * matched exactly among the clinic's connected mailboxes and its history id
- * is never trusted (the sync reads from its own stored id), so a leaked
- * token can at most trigger syncs of known mailboxes, under the limit.
+ * is never trusted (the sync reads from its own stored id).
  *
- * 1. `POST` only (405); `?org=` a uuid (400); `?token=` present (401).
- * 2. One hit on `LIMITS.gmailWebhookIp` per IP (`clientIp`) before the
- *    secret is read: anyone can post here. Refused → 429 (Pub/Sub retries);
- *    the limiter down → 503.
- * 3. `get_org_secret(org, 'gmail_pubsub_token')`: none → 401 (fail closed;
- *    a console line with the org id, no report); a read error → 500;
- *    `timingSafeEqual` → 401 on mismatch. **Required** (PS Hub skipped the
+ * 1. `POST` only (405); `?org=` a uuid (400); `Authorization: Bearer` present
+ *    (401).
+ * 2. One hit on `LIMITS.gmailWebhookIp` per IP (`clientIp`) before anything
+ *    is read: anyone can post here. Refused → 429 (Pub/Sub retries); the
+ *    limiter down → 503.
+ * 3. The org's settings (`get_communications_settings_for_org`): no service
+ *    account → 401 (fail closed; a console line with the org id, no report);
+ *    a read error → 500. `verifyGoogleIdToken` (`_shared/google-oidc.ts`:
+ *    Google's signature, issuer, audience, expiry, `email` = the service
+ *    account) → 401 with the reason code in a console line; Google's keys
+ *    unreachable → 503 (Pub/Sub retries). **Required** (PS Hub skipped its
  *    check when its secret was unset, roadmap §2.4 bis).
  * 4. The body (≤ 64 KB): `{ message: { data, messageId }, subscription? }`,
  *    `data` base64 JSON `{ emailAddress, historyId }` (else 400).
@@ -31,19 +35,20 @@
  *    mailbox disconnected meanwhile).
  * 8. The sync of that mailbox, inline, within 25 s (`syncMailbox`: the
  *    lease, the history, the attachments, the watch); `skipped` (another
- *    sync holds the lease) is fine: `sync_requested_at` is newer than
- *    `last_sync_at`, the holder or the 15-minute job runs again.
+ *    pass holds the lease, and may have read the history before this
+ *    change) → `failEvent('lease_held')` and 503: Pub/Sub redelivers with
+ *    backoff and the claim is taken again, so the change is read.
  * 9. `completeEvent`; a provider or database failure → `failEvent(code)` and
  *    500 (Pub/Sub retries with backoff); `needs_reconnect` is completed
  *    (retrying would not help; the settings page shows it).
  *
- * Status codes: 200 `{ outcome }` (`synced`, `skipped`, `needs_reconnect`,
- * `ignored`, `unknown_mailbox`, `duplicate`); 400; 401; 405; 409; 413;
- * 429; 500; 503. Reports carry the org, event and connection ids only.
+ * Status codes: 200 `{ outcome }` (`synced`, `needs_reconnect`, `ignored`,
+ * `unknown_mailbox`, `duplicate`); 400; 401; 405; 409; 413; 429; 500; 503
+ * (the limiter down, or the lease held). Reports carry the org, event and connection ids only.
  */
 import { z } from 'zod'
 import type { Deps } from '../_shared/deps.ts'
-import { gmailOrigins } from '../_shared/gmail/env.ts'
+import { gmailOrigins, pushAudience } from '../_shared/gmail/env.ts'
 import {
   listMailboxes,
   pubsubTopic,
@@ -54,14 +59,13 @@ import { requireModuleForOrg } from '../_shared/modules.ts'
 import { UUID } from '../_shared/patterns.ts'
 import { clientIp, consume, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
-import { timingSafeEqual } from '../_shared/timing-safe-equal.ts'
+import { verifyGoogleIdToken } from '../_shared/google-oidc.ts'
 import {
   claimEvent,
   completeEvent,
   failEvent,
   webhookResponse,
 } from '../_shared/webhooks.ts'
-import { SECRET_PUBSUB_TOKEN } from '../_shared/gmail/env.ts'
 
 const FN = 'gmail-webhook'
 const MAX_BODY_BYTES = 64 * 1024
@@ -90,25 +94,29 @@ function decodeData(data: string): unknown {
   ))
 }
 
-/** Options for tests: the comparison is observable. */
+/** Options for tests. */
 export interface WebhookOptions {
-  timingSafeEqual?: (a: string, b: string) => boolean
   syncBudgetMs?: number
 }
+
+const settingsSchema = z.looseObject({
+  pubsub_service_account: z.string().nullable().optional(),
+})
 
 /** The webhook handler; see the module comment. */
 export function createHandler(
   deps: Deps,
   options: WebhookOptions = {},
 ): (req: Request) => Promise<Response> {
-  const compare = options.timingSafeEqual ?? timingSafeEqual
   return async (req) => {
     if (req.method !== 'POST') return webhookResponse(405)
     const url = new URL(req.url)
     const orgId = url.searchParams.get('org') ?? ''
     if (!UUID.test(orgId)) return webhookResponse(400)
-    const provided = url.searchParams.get('token')
-    if (!provided) return webhookResponse(401)
+    const bearer = /^Bearer\s+(\S+)$/i.exec(
+      req.headers.get('Authorization') ?? '',
+    )?.[1]
+    if (!bearer) return webhookResponse(401)
     const ids: Record<string, string> = { org_id: orgId }
     const report = (code: string) =>
       reportError({ fn: FN, code, ids }, deps.fetch)
@@ -122,21 +130,37 @@ export function createHandler(
       res.headers.set('Retry-After', String(limit.retryAfter))
       return res
     }
-    const secret = await client.rpc('get_org_secret', {
+    const settings = await client.rpc('get_communications_settings_for_org', {
       p_org_id: orgId,
-      p_key: SECRET_PUBSUB_TOKEN,
     })
-    if (secret.error) {
-      await report('pubsub_token_unavailable')
+    const parsedSettings = settingsSchema.safeParse(settings.data)
+    if (settings.error || !parsedSettings.success) {
+      await report('settings_unavailable')
       return webhookResponse(500)
     }
-    if (typeof secret.data !== 'string' || !secret.data) {
+    const account = parsedSettings.data.pubsub_service_account
+    if (!account) {
       console.warn(
-        JSON.stringify({ fn: FN, code: 'pubsub_token_missing', ids }),
+        JSON.stringify({ fn: FN, code: 'pubsub_account_missing', ids }),
       )
       return webhookResponse(401)
     }
-    if (!compare(provided, secret.data)) return webhookResponse(401)
+    const verified = await verifyGoogleIdToken(bearer, {
+      audience: pushAudience(orgId),
+      email: account,
+    }, {
+      fetch: deps.fetch,
+      certsOrigin: gmailOrigins(deps.env).certs,
+      now: deps.now,
+    })
+    if (!verified.ok) {
+      console.warn(
+        JSON.stringify({ fn: FN, code: `push_${verified.reason}`, ids }),
+      )
+      return webhookResponse(
+        verified.reason === 'certs_unavailable' ? 503 : 401,
+      )
+    }
 
     const bytes = await readCapped(req, MAX_BODY_BYTES)
     if (bytes === null) return webhookResponse(413)
@@ -228,6 +252,12 @@ export function createHandler(
           SAFE_CODE.test(code) ? code : 'sync_failed',
         )
         return webhookResponse(500)
+      }
+      if (outcome.status === 'skipped') {
+        // Another pass holds the lease and may have read the history before this change: the
+        // claim fails (re-claimable) and Pub/Sub redelivers with backoff, so the change is read.
+        await failEvent(client, claim.id, claim.token, 'lease_held')
+        return webhookResponse(503)
       }
       await completeEvent(client, claim.id, claim.token)
       return webhookResponse(200, {

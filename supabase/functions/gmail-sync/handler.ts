@@ -15,7 +15,8 @@
  * 1. CORS; `POST` only; `verifyAuth` with the module.
  * 2. Body `{ connection_id, full? }`, strict: `full` forgets the history id
  *    (`reset_mail_history`), so the 45-day pass runs again (known messages
- *    are updated in place).
+ *    are updated in place); refused while another pass holds the lease
+ *    (answered `skipped`: that pass would write its history id back).
  * 3. One hit on `LIMITS.gmailSyncUser` (60 an hour per caller).
  * 4. The mailbox among the org's connected ones (else 404), then
  *    `syncMailbox` with a 50 s budget.
@@ -148,6 +149,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           p_connection_id: input.connection_id,
         })
         if (reset.error) throw failure('reset_failed')
+        if (reset.data === false) {
+          return jsonResponse(
+            {
+              outcome: 'skipped',
+              messages: 0,
+              attachments: 0,
+              initial_pending: false,
+            },
+            200,
+            req,
+          )
+        }
         mailbox.history_id = null
         mailbox.initial_sync_done = false
         mailbox.initial_sync_page_token = null

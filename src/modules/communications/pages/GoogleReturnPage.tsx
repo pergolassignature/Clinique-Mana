@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { t } from '@/i18n'
 import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
@@ -16,6 +16,9 @@ const R = 'modules.communications.googleReturn'
 /** Paramètres → Courriels Gmail (the section's French path). */
 export const GMAIL_SETTINGS_PATH = `${SETTINGS_BASE_PATH}/courriels-gmail`
 
+/** This page's own address (the functions' RETURN_PATH). */
+const GOOGLE_RETURN_PATH = '/courriels/retour-google'
+
 /**
  * `/courriels/retour-google` (`communications.mailboxes_manage`): where Google sends the browser
  * after its consent page, with `?code=&state=` (or `?error=access_denied` when the person declined).
@@ -28,11 +31,17 @@ export function GoogleReturnPage() {
   usePageTitle(t(`${R}.title`))
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const declined = params.get('error') !== null
-  const code = declined ? null : params.get('code')
-  const state = declined ? null : params.get('state')
+  // Read once: the address is then emptied (below), so the code never stays in the history.
+  const [{ declined, code, state }] = useState(() => {
+    const refused = params.get('error') !== null
+    return { declined: refused, code: refused ? null : params.get('code'), state: refused ? null : params.get('state') }
+  })
   const finish = useFinishGmailConnect(code, state)
   const announced = useRef(false)
+
+  useEffect(() => {
+    if (params.size > 0) navigate(GOOGLE_RETURN_PATH, { replace: true })
+  }, [params, navigate])
 
   useEffect(() => {
     if (!finish.data || announced.current) return

@@ -58,7 +58,9 @@ Deno.test('gmail-watch-renew: a missing or near-expiry watch is renewed with the
 
 Deno.test('gmail-watch-renew: no topic → nothing done, said in the detail; a revoked grant counts as to reconnect', async () => {
   const none = gmailHarness({
-    state: initialState({ settings: { pubsub_topic: null } }),
+    state: initialState({
+      settings: { pubsub_topic: null, pubsub_service_account: null },
+    }),
   })
   await createHandler(none.deps)(await jobRequest())
   assertEquals(

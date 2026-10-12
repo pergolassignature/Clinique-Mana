@@ -18,7 +18,10 @@ test('the admin sees « Courriels Gmail », saves the topic and leaves for Googl
   // The seed's OAuth client: both secrets configured, never shown.
   await expect(page.getByText('Configurée').first()).toBeVisible()
   await expect(page.getByText('local-dev-google-client-secret')).toHaveCount(0)
-  await expect(page.getByRole('textbox', { name: "Adresse de l'abonnement push" })).toHaveValue(/\/functions\/v1\/gmail-webhook\?org=[0-9a-f-]{36}&token=JETON$/)
+  // The push address carries no secret; Google's signed token is checked against the audience.
+  await expect(page.getByRole('textbox', { name: "Adresse de l'abonnement push" })).toHaveValue(/\/functions\/v1\/gmail-webhook\?org=[0-9a-f-]{36}$/)
+  await expect(page.getByRole('textbox', { name: "Audience de l'abonnement" })).toHaveValue(/^clinique-mana:gmail-push:[0-9a-f-]{36}$/)
+  await expect(page.getByRole('textbox', { name: /^Compte de service de l'abonnement/ })).toHaveValue('gmail-push@mana-local.iam.gserviceaccount.com')
 
   // The topic: a malformed one is refused before the database, a good one saved, then put back.
   const topic = page.getByRole('textbox', { name: /^Sujet Pub\/Sub/ })
@@ -28,7 +31,7 @@ test('the admin sees « Courriels Gmail », saves the topic and leaves for Googl
   await expect(page.getByText('Le nom du sujet Pub/Sub doit avoir la forme projects/<projet>/topics/<sujet>.')).toBeVisible()
   await topic.fill('projects/mana-local/topics/gmail-push-2')
   await page.getByRole('button', { name: 'Enregistrer' }).click()
-  await expect(page.getByText('Le sujet Pub/Sub est enregistré.')).toBeVisible()
+  await expect(page.getByText('Les réglages des notifications sont enregistrés.')).toBeVisible()
   await page.reload()
   await expect(topic).toHaveValue('projects/mana-local/topics/gmail-push-2')
   await topic.fill('projects/mana-local/topics/gmail-push')
@@ -64,7 +67,7 @@ test('a forged return from Google is refused in French', async ({ page, signIn }
   await expect(page).toHaveURL(/\/parametres\/courriels-gmail$/)
 })
 
-test('the conseillère reads the inbox but does not manage the mailboxes', async ({ page, signIn }) => {
+test('the conseillère does not manage the mailboxes', async ({ page, signIn }) => {
   await signIn('counselor')
   await page.goto('/parametres')
   await expect(page.getByRole('link', { name: 'Courriels Gmail' })).toHaveCount(0)

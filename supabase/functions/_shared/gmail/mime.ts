@@ -174,7 +174,8 @@ export function parseMessage(message: GmailMessage, now: Date): ParsedMessage {
     const mime = (part.mimeType ?? '').toLowerCase()
     const body = part.body ?? {}
     const filename = part.filename ?? ''
-    const partId = part.partId ?? index
+    // Gmail gives the root part `partId: ""`: an empty id falls back to the walk's own.
+    const partId = part.partId || index
     const isBody = (mime === 'text/html' || mime === 'text/plain') &&
       filename === ''
     if (isBody) {

@@ -15,15 +15,18 @@
 //   GMAIL_API_BASE_URL=http://host.docker.internal:55392
 //   GOOGLE_OAUTH_BASE_URL=http://host.docker.internal:55392
 //   GOOGLE_ACCOUNTS_BASE_URL=http://host.docker.internal:55392
+//   GOOGLE_CERTS_BASE_URL=http://host.docker.internal:55392
 //   GOOGLE_ACCOUNTS_PUBLIC_URL=http://127.0.0.1:55392
-// and the seed org's secrets (supabase/seed.sql) hold the fake's OAuth client.
+// and the seed org's secrets and settings (supabase/seed.sql) hold the fake's
+// OAuth client and the push's service account.
 //
 // A new message: `curl -X POST http://127.0.0.1:55392/__fake/deliver`
 // (optional JSON body `{ "from", "subject", "text" }`). Once the mailbox is
-// watched, every change posts Pub/Sub's push to the local gmail-webhook
-// (FAKE_GMAIL_WEBHOOK_URL, default the seed org with its local token), as
-// Google would. The server listens on 127.0.0.1:55392 (FAKE_GMAIL_HOST /
-// FAKE_GMAIL_PORT).
+// watched, every change posts Pub/Sub's authenticated push to the local
+// gmail-webhook (FAKE_GMAIL_WEBHOOK_URL, default the seed org), as Google
+// would: a token signed by this fake's own key (served at /oauth2/v3/certs)
+// for the seed's service account and the org's audience. The server listens
+// on 127.0.0.1:55392 (FAKE_GMAIL_HOST / FAKE_GMAIL_PORT).
 //
 // Logs carry the method, the path's kind and the status only: never an
 // address, a token or a message.
@@ -32,17 +35,27 @@ import {
   fakeGmail,
   seedMailbox,
 } from '../supabase/functions/_shared/testing/fake-gmail.ts'
+import {
+  createOidcSigner,
+  pushClaims,
+} from '../supabase/functions/_shared/testing/google-oidc-signer.ts'
+import { pushAudience } from '../supabase/functions/_shared/gmail/env.ts'
 
 const env = (name: string) => Deno.env.get(name) || undefined
 const hostname = env('FAKE_GMAIL_HOST') ?? '127.0.0.1'
 const port = Number(env('FAKE_GMAIL_PORT') ?? 55392)
 const mailbox = env('FAKE_GMAIL_ADDRESS') ?? 'info@clinique.test'
+const SEED_ORG = '00000000-0000-0000-0000-000000000001'
 const webhookUrl = env('FAKE_GMAIL_WEBHOOK_URL') ??
-  'http://127.0.0.1:55321/functions/v1/gmail-webhook?org=00000000-0000-0000-0000-000000000001&token=local-dev-gmail-pubsub-token'
+  `http://127.0.0.1:55321/functions/v1/gmail-webhook?org=${SEED_ORG}`
+/** The seed's `pubsub_service_account`. */
+const PUSH_ACCOUNT = 'gmail-push@mana-local.iam.gserviceaccount.com'
+const signer = await createOidcSigner('fake-google-key')
 
 let pushes = 0
 const fake = fakeGmail({
   emailAddress: mailbox,
+  signer,
   onWatchNotification: (payload) => {
     pushes++
     const body = {
@@ -53,10 +66,16 @@ const fake = fakeGmail({
       subscription: 'projects/mana-local/subscriptions/gmail-push',
     }
     // Pub/Sub pushes after the change: never inside the request that made it.
-    setTimeout(() => {
+    setTimeout(async () => {
+      const token = await signer.sign(
+        pushClaims(pushAudience(SEED_ORG), PUSH_ACCOUNT, Date.now() / 1000),
+      )
       fetch(webhookUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(body),
       }).then(async (res) => {
         await res.body?.cancel()
@@ -75,6 +94,7 @@ seedMailbox(fake, mailbox)
 const kindOf = (pathname: string): string => {
   if (pathname.startsWith('/__fake/')) return pathname
   if (pathname.startsWith('/o/oauth2/')) return 'consent'
+  if (pathname === '/oauth2/v3/certs') return 'certs'
   if (pathname === '/token' || pathname === '/revoke') return pathname.slice(1)
   if (pathname.startsWith('/gmail/v1/')) return 'gmail-api'
   return 'other'

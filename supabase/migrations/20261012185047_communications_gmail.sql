@@ -49,7 +49,7 @@
 select pg_catalog.set_config('app.audit_source', 'migration:communications_gmail', true);
 
 -- -----------------------------------------------------------------------------
--- Module settings: the Pub/Sub topic (the only setting of CM1)
+-- Module settings: the Pub/Sub topic and the push subscription's service account (CM1)
 -- -----------------------------------------------------------------------------
 -- The effective settings of an org: the stored object over the defaults.
 create function private.communications_settings(p_org uuid)
@@ -58,7 +58,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select jsonb_build_object('pubsub_topic', null) || coalesce(
+  select jsonb_build_object('pubsub_topic', null, 'pubsub_service_account', null) || coalesce(
     (select s.settings from public.org_module_settings s where s.org_id = p_org and s.module_key = 'communications'),
     '{}'::jsonb)
 $$;
@@ -83,6 +83,9 @@ grant execute on function public.get_communications_settings() to authenticated;
 
 -- Merges a patch of known keys; returns the effective settings. `pubsub_topic` is Google's full
 -- topic name (`projects/<project>/topics/<topic>`) or null (the watch is then not started).
+-- `pubsub_service_account` is the service account the push subscription authenticates as
+-- (`…@….iam.gserviceaccount.com`, lower case) or null (gmail-webhook then refuses every push):
+-- gmail-webhook checks the push's Google-signed token names it (CM-4).
 create function public.set_communications_settings(p_patch jsonb)
 returns jsonb
 language plpgsql
@@ -92,6 +95,7 @@ as $$
 declare
   v_org uuid := private.current_user_org_id();
   v_topic text;
+  v_account text;
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
 begin
   if not private.has_permission('communications.mailboxes_manage') then
@@ -100,7 +104,7 @@ begin
   if p_patch is null or jsonb_typeof(p_patch) <> 'object' then
     raise exception 'A settings patch must be an object' using errcode = '22023';
   end if;
-  if p_patch - 'pubsub_topic' <> '{}'::jsonb then
+  if p_patch - 'pubsub_topic' - 'pubsub_service_account' <> '{}'::jsonb then
     raise exception 'Unknown communications setting' using errcode = '22023';
   end if;
   if p_patch ? 'pubsub_topic' then
@@ -109,9 +113,21 @@ begin
     end if;
     v_topic := nullif(pg_catalog.btrim(p_patch->>'pubsub_topic'), '');
     if v_topic is not null and v_topic !~ '^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/topics/[A-Za-z][A-Za-z0-9._~%+-]{2,254}$' then
-      raise exception 'Le nom du sujet Pub/Sub doit avoir la forme projects/<projet>/topics/<sujet>.' using errcode = 'P0001';
+      raise exception 'Le nom du sujet Pub/Sub doit avoir la forme projects/<projet>/topics/<sujet>.'
+        using errcode = 'P0001', hint = 'pubsub_topic';
     end if;
-    p_patch := jsonb_build_object('pubsub_topic', to_jsonb(v_topic));
+    p_patch := jsonb_set(p_patch, '{pubsub_topic}', to_jsonb(v_topic));
+  end if;
+  if p_patch ? 'pubsub_service_account' then
+    if jsonb_typeof(p_patch->'pubsub_service_account') not in ('string', 'null') then
+      raise exception 'pubsub_service_account must be a string or null' using errcode = '22023';
+    end if;
+    v_account := pg_catalog.lower(nullif(pg_catalog.btrim(p_patch->>'pubsub_service_account'), ''));
+    if v_account is not null and v_account !~ '^[a-z0-9-]{6,30}@[a-z0-9-]{6,30}\.iam\.gserviceaccount\.com$' then
+      raise exception 'Le compte de service doit avoir la forme nom@projet.iam.gserviceaccount.com.'
+        using errcode = 'P0001', hint = 'pubsub_service_account';
+    end if;
+    p_patch := jsonb_set(p_patch, '{pubsub_service_account}', to_jsonb(v_account));
   end if;
 
   perform pg_catalog.set_config('app.audit_source', 'rpc:set_communications_settings', true);
@@ -466,8 +482,8 @@ create table public.mail_messages (
 );
 create index mail_messages_thread_sent_idx on public.mail_messages (thread_id, sent_at, id);
 create index mail_messages_org_idx on public.mail_messages (org_id);
--- The purge reads the oldest unpurged messages of an org.
-create index mail_messages_purge_idx on public.mail_messages (org_id, sent_at) where body_purged_at is null;
+-- The purge reads the oldest unpurged messages, every clinic at once.
+create index mail_messages_purge_idx on public.mail_messages (sent_at) where body_purged_at is null;
 create index mail_messages_search_idx on public.mail_messages using gin (search_vector);
 create index mail_messages_from_idx on public.mail_messages (connection_id, from_address);
 
@@ -675,8 +691,10 @@ declare
   v_prev_actor text := pg_catalog.current_setting('app.audit_actor', true);
 begin
   perform private.assert_mail_manager(p_actor, p_org_id);
-  if p_kind not in ('shared', 'personal') then
-    raise exception 'Unknown mailbox kind' using errcode = '22023';
+  -- Shared mailboxes only for now (CM-10): a personal one needs its owner checked in every
+  -- service RPC and its attachments owned; the column and the RLS are ready for it.
+  if p_kind is distinct from 'shared' then
+    raise exception 'Seules les boîtes partagées de la clinique peuvent être connectées pour l''instant.' using errcode = 'P0001';
   end if;
   if v_email is null or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' or pg_catalog.length(v_email) > 254 then
     raise exception 'Adresse courriel invalide.' using errcode = 'P0001';
@@ -952,19 +970,25 @@ revoke all on function public.finish_mail_sync(uuid, uuid, uuid, bigint, text, t
   from public, anon, authenticated;
 grant execute on function public.finish_mail_sync(uuid, uuid, uuid, bigint, text, text, boolean, text, int) to service_role;
 
--- Forgets the history id (Gmail answered 404 / 410: the id is too old): the next pass is a full one.
-create function public.reset_mail_history(p_org_id uuid, p_connection_id uuid)
-returns void
-language sql
+-- Forgets the history id (Gmail answered 404 / 410: the id is too old; or « Tout relire »): the
+-- next pass is a full one. Only under the caller's own lease (p_token) or while no pass holds one:
+-- a running pass would write its history id back over the reset. False when refused.
+create function public.reset_mail_history(p_org_id uuid, p_connection_id uuid, p_token uuid default null)
+returns boolean
+language plpgsql
 security definer
 set search_path = ''
 as $$
+begin
   update public.mail_sync_state s
      set history_id = null, initial_sync_done = false, initial_sync_page_token = null
    where s.connection_id = p_connection_id and s.org_id = p_org_id
+     and (s.lease_until is null or s.lease_until < pg_catalog.now() or s.lease_token = p_token);
+  return found;
+end;
 $$;
-revoke all on function public.reset_mail_history(uuid, uuid) from public, anon, authenticated;
-grant execute on function public.reset_mail_history(uuid, uuid) to service_role;
+revoke all on function public.reset_mail_history(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.reset_mail_history(uuid, uuid, uuid) to service_role;
 
 -- The watch Google confirmed (`users.watch`): its expiry and history id; nulls after `users.stop`.
 create function public.set_mail_watch(p_org_id uuid, p_connection_id uuid, p_expires_at timestamptz, p_history_id bigint)
@@ -1157,8 +1181,11 @@ begin
   -- Attachment parts (an existing part keeps its status and file).
   insert into public.mail_attachments (org_id, message_id, part_id, gmail_attachment_id, filename, mime_type, size_bytes, content_id, is_inline, status)
   select p_org_id, o.message_id, a.part_id, pg_catalog.left(a.gmail_attachment_id, 512), pg_catalog.left(a.filename, 255),
-         pg_catalog.lower(a.mime_type), a.size_bytes, pg_catalog.left(a.content_id, 998), coalesce(a.is_inline, false),
-         case when not coalesce(a.accepted, false) then 'unsupported_type'
+         -- A type outside `type/subtype` (an underscore, a parameter) is kept as unknown, the part listed.
+         case when pg_catalog.lower(a.mime_type) ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$' then pg_catalog.lower(a.mime_type) end,
+         a.size_bytes, pg_catalog.left(a.content_id, 998), coalesce(a.is_inline, false),
+         case when not coalesce(a.accepted, false)
+                   or not coalesce(pg_catalog.lower(a.mime_type) ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$', false) then 'unsupported_type'
               when coalesce(a.size_bytes, 0) > 10485760 then 'too_large'
               else 'pending' end
     from tmp_mail_in i
@@ -1166,7 +1193,7 @@ begin
     cross join lateral jsonb_to_recordset(i.attachments) as a(
            part_id text, gmail_attachment_id text, filename text, mime_type text, size_bytes int,
            content_id text, is_inline boolean, accepted boolean)
-   where a.part_id ~ '^[0-9.]{1,32}$' and (a.mime_type is null or pg_catalog.lower(a.mime_type) ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$')
+   where a.part_id ~ '^[0-9.]{1,32}$'
   on conflict (message_id, part_id) do update
     set gmail_attachment_id = excluded.gmail_attachment_id;
 

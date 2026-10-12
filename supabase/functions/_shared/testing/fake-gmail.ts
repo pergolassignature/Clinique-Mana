@@ -23,10 +23,14 @@
  * - `messages.list` honours `q=newer_than:Nd`, `maxResults` and `pageToken`;
  * - `watch` records the topic and answers an expiry 7 days ahead;
  *   `onWatchNotification` (the local server posts Pub/Sub pushes) fires on
- *   each `deliver`.
+ *   each `deliver`;
+ * - `/oauth2/v3/certs` publishes the `signer`'s key, as Google publishes the
+ *   keys of the ID tokens Pub/Sub's authenticated pushes carry.
  * Error bodies carry `FAKE_ERROR_MARKER`, so tests can prove the function
  * never passes them on.
  */
+
+import type { OidcSigner } from './google-oidc-signer.ts'
 
 /** The local fake's OAuth client (`supabase/seed.sql` stores them as org secrets). */
 export const FAKE_CLIENT_ID =
@@ -105,6 +109,8 @@ export interface Delivery {
 }
 
 export interface FakeGmailOptions {
+  /** Signs the push tokens; its key is served at `/oauth2/v3/certs` (404 without one). */
+  signer?: OidcSigner
   /** The mailbox address Google reports (`users.getProfile`). */
   emailAddress?: string
   clientId?: string
@@ -375,6 +381,16 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
     url: URL,
     path: string,
   ): Promise<Response> {
+    // --- ID-token keys (Pub/Sub's authenticated push) ----------------------
+    if (path === '/oauth2/v3/certs' && req.method === 'GET') {
+      if (!options.signer) return error(404, 'NOT_FOUND')
+      return new Response(JSON.stringify(await options.signer.jwks()), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=21600',
+        },
+      })
+    }
     // --- OAuth -------------------------------------------------------------
     if (path === '/o/oauth2/v2/auth' && req.method === 'GET') {
       const redirect = url.searchParams.get('redirect_uri') ?? ''

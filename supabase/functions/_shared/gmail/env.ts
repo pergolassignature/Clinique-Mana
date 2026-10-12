@@ -2,10 +2,10 @@
  * Where the Gmail functions reach Google, and what they ask for.
  *
  * Google's origins are fixed; on a dev machine (`APP_URL` local, like the
- * places fake) `GMAIL_API_BASE_URL`, `GOOGLE_OAUTH_BASE_URL` and
- * `GOOGLE_ACCOUNTS_BASE_URL` point the three at the local fake
- * (`npm run fake:gmail`, port 55392): the API, the token endpoint and the
- * consent page. `GOOGLE_ACCOUNTS_PUBLIC_URL` is the consent page as the
+ * places fake) `GMAIL_API_BASE_URL`, `GOOGLE_OAUTH_BASE_URL`,
+ * `GOOGLE_ACCOUNTS_BASE_URL` and `GOOGLE_CERTS_BASE_URL` point the four at the
+ * local fake (`npm run fake:gmail`, port 55392): the API, the token endpoint,
+ * the consent page and the keys that sign Pub/Sub's push tokens. `GOOGLE_ACCOUNTS_PUBLIC_URL` is the consent page as the
  * browser reaches it (the fake listens on 127.0.0.1 while the functions reach
  * it through host.docker.internal). A stray value on a hosted project is
  * ignored, so a key can never be sent elsewhere.
@@ -16,6 +16,8 @@ import { isLocalAppUrl } from '../local.ts'
 export const GMAIL_API_ORIGIN = 'https://gmail.googleapis.com'
 export const GOOGLE_OAUTH_ORIGIN = 'https://oauth2.googleapis.com'
 export const GOOGLE_ACCOUNTS_ORIGIN = 'https://accounts.google.com'
+/** Where Google publishes the keys of its ID tokens (`/oauth2/v3/certs`). */
+export const GOOGLE_CERTS_ORIGIN = 'https://www.googleapis.com'
 
 /**
  * The scopes asked at consent (roadmap §2.4 bis): read and change the
@@ -32,7 +34,14 @@ export const REQUIRED_SCOPE = GMAIL_SCOPES[0]
 /** The org secrets of the integration (set in « Courriels Gmail », never in code). */
 export const SECRET_CLIENT_ID = 'google_oauth_client_id'
 export const SECRET_CLIENT_SECRET = 'google_oauth_client_secret'
-export const SECRET_PUBSUB_TOKEN = 'gmail_pubsub_token'
+
+/**
+ * The audience the clinic's push subscription sets (« Courriels Gmail » shows it, CM-4): one per
+ * clinic, so a token minted for another clinic's subscription is refused here.
+ */
+export function pushAudience(orgId: string): string {
+  return `clinique-mana:gmail-push:${orgId.toLowerCase()}`
+}
 
 /** The app path Google sends the browser back to (fixed: never from a request). */
 export const RETURN_PATH = '/courriels/retour-google'
@@ -44,6 +53,8 @@ export interface GmailOrigins {
   accounts: string
   /** The consent page as the browser reaches it (differs from `accounts` only with the local fake). */
   accountsPublic: string
+  /** Google's ID-token keys. */
+  certs: string
 }
 
 function override(
@@ -75,6 +86,7 @@ export function gmailOrigins(
   return {
     api: override(env, 'GMAIL_API_BASE_URL', GMAIL_API_ORIGIN),
     oauth: override(env, 'GOOGLE_OAUTH_BASE_URL', GOOGLE_OAUTH_ORIGIN),
+    certs: override(env, 'GOOGLE_CERTS_BASE_URL', GOOGLE_CERTS_ORIGIN),
     accounts,
     accountsPublic: accounts === GOOGLE_ACCOUNTS_ORIGIN
       ? accounts

@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   disconnectMailConnection,
   fetchCommunicationsSettings,
   finishGmailConnect,
+  gmailPushAudience,
   gmailWebhookUrl,
   listMailConnections,
   saveCommunicationsSettings,
@@ -38,11 +41,12 @@ describe('listMailConnections', () => {
 
 describe('settings', () => {
   it('reads and saves the topic', async () => {
-    mocks.rpc.mockResolvedValueOnce({ data: { pubsub_topic: null }, error: null })
-    await expect(fetchCommunicationsSettings()).resolves.toEqual({ pubsub_topic: null })
-    mocks.rpc.mockResolvedValueOnce({ data: { pubsub_topic: 'projects/mana-prod/topics/gmail' }, error: null })
+    mocks.rpc.mockResolvedValueOnce({ data: { pubsub_topic: null, pubsub_service_account: null }, error: null })
+    await expect(fetchCommunicationsSettings()).resolves.toEqual({ pubsub_topic: null, pubsub_service_account: null })
+    mocks.rpc.mockResolvedValueOnce({ data: { pubsub_topic: 'projects/mana-prod/topics/gmail', pubsub_service_account: null }, error: null })
     await expect(saveCommunicationsSettings({ pubsub_topic: 'projects/mana-prod/topics/gmail' })).resolves.toEqual({
       pubsub_topic: 'projects/mana-prod/topics/gmail',
+      pubsub_service_account: null,
     })
     expect(mocks.rpc).toHaveBeenLastCalledWith('set_communications_settings', { p_patch: { pubsub_topic: 'projects/mana-prod/topics/gmail' } })
   })
@@ -77,7 +81,10 @@ describe('the Gmail functions', () => {
     expect(mocks.invoke).toHaveBeenLastCalledWith('gmail-connect', { action: 'disconnect', connection_id: MAILBOX.id })
   })
 
-  it('the push address names the org and a placeholder, never the token', () => {
-    expect(gmailWebhookUrl('o1', 'JETON')).toMatch(/\/functions\/v1\/gmail-webhook\?org=o1&token=JETON$/)
+  it('the push address names the org only; the audience is the functions\' (gmail/env.ts pushAudience)', () => {
+    expect(gmailWebhookUrl('o1')).toMatch(/\/functions\/v1\/gmail-webhook\?org=o1$/)
+    const env = readFileSync(path.resolve(__dirname, '../../../../supabase/functions/_shared/gmail/env.ts'), 'utf8')
+    expect(env).toContain('return `clinique-mana:gmail-push:${orgId.toLowerCase()}`')
+    expect(gmailPushAudience('ABC')).toBe('clinique-mana:gmail-push:abc')
   })
 })

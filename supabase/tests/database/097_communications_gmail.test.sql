@@ -3,7 +3,7 @@
 -- attachments, links), the service RPCs the functions call, the jobs and the 24-month purge.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(101);
+select plan(108);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (module enabled; admin 01, counselor 02, provider 03, adjointe
@@ -107,13 +107,17 @@ $$, $$ values ('mail_connection_tokens', 'access_token'), ('mail_connection_toke
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select is(public.get_communications_settings(), '{"pubsub_topic": null}'::jsonb, 'settings default: no topic');
+select is(public.get_communications_settings(), '{"pubsub_topic": null, "pubsub_service_account": null}'::jsonb, 'settings default: no topic, no service account');
 select throws_ok($$ select public.set_communications_settings('{"pubsub_topic": "nope"}') $$, 'P0001',
   'Le nom du sujet Pub/Sub doit avoir la forme projects/<projet>/topics/<sujet>.', 'a malformed topic is refused in French');
 select throws_ok($$ select public.set_communications_settings('{"other": 1}') $$, '22023', null, 'an unknown key is refused');
 select is(public.set_communications_settings('{"pubsub_topic": " projects/mana-prod/topics/gmail-push "}'),
-  '{"pubsub_topic": "projects/mana-prod/topics/gmail-push"}'::jsonb, 'the topic is trimmed and saved');
-select is(public.set_communications_settings('{"pubsub_topic": null}'), '{"pubsub_topic": null}'::jsonb, 'the topic can be cleared');
+  '{"pubsub_topic": "projects/mana-prod/topics/gmail-push", "pubsub_service_account": null}'::jsonb, 'the topic is trimmed and saved');
+select is(public.set_communications_settings('{"pubsub_topic": null}'), '{"pubsub_topic": null, "pubsub_service_account": null}'::jsonb, 'the topic can be cleared');
+select throws_ok($$ select public.set_communications_settings('{"pubsub_service_account": "someone@gmail.com"}') $$, 'P0001',
+  'Le compte de service doit avoir la forme nom@projet.iam.gserviceaccount.com.', 'the push account must be a service account');
+select is(public.set_communications_settings('{"pubsub_service_account": " Gmail-Push@Mana-Prod.iam.gserviceaccount.com "}')->>'pubsub_service_account',
+  'gmail-push@mana-prod.iam.gserviceaccount.com', 'the push account is trimmed, lower-cased and saved, the topic kept');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.get_communications_settings() $$, '42501', null, 'a counselor cannot read the settings');
 
@@ -182,12 +186,24 @@ select is(public.store_mail_connection('a0000000-0000-0000-0000-000000000001', '
 select is((select refresh_token from public.get_mail_connection_credentials('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid)),
   'refresh-3', 'with the new refresh token');
 
--- A second, personal mailbox of the counselor cannot be stored by her (no mailboxes_manage); the
--- admin stores one of her own.
-select set_config('test.c2', public.store_mail_connection('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
-  'admin.perso@clinique.test', 'personal', 'access-p', 'refresh-p', now() + interval '1 hour', '{}')::text, true);
+-- Shared mailboxes only for now (CM-10): a personal one is refused in French.
+select throws_ok($$
+  select public.store_mail_connection('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
+    'admin.perso@clinique.test', 'personal', 'access-p', 'refresh-p', now() + interval '1 hour', '{}')
+$$, 'P0001', 'Seules les boîtes partagées de la clinique peuvent être connectées pour l''instant.', 'a personal mailbox is refused');
+-- The model is ready for them: a personal row (written as postgres) is its owner's alone (RLS below).
+reset role;
+select set_config('test.c2', gen_random_uuid()::text, true);
+insert into public.mail_connections (id, org_id, email_address, kind, owner_profile_id, connected_by)
+values (current_setting('test.c2')::uuid, 'b0000000-0000-0000-0000-00000000000a', 'admin.perso@clinique.test', 'personal',
+        'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001');
+insert into public.mail_sync_state (connection_id, org_id) values (current_setting('test.c2')::uuid, 'b0000000-0000-0000-0000-00000000000a');
+insert into public.mail_connection_tokens (connection_id, org_id, access_token, refresh_token, access_token_expires_at, key_version)
+values (current_setting('test.c2')::uuid, 'b0000000-0000-0000-0000-00000000000a', private.encrypt_pii('access-p', private.pii_current_key_version()),
+        private.encrypt_pii('refresh-p', private.pii_current_key_version()), now() + interval '1 hour', private.pii_current_key_version());
+set local role service_role;
 select is((select owner_profile_id from public.mail_connections where id = current_setting('test.c2')::uuid),
-  'a0000000-0000-0000-0000-000000000001'::uuid, 'a personal mailbox belongs to its actor');
+  'a0000000-0000-0000-0000-000000000001'::uuid, 'a personal mailbox belongs to its owner');
 
 -- Status and the webhook's hint.
 select lives_ok($$ select public.set_mail_connection_status('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid, 'needs_reconnect', 'invalid_grant') $$,
@@ -230,8 +246,15 @@ select results_eq($$
   select s.history_id, s.last_sync_status, s.last_error_code, s.last_error_at is not null
     from public.mail_sync_state s where s.connection_id = current_setting('test.c1')::uuid
 $$, $$ values (100::bigint, 'error', 'provider_error', true) $$, 'an error keeps the history id and records the code');
-select lives_ok($$ select public.reset_mail_history('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid) $$, 'reset_mail_history');
+select is(public.acquire_mail_sync_lease('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid, '10000000-0000-0000-0000-000000000003', 60), true, 'a pass holds the lease');
+select is(public.reset_mail_history('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid), false,
+  '« Tout relire » is refused while another pass holds the lease (it would write its history back)');
+select is((select history_id from public.mail_sync_state where connection_id = current_setting('test.c1')::uuid), 100::bigint, 'the history is kept');
+select is(public.reset_mail_history('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid, '10000000-0000-0000-0000-000000000003'), true,
+  'the holder may reset (Gmail answered 404)');
 select is((select history_id from public.mail_sync_state where connection_id = current_setting('test.c1')::uuid), null::bigint, 'the history is forgotten');
+select is(public.finish_mail_sync('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid, '10000000-0000-0000-0000-000000000003',
+  null, 'ok', null, null, null, 0), true, 'the holder releases the lease');
 select lives_ok($$ select public.set_mail_watch('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid, now() + interval '7 days', 200) $$, 'set_mail_watch');
 select is((select watch_history_id from public.mail_sync_state where connection_id = current_setting('test.c1')::uuid), 200::bigint, 'the watch is recorded');
 

@@ -11,7 +11,7 @@
  * `invalid_grant` marks it `needs_reconnect` and counts), `users.watch`
  * when due. Detail: « 2 boîtes : 1 renouvelée » (counts only). A refused
  * watch (`watch_refused`: a topic Gmail cannot publish to, the status doc's
- * IAM grant missing) fails the run with that code.
+ * IAM grant missing) fails the run with that code, after the other mailboxes.
  */
 import type { Deps } from '../_shared/deps.ts'
 import { GmailClient } from '../_shared/gmail/client.ts'
@@ -74,7 +74,16 @@ export function renewOrg(deps: Deps): PerOrg {
           accessToken: credentials.accessToken,
           signal,
         })
-        if (await renewWatch(ctx, gmail, mailbox, topic)) renewed++
+        const result = await renewWatch(ctx, gmail, mailbox, topic)
+        if (result === 'renewed') renewed++
+        if (result === 'refused') {
+          failed = 'watch_refused'
+          await reportError({
+            fn: FN,
+            code: failed,
+            ids: { org_id: orgId, connection_id: mailbox.connection_id },
+          }, deps.fetch)
+        }
       } catch (error) {
         if (error instanceof ReconnectNeeded) {
           reconnect++

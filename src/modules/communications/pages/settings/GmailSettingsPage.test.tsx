@@ -54,8 +54,8 @@ const ADMIN = [...ROLE_PERMISSIONS.admin, 'communications.inbox', 'communication
 
 beforeEach(() => {
   mocks.api.listMailConnections.mockResolvedValue([MAILBOX, { ...MAILBOX, id: 'c2', email_address: 'administration@clinique.test', status: 'needs_reconnect', status_reason: 'invalid_grant' }])
-  mocks.api.fetchCommunicationsSettings.mockResolvedValue({ pubsub_topic: null })
-  mocks.api.saveCommunicationsSettings.mockImplementation(async (patch: object) => ({ pubsub_topic: null, ...patch }))
+  mocks.api.fetchCommunicationsSettings.mockResolvedValue({ pubsub_topic: null, pubsub_service_account: null })
+  mocks.api.saveCommunicationsSettings.mockImplementation(async (patch: object) => ({ pubsub_topic: null, pubsub_service_account: null, ...patch }))
   mocks.secrets.listOrgSecretKeys.mockResolvedValue([
     { key: 'google_oauth_client_id', updated_at: '2026-10-12T15:00:00+00:00' },
     { key: 'google_oauth_client_secret', updated_at: '2026-10-12T15:00:00+00:00' },
@@ -105,7 +105,7 @@ describe('GmailSettingsPage', () => {
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: t(`${M}.connect`) }))
     await waitFor(() => expect(mocks.leaveFor).toHaveBeenCalledExactlyOnceWith('https://accounts.google.com/o/oauth2/v2/auth?x=1'))
-    expect(mocks.api.startGmailConnect).toHaveBeenCalledWith('shared')
+    expect(mocks.api.startGmailConnect).toHaveBeenCalledOnce()
 
     mocks.api.startGmailConnect.mockRejectedValueOnce(new FunctionCallError('not_configured', 503, 'Google OAuth client is not set'))
     await userEvent.click(screen.getByRole('button', { name: t(`${M}.connect`) }))
@@ -130,7 +130,7 @@ describe('GmailSettingsPage', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${M}.disconnected`)))
   })
 
-  it('saves the Pub/Sub topic, refusing a malformed name before the database', async () => {
+  it('saves the topic and the service account, refusing malformed ones before the database', async () => {
     renderPage()
     const field = await screen.findByRole('textbox', { name: new RegExp(`^${t(`${G}.topic.label`)}`) })
     await userEvent.type(field, 'mon-sujet')
@@ -140,12 +140,25 @@ describe('GmailSettingsPage', () => {
     await userEvent.clear(field)
     await userEvent.type(field, 'projects/mana-prod/topics/gmail-push')
     await userEvent.click(screen.getByRole('button', { name: t('common.save') }))
-    await waitFor(() => expect(mocks.api.saveCommunicationsSettings).toHaveBeenCalledExactlyOnceWith({ pubsub_topic: 'projects/mana-prod/topics/gmail-push' }))
+    const account = screen.getByRole('textbox', { name: new RegExp(`^${t(`${G}.push.account`)}`) })
+    await userEvent.type(account, 'not-an-account')
+    await userEvent.click(screen.getByRole('button', { name: t('common.save') }))
+    expect(await screen.findByText(t(`${G}.push.accountInvalid`))).toBeInTheDocument()
+    await userEvent.clear(account)
+    await userEvent.type(account, 'Gmail-Push@Mana-Prod.iam.gserviceaccount.com')
+    await userEvent.click(screen.getByRole('button', { name: t('common.save') }))
+    await waitFor(() =>
+      expect(mocks.api.saveCommunicationsSettings).toHaveBeenLastCalledWith({
+        pubsub_topic: 'projects/mana-prod/topics/gmail-push',
+        pubsub_service_account: 'gmail-push@mana-prod.iam.gserviceaccount.com',
+      }),
+    )
   })
 
-  it('shows the push address with a placeholder, and the jobs’ state', async () => {
+  it('shows the push address and audience (no secret), and the jobs’ state', async () => {
     renderPage()
-    expect(await screen.findByDisplayValue(/gmail-webhook\?org=o1&token=JETON$/)).toBeInTheDocument()
+    expect(await screen.findByDisplayValue(/gmail-webhook\?org=o1$/)).toBeInTheDocument()
+    expect(screen.getByDisplayValue('clinique-mana:gmail-push:o1')).toBeInTheDocument()
     expect(await screen.findByText(t(`${G}.jobs.sync.onNoHour`))).toBeInTheDocument()
     expect(screen.getByText(t(`${G}.jobs.watch.off`))).toBeInTheDocument()
   })

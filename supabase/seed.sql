@@ -96,9 +96,9 @@ values
 
 -- Local Gmail (Communications, CM1): the module enabled, the fake Google's OAuth client
 -- (`npm run fake:gmail`, port 55392; _shared/testing/fake-gmail.ts FAKE_CLIENT_ID / _SECRET), the
--- Pub/Sub push token the fake sends (scripts/fake-gmail.ts) and a topic, stored as set_org_secret
--- and set_communications_settings store them. Conseillère and Adjointe read the inbox (on staging
--- the template gives communications.* to Admin only, CM-1; Jonathan grants it in « Rôles »).
+-- service account its signed pushes name (scripts/fake-gmail.ts) and a topic, stored as
+-- set_org_secret and set_communications_settings store them. Like the template (CM-1), only Admin holds
+-- communications.* here (pgTAP 014 compares each org's role defaults with the template).
 insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'communications', true, '11111111-1111-1111-1111-111111111111');
 insert into public.org_secrets (org_id, key, vault_secret_id)
@@ -108,17 +108,11 @@ values
                        'org:00000000-0000-0000-0000-000000000001:google_oauth_client_id')),
   ('00000000-0000-0000-0000-000000000001', 'google_oauth_client_secret',
    vault.create_secret('local-dev-google-client-secret',
-                       'org:00000000-0000-0000-0000-000000000001:google_oauth_client_secret')),
-  ('00000000-0000-0000-0000-000000000001', 'gmail_pubsub_token',
-   vault.create_secret('local-dev-gmail-pubsub-token',
-                       'org:00000000-0000-0000-0000-000000000001:gmail_pubsub_token'));
+                       'org:00000000-0000-0000-0000-000000000001:google_oauth_client_secret'));
 insert into public.org_module_settings (org_id, module_key, settings) values
   ('00000000-0000-0000-0000-000000000001', 'communications',
-   '{"pubsub_topic": "projects/mana-local/topics/gmail-push"}');
-insert into public.org_role_permissions (org_id, role, permission_key) values
-  ('00000000-0000-0000-0000-000000000001', 'counselor', 'communications.inbox'),
-  ('00000000-0000-0000-0000-000000000001', 'admin_assistant', 'communications.inbox')
-on conflict do nothing;
+   '{"pubsub_topic": "projects/mana-local/topics/gmail-push",
+     "pubsub_service_account": "gmail-push@mana-local.iam.gserviceaccount.com"}');
 
 -- =============================================================================
 -- Local test professionals (plan Task 4a.20 « Seed »)
