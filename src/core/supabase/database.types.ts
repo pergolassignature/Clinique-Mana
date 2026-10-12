@@ -145,6 +145,564 @@ export type Database = {
           },
         ]
       }
+      client_insurances: {
+        Row: {
+          certificate_number: string | null
+          client_id: string
+          created_at: string
+          holder_name: string | null
+          holder_relation: string
+          insurer: string
+          org_id: string
+          policy_number: string | null
+          rank: number
+          updated_at: string
+        }
+        Insert: {
+          certificate_number?: string | null
+          client_id: string
+          created_at?: string
+          holder_name?: string | null
+          holder_relation?: string
+          insurer: string
+          org_id: string
+          policy_number?: string | null
+          rank: number
+          updated_at?: string
+        }
+        Update: {
+          certificate_number?: string | null
+          client_id?: string
+          created_at?: string
+          holder_name?: string | null
+          holder_relation?: string
+          insurer?: string
+          org_id?: string
+          policy_number?: string | null
+          rank?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_insurances_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_insurances_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_insurances_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      client_merges: {
+        Row: {
+          id: string
+          kept_client_id: string
+          merged_at: string
+          merged_by: string | null
+          merged_client_id: string
+          moved: Json
+          org_id: string
+        }
+        Insert: {
+          id?: string
+          kept_client_id: string
+          merged_at?: string
+          merged_by?: string | null
+          merged_client_id: string
+          moved?: Json
+          org_id: string
+        }
+        Update: {
+          id?: string
+          kept_client_id?: string
+          merged_at?: string
+          merged_by?: string | null
+          merged_client_id?: string
+          moved?: Json
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_merges_kept_fkey"
+            columns: ["org_id", "kept_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_merges_kept_fkey"
+            columns: ["org_id", "kept_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_merges_kept_fkey"
+            columns: ["org_id", "kept_client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_merges_merged_by_fkey"
+            columns: ["merged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_merges_merged_fkey"
+            columns: ["org_id", "merged_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_merges_merged_fkey"
+            columns: ["org_id", "merged_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_merges_merged_fkey"
+            columns: ["org_id", "merged_client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      client_notes: {
+        Row: {
+          admin_notes: string | null
+          client_id: string
+          org_id: string
+          special_agreement_note: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          client_id: string
+          org_id: string
+          special_agreement_note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          client_id?: string
+          org_id?: string
+          special_agreement_note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_notes_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_notes_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_notes_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_notes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      client_payers: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          expires_on: string | null
+          file_number: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          max_amount_cents: number | null
+          max_sessions: number | null
+          note: string | null
+          org_id: string
+          organisation_name: string | null
+          session_amount_cents: number | null
+          starts_on: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_on?: string | null
+          file_number?: string | null
+          id?: string
+          is_active?: boolean
+          kind: string
+          max_amount_cents?: number | null
+          max_sessions?: number | null
+          note?: string | null
+          org_id: string
+          organisation_name?: string | null
+          session_amount_cents?: number | null
+          starts_on?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_on?: string | null
+          file_number?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          max_amount_cents?: number | null
+          max_sessions?: number | null
+          note?: string | null
+          org_id?: string
+          organisation_name?: string | null
+          session_amount_cents?: number | null
+          starts_on?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_payers_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_payers_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_payers_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_payers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      client_professional_links: {
+        Row: {
+          client_id: string
+          first_linked_at: string
+          last_linked_at: string
+          org_id: string
+          professional_id: string
+          reason: string
+        }
+        Insert: {
+          client_id: string
+          first_linked_at?: string
+          last_linked_at?: string
+          org_id: string
+          professional_id: string
+          reason: string
+        }
+        Update: {
+          client_id?: string
+          first_linked_at?: string
+          last_linked_at?: string
+          org_id?: string
+          professional_id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_professional_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_professional_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_professional_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_professional_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_professional_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_professional_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_professional_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      client_relations: {
+        Row: {
+          a_main_contact: boolean
+          a_manages_appointments: boolean
+          a_receives_communications: boolean
+          a_receives_invoices: boolean
+          b_main_contact: boolean
+          b_manages_appointments: boolean
+          b_receives_communications: boolean
+          b_receives_invoices: boolean
+          client_a_id: string
+          client_b_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          type_a_to_b: string
+          type_b_to_a: string
+          updated_at: string
+        }
+        Insert: {
+          a_main_contact?: boolean
+          a_manages_appointments?: boolean
+          a_receives_communications?: boolean
+          a_receives_invoices?: boolean
+          b_main_contact?: boolean
+          b_manages_appointments?: boolean
+          b_receives_communications?: boolean
+          b_receives_invoices?: boolean
+          client_a_id: string
+          client_b_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id: string
+          type_a_to_b: string
+          type_b_to_a: string
+          updated_at?: string
+        }
+        Update: {
+          a_main_contact?: boolean
+          a_manages_appointments?: boolean
+          a_receives_communications?: boolean
+          a_receives_invoices?: boolean
+          b_main_contact?: boolean
+          b_manages_appointments?: boolean
+          b_receives_communications?: boolean
+          b_receives_invoices?: boolean
+          client_a_id?: string
+          client_b_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          type_a_to_b?: string
+          type_b_to_a?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_relations_a_fkey"
+            columns: ["org_id", "client_a_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_relations_a_fkey"
+            columns: ["org_id", "client_a_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_relations_a_fkey"
+            columns: ["org_id", "client_a_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_relations_b_fkey"
+            columns: ["org_id", "client_b_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_relations_b_fkey"
+            columns: ["org_id", "client_b_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_relations_b_fkey"
+            columns: ["org_id", "client_b_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_relations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      client_tag_links: {
+        Row: {
+          client_id: string
+          created_at: string
+          org_id: string
+          tag_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          org_id: string
+          tag_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          org_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_tag_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_tag_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_tag_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_tag_links_tag_fkey"
+            columns: ["org_id", "tag_id"]
+            isOneToOne: false
+            referencedRelation: "client_tags"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      client_tags: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_tags_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clienteles: {
         Row: {
           created_at: string
@@ -192,6 +750,229 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          anonymized_at: string | null
+          anonymized_by: string | null
+          archived_at: string | null
+          archived_by: string | null
+          birth_first_name: string | null
+          birthday: string | null
+          city: string | null
+          client_number: number
+          country: string
+          created_at: string
+          created_by: string | null
+          custom_field: string | null
+          email: string | null
+          external_ref: string | null
+          file_incomplete: boolean
+          first_name: string
+          home_e164: string | null
+          id: string
+          is_banned: boolean
+          language: string
+          last_name: string
+          merged_into_id: string | null
+          mobile_e164: string | null
+          org_id: string
+          postal_code: string | null
+          primary_professional_id: string | null
+          pronouns: string | null
+          province: string | null
+          rate_variant: string | null
+          referral_source_id: string | null
+          referred_by: string | null
+          reminders_by_email: boolean
+          reminders_by_sms: boolean
+          sex: string | null
+          shared_custody: boolean
+          special_agreement: boolean
+          tax_exempt: boolean
+          time_zone: string | null
+          updated_at: string
+          work_e164: string | null
+          work_ext: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          anonymized_at?: string | null
+          anonymized_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          birth_first_name?: string | null
+          birthday?: string | null
+          city?: string | null
+          client_number: number
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          custom_field?: string | null
+          email?: string | null
+          external_ref?: string | null
+          file_incomplete?: boolean
+          first_name: string
+          home_e164?: string | null
+          id?: string
+          is_banned?: boolean
+          language?: string
+          last_name: string
+          merged_into_id?: string | null
+          mobile_e164?: string | null
+          org_id: string
+          postal_code?: string | null
+          primary_professional_id?: string | null
+          pronouns?: string | null
+          province?: string | null
+          rate_variant?: string | null
+          referral_source_id?: string | null
+          referred_by?: string | null
+          reminders_by_email?: boolean
+          reminders_by_sms?: boolean
+          sex?: string | null
+          shared_custody?: boolean
+          special_agreement?: boolean
+          tax_exempt?: boolean
+          time_zone?: string | null
+          updated_at?: string
+          work_e164?: string | null
+          work_ext?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          anonymized_at?: string | null
+          anonymized_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          birth_first_name?: string | null
+          birthday?: string | null
+          city?: string | null
+          client_number?: number
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          custom_field?: string | null
+          email?: string | null
+          external_ref?: string | null
+          file_incomplete?: boolean
+          first_name?: string
+          home_e164?: string | null
+          id?: string
+          is_banned?: boolean
+          language?: string
+          last_name?: string
+          merged_into_id?: string | null
+          mobile_e164?: string | null
+          org_id?: string
+          postal_code?: string | null
+          primary_professional_id?: string | null
+          pronouns?: string | null
+          province?: string | null
+          rate_variant?: string | null
+          referral_source_id?: string | null
+          referred_by?: string | null
+          reminders_by_email?: boolean
+          reminders_by_sms?: boolean
+          sex?: string | null
+          shared_custody?: boolean
+          special_agreement?: boolean
+          tax_exempt?: boolean
+          time_zone?: string | null
+          updated_at?: string
+          work_e164?: string | null
+          work_ext?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_anonymized_by_fkey"
+            columns: ["anonymized_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "clients_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "clients_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "clients_merged_into_fkey"
+            columns: ["org_id", "merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_merged_into_fkey"
+            columns: ["org_id", "merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_merged_into_fkey"
+            columns: ["org_id", "merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "clients_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -1782,6 +2563,27 @@ export type Database = {
           professional_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "professional_client_agreements_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_client_agreements_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_client_agreements_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
           {
             foreignKeyName: "professional_client_agreements_created_by_fkey"
             columns: ["created_by"]
@@ -3514,6 +4316,50 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_sources: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_sources_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       retention_grid_prices: {
         Row: {
           client_price_cents: number
@@ -5125,6 +5971,166 @@ export type Database = {
           },
         ]
       }
+      clients_directory: {
+        Row: {
+          archived_at: string | null
+          birthday: string | null
+          client_number: number | null
+          created_at: string | null
+          display_name: string | null
+          email: string | null
+          external_ref: string | null
+          file_incomplete: boolean | null
+          first_name: string | null
+          id: string | null
+          is_anonymized: boolean | null
+          is_archived: boolean | null
+          is_banned: boolean | null
+          language: string | null
+          last_name: string | null
+          merged_into_id: string | null
+          mobile_e164: string | null
+          org_id: string | null
+          primary_professional_id: string | null
+          pronouns: string | null
+          rate_variant: string | null
+          referral_source_id: string | null
+          reminders_by_email: boolean | null
+          reminders_by_sms: boolean | null
+          sex: string | null
+          shared_custody: boolean | null
+          special_agreement: boolean | null
+          tax_exempt: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          birthday?: string | null
+          client_number?: number | null
+          created_at?: string | null
+          display_name?: never
+          email?: string | null
+          external_ref?: string | null
+          file_incomplete?: boolean | null
+          first_name?: string | null
+          id?: string | null
+          is_anonymized?: never
+          is_archived?: never
+          is_banned?: boolean | null
+          language?: string | null
+          last_name?: string | null
+          merged_into_id?: string | null
+          mobile_e164?: string | null
+          org_id?: string | null
+          primary_professional_id?: string | null
+          pronouns?: string | null
+          rate_variant?: string | null
+          referral_source_id?: string | null
+          reminders_by_email?: boolean | null
+          reminders_by_sms?: boolean | null
+          sex?: string | null
+          shared_custody?: boolean | null
+          special_agreement?: boolean | null
+          tax_exempt?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          birthday?: string | null
+          client_number?: number | null
+          created_at?: string | null
+          display_name?: never
+          email?: string | null
+          external_ref?: string | null
+          file_incomplete?: boolean | null
+          first_name?: string | null
+          id?: string | null
+          is_anonymized?: never
+          is_archived?: never
+          is_banned?: boolean | null
+          language?: string | null
+          last_name?: string | null
+          merged_into_id?: string | null
+          mobile_e164?: string | null
+          org_id?: string | null
+          primary_professional_id?: string | null
+          pronouns?: string | null
+          rate_variant?: string | null
+          referral_source_id?: string | null
+          reminders_by_email?: boolean | null
+          reminders_by_sms?: boolean | null
+          sex?: string | null
+          shared_custody?: boolean | null
+          special_agreement?: boolean | null
+          tax_exempt?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_merged_into_fkey"
+            columns: ["org_id", "merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_merged_into_fkey"
+            columns: ["org_id", "merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_merged_into_fkey"
+            columns: ["org_id", "merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "my_clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_primary_professional_fkey"
+            columns: ["org_id", "primary_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "clients_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       languages_catalog: {
         Row: {
           code: string | null
@@ -5174,6 +6180,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "motifs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      my_clients: {
+        Row: {
+          birthday: string | null
+          client_number: number | null
+          display_name: string | null
+          email: string | null
+          first_linked_at: string | null
+          first_name: string | null
+          id: string | null
+          is_archived: boolean | null
+          is_primary: boolean | null
+          language: string | null
+          last_linked_at: string | null
+          last_name: string | null
+          mobile_e164: string | null
+          org_id: string | null
+          pronouns: string | null
+          reason: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
