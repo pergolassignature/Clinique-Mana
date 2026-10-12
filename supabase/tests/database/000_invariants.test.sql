@@ -3,7 +3,7 @@
 -- See docs/standards/database-conventions.md §12.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 
 select is_empty($$
   select c.relname from pg_class c
@@ -63,6 +63,10 @@ select is_empty($$
      -- every filter change; the search text may hold a client's name (Loi 25).
      -- signature_request_syncs: the signing reconcile's per-request state (codes and times),
      -- rewritten every hour for every open request; deleted once the request closes.
+     -- mail_threads, mail_messages, mail_attachments, mail_labels, mail_sync_state (CM-2): the
+     -- Gmail mirror, written by the sync from what Gmail holds; client correspondence (Loi 25),
+     -- purged after 24 months: auditing it would copy every subject, address and snippet into
+     -- audit_log forever. What a person does (connect, disconnect, link) is audited.
      -- sms_messages: every text in and out (numbers and bodies, purged after 12 and 24 months);
      -- auditing it would keep them in audit_log forever (Loi 25), like email_log.
      -- sms_provider_sessions: the PBX session's Vault ids, expiries and refresh lease, rewritten
@@ -70,7 +74,8 @@ select is_empty($$
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
                            'scheduled_job_dispatches', 'notifications', 'notification_reads',
                            'user_preferences', 'signature_request_syncs', 'sms_messages',
-                           'sms_provider_sessions')
+                           'sms_provider_sessions',
+                           'mail_threads', 'mail_messages', 'mail_attachments', 'mail_labels', 'mail_sync_state')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');
@@ -89,6 +94,16 @@ select is_empty($$
   except
   select x.org_id, x.permission_key from public.org_role_permissions x where x.role = 'admin'
 $$, 'admin holds every permission in every org');
+
+-- PostgREST's role loads pg-safeupdate: a DELETE or an UPDATE without WHERE fails (« DELETE
+-- requires a WHERE clause ») in any function an RPC reaches, though it passes here as postgres.
+-- Clear a temp table with `truncate`; an UPDATE of every row says `where true`.
+select is_empty($$
+  select n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname in ('public', 'private')
+     and (p.prosrc ~* '\mdelete\s+from\s+[a-z0-9_."]+\s*;'
+          or p.prosrc ~* '\mupdate\s+[a-z0-9_."]+(\s+(as\s+)?[a-z_]+)?\s+set\s((?!\mwhere\M)[^;])*;')
+$$, 'no function deletes or updates without a WHERE clause (pg-safeupdate)');
 
 select * from finish();
 rollback;

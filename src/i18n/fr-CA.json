@@ -5146,7 +5146,10 @@
       "name": "Communications",
       "audit": {
         "tables": {
-          "sms_consents": "Consentements aux textos"
+          "sms_consents": "Consentements aux textos",
+          "mail_connections": "Boîtes Gmail",
+          "mail_connection_tokens": "Jetons d'accès Gmail",
+          "mail_thread_links": "Rattachements des conversations"
         },
         "fields": {
           "sms_consents": {
@@ -5158,6 +5161,34 @@
             "granted_at": "Donné le",
             "withdrawn_at": "Retiré le",
             "note": "Note"
+          },
+          "mail_connections": {
+            "email_address": "Adresse",
+            "kind": "Type de boîte",
+            "owner_profile_id": "Propriétaire",
+            "status": "Statut",
+            "status_reason": "Raison du statut",
+            "scopes": "Accès accordés",
+            "connected_by": "Connectée par",
+            "connected_at": "Connectée le",
+            "disconnected_at": "Déconnectée le",
+            "disconnected_by": "Déconnectée par"
+          },
+          "mail_connection_tokens": {
+            "connection_id": "Boîte",
+            "access_token": "Jeton d'accès",
+            "refresh_token": "Jeton de renouvellement",
+            "access_token_expires_at": "Expiration du jeton d'accès",
+            "key_version": "Version de la clé de chiffrement"
+          },
+          "mail_thread_links": {
+            "thread_id": "Conversation",
+            "status": "Statut",
+            "client_id": "Client",
+            "candidate_client_ids": "Clients possibles",
+            "source": "Origine",
+            "linked_by": "Rattachée par",
+            "linked_at": "Rattachée le"
           }
         },
         "values": {
@@ -5171,6 +5202,33 @@
               "sms_reply": "Réponse par texto",
               "import": "Importation",
               "form": "Formulaire"
+            }
+          },
+          "mail_connections": {
+            "kind": {
+              "shared": "Partagée",
+              "personal": "Personnelle"
+            },
+            "status": {
+              "connected": "Connectée",
+              "needs_reconnect": "À reconnecter",
+              "disconnected": "Déconnectée"
+            },
+            "status_reason": {
+              "invalid_grant": "Accès retiré chez Google",
+              "scope_missing": "Accès incomplet",
+              "unauthorized": "Accès refusé par Google"
+            }
+          },
+          "mail_thread_links": {
+            "status": {
+              "unlinked": "Non rattachée",
+              "needs_review": "À rattacher",
+              "linked": "Rattachée"
+            },
+            "source": {
+              "auto": "Automatique",
+              "manual": "Manuelle"
             }
           }
         }
@@ -5341,6 +5399,146 @@
             "testing": "Envoi…",
             "testSent": "Texto de test envoyé.",
             "testFailed": "Le texto de test n'est pas parti. {reason}"
+          }
+        }
+      },
+      "errors": {
+        "notConfigured": "L'application Google n'est pas encore configurée (Paramètres → Courriels Gmail → Application Google).",
+        "providerError": "Google n'a pas répondu. Réessayez dans quelques minutes.",
+        "linkInvalid": "Le retour de Google n'est pas valide. Recommencez la connexion de la boîte.",
+        "linkExpired": "La connexion a pris plus de 10 minutes. Recommencez la connexion de la boîte.",
+        "linkUsed": "Ce retour de Google a déjà servi. Recommencez la connexion de la boîte au besoin.",
+        "notFound": "Cette boîte n'est plus connectée. Rechargez la page.",
+        "rateLimited": "Trop de demandes Gmail en peu de temps."
+      },
+      "googleReturn": {
+        "title": "Connexion de la boîte Gmail",
+        "pendingTitle": "Connexion de la boîte en cours…",
+        "pendingBody": "La boîte est enregistrée, puis ses courriels des 45 derniers jours sont lus. Cela peut prendre jusqu'à une minute : gardez cette page ouverte.",
+        "connected": "La boîte {email} est connectée.",
+        "declinedTitle": "Aucune boîte n'a été connectée",
+        "declinedBody": "L'autorisation a été refusée chez Google. Recommencez si c'était une erreur.",
+        "failedTitle": "La boîte n'a pas pu être connectée",
+        "missing": "Google n'a pas renvoyé les informations attendues. Recommencez la connexion de la boîte.",
+        "back": "Retour à Courriels Gmail"
+      },
+      "settings": {
+        "gmail": {
+          "title": "Courriels Gmail",
+          "description": "Les boîtes Gmail de la clinique (info@, administration@) lues par l'application : leur état, leur synchronisation et leur configuration chez Google.",
+          "secretsLoadError": "L'état des clés n'a pas pu être chargé.",
+          "secretsUnknown": "L'état de cette clé n'est visible qu'avec la permission de voir les paramètres.",
+          "mailboxes": {
+            "title": "Boîtes connectées",
+            "description": "Chaque boîte est lue toutes les 15 minutes et dès que Google signale un nouveau courriel. Les courriels restent dans Gmail.",
+            "empty": "Aucune boîte n'est connectée.",
+            "loadError": "Les boîtes n'ont pas pu être chargées.",
+            "connect": "Connecter une boîte",
+            "connecting": "Ouverture de Google…",
+            "connectHelp": "Google s'ouvre : choisissez le compte de la boîte (par exemple info@), puis acceptez les accès demandés.",
+            "appMissing": "Saisissez d'abord l'identifiant et le secret de l'application Google ci-dessous.",
+            "personal": "Personnelle",
+            "lastSync": "Dernière synchronisation : {date}",
+            "neverSynced": "Jamais synchronisée",
+            "threadsOne": "1 conversation",
+            "threadsOther": "{count} conversations",
+            "unreadOne": "1 non lue",
+            "unreadOther": "{count} non lues",
+            "sync": "Synchroniser",
+            "syncOutcome": {
+              "doneOne": "Synchronisée : 1 courriel lu.",
+              "doneOther": "Synchronisée : {count} courriels lus.",
+              "nothingNew": "Synchronisée : rien de nouveau.",
+              "partialOne": "1 courriel lu ; la première lecture continue toutes les 15 minutes.",
+              "partialOther": "{count} courriels lus ; la première lecture continue toutes les 15 minutes.",
+              "skipped": "Une synchronisation est déjà en cours.",
+              "needsReconnect": "Google refuse l'accès : reconnectez la boîte.",
+              "failed": "La synchronisation a échoué. Elle sera réessayée dans 15 minutes."
+            },
+            "syncing": "Synchronisation…",
+            "reconnect": "Reconnecter",
+            "reconnectHelp": "Chez Google, choisissez le compte {email}.",
+            "disconnect": "Déconnecter",
+            "disconnecting": "Déconnexion…",
+            "disconnected": "La boîte est déconnectée.",
+            "disconnectConfirm": {
+              "title": "Déconnecter {email} ?",
+              "body": "L'application cesse de lire cette boîte et son accès chez Google est retiré. Les courriels déjà synchronisés restent consultables. Vous pourrez la reconnecter plus tard.",
+              "action": "Déconnecter la boîte"
+            },
+            "status": {
+              "connected": "Connectée",
+              "syncing": "Synchronisation en cours",
+              "firstPass": "Première lecture en cours",
+              "firstPassDetail": "Les courriels des 45 derniers jours sont lus par étapes ; la lecture reprend toutes les 15 minutes.",
+              "error": "Dernière synchronisation échouée",
+              "errorDetail": "Elle sera réessayée dans 15 minutes. Si l'erreur revient, utilisez « Synchroniser ».",
+              "needsReconnect": "À reconnecter",
+              "disconnected": "Déconnectée"
+            },
+            "reason": {
+              "invalidGrant": "Google a retiré l'accès (mot de passe changé ou accès révoqué). Reconnectez la boîte.",
+              "scopeMissing": "Un accès nécessaire n'a pas été accordé chez Google. Reconnectez la boîte et acceptez chaque accès.",
+              "other": "Google refuse l'accès à cette boîte. Reconnectez-la."
+            },
+            "unwatched": "Google ne signale pas les nouveaux courriels de cette boîte : vérifiez le sujet Pub/Sub et le rôle de gmail-api-push@system.gserviceaccount.com, puis « Synchroniser ». Elle reste lue toutes les 15 minutes si la tâche est activée."
+          },
+          "app": {
+            "title": "Application Google",
+            "description": "Le client OAuth « Interne » du projet Google Cloud de la clinique, qui autorise l'application à lire et à envoyer les courriels des boîtes.",
+            "clientId": "Identifiant du client OAuth",
+            "clientIdHelp": "Google Cloud → API et services → Identifiants : se termine par .apps.googleusercontent.com.",
+            "clientSecret": "Secret du client OAuth",
+            "clientSecretHelp": "Affiché par Google à la création du client OAuth.",
+            "redirect": "URI de redirection autorisé",
+            "redirectHelp": "À ajouter au client OAuth chez Google (URI de redirection autorisés), tel quel.",
+            "readOnly": "Seule une personne qui gère les intégrations peut changer ces clés."
+          },
+          "push": {
+            "title": "Notifications de Google",
+            "description": "Google signale chaque nouveau courriel par Pub/Sub : l'application lit alors la boîte sans attendre les 15 minutes. Chaque notification porte un jeton signé par Google, vérifié ici.",
+            "account": "Compte de service de l'abonnement",
+            "accountHelp": "Le compte de service choisi dans l'abonnement push, avec l'authentification activée (nom@projet.iam.gserviceaccount.com). Vide : toutes les notifications sont refusées.",
+            "accountInvalid": "Le compte de service doit avoir la forme nom@projet.iam.gserviceaccount.com.",
+            "url": "Adresse de l'abonnement push",
+            "urlHelp": "Dans Pub/Sub, créez un abonnement de type push vers cette adresse, délai d'accusé de réception de 60 secondes.",
+            "audience": "Audience de l'abonnement",
+            "audienceHelp": "Dans le même abonnement, activez l'authentification avec le compte de service ci-dessus et collez cette audience."
+          },
+          "topic": {
+            "label": "Sujet Pub/Sub",
+            "help": "Le nom complet du sujet, de la forme projects/<projet>/topics/<sujet>. Vide : Google ne signale rien et les boîtes sont lues toutes les 15 minutes seulement.",
+            "invalid": "Le nom du sujet Pub/Sub doit avoir la forme projects/<projet>/topics/<sujet>.",
+            "saved": "Les réglages des notifications sont enregistrés.",
+            "saveError": "Les réglages des notifications n'ont pas pu être enregistrés.",
+            "loadError": "Les paramètres n'ont pas pu être chargés."
+          },
+          "jobs": {
+            "title": "Tâches planifiées",
+            "description": "Désactivées au départ, comme toutes les tâches de la clinique : activez-les une fois les boîtes connectées.",
+            "unknown": "L'état des tâches planifiées n'est visible qu'avec la permission de voir les paramètres.",
+            "sync": {
+              "on": "La tâche « Synchronisation Gmail » est activée.",
+              "onNoHour": "La tâche « Synchronisation Gmail » est activée.",
+              "off": "La tâche « Synchronisation Gmail » est désactivée : les boîtes ne sont lues que lorsque Google signale un courriel ou avec « Synchroniser ».",
+              "enable": "Activer la tâche planifiée",
+              "enabling": "Activation…",
+              "askAdmin": "Une personne qui gère les tâches planifiées peut l'activer :",
+              "openJobs": "Ouvrir Tâches planifiées",
+              "unknown": "La tâche « Synchronisation Gmail » n'est pas disponible pour la clinique.",
+              "loadError": "L'état des tâches planifiées n'a pas pu être chargé."
+            },
+            "watch": {
+              "on": "La tâche « Renouvellement de la surveillance Gmail » est activée.",
+              "onNoHour": "La tâche « Renouvellement de la surveillance Gmail » est activée.",
+              "off": "La tâche « Renouvellement de la surveillance Gmail » est désactivée : après 7 jours, Google cesse de signaler les nouveaux courriels.",
+              "enable": "Activer la tâche planifiée",
+              "enabling": "Activation…",
+              "askAdmin": "Une personne qui gère les tâches planifiées peut l'activer :",
+              "openJobs": "Ouvrir Tâches planifiées",
+              "unknown": "La tâche « Renouvellement de la surveillance Gmail » n'est pas disponible pour la clinique.",
+              "loadError": "L'état des tâches planifiées n'a pas pu être chargé."
+            }
           }
         }
       }

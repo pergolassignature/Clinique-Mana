@@ -1,5 +1,5 @@
 import { CircleAlert, CircleCheck } from 'lucide-react'
-import { t } from '@/i18n'
+import { t, type TranslationKey } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { useScheduledJobs, useSetScheduledJobEnabled } from '@/core/jobs/hooks'
 import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
@@ -9,11 +9,15 @@ import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/sof
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 
-/** The pages that say whether one of the module's business jobs runs, each with its own words. */
-type JobTexts = 'modules.professionals.settings.invitations.job' | 'modules.professionals.settings.requiredDocuments.job'
+/**
+ * The i18n prefixes of the pages that say whether one of their business jobs runs, each with its
+ * own words: any prefix with `.openJobs`; typecheck fails unless it also has `.on`, `.onNoHour`,
+ * `.off`, `.enable`, `.enabling`, `.askAdmin`, `.unknown` and `.loadError`.
+ */
+type JobTexts = TranslationKey extends infer K ? (K extends `${infer P}.openJobs` ? P : never) : never
 
 /**
- * Whether a business job of the module is switched on (off by default, like every business job),
+ * Whether a business job of a module is switched on (off by default, like every business job),
  * read with `settings.view`: « La tâche … est activée : elle passe chaque jour vers 6 h » or, off,
  * what does not happen and « Activer la tâche planifiée » for whoever may switch jobs
  * (`settings.manage`, P4-311), else where it is done (« Ouvrir Tâches planifiées »). Without

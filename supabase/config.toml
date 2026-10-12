@@ -183,6 +183,22 @@ verify_jwt = false
 [functions.professionals-consent-sign]
 verify_jwt = false
 
+# Communications, Gmail (plan §11, CM1). « Connecter une boîte » / « Déconnecter » and the return
+# from Google's consent (verifyAuth, module communications, communications.mailboxes_manage).
+[functions.gmail-connect]
+verify_jwt = false
+[functions.gmail-callback]
+verify_jwt = false
+# Google's Pub/Sub push, authenticated: one per-IP hit, then Google's signed ID token for the org's
+# `pubsub_service_account` and audience (`?org=` names the org; CM-4).
+[functions.gmail-webhook]
+verify_jwt = false
+# « Synchroniser » (verifyAuth) and the job communications.gmail_sync (X-Job-Signature).
+[functions.gmail-sync]
+verify_jwt = false
+# Job communications.gmail_watch_renew (runJob verifies X-Job-Signature).
+[functions.gmail-watch-renew]
+verify_jwt = false
 # Textos (batch SM, module communications): a staff reply or an admin's test through the clinic's
 # Yeastar PBX (verifyAuth, communications.sms / .sms_manage).
 [functions.sms-send]

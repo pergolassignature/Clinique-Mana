@@ -1,5 +1,22 @@
 /**
- * React Query keys of « Textos » (batch SM). The Gmail batches add their own factories here.
+ * React Query keys of the Gmail side of the module (CM1):
+ *
+ * | Change                                          | Invalidated                                    |
+ * |-------------------------------------------------|------------------------------------------------|
+ * | a mailbox connected, synchronised, disconnected | `connections()`                                |
+ * | the module settings (the Pub/Sub topic and the  | none: the RPC returns the effective settings,  |
+ * | push's service account)                         | written into `settings()` as is                |
+ *
+ * The SMS side keeps its own root (`smsKeys`), so neither invalidates the other.
+ */
+export const mailKeys = {
+  all: ['communications', 'mail'] as const,
+  connections: () => [...mailKeys.all, 'connections'] as const,
+  settings: () => [...mailKeys.all, 'settings'] as const,
+}
+
+/**
+ * React Query keys of « Textos » (batch SM).
  *
  * | Change                                      | Invalidated                                         |
  * |---------------------------------------------|-----------------------------------------------------|
