@@ -182,3 +182,20 @@ verify_jwt = false
 # professionals, professionals.self): returns her signing token once, and syncs on her return. Renders.
 [functions.professionals-consent-sign]
 verify_jwt = false
+
+# Communications, Gmail (plan §11, CM1). « Connecter une boîte » / « Déconnecter » and the return
+# from Google's consent (verifyAuth, module communications, communications.mailboxes_manage).
+[functions.gmail-connect]
+verify_jwt = false
+[functions.gmail-callback]
+verify_jwt = false
+# Google's Pub/Sub push: `?org=` names the org whose `gmail_pubsub_token` the `?token=` must match
+# (timingSafeEqual), one per-IP hit first.
+[functions.gmail-webhook]
+verify_jwt = false
+# « Synchroniser » (verifyAuth) and the job communications.gmail_sync (X-Job-Signature).
+[functions.gmail-sync]
+verify_jwt = false
+# Job communications.gmail_watch_renew (runJob verifies X-Job-Signature).
+[functions.gmail-watch-renew]
+verify_jwt = false

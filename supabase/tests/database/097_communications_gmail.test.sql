@@ -1,9 +1,9 @@
--- Communications, batch CM1 (migration *_communications_module.sql): the module's registry rows,
+-- Communications, batch CM1 (migration *_communications_gmail.sql): the module's registry rows,
 -- the mailboxes, their encrypted tokens, the sync state, the mirror (labels, threads, messages,
 -- attachments, links), the service RPCs the functions call, the jobs and the 24-month purge.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(83);
+select plan(101);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (module enabled; admin 01, counselor 02, provider 03, adjointe
@@ -121,6 +121,8 @@ select throws_ok($$ select public.get_communications_settings() $$, '42501', nul
 -- store_mail_connection (service role, actor model)
 -- =============================================================================
 reset role; set local role service_role;
+-- A service-role call carries no user: the functions name the actor (p_actor), never a session.
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select throws_ok($$
   select public.store_mail_connection('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a',
     'info@clinique.test', 'shared', 'at', 'rt', now() + interval '1 hour', array['https://www.googleapis.com/auth/gmail.modify'])
@@ -142,6 +144,8 @@ select results_eq($$
    where c.id = current_setting('test.c1')::uuid
 $$, $$ values ('info@clinique.test', 'shared', 'connected', 'a0000000-0000-0000-0000-000000000001', false, true) $$,
   'the connection: address lower-cased and trimmed, connected, a fresh sync state with a sync requested');
+-- The tokens table and the audit log are read as postgres: service_role has no privilege on either.
+reset role;
 select results_eq($$
   select t.access_token <> convert_to('access-1', 'UTF8'), t.refresh_token <> convert_to('refresh-1', 'UTF8'),
          t.key_version = private.pii_current_key_version()::smallint
@@ -163,6 +167,7 @@ $$, $$ values ('mail_connection_tokens', 'insert', '[redacted]', '[redacted]', '
 select ok(exists (select 1 from public.audit_log a where a.table_name = 'mail_connections' and a.record_id = current_setting('test.c1')
                    and a.action = 'insert' and a.actor_id = 'a0000000-0000-0000-0000-000000000001'),
   'the connection insert is audited to the actor');
+set local role service_role;
 
 -- A refreshed access token.
 select lives_ok($$ select public.set_mail_access_token('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid, 'access-2', now() + interval '50 minutes') $$,
@@ -314,7 +319,7 @@ select lives_ok($$ select public.record_mail_attachment('b0000000-0000-0000-0000
 select results_eq($$
   select a.status, a.stored_file_id::text, a.attempts from public.mail_attachments a where a.id = current_setting('test.a1')::uuid
 $$, $$ values ('stored', current_setting('test.f1'), 1) $$, 'the attachment points at its file');
-select is((select f.view_permission || '/' || f.retain_until::text is null::text from public.stored_files f where f.id = current_setting('test.f1')::uuid),
+select is((select f.view_permission || '/' || (f.retain_until is null)::text from public.stored_files f where f.id = current_setting('test.f1')::uuid),
   'communications.inbox/true', 'the file is read with communications.inbox and never staged');
 
 -- Deleted messages.
@@ -359,8 +364,10 @@ update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-
 -- Disconnect
 -- =============================================================================
 set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select is(public.disconnect_mail_connection('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', current_setting('test.c2')::uuid), true, 'disconnected');
 select is(public.disconnect_mail_connection('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', current_setting('test.c2')::uuid), false, 'already disconnected');
+reset role;
 select results_eq($$
   select c.status, c.disconnected_by::text, (select count(*)::int from public.mail_connection_tokens t where t.connection_id = c.id),
          (select count(*)::int from public.mail_sync_state s where s.connection_id = c.id)

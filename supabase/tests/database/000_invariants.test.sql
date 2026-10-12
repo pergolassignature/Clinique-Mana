@@ -63,9 +63,14 @@ select is_empty($$
      -- every filter change; the search text may hold a client's name (Loi 25).
      -- signature_request_syncs: the signing reconcile's per-request state (codes and times),
      -- rewritten every hour for every open request; deleted once the request closes.
+     -- mail_threads, mail_messages, mail_attachments, mail_labels, mail_sync_state (CM-2): the
+     -- Gmail mirror, written by the sync from what Gmail holds; client correspondence (Loi 25),
+     -- purged after 24 months: auditing it would copy every subject, address and snippet into
+     -- audit_log forever. What a person does (connect, disconnect, link) is audited.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
                            'scheduled_job_dispatches', 'notifications', 'notification_reads',
-                           'user_preferences', 'signature_request_syncs')
+                           'user_preferences', 'signature_request_syncs',
+                           'mail_threads', 'mail_messages', 'mail_attachments', 'mail_labels', 'mail_sync_state')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');

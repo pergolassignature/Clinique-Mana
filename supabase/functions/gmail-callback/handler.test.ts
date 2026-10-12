@@ -82,64 +82,73 @@ Deno.test('gmail-callback: the happy path stores the connection with its tokens 
     assertEquals(limits, ['gmail.callback_user', 'oauth.state_nonce'])
   }))
 
-Deno.test("gmail-callback: a forged, expired or replayed state, or someone else's, is refused before Google is asked", async () => {
-  const h = fresh()
-  const handler = createHandler(h.deps)
-  const code = h.google.issueCode()
-  const good = await signed(h)
-  const forged = `${good.slice(0, -3)}xyz`
-  let res = await handler(post({ code, state: forged }))
-  assertEquals([res.status, (await res.json()).error.code], [
-    410,
-    'link_invalid',
-  ])
-  h.advance(11 * 60_000)
-  res = await handler(post({ code, state: good }))
-  assertEquals([res.status, (await res.json()).error.code], [
-    410,
-    'link_expired',
-  ])
-  h.advance(-11 * 60_000)
-  res = await handler(
-    post({
-      code,
-      state: await signed(h, {
-        userId: '00000000-0000-4000-8000-0000000000b2',
+Deno.test("gmail-callback: a forged, expired or replayed state, or someone else's, is refused before Google is asked", () =>
+  run(async () => {
+    const h = fresh()
+    const handler = createHandler(h.deps)
+    const code = h.google.issueCode()
+    const good = await signed(h)
+    const forged = `${good.slice(0, -3)}xyz`
+    let res = await handler(post({ code, state: forged }))
+    assertEquals([res.status, (await res.json()).error.code], [
+      410,
+      'link_invalid',
+    ])
+    h.advance(11 * 60_000)
+    res = await handler(post({ code, state: good }))
+    assertEquals([res.status, (await res.json()).error.code], [
+      410,
+      'link_expired',
+    ])
+    h.advance(-11 * 60_000)
+    res = await handler(
+      post({
+        code,
+        state: await signed(h, {
+          userId: '00000000-0000-4000-8000-0000000000b2',
+        }),
       }),
-    }),
-  )
-  assertEquals([res.status, (await res.json()).error.code], [403, 'forbidden'])
-  res = await handler(
-    post({
-      code,
-      state: await signed(h, { orgId: '00000000-0000-4000-8000-000000000002' }),
-    }),
-  )
-  assertEquals(res.status, 403)
-  res = await handler(
-    post({ code, state: await signed(h, { purpose: 'zoom_connect' }) }),
-  )
-  assertEquals(res.status, 410)
-  assertEquals(h.google.calls.length, 0)
+    )
+    assertEquals([res.status, (await res.json()).error.code], [
+      403,
+      'forbidden',
+    ])
+    res = await handler(
+      post({
+        code,
+        state: await signed(h, {
+          orgId: '00000000-0000-4000-8000-000000000002',
+        }),
+      }),
+    )
+    assertEquals(res.status, 403)
+    res = await handler(
+      post({ code, state: await signed(h, { purpose: 'zoom_connect' }) }),
+    )
+    assertEquals(res.status, 410)
+    assertEquals(h.google.calls.length, 0)
 
-  // A replay: the nonce bucket refuses the second hit.
-  const replay = fresh({
-    rpc: {
-      consume_rate_limit: (args) => ({
-        data: [
-          args.p_bucket === 'oauth.state_nonce'
-            ? { allowed: false, hits: 2, retry_after_seconds: 500 }
-            : { allowed: true, hits: 1, retry_after_seconds: 0 },
-        ],
-      }),
-    },
-  })
-  res = await createHandler(replay.deps)(
-    post({ code: replay.google.issueCode(), state: await signed(replay) }),
-  )
-  assertEquals([res.status, (await res.json()).error.code], [410, 'link_used'])
-  assertEquals(replay.google.calls.length, 0)
-})
+    // A replay: the nonce bucket refuses the second hit.
+    const replay = fresh({
+      rpc: {
+        consume_rate_limit: (args) => ({
+          data: [
+            args.p_bucket === 'oauth.state_nonce'
+              ? { allowed: false, hits: 2, retry_after_seconds: 500 }
+              : { allowed: true, hits: 1, retry_after_seconds: 0 },
+          ],
+        }),
+      },
+    })
+    res = await createHandler(replay.deps)(
+      post({ code: replay.google.issueCode(), state: await signed(replay) }),
+    )
+    assertEquals([res.status, (await res.json()).error.code], [
+      410,
+      'link_used',
+    ])
+    assertEquals(replay.google.calls.length, 0)
+  }))
 
 Deno.test('gmail-callback: a code Google refuses → a French refusal; a grant missing gmail.modify → a French refusal, nothing stored', () =>
   run(async () => {
@@ -165,58 +174,59 @@ Deno.test('gmail-callback: a code Google refuses → a French refusal; a grant m
     assertEquals(h.state.connection, null)
   }))
 
-Deno.test("gmail-callback: the RPC's own refusal is passed on; no OAuth application → 503; a wrong client secret → 502 reported", async () => {
-  const refused = fresh({
-    rpc: {
-      store_mail_connection: {
-        error: {
-          code: 'P0001',
-          message:
-            'Cette boîte est déjà connectée comme boîte personnelle d’une autre personne.',
+Deno.test("gmail-callback: the RPC's own refusal is passed on; no OAuth application → 503; a wrong client secret → 502 reported", () =>
+  run(async () => {
+    const refused = fresh({
+      rpc: {
+        store_mail_connection: {
+          error: {
+            code: 'P0001',
+            message:
+              'Cette boîte est déjà connectée comme boîte personnelle d’une autre personne.',
+          },
         },
       },
-    },
-  })
-  let res = await createHandler(refused.deps)(
-    post({ code: refused.google.issueCode(), state: await signed(refused) }),
-  )
-  assertEquals(res.status, 400)
-  assertEquals((await res.json()).error.refusal, true)
-
-  const unset = fresh({
-    state: initialState({
-      connection: null,
-      secrets: {
-        google_oauth_client_id: null,
-        google_oauth_client_secret: null,
-        gmail_pubsub_token: null,
-      },
-    }),
-  })
-  res = await createHandler(unset.deps)(
-    post({ code: 'x', state: await signed(unset) }),
-  )
-  assertEquals(res.status, 503)
-
-  const wrong = fresh({
-    state: initialState({
-      connection: null,
-      secrets: {
-        google_oauth_client_id: 'other-client',
-        google_oauth_client_secret: 'other',
-        gmail_pubsub_token: null,
-      },
-    }),
-  })
-  const errors = await captureConsole('error', async () => {
-    res = await createHandler(wrong.deps)(
-      post({ code: wrong.google.issueCode(), state: await signed(wrong) }),
+    })
+    let res = await createHandler(refused.deps)(
+      post({ code: refused.google.issueCode(), state: await signed(refused) }),
     )
-  })
-  assertEquals(res.status, 502)
-  assert(JSON.stringify(errors).includes('token_provider_error'))
-  assertFalse(
-    JSON.stringify(errors).includes('FAKE-GOOGLE-ERROR-BODY'),
-    "Google's error body is never reported",
-  )
-})
+    assertEquals(res.status, 400)
+    assertEquals((await res.json()).error.refusal, true)
+
+    const unset = fresh({
+      state: initialState({
+        connection: null,
+        secrets: {
+          google_oauth_client_id: null,
+          google_oauth_client_secret: null,
+          gmail_pubsub_token: null,
+        },
+      }),
+    })
+    res = await createHandler(unset.deps)(
+      post({ code: 'x', state: await signed(unset) }),
+    )
+    assertEquals(res.status, 503)
+
+    const wrong = fresh({
+      state: initialState({
+        connection: null,
+        secrets: {
+          google_oauth_client_id: 'other-client',
+          google_oauth_client_secret: 'other',
+          gmail_pubsub_token: null,
+        },
+      }),
+    })
+    const errors = await captureConsole('error', async () => {
+      res = await createHandler(wrong.deps)(
+        post({ code: wrong.google.issueCode(), state: await signed(wrong) }),
+      )
+    })
+    assertEquals(res.status, 502)
+    assert(JSON.stringify(errors).includes('token_provider_error'))
+    assertFalse(
+      JSON.stringify(errors).includes('FAKE-GOOGLE-ERROR-BODY'),
+      "Google's error body is never reported",
+    )
+  }))

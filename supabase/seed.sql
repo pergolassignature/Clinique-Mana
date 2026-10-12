@@ -94,6 +94,32 @@ values
    vault.create_secret('local-dev-documenso-webhook-secret',
                        'org:00000000-0000-0000-0000-000000000001:documenso_webhook_secret'));
 
+-- Local Gmail (Communications, CM1): the module enabled, the fake Google's OAuth client
+-- (`npm run fake:gmail`, port 55392; _shared/testing/fake-gmail.ts FAKE_CLIENT_ID / _SECRET), the
+-- Pub/Sub push token the fake sends (scripts/fake-gmail.ts) and a topic, stored as set_org_secret
+-- and set_communications_settings store them. Conseillère and Adjointe read the inbox (on staging
+-- the template gives communications.* to Admin only, CM-1; Jonathan grants it in « Rôles »).
+insert into public.org_modules (org_id, module_key, enabled, updated_by) values
+  ('00000000-0000-0000-0000-000000000001', 'communications', true, '11111111-1111-1111-1111-111111111111');
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'google_oauth_client_id',
+   vault.create_secret('local-dev-google-client-id.apps.googleusercontent.com',
+                       'org:00000000-0000-0000-0000-000000000001:google_oauth_client_id')),
+  ('00000000-0000-0000-0000-000000000001', 'google_oauth_client_secret',
+   vault.create_secret('local-dev-google-client-secret',
+                       'org:00000000-0000-0000-0000-000000000001:google_oauth_client_secret')),
+  ('00000000-0000-0000-0000-000000000001', 'gmail_pubsub_token',
+   vault.create_secret('local-dev-gmail-pubsub-token',
+                       'org:00000000-0000-0000-0000-000000000001:gmail_pubsub_token'));
+insert into public.org_module_settings (org_id, module_key, settings) values
+  ('00000000-0000-0000-0000-000000000001', 'communications',
+   '{"pubsub_topic": "projects/mana-local/topics/gmail-push"}');
+insert into public.org_role_permissions (org_id, role, permission_key) values
+  ('00000000-0000-0000-0000-000000000001', 'counselor', 'communications.inbox'),
+  ('00000000-0000-0000-0000-000000000001', 'admin_assistant', 'communications.inbox')
+on conflict do nothing;
+
 -- =============================================================================
 -- Local test professionals (plan Task 4a.20 « Seed »)
 -- =============================================================================

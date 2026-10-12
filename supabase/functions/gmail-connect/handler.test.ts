@@ -90,19 +90,21 @@ Deno.test('gmail-connect: start → the consent URL with the two scopes, the fix
     assertFalse(url.includes('client-secret'), 'the client secret never leaves')
   }))
 
-Deno.test("gmail-connect: on a hosted project the URL is Google's, and a stray fake base URL is ignored", async () => {
-  const h = gmailHarness({ env: { APP_URL: 'https://app.cliniquemana.com' } })
-  const res = await createHandler(h.deps)(
-    post({ action: 'start', kind: 'personal' }),
-  )
-  const { url } = await res.json() as { url: string }
-  assert(url.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'))
-  assert(
-    url.includes(
-      'redirect_uri=https%3A%2F%2Fapp.cliniquemana.com%2Fcourriels%2Fretour-google',
-    ),
-  )
-})
+Deno.test("gmail-connect: on a hosted project the URL is Google's, and a stray fake base URL is ignored", () =>
+  run(async () => {
+    const h = gmailHarness({ env: { APP_URL: 'https://app.cliniquemana.com' } })
+    const res = await createHandler(h.deps)(
+      post({ action: 'start', kind: 'personal' }),
+    )
+    assertEquals(res.status, 200)
+    const { url } = await res.json() as { url: string }
+    assert(url.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'))
+    assert(
+      url.includes(
+        'redirect_uri=https%3A%2F%2Fapp.cliniquemana.com%2Fcourriels%2Fretour-google',
+      ),
+    )
+  }))
 
 Deno.test('gmail-connect: no OAuth application → 503 not_configured; no usable APP_URL → 500', () =>
   run(async () => {

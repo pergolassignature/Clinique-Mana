@@ -142,7 +142,12 @@ async function tokenCall(
   return { ok: false, invalidGrant: false }
 }
 
-/** The authorization code → tokens (at connection). A refused code throws `bad_request`. */
+/**
+ * The authorization code → tokens (at connection). A refused code
+ * (`invalid_grant`: expired, already used) throws `bad_request`; any other
+ * refusal (`invalid_client`: the clinic's OAuth application is wrong) is the
+ * clinic's configuration, not the person's, and throws `provider_error`.
+ */
 export async function exchangeCode(
   fetchFn: typeof fetch,
   origins: GmailOrigins,
@@ -158,7 +163,11 @@ export async function exchangeCode(
     client_secret: app.clientSecret,
     redirect_uri: redirectUri,
   }, signal)
-  if (!result.ok) throw new GmailError('bad_request', 400)
+  if (!result.ok) {
+    throw result.invalidGrant
+      ? new GmailError('bad_request', 400)
+      : new GmailError('provider_error')
+  }
   return result.token
 }
 

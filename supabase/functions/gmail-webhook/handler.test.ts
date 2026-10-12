@@ -63,49 +63,50 @@ Deno.test('gmail-webhook: method, org, token, size and payload checks before any
     assertFalse(h.rpcNames().includes('claim_webhook_event'))
   }))
 
-Deno.test("gmail-webhook: one hit per IP, then the org's token compared timing-safe; missing or wrong → 401", async () => {
-  const compared: [string, string][] = []
-  const h = gmailHarness()
-  const handler = createHandler(h.deps, {
-    timingSafeEqual: (a, b) => {
-      compared.push([a, b])
-      return a === b
-    },
-  })
-  const req = post(push(), url(ORG_ID, 'wrong'))
-  req.headers.set('x-forwarded-for', '198.51.100.7, 203.0.113.9')
-  assertEquals((await handler(req)).status, 401)
-  assertEquals(h.rpcNames(), ['consume_rate_limit', 'get_org_secret'])
-  assertEquals(h.service.calls[0].args.p_bucket, 'webhooks.gmail_ip')
-  assertEquals(compared, [['wrong', PUBSUB_TOKEN]])
+Deno.test("gmail-webhook: one hit per IP, then the org's token compared timing-safe; missing or wrong → 401", () =>
+  run(async () => {
+    const compared: [string, string][] = []
+    const h = gmailHarness()
+    const handler = createHandler(h.deps, {
+      timingSafeEqual: (a, b) => {
+        compared.push([a, b])
+        return a === b
+      },
+    })
+    const req = post(push(), url(ORG_ID, 'wrong'))
+    req.headers.set('x-forwarded-for', '198.51.100.7, 203.0.113.9')
+    assertEquals((await handler(req)).status, 401)
+    assertEquals(h.rpcNames(), ['consume_rate_limit', 'get_org_secret'])
+    assertEquals(h.service.calls[0].args.p_bucket, 'webhooks.gmail_ip')
+    assertEquals(compared, [['wrong', PUBSUB_TOKEN]])
 
-  const none = gmailHarness({
-    state: initialState({
-      secrets: {
-        google_oauth_client_id: null,
-        google_oauth_client_secret: null,
-        gmail_pubsub_token: null,
+    const none = gmailHarness({
+      state: initialState({
+        secrets: {
+          google_oauth_client_id: null,
+          google_oauth_client_secret: null,
+          gmail_pubsub_token: null,
+        },
+      }),
+    })
+    await captureConsole('warn', async () => {
+      assertEquals((await createHandler(none.deps)(post(push()))).status, 401)
+    })
+    const limited = gmailHarness({
+      rpc: {
+        consume_rate_limit: {
+          data: [{ allowed: false, hits: 601, retry_after_seconds: 30 }],
+        },
       },
-    }),
-  })
-  await captureConsole('warn', async () => {
-    assertEquals((await createHandler(none.deps)(post(push()))).status, 401)
-  })
-  const limited = gmailHarness({
-    rpc: {
-      consume_rate_limit: {
-        data: [{ allowed: false, hits: 601, retry_after_seconds: 30 }],
-      },
-    },
-  })
-  const res = await createHandler(limited.deps)(post(push()))
-  assertEquals([res.status, res.headers.get('Retry-After')], [429, '30'])
-  assertEquals(
-    limited.rpcNames(),
-    ['consume_rate_limit'],
-    'the secret was never read',
-  )
-})
+    })
+    const res = await createHandler(limited.deps)(post(push()))
+    assertEquals([res.status, res.headers.get('Retry-After')], [429, '30'])
+    assertEquals(
+      limited.rpcNames(),
+      ['consume_rate_limit'],
+      'the secret was never read',
+    )
+  }))
 
 Deno.test('gmail-webhook: a push for a connected mailbox syncs it inline and completes the claim', () =>
   run(async () => {

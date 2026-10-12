@@ -129,8 +129,14 @@ select functions_are('public', array[
   'prepare_professional_image_consent', 'get_professional_image_consent', 'prepare_my_image_consent', 'get_my_image_consent',
   'search_professionals',
   'delete_staff_account',
-  'withdraw_professional_image_consent', 'restore_professional_invitation_for_service'
-], 'public schema exposes exactly the intended RPCs');
+  'withdraw_professional_image_consent', 'restore_professional_invitation_for_service',
+  'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
+  'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
+  'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',
+  'acquire_mail_sync_lease', 'finish_mail_sync', 'reset_mail_history', 'set_mail_watch',
+  'upsert_mail_labels', 'upsert_mail_messages', 'delete_mail_messages', 'apply_mail_label_changes',
+  'list_mail_attachments_to_store', 'record_mail_attachment'
+],'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
   '23514', null, 'module settings must be a JSON object');

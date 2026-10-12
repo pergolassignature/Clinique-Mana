@@ -1038,15 +1038,17 @@ begin
          message_count = a.n,
          unread_count = a.unread,
          has_attachments = a.has_att,
-         label_ids = a.labels
+         label_ids = lb.labels
     from (select m.thread_id,
                  min(m.sent_at) as first_at, max(m.sent_at) as last_at, count(*)::int as n,
                  count(*) filter (where m.is_unread and not (m.label_ids && array['TRASH', 'SPAM']))::int as unread,
-                 bool_or(m.has_attachments) as has_att,
-                 coalesce((select array_agg(distinct x) from unnest(array_agg(m.label_ids)) as y(arr), unnest(y.arr) as x), '{}') as labels
+                 bool_or(m.has_attachments) as has_att
             from public.mail_messages m
            where m.org_id = p_org and m.thread_id = any (p_thread_ids)
            group by m.thread_id) a
+    join lateral (select coalesce(array_agg(distinct x.label), '{}'::text[]) as labels
+                    from public.mail_messages m, unnest(m.label_ids) as x(label)
+                   where m.thread_id = a.thread_id) lb on true
     join lateral (select m.subject from public.mail_messages m where m.thread_id = a.thread_id
                    order by m.sent_at, m.id limit 1) f on true
     join lateral (select m.snippet, m.from_name, m.from_address from public.mail_messages m where m.thread_id = a.thread_id
@@ -1075,6 +1077,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+-- The output columns share names with the tables' columns: a bare name is the column.
+#variable_conflict use_column
 declare
   v_email text;
   v_thread_ids uuid[];
@@ -1123,9 +1127,7 @@ begin
   -- Messages: new rows, or the mutable fields of known ones.
   create temp table if not exists tmp_mail_out (message_id uuid, gmail_message_id text, inserted boolean) on commit drop;
   delete from tmp_mail_out;
-  insert into tmp_mail_out
-  select m.id, m.gmail_message_id, (m.xmax = 0)
-    from (
+  with written as (
       insert into public.mail_messages as m (
         org_id, connection_id, thread_id, gmail_message_id, rfc_message_id, in_reply_to,
         from_name, from_address, to_addresses, cc_addresses, bcc_addresses, reply_to_address,
@@ -1148,8 +1150,9 @@ begin
             body_text = case when m.body_purged_at is null then coalesce(m.body_text, excluded.body_text) else m.body_text end,
             has_attachments = excluded.has_attachments,
             size_estimate = coalesce(excluded.size_estimate, m.size_estimate)
-      returning m.id, m.gmail_message_id, m.xmax
-    ) m;
+      returning m.id, m.gmail_message_id, (m.xmax = 0) as inserted)
+  insert into tmp_mail_out
+  select w.id, w.gmail_message_id, w.inserted from written w;
 
   -- Attachment parts (an existing part keeps its status and file).
   insert into public.mail_attachments (org_id, message_id, part_id, gmail_attachment_id, filename, mime_type, size_bytes, content_id, is_inline, status)

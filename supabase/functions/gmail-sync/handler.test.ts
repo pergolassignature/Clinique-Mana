@@ -167,7 +167,8 @@ Deno.test('gmail-sync user: « Synchroniser » needs the permission, finds the m
       h.service.calls.filter((c) => c.fn === 'consume_rate_limit').map((c) =>
         c.args.p_bucket
       ),
-      ['gmail.sync_user', 'gmail.sync_user'],
+      ['gmail.sync_user', 'gmail.sync_user', 'gmail.sync_user'],
+      'one hit per call, the unknown mailbox included (the limit comes first)',
     )
   }))
 
