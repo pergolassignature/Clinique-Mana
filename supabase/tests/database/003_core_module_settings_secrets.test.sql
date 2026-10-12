@@ -136,6 +136,7 @@ select functions_are('public', array[
   'acquire_mail_sync_lease', 'finish_mail_sync', 'reset_mail_history', 'set_mail_watch',
   'upsert_mail_labels', 'upsert_mail_messages', 'delete_mail_messages', 'apply_mail_label_changes',
   'list_mail_attachments_to_store', 'record_mail_attachment',
+  'list_mail_threads', 'get_mail_thread', 'get_mail_threads_for_action',
   'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
   'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices',
   -- Communications, batch SM (textos).
