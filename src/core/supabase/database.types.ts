@@ -7226,8 +7226,8 @@ export type Database = {
       }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
       reset_mail_history: {
-        Args: { p_connection_id: string; p_org_id: string }
-        Returns: undefined
+        Args: { p_connection_id: string; p_org_id: string; p_token?: string }
+        Returns: boolean
       }
       resolve_professional_invitation: {
         Args: { p_link_id: string }
