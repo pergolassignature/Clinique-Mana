@@ -12,6 +12,10 @@
  *    French): the database checks it again.
  * 3. Limits, per caller first (`sms.send_user` 60/h, or `sms.test_user` 5/h),
  *    then the clinic's day (`sms.org_day` 500).
+ * 3b. A reply while Communications is reserved for its testers (R-72,
+ *    `module_open_to_all_for_org` false): refused in French (400 `refusal`),
+ *    so a test in production never texts a client; the test to oneself
+ *    still goes.
  * 4. `queue_sms_for_service(org, actor, to, body, kind)` (service role, the
  *    actor model): re-checks the actor's permission, the consent (a reply to
  *    a number without one is a French P0001 → 400 `refusal`), records the
@@ -119,6 +123,23 @@ export function createHandler(
     const orgLimit = await consume(client, LIMITS.smsOrgDay, [orgId])
     const orgRefused = limitResponse(orgLimit, req)
     if (orgRefused) return orgRefused
+
+    if (!isTest) {
+      const open = await client.rpc('module_open_to_all_for_org', {
+        p_org_id: orgId,
+        p_key: 'communications',
+      })
+      if (open.error) {
+        await report('module_open_check_failed')
+        return errorResponse('internal', 'Request failed', 500, req)
+      }
+      if (open.data !== true) {
+        return refusalResponse(
+          'Les textos aux clients sont suspendus : le module Communications est réservé aux testeurs.',
+          req,
+        )
+      }
+    }
 
     let text: string
     if (isTest) {

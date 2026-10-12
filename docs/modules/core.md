@@ -29,7 +29,8 @@ Clients (`authenticated`) get `SELECT` only, plus the column-level `UPDATE`s lis
 | `user_permission_overrides` | `(user_id, permission_key)`, `org_id`, `granted`, `created_by`; never on an admin (trigger) | read self, or the org with `users.view` | yes |
 | `tax_rates` | `id`, `org_id`, `tax` (`gst`/`qst`), `rate` numeric(7,6) in [0, 1), `effective_from`, `effective_to` (null = open), `created_by`; periods never overlap (`btree_gist` exclusion) | read own org (every member) | yes |
 | `organization_bank_details` | `org_id` pk, `institution_number` (3 digits), `transit_number` (5), `account_number` **bytea, encrypted**, `account_last4`, `etransfer_email`, `updated_by` | **none**, service_role included | yes, every bank value redacted |
-| `org_modules` | `(org_id, module_key)`, `enabled`, `disabled_at` (the switch-off time: set when `enabled` turns false, cleared when it turns true, never moved by another update; trigger), `updated_at`, `updated_by` | read own org | yes |
+| `org_modules` | `(org_id, module_key)`, `enabled`, `testers_only` (R-72: reserved for `org_module_testers`, default false), `disabled_at` (the switch-off time: set when `enabled` turns false, cleared when it turns true, never moved by another update; trigger), `updated_at`, `updated_by` | read own org | yes |
+| `org_module_testers` | `(org_id, module_key, user_id)`, `created_by`: the testers of a module reserved for them (R-72) | `modules.manage` | yes |
 | `org_module_settings` | `(org_id, module_key)`, `settings` jsonb object | read own org with `settings.view` | yes |
 | `org_secrets` | `(org_id, key)`, `vault_secret_id`, `version` | **none** (a select raises 42501) | yes, `vault_secret_id` redacted |
 | `audit_log` | `id`, `org_id`, `table_name`, `record_id`, `action` (`insert`/`update`/`delete`/`read`), `changed_fields`, `actor_id`, `actor_role`, `source` | read own org with `audit.view`; immutable for every role | — |
@@ -154,6 +155,17 @@ A new function that takes both locks must take them in this order, or it can dea
 - **Signing settings:** `set_signing_settings` locks the org's `signing_settings` row, then deletes `documenso_api_key` (`org_secrets`) when the origin changed. `set_org_secret` locks the `org_secrets` row only.
 - **Jobs:** `start_job_run` serialises per (job, org) on a transaction advisory lock (overlap guard); the reconcile job claims dispatches with `for update skip locked`.
 - **Email:** `apply_email_event` locks the one `email_log` row. **Webhook claims** and **rate limits** rely on the row lock of their upsert (no explicit lock).
+
+## Modules reserved for testers (R-72)
+
+Migration `20261012214700_core_module_testers` (pgTAP `105`; decisions P3-39, P3-40). The clinic tests a new module in production, on dry-run-imported data, before its go-live:
+
+- **Semantics.** A module that is enabled **and** `testers_only` grants its permissions only to the users in `org_module_testers` (an admin too only when listed: Jonathan lists himself). For everyone else it is as if it were off: `private.permission_keys_for` leaves its permissions out (so RLS, RPC checks, menus, routes and settings sections follow), `get_my_access().modules` and `module_enabled(key)` leave it out. `testers_only = false` (the default) behaves exactly as before. Switching a module off and on keeps its flag and its testers.
+- **Hot path.** `permission_keys_for` gains one term per module row, `not om.testers_only or exists (tester row)`: the module row is a primary-key lookup, and the tester lookup runs only for a reserved module (EXPLAIN before / after in PR « core: module testers »). `current_permission_keys()` is unchanged.
+- **RPCs** (`modules.manage`, as « Modules »): `list_module_testers()` → `(module_key, testers_only, tester_ids)`, `set_module_testers_only(key, bool)`, `add_module_tester(key, user)` (an active member of the clinic, else French `P0001` HINT `user_id`), `remove_module_tester(key, user)`. Audited (`org_modules`, `org_module_testers`).
+- **Functions without a user stay org-level:** `module_enabled_for_org` (jobs, webhooks) does not look at the flag. **`module_open_to_all_for_org(org, key)`** (service role) is true only when the module is enabled and not reserved.
+- **No message to people outside the clinic during a test (rule).** While a module is reserved for testers, nothing it owns may reach a client (email, text, invoice, reminder) **unless that send is explicitly enabled**: a job is enabled per clinic and job (business jobs start off), and a **direct send from a user action checks `module_open_to_all_for_org` and refuses** with a French refusal while it is false (`sms-send`: a reply is refused, the admin's test to herself still goes). Every new client-facing send path (Gmail send CM3, consent requests C5a, reminders R4, invoices F1…) follows the same rule; its function tests cover the refusal.
+- **UI.** Paramètres → Modules: under each module's switch, « Réservé aux testeurs » and the testers (names from `list_org_users`, so with `users.view`), « Retirer », « Ajouter un testeur… ».
 
 ## Permission keys
 

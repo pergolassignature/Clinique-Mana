@@ -2601,12 +2601,59 @@ export type Database = {
           },
         ]
       }
+      org_module_testers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          module_key: string
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          module_key: string
+          org_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          module_key?: string
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_module_testers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "org_module_testers_module_fkey"
+            columns: ["org_id", "module_key"]
+            isOneToOne: false
+            referencedRelation: "org_modules"
+            referencedColumns: ["org_id", "module_key"]
+          },
+          {
+            foreignKeyName: "org_module_testers_user_fkey"
+            columns: ["user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
+      }
       org_modules: {
         Row: {
           disabled_at: string | null
           enabled: boolean
           module_key: string
           org_id: string
+          testers_only: boolean
           updated_at: string
           updated_by: string | null
         }
@@ -2615,6 +2662,7 @@ export type Database = {
           enabled?: boolean
           module_key: string
           org_id: string
+          testers_only?: boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -2623,6 +2671,7 @@ export type Database = {
           enabled?: boolean
           module_key?: string
           org_id?: string
+          testers_only?: boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -7249,6 +7298,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_module_tester: {
+        Args: { p_key: string; p_user_id: string }
+        Returns: undefined
+      }
       add_service_rate_variant: {
         Args: {
           p_amount_cents: number
@@ -7962,6 +8015,14 @@ export type Database = {
           watch_expires_at: string
         }[]
       }
+      list_module_testers: {
+        Args: never
+        Returns: {
+          module_key: string
+          tester_ids: string[]
+          testers_only: boolean
+        }[]
+      }
       list_modules: {
         Args: never
         Returns: {
@@ -8313,6 +8374,10 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      module_open_to_all_for_org: {
+        Args: { p_key: string; p_org_id: string }
+        Returns: boolean
+      }
       peek_secure_link: {
         Args: { p_mark_opened: boolean; p_token_hash: string }
         Returns: Json
@@ -8462,6 +8527,10 @@ export type Database = {
       }
       release_sms_provider_lock: {
         Args: { p_org_id: string; p_owner: string }
+        Returns: undefined
+      }
+      remove_module_tester: {
+        Args: { p_key: string; p_user_id: string }
         Returns: undefined
       }
       rename_role: {
@@ -8726,6 +8795,10 @@ export type Database = {
       }
       set_module_enabled: {
         Args: { p_enabled: boolean; p_key: string }
+        Returns: undefined
+      }
+      set_module_testers_only: {
+        Args: { p_key: string; p_testers_only: boolean }
         Returns: undefined
       }
       set_org_asset: {

@@ -37,6 +37,7 @@ describe('tableLabel', () => {
       'Rôles',
       'Permissions des rôles',
       'Modules',
+      'Testeurs des modules',
       'Paramètres de module',
       'Secrets',
       'Taux de taxes',
