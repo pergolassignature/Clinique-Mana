@@ -67,9 +67,14 @@ select is_empty($$
      -- Gmail mirror, written by the sync from what Gmail holds; client correspondence (Loi 25),
      -- purged after 24 months: auditing it would copy every subject, address and snippet into
      -- audit_log forever. What a person does (connect, disconnect, link) is audited.
+     -- sms_messages: every text in and out (numbers and bodies, purged after 12 and 24 months);
+     -- auditing it would keep them in audit_log forever (Loi 25), like email_log.
+     -- sms_provider_sessions: the PBX session's Vault ids, expiries and refresh lease, rewritten
+     -- at every token refresh; no business data.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
                            'scheduled_job_dispatches', 'notifications', 'notification_reads',
-                           'user_preferences', 'signature_request_syncs',
+                           'user_preferences', 'signature_request_syncs', 'sms_messages',
+                           'sms_provider_sessions',
                            'mail_threads', 'mail_messages', 'mail_attachments', 'mail_labels', 'mail_sync_state')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')

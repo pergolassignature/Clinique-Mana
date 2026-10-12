@@ -58,9 +58,13 @@ language sql
 stable
 set search_path = ''
 as $$
-  select jsonb_build_object('pubsub_topic', null, 'pubsub_service_account', null) || coalesce(
-    (select s.settings from public.org_module_settings s where s.org_id = p_org and s.module_key = 'communications'),
-    '{}'::jsonb)
+  -- The Gmail keys only: the same row holds the SMS settings (*_communications_sms.sql), which
+  -- their own RPCs read.
+  select jsonb_build_object(
+           'pubsub_topic', coalesce(s.settings->'pubsub_topic', 'null'::jsonb),
+           'pubsub_service_account', coalesce(s.settings->'pubsub_service_account', 'null'::jsonb))
+    from (select (select x.settings from public.org_module_settings x
+                   where x.org_id = p_org and x.module_key = 'communications') as settings) s
 $$;
 revoke all on function private.communications_settings(uuid) from public, anon, authenticated, service_role;
 
@@ -131,9 +135,10 @@ begin
   end if;
 
   perform pg_catalog.set_config('app.audit_source', 'rpc:set_communications_settings', true);
-  insert into public.org_module_settings as s (org_id, module_key, settings)
-  values (v_org, 'communications', p_patch)
-  on conflict (org_id, module_key) do update set settings = s.settings || excluded.settings;
+  insert into public.org_module_settings as s (org_id, module_key, settings, updated_by)
+  values (v_org, 'communications', p_patch, auth.uid())
+  on conflict (org_id, module_key) do update
+    set settings = s.settings || excluded.settings, updated_by = excluded.updated_by;
   perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
   return private.communications_settings(v_org);
 end;

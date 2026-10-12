@@ -199,3 +199,13 @@ verify_jwt = false
 # Job communications.gmail_watch_renew (runJob verifies X-Job-Signature).
 [functions.gmail-watch-renew]
 verify_jwt = false
+# Textos (batch SM, module communications): a staff reply or an admin's test through the clinic's
+# Yeastar PBX (verifyAuth, communications.sms / .sms_manage).
+[functions.sms-send]
+verify_jwt = false
+# The PBX's message events: the org's webhook secret (X-Signature, HMAC-SHA256, timingSafeEqual).
+[functions.sms-webhook]
+verify_jwt = false
+# Job communications.sms_dispatch (runJob verifies X-Job-Signature).
+[functions.sms-dispatch]
+verify_jwt = false

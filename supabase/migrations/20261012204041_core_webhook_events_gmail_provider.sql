@@ -4,14 +4,15 @@
 -- `gmail-webhook` claims each Pub/Sub push (`<org>:<pubsub message id>`) with
 -- `claim_webhook_event`, like the Resend and Documenso webhooks (CLAUDE.md §7): a redelivery of a
 -- push already handled is a `duplicate`, a concurrent one `in_progress`. The provider list is a
--- check on the table and a check in the RPC: both gain `gmail`. The RPC's body is otherwise the
--- one of *_core_rate_limits_webhook_events.sql (create or replace keeps its grants).
+-- check on the table and a check in the RPC: both gain `gmail`, after *_communications_sms.sql added
+-- `yeastar` (kept). The RPC's body is otherwise the one of *_core_rate_limits_webhook_events.sql
+-- (create or replace keeps its grants).
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_webhook_events_gmail_provider', true);
 
 alter table public.webhook_events drop constraint webhook_events_provider_check;
 alter table public.webhook_events add constraint webhook_events_provider_check
-  check (provider in ('resend', 'documenso', 'gmail'));
+  check (provider in ('resend', 'documenso', 'gmail', 'yeastar'));
 
 create or replace function public.claim_webhook_event(
   p_provider text,
@@ -34,7 +35,7 @@ declare
   v_org uuid;
   v_status text;
 begin
-  if p_provider is null or p_provider not in ('resend', 'documenso', 'gmail')
+  if p_provider is null or p_provider not in ('resend', 'documenso', 'gmail', 'yeastar')
      or p_event_id is null or pg_catalog.length(p_event_id) not between 1 and 200
      or p_org_id is null
      or p_event_type is null or pg_catalog.length(p_event_type) not between 1 and 100

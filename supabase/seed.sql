@@ -95,13 +95,31 @@ values
    vault.create_secret('local-dev-documenso-webhook-secret',
                        'org:00000000-0000-0000-0000-000000000001:documenso_webhook_secret'));
 
--- Local Gmail (Communications, CM1): the module enabled, the fake Google's OAuth client
+-- Local textos (batch SM): the module on, the fake PBX's credentials, number and webhook secret
+-- (`npm run fake:yeastar`, port 55393; the functions reach it through YEASTAR_BASE_URL). The address
+-- stored here is a placeholder the override replaces while APP_URL is local. No role grant: the
+-- template holds admin only (SM-11) and pgTAP 014 checks every org against it; the local
+-- conseillère gets communications.sms through « Utilisateurs et accès », as a clinic would.
+insert into public.org_modules (org_id, module_key, enabled, updated_by) values
+  ('00000000-0000-0000-0000-000000000001', 'communications', true, '11111111-1111-1111-1111-111111111111');
+insert into public.org_module_settings (org_id, module_key, settings, updated_by)
+values ('00000000-0000-0000-0000-000000000001', 'communications',
+        '{"sms_base_url": "https://pbx.local.test", "sms_client_id": "local-dev-yeastar-client", "sms_did": "+14185550199"}',
+        '11111111-1111-1111-1111-111111111111')
+on conflict (org_id, module_key) do update set settings = public.org_module_settings.settings || excluded.settings;
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'yeastar_client_secret',
+   vault.create_secret('local-dev-yeastar-secret', 'org:00000000-0000-0000-0000-000000000001:yeastar_client_secret')),
+  ('00000000-0000-0000-0000-000000000001', 'yeastar_webhook_secret',
+   vault.create_secret('local-dev-yeastar-webhook-secret',
+                       'org:00000000-0000-0000-0000-000000000001:yeastar_webhook_secret'));
+
+-- Local Gmail (Communications, CM1; the module is enabled above): the fake Google's OAuth client
 -- (`npm run fake:gmail`, port 55392; _shared/testing/fake-gmail.ts FAKE_CLIENT_ID / _SECRET), the
 -- service account its signed pushes name (scripts/fake-gmail.ts) and a topic, stored as
 -- set_org_secret and set_communications_settings store them. Like the template (CM-1), only Admin holds
 -- communications.* here (pgTAP 014 compares each org's role defaults with the template).
-insert into public.org_modules (org_id, module_key, enabled, updated_by) values
-  ('00000000-0000-0000-0000-000000000001', 'communications', true, '11111111-1111-1111-1111-111111111111');
 insert into public.org_secrets (org_id, key, vault_secret_id)
 values
   ('00000000-0000-0000-0000-000000000001', 'google_oauth_client_id',
@@ -113,7 +131,8 @@ values
 insert into public.org_module_settings (org_id, module_key, settings) values
   ('00000000-0000-0000-0000-000000000001', 'communications',
    '{"pubsub_topic": "projects/mana-local/topics/gmail-push",
-     "pubsub_service_account": "gmail-push@mana-local.iam.gserviceaccount.com"}');
+     "pubsub_service_account": "gmail-push@mana-local.iam.gserviceaccount.com"}')
+on conflict (org_id, module_key) do update set settings = public.org_module_settings.settings || excluded.settings;
 
 -- =============================================================================
 -- Local test professionals (plan Task 4a.20 « Seed »)

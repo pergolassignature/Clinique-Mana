@@ -1,4 +1,4 @@
-import { Mail } from 'lucide-react'
+import { Mail, MessageSquareText } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -8,14 +8,19 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 /**
  * Module Communications (plan §11): the clinic's Gmail mailboxes (`info@`, `administration@`),
  * the inbox « Courriels » (CM2), the composer (CM3), « Rédiger avec l'IA » (CM4) and the SMS
- * (batch SM). Depends on core only; Clients is optional (linking threads to records).
+ * (batch SM: « Textos » and Paramètres → Textos). Depends on core only; Clients is optional
+ * (linking threads to records).
  */
 export const communicationsManifest: ModuleManifest = {
   key: 'communications',
   labelKey: 'modules.communications.name',
   dependsOn: [],
-  nav: [],
+  nav: [
+    // « Textos » (batch SM): the conversations with the clinic's SMS number.
+    { path: '/textos', labelKey: 'modules.communications.sms.nav', icon: MessageSquareText, permission: 'communications.sms', order: 21 },
+  ],
   routes: [
+    { path: 'textos', permission: 'communications.sms', component: lazyPage(() => import('./pages/SmsPage'), 'SmsPage') },
     // Where Google sends the browser back after « Connecter une boîte » (CM1): fixed, the
     // functions build the same address from APP_URL (`_shared/gmail/env.ts` RETURN_PATH).
     {
@@ -35,6 +40,17 @@ export const communicationsManifest: ModuleManifest = {
       permission: 'communications.mailboxes_manage',
       group: 'modules',
       component: lazyPage(() => import('./pages/settings/GmailSettingsPage'), 'GmailSettingsPage'),
+    },
+    {
+      // Paramètres → Textos (batch SM): the PBX, the webhook, the automatic texts, the test.
+      id: 'sms',
+      path: 'textos',
+      labelKey: 'modules.communications.sms.settings.title',
+      icon: MessageSquareText,
+      permission: 'communications.sms_manage',
+      editPermission: 'communications.sms_manage',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/SmsSettingsPage'), 'SmsSettingsPage'),
     },
   ],
 }

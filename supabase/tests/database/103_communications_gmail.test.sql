@@ -42,16 +42,18 @@ insert into public.org_role_permissions (org_id, role, permission_key) values
 -- =============================================================================
 select results_eq($$ select name from public.modules where key = 'communications' $$, $$ values ('Communications') $$, 'module registered');
 select results_eq($$
-  select p.key from public.permissions p where p.module_key = 'communications' order by 1
+  select p.key from public.permissions p where p.module_key = 'communications' and p.key in ('communications.inbox', 'communications.mailboxes_manage') order by 1
 $$, $$ values ('communications.inbox'), ('communications.mailboxes_manage') $$, 'CM1 permissions');
 select results_eq($$
-  select key, kind, is_maintenance, function_name, sql_function from public.scheduled_jobs where module_key = 'communications' order by 1
+  select key, kind, is_maintenance, function_name, sql_function from public.scheduled_jobs
+   where module_key = 'communications' and (key like 'communications.gmail%' or key like 'communications.mail%') order by 1
 $$, $$ values ('communications.gmail_sync', 'function', false, 'gmail-sync', null::text),
              ('communications.gmail_watch_renew', 'function', false, 'gmail-watch-renew', null::text),
              ('communications.mail_bodies_purge', 'sql', true, null::text, 'private.job_mail_bodies_purge') $$,
   'three jobs: the sync fallback, the watch renewal, the purge');
 select results_eq($$
-  select j.jobname, j.schedule from cron.job j where j.jobname like 'communications.%' order by 1
+  select j.jobname, j.schedule from cron.job j
+   where j.jobname like 'communications.gmail%' or j.jobname like 'communications.mail%' order by 1
 $$, $$ values ('communications.gmail_sync', '*/15 * * * *'), ('communications.gmail_watch_renew', '35 * * * *'),
              ('communications.mail_bodies_purge', '45 8 * * *') $$, 'cron entries');
 select results_eq($$
