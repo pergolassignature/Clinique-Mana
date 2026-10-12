@@ -1,17 +1,24 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import type { ModuleRow } from '@/core/modules/api'
+import type { OrgUser } from '@/core/users/api'
+import { renderWithContexts } from '@/test/contexts'
+import { accessForRole } from '@/test/role-fixtures'
 import { ModulesSettingsPage } from './ModulesSettingsPage'
 
 const mocks = vi.hoisted(() => ({
   fetchModules: vi.fn(),
   setModuleEnabled: vi.fn(),
+  testers: { fetchModuleTesters: vi.fn(), setModuleTestersOnly: vi.fn(), addModuleTester: vi.fn(), removeModuleTester: vi.fn() },
+  fetchOrgUsers: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('@/core/modules/api', () => ({ fetchModules: mocks.fetchModules, setModuleEnabled: mocks.setModuleEnabled }))
+vi.mock('@/core/modules/testers-api', () => mocks.testers)
+vi.mock('@/core/users/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/users/api')>()), fetchOrgUsers: mocks.fetchOrgUsers }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -20,15 +27,28 @@ const rows: ModuleRow[] = [
   { key: 'billing', name: 'Facturation', depends_on: ['professionals', 'ghost'], enabled: false },
 ]
 
+const user = (id: string, name: string, role: string): OrgUser => ({
+  user_id: id,
+  display_name: name,
+  email: `${id}@mana.test`,
+  status: 'active',
+  role,
+  role_name: role === 'admin' ? 'Administrateur' : 'Conseillère',
+  last_sign_in_at: null,
+  override_count: 0,
+})
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <ModulesSettingsPage />
-    </QueryClientProvider>,
+    <QueryClientProvider client={queryClient}>{renderWithContexts(<ModulesSettingsPage />, { access: { access: accessForRole('admin') } })}</QueryClientProvider>,
   )
 }
 
+beforeEach(() => {
+  mocks.testers.fetchModuleTesters.mockResolvedValue([])
+  mocks.fetchOrgUsers.mockResolvedValue([user('u-admin', 'Jonathan', 'admin'), user('u-cons', 'Rachel', 'counselor')])
+})
 afterEach(() => vi.clearAllMocks())
 
 describe('ModulesSettingsPage', () => {
@@ -114,5 +134,58 @@ describe('ModulesSettingsPage', () => {
     mocks.fetchModules.mockResolvedValue(rows)
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.modules') })).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('reserves a module for its testers, names them and adds one (R-72)', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.fetchModuleTesters.mockResolvedValue([{ key: 'professionals', testersOnly: true, testerIds: ['u-admin'] }])
+    mocks.testers.addModuleTester.mockResolvedValue(undefined)
+    renderPage()
+    const reserved = await screen.findByRole('switch', { name: t('settings.modules.testers.switchLabel', { module: 'Professionnels' }) })
+    expect(reserved).toBeChecked()
+    const list = await screen.findByRole('list', { name: t('settings.modules.testers.listLabel', { module: 'Professionnels' }) })
+    expect(within(list).getByText('Jonathan')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: t('settings.modules.testers.switchLabel', { module: 'Facturation' }) })).not.toBeChecked()
+    await userEvent.selectOptions(screen.getByLabelText(t('settings.modules.testers.add')), 'u-cons')
+    await waitFor(() => expect(mocks.testers.addModuleTester).toHaveBeenCalledWith('professionals', 'u-cons'))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.modules.testers.added'))
+  })
+
+  it('switches the reservation and removes a tester; warns when nobody is listed', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.fetchModuleTesters
+      .mockResolvedValueOnce([{ key: 'professionals', testersOnly: true, testerIds: ['u-admin'] }])
+      .mockResolvedValueOnce([{ key: 'professionals', testersOnly: true, testerIds: [] }])
+      .mockResolvedValue([
+        { key: 'billing', testersOnly: true, testerIds: [] },
+        { key: 'professionals', testersOnly: true, testerIds: [] },
+      ])
+    mocks.testers.setModuleTestersOnly.mockResolvedValue(undefined)
+    mocks.testers.removeModuleTester.mockResolvedValue(undefined)
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: t('settings.modules.testers.remove', { name: 'Jonathan' }) }))
+    await waitFor(() => expect(mocks.testers.removeModuleTester).toHaveBeenCalledWith('professionals', 'u-admin'))
+    await userEvent.click(screen.getByRole('switch', { name: t('settings.modules.testers.switchLabel', { module: 'Facturation' }) }))
+    await waitFor(() => expect(mocks.testers.setModuleTestersOnly).toHaveBeenCalledWith('billing', true))
+    expect(await screen.findAllByText(t('settings.modules.testers.none'))).toHaveLength(2)
+  })
+
+  it('asks before reserving an enabled module, which everyone else loses at once', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.setModuleTestersOnly.mockResolvedValue(undefined)
+    renderPage()
+    await userEvent.click(await screen.findByRole('switch', { name: t('settings.modules.testers.switchLabel', { module: 'Professionnels' }) }))
+    const dialog = await screen.findByRole('alertdialog', { name: t('settings.modules.testers.confirm.title', { module: 'Professionnels' }) })
+    expect(mocks.testers.setModuleTestersOnly).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: t('settings.modules.testers.confirm.action') }))
+    await waitFor(() => expect(mocks.testers.setModuleTestersOnly).toHaveBeenCalledWith('professionals', true))
+  })
+
+  it('never shows « not reserved » when the testers cannot be loaded', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.fetchModuleTesters.mockRejectedValue(new Error('boom'))
+    renderPage()
+    expect(await screen.findByText(t('settings.modules.testers.loadError'))).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: t('settings.modules.testers.switchLabel', { module: 'Professionnels' }) })).not.toBeInTheDocument()
   })
 })
