@@ -119,7 +119,7 @@ const ASSET_KEYS = ['logo', 'signature'] as const
 
 /** One signer of a request; `order` starts at 1. */
 export interface RequestSigner {
-  role: 'professional' | 'clinic' | 'client'
+  role: 'professional' | 'clinic' | 'client' | 'client_2'
   name: string
   email: string
   order: number
@@ -300,7 +300,45 @@ function prepareDocument(
       path: 'path' in email ? email.path : undefined,
     }
   }
-  return { ok: true, document: body.document, email: email.texts }
+  return {
+    ok: true,
+    document: keepSignerRoles(
+      body.document,
+      input.signers.map((s) => s.role),
+    ),
+    email: email.texts,
+  }
+}
+
+/**
+ * The document with only the signature boxes (and initials) of the roles that
+ * sign this request: a template's optional role without a signer (a consent's
+ * second parent, Clients C5a) prints no empty box. The boxes left move up,
+ * and the Documenso fields follow them (they come from the render).
+ */
+export function keepSignerRoles(
+  doc: PdfDocument,
+  roles: readonly string[],
+): PdfDocument {
+  const last = doc.blocks[doc.blocks.length - 1]
+  if (last?.type !== 'signaturePage') return doc
+  const signers = last.signers.filter((s) => roles.includes(s.role))
+  if (signers.length === 0 || signers.length === last.signers.length) {
+    return doc
+  }
+  const initials = doc.header?.initialsFor
+  return {
+    ...doc,
+    ...(doc.header && {
+      header: {
+        ...doc.header,
+        ...(initials && {
+          initialsFor: initials.filter((r) => roles.includes(r)),
+        }),
+      },
+    }),
+    blocks: [...doc.blocks.slice(0, -1), { ...last, signers }],
+  }
 }
 
 /** The images the document uses, from the context's logo and signature. */

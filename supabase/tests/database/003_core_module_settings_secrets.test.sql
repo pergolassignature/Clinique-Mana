@@ -143,7 +143,11 @@ select functions_are('public', array[
   'queue_sms_for_service', 'claim_sms_batch_for_service', 'mark_sms_sent', 'mark_sms_failed',
   'list_sms_thread', 'release_sms_claims_for_service',
   'record_inbound_sms', 'apply_sms_delivery_event', 'sms_event_known_for_service', 'get_sms_provider_context',
-  'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel'
+  'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel',
+  -- Clients, batch C5a (consents).
+  'set_client_consent_rule', 'set_client_consent_settings', 'cancel_client_consent_request', 'publish_client_consent_version',
+  'prepare_client_consent_request_for_service', 'open_client_consent_for_service', 'start_client_consent_signing_for_service',
+  'client_consent_reminders_for_service', 'import_client_consent_fact_for_service', 'resolve_client_consent_link'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

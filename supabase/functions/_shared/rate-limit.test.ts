@@ -347,6 +347,9 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     smsSendUser: ['sms.send_user', 60, 3_600],
     smsTestUser: ['sms.test_user', 5, 3_600],
     smsOrgDay: ['sms.org_day', 500, 86_400],
+    clientConsentSendUser: ['clients.consent_send_user', 60, 3_600],
+    clientConsentSignIp: ['clients.consent_sign_ip', 60, 600],
+    clientConsentLink: ['clients.consent_link', 20, 3_600],
   })
   for (const l of Object.values(LIMITS)) {
     assertMatch(l.bucket, /^[a-z][a-z0-9_.]{0,62}$/)
