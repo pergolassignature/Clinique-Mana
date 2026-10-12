@@ -42,31 +42,103 @@
 
 ---
 
-## 2. Lane schedule (2026-10-12 → cutover 2027-01-11), three lanes
+## 2. Sequence and gates (three lanes), 2026-10-12 → cutover 2026-11-30
 
-Working days, one agent per lane; Jonathan reviews each batch within a day. Dates are the batch's merge target. **Recomputed after the 2026-10-12 answers** (morning queue, cards on file, dunning, payroll, full consents, SMS before the cutover): with two lanes, lane A is 4 days over capacity and lane B 10 days over, so **Jan 11 holds only with a third lane, C, from Oct 19 to Dec 18** (roadmap question 50; R-68). Without lane C, plan Jan 25 with no slack.
+**Direction (Jonathan, 2026-10-12): « le plus rapide possible, sans couper sur la qualité ».** The earlier calendar spread ~130 agent-days over three months as if they were human working days. Agents work continuously and in parallel: a « 4–5 day » batch lands in one or two hours (Phase 4 took days; ~15 PRs merged on 2026-10-12). So this section replaces calendar weeks with **sequence and gates**. The batches, their order, dependencies, tests and reviews in §5–§12 are unchanged: that is the quality. The « Lane, dates » cells in those tables now mean **lane and sequence position only**; the calendar dates they still carry are superseded here.
 
-| Week | Lane A (critical path) | Lane B (intake, import, integrations) | Lane C (Oct 19 → Dec 18) |
-|---|---|---|---|
-| Oct 12–16 | **S1** schema (Oct 13) · **S2** RPCs (Oct 14) · **S3** UI (Oct 16) | **CM1** Gmail connect + token vault + sync of `info@` and `administration@` + Interac notice parsing + sync status screen (→ Oct 22) | — |
-| Oct 19–23 | **C1** schema (Oct 21) · **C2** RPCs (Oct 23) | CM1 · **D1** demandes schema, states, waitlist tables (Oct 23 → 28) | **SM** SMS infrastructure: Twilio send, consent, « ARRÊT », « OUI », threads view (Oct 19 → 26) |
-| Oct 26–30 | **C3** list, create, record (Oct 28) · **C4** merge, Loi 25, ⌘K (Oct 30) | D1 · **D2** inbox, intake, record, realtime (Oct 29 → Nov 4) | SM · **C5a** client consents, part 1 (Oct 27 → Nov 2) |
-| Nov 2–6 | **R1** agenda schema + booking RPCs incl. the balance rule hook (Nov 6) | D2 · **D3** waitlist part 1 (Nov 5 → 11) | C5a · **I1** import tooling + clients dry run + price gap report (Nov 3 → 9) |
-| Nov 9–13 | **R2** agenda UI + availability mode (Nov 13) | D3 · **D3b** discovery calls, proposals (Nov 12 → 13) | I1 · **D3c** public discovery-call page with source tracking (Nov 11 → 13) |
-| Nov 16–20 | **R3** recurrence, states, cancellations (Nov 19) · R4 starts | **FQ** QuickBooks: connection, customer mapping, sub-customers (Nov 16 → 25) | **RZ** Zoom per professional (Nov 16 → 23) |
-| Nov 23–27 | **R4** reminders (email + SMS channel), confirmation link, fixed video link in emails (Nov 26) · **R5** « Mon agenda » with the video link card, publications (Nov 27 → 30) | FQ · **I2** appointments + waitlist dry run, day 1 (Nov 26, needs the support export) | RZ · **FPay** payroll periods, rules, « Ma paie » (Nov 24 → Dec 2; fee-decision wiring finished in F3) |
-| Nov 30–Dec 4 | R5 · **F1** invoices, lines, payer model, numbering, taxes (Dec 1 → 7) | Slack (spill from A or B) | FPay · slack |
-| Dec 7–11 | F1 · **F2** morning queue, receipts, statements, supervisor, UI (Dec 8 → 16) | FQ invoice and payment push (Dec 8 → 9, after F1) · I2 day 2 (Dec 10) · slack | **FS** Stripe cards on file + next-day charge + link; Interac reconciliation (Dec 8 → 16) |
-| Dec 14–18 | F2 · **F3** dunning, balance rule, fee decided by the pro, refunds (Dec 17 → 22) | Slack | FS · **RP1** Revenus + cancellations (Dec 17 → 18); lane C ends |
-| Dec 21–Jan 1 | F3 (→ Dec 22) · buffer Dec 23, Dec 28–30 | **I3** billing dry run + QBO mapping report (Dec 28 → 30) | — |
-| Jan 4–8 | **Rehearsal** (Jan 4–6), go / no-go (Jan 7), **freeze** Fri Jan 8 18:00 | Rehearsal, final exports | — |
-| Jan 9–11 | **Cutover weekend**, go-live Mon Jan 11 | Cutover weekend | — |
-| Jan 11–Feb 26 | **C5b** consents part 2 (Jan 11–12) · **FP** third-party payers IVAC / PAE (Jan 13–20, before February and the April closing) · **D4–D6** Demandes (b) incl. waitlist offers (Jan 21–Feb 5) · **R6** Google busy | **CM2** inbox UI + linking · **CM3** composer + Gmail send + templates · **CM4** OpenAI drafting · **RP2** reports · SMS two-way conversations | — |
+**Targets:**
+- **Code complete and merged: 2026-10-30** (every pre-cutover batch below, at the observed pace, with the reviews).
+- **Clinic testing: November** (§2.4), on the import dry runs and two half-day sessions with Rachel and the counselors.
+- **Cutover: Monday 2026-11-30** — December billing, the Dec 1 payroll summary and the January IVAC / PAE run happen in the new app. The « T-n » steps of §4 are counted from that date.
+- **Fallback: Monday 2027-01-11.** **Hard limit: 2027-01-31** (GOrendezvous renewal), a limit, not the goal.
+- **Partial cutover on Monday 2026-11-02, if the external items land early** (§2.3): « partial » = Demandes (a) with the waitlist and the discovery-call page, client consents, and Communications' Gmail sync go live for the counselors, **while GOrendezvous keeps the agenda, invoicing and reminders**; Rendez-vous and Facturation stay disabled until Nov 30. It needs the client import (I1) done for real, the 7 consent texts, and the Yeastar DID only if SMS confirmations are wanted for discovery calls (not required). No partial cutover of the agenda alone: reminders, invoices and the morning queue must move together.
 
-- **Loads:** lane A ≈ 53 days to Dec 22 (capacity 53 to Dec 23: no slack before the holidays, 3 days recoverable Dec 28–30); lane B ≈ 49 days (≈ 8 days of slack); lane C ≈ 35 days over 44 (≈ 9 days of slack, absorbing a slip of A or B).
-- **Critical path:** S1–S3 → C1–C2 → R1–R5 → F1–F3 → FQ push → I3 → rehearsal → cutover. The first ordering constraints: C5a after C1; D3c after D1; RZ after R1; FS, FPay (final wiring) and RP1 after F1–F3; FQ's push after F1.
-- **External dependencies on the path:** the appointment-history export from GOrendezvous support (I2; roadmap question 1), QuickBooks access (FQ), the Twilio account and Canadian number (SM; roadmap §3.4: start Oct 19), the Zoom developer app (RZ; question 41), each professional's video link (cutover T-14), Christine's 7 consent texts in fr and en (C5a), the bank's Interac notice format (FS).
-- **If lane A slips more than 3 days:** R5's « Mon agenda » extras and F3's refunds move after cutover; lane C absorbs F2's statements. **If lane C is not approved:** SM, C5a, FS, FPay and RP1 fall back to lanes A / B and the target becomes Jan 25 (R-68).
+### 2.1 The three lanes, as sequences
+
+Each row: the batch, **its gate** (what must be merged before it starts) and what it unblocks. Every batch also passes the **quality gate** of §2.2. Lanes run in parallel; a lane waits at a gate, never skips it.
+
+| Lane A (critical path) | Gate (merged before) | Unblocks |
+|---|---|---|
+| **S1** Services schema | `main` (Professionnels live) | S2 |
+| **S2** Services RPCs + `private.grid_client_price` | S1 | S3, R1 price reads, F1 |
+| **S3** Services UI, docs, e2e | S2 | — |
+| **C1** Clients schema | S1 (module pattern) | C2, C5a, D1 |
+| **C2** Clients RPCs (duplicates, merge, privacy) | C1 | C3, I1 |
+| **C3** Clients list, creation, record | C2 | C4, R2 (client picker) |
+| **C4** Merge UI, Loi 25, ⌘K, docs | C3 | — |
+| **R1** Agenda schema + booking RPCs (balance hook stub) | C2, S2 | R2, RZ, D3b, I2 |
+| **R2** Agenda UI + availability mode | R1, C3 | R3 |
+| **R3** Recurrence, states, cancellations, `mark_completed` | R2 | R4 |
+| **R4** Reminders (email + SMS), confirmation link, fixed video link, « Clients sans rappel » | R3, SM | R5, F2 (completed sessions) |
+| **R5** « Mon agenda » (video card, fee stub), client visits tab, publications | R4 | F3 (fee decision), D4 |
+| **F1** Invoices, lines, payer model, numbering, taxes | R5, C2 | F2, FS, FQ push, FPay wiring |
+| **F2** Morning queue, receipts, statements, supervisor | F1, CM1 (Interac feed optional) | F3, RP1, I3 |
+| **F3** Dunning, balance rule, fee decided by the pro, refunds, registration fee | F2 | FPay final wiring, I3 |
+
+| Lane B (intake, import, integrations) | Gate | Unblocks |
+|---|---|---|
+| **CM1** Gmail: `info@` + `administration@` sync, Interac notice parsing, status screen | `main` | FS (Interac feed), CM2 (after cutover) |
+| **D1** Demandes schema, states, waitlist tables | C1 | D2, D3c |
+| **D2** Inbox, intake, record, realtime hook | D1, C3 | D3 |
+| **D3** Waitlist part 1 | D2, C5a (consent « liste d'attente »), S2 (fee service) | D3b, I2 (waitlist import) |
+| **D3b** Discovery-call tasks, proposals with acceptance link | D3, R1 | D4 (after cutover) |
+| **FQ** QuickBooks: connection, customer mapping, sub-customers; then the invoice and payment push | connection part: C2; push part: F1 | I3, FPay (bills by specialty) |
+| **I2** Appointments + waitlist dry run | R3, D3, the support export | I3, rehearsal |
+| **I3** Billing dry run, QBO mapping report, cutover runbook written | F3, FQ, I2 | rehearsal |
+
+| Lane C | Gate | Unblocks |
+|---|---|---|
+| **SM** SMS through the Yeastar P-Series OpenAPI as PS Hub (Jonathan, 2026-10-12): send by DID, consents, « ARRÊT », « OUI », threads view | `main`; the PBX access (own PBX or a dedicated DID on PS's, roadmap question 53) for the real send test (a fake PBX locally until then) | R4 |
+| **C5a** Client consents part 1 | C1 (and C2 for the relations rights) | D3, R4 flag, I1 (consent facts) |
+| **I1** Import tooling, clients dry run, price gap report | C2, S2 | I2, D3c (real clients), partial cutover |
+| **D3c** Public discovery-call page with source tracking | D1, I1 (for a real test) | partial cutover |
+| **RZ** Zoom per professional | R1 | R5 video card (fixed link needs nothing) |
+| **FPay** Payroll periods, rules, « Ma paie » | R3 (completed sessions), Professionnels compensation RPC; fee wiring after F3 | first summary Dec 1 |
+| **FS** Stripe cards on file + next-day charge + link; Interac reconciliation | F1, CM1 | I3 |
+| **RP1** Revenus + cancellations reports | F2 | — |
+
+**After the cutover, in the same lanes:** C5b (consents part 2), FP (IVAC / PAE, gate F3; needed before the January IVAC run and the April PAE closing), D4–D6 (gate D3b, R5), R6 (Google busy), CM2–CM4 (gate CM1, C3), RP2 (gate D6, FPay), SMS two-way conversations.
+
+### 2.2 Quality gate, every batch
+
+Unchanged from §0; restated as the gate each PR must pass before merge:
+1. **pgTAP first** for every migration (grants with `function_privs_are`, RLS per role and per clinic, RPC refusals in French, audit rows), `000_invariants` green; `db:reset`, `db:test`, `db:types` under the DB lock.
+2. **Function tests** (Deno) for every edge function: auth and module gate, signatures, idempotency, no PII in logs; `check:functions`, `lint:functions`, `deno fmt --check`.
+3. **Vitest** for api parsing, schemas, components and hooks; `typecheck`, `lint`, `lint:supabase`, `lint:migrations`, `build`.
+4. **Playwright** on the repeatable path of the batch (one spec per module, extended per batch).
+5. **Screenshots at three widths** (375, 1024, 1280) for every batch with a new or changed screen, attached to the PR, checked against the design system and UI-1…UI-5.
+6. **One review per batch** (a reviewer agent, then Jonathan's merge); a full review before the last batch of a module.
+7. **No merge with CI red**; a red CI is fixed in the same PR, never bypassed.
+8. Docs: `docs/modules/<name>.md` and the status doc's lines updated in the batch.
+
+### 2.3 External constraints: the real calendar
+
+These are the only items on a human calendar. All start **now** (2026-10-12).
+
+| Item | Owner | Lead time | Needed by | Fallback |
+|---|---|---|---|---|
+| GOrendezvous appointment-history export (and receipts / consents in bulk) | Christine with GOrendezvous support | unknown: ask today, chase weekly | I2 (mid-October for a first file; final file at the freeze) | future appointments re-entered by hand on the cutover weekend; history imported later |
+| Yeastar PBX access for SMS (as PS Hub): own PBX or a dedicated DID on PS's PBX (roadmap question 53); on it an OpenAPI application (client id and secret), a webhook secret, an SMS-capable DID (cellular trunk or SIP provider with SMS) and its prefix; a processing agreement between PS and the clinic if the DID is on PS's PBX (Loi 25) | Jonathan | dedicated DID on PS's PBX: a day; own PBX and DID: 1–3 weeks | SM real send test (Oct 19); reminders at the cutover | email reminders only until the DID is live |
+| Google Cloud OAuth app « Interne » + Pub/Sub topic for Gmail | Jonathan | hours | CM1 real test | sync by polling until Pub/Sub exists |
+| Zoom app (per-professional OAuth may require publication for accounts outside the clinic's) | Jonathan (developer account), Zoom review | weeks if publication is required | RZ | **the fixed personal link works for everyone from day one**; Zoom OAuth is an enhancement that can land after the cutover |
+| The 7 consent texts in fr and en, and Christine's remaining answers (questions 20, 47–49, 51) | Christine | her time; ask this week | C5a publish, partial cutover | drafts published as « Texte à faire valider », nothing sent to clients until she approves |
+| QuickBooks access (OAuth app on the clinic's Intuit account, accountant's chart of accounts) | Jonathan, Christine, the accountant | days | FQ real test (late October) | push paused; the mapping report from the sandbox company |
+| Stripe account (existing), keys, card-on-file consent wording | Jonathan, Christine | days | FS | payment link only |
+| Professionals connect their video link (Zoom or fixed) | each professional, chased by the clinic | 2 weeks of reminders | T-14 (Nov 16) | the clinic enters the fixed link for them |
+| Clients re-enter their card at Stripe | clients, invited by email | 2–3 weeks | T-14 (Nov 16) | payment link or Interac meanwhile |
+| Testing sessions: a half-day on billing with Rachel; a half-day on agenda + demandes with the counselors | Christine schedules | book now | Nov 9–13 and Nov 16–20 | — |
+| Interac notice samples from `administration@` (bank email format) | Rachel | a day | FS parser | manual matching |
+
+### 2.4 Clinic testing plan (November)
+
+- **Where:** **production, with the new modules enabled only for the testers** (a « Modules » switch per clinic exists; a per-user visibility flag is added in C1 so a module can be on for named testers and off for everyone else), on real imported clients from the dry runs. A separate staging copy was considered and rejected: the clinic has one Supabase project, the import must be rehearsed against the real QuickBooks customers, and a second environment would double the secrets to manage. Test invoices, payments and emails go to the clinic's own test addresses and a Stripe test mode key until the go / no-go.
+- **Checklists per role** (written in I3 as `docs/runbooks/gorendezvous-cutover.md` §Tests, one page each):
+  - **Adjointe (Rachel):** morning queue on yesterday's test sessions, hold on an « Entente particulière », send one and all, credit note and corrected invoice, Interac notice matched, card charged next day in test mode, receipt received, dunning steps, balance refusal and override, payer chosen per invoice, intern receipt with the supervisor, QuickBooks sub-customer and accounts, payroll period validated and a professional invoice attached.
+  - **Conseillère:** a demande from the discovery-call page with its source, quick log, waitlist registration (consent, fee), proposal with the acceptance link, booking inside availability, a client under 14 (consent to the parent), reminders received by email and SMS at the right time, « OUI » by SMS, a late cancellation with the fee decided by the pro.
+  - **Professionnel:** « Mon agenda », availability rules and a vacation exception, video link (fixed link saved, Zoom connected if available), « Démarrer », presence marked, fee decision, « Ma paie » validation.
+- **Import dry runs:** clients (I1) as soon as the export is in hand; appointments and waitlist (I2) as soon as support's file arrives; billing and the QBO mapping (I3) after F3; each with its report reviewed by Christine and Rachel.
+- **Rehearsal (Nov 23–25):** full dry run on production, full import into the local stack, the three checklists run end to end, go / no-go criteria of §4 checked on Thu Nov 26.
+- **Go / no-go criteria:** §4 (unchanged); plus « the two half-day sessions found no open blocker ».
 
 ---
 
@@ -83,7 +155,7 @@ Numbers refer to the roadmap's §4 questions. Defaults (the recommendation) are 
 | I1 (Oct 28) | 1 export request, 2 cutover date, 3 counselors | Christine asks support; Jan 11; one account each |
 | D1 (Nov 4) | 7 proposals, 17 PHQ-2/GAD-2, 19 workbook questions; waitlist 34–40 | proposals with acceptance link; dropped; workbook defaults; fee as today, follow-up every 8 weeks, ≤ 2 entries, counselor sets priority with a reason, 48-h offer one client at a time, any profession, counselors own the lists |
 | R1 (Nov 2) | 8 Google busy (video answered: Zoom per professional; 5 locations answered by the data: video + phone) | after cutover |
-| SM (Oct 19) | none (43 answered: SMS before the cutover) | Twilio account and Canadian number ordered by Jonathan on Oct 19 (roadmap §3.4) |
+| SM (Oct 19) | 53 own PBX vs dedicated DID on PS's PBX (43 answered: SMS before the cutover, Yeastar as PS Hub) | dedicated DID on PS's PBX with a processing agreement; OpenAPI app, webhook secret and DID provided by Jonathan (roadmap §3.4) |
 | C5a (Oct 27) | 47, 48, 49 consents | see the C5a row below |
 | RZ (Nov 26) | 41 Zoom app publication | Jonathan creates the Zoom developer account at the start of RZ |
 | F1 (Dec 1) | 26 old receipts, 52 cards re-consent (answered by Christine: 21 morning queue, 23 fee decided by the pro, 24 IVAC / PAE, 25 QBO accounts, 42 no split, 45 « comptant » = QuickBooks Payments card) | no PDF import; re-consent link in December |
@@ -96,15 +168,17 @@ Numbers refer to the roadmap's §4 questions. Defaults (the recommendation) are 
 
 ## 4. Cutover runbook (outline)
 
-To be written in full as `docs/runbooks/gorendezvous-cutover.md` during I3.
+To be written in full as `docs/runbooks/gorendezvous-cutover.md` during I3. Dates for the **Nov 30** target; the fallback (Jan 11) shifts every step by six weeks.
 
-1. **T-30 (Dec 9):** email to professionals (video link: Zoom connection or fixed link, « Mon agenda », « Ma paie », fee decisions, new links in client emails); email to clients with a card on file at GOrendezvous (secure link to re-enter the card at Stripe with the next-day charge consent, since cards do not transfer; roadmap question 52); Twilio number live since Nov 2 (ordered Oct 19) and the SMS consent wording in the reminder texts; counselor and admin_assistant accounts invited (one per person, roadmap question 3); GOrendezvous support confirms the final export date and format (Jan 8).
-2. **T-14 (Dec 28):** every professional active in GOrendezvous has an account, a primary title, availability rules and a video link (Zoom connected or a fixed link; report: « Professionnels prêts pour la bascule », with the « Vidéoconférence » column; reminders sent to those without one); the Twilio number has sent its test reminders; the Interac notice parser has matched a week of real notices in the dry run; the 7 consent templates published; QuickBooks connected with the payment-mode ↔ account map **and the GOrendezvous customer mapping reviewed** (FQ's report: matched, to decide, none created yet); email templates reviewed.
-3. **Rehearsal (Jan 4–6):** dry run of the full import on production (dry run writes only `private.import_*`, then clears them) with the latest exports; full import into the local stack; walkthrough by Christine and the admin_assistant (book, move, cancel late, invoice, pay by link, receipt, statement); go / no-go criteria checked on Jan 7.
-4. **Freeze (Fri Jan 8, 18:00):** GOrendezvous kept open read-only by convention (no new bookings); last GOrendezvous reminders already cover appointments up to Tue Jan 12; final exports (clients, Revenus, support's appointment export with the future appointments).
-5. **Final import (Sat Jan 9 – Sun Jan 10):** clients (with default payers) → services map → appointments (history read-only, future active; a future video appointment keeps the Zoom link GOrendezvous already sent when the export carries it, else a link is queued on the professional's Zoom and sent to the client) → waitlist entries (GOrendezvous waitlist export + the fake « Inscription – Liste attente … » / « LISTE ATTENTE À RAPPELER » appointments) → invoices and payments (history) → consents facts → QuickBooks links from the reviewed mapping; reconciliation report (counts and totals vs exports and QuickBooks); 10 records checked; modules enabled (Paramètres → Modules); jobs switched on (`appointments.reminders` from Mon Jan 11 for Wed Jan 13 appointments; `appointments.mark_completed`); QuickBooks push **paused**.
-6. **Go-live (Mon Jan 11):** hypercare (an agent on call, daily triage); invoice sequence continues GOrendezvous's 2027 numbers.
-7. **Go / no-go (Wed Jan 13, noon):** if green, QuickBooks push released (queued invoices and payments go out) and GOrendezvous is cancelled before Jan 31 (keeping read access if obtained, question 2). **Rollback** if a blocking defect (cannot book, cannot invoice, reminders failing, data loss): reopen GOrendezvous, disable the four modules, hand the report « créé dans l'app depuis le 11 janvier » (appointments, invoices, payments) for manual re-entry; QuickBooks untouched because the push was paused; retry on Jan 25.
+1. **T-30 (Fri Oct 30, code complete):** email to professionals (video link: Zoom connection or fixed link, « Mon agenda », « Ma paie », fee decisions, new links in client emails); email to clients with a card on file at GOrendezvous (secure link to re-enter the card at Stripe with the next-day charge consent, since cards do not transfer; roadmap question 52); Yeastar DID live and the SMS consent wording in the reminder texts; counselor and admin_assistant accounts invited (one per person, roadmap question 3); GOrendezvous support confirms the final export date and format (Fri Nov 27).
+2. **T-14 (Mon Nov 16):** every professional active in GOrendezvous has an account, a primary title, availability rules and a video link (Zoom connected or a fixed link; report: « Professionnels prêts pour la bascule », with the « Vidéoconférence » column; reminders sent to those without one); the Yeastar DID has sent its test reminders and received a « OUI » and an « ARRÊT »; the Interac notice parser has matched a week of real notices in the dry run; the 7 consent templates published in fr and en; QuickBooks connected with the accounts map (Services, Ventes, expenses by specialty) **and the GOrendezvous customer mapping reviewed** (FQ's report: matched, to decide, none created yet); email and SMS templates reviewed; the two half-day testing sessions done (§2.4).
+3. **Rehearsal (Mon Nov 23 – Wed Nov 25):** dry run of the full import on production (dry run writes only `private.import_*`, then clears them) with the latest exports; full import into the local stack; the three role checklists run end to end by Christine, Rachel and a counselor; go / no-go criteria checked on Thu Nov 26.
+4. **Freeze (Fri Nov 27, 18:00):** GOrendezvous kept open read-only by convention (no new bookings); last GOrendezvous reminders already cover appointments up to Tue Dec 1; final exports (clients, Revenus, support's appointment export with the future appointments).
+5. **Final import (Sat Nov 28 – Sun Nov 29):** clients (with default payers) → services map → appointments (history read-only, future active; a future video appointment keeps the Zoom link GOrendezvous already sent when the export carries it, else a link is queued on the professional's Zoom or the fixed link is used and sent to the client) → waitlist entries (the fake « Inscription – Liste attente … » / « LISTE ATTENTE À RAPPELER » appointments) → invoices and payments (history; « Argent comptant » as « Carte (QuickBooks Payments) ») → consents facts → QuickBooks links from the reviewed mapping; reconciliation report (counts and totals vs exports and QuickBooks); 10 records checked; modules enabled for everyone (Paramètres → Modules); jobs switched on (`appointments.reminders` from Mon Nov 30 for Tue Dec 1 appointments; `appointments.mark_completed`; `billing.build_drafts` for the first morning queue on Tue Dec 1; `billing.payout_periods` for the Dec 1 summary of November's GOrendezvous sessions, imported); QuickBooks push **paused**; Stripe switched to live keys.
+6. **Go-live (Mon Nov 30):** hypercare (an agent on call, daily triage); invoice sequence continues GOrendezvous's 2026 numbers; the first « File du matin » on Tue Dec 1.
+7. **Go / no-go (Wed Dec 2, noon):** if green, QuickBooks push released (queued invoices and payments go out) and GOrendezvous is cancelled before Jan 31 (keeping read access if obtained, question 2). **Rollback** if a blocking defect (cannot book, cannot invoice, reminders failing, data loss): reopen GOrendezvous, disable the four modules, hand the report « créé dans l'app depuis le 30 novembre » (appointments, invoices, payments) for manual re-entry; QuickBooks untouched because the push was paused; retry on Mon Jan 11 (fallback), the hard limit being Jan 31.
+
+**Partial cutover (Mon Nov 2), if the external items land early:** Demandes (a) with the waitlist and the discovery-call page, client consents and the Gmail sync go live for the counselors on the real client import; GOrendezvous keeps the agenda, invoicing and reminders; the fake « conseillère » appointments stop that day. Steps: I1 run for real (clients only), consents published, Calendly button repointed (if the source-tracking criterion passed), counselors' half-day done the week before.
 
 ---
 
@@ -248,7 +322,7 @@ To be written in full as `docs/runbooks/gorendezvous-cutover.md` during I3.
 - C4.3 Playwright `e2e/clients.spec.ts` (create with duplicate warning, add a relation with rights, merge); Vitest for duplicate panel, relation rights, filters.
 - C4.4 `docs/modules/clients.md`; Keep / Change / Drop table copied there.
 
-**C5 — client consents (Lane C: C5a Oct 27–Nov 2, 5 d; C5b after the cutover, lane A, Jan 11–12, 2 d)**
+**C5 — client consents (Lane C: C5a Oct 27–Nov 2, 5 d; C5b after the cutover, 2 d)**
 
 Jonathan (2026-10-11): « faut que notre module client gère bien ça comme GOrendezvous ». Reference: tour §2 « Consentements », §15, §17; roadmap §2.2 bis; the Professionnels image consent is the in-house precedent (`professionals-consent-sign`, `EmbeddedSigning`, P4-481 – P4-489).
 
@@ -421,7 +495,7 @@ Jonathan (2026-10-11): « faut que notre module client gère bien ça comme GOre
 | Batch | Goal | Size | Lane, dates |
 |---|---|---|---|
 | CM1 | Module skeleton, `mail_connections` (encrypted tokens), `gmail-connect` / `gmail-callback` (signed state), `gmail-webhook` (required secret, per-IP hit, claim), `gmail-sync` + jobs `communications.gmail_sync`, `communications.gmail_watch_renew`, threads and messages tables with 24-month body purge job; **two shared mailboxes from the start: `info@` and `administration@`** (Christine, answer 6); **Interac notice parsing** for `administration@` (sender name, amount, message, received at → `interac_notices`, published to Facturation through `private.interac_notices_since`; a parser built from a sample of the bank's emails, tested on fixtures, never logging the body); sync status screen | 9 d | B, Oct 12–22 |
-| SM | **SMS (decided by Jonathan, 2026-10-12: before the cutover):** `sms_consents` (person, number, granted at, source, withdrawn at), `sms_messages` (direction, hashed number, status, body purged after 12 months), `contact_channel_preferences` (client or relation: email, SMS, both), `sms-send` (service function, templates `appointments.reminder_sms`, `.confirmation_sms`, `.changed_sms`), `sms-webhook` (Twilio signature, per-IP hit first, « OUI » → confirms the appointment through Rendez-vous's published RPC, « ARRÊT » / « ARRET » / STOP → consent withdrawn and acknowledged), read-only « Textos reçus » threads view (PS Hub's grouping by last 10 digits), settings card « Textos » (number, test send); Deno tests (signature, keywords, no body in logs), pgTAP (consent required before any send, withdrawal blocks sends) | 6 d | C, Oct 19–26 |
+| SM | **SMS (decided by Jonathan, 2026-10-12: before the cutover, through the Yeastar P-Series OpenAPI « le même système que PS Hub »):** port of PS Hub's `_shared/yeastar.ts` (OpenAPI token with refresh, `:191-202`, `:315-334`; stored encrypted with `private.encrypt_pii`, never in a client-readable table) and `_shared/yeastar-webhook.ts` (event codes, PBX time zone), send by DID (`yeastar-send-sms/index.ts:135-154`) with failed sends logged too (`:187-214`), inbound texts and delivery reports from the signed webhook (`yeastar-webhook/index.ts:738-745`, `:874-895`); `sms_consents` (person, number, granted at, source, withdrawn at), `sms_messages` (direction, hashed number, status, body purged after 12 months), `contact_channel_preferences` (client or relation: email, SMS, both), `sms_settings` (PBX base URL, DID, sending hours); `sms-send` (service function, templates `appointments.reminder_sms`, `.confirmation_sms`, `.changed_sms`, business hours enforced), `sms-webhook` (Yeastar HMAC signature with `timingSafeEqual`, per-IP hit first, `claim_webhook_event`, « OUI » → confirms the appointment through Rendez-vous's published RPC, « ARRÊT » / « ARRET » / STOP → consent withdrawn and acknowledged), read-only « Textos reçus » threads view (PS Hub's grouping by last 10 digits), settings card « Textos » (PBX, DID, test send); fake PBX locally (`npm run fake:yeastar`); Deno tests (signature, token refresh, keywords, no body in logs), pgTAP (consent required before any send, withdrawal blocks sends). Not copied: PS Hub's org-wide `allow_sms` as the only control, the opportunity linking. | 6 d | C, Oct 19–26 |
 | CM2 | Inbox UI (three panes desktop, stacked on phone), actions via `gmail-modify`, attachments copied to storage, auto-linking to clients by identity, « À rattacher » | 5 d | B, Jan 11–15 (moved after the cutover for the waitlist) |
 | CM3 | Composer (docked desktop, full screen phone), send from Gmail (`gmail-send`, attachments by file id), templates (core catalogue + personal), 5-s undo | 5 d | B, Jan 18–22 |
 | CM4 | « Rédiger avec l'IA » (`communications-draft`, OpenAI, placeholders, `ai_requests`, limits, monthly cap) | 4 d | B, Jan 25–28 |
@@ -447,7 +521,7 @@ Reports read only published views through definer RPCs that check `reports.view`
 |---|---|---|
 | OAuth helpers in `_shared/` (`oauth-state.ts`: HMAC-signed state with nonce and 10-min expiry; `oauth-tokens.ts`: store / read through module service-role RPCs that use `private.encrypt_pii` / `decrypt_pii`) | CM1 | reused by RZ, FQ, R6 (Google busy) |
 | `private.pii_encrypted_values()` extended for each token column | each batch adding one | CM1, RZ, FQ, R6 (Google busy) |
-| Twilio client in `_shared/sms/` (send, signature check, keyword handling), secrets `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (function secrets, pasted by Jonathan) | SM | reused by R4 (reminders), later two-way SMS |
+| Yeastar OpenAPI client in `_shared/yeastar/` (ported from PS Hub: token and refresh, send by DID, webhook signature, event codes, keyword handling), secrets `YEASTAR_BASE_URL`, `YEASTAR_CLIENT_ID`, `YEASTAR_CLIENT_SECRET`, `YEASTAR_WEBHOOK_SECRET`, `YEASTAR_SMS_DID` (function secrets, pasted by Jonathan), `fake:yeastar` for local runs | SM | reused by R4 (reminders), later two-way SMS |
 | Stripe client in `_shared/stripe/` (payment link, setup session, off-session charge, webhook signature) and secrets | FS | Facturation only |
 | Realtime: `useOrgRealtime` hook, `private.broadcast_change(module, table, id, op)` trigger helper, `realtime.messages` policy | D2 | Demandes, then Rendez-vous |
 | Secure-link purposes for appointment actions (module rows, resolve / accept RPCs) | R4 | appointments |
@@ -462,5 +536,5 @@ Reports read only published views through definer RPCs that check `reports.view`
 4. **Production is live:** every merge deploys; migrations additive; modules disabled until the cutover weekend; no production data writes except the final import with Jonathan's go-ahead.
 5. **Staff change:** counselors move from a shared account (admin rights minus delete today, visite §18) and an agenda with fake appointments to Demandes and personal accounts: a one-page guide and a walkthrough during the buffer.
 6. **The timeline after 2026-10-12:** the answers added the morning queue, cards on file, dunning, payroll, full consents and SMS before the cutover; with two lanes Jan 11 no longer holds (lane A +4 days, lane B +10). A third lane from Oct 19 to Dec 18 (R-68, roadmap question 50) restores the date with ~9 days of slack in lane C and ~8 in lane B, none in lane A before the holidays; without it, the honest target is Jan 25 with no slack.
-7. **Twilio registration:** a Canadian local number is not subject to US 10DLC, but carrier filtering and Twilio's own business profile requirements for Canada must be confirmed at purchase (lead time up to several weeks if a registration is required): the number is ordered on Oct 19 for a Nov 2 go-live of the SMS infrastructure.
+7. **SMS through the Yeastar PBX:** the transport is PS Hub's (decided by Jonathan); the open point is own PBX vs a dedicated DID on PS's PBX (roadmap question 53): a dedicated DID is ready in a day but routes the clinic's texts through PS's infrastructure (processing agreement, Loi 25); an own PBX with an SMS-capable DID takes 1–3 weeks. Delivery depends on the trunk's SMS support: tested with a real send on Oct 19.
 8. **Cards on file:** GOrendezvous's saved cards do not transfer to our Stripe customers; clients re-enter their card through a secure link in December with the next-day charge consent (roadmap question 52); until then those clients pay by link or Interac.
