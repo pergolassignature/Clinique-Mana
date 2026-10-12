@@ -15,8 +15,17 @@ describe('communicationsManifest', () => {
     }
   })
 
+  it('« Textos » (batch SM): the page and its settings section, with the SMS permissions', () => {
+    const nav = [communicationsManifest.nav].flat()
+    expect(nav).toContainEqual(expect.objectContaining({ path: '/textos', permission: 'communications.sms' }))
+    expect(communicationsManifest.routes).toContainEqual(expect.objectContaining({ path: 'textos', permission: 'communications.sms' }))
+    expect(communicationsManifest.settingsSections).toContainEqual(
+      expect.objectContaining({ id: 'sms', path: 'textos', permission: 'communications.sms_manage', editPermission: 'communications.sms_manage' }),
+    )
+  })
+
   it('loads its audit labels in their own chunk', async () => {
     const labels = await communicationsManifest.audit!()
-    expect(Array.isArray(labels.tables)).toBe(true)
+    expect(labels.tables).toContain('sms_consents')
   })
 })

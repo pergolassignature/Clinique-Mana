@@ -5,7 +5,7 @@ import { i18nAuditLabels } from '@/core/audit/module-labels'
  * batch adds its own (CM1: the mailboxes and their tokens, the thread links; SM: the SMS consents).
  * `src/app/audit-labels.test.ts` checks it against the migrations' audit triggers.
  */
-export const COMMUNICATIONS_AUDITED_TABLES = [] as const
+export const COMMUNICATIONS_AUDITED_TABLES = ['sms_consents'] as const
 
 /**
  * What the module tells the Journal d'audit (`communicationsManifest.audit`, loaded with the
