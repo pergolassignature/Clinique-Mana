@@ -74,6 +74,77 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_policies: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          fee_mode: string
+          file_opening_service_id: string | null
+          first_fee_percent: number
+          id: string
+          late_notice_hours: number
+          next_fee_percent: number
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          fee_mode?: string
+          file_opening_service_id?: string | null
+          first_fee_percent?: number
+          id?: string
+          late_notice_hours?: number
+          next_fee_percent?: number
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          fee_mode?: string
+          file_opening_service_id?: string | null
+          first_fee_percent?: number
+          id?: string
+          late_notice_hours?: number
+          next_fee_percent?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_policies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "billing_policies_file_opening_fkey"
+            columns: ["org_id", "file_opening_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "billing_policies_file_opening_fkey"
+            columns: ["org_id", "file_opening_service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "billing_policies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clienteles: {
         Row: {
           created_at: string
@@ -3909,6 +3980,272 @@ export type Database = {
           },
         ]
       }
+      service_families: {
+        Row: {
+          code: number
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: number
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: number
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_families_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_rate_variants: {
+        Row: {
+          amount_cents: number | null
+          created_at: string
+          created_by: string | null
+          discount_kind: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          percent: number | null
+          profession_title_id: string | null
+          service_id: string
+          variant: string
+        }
+        Insert: {
+          amount_cents?: number | null
+          created_at?: string
+          created_by?: string | null
+          discount_kind: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          org_id: string
+          percent?: number | null
+          profession_title_id?: string | null
+          service_id: string
+          variant: string
+        }
+        Update: {
+          amount_cents?: number | null
+          created_at?: string
+          created_by?: string | null
+          discount_kind?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          percent?: number | null
+          profession_title_id?: string | null
+          service_id?: string
+          variant?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_rate_variants_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_rate_variants_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      service_titles: {
+        Row: {
+          created_at: string
+          org_id: string
+          profession_title_id: string
+          service_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          profession_title_id: string
+          service_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          profession_title_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_titles_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_titles_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_titles_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          buffer_after_minutes: number
+          code: number
+          colour: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration_minutes: number
+          family_id: string
+          fixed_price_cents: number | null
+          for_two: boolean
+          grid_duration: number | null
+          id: string
+          is_active: boolean
+          key: string
+          kind: string
+          name: string
+          org_id: string
+          price_source: string
+          sort_order: number
+          tax_rule: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          buffer_after_minutes?: number
+          code: number
+          colour?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_minutes?: number
+          family_id: string
+          fixed_price_cents?: number | null
+          for_two?: boolean
+          grid_duration?: number | null
+          id?: string
+          is_active?: boolean
+          key: string
+          kind: string
+          name: string
+          org_id: string
+          price_source: string
+          sort_order?: number
+          tax_rule?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          buffer_after_minutes?: number
+          code?: number
+          colour?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_minutes?: number
+          family_id?: string
+          fixed_price_cents?: number | null
+          for_two?: boolean
+          grid_duration?: number | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          kind?: string
+          name?: string
+          org_id?: string
+          price_source?: string
+          sort_order?: number
+          tax_rule?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "services_family_fkey"
+            columns: ["org_id", "family_id"]
+            isOneToOne: false
+            referencedRelation: "service_families"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "services_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       signature_request_signers: {
         Row: {
           created_at: string
@@ -4940,6 +5277,42 @@ export type Database = {
           },
         ]
       }
+      services_catalog: {
+        Row: {
+          buffer_after_minutes: number | null
+          code: number | null
+          colour: string | null
+          description: string | null
+          duration_minutes: number | null
+          family_code: number | null
+          family_id: string | null
+          family_name: string | null
+          family_sort_order: number | null
+          fixed_price_cents: number | null
+          for_two: boolean | null
+          grid_duration: number | null
+          id: string | null
+          key: string | null
+          kind: string | null
+          name: string | null
+          org_id: string | null
+          price_source: string | null
+          sort_order: number | null
+          tax_rule: string | null
+          title_ids: string[] | null
+          title_keys: string[] | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_staff_invitation: {
@@ -4953,6 +5326,29 @@ export type Database = {
           profile_id: string
           status: string
         }[]
+      }
+      add_billing_policy: {
+        Args: {
+          p_effective_from: string
+          p_fee_mode: string
+          p_file_opening_service_id: string
+          p_first_fee_percent: number
+          p_late_notice_hours: number
+          p_next_fee_percent: number
+        }
+        Returns: string
+      }
+      add_service_rate_variant: {
+        Args: {
+          p_amount_cents: number
+          p_discount_kind: string
+          p_effective_from: string
+          p_percent: number
+          p_service_id: string
+          p_title_id: string
+          p_variant: string
+        }
+        Returns: string
       }
       add_tax_rate: {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
@@ -5003,6 +5399,28 @@ export type Database = {
       begin_signature_request_send: {
         Args: { p_id: string; p_org_id: string; p_stale_after: string }
         Returns: boolean
+      }
+      billing_policy_on: {
+        Args: { p_on: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          fee_mode: string
+          file_opening_service_id: string | null
+          first_fee_percent: number
+          id: string
+          late_notice_hours: number
+          next_fee_percent: number
+          org_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "billing_policies"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       cancel_professional_submission: {
         Args: { p_submission_id: string }
@@ -5190,6 +5608,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
       delete_compensation_rate: { Args: { p_id: string }; Returns: undefined }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_professional_client_agreement: {
@@ -5219,6 +5638,10 @@ export type Database = {
       }
       end_professional_client_agreement: {
         Args: { p_effective_to: string; p_row_id: string }
+        Returns: undefined
+      }
+      end_service_rate_variant: {
+        Args: { p_effective_to: string; p_id: string }
         Returns: undefined
       }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
@@ -5328,6 +5751,21 @@ export type Database = {
       }
       get_professionals_catalog: { Args: never; Returns: Json }
       get_professionals_settings: { Args: never; Returns: Json }
+      get_service_price: {
+        Args: {
+          p_on: string
+          p_service_id: string
+          p_tax_exempt?: boolean
+          p_title_id: string
+          p_variant: string
+        }
+        Returns: {
+          price_cents: number
+          source: string
+          tax_rule: string
+          variant_applied: boolean
+        }[]
+      }
       get_signature_request: {
         Args: { p_id: string }
         Returns: {
@@ -6068,6 +6506,27 @@ export type Database = {
         }
         Returns: string
       }
+      save_service: {
+        Args: {
+          p_buffer_after_minutes: number
+          p_code: number
+          p_colour: string
+          p_description: string
+          p_duration_minutes: number
+          p_family_id: string
+          p_fixed_price_cents: number
+          p_for_two: boolean
+          p_grid_duration: number
+          p_id: string
+          p_key: string
+          p_kind: string
+          p_name: string
+          p_price_source: string
+          p_sort_order: number
+          p_tax_rule: string
+        }
+        Returns: string
+      }
       search_professionals: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -6231,6 +6690,14 @@ export type Database = {
       }
       set_scheduled_job_enabled: {
         Args: { p_enabled: boolean; p_key: string }
+        Returns: undefined
+      }
+      set_service_active: {
+        Args: { p_active: boolean; p_id: string }
+        Returns: undefined
+      }
+      set_service_titles: {
+        Args: { p_id: string; p_title_ids: string[] }
         Returns: undefined
       }
       set_signing_settings: { Args: { p: Json }; Returns: Json }

@@ -13,7 +13,7 @@
 --   adjointe@mana.test     role admin_assistant
 --   provider@mana.test     role provider
 --
--- Organization: « Clinique MANA (local) », module `professionals` enabled.
+-- Organization: « Clinique MANA (local) », modules `professionals` and `services` enabled.
 
 select set_config('app.audit_source', 'seed', false);
 
@@ -67,7 +67,8 @@ insert into public.user_roles (user_id, org_id, role) values
   ('44444444-4444-4444-4444-444444444444', '00000000-0000-0000-0000-000000000001', 'admin_assistant');
 
 insert into public.org_modules (org_id, module_key, enabled, updated_by) values
-  ('00000000-0000-0000-0000-000000000001', 'professionals', true, '11111111-1111-1111-1111-111111111111');
+  ('00000000-0000-0000-0000-000000000001', 'professionals', true, '11111111-1111-1111-1111-111111111111'),
+  ('00000000-0000-0000-0000-000000000001', 'services', true, '11111111-1111-1111-1111-111111111111');
 
 -- Local Vault secrets for pg_net → edge functions (fake values; staging gets real ones, plan « Mise en service »).
 select vault.create_secret('http://supabase_kong_clinique-mana:8000', 'project_url', 'Local: Kong as seen from the DB container');

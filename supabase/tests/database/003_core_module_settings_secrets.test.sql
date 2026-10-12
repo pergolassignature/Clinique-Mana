@@ -129,7 +129,9 @@ select functions_are('public', array[
   'prepare_professional_image_consent', 'get_professional_image_consent', 'prepare_my_image_consent', 'get_my_image_consent',
   'search_professionals',
   'delete_staff_account',
-  'withdraw_professional_image_consent', 'restore_professional_invitation_for_service'
+  'withdraw_professional_image_consent', 'restore_professional_invitation_for_service',
+  'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
+  'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

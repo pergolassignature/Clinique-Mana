@@ -51,8 +51,11 @@ insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
   ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
   ('a0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000b', 'counselor');
+-- Every module whose permissions a role default holds (a disabled module's permission makes a
+-- role unassignable by a non-admin: « fails closed », set_user_role).
 insert into public.org_modules (org_id, module_key, enabled) values
-  ('b0000000-0000-0000-0000-00000000000a', 'professionals', true);
+  ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
+  ('b0000000-0000-0000-0000-00000000000a', 'services', true);
 insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'roles.manage', true),
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'users.manage', true),
