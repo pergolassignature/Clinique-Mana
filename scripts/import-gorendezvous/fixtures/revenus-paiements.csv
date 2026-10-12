@@ -1,0 +1,8 @@
+Date;Facture;Client;Mode de paiement;Montant
+2026-09-02;2026-0000101;Client Fictif Un;Argent comptant;175,00 $
+2026-09-03;2026-0000102;Client Fictif Deux;Interac;"1 234,56 $"
+2026-09-04;2026-0000103;Client Fictif Trois;Stripe;120,00
+2026-10-01;2026-0000104;Client Fictif Un;Note de crédit;(21,74 $)
+2026-10-02;2026-0000105;Client Fictif Quatre;Carte cadeau;50,00 $
+2026-10-03;2026-0000106;Client Fictif Cinq;Chèque;deux cents
+13/10/2026;2026-0000107;Client Fictif Six;Accès D;80,50

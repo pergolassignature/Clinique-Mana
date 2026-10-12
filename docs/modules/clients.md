@@ -12,7 +12,7 @@ The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): o
 
 - **Registry:** `modules.key = 'clients'` (migration `20261012203612_clients_module`), depends on `professionals`. It **starts disabled** in every clinic; the local seed enables it.
 - **Migrations:** `20261012203612_clients_module`, `20261012203614_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`).
-- **Tests:** pgTAP `102_clients_module`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Tests:** pgTAP `103_clients_module`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
 
 ## Permissions
 
