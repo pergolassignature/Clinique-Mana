@@ -130,6 +130,8 @@ select functions_are('public', array[
   'search_professionals',
   'delete_staff_account',
   'withdraw_professional_image_consent', 'restore_professional_invitation_for_service',
+  -- Core, modules reserved for testers (R-72).
+  'list_module_testers', 'set_module_testers_only', 'add_module_tester', 'remove_module_tester', 'module_open_to_all_for_org',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

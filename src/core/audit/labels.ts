@@ -23,6 +23,7 @@ export const AUDITED_TABLES = [
   'roles',
   'org_role_permissions',
   'org_modules',
+  'org_module_testers',
   'org_module_settings',
   'org_secrets',
   'tax_rates',

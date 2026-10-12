@@ -470,7 +470,28 @@
       "dependsOn": "Requiert :",
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
-      "loadError": "Impossible de charger les modules."
+      "loadError": "Impossible de charger les modules.",
+      "testers": {
+        "label": "Réservé aux testeurs",
+        "switchLabel": "{module} : réservé aux testeurs",
+        "help": "Seules les personnes ci-dessous voient le module, l'administration comprise. Aucun texto ne part vers les clients tant qu'il est réservé (sauf le test de l'administration).",
+        "none": "Personne ne voit ce module : ajoutez au moins un testeur.",
+        "listLabel": "Testeurs de {module}",
+        "remove": "Retirer {name} des testeurs",
+        "add": "Ajouter un testeur…",
+        "option": "{name} ({role})",
+        "unknownUser": "Utilisateur inconnu",
+        "noUsers": "Les noms des testeurs s'affichent avec la permission de voir les utilisateurs.",
+        "saved": "Accès au module mis à jour.",
+        "added": "Testeur ajouté.",
+        "removed": "Testeur retiré.",
+        "loadError": "Impossible de charger les testeurs des modules.",
+        "confirm": {
+          "title": "Réserver {module} aux testeurs ?",
+          "body": "Tout le monde perd l'accès au module tout de suite, sauf les testeurs de la liste. L'administration aussi : ajoutez-vous à la liste si vous devez continuer à l'utiliser.",
+          "action": "Réserver aux testeurs"
+        }
+      }
     },
     "jobs": {
       "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
@@ -5923,6 +5944,7 @@
       "roles": "Rôles",
       "org_role_permissions": "Permissions des rôles",
       "org_modules": "Modules",
+      "org_module_testers": "Testeurs des modules",
       "org_module_settings": "Paramètres de module",
       "org_secrets": "Secrets",
       "tax_rates": "Taux de taxes",
@@ -6003,7 +6025,12 @@
       "org_modules": {
         "module_key": "Module",
         "enabled": "Activé",
-        "disabled_at": "Désactivé le"
+        "disabled_at": "Désactivé le",
+        "testers_only": "Réservé aux testeurs"
+      },
+      "org_module_testers": {
+        "module_key": "Module",
+        "user_id": "Testeur"
       },
       "org_module_settings": {
         "module_key": "Module",

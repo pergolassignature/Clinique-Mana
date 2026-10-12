@@ -10,6 +10,11 @@
  *    `{ test: true, to }` (the clinic's consent text is sent). `to` must read
  *    as a number (`normalizeE164`), else 400 `invalid_request` (refusal, in
  *    French): the database checks it again.
+ * 2b. A reply while Communications is reserved for its testers (R-72,
+ *    P3-40, `module_open_to_all_for_org` false): refused in French (400
+ *    `refusal`) before any quota is used, so a test in production never
+ *    texts a client (`private.send_sms` refuses it too); the admin's test
+ *    (`communications.sms_manage`) still goes.
  * 3. Limits, per caller first (`sms.send_user` 60/h, or `sms.test_user` 5/h),
  *    then the clinic's day (`sms.org_day` 500).
  * 4. `queue_sms_for_service(org, actor, to, body, kind)` (service role, the
@@ -109,6 +114,23 @@ export function createHandler(
 
     const client = deps.serviceClient()
     if (client instanceof Response) return client
+    if (!isTest) {
+      const open = await client.rpc('module_open_to_all_for_org', {
+        p_org_id: orgId,
+        p_key: 'communications',
+      })
+      if (open.error) {
+        await report('module_open_check_failed')
+        return errorResponse('internal', 'Request failed', 500, req)
+      }
+      if (open.data !== true) {
+        return refusalResponse(
+          'Les textos aux clients sont suspendus : le module Communications est réservé aux testeurs.',
+          req,
+        )
+      }
+    }
+
     const userLimit = await consume(
       client,
       isTest ? LIMITS.smsTestUser : LIMITS.smsSendUser,
