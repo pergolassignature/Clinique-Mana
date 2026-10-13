@@ -44,7 +44,9 @@ const SETTINGS: QboSettings = {
     customers_synced_at: '2026-10-13T12:05:00Z',
   },
   accounts: [],
+  tax_codes: [],
   map: [],
+  push: { paused: true, pending: 0, failed: 0, pushed: 0, waiting_events: 0 },
 }
 
 const match = (over: Partial<CustomerMatch> = {}): CustomerMatch => ({

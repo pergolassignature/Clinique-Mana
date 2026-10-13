@@ -23,6 +23,8 @@ export const ACCOUNT_MAP_KEYS = [
   'deposit.cheque',
 ] as const
 export type AccountMapKey = (typeof ACCOUNT_MAP_KEYS)[number] | 'expense'
+/** The two tax codes the push puts on its lines (FQ part 2): their row ids are tax codes, not accounts. */
+export const TAX_MAP_KEYS = ['tax.taxable', 'tax.exempt'] as const
 
 const connectionSchema = z.object({
   id: z.string(),
@@ -63,10 +65,24 @@ const mapRowSchema = z.object({
 })
 export type AccountMapRow = z.infer<typeof mapRowSchema>
 
+const taxCodeSchema = z.object({ id: z.string(), name: z.string() })
+export type QboTaxCode = z.infer<typeof taxCodeSchema>
+
+const pushSummarySchema = z.object({
+  paused: z.boolean(),
+  pending: z.number(),
+  failed: z.number(),
+  pushed: z.number(),
+  waiting_events: z.number(),
+})
+export type QboPushSummary = z.infer<typeof pushSummarySchema>
+
 const settingsSchema = z.object({
   connection: connectionSchema.nullable(),
   accounts: z.array(accountSchema),
+  tax_codes: z.array(taxCodeSchema).default([]),
   map: z.array(mapRowSchema),
+  push: pushSummarySchema.default({ paused: true, pending: 0, failed: 0, pushed: 0, waiting_events: 0 }),
 })
 export type QboSettings = z.infer<typeof settingsSchema>
 
@@ -215,4 +231,77 @@ export async function decideMatch(qboId: string, decision: MatchDecision): Promi
   })
   if (error) throw error
   return z.enum(MATCH_STATUSES).parse(data)
+}
+
+// --- The push (FQ part 2) ------------------------------------------------------------------------
+
+/** « Démarrer l'envoi » (false) / « Mettre en pause » (true). Nothing is sent while paused (FQ-6). */
+export async function setQboPushPaused(paused: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_qbo_push_paused', { p_paused: paused })
+  if (error) throw error
+}
+
+export const PUSH_KINDS = ['invoice', 'credit_memo', 'payment', 'bill'] as const
+export type PushKind = (typeof PUSH_KINDS)[number]
+export const PUSH_STATUSES = ['pending', 'pushed', 'failed'] as const
+export type PushStatus = (typeof PUSH_STATUSES)[number]
+
+const pushRowSchema = z.object({
+  id: z.string(),
+  kind: z.enum(PUSH_KINDS),
+  entity_id: z.string(),
+  invoice_id: z.string().nullable(),
+  invoice_number: z.string().nullable(),
+  status: z.enum(PUSH_STATUSES),
+  attempts: z.number(),
+  next_attempt_at: z.string(),
+  last_error_code: z.string().nullable(),
+  qbo_id: z.string().nullable(),
+  amount_mismatch: z.boolean(),
+  pushed_at: z.string().nullable(),
+  updated_at: z.string(),
+})
+export type QboPush = z.infer<typeof pushRowSchema>
+
+const pushListSchema = z.object({
+  paused: z.boolean(),
+  pending_events: z.number(),
+  counts: z.record(z.string(), z.number()),
+  pushes: z.array(pushRowSchema),
+})
+export type QboPushList = z.infer<typeof pushListSchema>
+
+/** « Envois à QuickBooks »: the switch, the counts, the pushes (one state, or all), newest first. */
+export async function listQboPushes(status: PushStatus | null): Promise<QboPushList> {
+  const { data, error } = await supabase.rpc('list_qbo_pushes', { ...(status ? { p_status: status } : {}), p_limit: 100 })
+  if (error) throw error
+  return pushListSchema.parse(data)
+}
+
+/** « Réessayer »: the push goes at the next pass. */
+export async function retryQboPush(id: string): Promise<void> {
+  const { error } = await supabase.rpc('retry_qbo_push', { p_id: id })
+  if (error) throw error
+}
+
+const invoicePushSchema = z.object({
+  paused: z.boolean(),
+  connected: z.boolean(),
+  pushes: z.array(
+    z.object({
+      kind: z.enum(PUSH_KINDS),
+      status: z.enum(PUSH_STATUSES),
+      pushed_at: z.string().nullable(),
+      last_error_code: z.string().nullable(),
+      amount_mismatch: z.boolean(),
+    }),
+  ),
+})
+export type QboInvoicePushStatus = z.infer<typeof invoicePushSchema>
+
+/** An invoice's state in QuickBooks (billing.view). */
+export async function fetchInvoicePushStatus(invoiceId: string): Promise<QboInvoicePushStatus> {
+  const { data, error } = await supabase.rpc('qbo_invoice_push_status', { p_invoice_id: invoiceId })
+  if (error) throw error
+  return invoicePushSchema.parse(data)
 }

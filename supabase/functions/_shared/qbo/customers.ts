@@ -67,15 +67,34 @@ export function dossierNames(payer: QboPerson, dossier: QboPerson): string[] {
   return [base, cleanName(`${base} (payé par N° ${payer.clientNumber})`)]
 }
 
+/**
+ * Intuit's `requestid` for one create: 32 hex characters derived from what
+ * it is (a payer, a pair, a document) and the attempt's name rank, so a
+ * request repeated after a lost answer gets the first answer back.
+ */
+export async function requestIdFor(...parts: string[]): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(parts.join('|')),
+  )
+  return [...new Uint8Array(digest).slice(0, 16)].map((b) =>
+    b.toString(16).padStart(2, '0')
+  ).join('')
+}
+
 /** Creates with the first name free; a taken name tries the next; the last refusal throws. */
 async function createWithNames(
   qbo: QboClient,
   names: string[],
   payload: (name: string) => Record<string, unknown>,
+  key: string,
 ) {
   for (let i = 0; i < names.length; i++) {
     try {
-      return await qbo.createCustomer(payload(names[i]))
+      return await qbo.createCustomer(
+        payload(names[i]),
+        await requestIdFor(key, String(i)),
+      )
     } catch (error) {
       if (
         error instanceof QboError && error.code === 'duplicate_name' &&
@@ -100,7 +119,7 @@ export async function ensurePayer(
     GivenName: cleanName(payer.firstName).slice(0, 100),
     FamilyName: cleanName(payer.lastName).slice(0, 100),
     ...(payer.email ? { PrimaryEmailAddr: { Address: payer.email } } : {}),
-  }))
+  }), `payer:${payer.clientId}`)
   await store.record({
     kind: 'payer',
     payerClientId: payer.clientId,
@@ -135,6 +154,7 @@ export async function ensureBillingCustomer(
       ParentRef: { value: parentId },
       BillWithParent: true,
     }),
+    `dossier:${payer.clientId}:${dossier.clientId}`,
   )
   await store.record({
     kind: 'dossier',
