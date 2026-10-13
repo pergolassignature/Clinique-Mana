@@ -216,7 +216,7 @@ select functions_are('public', array[
   -- Communications, batch SM (textos).
   'get_sms_settings', 'set_sms_settings', 'set_sms_consent',
   'queue_sms_for_service', 'claim_sms_batch_for_service', 'mark_sms_sent', 'mark_sms_failed',
-  'list_sms_thread', 'release_sms_claims_for_service',
+  'list_sms_thread', 'link_sms_thread', 'unlink_sms_thread', 'get_sms_thread_link', 'list_sms_conversations', 'list_client_sms', 'release_sms_claims_for_service',
   'record_inbound_sms', 'apply_sms_delivery_event', 'sms_event_known_for_service', 'get_sms_provider_context',
   'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel',
   'create_demande', 'update_demande', 'set_demande_state', 'assign_demande', 'log_demande_contact',

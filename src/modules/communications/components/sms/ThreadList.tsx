@@ -4,6 +4,7 @@ import { formatClinicDateShort, formatClinicTime, isClinicToday } from '@/shared
 import { cn } from '@/shared/lib/utils'
 import { StatusDot } from '@/shared/ui/status-dot'
 import type { SmsThread } from '../../api/sms'
+import { fileLabel } from '../../lib/inbox-format'
 import { formatPhone } from '../../lib/phone'
 import { smsConsentLabel, smsStatusLabel } from '../../lib/sms-status'
 
@@ -51,9 +52,12 @@ export function ThreadList({ threads, selected, onSelect }: ThreadListProps) {
               )}
             >
               <span className="flex min-w-0 items-baseline justify-between gap-2">
-                <span className="tabular truncate text-sm font-medium text-foreground">{formatPhone(thread.phone)}</span>
+                <span className="truncate text-sm font-medium text-foreground">
+                  {thread.client ? (thread.client.clientNumber !== null ? fileLabel(thread.client.clientNumber, thread.client.name) : thread.client.name) : <span className="tabular">{formatPhone(thread.phone)}</span>}
+                </span>
                 <span className="tabular shrink-0 text-xs text-muted-foreground">{when(thread.lastMessageAt)}</span>
               </span>
+              {thread.client && <span className="tabular text-xs text-muted-foreground">{formatPhone(thread.phone)}</span>}
               <span className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
                 {thread.lastHasMedia && !thread.lastBodyPurged && <Paperclip aria-hidden className="size-3 shrink-0" />}
                 <span className="truncate">{preview(thread)}</span>
@@ -70,6 +74,7 @@ export function ThreadList({ threads, selected, onSelect }: ThreadListProps) {
                   </span>
                 )}
                 <span className="tabular">{thread.messageCount === 1 ? t(`${T}.messagesOne`) : t(`${T}.messagesOther`, { count: String(thread.messageCount) })}</span>
+                {thread.linkStatus === 'needs_review' && <span className="font-medium text-foreground">{t(`${T}.toReview`)}</span>}
               </span>
             </button>
           </li>

@@ -71,7 +71,10 @@ function renderPanel() {
 
 describe('ClientMailPanel', () => {
   it('is Communications’ panel in Clients’ « Courriels », for communications.inbox', () => {
-    expect(communicationsManifest.slots?.['client.messages']?.map((p) => [p.id, p.permissions])).toEqual([['communications.mail', ['communications.inbox']]])
+    expect(communicationsManifest.slots?.['client.messages']?.map((p) => [p.id, p.permissions])).toEqual([
+      ['communications.mail', ['communications.inbox']],
+      ['communications.sms', ['communications.sms']],
+    ])
   })
 
   it('lists the threads linked to the file, each opening in « Courriels »', async () => {

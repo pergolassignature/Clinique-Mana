@@ -19,6 +19,9 @@ const linkSchema = z.object({
   candidates: z.array(fileSchema),
 })
 export type MailThreadLink = z.infer<typeof linkSchema>
+/** A thread's link, mail or SMS (SM-15 reads the same shape from `get_sms_thread_link`). */
+export const threadLinkSchema = linkSchema
+export type ThreadLink = MailThreadLink
 
 /** The thread's link, or null when the thread is gone or not readable. */
 export async function getMailThreadLink(threadId: string): Promise<MailThreadLink | null> {

@@ -19,7 +19,9 @@ import { formatPhone } from '../../lib/phone'
 import { smsSendErrorMessage } from '../../lib/sms-errors'
 import { smsConsentLabel, smsErrorText, smsKindLabel, smsStatusLabel } from '../../lib/sms-status'
 import { composerSchema, SMS_BODY_MAX, type ComposerValues } from '../../schemas/sms'
+import { setSmsThreadLink } from '../../api/sms'
 import { ConsentDialog } from './ConsentDialog'
+import { SmsThreadClientLink } from './SmsThreadClientLink'
 
 const S = 'modules.communications.sms'
 
@@ -29,6 +31,10 @@ interface ThreadViewProps {
   consent: SmsConsentStatus | null
   /** On a phone, the list and the thread are stacked: « Retour aux conversations ». */
   onBack: () => void
+  /** SM-16, from a file: the number is linked to it before its first text (null: already linked, or « Textos »). */
+  linkClientId?: string | null
+  /** SM-16: inside a file, the file is known: no link box. */
+  hideLink?: boolean
 }
 
 /**
@@ -37,7 +43,7 @@ interface ThreadViewProps {
  * and, when failed, why), and the reply box, offered only while the consent is in force (the
  * database refuses a reply without it anyway).
  */
-export function ThreadView({ phone, consent, onBack }: ThreadViewProps) {
+export function ThreadView({ phone, consent, onBack, linkClientId = null, hideLink = false }: ThreadViewProps) {
   const thread = useSmsThread(phone)
   const { can } = useAccess()
   const consentLabel = smsConsentLabel(consent)
@@ -75,6 +81,11 @@ export function ThreadView({ phone, consent, onBack }: ThreadViewProps) {
           </div>
         )}
       </header>
+      {!hideLink && can('clients.view') && (
+        <div className="border-b border-border px-4 py-2">
+          <SmsThreadClientLink phone={phone} />
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {thread.data ? (
           <>
@@ -94,7 +105,7 @@ export function ThreadView({ phone, consent, onBack }: ThreadViewProps) {
       </div>
       <div className="border-t border-border px-4 py-3">
         {consent === 'opted_in' ? (
-          <Composer key={phone} phone={phone} />
+          <Composer key={phone} phone={phone} linkClientId={linkClientId} />
         ) : (
           <p className="flex items-start gap-2 text-sm text-muted-foreground">
             <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0 text-warning-strong" />
@@ -153,7 +164,7 @@ function MessageItem({ message }: { message: SmsMessage }) {
 }
 
 /** The reply box: 1 to 1600 characters, sent at once through `sms-send`; a failure stays above the box. */
-function Composer({ phone }: { phone: string }) {
+function Composer({ phone, linkClientId }: { phone: string; linkClientId: string | null }) {
   const form = useForm<ComposerValues, unknown, { body: string }>({ resolver: zodResolver(composerSchema), defaultValues: { body: '' } })
   const send = useSendSms()
   const { errors, isDirty } = form.formState
@@ -162,6 +173,8 @@ function Composer({ phone }: { phone: string }) {
 
   const submit = form.handleSubmit(async ({ body: text }) => {
     try {
+      // SM-16: a first text written from a file links its number to that file first.
+      if (linkClientId) await setSmsThreadLink(phone, linkClientId)
       await send.mutateAsync({ to: phone, body: text })
       form.reset({ body: '' })
     } catch (error) {
