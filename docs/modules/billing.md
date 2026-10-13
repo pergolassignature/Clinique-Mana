@@ -11,7 +11,7 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 | FPay | Payroll (lane C): « Paie », « Ma paie » | planned |
 
 - **Registry:** `modules.key = 'billing'`, depends on `clients`, `services`, `professionals`, `appointments`; starts disabled in every clinic.
-- **Migrations:** `20261013102346_clients_billing_facts` (Clients' published facts), `20261013102349_appointments_billing_facts` (Rendez-vous' published facts), `20261013102352_billing_module` (registry, tables, RLS, audit, seeds, RPCs, handlers).
+- **Migrations:** `20261013105811_clients_billing_facts` (Clients' published facts), `20261013105814_appointments_billing_facts` (Rendez-vous' published facts), `20261013105817_billing_module` (registry, tables, RLS, audit, seeds, RPCs, handlers).
 - **Tests:** pgTAP `135_billing_invoices` (privileges, registry and roles, payment modes, an invoice from an appointment with the grid price and the file-opening fee, taxes per line, never twice, the payer rule, the default payer, « Statut Indien », an amount to type, gapless numbering continuing a set sequence and never backwards, credit notes, drafts only edited, reads, anonymisation); Vitest `src/modules/billing/manifest.test.ts`; the audit labels by `src/app/audit-labels.test.ts`.
 
 ## Permissions
