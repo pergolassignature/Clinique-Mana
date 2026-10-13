@@ -1,5 +1,5 @@
 -- =============================================================================
--- Clients: « Référé par » names an existing file, or keeps a typed name (decision CL-19)
+-- Clients: « Référé par » names an existing file, or keeps a typed name (decision CL-30)
 -- =============================================================================
 -- Jonathan, 2026-10-13: « Référé par » searches the clinic's files and links one when found, else
 -- keeps the free text.
@@ -36,7 +36,7 @@ alter table public.clients
   add constraint clients_referred_by_one_check check (referred_by is null or referred_by_client_id is null);
 create index clients_org_referred_by_client_idx on public.clients (org_id, referred_by_client_id);
 comment on column public.clients.referred_by_client_id is
-  '« Référé par » a file of the clinic (CL-19); the typed name stays in referred_by. One or the other.';
+  '« Référé par » a file of the clinic (CL-30); the typed name stays in referred_by. One or the other.';
 
 -- C2's merge fills the kept file's empty `referred_by` from the merged one: when the kept file
 -- names a file, it keeps that file (the kept file's values first) and the typed name is dropped.

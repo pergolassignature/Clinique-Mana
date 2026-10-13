@@ -64,7 +64,7 @@ const REASONS = {
 } as const
 export const duplicateReasonLabel = (reason: string): string => (Object.hasOwn(REASONS, reason) ? t(REASONS[reason as keyof typeof REASONS]) : '')
 
-/** What is shown of a « Référé par » file: the record's `referrer`, or a search row just chosen (CL-19). */
+/** What is shown of a « Référé par » file: the record's `referrer`, or a search row just chosen (CL-30). */
 export type ReferrerShown = Pick<ClientReferrer, 'id' | 'clientNumber' | 'name' | 'anonymized'>
 
 /** « CLI-000042 · Rita Tremblay », or « CLI-000042 · Dossier anonymisé » (never the old name). */

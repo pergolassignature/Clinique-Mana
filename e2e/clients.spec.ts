@@ -39,7 +39,7 @@ test('the admin is stopped on a duplicate, creates a file and adds a parent with
   await sheet.getByRole('textbox', { name: /^Nom/ }).fill('Fictif')
   await sheet.getByRole('textbox', { name: /^Courriel/ }).fill(`essai.${stamp}@exemple.test`)
   await expect(sheet.getByText("Ce client a déjà un dossier : ouvrez-le plutôt que d'en créer un autre.")).toBeHidden()
-  // « Référé par » (CL-19): a file of the clinic, found by typing.
+  // « Référé par » (CL-30): a file of the clinic, found by typing.
   await sheet.getByRole('combobox', { name: 'Référé par' }).fill('Gagnon-Fictif')
   await sheet.getByRole('option', { name: /Marc Gagnon-Fictif/ }).click()
   await expect(sheet.getByRole('link', { name: /^CLI-\d{6} · Marc Gagnon-Fictif$/ })).toBeVisible()
@@ -51,10 +51,11 @@ test('the admin is stopped on a duplicate, creates a file and adds a parent with
 
   // « Informations », « Dossier »: back to a typed name, which replaces the file.
   await page.getByRole('tab', { name: 'Informations' }).click()
-  const fileCard = page.getByRole('region', { name: 'Dossier' })
+  const fileCard = page.getByRole('form', { name: 'Dossier' })
   await fileCard.getByRole('button', { name: 'Retirer le dossier' }).click()
   await fileCard.getByRole('combobox', { name: 'Référé par' }).fill('Une amie de la famille')
   await fileCard.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByText('Dossier enregistré.')).toBeVisible()
   await expect(fileCard.getByRole('combobox', { name: 'Référé par' })).toHaveValue('Une amie de la famille')
   await page.getByRole('tab', { name: 'Aperçu' }).click()
   await expect(page.getByText('Une amie de la famille')).toBeVisible()

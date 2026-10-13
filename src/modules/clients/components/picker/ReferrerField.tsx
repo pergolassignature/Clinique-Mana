@@ -1,4 +1,4 @@
-import { useId, useState, type KeyboardEvent } from 'react'
+import { useCallback, useId, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { t } from '@/i18n'
@@ -14,7 +14,7 @@ import { clientNumberLabel, referrerLabel, type ReferrerShown } from '../../lib/
 
 const K = 'modules.clients.referrer'
 
-/** « Référé par »: a file of the clinic (its id), or a typed name; never both (CL-19). */
+/** « Référé par »: a file of the clinic (its id), or a typed name; never both (CL-30). */
 export interface ReferrerValue {
   clientId: string
   text: string
@@ -35,7 +35,7 @@ interface ReferrerFieldProps {
 }
 
 /**
- * « Référé par » (CL-19): type to search the clinic's files (`search_clients`, as the other pickers:
+ * « Référé par » (CL-30): type to search the clinic's files (`search_clients`, as the other pickers:
  * 2 characters, a pause, never a merged or anonymised file); choose one and the field shows
  * « CLI-000042 · Nom », a link to the record (a new tab: the form stays as it is) and « Retirer le
  * dossier »; or keep what was typed as the name (« Utiliser « … » comme texte », or just leave the
@@ -51,6 +51,8 @@ export function ReferrerField({ label, value, onChange, onBlur, known, excludeId
   const query = value.clientId ? '' : value.text
   const search = useClientSearch(useDebouncedValue(open ? query : '', 250))
   const listId = useId()
+  // Once per opening (a stable ref: not again at each keystroke or hover).
+  const revealList = useCallback((node: HTMLDivElement | null) => node?.scrollIntoView?.({ block: 'nearest' }), [])
   const optionId = (index: number) => `${listId}-${index}`
   const results = (search.data ?? []).filter((row) => row.id !== excludeId)
   const searching = query.trim().length >= 2
@@ -171,8 +173,13 @@ export function ReferrerField({ label, value, onChange, onBlur, known, excludeId
               autoComplete="off"
             />
             {visible && (
-              // The list never takes focus: the input keeps it while the mouse chooses.
-              <div className="absolute inset-x-0 top-full z-50 mt-1 rounded-lg border border-border bg-card p-1 shadow-medium" onMouseDown={(event) => event.preventDefault()}>
+              // The list never takes focus: the input keeps it while the mouse chooses. Low in a sheet
+              // (the field is near the end of « Nouveau client »), the sheet scrolls it into view.
+              <div
+                ref={revealList}
+                className="absolute inset-x-0 top-full z-50 mt-1 rounded-lg border border-border bg-card p-1 shadow-medium"
+                onMouseDown={(event) => event.preventDefault()}
+              >
                 <ul id={listId} role="listbox" aria-label={t(`${K}.results`)} className="max-h-72 overflow-y-auto">
                   {search.isError ? (
                     <li role="presentation" className="px-2 py-1.5 text-sm text-destructive">

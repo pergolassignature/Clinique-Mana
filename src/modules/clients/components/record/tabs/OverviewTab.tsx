@@ -83,7 +83,7 @@ export function OverviewTab() {
               { label: t(`${F}.referralSource`), value: reference.referralSources.find((s) => s.id === client.referralSourceId)?.name },
               {
                 label: t(`${F}.referredBy`),
-                // The referring file (CL-19): a link to it, « Dossier anonymisé » once anonymised.
+                // The referring file (CL-30): a link to it, « Dossier anonymisé » once anonymised.
                 value: summary.referrer ? (
                   summary.referrer.anonymized ? (
                     referrerLabel(summary.referrer)

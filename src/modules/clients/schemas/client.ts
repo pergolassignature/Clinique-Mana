@@ -40,7 +40,7 @@ export type ClientFormValues = {
   country: string
   referralSourceId: string
   referredBy: string
-  /** « Référé par » a file of the clinic (its id; '' none): never with `referredBy` (CL-19). */
+  /** « Référé par » a file of the clinic (its id; '' none): never with `referredBy` (CL-30). */
   referredByClientId: string
   customField: string
   primaryProfessionalId: string

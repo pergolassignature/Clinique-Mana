@@ -48,7 +48,7 @@ function renderField(initial: ReferrerValue = { clientId: '', text: '' }, props:
   return onChange
 }
 
-describe('ReferrerField (« Référé par », CL-19)', () => {
+describe('ReferrerField (« Référé par », CL-30)', () => {
   it('searches the clinic’s files and links the one chosen, clearing the typed name', async () => {
     const user = userEvent.setup()
     const onChange = renderField()

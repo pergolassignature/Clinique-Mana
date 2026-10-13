@@ -1,4 +1,4 @@
--- Clients, « Référé par » a file (migration *_clients_referrer.sql, CL-19). Covers: the column, its
+-- Clients, « Référé par » a file (migration *_clients_referrer.sql, CL-30). Covers: the column, its
 -- constraints, index and trigger; the new private functions granted to no role; create_client with a
 -- file, never with both, never another clinic's file; update_client: choosing a file clears the
 -- typed name and typing a name clears the file, the file itself, a merged or an anonymised file

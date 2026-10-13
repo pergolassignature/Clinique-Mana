@@ -281,7 +281,7 @@ function TagsCard() {
 }
 
 /**
- * « Référé par » in the « Dossier » card (CL-19): a file of the clinic or a typed name, sent
+ * « Référé par » in the « Dossier » card (CL-30): a file of the clinic or a typed name, sent
  * together (choosing one clears the other); the record names the stored file (`summary.referrer`).
  */
 function ReferrerCardField({ form }: { form: UseFormReturn<ClientFormValues, unknown, ClientFieldOutput> }) {

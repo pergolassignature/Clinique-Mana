@@ -84,7 +84,7 @@ export const clientPayload = z
     country: z.string(),
     referral_source_id: z.string().nullable(),
     referred_by: z.string().nullable(),
-    // Optional: reads made before CL-19 (and other modules' rows) may not carry it.
+    // Optional: reads made before CL-30 (and other modules' rows) may not carry it.
     referred_by_client_id: z.string().nullable().optional(),
     custom_field: z.string().nullable(),
     primary_professional_id: z.string().nullable(),
@@ -233,7 +233,7 @@ export const payerPayload = z
   }))
 export type ClientPayer = z.output<typeof payerPayload>
 
-/** The file a client was referred by (« Référé par », CL-19): no name once anonymised. */
+/** The file a client was referred by (« Référé par », CL-30): no name once anonymised. */
 export const referrerPayload = z
   .object({
     id: z.string(),
