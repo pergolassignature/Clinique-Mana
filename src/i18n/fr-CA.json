@@ -14,6 +14,14 @@
     "userMenu": "Menu de {name}",
     "collapse": "Réduire le menu",
     "expand": "Agrandir le menu",
+    "groups": {
+      "intake": "Accueil des clients",
+      "followUp": "Suivi",
+      "billing": "Facturation",
+      "communications": "Communications",
+      "team": "Équipe",
+      "other": "Autres"
+    },
     "breadcrumb": "Fil d'Ariane",
     "search": "Rechercher…",
     "searchLabel": "Rechercher",
@@ -585,8 +593,11 @@
           "title": "Réserver {module} aux testeurs ?",
           "body": "Tout le monde perd l'accès au module tout de suite, sauf les testeurs de la liste. L'administration aussi : ajoutez-vous à la liste si vous devez continuer à l'utiliser.",
           "action": "Réserver aux testeurs"
-        }
-      }
+        },
+        "moduleOff": "Le module est désactivé : activez-le pour que les testeurs le voient.",
+        "visibleTo": "Visible seulement par : {names}"
+      },
+      "dependencyOff": "{name} (désactivé)"
     },
     "jobs": {
       "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
@@ -2568,6 +2579,15 @@
           "payers": {
             "ivac": "N° IVAC",
             "ivacHelp": "Unique dans la clinique. Laissez vide pour le retirer."
+          },
+          "supervisor": {
+            "title": "Supervision",
+            "description": "Pour un stagiaire : le nom, l’ordre et le permis de son superviseur sont imprimés sur ses reçus.",
+            "label": "Superviseur",
+            "none": "Aucun (pas un stagiaire)",
+            "saved": "Superviseur enregistré.",
+            "loadError": "La liste des professionnels ne se charge pas.",
+            "inactive": "Un professionnel inactif"
           }
         }
       },
@@ -5872,6 +5892,7 @@
         "provinceAbroad": "Province ou État",
         "postalCode": "Code postal",
         "referralSource": "Comment avez-vous entendu parler de MANA ?",
+        "referralSourceShort": "Provenance",
         "referredBy": "Référé par",
         "customField": "Champ personnalisé",
         "primaryProfessional": "Professionnel principal",
@@ -7673,12 +7694,20 @@
       "sources": {
         "title": "Provenance",
         "channel": "Canal",
-        "heard": "Comment la personne a entendu parler de MANA",
+        "heard": "Provenance déclarée",
         "campaign": "Campagne",
         "utm": "Paramètres de campagne",
         "referrer": "Page d’origine",
         "landing": "Page d’arrivée",
-        "none": "Non indiquée"
+        "heardQuestion": "Comment la personne a entendu parler de MANA",
+        "notSaid": "Non précisé",
+        "noCampaign": "Aucune donnée de campagne",
+        "edit": "Modifier",
+        "editTitle": "Modifier la provenance",
+        "capturedReadOnly": "La campagne et les pages notées par la page de réservation ne se modifient pas : le système les a enregistrées.",
+        "archivedSource": "Provenance retirée de la liste",
+        "saved": "Provenance enregistrée.",
+        "saveError": "La provenance n'a pas pu être enregistrée."
       },
       "waitlist": {
         "name": "Liste d'attente",
@@ -9148,13 +9177,20 @@
         "deleted": "Brouillon supprimé.",
         "credited": "Note de crédit émise : la facture est créditée.",
         "defaultPayer": "Payeur par défaut changé.",
-        "sequence": "Numérotation enregistrée."
+        "sequence": "Numérotation enregistrée.",
+        "held": "Brouillon mis en attente.",
+        "released": "Brouillon remis dans la file.",
+        "resent": "Envoi au payeur demandé.",
+        "payment": "Paiement enregistré : le reçu part au payeur.",
+        "agreement": "Entente particulière enregistrée.",
+        "queueFrom": "File du matin enregistrée."
       },
       "list": {
         "title": "Factures",
         "description": "Les factures de la clinique, des plus récentes aux plus anciennes. Une nouvelle facture se crée depuis le dossier du client (« Visites et paiements »).",
         "views": "États des factures",
         "view": {
+          "file": "File du matin",
           "brouillons": "Brouillons",
           "emises": "Émises",
           "creditees": "Créditées",
@@ -9164,7 +9200,8 @@
           "brouillons": "Aucun brouillon de facture.",
           "emises": "Aucune facture émise.",
           "creditees": "Aucune facture créditée.",
-          "toutes": "Aucune facture."
+          "toutes": "Aucune facture.",
+          "file": "La file du matin est vide."
         },
         "loadError": "Les factures ne se chargent pas.",
         "number": "Numéro",
@@ -9175,7 +9212,8 @@
         "total": "Total",
         "status": "État",
         "draft": "Brouillon",
-        "more": "Afficher plus"
+        "more": "Afficher plus",
+        "payment": "Paiement"
       },
       "invoice": {
         "title": "Facture {number}",
@@ -9234,7 +9272,46 @@
         "creditTitle": "Émettre une note de crédit ?",
         "creditBody": "La facture entière est créditée et ne compte plus. Pour corriger, créez ensuite une nouvelle facture.",
         "creditReason": "Raison",
-        "creditSubmit": "Émettre la note de crédit"
+        "creditSubmit": "Émettre la note de crédit",
+        "sendFinalize": "Finaliser et envoyer",
+        "finalizeOnly": "Finaliser sans envoyer",
+        "sentOne": "Facture {number} finalisée et envoyée au payeur.",
+        "preview": "Aperçu PDF",
+        "previewError": "L’aperçu ne s’est pas fait. Réessayez dans un moment.",
+        "download": "Télécharger le PDF",
+        "downloadCreditNote": "PDF de la note de crédit",
+        "resend": "Renvoyer au payeur",
+        "held": "En attente : {reason}.",
+        "release": "Remettre dans la file",
+        "noEmail": "Le payeur n’a pas d’adresse courriel : la facture ne partira pas par courriel. Choisissez un autre payeur, ou remettez-la autrement.",
+        "delivery": {
+          "pending": "Envoi en cours : le PDF se prépare.",
+          "sent": "Envoyée au payeur par courriel le {date}.",
+          "no_email": "PDF prêt. Pas envoyé par courriel : le payeur n’a pas d’adresse.",
+          "reserved": "PDF prêt. Pas envoyé par courriel : la Facturation est réservée à ses testeurs.",
+          "not_requested": "PDF prêt. Pas envoyé par courriel.",
+          "module_disabled": "PDF prêt. Pas envoyé par courriel : le module est désactivé.",
+          "emailFailed": "L’adresse courriel du payeur a été refusée.",
+          "failed": "Le PDF ou le courriel a échoué. Utilisez « Renvoyer au payeur »."
+        },
+        "payments": {
+          "title": "Paiements",
+          "list": "Paiements de la facture",
+          "none": "Aucun paiement.",
+          "balance": "Solde : {amount}",
+          "paid": "Payé : {amount}",
+          "receipt": "Reçu {number}",
+          "receiptPdf": "PDF du reçu {number}",
+          "add": "Enregistrer un paiement",
+          "mode": "Mode de paiement",
+          "amount": "Montant",
+          "amountHelp": "Au plus le solde de la facture.",
+          "paidOn": "Date du paiement",
+          "reference": "Référence",
+          "referenceHelp": "Le numéro du virement Interac ou du chèque, par exemple.",
+          "submit": "Enregistrer le paiement",
+          "dateInvalid": "Indiquez la date du paiement."
+        }
       },
       "client": {
         "title": "Factures",
@@ -9251,11 +9328,37 @@
         "invoices": "Factures du dossier",
         "noInvoice": "Aucune facture pour ce dossier.",
         "draft": "Brouillon",
-        "billedTo": "facturée à {name}"
+        "billedTo": "facturée à {name}",
+        "balance": "Solde du dossier : {amount}",
+        "agreement": {
+          "title": "Entente particulière",
+          "help": "Les séances de ce dossier s’arrêtent dans la file du matin pour validation avant l’envoi.",
+          "note": "Note de l’entente",
+          "save": "Enregistrer l’entente",
+          "end": "Terminer l’entente",
+          "none": "Aucune entente particulière.",
+          "noteInvalid": "La note compte de 3 à 500 caractères."
+        },
+        "payments": "Paiements du dossier",
+        "noPayment": "Aucun paiement.",
+        "paymentLine": "{amount} le {date} ({mode}), facture {invoice}",
+        "statement": {
+          "title": "Relevés",
+          "help": "Les factures, notes de crédit et paiements d’une année, pour un payeur.",
+          "year": "Année",
+          "payer": "Payeur",
+          "make": "Préparer le relevé",
+          "send": "Préparer et envoyer au payeur",
+          "list": "Relevés du dossier",
+          "item": "Relevé {year}",
+          "preparing": "en préparation",
+          "download": "Télécharger",
+          "made": "Relevé demandé : il sera prêt dans un instant."
+        }
       },
       "settings": {
         "title": "Facturation",
-        "description": "La numérotation des factures. QuickBooks a ses propres sections.",
+        "description": "La numérotation des factures et la file du matin. QuickBooks a ses propres sections.",
         "loadError": "La numérotation ne se charge pas.",
         "numberInvalid": "Indiquez un nombre entier.",
         "numbering": {
@@ -9263,6 +9366,12 @@
           "description": "Les factures sont numérotées par année (AAAA-N), sans trou. La prochaine facture sera la {next}.",
           "last": "Dernier numéro utilisé en {year}",
           "lastHelp": "À la bascule, le dernier numéro de GOrendezvous pour l'année ; jamais moins qu'un numéro déjà donné ici."
+        },
+        "queue": {
+          "title": "File du matin",
+          "description": "Chaque nuit, les séances réalisées la veille deviennent des brouillons de facture à relire et à envoyer. Rien n’est préparé avant la date choisie : à la bascule, choisissez le premier jour qui suit GOrendezvous.",
+          "from": "À partir du",
+          "fromHelp": "Au plus tôt il y a 14 jours. Vide : la file est arrêtée."
         }
       },
       "qbo": {
@@ -9776,6 +9885,38 @@
               "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
             }
           }
+        }
+      },
+      "payment": {
+        "unpaid": "Non payée",
+        "partial": "Payée en partie",
+        "paid": "Payée"
+      },
+      "queue": {
+        "label": "Brouillons de la file du matin",
+        "description": "Les séances réalisées les jours précédents, prêtes à relire et à envoyer. Celles qui demandent une validation sont en tête.",
+        "loadError": "La file du matin ne se charge pas.",
+        "empty": "Rien à envoyer : la file du matin est vide.",
+        "sendAll": "Tout envoyer ({count})",
+        "send": "Envoyer",
+        "open": "Ouvrir",
+        "hold": "Mettre en attente",
+        "release": "Remettre dans la file",
+        "validate": "Valider l’entente",
+        "session": "Séance du {date}",
+        "billedTo": "Facturé à {name}",
+        "sent": "Factures envoyées : {count}.",
+        "refused": "Pas envoyée ({client}) : {message}",
+        "holdTitle": "Mettre ce brouillon en attente ?",
+        "holdBody": "Il reste dans la file, en tête, jusqu’à ce que vous le remettiez dans la file. « Tout envoyer » ne l’envoie pas.",
+        "holdNote": "Note (facultative)",
+        "holdSubmit": "Mettre en attente",
+        "holds": {
+          "special_agreement": "Entente particulière : à valider",
+          "client_agreement": "Entente avec le professionnel : à valider",
+          "manual": "En attente",
+          "price_missing": "Montant à indiquer",
+          "payer_missing": "Payeur sans adresse courriel"
         }
       },
       "stripe": {

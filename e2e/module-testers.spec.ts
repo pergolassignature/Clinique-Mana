@@ -45,6 +45,8 @@ test('the admin reserves Facturation for the adjointe, then opens it again', asy
     await page.getByLabel('Ajouter un testeur…').selectOption({ label: 'Adjointe Locale (Adjointe administrative)' })
     await expect(page.getByText('Testeur ajouté.')).toBeVisible()
     await expect(page.getByRole('list', { name: 'Testeurs de Facturation' }).getByText('Adjointe Locale')).toBeVisible()
+    // On and reserved: who sees it, said in one line.
+    await expect(page.getByText(/^Visible seulement par\s:\sAdjointe Locale$/)).toBeVisible()
 
     // The admin is not listed: Facturation is gone for her.
     await page.goto('/accueil')

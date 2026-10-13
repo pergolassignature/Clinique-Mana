@@ -408,6 +408,12 @@ Jonathan's answers to the five questions of the [desktop layout audit](../audit/
 | UI-4 | Paramètres heading | The « Paramètres » H1 is removed; the **section title is the page's H1** (the breadcrumb and the menu already say « Paramètres »). Decided by Jonathan, 2026-10-10. | Four heading levels in 7 px (finding 5). |
 | UI-5 | Small form sections | Small sections may be merged where the audit's mockups show it (record « Expérience » + « Numéros de payeurs » → « Expérience et payeurs »): one « Enregistrer » then saves both. Decided by Jonathan, 2026-10-10. | Two-field cards cost 164 px each (finding 3). |
 
+## Menu decisions (Jonathan, 2026-10-13)
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| NAV-1 | The menu by section | The sidebar groups its items under small uppercase headings, in this order: Accueil (no heading, with the professional's own pages: « Mon profil », « Mes documents », « Mon agenda », « Vidéoconférence », « Mes clients », « Ma paie », in their own order), **Accueil des clients** (Demandes, Appels découverte, Liste d'attente), **Suivi** (Agenda, Clients, Consentements), **Facturation** (Facturation, Paie; later « Revenus »), **Communications** (Courriels, Textos), **Équipe** (Professionnels), then Paramètres at the bottom (no heading). Core owns the sections (`src/core/modules/nav-groups.ts`); a module's nav item names its section (`group`), else « Autres » before Paramètres; a section with no item for the user shows no heading, so a professional sees her menu with no heading at all. A labelled section is a `role="group"` named by its heading (plain text, never a tab stop); collapsed, the headings are read out only and a rule separates the sections. The palette and Accueil's shortcuts follow the same order. Asked by Jonathan, 2026-10-13; revisable. | Twelve items in one list, once every module is on for the testers. |
+
 ## Performance decisions (2026-10-10)
 
 Page-load work after Jonathan's « the app should run with smaller photos… it takes long to load pages » and « it should all be automatic ». Measurements: the PR bodies (perf/photo-variants, perf/url-reuse, perf/chunks).
@@ -714,6 +720,7 @@ Module Demandes ([coding plan §10](2026-10-11-modules-coding-plan.md#10-demande
 | D-23 | A slot no longer possible | Accepting re-checks every rule (R1b); when the slot cannot be booked any more (taken, outside the availability, its hold gone or expired, a balance owed), the page says why in plain words and the other slots stay offered; the link is not spent. Déléguée — révisable. | Never a silent failure for the person. |
 | D-24 | Without a user | The proposal's email and page and the waiting list's follow-up email name the professional through Professionnels' new `private.professional_display_facts` (name as on the fiche, primary title, status; public facts only, no grant), written by lane B as a Professionnels-owned migration at the coordinator's request; the recipient is Clients' published contact who manages the client's appointments. Déléguée — révisable. | `professionals_directory` needs professionals.view and reads nothing in a job or behind a link. |
 | D-25 | Sources read from Clients' catalogue | The booking page's list, the booking's check and the view `demandes_sources` read Clients' published `referral_sources_catalog` (active sources), never the table (CLAUDE.md §5). A source retired since a request shows in the view without its name; its id stays. Déléguée — révisable. | D3c follow-up (lane C, 2026-10-13); C4 published the catalogue. |
+| D-26 | « Provenance » corrected | A counselor who made a mistake corrects the channel and « Provenance déclarée » (« Modifier » on the card, `demandes.manage`, `set_demande_source`: the channel list, the clinic's sources or « Non précisé »; audited before and after; a closed request too). The booking page's capture (campaign, utm_*, referrer, landing page) stays read only, and its empty lines are not shown. | Jonathan, 2026-10-13: a wrong channel skewed the intake statistics (D6); what the system recorded is a fact. |
 
 ## Video links (batch RZ, lane C, 2026-10-13)
 

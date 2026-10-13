@@ -36,6 +36,15 @@ test('the counselor takes a request from the first call to its closing', async (
   await expect(page).toHaveURL(/\/demandes\/[0-9a-f-]{36}\/accueil$/)
   await expect(page.getByRole('button', { name: 'Changer de dossier' })).toBeVisible()
 
+  // « Provenance » corrected (D-26): the channel typed by mistake; nothing captured to show.
+  const source = page.getByRole('region', { name: 'Provenance' })
+  await expect(source.getByText('Aucune donnée de campagne')).toBeVisible()
+  await source.getByRole('button', { name: 'Modifier' }).click()
+  await source.getByRole('combobox', { name: 'Canal' }).selectOption('email')
+  await source.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByText('Provenance enregistrée.')).toBeVisible()
+  await expect(source.getByText('Courriel', { exact: true })).toBeVisible()
+
   // A first call, not answered.
   await page.getByRole('button', { name: 'Noter un appel' }).first().click()
   const call = page.getByRole('dialog', { name: `Noter un appel : ${name}` })

@@ -19,9 +19,11 @@ const mocks = vi.hoisted(() => ({
     addAdjustment: vi.fn(),
     issueCreditNote: vi.fn(),
   },
+  queue: { sendInvoices: vi.fn(), recordPayment: vi.fn(), releaseDraft: vi.fn(), resendDocument: vi.fn(), deliverNow: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/invoices', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
+vi.mock('../api/queue', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.queue }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -44,6 +46,14 @@ const bundle = (overrides: Partial<InvoiceBundle['invoice']> = {}): InvoiceBundl
     totalCents: 17349,
     notesClient: null,
     notesInternal: null,
+    queueDay: null,
+    holdReason: null,
+    holdNow: null,
+    holdNote: null,
+    paidCents: 0,
+    paymentStatus: 'unpaid',
+    pdfFileId: null,
+    payerHasEmail: true,
     ...overrides,
   },
   client: { id: 'c1', name: 'Léa Essai', clientNumber: 12 },
@@ -67,6 +77,12 @@ const bundle = (overrides: Partial<InvoiceBundle['invoice']> = {}): InvoiceBundl
     },
   ],
   creditNote: null,
+  payments: [],
+  deliveries: [],
+  paymentModes: [
+    { code: 'interac', name: 'Virement Interac' },
+    { code: 'cheque', name: 'Chèque' },
+  ],
 })
 
 function open(role: FixtureRole = 'admin_assistant') {
@@ -92,6 +108,11 @@ beforeEach(() => {
   mocks.api.setLinePrice.mockResolvedValue(undefined)
   mocks.api.addAdjustment.mockResolvedValue(undefined)
   mocks.api.issueCreditNote.mockResolvedValue(undefined)
+  mocks.queue.sendInvoices.mockResolvedValue([{ invoiceId: 'i1', number: '2026-602', error: null }])
+  mocks.queue.recordPayment.mockResolvedValue('r1')
+  mocks.queue.releaseDraft.mockResolvedValue(undefined)
+  mocks.queue.resendDocument.mockResolvedValue(undefined)
+  mocks.queue.deliverNow.mockResolvedValue({ done: 1, failed: 0 })
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -108,13 +129,13 @@ describe('InvoicePage', () => {
     await waitFor(() => expect(mocks.api.setInvoicePayer).toHaveBeenCalledWith('i1', 'c3'))
   })
 
-  it('an amount to type, then « Finaliser » numbers it', async () => {
+  it('an amount to type, then « Finaliser sans envoyer » numbers it (its PDF, no email)', async () => {
     const user = userEvent.setup()
     open()
     await user.type(await screen.findByLabelText(t(`${I}.amountFor`, { description: 'Rédaction de rapport' })), '84,00')
     await user.click(screen.getByRole('button', { name: t(`${I}.amountSave`) }))
     await waitFor(() => expect(mocks.api.setLinePrice).toHaveBeenCalledWith('l3', 8400))
-    await user.click(screen.getByRole('button', { name: t(`${I}.finalize`) }))
+    await user.click(screen.getByRole('button', { name: t(`${I}.finalizeOnly`) }))
     await waitFor(() => expect(mocks.api.finalizeInvoice).toHaveBeenCalledWith('i1'))
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${I}.finalized`, { number: '2026-601' }))
   })
@@ -137,7 +158,7 @@ describe('InvoicePage', () => {
     mocks.api.fetchInvoice.mockResolvedValue(bundle({ status: 'issued', number: '2026-12', issuedOn: '2026-10-13' }))
     open()
     expect(await screen.findByRole('heading', { level: 1, name: t(`${I}.title`, { number: '2026-12' }) })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: t(`${I}.finalize`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t(`${I}.sendFinalize`) })).not.toBeInTheDocument()
     expect(screen.queryByRole('form', { name: t(`${I}.adjustment.title`) })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: t(`${I}.credit`) }))
     const dialog = await screen.findByRole('dialog', { name: t(`${I}.creditTitle`) })
@@ -149,7 +170,61 @@ describe('InvoicePage', () => {
   it('the conseillère reads, never edits', async () => {
     open('counselor')
     expect(await screen.findByRole('heading', { level: 1, name: t(`${I}.draftTitle`) })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: t(`${I}.finalize`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t(`${I}.sendFinalize`) })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^Facturé à/)).not.toBeInTheDocument()
+  })
+
+  it('« Finaliser et envoyer »: numbered and sent at once (the PDF made right after); a refusal is said', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchInvoice.mockResolvedValue({ ...bundle(), lines: bundle().lines.slice(0, 2) })
+    open()
+    await user.click(await screen.findByRole('button', { name: t(`${I}.sendFinalize`) }))
+    await waitFor(() => expect(mocks.queue.sendInvoices).toHaveBeenCalledWith(['i1']))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${I}.sentOne`, { number: '2026-602' }))
+    await waitFor(() => expect(mocks.queue.deliverNow).toHaveBeenCalled())
+    mocks.queue.sendInvoices.mockResolvedValue([{ invoiceId: 'i1', number: null, error: 'Ce brouillon est en attente.' }])
+    await user.click(screen.getByRole('button', { name: t(`${I}.sendFinalize`) }))
+    expect(await screen.findByText('Ce brouillon est en attente.')).toBeInTheDocument()
+  })
+
+  it('a queued draft held for an agreement: the reason, « Remettre dans la file »', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchInvoice.mockResolvedValue(
+      bundle({ queueDay: '2026-10-13', holdReason: 'special_agreement', holdNow: 'special_agreement', holdNote: 'Tarif convenu' }),
+    )
+    open()
+    expect(await screen.findByText(t(`${I}.held`, { reason: t('modules.billing.queue.holds.special_agreement') }))).toBeInTheDocument()
+    expect(screen.getByText('Tarif convenu')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${I}.release`) }))
+    await waitFor(() => expect(mocks.queue.releaseDraft).toHaveBeenCalledWith('i1'))
+  })
+
+  it('an issued invoice: its email\u2019s outcome, its payments with their receipts, a payment recorded (the balance by default)', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...bundle({ status: 'issued', number: '2026-12', issuedOn: '2026-10-13', paidCents: 5000, paymentStatus: 'partial' }),
+      deliveries: [
+        { id: 'd1', status: 'done', sendEmail: true, emailStatus: 'skipped', skipReason: 'no_email', createdAt: '2026-10-13T12:00:00Z', finishedAt: '2026-10-13T12:01:00Z' },
+      ],
+      payments: [
+        {
+          id: 'p1', modeCode: 'interac', mode: 'Virement Interac', amountCents: 5000, paidOn: '2026-10-13', reference: 'CA1234',
+          receiptId: 'r1', receiptNumber: 'R-2026-1', receiptFileId: null, receiptDeliveries: [],
+        },
+      ],
+    })
+    open()
+    expect(await screen.findByText(t('modules.billing.invoice.delivery.no_email'))).toBeInTheDocument()
+    expect(screen.getByText(t('modules.billing.payment.partial'))).toBeInTheDocument()
+    const list = screen.getByRole('list', { name: t(`${I}.payments.list`) })
+    expect(within(list).getByText(/R-2026-1/)).toBeInTheDocument()
+    const form = screen.getByRole('form', { name: t(`${I}.payments.add`) })
+    expect(within(form).getByLabelText(/^Montant/)).toHaveValue('123,49')
+    await user.selectOptions(within(form).getByLabelText(/^Mode de paiement/), 'cheque')
+    await user.type(within(form).getByLabelText(/^Référence/), '0042')
+    await user.click(within(form).getByRole('button', { name: t(`${I}.payments.submit`) }))
+    await waitFor(() =>
+      expect(mocks.queue.recordPayment).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: 'i1', modeCode: 'cheque', amountCents: 12349, reference: '0042' })),
+    )
   })
 })

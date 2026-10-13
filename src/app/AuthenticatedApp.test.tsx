@@ -279,6 +279,51 @@ describe('AuthenticatedApp', () => {
     ])
   })
 
+  // Decision NAV-1: the menu by section, each section headed but Accueil's and Paramètres'.
+  it('groups the menu by section, every module enabled, for an admin', () => {
+    render(appAt('/introuvable', accessForRole('admin', { modules: ALL_MODULES.map((m) => m.key) })))
+    expect(menuLinks()).toEqual([
+      t('nav.home'),
+      t('modules.demandes.name'),
+      t('modules.demandes.calls.nav'),
+      t('modules.demandes.waitlist.name'),
+      t('modules.appointments.agenda.title'),
+      t('modules.clients.name'),
+      t('modules.clients.consents.nav'),
+      t('modules.billing.name'),
+      t('modules.communications.inbox.menu'),
+      t('modules.communications.sms.nav'),
+      t('modules.professionals.name'),
+      t('nav.settings'),
+    ])
+    const nav = screen.getByRole('navigation', { name: t('nav.label') })
+    const section = (key: Parameters<typeof t>[0]) =>
+      within(within(nav).getByRole('group', { name: t(key) }))
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+    const headings = within(nav)
+      .getAllByRole('group')
+      .map((g) => document.getElementById(g.getAttribute('aria-labelledby') ?? '')?.textContent)
+    expect(headings).toEqual([
+      t('nav.groups.intake'),
+      t('nav.groups.followUp'),
+      t('nav.groups.billing'),
+      t('nav.groups.communications'),
+      t('nav.groups.team'),
+    ])
+    expect(section('nav.groups.followUp')).toEqual([t('modules.appointments.agenda.title'), t('modules.clients.name'), t('modules.clients.consents.nav')])
+    expect(section('nav.groups.team')).toEqual([t('modules.professionals.name')])
+  })
+
+  it('shows a professional her own pages after Accueil with no section heading', () => {
+    render(appAt('/introuvable', accessForRole('provider', { modules: ALL_MODULES.map((m) => m.key) })))
+    const nav = screen.getByRole('navigation', { name: t('nav.label') })
+    expect(within(nav).queryAllByRole('group')).toEqual([])
+    expect(menuLinks()[0]).toBe(t('nav.home'))
+    expect(menuLinks()).toContain(t('modules.appointments.mine.title'))
+    expect(menuLinks()).not.toContain(t('modules.professionals.name'))
+  })
+
   // P4-319 (Task 4b.5): the module's Accueil card, for whoever holds professionals.self.
   it('shows a professional « Complétez votre profil » on Accueil while her questionnaire is open', async () => {
     const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')

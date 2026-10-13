@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import type { InvoiceStatus, LineType } from '../api/invoices'
+import type { InvoiceStatus, LineType, PaymentStatus } from '../api/invoices'
 
 /**
  * Money as the clinic reads it (fr-CA, a no-break space before the sign; the same forms as
@@ -25,3 +25,6 @@ export const statusLabel = (status: InvoiceStatus): string => t(`${V}.invoices.s
 export const lineTypeLabel = (type: LineType): string => t(`${V}.invoice_lines.line_type.${type}`)
 export const statusVariant = (status: InvoiceStatus): 'outline' | 'success' | 'secondary' =>
   status === 'draft' ? 'outline' : status === 'issued' ? 'success' : 'secondary'
+export const paymentLabel = (status: PaymentStatus): string => t(`modules.billing.payment.${status}`)
+export const paymentVariant = (status: PaymentStatus): 'warning' | 'info' | 'success' =>
+  status === 'unpaid' ? 'warning' : status === 'partial' ? 'info' : 'success'

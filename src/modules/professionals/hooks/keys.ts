@@ -66,6 +66,8 @@ export const professionalKeys = {
    */
   invitationStates: () => [...professionalKeys.lists(), 'invitation-states'] as const,
   record: (id: string) => [...professionalKeys.all, 'record', id] as const,
+  /** Who may supervise an intern (the active professionals): under `lists()`, refreshed with them. */
+  supervisors: () => [...professionalKeys.lists(), 'supervisors'] as const,
   /**
    * The record's onboarding line (`get_professional_onboarding`, P4-270), requested with the record:
    * under `record(id)`, so every record refresh refreshes it.

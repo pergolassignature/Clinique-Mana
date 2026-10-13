@@ -3,7 +3,7 @@ import type { ProfessionalRecord } from '../api/parse'
 import type { MatchingProfilePatch, ProfessionalPatch, PublicProfilePatch } from '../api/record'
 import { professionalKeys } from './keys'
 import type { MutationFeedback } from './mutation-feedback'
-import { useSetMatchingNote, useSetPayerNumber, useUpdateMatchingProfile, useUpdateProfessional, useUpdatePublicProfile } from './use-professional-mutations'
+import { useSetMatchingNote, useSetPayerNumber, useSetSupervisor, useUpdateMatchingProfile, useUpdateProfessional, useUpdatePublicProfile } from './use-professional-mutations'
 
 /** What a record card needs from its mutation: write the card's output, then call `onSaved`. */
 export interface CardSave<TOut> {
@@ -88,4 +88,10 @@ export const useSaveMatchingProfile: UseCardSave<MatchingProfilePatch> = (id, fe
 export const useSaveMatchingNote: UseCardSave<{ note: string | null }> = (id, feedback) => {
   const mutation = useSetMatchingNote(feedback)
   return { save: ({ note }, onSaved) => mutation.mutate({ id, note }, { onSuccess: onSaved }), pending: mutation.isPending }
+}
+
+/** « Supervision » (F2.0): the intern's supervisor; null removes it. */
+export const useSaveSupervisor: UseCardSave<{ supervisorId: string | null }> = (id, feedback) => {
+  const mutation = useSetSupervisor(feedback)
+  return { save: ({ supervisorId }, onSaved) => mutation.mutate({ id, supervisorId }, { onSuccess: onSaved }), pending: mutation.isPending }
 }
