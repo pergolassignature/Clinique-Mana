@@ -18,15 +18,17 @@ import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { AgendaReference } from '../api/agenda'
-import type { AgendaAppointment, AvailabilityRule } from '../api/parse'
+import type { AgendaAppointment } from '../api/parse'
 import { AppointmentSheet, type SheetTarget } from '../components/AppointmentSheet'
 import { ExceptionsPanel, RuleDialog, type RuleTarget } from '../components/AvailabilityEditors'
+import { AvailabilityGrid, type AvailabilityTool } from '../components/AvailabilityGrid'
 import { MonthView } from '../components/MonthView'
 import { PersonalDialog } from '../components/PersonalDialog'
 import { TimeGrid, type GridColumn } from '../components/TimeGrid'
 import { UpcomingList } from '../components/UpcomingList'
 import { WithoutReminderSheet } from '../components/WithoutReminderSheet'
 import { useAgenda, useAgendaReference, useAvailability, useMoveAppointment, useMyAgendaReference } from '../hooks/use-agenda'
+import { useAvailabilityEditing } from '../hooks/use-availability-edit'
 import { servicesFor, weekdayLabel } from '../lib/display'
 import { addDays, daysFrom, hhmm, isoWeekday, monthGrid, rangeOf, startOfWeek } from '../lib/time'
 
@@ -109,6 +111,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   // The editor holds an id: it always shows the agenda's current row (never a stale snapshot).
   const [sheet, setSheet] = useState<SheetState | null>(null)
   const [rule, setRule] = useState<RuleTarget | null>(null)
+  const [tool, setTool] = useState<AvailabilityTool>('available')
 
   const update = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params)
@@ -132,6 +135,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const first = effectiveView === 'jour' ? day : effectiveView === 'semaine' ? startOfWeek(day) : effectiveView === 'jours' ? day : monthGrid(day)[0]!
   const length = effectiveView === 'jour' ? 1 : effectiveView === 'semaine' ? 7 : effectiveView === 'jours' ? UPCOMING_DAYS : 42
   const range = rangeOf(first, length)
+  const availabilityEditing = useAvailabilityEditing(pro, first)
   const agenda = useAgenda(range.from, range.to, shownIds, mode === 'rendez-vous')
   const availabilityIds = mode === 'disponibilites' ? (pro ? [pro] : []) : effectiveView === 'jour' ? shown.map((p) => p.id) : pro ? [pro] : []
   const availability = useAvailability(availabilityIds, range.from)
@@ -184,10 +188,6 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
         }))
 
   const onCreate = (d: string, minutes: number, professionalId: string | null) => {
-    if (mode === 'disponibilites') {
-      if (pro) setRule({ professionalId: pro, weekday: isoWeekday(d), startTime: hhmm(minutes) })
-      return
-    }
     if (mine) setPersonal({ day: d, time: hhmm(minutes) })
     else setSheet({ kind: 'create', professionalId: professionalId ?? pro, day: d, time: hhmm(minutes) })
   }
@@ -199,7 +199,17 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
         title={mine ? t('modules.appointments.mine.title') : t(`${A}.title`)}
         description={mine ? t('modules.appointments.mine.description') : t(`${A}.description`)}
         actions={
-          mine ? (
+          mode === 'disponibilites' ? (
+            canWrite && pro ? (
+              <Button
+                type="button"
+                onClick={() => setRule({ professionalId: pro, weekday: first <= today && today <= addDays(first, 6) ? isoWeekday(today) : 1, startTime: '09:00' })}
+              >
+                <Plus aria-hidden />
+                {t('modules.appointments.availability.addWindow')}
+              </Button>
+            ) : undefined
+          ) : mine ? (
             canWrite && mode === 'rendez-vous' ? (
               <Button type="button" onClick={() => setPersonal({ day, time: '12:00' })}>
                 <Plus aria-hidden />
@@ -295,15 +305,46 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
         <UpcomingList appointments={appointments} services={reference.services} professionalName={professionalName} onOpen={(a) => setSheet({ kind: 'edit', id: a.id })} />
       ) : (
         <div className="space-y-4">
-          {columns.length === 0 ? (
+          {mode === 'disponibilites' && pro ? (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <SegmentedToggle
+                  label={t('modules.appointments.availability.tool')}
+                  value={tool}
+                  onChange={setTool}
+                  options={[
+                    { value: 'available', label: t('modules.appointments.availability.toolAvailable') },
+                    { value: 'block', label: t('modules.appointments.availability.toolBlock') },
+                  ]}
+                />
+                <p className="min-w-0 basis-full text-xs text-muted-foreground sm:basis-0 sm:flex-1">
+                  {t(tool === 'block' ? 'modules.appointments.availability.gridHelpBlock' : 'modules.appointments.availability.gridHelp')}
+                </p>
+              </div>
+              <AvailabilityGrid
+                columns={columns}
+                professionalId={pro}
+                rules={availability.data?.rules ?? []}
+                exceptions={availability.data?.exceptions ?? []}
+                canWrite={canWrite}
+                tool={tool}
+                onCreate={availabilityEditing.create}
+                onChange={availabilityEditing.change}
+                onBlock={availabilityEditing.block}
+                onWeekly={availabilityEditing.setWeekly}
+                onDelete={availabilityEditing.remove}
+                onMore={(r) => setRule({ rule: r })}
+                onUnblock={availabilityEditing.unblock}
+              />
+            </>
+          ) : columns.length === 0 ? (
             <EmptyState title={t(`${A}.noProfessional`)} />
           ) : (
             <TimeGrid
               columns={columns}
-              appointments={mode === 'rendez-vous' ? appointments : []}
+              appointments={appointments}
               rules={availability.data?.rules ?? []}
               exceptions={availability.data?.exceptions ?? []}
-              mode={mode === 'rendez-vous' ? 'booking' : 'availability'}
               shadeProfessionalId={pro}
               professionalName={professionalName}
               showProfessional={effectiveView === 'semaine' && !pro}
@@ -311,10 +352,18 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
               onCreate={onCreate}
               onOpen={(a) => setSheet({ kind: 'edit', id: a.id })}
               onMove={onMove}
-              onRule={(r: AvailabilityRule) => setRule({ rule: r })}
             />
           )}
-          {mode === 'disponibilites' && pro && <ExceptionsPanel professionalId={pro} weekStart={first} exceptions={availability.data?.exceptions ?? []} />}
+          {mode === 'disponibilites' && pro && (
+            <ExceptionsPanel
+              professionalId={pro}
+              weekStart={first}
+              exceptions={availability.data?.exceptions ?? []}
+              mine={mine}
+              onVacationWeek={availabilityEditing.vacationWeek}
+              busy={availabilityEditing.busy}
+            />
+          )}
         </div>
       )}
 

@@ -154,3 +154,57 @@ test('« Clients sans rappel » opens the coming appointments nobody can be remi
   const sheet = page.getByRole('dialog', { name: 'Clients sans rappel' })
   await expect(sheet.getByText(/7 prochains jours/).first()).toBeVisible()
 })
+
+test('« Disponibilités » by direct manipulation: draw, undo, move, resize, undo, delete (AP-27)', async ({ page, signIn }) => {
+  const monday = nextMonday()
+  const saturday = new Date(`${monday}T12:00:00Z`)
+  saturday.setUTCDate(saturday.getUTCDate() + 5)
+  await signIn('admin')
+  await page.goto(`/agenda?professionnel=${FELIX}&date=${monday}&mode=disponibilites`)
+  // Félix's seeded windows: Monday to Friday; Saturday is empty.
+  const column = page.getByTestId(`agenda-column-${saturday.toISOString().slice(0, 10)}`)
+  await expect(column).toBeVisible()
+  const toast = (text: string) => page.locator('[data-sonner-toast]').filter({ hasText: text })
+  // A drag between two times of Saturday (hours, 48 px each below 7:00), measured afresh: the grid's
+  // top at the top of the window, so the toasts (bottom right) stay clear of the hours used.
+  const drag = async (from: number, to: number) => {
+    await column.evaluate((el) => el.scrollIntoView({ block: 'start' }))
+    const box = (await column.boundingBox())!
+    const x = box.x + box.width / 2
+    const at = (hours: number) => box.y + (hours - 7) * 48
+    await page.mouse.move(x, at(from))
+    await page.mouse.down()
+    await page.mouse.move(x, (at(from) + at(to)) / 2, { steps: 4 })
+    await page.mouse.move(x, at(to), { steps: 4 })
+    await page.mouse.up()
+  }
+
+  // Draw Saturday 9:00–12:00: saved at once, weekly; « Annuler » takes it back.
+  await drag(9.05, 11.95)
+  await expect(toast('Disponible le samedi 9 h – 12 h, chaque semaine')).toBeVisible()
+  await expect(column.getByRole('button', { name: 'Plage de 09:00 à 12:00' })).toBeVisible()
+  await toast('Disponible le samedi 9 h – 12 h').getByRole('button', { name: 'Annuler' }).click()
+  await expect(page.getByText("C'est annulé.").first()).toBeVisible()
+  await expect(column.getByRole('button', { name: 'Plage de 09:00 à 12:00' })).toHaveCount(0)
+
+  // Again, then moved an hour down.
+  await drag(9.05, 11.95)
+  await expect(column.getByRole('button', { name: 'Plage de 09:00 à 12:00' })).toBeVisible()
+  await drag(10.5, 11.5)
+  await expect(toast('Plage modifiée : samedi 10 h – 13 h, chaque semaine')).toBeVisible()
+  const moved = column.getByRole('button', { name: 'Plage de 10:00 à 13:00' })
+  await expect(moved).toBeVisible()
+
+  // Its bottom edge an hour down, then « Annuler ».
+  await drag(12.95, 13.95)
+  await expect(toast('Plage modifiée : samedi 10 h – 14 h, chaque semaine')).toBeVisible()
+  await expect(column.getByRole('button', { name: 'Plage de 10:00 à 14:00' })).toBeVisible()
+  await toast('Plage modifiée : samedi 10 h – 14 h').getByRole('button', { name: 'Annuler' }).click()
+  await expect(moved).toBeVisible()
+
+  // A click: « Supprimer ».
+  await moved.click()
+  await page.getByRole('button', { name: 'Supprimer' }).click()
+  await expect(toast('Plage supprimée : samedi 10 h – 13 h')).toBeVisible()
+  await expect(moved).toHaveCount(0)
+})

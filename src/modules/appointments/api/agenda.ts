@@ -355,3 +355,94 @@ export async function removeAvailabilityException(id: string): Promise<void> {
   const { error } = await supabase.rpc('remove_availability_exception', { p_id: id })
   if (error) throw error
 }
+
+// --- Availability by direct manipulation (AP-27) -------------------------------------------------
+
+export interface WindowInput {
+  /** null: a new window with the defaults (every service, visible, no overflow). */
+  id: string | null
+  professionalId: string
+  weekday: number
+  /** Minutes since midnight. */
+  start: number
+  end: number
+  validFrom: string | null
+  validUntil: string | null
+  /** The Monday shown: its occurrence may not overlap an exception. */
+  week: string | null
+}
+
+const minutesOfTime = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5))
+const timeOf = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+
+const windowResultPayload = z
+  .object({
+    id: z.string(),
+    weekday: z.number().int().min(1).max(7),
+    start_time: z.string(),
+    end_time: z.string(),
+    valid_from: z.string(),
+    valid_until: z.string().nullable(),
+    previous: rulePayload.nullable(),
+    absorbed: z.array(rulePayload),
+    outside_count: z.number().int(),
+  })
+  .transform((r) => ({
+    id: r.id,
+    weekday: r.weekday,
+    start: minutesOfTime(r.start_time),
+    end: minutesOfTime(r.end_time),
+    validFrom: r.valid_from,
+    validUntil: r.valid_until,
+    previous: r.previous,
+    absorbed: r.absorbed,
+    outsideCount: r.outside_count,
+  }))
+export type WindowResult = z.output<typeof windowResultPayload>
+
+/** A drop on the grid: creates, moves or resizes a window; compatible ones it touches are merged. */
+export async function setAvailabilityWindow(input: WindowInput): Promise<WindowResult> {
+  const { data, error } = await supabase.rpc(
+    'set_availability_window',
+    sqlArgs<'set_availability_window'>({
+      p_id: input.id,
+      p_professional_id: input.professionalId,
+      p_weekday: input.weekday,
+      p_start_time: timeOf(input.start),
+      p_end_time: timeOf(input.end),
+      p_valid_from: input.validFrom,
+      p_valid_until: input.validUntil,
+      p_week: input.week,
+    }),
+  )
+  if (error) throw error
+  return parseRpc(windowResultPayload, data)
+}
+
+const ruleInputOf = (rule: AvailabilityRule, id: string | null): RuleInput => ({
+  id,
+  professionalId: rule.professionalId,
+  weekday: rule.weekday,
+  startTime: rule.startTime,
+  endTime: rule.endTime,
+  serviceIds: rule.serviceIds,
+  visibleToClients: rule.visibleToClients,
+  overflowAllowed: rule.overflowAllowed,
+  validFrom: rule.validFrom,
+  validUntil: rule.validUntil,
+})
+
+/**
+ * « Annuler » after a drop: the window back as it was (or gone, if the drop made it), then the
+ * windows it absorbed made again, through the same RPCs (and their checks).
+ */
+export async function undoAvailabilityWindow(result: WindowResult): Promise<void> {
+  if (result.previous) await saveAvailabilityRule(ruleInputOf(result.previous, result.id))
+  else await deleteAvailabilityRule(result.id)
+  for (const rule of result.absorbed) await saveAvailabilityRule(ruleInputOf(rule, null))
+}
+
+/** « Annuler » after « Supprimer »: the window made again with its settings. */
+export async function restoreAvailabilityRule(rule: AvailabilityRule): Promise<string> {
+  return saveAvailabilityRule(ruleInputOf(rule, null))
+}
