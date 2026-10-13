@@ -13,7 +13,7 @@
 --   adjointe@mana.test     role admin_assistant
 --   provider@mana.test     role provider
 --
--- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes` and `appointments` enabled.
+-- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes`, `appointments` and `billing` enabled.
 
 select set_config('app.audit_source', 'seed', false);
 
@@ -71,7 +71,8 @@ insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'services', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'clients', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111'),
-  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111');
+  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111'),
+  ('00000000-0000-0000-0000-000000000001', 'billing', true, '11111111-1111-1111-1111-111111111111');
 
 -- Local discovery-call booking (Demandes D3c): open, every day 8 h – 20 h, 30-minute calls, two at
 -- once, an hour's notice, two weeks ahead, so /appel-decouverte?clinique=00000000-0000-0000-0000-000000000001
