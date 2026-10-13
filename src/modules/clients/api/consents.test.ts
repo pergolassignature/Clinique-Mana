@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchConsentTemplates, fetchConsentsToObtain, saveConsentSettings, sendConsentRequest, UNEXPECTED_SHAPE } from './consents'
+import { fetchConsentTemplates, fetchConsentsToObtain, saveConsentSettings, sendConsentCopy, sendConsentRequest, UNEXPECTED_SHAPE, withdrawConsent } from './consents'
 
 const mocks = vi.hoisted(() => {
   const query = { select: vi.fn(), order: vi.fn(), limit: vi.fn() }
@@ -82,11 +82,23 @@ describe('fetchConsentsToObtain', () => {
 describe('saveConsentSettings / sendConsentRequest', () => {
   it('maps the fields to the columns of set_client_consent_settings', async () => {
     mocks.rpc.mockResolvedValue({
-      data: { due_days_before_first_appointment: 2, reminder_days: 7, pre_appointment_reminder_hours: 48, retention_policy: null },
+      data: { due_days_before_first_appointment: 2, reminder_days: 7, pre_appointment_reminder_hours: 48, retention_policy: null, signed_pdf_retention_years: 7 },
       error: null,
     })
-    await saveConsentSettings({ dueDays: 2, retentionPolicy: null })
-    expect(mocks.rpc).toHaveBeenCalledWith('set_client_consent_settings', { p_patch: { due_days_before_first_appointment: 2, retention_policy: null } })
+    const saved = await saveConsentSettings({ dueDays: 2, retentionPolicy: null, retentionYears: 7 })
+    expect(mocks.rpc).toHaveBeenCalledWith('set_client_consent_settings', {
+      p_patch: { due_days_before_first_appointment: 2, retention_policy: null, signed_pdf_retention_years: 7 },
+    })
+    expect(saved.retentionYears).toBe(7)
+  })
+
+  it('« Retirer le consentement » and « Envoyer la copie signée » (C5b)', async () => {
+    mocks.rpc.mockResolvedValue({ data: '2026-10-13T15:00:00+00:00', error: null })
+    expect(await withdrawConsent('k1', 'Au téléphone.')).toBe('2026-10-13T15:00:00+00:00')
+    expect(mocks.rpc).toHaveBeenCalledWith('withdraw_client_consent', { p_id: 'k1', p_note: 'Au téléphone.' })
+    mocks.invoke.mockResolvedValue({ consent_id: 'k1', copy_sent_at: null, recipients: [{ role: 'client', sent: false, code: 'provider_error' }] })
+    expect((await sendConsentCopy('k1')).recipients[0]?.code).toBe('provider_error')
+    expect(mocks.invoke).toHaveBeenCalledWith('clients-consent-send', { action: 'copy', consent_id: 'k1' })
   })
 
   it('« Envoyer » calls clients-consent-send with the record as the context', async () => {

@@ -135,7 +135,7 @@ select results_eq($$ select id, state from public.client_consent_requests where 
   'the one whose signature started stays; the other is cancelled');
 select is((select state from public.client_consent_requests where id = 'e1000000-0000-0000-0000-000000000006'), 'cancelled',
   'Chloé''s request: her two parents are now one person, so it is cancelled (sent again by the clinic)');
-select results_eq($$ select id, superseded_at is null, client_id, signed_file_id from public.client_consents where consent_key = 'general' order by id $$,
+select results_eq($$ select id, superseded_at is null, client_id, signed_file_id from public.client_consents where org_id = 'b0000000-0000-0000-0000-00000000000a' and consent_key = 'general' order by id $$,
   $$ values ('c1000000-0000-0000-0000-000000000001'::uuid, false, 'd0000000-0000-0000-0000-000000000001'::uuid, null::uuid),
             ('c1000000-0000-0000-0000-000000000002'::uuid, true,  'd0000000-0000-0000-0000-000000000001'::uuid, 'f0000000-0000-0000-0000-000000000001'::uuid) $$,
   'the latest signed consent stays in force with its sealed PDF; the older one is superseded, never deleted');
