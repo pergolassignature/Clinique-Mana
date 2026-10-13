@@ -34,6 +34,17 @@ export const communicationsManifest: ModuleManifest = {
   ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.communicationsAuditLabels),
+  // Clients' « Courriels » (CM3): the file's linked threads and « Écrire un courriel ». Only filled
+  // while Clients is on (the record exists only then).
+  slots: {
+    'client.messages': [
+      {
+        id: 'communications.mail',
+        permissions: ['communications.inbox'],
+        component: lazyPage(() => import('./pages/ClientMailPanel'), 'ClientMailPanel'),
+      },
+    ],
+  },
   settingsSections: [
     {
       id: 'gmail',

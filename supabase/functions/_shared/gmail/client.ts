@@ -141,6 +141,11 @@ const attachmentSchema = z.looseObject({
   size: z.number().optional(),
 })
 
+const sentSchema = z.looseObject({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+  threadId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+})
+
 export interface GmailClientOptions {
   fetch: typeof fetch
   /** The API origin (`gmailOrigins(env).api`). */
@@ -202,9 +207,16 @@ export class GmailClient {
       body?: unknown
       maxBytes?: number
       notFound?: GmailErrorCode
+      /** A raw body (an upload) instead of JSON. */
+      raw?: { contentType: string; bytes: Uint8Array }
+      /** `upload`: Google's upload endpoint (`/upload/gmail/v1/…`). */
+      base?: 'api' | 'upload'
+      /** False for a call that must never run twice (a send): no retry on 429 / 5xx. */
+      retry?: boolean
     } = {},
   ): Promise<z.output<S>> {
-    const url = new URL(`${this.#opts.origin}/gmail/v1/users/me/${path}`)
+    const prefix = options.base === 'upload' ? '/upload/gmail/v1' : '/gmail/v1'
+    const url = new URL(`${this.#opts.origin}${prefix}/users/me/${path}`)
     for (const [key, value] of Object.entries(options.query ?? {})) {
       for (const v of Array.isArray(value) ? value : [value]) {
         url.searchParams.append(key, v)
@@ -221,11 +233,15 @@ export class GmailClient {
           headers: {
             Authorization: `Bearer ${this.#opts.accessToken}`,
             Accept: 'application/json',
-            ...(options.body !== undefined
+            ...(options.raw
+              ? { 'Content-Type': options.raw.contentType }
+              : options.body !== undefined
               ? { 'Content-Type': 'application/json' }
               : {}),
           },
-          body: options.body !== undefined
+          body: options.raw
+            ? options.raw.bytes
+            : options.body !== undefined
             ? JSON.stringify(options.body)
             : undefined,
           redirect: 'error',
@@ -259,7 +275,10 @@ export class GmailClient {
       }
       await res.body?.cancel()
       const retryable = res.status === 429 || res.status >= 500
-      if (retryable && attempt < RETRY_DELAYS_MS.length) {
+      if (
+        retryable && options.retry !== false &&
+        attempt < RETRY_DELAYS_MS.length
+      ) {
         await sleep(RETRY_DELAYS_MS[attempt])
         continue
       }
@@ -370,6 +389,32 @@ export class GmailClient {
   ): Promise<void> {
     await this.#call('POST', 'messages/batchModify', z.null(), {
       body: { ids, addLabelIds, removeLabelIds },
+    })
+  }
+
+  /**
+   * `messages.send` through the upload endpoint (`uploadType=multipart`: the
+   * metadata, then the RFC 5322 bytes), in `threadId` when it continues one.
+   * Never retried: Gmail may have sent before failing to answer.
+   */
+  sendMessage(rfc822: Uint8Array, threadId?: string | null) {
+    const boundary = `send_${crypto.randomUUID()}`
+    const encoder = new TextEncoder()
+    const head = encoder.encode(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+        JSON.stringify(threadId ? { threadId } : {}) +
+        `\r\n--${boundary}\r\nContent-Type: message/rfc822\r\n\r\n`,
+    )
+    const tail = encoder.encode(`\r\n--${boundary}--\r\n`)
+    const bytes = new Uint8Array(head.length + rfc822.length + tail.length)
+    bytes.set(head, 0)
+    bytes.set(rfc822, head.length)
+    bytes.set(tail, head.length + rfc822.length)
+    return this.#call('POST', 'messages/send', sentSchema, {
+      base: 'upload',
+      query: { uploadType: 'multipart' },
+      raw: { contentType: `multipart/related; boundary=${boundary}`, bytes },
+      retry: false,
     })
   }
 

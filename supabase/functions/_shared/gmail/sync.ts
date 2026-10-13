@@ -549,6 +549,32 @@ function toRpcRow(m: ParsedMessage): Record<string, unknown> {
   return row
 }
 
+/**
+ * Mirrors one message now (`gmail-send`, CM3: the message just sent shows in
+ * its thread at once, without waiting for the sync). Its attachments are
+ * copied by the next pass, as any other's.
+ */
+export async function mirrorMessage(
+  client: SupabaseClient,
+  gmail: GmailClient,
+  orgId: string,
+  connectionId: string,
+  gmailMessageId: string,
+  now: Date,
+): Promise<void> {
+  const message = await gmail.getMessage(gmailMessageId, 'full')
+  const parsed = await completeMessage(gmail, message, now)
+  await rpcOrFail(
+    client.rpc('upsert_mail_messages', {
+      p_org_id: orgId,
+      p_connection_id: connectionId,
+      p_messages: [toRpcRow(parsed)],
+    }),
+    z.array(z.unknown()),
+    'upsert_failed',
+  )
+}
+
 const pendingSchema = z.array(z.object({
   attachment_id: z.string(),
   message_id: z.string(),

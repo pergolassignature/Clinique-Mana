@@ -9,6 +9,7 @@ import {
   type FakeResult,
   fakeSupabase,
   type RpcRoute,
+  type StorageRoute,
 } from './fake-supabase.ts'
 import {
   FAKE_CLIENT_ID,
@@ -389,6 +390,8 @@ export interface GmailHarnessOptions {
   gmail?: FakeGmailOptions
   env?: Record<string, string | undefined>
   rpc?: Record<string, RpcRoute>
+  /** More storage routes (gmail-send's `download`). */
+  storage?: Record<string, StorageRoute>
   /** The caller's permissions (the user client's `get_my_access`). */
   permissions?: string[]
   modules?: string[]
@@ -426,6 +429,7 @@ export function gmailHarness(opts: GmailHarnessOptions = {}) {
         })
         return { data: { path } }
       },
+      ...opts.storage,
     },
   })
   const user = fakeSupabase({

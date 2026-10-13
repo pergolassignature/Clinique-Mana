@@ -6024,7 +6024,8 @@
           "assurance-et-payeurs": "Assurance et payeurs",
           "consentements": "Consentements",
           "visites-et-paiements": "Visites et paiements",
-          "historique": "Historique"
+          "historique": "Historique",
+          "courriels": "Courriels"
         },
         "overview": {
           "person": "La personne",
@@ -6175,6 +6176,10 @@
           "title": "Doublons possibles : ces dossiers semblent être la même personne.",
           "open": "Ouvrir",
           "merge": "Fusionner"
+        },
+        "messages": {
+          "title": "Courriels",
+          "body": "Les courriels rattachés au dossier s'affichent ici quand le module Communications est activé."
         }
       },
       "mine": {
@@ -6323,7 +6328,9 @@
           "sms_consents": "Consentements aux textos",
           "mail_connections": "Boîtes Gmail",
           "mail_connection_tokens": "Jetons d'accès Gmail",
-          "mail_thread_links": "Rattachements des conversations"
+          "mail_thread_links": "Rattachements des conversations",
+          "mail_sends": "Courriels envoyés",
+          "mail_templates": "Modèles de courriel personnels"
         },
         "fields": {
           "sms_consents": {
@@ -6363,6 +6370,29 @@
             "source": "Origine",
             "linked_by": "Rattachée par",
             "linked_at": "Rattachée le"
+          },
+          "mail_sends": {
+            "connection_id": "Boîte",
+            "sent_by": "Envoyé par",
+            "send_key": "Clé d'envoi",
+            "mode": "Type",
+            "thread_id": "Conversation",
+            "client_id": "Client",
+            "draft_id": "Brouillon",
+            "template_key": "Modèle",
+            "recipient_count": "Destinataires",
+            "file_ids": "Pièces jointes",
+            "status": "Statut",
+            "error_code": "Code d'erreur",
+            "gmail_message_id": "Message Gmail",
+            "gmail_thread_id": "Conversation Gmail",
+            "sent_at": "Envoyé le"
+          },
+          "mail_templates": {
+            "owner_id": "Personne",
+            "name": "Nom",
+            "subject": "Objet",
+            "body_html": "Texte"
           }
         },
         "values": {
@@ -6403,6 +6433,19 @@
             "source": {
               "auto": "Automatique",
               "manual": "Manuelle"
+            }
+          },
+          "mail_sends": {
+            "mode": {
+              "new": "Nouveau message",
+              "reply": "Réponse",
+              "reply_all": "Réponse à tous",
+              "forward": "Transfert"
+            },
+            "status": {
+              "pending": "En cours",
+              "sent": "Envoyé",
+              "failed": "Échoué"
             }
           }
         }
@@ -6742,8 +6785,10 @@
             "starred": "Suivis",
             "sent": "Envoyés",
             "all": "Tous les courriels",
-            "to_link": "À rattacher"
-          }
+            "to_link": "À rattacher",
+            "drafts": "Brouillons"
+          },
+          "newMessage": "Nouveau message"
         },
         "list": {
           "label": "Conversations",
@@ -6787,7 +6832,10 @@
           "attachmentPending": "copie en cours",
           "attachmentInGmail": "dans Gmail seulement",
           "sizeKb": "{size} ko",
-          "sizeMb": "{size} Mo"
+          "sizeMb": "{size} Mo",
+          "reply": "Répondre",
+          "replyAll": "Répondre à tous",
+          "forward": "Transférer"
         },
         "link": {
           "label": "Dossier client",
@@ -6812,7 +6860,126 @@
           "archived": "Archivé",
           "linkedToast": "Courriel rattaché au dossier.",
           "unlinkedToast": "Courriel détaché du dossier."
+        },
+        "drafts": {
+          "label": "Brouillons",
+          "empty": "Aucun brouillon.",
+          "loadError": "Les brouillons n'ont pas pu être chargés.",
+          "noSubject": "(sans objet)",
+          "noRecipient": "(sans destinataire)",
+          "updated": "Modifié le {date}",
+          "modes": {
+            "new": "Nouveau",
+            "reply": "Réponse",
+            "reply_all": "Réponse à tous",
+            "forward": "Transfert"
+          }
         }
+      },
+      "composer": {
+        "titleNew": "Nouveau message",
+        "titleReply": "Répondre",
+        "titleForward": "Transférer",
+        "from": "De",
+        "to": "À",
+        "cc": "Cc",
+        "bcc": "Cci",
+        "addCopies": "Ajouter Cc ou Cci",
+        "subject": "Objet",
+        "body": "Message",
+        "bodyPlaceholder": "Écrivez votre message…",
+        "toolbar": "Mise en forme",
+        "bold": "Gras",
+        "italic": "Italique",
+        "bulletList": "Liste à puces",
+        "orderedList": "Liste numérotée",
+        "link": "Lien",
+        "linkAddress": "Adresse du lien",
+        "linkInvalid": "Cette adresse n'est pas valide (https://… ou mailto:…).",
+        "linkApply": "Appliquer",
+        "unlink": "Retirer le lien",
+        "insert": "Insérer",
+        "insertHint": "Rempli à l'envoi",
+        "placeholders": {
+          "person_first_name": "Prénom de la personne",
+          "person_last_name": "Nom de la personne",
+          "sender_name": "Votre nom",
+          "clinic_name": "Nom de la clinique"
+        },
+        "aboutFile": "Au sujet du dossier {file}",
+        "attach": "Joindre un fichier",
+        "attachHint": "PDF, image ou Word ; 10 Mo au plus par fichier, 18 Mo en tout.",
+        "attachments": "Pièces jointes",
+        "removeAttachment": "Retirer {name}",
+        "sizeKb": "{size} ko",
+        "sizeMb": "{size} Mo",
+        "send": "Envoyer",
+        "sending": "Envoi…",
+        "sendingIn": "Envoi dans {seconds} s.",
+        "undo": "Annuler l'envoi",
+        "sent": "Courriel envoyé.",
+        "templates": "Modèles",
+        "noTemplates": "Aucun modèle",
+        "clinicTemplates": "Modèles de la clinique",
+        "myTemplates": "Mes modèles",
+        "deleteTemplate": "Supprimer « {name} »",
+        "deleteTemplateTitle": "Supprimer le modèle « {name} » ?",
+        "deleteTemplateBody": "Le modèle est retiré de vos modèles. Les courriels déjà envoyés ne changent pas.",
+        "deleteTemplateAction": "Supprimer le modèle",
+        "templateDeleted": "Modèle supprimé.",
+        "saveAsTemplate": "Enregistrer comme modèle",
+        "templateName": "Nom du modèle",
+        "templateNameMissing": "Donnez un nom au modèle.",
+        "templateSave": "Enregistrer",
+        "templateSaved": "Modèle « {name} » enregistré.",
+        "replaceTitle": "Remplacer votre texte ?",
+        "replaceBody": "Le modèle remplace ce que vous avez écrit. Le message cité reste.",
+        "replaceAction": "Remplacer",
+        "discard": "Supprimer le brouillon",
+        "discardTitle": "Supprimer ce brouillon ?",
+        "discardBody": "Le brouillon et ce que vous avez écrit sont effacés. Rien n'est envoyé.",
+        "discardAction": "Supprimer le brouillon",
+        "discarded": "Brouillon supprimé.",
+        "close": "Fermer (le brouillon est gardé)",
+        "minimize": "Réduire",
+        "expand": "Agrandir",
+        "savedAt": "Brouillon enregistré à {time}",
+        "saveFailed": "Le brouillon n'a pas pu être enregistré.",
+        "cancelledByClose": "Envoi annulé : le message n'est pas parti, il est dans « Brouillons ».",
+        "draftGone": "Ce brouillon n'existe plus.",
+        "prefixReply": "Re :",
+        "prefixForward": "TR :",
+        "replyHeader": "Le {date}, {from} a écrit :",
+        "forwardHeader": "---------- Message transféré ----------",
+        "forwardFrom": "De : {from}",
+        "forwardDate": "Date : {date}",
+        "forwardSubject": "Objet : {subject}",
+        "problems": {
+          "noRecipient": "Ajoutez au moins un destinataire.",
+          "noSubject": "Ajoutez un objet.",
+          "noBody": "Le message est vide.",
+          "badAddress": "Cette adresse n'est pas valide : {address}",
+          "tooLarge": "Les pièces jointes dépasseraient 18 Mo : Gmail refuserait le courriel."
+        },
+        "errors": {
+          "sendFailed": "Le courriel n'a pas pu être envoyé.",
+          "notConfirmed": "Gmail n'a pas confirmé l'envoi. Cliquez de nouveau sur « Envoyer » sans rien changer : l'app vérifie d'abord s'il est déjà parti, il ne partira pas deux fois.",
+          "refused": "Gmail a refusé le courriel. Vérifiez les adresses et les pièces jointes, puis réessayez.",
+          "uploadFailed": "Le fichier n'a pas pu être joint."
+        }
+      },
+      "clientPanel": {
+        "title": "Courriels",
+        "description": "Les fils Gmail rattachés à ce dossier, et un courriel à écrire depuis la boîte de la clinique.",
+        "write": "Écrire un courriel",
+        "empty": "Aucun courriel rattaché à ce dossier.",
+        "loadError": "Les courriels du dossier n'ont pas pu être chargés.",
+        "noMailbox": "Aucune boîte Gmail connectée : une personne qui gère les boîtes la connecte dans Paramètres → Courriels Gmail.",
+        "noAddress": "Ce dossier n'a pas d'adresse qui reçoit les communications : ajoutez-en une, ou écrivez l'adresse dans « À ».",
+        "messagesOne": "1 message",
+        "messagesOther": "{count} messages",
+        "unread": "non lu",
+        "open": "Ouvrir dans Courriels"
       }
     },
     "demandes": {
