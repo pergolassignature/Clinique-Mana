@@ -21,11 +21,13 @@ const mocks = vi.hoisted(() => ({
   },
   queue: { sendInvoices: vi.fn(), recordPayment: vi.fn(), releaseDraft: vi.fn(), resendDocument: vi.fn(), deliverNow: vi.fn() },
   followUp: { refundPayment: vi.fn() },
+  stripe: { refundByStripe: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/invoices', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
 vi.mock('../api/queue', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.queue }))
 vi.mock('../api/follow-up', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.followUp }))
+vi.mock('../api/stripe', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.stripe }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -237,5 +239,30 @@ describe('InvoicePage', () => {
     await user.type(within(dialog).getByLabelText(/^Raison/), 'Erreur de montant')
     await user.click(within(dialog).getByRole('button', { name: t(`${I}.payments.refundSubmit`) }))
     await waitFor(() => expect(mocks.followUp.refundPayment).toHaveBeenCalledWith('p1', 5000, 'Erreur de montant'))
+    // An Interac refund is the clinic's own: Stripe is never asked.
+    expect(mocks.stripe.refundByStripe).not.toHaveBeenCalled()
+  })
+
+  it('« Rembourser » a Stripe payment: the card refunded at Stripe at once, what Stripe did said (FS-9)', async () => {
+    const user = userEvent.setup()
+    mocks.followUp.refundPayment.mockResolvedValue('rf1')
+    mocks.stripe.refundByStripe.mockResolvedValue('pending')
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...bundle({ status: 'issued', number: '2026-12', issuedOn: '2026-10-13', paidCents: 5000, paymentStatus: 'partial' }),
+      payments: [
+        {
+          id: 'p2', modeCode: 'stripe', mode: 'Carte (Stripe)', amountCents: 5000, paidOn: '2026-10-13', reference: null,
+          receiptId: 'r2', receiptNumber: 'R-2026-2', receiptFileId: null, receiptDeliveries: [], refunds: [], refundableCents: 5000,
+        },
+      ],
+    })
+    open()
+    const list = await screen.findByRole('list', { name: t(`${I}.payments.list`) })
+    await user.click(within(list).getByRole('button', { name: t(`${I}.payments.refund`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${I}.payments.refundTitle`) })
+    await user.type(within(dialog).getByLabelText(/^Raison/), 'Séance annulée')
+    await user.click(within(dialog).getByRole('button', { name: t(`${I}.payments.refundSubmit`) }))
+    await waitFor(() => expect(mocks.stripe.refundByStripe).toHaveBeenCalledWith('rf1'))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.billing.saved.refundStripe.pending'))
   })
 })

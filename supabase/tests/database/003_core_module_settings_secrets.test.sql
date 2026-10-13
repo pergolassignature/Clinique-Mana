@@ -167,6 +167,7 @@ select functions_are('public', array[
   'record_stripe_card_for_service', 'stripe_card_for_service', 'stripe_card_removed_for_service',
   'record_stripe_payment_for_service', 'stripe_charges_due_for_service', 'begin_stripe_charge_for_service',
   'finish_stripe_charge_for_service', 'stripe_payment_failed_for_service', 'record_interac_notice_for_service',
+  'stripe_refunds_due_for_service', 'stripe_refund_for_service', 'settle_stripe_refund_for_service',
   'get_client_stripe', 'list_interac_notices', 'add_interac_notice', 'match_interac_notice', 'ignore_interac_notice',
   -- Facturation, batch F2 (and Professionnels' supervisor, F2.0).
   'get_billing_settings', 'set_billing_queue_from', 'set_special_agreement', 'list_morning_queue', 'hold_invoice_draft',

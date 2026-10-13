@@ -107,6 +107,38 @@ const paymentIntentSchema = z.object({
   }).passthrough().nullable().optional(),
 }).passthrough()
 
+const refundSchema = z.object({
+  id: z.string().regex(/^re_[A-Za-z0-9]{1,64}$/),
+  status: z.string().nullable().optional(),
+  amount: z.number().int(),
+  payment_intent: z.string().nullable().optional(),
+  failure_reason: z.string().nullable().optional(),
+  metadata: z.record(z.string(), z.string()).nullable().optional(),
+}).passthrough()
+const refundListSchema = z.object({
+  data: z.array(refundSchema),
+}).passthrough()
+
+/** A refund at Stripe: final (`succeeded`, `failed`, `canceled`) or not yet. */
+export interface RefundResult {
+  id: string
+  status: string
+  amount: number
+  /** Stripe's reason for a failure, as a safe code. */
+  failureCode: string | null
+  metadata: Record<string, string>
+}
+
+const asRefund = (r: z.infer<typeof refundSchema>): RefundResult => ({
+  id: r.id,
+  status: r.status ?? 'pending',
+  amount: r.amount,
+  failureCode: r.failure_reason && SAFE_CODE.test(r.failure_reason)
+    ? r.failure_reason
+    : null,
+  metadata: r.metadata ?? {},
+})
+
 /** A card's display facts (never its number). */
 export interface CardFacts {
   paymentMethodId: string
@@ -239,6 +271,33 @@ export class StripeApi {
       expMonth: method.card.exp_month,
       expYear: method.card.exp_year,
     }
+  }
+
+  /**
+   * Refunds part or all of a PaymentIntent, once per key (`refund:<id>`): the
+   * clinic's refund id in the metadata, so the webhook finds it again.
+   */
+  async createRefund(input: {
+    paymentIntentId: string
+    amountCents: number
+    metadata: Record<string, string>
+    idempotencyKey: string
+  }): Promise<RefundResult> {
+    const refund = await this.call('POST', '/v1/refunds', refundSchema, {
+      payment_intent: input.paymentIntentId,
+      amount: input.amountCents,
+      metadata: input.metadata,
+    }, input.idempotencyKey)
+    return asRefund(refund)
+  }
+
+  /** A PaymentIntent's refunds (the webhook's `charge.refunded` names only the charge). */
+  async listRefunds(paymentIntentId: string): Promise<RefundResult[]> {
+    const list = await this.call('GET', '/v1/refunds', refundListSchema, {
+      payment_intent: paymentIntentId,
+      limit: 100,
+    })
+    return list.data.map(asRefund)
   }
 
   /** Detaches a card from its customer (« Retirer la carte »); a card already gone is fine. */

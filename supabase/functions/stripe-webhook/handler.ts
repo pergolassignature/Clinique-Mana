@@ -21,7 +21,11 @@
  *      PaymentIntent is the reference: recorded once);
  *    - `payment_intent.succeeded` with an invoice in its metadata (a charge
  *      whose job ended early) → the same;
- *    - `payment_intent.payment_failed` → `stripe_payment_failed_for_service`.
+ *    - `payment_intent.payment_failed` → `stripe_payment_failed_for_service`;
+ *    - `charge.refunded` (its PaymentIntent's refunds read back) and
+ *      `refund.updated` / `refund.failed`: a refund made for one of this
+ *      clinic's (`metadata.refund_id`) → `settle_stripe_refund_for_service`
+ *      (FS-9; settled once, whichever arrives first).
  *    Anything else → 200 `{ outcome: 'skipped' }`.
  * 6. `completeEvent`, or `failEvent` and 500 (Stripe retries).
  *
@@ -36,8 +40,9 @@ import { UUID } from '../_shared/patterns.ts'
 import { clientIp, consume, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import { createReportThrottle } from '../_shared/report-throttle.ts'
-import { StripeError } from '../_shared/stripe/client.ts'
+import { type RefundResult, StripeError } from '../_shared/stripe/client.ts'
 import { clinicStripe } from '../_shared/stripe/clinic.ts'
+import { refundIdOf, settleFromStripe } from '../_shared/stripe/refunds.ts'
 import { SECRET_WEBHOOK } from '../_shared/stripe/env.ts'
 import { verifyStripeSignature } from '../_shared/stripe/webhook.ts'
 import {
@@ -54,6 +59,7 @@ const metadataSchema = z.looseObject({
   org_id: z.string().optional(),
   invoice_id: z.string().optional(),
   charge_id: z.string().optional(),
+  refund_id: z.string().optional(),
 }).nullable().optional()
 
 const eventSchema = z.looseObject({
@@ -72,6 +78,8 @@ const eventSchema = z.looseObject({
       amount_total: z.number().int().nullable().optional(),
       amount_received: z.number().int().nullable().optional(),
       currency: z.string().nullable().optional(),
+      amount: z.number().int().nullable().optional(),
+      failure_reason: z.string().nullable().optional(),
       metadata: metadataSchema,
       last_payment_error: z.looseObject({
         code: z.string().optional(),
@@ -122,6 +130,9 @@ const isCad = (object: StripeObject) =>
 const MONEY_EVENTS = new Set([
   'checkout.session.completed',
   'payment_intent.succeeded',
+  'charge.refunded',
+  'refund.updated',
+  'refund.failed',
 ])
 
 async function handle(
@@ -215,6 +226,49 @@ async function handle(
       p_charge_id: chargeOf(object, orgId),
     })
     return 'charge_failed'
+  }
+
+  // FS-9: a card refunded. `charge.refunded` names the charge only: its
+  // PaymentIntent's refunds are read back from Stripe; each one made for a
+  // refund of this clinic (its metadata) is settled once.
+  if (event.type === 'charge.refunded') {
+    const pi = object.payment_intent
+    if (!pi?.startsWith('pi_')) return 'skipped'
+    const stripe = await clinicStripe(client, deps, orgId)
+    if (!stripe) throw new HandlingFailure('stripe_not_configured')
+    let settled = 0
+    for (const refund of await stripe.listRefunds(pi)) {
+      const refundId = refundIdOf(refund, orgId)
+      if (!refundId) continue
+      const outcome = await settleFromStripe(client, orgId, refundId, refund)
+      if (outcome === 'recorded' || outcome === 'failed') settled += 1
+    }
+    return settled > 0 ? 'refund_settled' : 'skipped'
+  }
+
+  if (event.type === 'refund.updated' || event.type === 'refund.failed') {
+    if (!object.id?.startsWith('re_')) return 'skipped'
+    const refund: RefundResult = {
+      id: object.id,
+      status: event.type === 'refund.failed'
+        ? 'failed'
+        : (object.status ?? 'pending'),
+      amount: object.amount ?? 0,
+      failureCode:
+        object.failure_reason && SAFE_CODE.test(object.failure_reason)
+          ? object.failure_reason
+          : null,
+      metadata: {
+        org_id: object.metadata?.org_id ?? '',
+        refund_id: object.metadata?.refund_id ?? '',
+      },
+    }
+    const refundId = refundIdOf(refund, orgId)
+    if (!refundId) return 'skipped'
+    const outcome = await settleFromStripe(client, orgId, refundId, refund)
+    return outcome === 'recorded' || outcome === 'failed'
+      ? 'refund_settled'
+      : 'skipped'
   }
 
   return 'skipped'

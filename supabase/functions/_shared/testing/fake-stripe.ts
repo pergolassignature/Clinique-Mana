@@ -3,7 +3,8 @@
  * (`scripts/fake-stripe.ts`, `npm run fake:stripe`): customers, Checkout
  * sessions (setup and payment) with a page that completes them and sends the
  * signed `checkout.session.completed` webhook, setup intents, payment methods
- * (detach), and off-session PaymentIntents (`pm_fakeDeclined` is refused).
+ * (detach), off-session PaymentIntents (`pm_fakeDeclined` is refused) and
+ * refunds (`FAKE_PENDING_REFUND_CENTS` stays pending: the webhook settles it).
  * Test-only and the local fake: no `index.ts` imports this folder.
  */
 import { signStripePayload } from '../stripe/webhook.ts'
@@ -21,6 +22,8 @@ export const FAKE_CARD = {
 export const FAKE_DECLINED_PM = 'pm_fakeDeclined'
 /** A card whose charge stays `processing` (the webhook settles it). */
 export const FAKE_PROCESSING_PM = 'pm_fakeProcessing'
+/** A refund of this amount stays `pending` (the webhook settles it). */
+export const FAKE_PENDING_REFUND_CENTS = 1313
 
 interface Session {
   id: string
@@ -68,6 +71,15 @@ export interface FakeStripe {
   paymentIntents: Map<
     string,
     { amount: number; status: string; metadata: Record<string, string> }
+  >
+  refunds: Map<
+    string,
+    {
+      payment_intent: string
+      amount: number
+      status: string
+      metadata: Record<string, string>
+    }
   >
   /** Completes a session as its page would (tests): the webhook's event. */
   complete(
@@ -120,6 +132,19 @@ export function fakeStripe(options: FakeStripeOptions = {}): FakeStripe {
   >()
   const paymentMethods: FakeStripe['paymentMethods'] = new Map()
   const paymentIntents: FakeStripe['paymentIntents'] = new Map()
+  const refunds: FakeStripe['refunds'] = new Map()
+  const refundJson = (id: string) => {
+    const r = refunds.get(id)!
+    return {
+      id,
+      object: 'refund',
+      status: r.status,
+      amount: r.amount,
+      payment_intent: r.payment_intent,
+      failure_reason: null,
+      metadata: r.metadata,
+    }
+  }
   const idempotent = new Map<string, Response>()
 
   const card = (pm: string) => ({
@@ -329,6 +354,43 @@ export function fakeStripe(options: FakeStripeOptions = {}): FakeStripe {
       if (idempotencyKey) idempotent.set(idempotencyKey, res.clone())
       return res
     }
+    if (req.method === 'POST' && path === '/v1/refunds') {
+      if (idempotencyKey && idempotent.has(idempotencyKey)) {
+        return idempotent.get(idempotencyKey)!.clone()
+      }
+      const pi = params.get('payment_intent') ?? ''
+      const intent = paymentIntents.get(pi)
+      if (!intent || intent.status !== 'succeeded') {
+        return stripeError(404, 'resource_missing')
+      }
+      const amount = Number(params.get('amount') ?? intent.amount)
+      const refunded = [...refunds.values()].filter((r) =>
+        r.payment_intent === pi && r.status !== 'failed' &&
+        r.status !== 'canceled'
+      ).reduce((sum, r) => sum + r.amount, 0)
+      if (amount < 1 || refunded + amount > intent.amount) {
+        return stripeError(400, 'amount_too_large')
+      }
+      const re = id('re')
+      refunds.set(re, {
+        payment_intent: pi,
+        amount,
+        status: amount === FAKE_PENDING_REFUND_CENTS ? 'pending' : 'succeeded',
+        metadata: nested(params, 'metadata'),
+      })
+      const res = json(refundJson(re))
+      if (idempotencyKey) idempotent.set(idempotencyKey, res.clone())
+      return res
+    }
+    if (req.method === 'GET' && path === '/v1/refunds') {
+      const pi = params.get('payment_intent')
+      return json({
+        object: 'list',
+        data: [...refunds.keys()].filter((k) =>
+          !pi || refunds.get(k)!.payment_intent === pi
+        ).map(refundJson),
+      })
+    }
     return stripeError(404, 'resource_missing')
   }
 
@@ -346,6 +408,7 @@ export function fakeStripe(options: FakeStripeOptions = {}): FakeStripe {
     sessions,
     paymentMethods,
     paymentIntents,
+    refunds,
     complete,
   }
 }
