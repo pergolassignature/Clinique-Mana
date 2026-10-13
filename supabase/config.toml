@@ -258,6 +258,9 @@ verify_jwt = false
 # Job billing.qbo_token_refresh (runJob verifies X-Job-Signature).
 [functions.qbo-token-refresh]
 verify_jwt = false
+# Job billing.qbo_push (FQ part 2; runJob verifies X-Job-Signature).
+[functions.qbo-push]
+verify_jwt = false
 # Rendez-vous RZ: a professional connects or disconnects her Zoom (verifyAuth, appointments.self).
 [functions.zoom-connect]
 verify_jwt = false

@@ -5261,6 +5261,7 @@
             "country": "Pays",
             "referral_source_id": "Provenance",
             "referred_by": "Référé par",
+            "referred_by_client_id": "Référé par (dossier)",
             "custom_field": "Champ personnalisé",
             "primary_professional_id": "Professionnel principal",
             "rate_variant": "Tarif",
@@ -6308,6 +6309,16 @@
         "results": "Dossiers trouvés",
         "noResult": "Aucun dossier trouvé.",
         "searchError": "La recherche n'a pas fonctionné. Réessayez."
+      },
+      "referrer": {
+        "help": "Cherchez un dossier de la clinique (nom, courriel, numéro), ou écrivez un nom.",
+        "results": "Dossiers trouvés",
+        "noResult": "Aucun dossier trouvé.",
+        "useText": "Utiliser « {text} » comme texte",
+        "clear": "Retirer le dossier",
+        "open": "Ouvrir le dossier dans un nouvel onglet",
+        "anonymized": "Dossier anonymisé",
+        "linked": "Un dossier de la clinique"
       }
     },
     "communications": {
@@ -8823,7 +8834,8 @@
           "payout_periods": "Sommaires de paie",
           "payout_lines": "Lignes de paie",
           "professional_invoices": "Factures des professionnels",
-          "payout_service_rules": "Règles de paie"
+          "payout_service_rules": "Règles de paie",
+          "qbo_vendor_links": "Fournisseurs QuickBooks des professionnels"
         },
         "fields": {
           "invoices": {
@@ -9073,6 +9085,11 @@
             "service_id": "Service",
             "rule": "Règle",
             "updated_by": "Modifiée par"
+          },
+          "qbo_vendor_links": {
+            "connection_id": "Connexion",
+            "professional_id": "Professionnel",
+            "qbo_vendor_id": "Fournisseur QuickBooks"
           }
         },
         "values": {
@@ -9579,10 +9596,19 @@
             "deposit_cheque": {
               "label": "Paiements par chèque",
               "help": "Habituellement « Compte courant »."
+            },
+            "tax_taxable": {
+              "label": "Lignes taxables",
+              "help": "Le code de taxe de QuickBooks pour les lignes avec TPS et TVQ. Habituellement « TPS/TVQ QC - 9,975 »."
+            },
+            "tax_exempt": {
+              "label": "Lignes non taxables",
+              "help": "Le code de taxe des lignes sans taxes (séances, « Statut Indien »). Habituellement « Exonéré »."
             }
           },
           "depositOther": "Dépôts : {mode}",
-          "depositOtherHelp": "Le compte où arrivent les paiements de ce mode."
+          "depositOtherHelp": "Le compte où arrivent les paiements de ce mode.",
+          "taxes": "Taxes des factures"
         },
         "jobs": {
           "title": "Tâches planifiées",
@@ -9683,6 +9709,58 @@
             "ignored": "{customer} est ignoré.",
             "to_decide": "{customer} est de nouveau à décider.",
             "no_match": "{customer} est sans correspondance."
+          }
+        },
+        "push": {
+          "title": "Envoi à QuickBooks",
+          "description": "Les factures émises, les notes de crédit, les paiements et les factures des professionnels partent vers QuickBooks toutes les 10 minutes, une fois l'envoi démarré. Rien n'est jamais envoyé deux fois.",
+          "paused": "En pause : rien n'est envoyé",
+          "active": "Envoi actif",
+          "counts": "{pushed} envoyé(s) · {pending} en attente · {failed} en échec · {waiting} à traiter",
+          "start": "Démarrer l'envoi",
+          "pause": "Mettre en pause",
+          "connectFirst": "Connectez d'abord QuickBooks.",
+          "startTitle": "Démarrer l'envoi à QuickBooks ?",
+          "startBody": "Les factures, notes de crédit et paiements enregistrés dans l'app, en attente depuis le début, partiront vers QuickBooks, puis chaque nouveau document. Vérifiez d'abord les comptes et la correspondance des clients avec le comptable. La tâche « Envoi à QuickBooks » doit aussi être activée dans Tâches planifiées.",
+          "startAction": "Démarrer l'envoi",
+          "pausedToast": "L'envoi à QuickBooks est en pause.",
+          "startedToast": "L'envoi à QuickBooks est démarré.",
+          "loadError": "Les envois n'ont pas pu être chargés.",
+          "nothingOpen": "Aucun document en attente ni refusé.",
+          "openList": "Documents à envoyer ou refusés",
+          "nextTry": "prochain essai le {date}",
+          "retry": "Réessayer",
+          "retried": "Le document sera renvoyé au prochain passage.",
+          "mismatch": "Envoyé, mais le total de QuickBooks diffère du nôtre (arrondi des taxes) : à vérifier.",
+          "invoicePushed": "Dans QuickBooks depuis le {date}",
+          "invoiceMismatch": "Dans QuickBooks, avec un total différent : à vérifier",
+          "invoiceRefused": "Envoi à QuickBooks refusé : {why}",
+          "invoicePaused": "En attente : l'envoi à QuickBooks est en pause",
+          "invoiceWaiting": "En attente d'envoi à QuickBooks",
+          "kinds": {
+            "invoice": "Facture",
+            "credit_memo": "Note de crédit",
+            "payment": "Paiement",
+            "bill": "Facture du professionnel"
+          },
+          "statuses": {
+            "pending": "En attente",
+            "pushed": "Envoyé",
+            "failed": "En échec"
+          },
+          "errors": {
+            "missing_map": "un compte ou un code de taxe manque dans « Comptes »",
+            "qbo_validation": "QuickBooks a refusé le document",
+            "qbo_duplicate_name": "un nom de client ou de fournisseur est déjà pris dans QuickBooks",
+            "qbo_rate_limited": "QuickBooks a demandé de ralentir",
+            "qbo_timeout": "QuickBooks n'a pas répondu à temps",
+            "qbo_unreachable": "QuickBooks était injoignable",
+            "qbo_provider_error": "QuickBooks a eu une erreur",
+            "qbo_forbidden": "QuickBooks a refusé l'accès",
+            "invoice_not_pushed": "sa facture n'est pas encore dans QuickBooks",
+            "client_gone": "le dossier n'existe plus",
+            "not_supported": "pas encore pris en charge",
+            "other": "erreur inattendue"
           }
         }
       },

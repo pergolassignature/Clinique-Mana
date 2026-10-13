@@ -17,6 +17,12 @@
  * - the API wants a live bearer token of the company (401 otherwise), pages
  *   queries with `startposition` / `maxresults`, refuses a customer whose
  *   display name is taken (400, fault 6240);
+ * - FQ part 2: `query` on Item and TaxCode; `invoice`, `creditmemo`,
+ *   `payment`, `vendor`, `bill`, `item` creates, kept in `documents`; a
+ *   create repeated with the same `requestid` answers the first one (as
+ *   Intuit does), a Payment needs its invoice, a sale's lines need an item
+ *   and a tax code that exist, and its `TotalAmt` adds the taxes (14,975 %
+ *   on a « taxable » code's lines);
  * - `failNext(match, status, fault?)` makes the next matching calls fail.
  * Error bodies carry `FAKE_ERROR_MARKER`, so tests can prove the function
  * never passes them on.
@@ -87,6 +93,28 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
   const access = new Map<string, { grant: Grant; expiresAt: number }>()
   const accounts: FakeAccount[] = []
   const customers = new Map<string, FakeCustomer>()
+  const items: {
+    Id: string
+    Name: string
+    Sku?: string
+    Type: string
+    IncomeAccountRef?: { value: string }
+    Active: boolean
+  }[] = []
+  const taxCodes: {
+    Id: string
+    Name: string
+    Taxable: boolean
+    Active: boolean
+  }[] = []
+  /** Every document created by the push, by entity. */
+  const documents: {
+    entity: string
+    id: string
+    body: Record<string, unknown>
+    requestId: string | null
+  }[] = []
+  const byRequest = new Map<string, Response>()
   const calls: { method: string; path: string; query?: string }[] = []
   const failures: {
     match: string
@@ -147,7 +175,13 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
   function select(entity: string, query: string) {
     const start = Number(/startposition\s+(\d+)/i.exec(query)?.[1] ?? 1)
     const max = Number(/maxresults\s+(\d+)/i.exec(query)?.[1] ?? 100)
-    const rows = entity === 'Account' ? accounts : [...customers.values()]
+    const rows: unknown[] = entity === 'Account'
+      ? accounts
+      : entity === 'Item'
+      ? items
+      : entity === 'TaxCode'
+      ? taxCodes
+      : [...customers.values()]
     return rows.slice(start - 1, start - 1 + max)
   }
 
@@ -250,8 +284,8 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
       }
       if (rest === 'query' && req.method === 'GET') {
         const query = url.searchParams.get('query') ?? ''
-        const entity = /from\s+(\w+)/i.exec(query)?.[1]
-        if (entity !== 'Account' && entity !== 'Customer') {
+        const entity = /from\s+(\w+)/i.exec(query)?.[1] ?? ''
+        if (!['Account', 'Customer', 'Item', 'TaxCode'].includes(entity)) {
           return fault(400, '4000')
         }
         const rows = select(entity, query)
@@ -261,7 +295,116 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
             : {},
         })
       }
+      const entityKey: Record<string, string> = {
+        invoice: 'Invoice',
+        creditmemo: 'CreditMemo',
+        payment: 'Payment',
+        vendor: 'Vendor',
+        bill: 'Bill',
+        item: 'Item',
+      }
+      if (entityKey[rest] && req.method === 'POST') {
+        const requestId = url.searchParams.get('requestid')
+        if (requestId && byRequest.has(requestId)) {
+          return byRequest.get(requestId)!.clone()
+        }
+        const body = await req.json() as Record<string, unknown>
+        const refOk = (ref: unknown, ids: string[]) =>
+          typeof ref === 'object' && ref !== null &&
+          ids.includes(String((ref as { value?: unknown }).value))
+        const customerIds = [...customers.keys()]
+        let total: number | undefined
+        if (rest === 'invoice' || rest === 'creditmemo') {
+          if (!refOk(body.CustomerRef, customerIds)) return fault(400, '6000')
+          let sum = 0
+          for (
+            const line
+              of (body.Line as Record<string, unknown>[] | undefined) ?? []
+          ) {
+            const detail = line.SalesItemLineDetail as
+              | Record<string, unknown>
+              | undefined
+            if (!detail || !refOk(detail.ItemRef, items.map((i) => i.Id))) {
+              return fault(400, '6000')
+            }
+            const code = taxCodes.find((t) =>
+              t.Id ===
+                String(
+                  (detail.TaxCodeRef as { value?: unknown } | undefined)?.value,
+                )
+            )
+            if (!code) return fault(400, '6000')
+            const amount = Number(line.Amount)
+            sum += amount +
+              (code.Taxable ? Math.round(amount * 14.975) / 100 : 0)
+          }
+          total = Math.round(sum * 100) / 100
+        }
+        if (rest === 'payment') {
+          if (!refOk(body.CustomerRef, customerIds)) return fault(400, '6000')
+          const linked =
+            ((body.Line as { LinkedTxn?: { TxnId: string }[] }[] | undefined) ??
+              [])
+              .flatMap((l) => l.LinkedTxn ?? [])
+          if (
+            !linked.every((t) =>
+              documents.some((d) => d.entity === 'invoice' && d.id === t.TxnId)
+            )
+          ) {
+            return fault(400, '6000')
+          }
+          total = Number(body.TotalAmt)
+        }
+        if (rest === 'vendor' || rest === 'item') {
+          const name = String(body.DisplayName ?? body.Name ?? '')
+          const taken = rest === 'vendor'
+            ? [...customers.values()].some((c) =>
+              c.DisplayName.toLowerCase() === name.toLowerCase()
+            ) ||
+              documents.some((d) =>
+                d.entity === 'vendor' &&
+                String(d.body.DisplayName).toLowerCase() === name.toLowerCase()
+              )
+            : items.some((i) => i.Name.toLowerCase() === name.toLowerCase())
+          if (!name || taken) return fault(400, '6240')
+        }
+        if (
+          rest === 'bill' && !refOk(
+            body.VendorRef,
+            documents.filter((d) => d.entity === 'vendor').map((d) => d.id),
+          )
+        ) {
+          return fault(400, '6000')
+        }
+        const id = String(5000 + documents.length + 1)
+        documents.push({ entity: rest, id, body, requestId })
+        if (rest === 'item') {
+          items.push({
+            Id: id,
+            Name: String(body.Name),
+            ...(body.Sku ? { Sku: String(body.Sku) } : {}),
+            Type: String(body.Type ?? 'Service'),
+            IncomeAccountRef: body.IncomeAccountRef as
+              | { value: string }
+              | undefined,
+            Active: true,
+          })
+        }
+        const answer = Response.json({
+          [entityKey[rest]]: {
+            ...body,
+            Id: id,
+            ...(total !== undefined ? { TotalAmt: total } : {}),
+          },
+        })
+        if (requestId) byRequest.set(requestId, answer.clone())
+        return answer
+      }
       if (rest === 'customer' && req.method === 'POST') {
+        const requestId = url.searchParams.get('requestid')
+        if (requestId && byRequest.has(requestId)) {
+          return byRequest.get(requestId)!.clone()
+        }
         const body = await req.json() as Partial<FakeCustomer>
         const name = body.DisplayName ?? ''
         if (!name || /:/.test(name)) return fault(400, '6000')
@@ -282,7 +425,9 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
           Active: true,
         }
         customers.set(id, created)
-        return Response.json({ Customer: created })
+        const answer = Response.json({ Customer: created })
+        if (requestId) byRequest.set(requestId, answer.clone())
+        return answer
       }
       return fault(404, '610', 'ObjectNotFound')
     }
@@ -296,6 +441,9 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
     calls,
     accounts,
     customers,
+    items,
+    taxCodes,
+    documents,
     realmId,
     setCompanyName(name: string) {
       companyName = name
@@ -406,6 +554,19 @@ export function seedCompany(fake: FakeQbo): void {
     SyncToken: '0',
     DisplayName: 'IVAC',
     CompanyName: 'IVAC',
+    Active: true,
+  })
+  // FQ part 2: the tax codes of a Quebec company and one item GOrendezvous made.
+  fake.taxCodes.push(
+    { Id: '4', Name: 'TPS/TVQ QC - 9,975', Taxable: true, Active: true },
+    { Id: '8', Name: 'Exonéré', Taxable: false, Active: true },
+  )
+  fake.items.push({
+    Id: '201',
+    Name: '10150 Consultation individuelle 50 min',
+    Sku: '10150',
+    Type: 'Service',
+    IncomeAccountRef: { value: '1' },
     Active: true,
   })
 }
