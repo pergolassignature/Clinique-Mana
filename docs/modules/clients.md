@@ -71,7 +71,7 @@ Other modules read these, never the raw tables (CLAUDE.md §5):
 
 ## Consents (batch C5a)
 
-Migrations `20261012214959_core_signing_second_client_signer` (core: the `client_2` role) and `20261012215154_clients_consents`; pgTAP `106_clients_consents`; decisions R-46 … R-51, **CC-1 … CC-7**.
+Migrations `20261013020443_core_signing_second_client_signer` (core: the `client_2` role) and `20261013020447_clients_consents`; pgTAP `106_clients_consents`; decisions R-46 … R-51, **CC-1 … CC-7**.
 
 - **Tables:** `client_consent_types` (the 7 consents and their clauses), `client_consent_rules`, `client_consent_settings` (one row per clinic), `client_consent_requests` (one open per client and consent; the version, the language and the clauses are fixed when it is sent; the answers are redacted in the audit), `client_consent_request_signers` (`client` / `client_2`, each with her own link), `client_consents` (the consent in force: not superseded, not withdrawn; signer names, answers and note redacted). Read with `clients.view`; every write is an RPC.
 - **Templates:** `clients.consent_<key>_fr` / `_en` (core templates of the module, view `clients.view`, edit `clients.manage`), seeded as drafts « Texte provisoire »; the clauses print through the block placeholder `{{consent.clauses}}`.

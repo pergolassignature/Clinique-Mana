@@ -285,6 +285,12 @@ Deno.test('clients-consent-sign: start → one envelope for both parents, no Doc
     const doc = s.fake.documents.get(row.envelope_id!)!
     assertEquals(doc.meta.distributionMethod, 'NONE')
     assertEquals(doc.meta.redirectUrl, `${LOCAL_APP_URL}/consentement?signe=1`)
+    assertEquals(
+      doc.meta.signingOrder,
+      'PARALLEL',
+      'each parent signs whenever she opens her link',
+    )
+    assertEquals(doc.meta.language, 'fr')
     const second = doc.recipients.find((r) => r.email === 'nadia@exemple.test')!
     assertEquals(answer.token, second.token, 'the caller is the second parent')
     assertEquals(answer.host, PUBLIC_URL)

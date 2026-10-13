@@ -14,7 +14,7 @@
 -- my_client_consents only, another clinic, the module off).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(116);
+select plan(126);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -162,12 +162,12 @@ select is(private.test_error_hint($$ select public.set_client_consent_rule(null,
   'consent_key', 'an unknown consent is refused');
 select is(private.test_error_hint($$ select public.set_client_consent_rule(null, 'naturopathy', 'service', 'naturo', 'once', true) $$),
   'target', 'a service rule needs a 5-digit code');
-select is(private.test_error_hint($$ select public.set_client_consent_rule(null, 'general', 'general', null, 'once', true) $$),
+select is(private.test_error_hint($$ select public.set_client_consent_rule(null, 'general', 'general', null, 'once', false) $$),
   'duplicate', 'the same rule twice is refused');
-select lives_ok($$ select public.set_client_consent_rule((select r.id from public.client_consent_rules r where r.consent_key = 'general'
+select is(private.test_error_hint($$ select public.set_client_consent_rule((select r.id from public.client_consent_rules r where r.consent_key = 'general'
                                                             and r.org_id = 'b0000000-0000-0000-0000-00000000000a'),
-                                                         'general', 'general', null, 'once', true) $$,
-  'the general rule is switched on');
+                                                         'general', 'general', null, 'once', true) $$),
+  'template', 'a rule is not switched on before its text is published');
 select is((public.set_client_consent_settings('{"reminder_days": 5}')) ->> 'reminder_days', '5', 'a setting is saved');
 select is(private.test_error_hint($$ select public.set_client_consent_settings('{"reminder_days": 90}') $$), 'settings', 'out of bounds');
 reset role;
@@ -198,6 +198,25 @@ select is(private.test_error_hint($$ select public.publish_client_consent_versio
               where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'professionals.image_consent'), 'new_clients') $$),
   'template', 'only a client consent');
 reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select lives_ok($$ select public.set_client_consent_rule((select r.id from public.client_consent_rules r where r.consent_key = 'general'
+                                                            and r.org_id = 'b0000000-0000-0000-0000-00000000000a'),
+                                                         'general', 'general', null, 'once', true) $$,
+  'once its text is published, the general rule is switched on');
+reset role;
+
+-- P3-40: while the module is reserved for its testers, nothing is sent to a client.
+update public.org_modules set testers_only = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'clients';
+set local role service_role;
+select is(private.test_error_hint($$ select public.prepare_client_consent_request_for_service(
+            'b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000001',
+            'general', null, null, null, sha256('t-reserved-1'::bytea), sha256('t-reserved-2'::bytea)) $$),
+  'module_reserved', 'reserved for testers: a manual send is refused (P3-40)');
+select is((public.client_consent_reminders_for_service('b0000000-0000-0000-0000-00000000000a')) -> 'remind', '[]'::jsonb,
+  '… and the job sends nothing again');
+reset role;
+update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'clients';
 
 set local role service_role;
 select is((public.prepare_client_consent_request_for_service(
@@ -382,6 +401,9 @@ select is(public.publish_client_consent_version(
 reset role;
 select results_eq($$ select r.state from private.required_consents_for('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000001') r $$,
   $$ values ('resign') $$, 'Alice: « À signer de nouveau »');
+select is((select v.version from public.client_consent_requests q join public.document_template_versions v on v.id = q.template_version_id
+            where q.client_id = 'd0000000-0000-0000-0000-000000000004' and q.state = 'pending'), 2,
+  'an open request not yet in signing now prints the new version (the old one is archived)');
 select is((select count(*)::int from public.client_consents c where c.resign_requested_at is not null and c.consent_key <> 'general'), 0,
   'only that consent is flagged');
 
@@ -421,13 +443,41 @@ select is(private.test_error_hint($$ select public.prepare_client_consent_reques
             sha256('t-z1'::bytea), sha256('t-z2'::bytea)) $$),
   null, 'a new request without an actor is a developer error (22023, no hint)');
 
+-- Five wrong identities on one link revoke it (the birth year cannot be guessed).
+set local role service_role;
+select is((public.prepare_client_consent_request_for_service(
+            'b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000006',
+            'general', null, null, null, sha256('t-zoe-1'::bytea), sha256('t-zoe-2'::bytea))) -> 'signers' -> 0 ->> 'role',
+  'client', 'Zoé is asked to sign again');
+select is((select count(*)::int from generate_series(1, 4) n
+            where (public.open_client_consent_for_service(sha256('t-zoe-1'::bytea), 'Zoé', 1900 + n)) ->> 'state' = 'identity_mismatch'),
+  4, 'four wrong years are refused');
+select is((public.open_client_consent_for_service(sha256('t-zoe-1'::bytea), 'Zoé', 1990)) ->> 'state', 'invalid', '… the fifth revokes the link');
+select is((public.open_client_consent_for_service(sha256('t-zoe-1'::bytea), 'Zoé', 1995)) ->> 'state', 'invalid', '… even with the right identity');
+reset role;
+-- A parent loses the right before signing: the links stop working (the clinic sends again).
+update public.client_relations set b_manages_appointments = false
+ where client_a_id = 'd0000000-0000-0000-0000-000000000004' and client_b_id = 'd0000000-0000-0000-0000-000000000005';
+set local role service_role;
+select is((public.start_client_consent_signing_for_service(sha256('t-theo-3'::bytea), 'Théo',
+            pg_catalog.date_part('year', current_date - interval '8 years')::int, '{"accord": "yes"}', 'key-theo-1')) ->> 'state',
+  'invalid', 'a signer who lost the right (shared custody: one parent left) cannot sign');
+reset role;
+select ok((select bool_and(l.revoked_at is not null) from public.secure_links l
+            join public.client_consent_request_signers s on s.id = l.subject_id
+            join public.client_consent_requests q on q.id = s.request_id
+           where q.client_id = 'd0000000-0000-0000-0000-000000000004' and l.created_at is not null),
+  '… every link of the request is revoked');
+update public.client_relations set b_manages_appointments = true
+ where client_a_id = 'd0000000-0000-0000-0000-000000000004' and client_b_id = 'd0000000-0000-0000-0000-000000000005';
+
 -- =============================================================================
 -- RLS
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select is((select count(*)::int from public.client_consents), 2, 'staff read the clinic''s consents');
-select is((select count(*)::int from public.client_consents_to_obtain), 1, 'the list to obtain: Théo''s request');
+select is((select count(*)::int from public.client_consents_to_obtain), 2, 'the list to obtain: Théo''s and Zoé''s requests');
 select results_eq($$ select s.state from public.client_consents_status s where s.client_id = 'd0000000-0000-0000-0000-000000000001' $$,
   $$ values ('resign') $$, 'the state per client and consent');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);

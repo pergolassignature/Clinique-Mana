@@ -998,6 +998,14 @@ begin
   if p_org_id is null or p_token_hash_1 is null or p_token_hash_2 is null or p_token_hash_1 = p_token_hash_2 then
     raise exception 'Invalid arguments' using errcode = '22023';
   end if;
+  if not public.module_enabled_for_org(p_org_id, 'clients') then
+    raise exception 'Module disabled' using errcode = '22023';
+  end if;
+  -- P3-40: nothing leaves for a client while the module is reserved for its testers.
+  if not public.module_open_to_all_for_org(p_org_id, 'clients') then
+    raise exception 'Le module Clients est réservé aux testeurs : aucune demande de consentement ne part aux clients avant son ouverture à tous.'
+      using errcode = 'P0001', hint = 'module_reserved';
+  end if;
   if p_actor is not null then
     if not exists (select 1 from public.profiles p where p.user_id = p_actor and p.org_id = p_org_id and p.status = 'active')
        or not ('clients.manage' = any (private.permission_keys_for(p_actor))) then
@@ -1006,14 +1014,6 @@ begin
     perform pg_catalog.set_config('app.audit_actor', p_actor::text, true);
   elsif p_request_id is null then
     raise exception 'A new request needs an actor' using errcode = '22023';
-  end if;
-  if not public.module_enabled_for_org(p_org_id, 'clients') then
-    raise exception 'Module disabled' using errcode = '22023';
-  end if;
-  -- P3-40: nothing leaves for a client while the module is reserved for its testers.
-  if not public.module_open_to_all_for_org(p_org_id, 'clients') then
-    raise exception 'Le module Clients est réservé aux testeurs : aucune demande de consentement ne part aux clients avant son ouverture à tous.'
-      using errcode = 'P0001', hint = 'module_reserved';
   end if;
 
   if p_request_id is not null then

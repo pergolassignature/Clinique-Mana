@@ -5390,7 +5390,8 @@
             "relation_id": "Lien avec le client",
             "link_id": "Lien sécurisé",
             "last_sent_at": "Dernier envoi",
-            "opened_at": "Ouvert le"
+            "opened_at": "Ouvert le",
+            "identity_failures": "Vérifications d'identité échouées"
           },
           "client_consents": {
             "client_id": "Client",
