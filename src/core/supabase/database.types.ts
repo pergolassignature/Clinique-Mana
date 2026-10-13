@@ -8710,6 +8710,13 @@ export type Database = {
             referencedRelation: "referral_sources"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "demandes_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       languages_catalog: {
