@@ -318,6 +318,27 @@ Deno.test('clients-consent-sign: one signer → the second box is left out of th
   })
 })
 
+Deno.test('clients-consent-sign: an English request → Documenso in English, and back to the English « Thank you »', async () => {
+  await run(async () => {
+    const s = setup({
+      start: { data: { ...prepared(1, 'client'), language: 'en' } },
+    })
+    const res = await s.handler(
+      post({ action: 'start', idempotency_key: 'key-12345678' }),
+    )
+    assertEquals(res.status, 200)
+    const answer = await res.json()
+    const doc = s.fake.documents.get(
+      s.db.requests.get(answer.request_id)!.envelope_id!,
+    )!
+    assertEquals(doc.meta.language, 'en')
+    assertEquals(
+      doc.meta.redirectUrl,
+      `${LOCAL_APP_URL}/consentement?signe=1&lang=en`,
+    )
+  })
+})
+
 Deno.test('clients-consent-sign: an envelope already out is resumed with the signer’s own token', async () => {
   await run(async () => {
     let resume: Record<string, unknown> = {}

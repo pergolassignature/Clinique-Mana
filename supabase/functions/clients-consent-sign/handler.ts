@@ -361,7 +361,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         parallel: true,
         language: step.language,
         manual: {
-          redirectUrl: `${appUrl.replace(/\/+$/, '')}/consentement?signe=1`,
+          redirectUrl: `${appUrl.replace(/\/+$/, '')}/consentement?signe=1${
+            step.language === 'en' ? '&lang=en' : ''
+          }`,
         },
       })
       if (result.ok) {

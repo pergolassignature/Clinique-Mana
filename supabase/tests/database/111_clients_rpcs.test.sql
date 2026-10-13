@@ -36,7 +36,7 @@ select is_empty($$ select h.function_name from public.client_anonymize_handlers 
                     where to_regprocedure(h.function_name || '(uuid)') is null
                        or (select p.prorettype from pg_proc p where p.oid = to_regprocedure(h.function_name || '(uuid)')) <> 'integer'::regtype $$,
   'every anonymisation handler is a function (uuid) → int');
-select results_eq($$ select module_key from public.client_merge_handlers order by 1 $$, array['demandes', 'professionals'], 'merge handlers: Demandes and Professionnels');
+select results_eq($$ select module_key from public.client_merge_handlers order by 1 $$, array['clients', 'demandes', 'professionals'], 'merge handlers: the consents (Clients), Demandes and Professionnels');
 
 -- Fixtures: clinic A (admin, adjointe, conseillère, provider linked to P1), clinic B (admin).
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
