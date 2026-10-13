@@ -6294,7 +6294,9 @@
           "sms_consents": "Consentements aux textos",
           "mail_connections": "Boîtes Gmail",
           "mail_connection_tokens": "Jetons d'accès Gmail",
-          "mail_thread_links": "Rattachements des conversations"
+          "mail_thread_links": "Rattachements des conversations",
+          "mail_sends": "Courriels envoyés",
+          "mail_templates": "Modèles de courriel personnels"
         },
         "fields": {
           "sms_consents": {
@@ -6334,6 +6336,29 @@
             "source": "Origine",
             "linked_by": "Rattachée par",
             "linked_at": "Rattachée le"
+          },
+          "mail_sends": {
+            "connection_id": "Boîte",
+            "sent_by": "Envoyé par",
+            "send_key": "Clé d'envoi",
+            "mode": "Type",
+            "thread_id": "Conversation",
+            "client_id": "Client",
+            "draft_id": "Brouillon",
+            "template_key": "Modèle",
+            "recipient_count": "Destinataires",
+            "file_ids": "Pièces jointes",
+            "status": "Statut",
+            "error_code": "Code d'erreur",
+            "gmail_message_id": "Message Gmail",
+            "gmail_thread_id": "Conversation Gmail",
+            "sent_at": "Envoyé le"
+          },
+          "mail_templates": {
+            "owner_id": "Personne",
+            "name": "Nom",
+            "subject": "Objet",
+            "body_html": "Texte"
           }
         },
         "values": {
@@ -6374,6 +6399,19 @@
             "source": {
               "auto": "Automatique",
               "manual": "Manuelle"
+            }
+          },
+          "mail_sends": {
+            "mode": {
+              "new": "Nouveau message",
+              "reply": "Réponse",
+              "reply_all": "Réponse à tous",
+              "forward": "Transfert"
+            },
+            "status": {
+              "pending": "En cours",
+              "sent": "Envoyé",
+              "failed": "Échoué"
             }
           }
         }

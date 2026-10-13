@@ -85,7 +85,7 @@ values
 set local role service_role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select count(*) from public.upsert_mail_messages('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-00000000000a', $j$[
-  {"gmail_message_id":"m1","gmail_thread_id":"t1","rfc_message_id":"<m1@x.test>","from_name":"Alice","from_address":"alice@x.test","subject":"Rendez-vous","sent_at":"2026-10-01T12:00:00Z","label_ids":["INBOX"]},
+  {"gmail_message_id":"m1","gmail_thread_id":"t1","rfc_message_id":"m1@x.test","from_name":"Alice","from_address":"alice@x.test","subject":"Rendez-vous","sent_at":"2026-10-01T12:00:00Z","label_ids":["INBOX"]},
   {"gmail_message_id":"m2","gmail_thread_id":"t2","from_address":"inconnu@x.test","subject":"Question","sent_at":"2026-10-02T09:00:00Z","label_ids":["INBOX"]}
 ]$j$);
 reset role;

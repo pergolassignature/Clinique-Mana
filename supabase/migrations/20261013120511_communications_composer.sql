@@ -873,9 +873,10 @@ begin
     'subject', v_subject,
     -- A forward starts a new thread in Gmail; a reply stays in its thread.
     'gmail_thread_id', case when v_mode in ('reply', 'reply_all') then v_thread.gmail_thread_id end,
-    'in_reply_to', case when v_mode in ('reply', 'reply_all') then v_message.rfc_message_id end,
+    -- The mirror keeps Message-IDs without their angle brackets (mime.ts): the headers need them.
+    'in_reply_to', case when v_mode in ('reply', 'reply_all') then '<' || v_message.rfc_message_id || '>' end,
     'references', case when v_mode in ('reply', 'reply_all') then (
-        select pg_catalog.string_agg(r.rfc_message_id, ' ' order by r.sent_at, r.id)
+        select pg_catalog.string_agg('<' || r.rfc_message_id || '>', ' ' order by r.sent_at, r.id)
           from (select m.rfc_message_id, m.sent_at, m.id from public.mail_messages m
                  where m.thread_id = v_thread.id and m.rfc_message_id is not null
                    and (v_message.id is null or m.sent_at <= v_message.sent_at)

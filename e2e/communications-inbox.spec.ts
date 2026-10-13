@@ -100,6 +100,22 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await page.getByRole('button', { name: 'Remettre dans la boîte de réception' }).click()
   await expect(page.getByRole('button', { name: 'Archiver' })).toBeVisible()
 
+  // CM3: « Répondre », a template-free text, « Envoyer », five seconds, sent through the fake Gmail
+  // and mirrored at once in the thread.
+  await page.getByRole('button', { name: 'Répondre', exact: true }).click()
+  const composer = page.getByRole('dialog', { name: /Attestation pour mes assurances/ })
+  await expect(composer.getByLabel('À', { exact: true })).toHaveValue('macote@example.test')
+  const editor = composer.getByRole('textbox', { name: 'Message' })
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.type('Bonjour, voici votre attestation. ')
+  await composer.getByRole('button', { name: 'Envoyer' }).click()
+  await expect(composer.getByText(/Envoi dans \d s\./)).toBeVisible()
+  await expect(page.getByText('Courriel envoyé.')).toBeVisible({ timeout: 20_000 })
+  await expect(composer).toHaveCount(0)
+  // The reply is in the thread at once (mirrored by gmail-send), from the clinic.
+  await expect(page.getByRole('article', { name: /Clinique MANA/ })).toBeVisible()
+
   // Disconnect, so the next run starts as the first.
   await page.goto('/parametres/courriels-gmail')
   await page.getByRole('button', { name: 'Déconnecter', exact: true }).click()
