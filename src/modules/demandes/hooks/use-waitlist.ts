@@ -10,6 +10,7 @@ import {
   logWaitlistContact,
   registerWaitlist,
   saveWaitlistSettings,
+  invoiceWaitlistFee,
   setWaitlistFee,
   updateWaitlistEntry,
   type ExitReason,
@@ -62,6 +63,10 @@ export function useWaitlistActions(entryId: string, demandeId: string) {
   const settled = { onSettled: () => after(demandeId) }
   return {
     update: useMutation({ mutationFn: (patch: Record<string, unknown>) => updateWaitlistEntry(entryId, patch), ...settled }),
+    invoice: useMutation({
+      mutationFn: () => invoiceWaitlistFee(entryId),
+      ...settled,
+    }),
     fee: useMutation({
       mutationFn: ({ status, reason }: { status: 'to_invoice' | 'paid' | 'waived'; reason: string | null }) => setWaitlistFee(entryId, status, reason),
       ...settled,

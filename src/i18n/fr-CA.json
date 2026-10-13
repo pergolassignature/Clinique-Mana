@@ -7873,7 +7873,10 @@
           "exitHelp": "La personne quitte cette liste. Si c'était sa dernière inscription, la demande se ferme avec la même raison (ou est jumelée si elle est placée).",
           "exitReason": "Raison",
           "placedWith": "Placée avec",
-          "exit": "Sortir de la liste"
+          "exit": "Sortir de la liste",
+          "invoice": "Facturer l'inscription",
+          "invoiced": "Facture {number} envoyée au payeur.",
+          "invoicedHelp": "La facture suit dans Facturation : payée, les frais passent à « Payés » ; créditée, ils reviennent « à facturer »."
         },
         "page": {
           "description": "Les personnes qui attendent une place, par profession ou par professionnel, dans l'ordre : les prioritaires d'abord, puis les plus anciennes.",

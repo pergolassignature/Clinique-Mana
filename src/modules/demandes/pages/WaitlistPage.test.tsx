@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     listWaitlist: vi.fn(),
     getWaitlistEntry: vi.fn(),
     setWaitlistFee: vi.fn(),
+    invoiceWaitlistFee: vi.fn(),
     logWaitlistContact: vi.fn(),
     addWaitlistOffer: vi.fn(),
     answerWaitlistOffer: vi.fn(),
@@ -101,7 +102,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage(path = '/liste-attente') {
+function renderPage(path = '/liste-attente', modules = ['demandes', 'clients', 'professionals']) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -109,7 +110,7 @@ function renderPage(path = '/liste-attente') {
         <Routes>
           <Route path="liste-attente" element={<WaitlistPage />} />
         </Routes>,
-        { access: { access: accessForRole('counselor', { modules: ['demandes', 'clients', 'professionals'] }) }, path },
+        { access: { access: accessForRole('counselor', { modules }) }, path },
       )}
     </QueryClientProvider>,
   )
@@ -149,6 +150,26 @@ describe('WaitlistPage', () => {
     await waitFor(() => expect(mocks.api.setWaitlistFee).toHaveBeenCalledWith('e1', 'paid', null))
     await user.click(within(sheet).getByRole('button', { name: t(`${W}.sheet.logContact`) }))
     await waitFor(() => expect(mocks.api.logWaitlistContact).toHaveBeenCalledWith('e1', 'call', 'reached', null))
+  })
+
+  it('« Facturer l\u2019inscription » with Facturation on: the invoice\u2019s number in a toast; without it, no button', async () => {
+    const user = userEvent.setup()
+    mocks.api.invoiceWaitlistFee.mockResolvedValue('2026-41')
+    renderPage('/liste-attente', ['demandes', 'clients', 'professionals', 'billing'])
+    await user.click(await screen.findByRole('button', { name: t(`${W}.page.openFor`, { person: 'Alice Attente' }) }))
+    const sheet = await screen.findByRole('dialog')
+    await user.click(await within(sheet).findByRole('button', { name: t(`${W}.sheet.invoice`) }))
+    await waitFor(() => expect(mocks.api.invoiceWaitlistFee).toHaveBeenCalledWith('e1'))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${W}.sheet.invoiced`, { number: '2026-41' }))
+  })
+
+  it('without Facturation: no « Facturer l\u2019inscription »', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: t(`${W}.page.openFor`, { person: 'Alice Attente' }) }))
+    const sheet = await screen.findByRole('dialog')
+    await within(sheet).findByRole('button', { name: t(`${W}.sheet.markPaid`) })
+    expect(within(sheet).queryByRole('button', { name: t(`${W}.sheet.invoice`) })).not.toBeInTheDocument()
   })
 
   it('the side sheet: waiving needs a reason; leaving « placée » needs the professional', async () => {
