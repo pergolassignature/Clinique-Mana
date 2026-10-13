@@ -52,6 +52,7 @@ export function recordSelections(record: ProfessionalRecord) {
   return {
     clienteles: starredSelection(record.clienteles),
     motifs: plainSelection(record.motifIds),
+    refusedMotifs: plainSelection(record.refusedMotifIds),
     languages: plainSelection(record.languageIds),
   }
 }

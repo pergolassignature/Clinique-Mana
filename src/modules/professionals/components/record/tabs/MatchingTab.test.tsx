@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
     setLanguages: vi.fn(),
     updateMatchingProfile: vi.fn(),
     setMatchingNote: vi.fn(),
+    setRefusedMotifs: vi.fn(),
+    setMatchingPriority: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
@@ -56,7 +58,7 @@ function renderTab({
 }
 
 const card = (title: string) => screen.getByRole('heading', { level: 3, name: title }).closest('section, form') as HTMLElement
-const openPicker = async (list: 'clienteles' | 'motifs' | 'languages') => {
+const openPicker = async (list: 'clienteles' | 'motifs' | 'refusedMotifs' | 'languages') => {
   await userEvent.click(screen.getByRole('button', { name: t(`${M}.${list}.edit`) }))
   return screen.getByRole('dialog', { name: t(`${M}.${list}.title`) })
 }
@@ -204,6 +206,38 @@ describe('MatchingTab — pickers', () => {
     expect(mocks.api.setMotifs).toHaveBeenCalledTimes(1)
     expect(mocks.api.setMotifs).toHaveBeenCalledWith(IDS.professional, [IDS.anxiete, IDS.psychose])
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.saved'))
+  })
+
+  it('refuses motifs (P4-551): never one she holds; the whole set saved through its own RPC', async () => {
+    mocks.api.setRefusedMotifs.mockImplementation(async (_id: string, motifIds: string[]) => {
+      stored = { ...stored, refusedMotifIds: motifIds }
+      return motifIds
+    })
+    renderTab()
+    expect(within(card(t(`${M}.refusedMotifs.title`))).getByText(t(`${M}.refusedMotifs.empty`))).toBeInTheDocument()
+    const dialog = await openPicker('refusedMotifs')
+    await unfold(dialog, 'Vie intérieure')
+    const held = within(dialog).getByRole('checkbox', { name: /Anxiété/ })
+    expect(held).toBeDisabled()
+    expect(held).toHaveAccessibleDescription(t(`${M}.refusedMotifs.heldBlocked`))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /Psychose/ }))
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.setRefusedMotifs).toHaveBeenCalledExactlyOnceWith(IDS.professional, [IDS.psychose]))
+    expect(mocks.api.setMotifs).not.toHaveBeenCalled()
+    expect(await within(card(t(`${M}.refusedMotifs.title`))).findByText(/Psychose/)).toBeInTheDocument()
+  })
+
+  it('saves « À prioriser » with its reason (P4-552), trimmed', async () => {
+    mocks.api.setMatchingPriority.mockImplementation(async (_id: string, reason: string | null) => {
+      const saved = reason === null ? null : { reason, updatedAt: '2026-10-13T15:00:00Z' }
+      stored = { ...stored, matchingPriority: saved }
+      return saved
+    })
+    renderTab()
+    const priority = card(t(`${M}.priority.title`))
+    await userEvent.type(within(priority).getByRole('textbox', { name: t(`${M}.priority.label`) }), '  Nouvelle : à remplir  ')
+    await userEvent.click(within(priority).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.setMatchingPriority).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'Nouvelle : à remplir'))
   })
 
   it('disables a restricted motif with its reason without a regulated title', async () => {

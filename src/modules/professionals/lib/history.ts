@@ -83,6 +83,7 @@ const PHRASED_TABLES = new Set<string>(['professionals', ...Object.keys(PROFILE_
 /** The set tables (junctions written by a set RPC), the column holding the item, and how to name it. */
 const SET_TABLES = {
   professional_motifs: 'motif_id',
+  professional_refused_motifs: 'motif_id',
   professional_languages: 'language_id',
   professional_clienteles: 'clientele_id',
 } as const
@@ -463,6 +464,8 @@ const DELIVERIES_TABLE = 'professional_invitation_deliveries'
 const CONSENTS_TABLE = 'professional_consents'
 /** « Bon à savoir » (P4-384, P4-385): staff only, its text redacted in the audit and never shown here. */
 const MATCHING_NOTE_TABLE = 'professional_matching_notes'
+/** « À prioriser » (P4-552): staff only; the reason is shown (it is not redacted). */
+const MATCHING_PRIORITY_TABLE = 'professional_matching_priorities'
 
 const isSection = (value: unknown): value is SubmissionSection => typeof value === 'string' && (SUBMISSION_SECTIONS as readonly string[]).includes(value)
 
@@ -579,6 +582,17 @@ function documentRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   return null
 }
 
+/** « a marqué le dossier « À prioriser » : <raison> », « a changé la raison… », « a retiré « À prioriser » » (P4-552). */
+function matchingPriorityRow(entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.matchingPriority`
+  const reason = pairOf(fieldsOf(entry).reason)?.after ?? fieldsOf(entry).reason
+  const named = typeof reason === 'string' ? reason : ''
+  if (entry.action === 'insert') return { kind: 'change', sentence: t(`${S}.added`, { reason: named }), lines: [] }
+  if (entry.action === 'update') return { kind: 'change', sentence: t(`${S}.changed`, { reason: named }), lines: [] }
+  if (entry.action === 'delete') return { kind: 'change', sentence: t(`${S}.removed`), lines: [] }
+  return null
+}
+
 /** « a ajouté / modifié / retiré la note Bon à savoir »: that it changed, never what it says (P4-385). */
 function matchingNoteRow(entry: HistoryEntry): Described | null {
   const S = `${H}.sentences.matchingNote`
@@ -662,6 +676,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.tableName === CONSENTS_TABLE) return consentRow(entry)
   if (entry.tableName === DOCUMENTS_TABLE && entry.action !== 'read') return documentRow(ctx, entry)
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
+  if (entry.tableName === MATCHING_PRIORITY_TABLE) return matchingPriorityRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
   if (entry.tableName === PAPER_CONTRACT_TABLE) return paperContractRow(entry)
   if (entry.tableName === CONTRACT_SNAPSHOTS_TABLE) return contractSnapshotRow(entry)
@@ -702,7 +717,8 @@ function setChangeOf(entry: HistoryEntry): SetChange | null {
   return null
 }
 
-type ListTable = Exclude<SetTable, 'professional_motifs'>
+type MotifTable = 'professional_motifs' | 'professional_refused_motifs'
+type ListTable = Exclude<SetTable, MotifTable>
 const LIST_KIND = { professional_languages: 'language', professional_clienteles: 'clientele' } as const
 
 /** The names of a batch, and how many of them (the last ones) the catalogue no longer knows. */
@@ -762,7 +778,8 @@ function sentenceNames({ groups, unknownCount }: BatchNames): string[] {
 const historyItemLabel = (item: HeldMotif) =>
   item.archived ? `${item.name} (${t('modules.professionals.record.overview.matching.archived')})` : item.name
 
-const isListBatch = (batch: SetBatch): batch is SetBatch & { table: ListTable } => batch.table !== 'professional_motifs'
+const isListBatch = (batch: SetBatch): batch is SetBatch & { table: ListTable } =>
+  batch.table !== 'professional_motifs' && batch.table !== 'professional_refused_motifs'
 
 /**
  * « a ajouté le motif Anxiété », « a ajouté les motifs A, B et C »; past FEW_MOTIFS items, a count

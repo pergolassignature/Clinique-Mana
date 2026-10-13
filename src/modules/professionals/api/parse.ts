@@ -248,6 +248,13 @@ export const matchingNotePayload = z
   .nullable()
 export type MatchingNote = NonNullable<z.output<typeof matchingNotePayload>>
 
+/** « À prioriser » (P4-552): staff only; null without one (and always for the provider). */
+export const matchingPriorityPayload = z
+  .object({ reason: z.string(), updated_at: z.string() })
+  .transform((r) => ({ reason: r.reason, updatedAt: r.updated_at }))
+  .nullable()
+export type MatchingPriority = NonNullable<z.output<typeof matchingPriorityPayload>>
+
 /**
  * One of the professional's titles (at most two, exactly one primary). Shared by the record and
  * `set_professional_professions`, whose generated type calls `licence_number` non-null.
@@ -305,6 +312,9 @@ const recordShape = z.object({
    * *_professionals_record_photo.sql.
    */
   photo_file_id: z.string().nullish(),
+  /** Staff only (P4-551, P4-552). Optional: bundles older than *_professionals_matching_exclusions.sql. */
+  refused_motif_ids: z.array(z.string()).optional(),
+  matching_priority: matchingPriorityPayload.optional(),
 })
 const recordFields = (r: z.output<typeof recordShape>) => ({
   professional: r.professional,
@@ -317,6 +327,8 @@ const recordFields = (r: z.output<typeof recordShape>) => ({
   languageIds: r.language_ids,
   payerNumbers: r.payer_numbers,
   photoFileId: r.photo_file_id ?? null,
+  refusedMotifIds: r.refused_motif_ids ?? [],
+  matchingPriority: r.matching_priority ?? null,
 })
 
 /** `get_professional_record`: the record page in one payload, null when the caller cannot read it. */

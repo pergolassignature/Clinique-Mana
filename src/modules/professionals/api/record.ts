@@ -6,6 +6,8 @@ import type { PayerType } from '../lib/constants'
 import { asRpcRefusal } from './function-errors'
 import {
   matchingNotePayload,
+  matchingPriorityPayload,
+  type MatchingPriority,
   parseRpc,
   professionRowPayload,
   recordPayload,
@@ -173,6 +175,23 @@ export async function setMotifs(id: string, motifIds: string[]): Promise<string[
   const { data, error } = await supabase.rpc('set_professional_motifs', { p_id: id, p_motif_ids: motifIds })
   if (error) throw error
   return parseRpc(idRows, data)
+}
+
+/**
+ * Replaces the refused motifs (P4-551, a warning in Demandes): never a held motif (a French
+ * `P0001`, HINT `held`), an archived one never added.
+ */
+export async function setRefusedMotifs(id: string, motifIds: string[]): Promise<string[]> {
+  const { data, error } = await supabase.rpc('set_professional_refused_motifs', { p_id: id, p_motif_ids: motifIds })
+  if (error) throw error
+  return parseRpc(idRows, data)
+}
+
+/** « À prioriser » with its reason (P4-552); empty or null removes it. Resolves with it, or null. */
+export async function setMatchingPriority(id: string, reason: string | null): Promise<MatchingPriority | null> {
+  const { data, error } = await supabase.rpc('set_professional_matching_priority', { p_id: id, p_reason: reason ?? '' })
+  if (error) throw error
+  return parseRpc(matchingPriorityPayload, data)
 }
 
 /** Replaces the languages (at least one: « Au moins une langue est requise. »). */
