@@ -190,6 +190,8 @@ select functions_are('public', array[
   'match_professionals_for_demande',
   -- Demandes, batch D5 (the availability board; Professionnels' places from it).
   'list_professional_capacity', 'set_professional_new_client_places',
+  -- Demandes, batch D4 part 2 (the waiting list's offers).
+  'list_waitlist_compatible',
   -- Facturation: the GOrendezvous import (I3).
   'import_invoice',
   -- Communications: « Rédiger avec l'IA » (CM4).

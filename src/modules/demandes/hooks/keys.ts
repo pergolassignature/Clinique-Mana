@@ -35,6 +35,8 @@ export const demandesKeys = {
   capacity: () => [...demandesKeys.all, 'capacity'] as const,
   waitlist: () => [...demandesKeys.all, 'waitlist'] as const,
   waitlistLists: () => [...demandesKeys.waitlist(), 'lists'] as const,
+  /** D4 part 2: a professional's compatible registrants (read again with the list and the proposals). */
+  waitlistCompatible: (professionalId: string) => [...demandesKeys.waitlist(), 'compatible', professionalId] as const,
   waitlistList: (query: WaitlistQuery) =>
     [...demandesKeys.waitlist(), 'list', query.target?.kind ?? 'all', query.target?.id ?? '', (query.states ?? []).join(',')] as const,
   waitlistOfDemande: (demandeId: string) => [...demandesKeys.waitlist(), 'demande', demandeId] as const,
