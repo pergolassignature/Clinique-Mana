@@ -213,7 +213,7 @@ Migration `20261013181604_demandes_matching` (pgTAP `164`, with Professionnels' 
 
 ## D5: places and the availability board
 
-Migrations `20261013184127_demandes_capacity` (pgTAP `166`) and Professionnels' `20261013184121_professionals_places_restart`; decisions D-31 … D-33, P4-553.
+Migrations `20261013191827_demandes_capacity` (pgTAP `166`) and Professionnels' `20261013191821_professionals_places_restart`; decisions D-31 … D-33, P4-553.
 
 - **`list_professional_capacity()`** (definer; `demandes.view` and `professionals.view`, both first). For every active professional of the clinic, by name:
   - her places: declared, taken, left (D-30), since when;
