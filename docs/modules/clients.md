@@ -128,7 +128,7 @@ Migrations `20261013020443_core_signing_second_client_signer` (core: the `client
 
 ## GOrendezvous import (batch I1)
 
-Migration `20261013034027_clients_import`; pgTAP `113_clients_import`; decisions I-7 … I-14; runbook [`import-gorendezvous.md`](../runbooks/import-gorendezvous.md).
+Migration `20261013043434_clients_import`; pgTAP `115_clients_import`; decisions I-7 … I-14; runbook [`import-gorendezvous.md`](../runbooks/import-gorendezvous.md).
 
 - **`import_client(row, dry_run)`** (clients.manage and clients.merge): one file with C2's checks, its `external_ref` (« gorendezvous:<ClientId> »), archived state, primary professional (linked « import »), free tags (the clinic's list, created when missing), main insurance and agreement note; a duplicate is imported and named (level, file number); a file already imported is `skipped`; a dry run rolls back.
 - **`import_client_relation(row, dry_run)`**: a relation between two imported files by their external refs, through `set_client_relation`.
