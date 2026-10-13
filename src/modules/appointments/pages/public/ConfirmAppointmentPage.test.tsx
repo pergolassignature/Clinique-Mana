@@ -70,3 +70,16 @@ describe('ConfirmAppointmentPage', () => {
     expect(await screen.findByText(t(`${C}.invalid`))).toBeInTheDocument()
   })
 })
+
+describe('ConfirmAppointmentPage in English', () => {
+  it('an English recipient: the page in English (the moment comes written in it)', async () => {
+    mocks.resolveConfirmLink.mockResolvedValue({ ...DISPLAY, language: 'en', when: 'Monday, October 19 at 10:00 a.m.' })
+    open()
+    expect(
+      await screen.findByText(
+        t('modules.appointments.confirmEn.bodyVideo', { clinic: 'Clinique MANA', when: 'Monday, October 19 at 10:00 a.m.', professional: 'Félix Martin' }),
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('modules.appointments.confirmEn.button') })).toBeInTheDocument()
+  })
+})

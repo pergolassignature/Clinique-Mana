@@ -7,6 +7,7 @@ import { t } from '@/i18n'
 import { FunctionCallError, refusalMessage } from '@/core/supabase/functions'
 import { Loading } from '@/shared/components/LoadState'
 import { SaveButton } from '@/shared/components/SaveButton'
+import { asPublicLanguage, usePageLanguage, type PublicLanguage } from '@/shared/lib/public-language'
 import { retryInText } from '@/shared/lib/retry-after'
 import { formatInClinicTimezone, getClinicDateString, setClinicTimezone } from '@/shared/lib/timezone'
 import { useNoIndex, usePageTitle } from '@/shared/lib/use-page-title'
@@ -20,7 +21,29 @@ import { bookCall, fetchBookingPage, type BookingPage as Page } from '../../api/
 import { captureSource, solveCheck, toE164 } from '../../lib/booking'
 import { PublicFrame } from './PublicFrame'
 
-const P = 'modules.demandes.booking.page'
+/** The page's text: French, or English with `&lang=en` (the clinic's English site links there). */
+const TEXT = (lang: PublicLanguage) => (lang === 'en' ? 'modules.demandes.booking.pageEn' : 'modules.demandes.booking.page') as 'modules.demandes.booking.page'
+
+/** The moment, in the page's language and the clinic's time zone. */
+const DAY = { fr: 'EEEE d MMMM', en: 'EEEE, MMMM d' } as const
+const SHORT_DAY = { fr: 'EEE d MMM', en: 'EEE, MMM d' } as const
+const TIME = { fr: "H 'h' mm", en: 'h:mm aaaa' } as const
+
+/** « English » / « Français »: the same page in the other language (the other parameters kept). */
+function LanguageSwitch({ lang }: { lang: PublicLanguage }) {
+  const { pathname, search } = useLocation()
+  const params = new URLSearchParams(search)
+  if (lang === 'en') params.delete('lang')
+  else params.set('lang', 'en')
+  const other = lang === 'en' ? 'fr' : 'en'
+  return (
+    <p className="mb-4 text-right text-sm">
+      <a href={`${pathname}?${params.toString()}`} lang={other === 'en' ? 'en-CA' : 'fr-CA'} className="text-link underline-offset-[3px] hover:underline">
+        {t(`${TEXT(lang)}.switchLanguage`)}
+      </a>
+    </p>
+  )
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Days shown before « Voir d'autres jours ». */
 const FIRST_DAYS = 7
@@ -42,13 +65,17 @@ function report(error: unknown) {
  * (its time zone), give a name, an email and a phone, the language, « Comment avez-vous entendu
  * parler de MANA ? » and, optionally, a few words. The page captures the source (utm_*, the
  * referrer, the landing page), solves the function's proof-of-work check (D-7), books, and says
- * when the counselor will call. Never indexed.
+ * when the counselor will call. French, or English with `&lang=en` (« English » / « Français »
+ * switches). Never indexed.
  */
 export function BookingPage() {
   useNoIndex()
-  usePageTitle(t(`${P}.title`))
   const { search } = useLocation()
   const org = new URLSearchParams(search).get('clinique') ?? ''
+  const lang = asPublicLanguage(new URLSearchParams(search).get('lang'))
+  const P = TEXT(lang)
+  usePageTitle(t(`${P}.title`))
+  usePageLanguage(lang)
   const valid = UUID.test(org)
   const page = useQuery({
     queryKey: ['public-booking', org],
@@ -84,6 +111,7 @@ export function BookingPage() {
     const text = page.isError ? t(`${P}.loadError`) : t(`${P}.closed`)
     return (
       <PublicFrame title={t(`${P}.title`)}>
+        <LanguageSwitch lang={lang} />
         <p role="alert" className="flex items-start gap-2 text-sm text-foreground">
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning-strong" />
           {text}
@@ -91,10 +119,21 @@ export function BookingPage() {
       </PublicFrame>
     )
   }
-  return <BookingForm org={org} page={page.data} onBooked={setDone} />
+  return <BookingForm org={org} page={page.data} lang={lang} onBooked={setDone} />
 }
 
-function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page, { open: true }>; onBooked: (done: { when: string; emailed: boolean }) => void }) {
+function BookingForm({
+  org,
+  page,
+  lang,
+  onBooked,
+}: {
+  org: string
+  page: Extract<Page, { open: true }>
+  lang: PublicLanguage
+  onBooked: (done: { when: string; emailed: boolean }) => void
+}) {
+  const P = TEXT(lang)
   const queryClient = useQueryClient()
   // The page's clinic: its slots are shown, and said, in its time zone.
   setClinicTimezone(page.timezone)
@@ -102,7 +141,7 @@ function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page,
   const [slot, setSlot] = useState<string | null>(null)
   const [day, setDay] = useState<string | null>(null)
   const [allDays, setAllDays] = useState(false)
-  const [values, setValues] = useState({ firstName: '', lastName: '', email: '', phone: '', language: 'fr' as 'fr' | 'en', heard: '', message: '' })
+  const [values, setValues] = useState({ firstName: '', lastName: '', email: '', phone: '', language: lang as 'fr' | 'en', heard: '', message: '' })
   const [errors, setErrors] = useState<Partial<Record<'slot' | 'firstName' | 'lastName' | 'email' | 'phone' | 'server', string>>>({})
   const [step, setStep] = useState<'idle' | 'checking' | 'booking'>('idle')
   const set = (key: keyof typeof values) => (value: string) => setValues((v) => ({ ...v, [key]: value }))
@@ -119,7 +158,7 @@ function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page,
   const shown = allDays ? days : days.slice(0, FIRST_DAYS)
   // The day chosen (the first with free slots by default), then its times: one screen, as Calendly.
   const current = days.find(([d]) => d === day) ?? days[0]
-  const when = (s: string) => t(`${P}.slotLabel`, { day: formatInClinicTimezone(s, 'EEEE d MMMM'), time: formatInClinicTimezone(s, "H 'h' mm") })
+  const when = (s: string) => t(`${P}.slotLabel`, { day: formatInClinicTimezone(s, DAY[lang], lang), time: formatInClinicTimezone(s, TIME[lang], lang) })
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -156,7 +195,16 @@ function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page,
       report(error)
       let text = t(`${P}.error`)
       if (error instanceof FunctionCallError) {
-        text = refusalMessage(error) ?? (error.code === 'rate_limited' ? `${t(`${P}.tooMany`)} ${retryInText(error.retryAfter)}` : text)
+        // The server's refusals are French: an English page says its own text.
+        const refusal = refusalMessage(error)
+        text =
+          refusal !== null
+            ? lang === 'fr'
+              ? refusal
+              : text
+            : error.code === 'rate_limited'
+              ? `${t(`${P}.tooMany`)} ${retryInText(error.retryAfter, lang)}`
+              : text
       }
       setErrors({ server: text })
       // A check is used once and the slots may have moved: a fresh page (new slots, new check).
@@ -169,12 +217,13 @@ function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page,
 
   return (
     <PublicFrame title={t(`${P}.title`)}>
+      <LanguageSwitch lang={lang} />
       <form noValidate onSubmit={(event) => void submit(event)} className="space-y-6" aria-busy={step !== 'idle' || undefined}>
         <p className="text-sm text-muted-foreground">{t(`${P}.intro`, { clinic: page.clinic_name, minutes: String(page.slot_minutes) })}</p>
 
         <fieldset className="space-y-3">
           <legend className="text-base font-semibold text-foreground">{t(`${P}.chooseSlot`)}</legend>
-          <p className="text-xs text-muted-foreground">{t(`${P}.slotsHelp`, { timezone: formatInClinicTimezone(new Date(), 'zzzz') })}</p>
+          <p className="text-xs text-muted-foreground">{t(`${P}.slotsHelp`, { timezone: formatInClinicTimezone(new Date(), 'zzzz', lang) })}</p>
           {days.length === 0 && <p className="text-sm text-foreground">{t(`${P}.noSlot`)}</p>}
           {days.length > 0 && (
             <div role="group" aria-label={t(`${P}.chooseDay`)} className="flex flex-wrap gap-2">
@@ -192,7 +241,7 @@ function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page,
                     current?.[0] === d ? 'border-primary bg-primary-soft text-foreground' : 'border-border bg-card text-foreground hover:bg-muted',
                   )}
                 >
-                  {formatInClinicTimezone(slots[0]!, 'EEE d MMM')}
+                  {formatInClinicTimezone(slots[0]!, SHORT_DAY[lang], lang)}
                 </button>
               ))}
               {!allDays && days.length > FIRST_DAYS && (
@@ -204,7 +253,7 @@ function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page,
           )}
           {current && (
             <div className="space-y-1.5">
-              <p className="text-sm font-medium text-foreground first-letter:uppercase">{formatInClinicTimezone(current[1][0]!, 'EEEE d MMMM')}</p>
+              <p className="text-sm font-medium text-foreground first-letter:uppercase">{formatInClinicTimezone(current[1][0]!, DAY[lang], lang)}</p>
               <div className="flex flex-wrap gap-2">
                 {current[1].map((s) => (
                   <label
@@ -215,7 +264,7 @@ function BookingForm({ org, page, onBooked }: { org: string; page: Extract<Page,
                     )}
                   >
                     <input type="radio" name="slot" value={s} checked={slot === s} onChange={() => setSlot(s)} className="sr-only" aria-label={when(s)} />
-                    {formatInClinicTimezone(s, "H 'h' mm")}
+                    {formatInClinicTimezone(s, TIME[lang], lang)}
                   </label>
                 ))}
               </div>
