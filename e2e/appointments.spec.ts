@@ -168,7 +168,9 @@ test('« Disponibilités » by direct manipulation: draw, undo, move, resize, un
   // A drag between two times of Saturday (hours, 48 px each below 7:00), measured afresh: the grid's
   // top at the top of the window, so the toasts (bottom right) stay clear of the hours used.
   const drag = async (from: number, to: number) => {
-    await column.evaluate((el) => el.scrollIntoView({ block: 'start' }))
+    // `instant`: the page scrolls smoothly (globals.css), and a box measured mid-scroll is wrong.
+    await column.evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
+    await expect.poll(async () => (await column.boundingBox())?.y).toBeLessThan(10)
     const box = (await column.boundingBox())!
     const x = box.x + box.width / 2
     const at = (hours: number) => box.y + (hours - 7) * 48
