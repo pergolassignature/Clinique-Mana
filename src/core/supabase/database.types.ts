@@ -2646,6 +2646,8 @@ export type Database = {
       }
       demande_propositions: {
         Row: {
+          accepted_appointment_id: string | null
+          accepted_starts_at: string | null
           created_at: string
           decline_reason: string | null
           demande_id: string
@@ -2653,6 +2655,8 @@ export type Database = {
           directory_updated_at: string | null
           expires_at: string | null
           id: string
+          language: string | null
+          mode: string | null
           org_id: string
           professional_id: string
           proposed_at: string
@@ -2660,9 +2664,13 @@ export type Database = {
           responded_at: string | null
           response: string
           secure_link_id: string | null
+          service_id: string | null
+          slots: Json
           updated_at: string
         }
         Insert: {
+          accepted_appointment_id?: string | null
+          accepted_starts_at?: string | null
           created_at?: string
           decline_reason?: string | null
           demande_id: string
@@ -2670,6 +2678,8 @@ export type Database = {
           directory_updated_at?: string | null
           expires_at?: string | null
           id?: string
+          language?: string | null
+          mode?: string | null
           org_id: string
           professional_id: string
           proposed_at?: string
@@ -2677,9 +2687,13 @@ export type Database = {
           responded_at?: string | null
           response?: string
           secure_link_id?: string | null
+          service_id?: string | null
+          slots?: Json
           updated_at?: string
         }
         Update: {
+          accepted_appointment_id?: string | null
+          accepted_starts_at?: string | null
           created_at?: string
           decline_reason?: string | null
           demande_id?: string
@@ -2687,6 +2701,8 @@ export type Database = {
           directory_updated_at?: string | null
           expires_at?: string | null
           id?: string
+          language?: string | null
+          mode?: string | null
           org_id?: string
           professional_id?: string
           proposed_at?: string
@@ -2694,6 +2710,8 @@ export type Database = {
           responded_at?: string | null
           response?: string
           secure_link_id?: string | null
+          service_id?: string | null
+          slots?: Json
           updated_at?: string
         }
         Relationships: [
@@ -10230,6 +10248,14 @@ export type Database = {
         Returns: string
       }
       anonymize_client: { Args: { p_id: string }; Returns: undefined }
+      answer_proposition_for_service: {
+        Args: {
+          p_appointment_id: string
+          p_decline_reason?: string
+          p_token_hash: string
+        }
+        Returns: Json
+      }
       answer_waitlist_followup_for_service: {
         Args: { p_answer: string; p_token_hash: string }
         Returns: Json
@@ -10579,6 +10605,18 @@ export type Database = {
       }
       create_professional_invitation: {
         Args: { p_actor: string; p_id: string; p_token_hash: string }
+        Returns: Json
+      }
+      create_proposition_for_service: {
+        Args: {
+          p_actor: string
+          p_demande_id: string
+          p_mode: string
+          p_professional_id: string
+          p_service_id: string
+          p_starts_at: string[]
+          p_token_hash: string
+        }
         Returns: Json
       }
       create_role: {
@@ -11187,6 +11225,24 @@ export type Database = {
           special_agreement: boolean
           tag_ids: string[]
           tax_exempt: boolean
+        }[]
+      }
+      list_demande_propositions: {
+        Args: { p_demande_id: string }
+        Returns: {
+          accepted_starts_at: string
+          decline_reason: string
+          expires_at: string
+          id: string
+          mode: string
+          professional_id: string
+          professional_name: string
+          proposed_at: string
+          proposed_by_name: string
+          responded_at: string
+          response: string
+          service_name: string
+          slots: Json
         }[]
       }
       list_demandes: {
@@ -11951,6 +12007,16 @@ export type Database = {
           starts_at: string
         }[]
       }
+      proposition_services: {
+        Args: { p_professional_id: string }
+        Returns: {
+          code: number
+          duration_minutes: number
+          for_two: boolean
+          id: string
+          name: string
+        }[]
+      }
       publish_client_consent_version: {
         Args: { p_population: string; p_version_id: string }
         Returns: number
@@ -12149,6 +12215,7 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: Json
       }
+      resolve_proposition_link: { Args: { p_link_id: string }; Returns: Json }
       resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
       resolve_waitlist_followup_link: {
         Args: { p_link_id: string }
@@ -12859,6 +12926,7 @@ export type Database = {
         Args: { p_id: string; p_note?: string; p_withdrawn_on: string }
         Returns: number
       }
+      withdraw_proposition: { Args: { p_id: string }; Returns: undefined }
       zoom_deauthorized_for_service: {
         Args: { p_external_user_id: string; p_org_id: string }
         Returns: number

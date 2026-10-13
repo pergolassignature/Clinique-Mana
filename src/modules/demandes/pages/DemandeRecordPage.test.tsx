@@ -25,10 +25,12 @@ const mocks = vi.hoisted(() => ({
     logContact: vi.fn(),
   },
   waitlist: { listWaitlist: vi.fn(), fetchWaitlistLists: vi.fn(), registerWaitlist: vi.fn() },
+  propositions: { listPropositions: vi.fn(), fetchPropositionServices: vi.fn(), fetchOpenSlots: vi.fn(), propose: vi.fn(), withdrawProposition: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/demandes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/demandes')>()), ...mocks.api }))
 vi.mock('../api/waitlist', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/waitlist')>()), ...mocks.waitlist }))
+vi.mock('../api/propositions', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/propositions')>()), ...mocks.propositions }))
 vi.mock('@/core/realtime/use-org-realtime', () => ({ useOrgRealtime: () => undefined }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -140,10 +142,19 @@ beforeEach(() => {
     { target_kind: 'title', target_id: 't1', name: 'Psychologie', open_count: 4, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: 30 },
   ])
   mocks.waitlist.registerWaitlist.mockResolvedValue(['w1'])
+  mocks.propositions.listPropositions.mockResolvedValue([])
+  mocks.propositions.fetchPropositionServices.mockResolvedValue([{ id: 's50', code: 10150, name: 'Consultation 50 min', duration_minutes: 50, for_two: false }])
+  mocks.propositions.fetchOpenSlots.mockResolvedValue([
+    { starts_at: '2026-10-20T13:00:00Z', ends_at: '2026-10-20T13:50:00Z' },
+    { starts_at: '2026-10-20T14:00:00Z', ends_at: '2026-10-20T14:50:00Z' },
+    { starts_at: '2026-10-21T13:00:00Z', ends_at: '2026-10-21T13:50:00Z' },
+  ])
+  mocks.propositions.propose.mockResolvedValue({ proposition_id: 'pr1', emailed: true, expires_at: '2026-10-15T15:00:00Z' })
+  mocks.propositions.withdrawProposition.mockResolvedValue(undefined)
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage(tab = 'accueil'): QueryClient {
+function renderPage(tab = 'accueil', modules = ['demandes', 'clients', 'professionals']): QueryClient {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -151,7 +162,7 @@ function renderPage(tab = 'accueil'): QueryClient {
         <Routes>
           <Route path="demandes/:id/:onglet?" element={<DemandeRecordPage />} />
         </Routes>,
-        { access: { access: accessForRole('counselor', { modules: ['demandes', 'clients', 'professionals'] }) }, path: `/demandes/${ID}/${tab}` },
+        { access: { access: accessForRole('counselor', { modules }) }, path: `/demandes/${ID}/${tab}` },
       )}
     </QueryClientProvider>,
   )
@@ -309,6 +320,70 @@ describe('DemandeRecordPage', () => {
     expect(within(card).getByText('3e sur 5')).toBeInTheDocument()
     expect(within(card).getByText(t('modules.demandes.waitlist.consent.pending'))).toBeInTheDocument()
     expect(within(card).getByText(t('modules.demandes.waitlist.fee.status.to_invoice'))).toBeInTheDocument()
+  })
+
+  it('Suivi: « Proposer un professionnel » holds 1 to 3 of her free slots and sends the proposal', async () => {
+    const user = userEvent.setup()
+    mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
+      { target_kind: 'professional', target_id: 'pro1', name: 'Pro Un', open_count: 0, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: null },
+    ])
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    renderPage('suivi', ['demandes', 'clients', 'professionals', 'appointments'])
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.propositions.open') }))
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.professional') }), 'pro1')
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.service') }), 's50')
+    const boxes = await within(dialog).findAllByRole('checkbox')
+    await user.click(boxes[0]!)
+    await user.click(boxes[2]!)
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '2' }) }))
+    await waitFor(() =>
+      expect(mocks.propositions.propose).toHaveBeenCalledWith({
+        demandeId: ID,
+        professionalId: 'pro1',
+        serviceId: 's50',
+        startsAt: ['2026-10-20T13:00:00Z', '2026-10-21T13:00:00Z'],
+        mode: 'video',
+      }),
+    )
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.demandes.propositions.sent'))
+  })
+
+  it('Suivi: a refusal of the function is shown in French (P3-40)', async () => {
+    const user = userEvent.setup()
+    const { FunctionCallError } = await import('@/core/supabase/functions')
+    mocks.propositions.propose.mockRejectedValue(
+      new FunctionCallError('invalid_request', 400, 'Demandes est réservé aux testeurs : aucune proposition ne part vers un client pour le moment.', { refusal: true }),
+    )
+    mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
+      { target_kind: 'professional', target_id: 'pro1', name: 'Pro Un', open_count: 0, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: null },
+    ])
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    renderPage('suivi', ['demandes', 'clients', 'professionals', 'appointments'])
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.propositions.open') }))
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.professional') }), 'pro1')
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.service') }), 's50')
+    await user.click((await within(dialog).findAllByRole('checkbox'))[0]!)
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/réservé aux testeurs/)
+  })
+
+  it('Suivi: a pending proposal is withdrawn after asking', async () => {
+    const user = userEvent.setup()
+    mocks.propositions.listPropositions.mockResolvedValue([
+      {
+        id: 'pr1', professional_id: 'pro1', professional_name: 'Pro Un', service_name: 'Consultation 50 min', mode: 'video',
+        slots: [{ appointment_id: 'a1', starts_at: '2026-10-20T13:00:00Z' }], proposed_at: '2026-10-13T14:00:00Z', proposed_by_name: 'Conseillère A',
+        expires_at: '2026-10-15T14:00:00Z', response: 'pending', responded_at: null, decline_reason: null, accepted_starts_at: null,
+      },
+    ])
+    renderPage('suivi', ['demandes', 'clients', 'professionals', 'appointments'])
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.propositions.withdraw') }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.withdraw') }))
+    await waitFor(() => expect(mocks.propositions.withdrawProposition).toHaveBeenCalledWith('pr1'))
+    expect(screen.queryByRole('button', { name: t('modules.demandes.propositions.open') })).not.toBeInTheDocument()
   })
 
   it('a request that is not the clinic\'s: « Demande introuvable »', async () => {

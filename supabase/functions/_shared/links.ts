@@ -43,6 +43,7 @@ const LINK_PATHS: ReadonlySet<string> = new Set([
   '/consentement',
   '/appel-decouverte/annuler',
   '/liste-attente/reponse',
+  '/proposition',
   '/rendez-vous/confirmer',
 ])
 
@@ -55,6 +56,7 @@ export type LinkPath =
   | '/consentement'
   | '/appel-decouverte/annuler'
   | '/liste-attente/reponse'
+  | '/proposition'
   | '/rendez-vous/confirmer'
 
 /** Base64url of `bytes`, without padding (RFC 4648 §5). */

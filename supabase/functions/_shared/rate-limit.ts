@@ -427,6 +427,18 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 600,
   },
+  /** `demandes-propose`, per caller: a counselor proposes a few times a day, a loop is cut early. */
+  propositionUser: {
+    bucket: 'demandes.proposition_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /** `demandes-proposition-answer`, per IP, before any lookup (a person may try another slot). */
+  propositionAnswerIp: {
+    bucket: 'demandes.proposition_answer_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
   /**
    * `zoom-connect` (« Connecter mon Zoom », « Déconnecter »), per caller:
    * each start issues a signed state; each disconnection revokes a grant.

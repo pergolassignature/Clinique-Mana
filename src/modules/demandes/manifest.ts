@@ -14,12 +14,15 @@ export const bookingPublicPage = lazyPage(() => import('./pages/public/BookingPa
 export const bookingCancelPublicPage = lazyPage(() => import('./pages/public/BookingCancelPage'), 'BookingCancelPage')
 /** `/liste-attente/reponse#t=…` (D3): the answer to the « still on the waiting list? » email. Public. */
 export const waitlistAnswerPublicPage = lazyPage(() => import('./pages/public/WaitlistAnswerPage'), 'WaitlistAnswerPage')
+/** `/proposition#t=…` (D3b): the person chooses one of the slots proposed, or none. Public. */
+export const propositionPublicPage = lazyPage(() => import('./pages/public/PropositionPage'), 'PropositionPage')
 
 /**
  * Module Demandes (plan §10): the counselors' requests — intake, discovery call, proposal, first
  * appointment — and the waiting list (roadmap §2.3 bis). D1 is the schema and the RPCs; D2 the
  * inbox (« Demandes ») and the record (Accueil, Participants, Suivi, Historique), live between
- * counselors; D3b « Appels découverte » (the counselors' day of calls); D3 the waiting list (« Liste d'attente », its follow-up, Paramètres → Liste
+ * counselors; D3b « Appels découverte » (the counselors' day of calls) and the proposals (Suivi,
+ * the public `/proposition`); D3 the waiting list (« Liste d'attente », its follow-up, Paramètres → Liste
  * d'attente); D3c the public booking page and Paramètres → Appels découverte. Depends on Clients (the person's file, the participants) and
  * Professionnels (the match, the catalogues).
  */

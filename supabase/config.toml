@@ -219,6 +219,12 @@ verify_jwt = false
 # Job demandes.waitlist_followup: X-Job-Signature (runJob).
 [functions.demandes-waitlist-followup]
 verify_jwt = false
+# User: a proposal (verifyAuth, demandes.manage).
+[functions.demandes-propose]
+verify_jwt = false
+# Public token: the answer to a proposal (the single-use link is the credential).
+[functions.demandes-proposition-answer]
+verify_jwt = false
 # Job clients.consent_reminders: X-Job-Signature (runJob).
 [functions.clients-consent-reminders]
 verify_jwt = false
