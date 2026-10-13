@@ -8629,7 +8629,10 @@
           "payout_periods": "Sommaires de paie",
           "payout_lines": "Lignes de paie",
           "professional_invoices": "Factures des professionnels",
-          "payout_service_rules": "Règles de paie"
+          "payout_service_rules": "Règles de paie",
+          "stripe_customers": "Cartes au dossier (Stripe)",
+          "stripe_charges": "Prélèvements Stripe",
+          "interac_notices": "Avis de virement Interac"
         },
         "fields": {
           "invoices": {
@@ -8879,6 +8882,45 @@
             "service_id": "Service",
             "rule": "Règle",
             "updated_by": "Modifiée par"
+          },
+          "stripe_customers": {
+            "payer_client_id": "Payeur",
+            "stripe_customer_id": "Client Stripe",
+            "payment_method_id": "Carte Stripe",
+            "card_brand": "Réseau de la carte",
+            "card_last4": "Quatre derniers chiffres",
+            "card_exp_month": "Mois d’expiration",
+            "card_exp_year": "Année d’expiration",
+            "card_status": "État de la carte",
+            "consent_at": "Autorisée le",
+            "removed_at": "Retirée le",
+            "removed_by": "Retirée par"
+          },
+          "stripe_charges": {
+            "invoice_id": "Facture",
+            "payer_client_id": "Payeur",
+            "kind": "Type",
+            "amount_cents": "Montant",
+            "status": "État",
+            "payment_intent_id": "Paiement Stripe",
+            "failure_code": "Motif du refus",
+            "payment_id": "Paiement",
+            "finished_at": "Terminé le"
+          },
+          "interac_notices": {
+            "source": "Origine",
+            "source_ref": "Courriel d’origine",
+            "received_on": "Reçu le",
+            "amount_cents": "Montant",
+            "sender_name": "Expéditeur",
+            "message": "Message",
+            "reference": "Référence",
+            "status": "État",
+            "invoice_id": "Facture",
+            "payment_id": "Paiement",
+            "matched_at": "Rapproché le",
+            "matched_by": "Rapproché par",
+            "ignored_reason": "Raison (ignoré)"
           }
         },
         "values": {
@@ -9049,6 +9091,35 @@
               "other_fees": "Autres frais",
               "workshop": "Ateliers et conférences",
               "none": "Non payé"
+            }
+          },
+          "stripe_customers": {
+            "card_status": {
+              "none": "Aucune",
+              "active": "Au dossier",
+              "removed": "Retirée"
+            }
+          },
+          "stripe_charges": {
+            "kind": {
+              "auto": "Automatique (lendemain)",
+              "manual": "Prélever maintenant"
+            },
+            "status": {
+              "pending": "En cours",
+              "succeeded": "Prélevé",
+              "failed": "Refusé"
+            }
+          },
+          "interac_notices": {
+            "source": {
+              "manual": "Saisi",
+              "gmail": "administration@"
+            },
+            "status": {
+              "to_match": "À rapprocher",
+              "matched": "Rapproché",
+              "ignored": "Ignoré"
             }
           }
         },
@@ -9705,6 +9776,161 @@
               "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
             }
           }
+        }
+      },
+      "stripe": {
+        "card": "Carte",
+        "expires": "exp. {month}/{year}",
+        "chargeStatus": {
+          "pending": "En cours",
+          "succeeded": "Prélevé",
+          "failed": "Refusé"
+        },
+        "failures": {
+          "card_declined": "Carte refusée",
+          "insufficient_funds": "Fonds insuffisants",
+          "expired_card": "Carte expirée",
+          "authentication_required": "La banque demande une confirmation du client",
+          "abandoned": "Sans réponse de Stripe",
+          "other": "Refusé par la banque"
+        },
+        "errors": {
+          "failed": "L’opération de paiement n’a pas pu être faite. Réessayez.",
+          "notConfigured": "Stripe n’est pas configuré : entrez la clé dans Paramètres → Paiements en ligne.",
+          "providerError": "Stripe n’a pas répondu. Réessayez dans un instant.",
+          "reserved": "Facturation est réservé aux testeurs : aucun courriel ne part vers les clients."
+        },
+        "panel": {
+          "title": "Carte au dossier",
+          "loadError": "La carte au dossier n’a pas pu être chargée.",
+          "notConfigured": "Les paiements en ligne ne sont pas configurés (Paramètres → Paiements en ligne).",
+          "self": "Le client",
+          "payer": "Payeur par défaut",
+          "noCard": "Aucune carte au dossier.",
+          "linkPending": "Lien envoyé le {date}, en attente de la carte.",
+          "consentOn": "autorisée le {date}",
+          "send": "Envoyer le lien pour enregistrer une carte",
+          "sendAgain": "Renvoyer le lien",
+          "linkSent": "Lien envoyé à {name}.",
+          "remove": "Retirer la carte",
+          "removeTitle": "Retirer la carte ?",
+          "removeBody": "La carte de {name} est retirée chez Stripe : elle ne sera plus prélevée. Un nouveau lien sera nécessaire pour en enregistrer une autre.",
+          "removed": "Carte de {name} retirée.",
+          "charges": "Derniers prélèvements",
+          "invoice": "Facture {number}",
+          "chargeNow": "Prélever maintenant",
+          "charged": "Prélèvement réussi : le reçu suit.",
+          "chargeRefused": "Prélèvement refusé : {reason}."
+        },
+        "settings": {
+          "title": "Paiements en ligne",
+          "description": "Stripe : les cartes au dossier, le prélèvement du lendemain et le bouton « Payer en ligne » des factures.",
+          "keys": {
+            "title": "Compte Stripe",
+            "description": "Les clés du compte Stripe de la clinique (Développeurs → Clés API et Webhooks). Elles ne sont jamais affichées.",
+            "secret": "Clé secrète",
+            "secretHelp": "Commence par sk_live_ (ou sk_test_ pour les essais).",
+            "webhook": "Secret de signature du webhook",
+            "webhookHelp": "Commence par whsec_ : affiché par Stripe quand vous ajoutez l’adresse ci-dessous.",
+            "address": "Adresse du webhook",
+            "addressHelp": "À ajouter dans Stripe (Développeurs → Webhooks) avec les événements checkout.session.completed, payment_intent.succeeded et payment_intent.payment_failed.",
+            "readOnly": "Seule une personne qui gère les intégrations peut changer les clés.",
+            "secretsUnknown": "L’état des clés n’est visible qu’avec la permission de voir les paramètres.",
+            "secretsLoadError": "L’état des clés n’a pas pu être chargé."
+          },
+          "job": {
+            "title": "Prélèvement du lendemain",
+            "description": "Chaque jour à 10 h, prélève une fois chaque facture émise d’un payeur qui a une carte au dossier. Désactivée au départ.",
+            "unknown": "L’état des tâches planifiées n’est visible qu’avec la permission de voir les paramètres.",
+            "state": {
+              "on": "La tâche « Prélèvements des cartes au dossier » est activée, chaque jour à {hour} h.",
+              "onNoHour": "La tâche « Prélèvements des cartes au dossier » est activée.",
+              "off": "La tâche « Prélèvements des cartes au dossier » est désactivée : aucune carte n’est prélevée automatiquement.",
+              "enable": "Activer la tâche planifiée",
+              "enabling": "Activation…",
+              "askAdmin": "Une personne qui gère les tâches planifiées peut l’activer :",
+              "openJobs": "Ouvrir Tâches planifiées",
+              "unknown": "La tâche « Prélèvements des cartes au dossier » n’est pas disponible pour la clinique.",
+              "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
+            }
+          }
+        },
+        "public": {
+          "invalid": "Ce lien n’est plus valide. Communiquez avec la clinique pour en recevoir un nouveau.",
+          "error": "Une erreur est survenue. Réessayez dans un instant, ou communiquez avec la clinique.",
+          "unavailable": "Le paiement en ligne n’est pas offert pour le moment. Communiquez avec la clinique.",
+          "opening": "Ouverture de Stripe…",
+          "card": {
+            "title": "Enregistrer une carte",
+            "intro": "Bonjour {name}, {clinic} vous propose d’enregistrer une carte de crédit pour vos paiements.",
+            "authorization": "En enregistrant votre carte, vous autorisez {clinic} à y prélever le montant de vos factures, le lendemain de chaque rendez-vous, jusqu’à ce que vous demandiez de la retirer.",
+            "stripe": "La carte est enregistrée sur la page sécurisée de Stripe, notre fournisseur de paiement : la clinique ne voit jamais son numéro.",
+            "button": "Enregistrer ma carte",
+            "already": "Une carte est déjà au dossier. Pour la changer, communiquez avec la clinique.",
+            "thanks": "Merci : votre carte est enregistrée. Vous pouvez fermer cette page.",
+            "cancelled": "Vous n’avez pas enregistré de carte. Le lien reste valable quelques jours si vous changez d’avis."
+          },
+          "pay": {
+            "title": "Payer une facture",
+            "intro": "Facture {number} du {date}, {clinic}.",
+            "balance": "Solde à payer : {amount}",
+            "stripe": "Le paiement se fait sur la page sécurisée de Stripe, notre fournisseur de paiement. Le reçu vous est envoyé par courriel.",
+            "button": "Payer en ligne",
+            "alreadyPaid": "Cette facture est déjà payée. Merci !",
+            "thanks": "Merci : votre paiement est reçu. Le reçu vous sera envoyé par courriel.",
+            "cancelled": "Le paiement n’a pas été fait. Vous pouvez reprendre avec le même lien."
+          }
+        }
+      },
+      "interac": {
+        "nav": "Virements Interac",
+        "title": "Virements Interac",
+        "description": "Les avis de virement reçus à administration@, à rapprocher d’une facture : le paiement et son reçu sont enregistrés d’un clic.",
+        "loadError": "Les avis de virement n’ont pas pu être chargés.",
+        "filterLabel": "Avis à afficher",
+        "states": {
+          "to_match": "À rapprocher",
+          "matched": "Rapprochés",
+          "ignored": "Ignorés"
+        },
+        "empty": {
+          "to_match": "Aucun virement à rapprocher",
+          "matched": "Aucun virement rapproché",
+          "ignored": "Aucun virement ignoré"
+        },
+        "receivedOn": "Reçu le {date}",
+        "fromMailbox": "lu dans administration@",
+        "reference": "Référence : {reference}",
+        "suggestions": "Factures suggérées",
+        "noSuggestion": "Aucune facture émise n’a ce solde ni ce nom : enregistrez le paiement depuis la facture, puis ignorez l’avis.",
+        "invoice": "Facture {number}",
+        "balance": "solde {amount}",
+        "amountMatches": "Même montant",
+        "nameMatches": "Même nom",
+        "match": "Rapprocher avec {number}",
+        "matched": "Virement rapproché de la facture {number} : le reçu suit.",
+        "ignore": "Ignorer",
+        "ignored": "Avis ignoré.",
+        "ignoredBecause": "Ignoré : {reason}",
+        "ignoreDialog": {
+          "title": "Ignorer cet avis",
+          "description": "Le virement de {amount} de {sender} ne sera rapproché d’aucune facture.",
+          "label": "Raison"
+        },
+        "add": {
+          "title": "Ajouter un avis de virement",
+          "description": "Recopiez l’avis reçu à administration@ (montant, expéditeur, message).",
+          "date": "Reçu le",
+          "amount": "Montant ($)",
+          "amountInvalid": "Entrez le montant du virement (par exemple 130 ou 130,00).",
+          "sender": "Expéditeur",
+          "senderHelp": "Le nom inscrit dans l’avis d’Interac.",
+          "senderRequired": "Le nom de l’expéditeur est requis.",
+          "reference": "Numéro de référence",
+          "message": "Message",
+          "messageHelp": "Facultatif : souvent le numéro de la facture ou le nom du client.",
+          "submit": "Ajouter l’avis",
+          "saved": "Avis ajouté : choisissez la facture à rapprocher."
         }
       }
     }

@@ -839,7 +839,9 @@ begin
 end;
 $$;
 
--- A transfer notice read from administration@ (Communications, CM1b): once per message.
+-- A transfer notice read from administration@ (Communications, CM1b): once per message. Matched
+-- at once when exactly one issued invoice has that balance and its payer's name is the sender's
+-- (FS-6, « auto-match when unique »); otherwise it waits in « À rapprocher ».
 create function public.record_interac_notice_for_service(
   p_org_id uuid, p_source_ref text, p_received_on date, p_amount_cents int, p_sender_name text, p_message text, p_reference text
 )
@@ -850,6 +852,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_only uuid[];
+  v_receipt uuid;
 begin
   if not public.module_enabled_for_org(p_org_id, 'billing') then
     return null;
@@ -860,6 +864,24 @@ begin
           nullif(pg_catalog.left(pg_catalog.btrim(coalesce(p_reference, '')), 100), ''))
   on conflict (org_id, source, source_ref) do nothing
   returning id into v_id;
+  if v_id is null then
+    return null;
+  end if;
+  v_only := array(
+    select i.id from public.invoices i
+     cross join lateral private.clients_billing_facts(p_org_id, array[i.payer_client_id]) pf
+     where i.org_id = p_org_id and i.status = 'issued' and i.total_cents - i.paid_cents = p_amount_cents
+       and private.billing_name_score(p_sender_name, pf.first_name,
+             pg_catalog.btrim(pg_catalog.substr(pf.display_name, pg_catalog.length(pf.first_name) + 1))) > 0
+     limit 2);
+  if pg_catalog.cardinality(v_only) = 1 then
+    v_receipt := private.billing_record_payment(p_org_id, v_only[1], 'interac', p_amount_cents, p_received_on,
+                   nullif(pg_catalog.left(pg_catalog.btrim(coalesce(p_reference, '')), 100), ''), 'interac:' || v_id::text, null);
+    update public.interac_notices x
+       set status = 'matched', invoice_id = v_only[1], matched_at = pg_catalog.now(),
+           payment_id = (select r.payment_id from public.receipts r where r.id = v_receipt)
+     where x.id = v_id;
+  end if;
   return v_id;
 end;
 $$;

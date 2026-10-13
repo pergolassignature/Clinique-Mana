@@ -8,6 +8,7 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 | F2 | Morning queue, payments, receipts on payment, statements, PDFs, emails (schema, `billing-documents`); the screens | schema and documents built; screens next |
 | F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | planned |
 | FQ | QuickBooks Online (lane B): the connection, the accounts map keyed on the payment modes, the customers read and matched (part 1); the invoices and payments pushed (part 2, after F2) | part 1 built |
+| FS | Online payments (lane C): Stripe card on file and the next-day charge, « Payer en ligne », the webhook, Interac « À rapprocher » ([below](#paiements-en-ligne-fs)) | built (refunds with F3, administration@ with CM1b) |
 | FPay | Payroll (lane C): periods, rules, the lock, « Paie », « Ma paie », her invoice, the QuickBooks export ([below](#paie-des-professionnels-fpay)) | built (fee wiring after F3) |
 
 - **Registry:** `modules.key = 'billing'`, depends on `clients`, `services`, `professionals`, `appointments`; starts disabled in every clinic.
@@ -147,6 +148,25 @@ Decisions **FQ-1 … FQ-5**. PS Hub's connector is the source (roadmap §2.6), i
 - **Locally:** `npm run fake:qbo` (port 55394, `_shared/testing/fake-qbo.ts`); the seed stores the fake's application.
 - **Tests:** pgTAP `150_billing_quickbooks`; Deno tests of the four functions and `_shared/qbo/`; Vitest `QuickBooksSettingsPage`, `QuickBooksCustomersPage`, `lib/qbo-status`.
 - **Part 2 (after F2):** the invoices and payments pushed at finalisation (the hook to agree with lane A), the sub-customers created.
+
+## Paiements en ligne (FS)
+
+Stripe (card on file, the next-day charge, « Payer en ligne ») and Interac « À rapprocher » (Christine 6, decisions **FS-1 … FS-8**). Migrations `20261013125559_core_webhook_events_stripe_provider` (`stripe` among the webhook providers), `20261013125602_billing_stripe_interac`; pgTAP `160_billing_stripe_interac`; Deno tests of the four functions and `_shared/stripe/`; Vitest `ClientCardPanel`, `InteracPage`, `StripeLinkPage`; Playwright `e2e/stripe-interac.spec.ts`.
+
+- **Recording a payment:** `private.billing_record_payment(org, invoice, mode, amount, paid_on, reference, external_ref, actor)`: `record_payment`'s checks and sequence, idempotent on `external_ref` (FS-1). `record_payment` calls it. A notice read from administration@ is matched at once when exactly one issued invoice has its amount as balance and the payer's name in the sender's.
+- **Tables** (`billing.view` reads, every write an RPC, audited): `stripe_customers` (a payer's Stripe customer, card brand, last four, expiry, status, consent date; never the number), `stripe_charges` (each charge: `auto` once per invoice, `manual`; `pending` / `succeeded` / `failed` with Stripe's code), `interac_notices` (`to_match` / `matched` / `ignored`; the message redacted in the audit log).
+- **Links:** purposes `billing_card_setup` (`/carte`, 7 days, 5 opens) and `billing_pay` (`/payer`, 30 days, 10 opens), resolved by `resolve_billing_card_link` / `resolve_billing_pay_link`.
+- **Functions** (decisions FS-2 … FS-5):
+  - `billing-stripe` (user, `billing.manage`): `card_link` (the customer made once, the link, the email `billing.card_setup` / `_en`; a reserved module → 409), `charge_now`, `remove_card`; `LIMITS.billingStripeUser`.
+  - `billing-stripe-checkout` (public token, `LIMITS.billingCheckoutIp` first): one use of the link, then a Checkout session (setup with the consent text, or payment for the balance); Stripe's URL only.
+  - `stripe-webhook` (webhook, `?org=`, `LIMITS.stripeWebhookIp`): signature, claim, module, then the card or the payment, or a charge failed.
+  - `billing-stripe-charges` (job `billing.stripe_charges`, 10 h, off until switched on): the due invoices charged once each.
+  - `billing-documents` (F2) adds the « Payer en ligne » button to an invoice email when the database issues the link (`issue_billing_link_for_service`), optional (`actionOptional`).
+- **Service RPCs:** `stripe_card_link_context_for_service`, `save_stripe_customer_for_service`, `issue_billing_link_for_service`, `begin_billing_checkout_for_service`, `record_stripe_card_for_service`, `stripe_card_for_service`, `stripe_card_removed_for_service`, `record_stripe_payment_for_service`, `stripe_charges_due_for_service`, `begin_stripe_charge_for_service`, `finish_stripe_charge_for_service`, `stripe_payment_failed_for_service`, `record_interac_notice_for_service` (for Communications, CM1b).
+- **User RPCs:** `get_client_stripe(client)`, `list_interac_notices(status)`, `add_interac_notice(…)`, `match_interac_notice(notice, invoice)`, `ignore_interac_notice(notice, reason)`.
+- **Screens:** « Carte au dossier » in Clients' « Visites et paiements » (slot `client.visits`); « Virements Interac » (`/facturation/virements`); Paramètres → Paiements en ligne (`online_payments`, path `paiements-en-ligne`: the two keys, the webhook address, the job); the public pages `/carte` and `/payer` (and their `?etat=merci` / `annule` returns).
+- **Locally:** `npm run fake:stripe` (port 55397, `_shared/testing/fake-stripe.ts`: customers, Checkout with a page that completes it and sends the signed webhook, setup intents, payment methods, off-session PaymentIntents; `pm_fakeDeclined` is refused); the seed holds its keys; `STRIPE_API_BASE_URL` in `supabase/functions/.env`.
+- **Open:** refunds through F3 (FS-8); Interac notices from administration@ (CM1b, once real examples exist); CLAUDE.md §7 to name the four functions.
 
 ## Keep / Change / Drop
 

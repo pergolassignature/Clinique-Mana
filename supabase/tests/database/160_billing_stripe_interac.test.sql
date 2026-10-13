@@ -10,7 +10,7 @@
 -- message); the conseillère reads, never writes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(60);
 
 select function_privs_are('public', f, a, 'authenticated', array[]::text[], f || ': not for users')
   from (values ('begin_billing_checkout_for_service', array['bytea']),
@@ -188,6 +188,12 @@ select isnt(public.record_interac_notice_for_service('b0000000-0000-0000-0000-00
   null, 'from administration@: a notice');
 select is(public.record_interac_notice_for_service('b0000000-0000-0000-0000-00000000000a', 'msg-1', current_date, 9000, 'Bruno Côté', null, null),
   null, '… once per message');
+select isnt(public.record_interac_notice_for_service('b0000000-0000-0000-0000-00000000000a', 'msg-2', current_date, 8000, 'Bruno Côté', null, null),
+  null, 'the one invoice with that balance and his name');
+select results_eq($$ select n.status, i.payment_status from public.interac_notices n join public.invoices i on i.id = n.invoice_id
+                      where n.source_ref = 'msg-2' $$,
+  $$ values ('matched'::text, 'paid'::text) $$, '… is matched at once');
+select is((select status from public.interac_notices where source_ref = 'msg-1'), 'to_match', 'no single match: it waits');
 
 select * from finish();
 rollback;

@@ -1,4 +1,4 @@
-import { BookUser, HandCoins, Landmark, ReceiptText, Wallet } from 'lucide-react'
+import { ArrowLeftRight, BookUser, CreditCard, HandCoins, Landmark, ReceiptText, Wallet } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -9,13 +9,20 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 /** « Ma paie »: an account linked to a professional file. */
 const hasProfessionalFile = (access: Access) => access.has_professional_file
 
+/** `/carte#t=…` (FS): « Enregistrer ma carte », from the card email. Public. */
+export const cardSetupPublicPage = lazyPage(() => import('./pages/public/StripeLinkPage'), 'CardSetupPage')
+/** `/payer#t=…` (FS-4): « Payer en ligne », from an invoice email. Public. */
+export const payPublicPage = lazyPage(() => import('./pages/public/StripeLinkPage'), 'PayPage')
+
 /**
  * Module Facturation (plan §8). F1: the invoices of a dossier billed to its payer (« Facturé à »),
  * their lines priced by Services et tarifs, the numbering `AAAA-N`, the taxes per line and the
  * credit notes; « Factures », an invoice's page, the client's panel in « Visites et paiements »
  * and Paramètres → Facturation (the numbering). F2: the morning queue, receipts and statements;
  * F3: dunning, the balance rule, cancellation fees. FQ (QuickBooks, lane B): the connection, the
- * accounts map and the customers' matching. FPay (payroll): « Paie » for the administration
+ * accounts map and the customers' matching. FS (online payments): Stripe cards on file and the
+ * next-day charge, « Payer en ligne », « Virements Interac », Paramètres → Paiements en ligne, the
+ * public pages `/carte` and `/payer`. FPay (payroll): « Paie » for the administration
  * (`billing.payroll`), « Ma paie » for the professional (`billing.self`), Paramètres → Paie.
  * Depends on Clients, Services et tarifs, Professionnels and Rendez-vous.
  */
@@ -25,6 +32,7 @@ export const billingManifest: ModuleManifest = {
   dependsOn: ['clients', 'services', 'professionals', 'appointments'],
   nav: [
     { path: '/facturation', labelKey: 'modules.billing.name', icon: ReceiptText, permission: 'billing.view', order: 13 },
+    { path: '/facturation/virements', labelKey: 'modules.billing.interac.nav', icon: ArrowLeftRight, permission: 'billing.view', order: 14 },
     { path: '/facturation/paie', labelKey: 'modules.billing.payroll.nav.payroll', icon: HandCoins, permission: 'billing.payroll', order: 30 },
     {
       path: '/ma-paie',
@@ -38,6 +46,7 @@ export const billingManifest: ModuleManifest = {
   routes: [
     { path: 'facturation', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage') },
     { path: 'facturation/factures/:id', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicePage'), 'InvoicePage') },
+    { path: 'facturation/virements', permission: 'billing.view', component: lazyPage(() => import('./pages/InteracPage'), 'InteracPage') },
     { path: 'facturation/paie', permission: 'billing.payroll', component: lazyPage(() => import('./pages/PayrollPage'), 'PayrollPage') },
     { path: 'ma-paie', permission: 'billing.self', component: lazyPage(() => import('./pages/MyPayPage'), 'MyPayPage') },
     { path: 'ma-paie/:periodId', permission: 'billing.self', component: lazyPage(() => import('./pages/MyPayPage'), 'MyPayPage') },
@@ -74,6 +83,17 @@ export const billingManifest: ModuleManifest = {
       group: 'modules',
       component: lazyPage(() => import('./pages/settings/PayrollSettingsPage'), 'PayrollSettingsPage'),
     },
+    {
+      // Paramètres → Paiements en ligne (FS): the Stripe keys, the webhook, the next-day charge job.
+      id: 'online_payments',
+      path: 'paiements-en-ligne',
+      labelKey: 'modules.billing.stripe.settings.title',
+      icon: CreditCard,
+      permission: 'billing.settings',
+      editPermission: 'billing.settings',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/OnlinePaymentsSettingsPage'), 'OnlinePaymentsSettingsPage'),
+    },
     // FQ: the QuickBooks connection and its accounts map; the customers' matching report.
     {
       id: 'quickbooks',
@@ -100,6 +120,8 @@ export const billingManifest: ModuleManifest = {
   slots: {
     'client.visits': [
       { id: 'billing.invoices', permissions: ['billing.view'], component: lazyPage(() => import('./pages/ClientBillingPanel'), 'ClientBillingPanel') },
+      // FS: the dossier's payers' card on file.
+      { id: 'billing.card', permissions: ['billing.view'], component: lazyPage(() => import('./pages/ClientCardPanel'), 'ClientCardPanel') },
     ],
   },
 }
