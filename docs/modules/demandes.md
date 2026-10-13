@@ -211,6 +211,26 @@ Migration `20261013181604_demandes_matching` (pgTAP `164`, with Professionnels' 
   - « Non admissibles (N) », folded, each with its reasons.
   - The panel is its own query, a child of the record's key: every write on the request reads it again.
 
+## D4, part 2: the waiting list meets the matching
+
+Migration `20261013200947_demandes_waitlist_offers` (pgTAP `168`); decisions D-34 … D-36.
+
+- **Compatible registrants (D-36):** `private.demandes_waitlist_compatible(org, professional)` lists the open entries she could be offered.
+  - Which entries: those on her own list and her professions' lists, « Active » or « À rappeler » (consent and fee settled), with no proposal pending.
+  - Which criteria: D4's hard filters, applied to the entry's own criteria (its language, periods, gender, clientèle, motifs), with the person's age and sex taken from the request.
+  - The order is the list's: « Prioritaire » first, then the oldest.
+  - `list_waitlist_compatible(professional)` (`demandes.view` and `professionals.view`) shows them with the match's warnings.
+- **« Place disponible » (D-34):** D5's nightly photo compares each professional with her last one.
+  - A place has opened when her places left are back above 0, she accepts new clients again, or she is newly active.
+  - If someone compatible waits, one notice `demandes.waitlist_slot_available` goes to `demandes.waitlist`, once per professional per day, pointing to `/liste-attente?liste=p-<her>`.
+  - Nothing is sent on the clinic's first photo, because there is nothing to compare.
+  - Rendez-vous availability changes are not watched: a place is what the clinic declares (the workbook's model).
+- **« Offrir la plage » and the next one (D-35):**
+  - From a compatible row, « Offrir la plage » opens the request's « Jumelage » with the proposal to her preset (`?proposer=`): 1 to 3 of her slots held 48 h, one link (D3b, P3-40 included). An expired insurance asks first.
+  - When a proposal of hers is declined or unanswered for a person on the list, and someone else compatible waits, the notice `demandes.waitlist_offer_next` (« Plage à offrir au suivant ») goes to `demandes.waitlist`. It is sent from `demandes_end_proposition`.
+- **Screen:** on a professional's list (`/liste-attente?liste=p-<id>`, with `professionals.view`), the card « Personnes compatibles avec … » shows each person in order, which list she is on, « Prioritaire », the days waited, the warnings, and « Offrir la plage ».
+- **No message leaves the clinic:** the notices are internal, and the proposal keeps D3b's checks.
+
 ## D5: places and the availability board
 
 Migrations `20261013191827_demandes_capacity` (pgTAP `166`) and Professionnels' `20261013191821_professionals_places_restart`; decisions D-31 … D-33, P4-553.

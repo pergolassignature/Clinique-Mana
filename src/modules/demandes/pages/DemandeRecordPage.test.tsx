@@ -269,6 +269,13 @@ describe('DemandeRecordPage', () => {
     expect(within(dialog).queryByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })).not.toBeInTheDocument()
   })
 
+  it('Jumelage: « Offrir la plage » from the waiting list (?proposer=) opens the proposal to her', async () => {
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'waitlist' }))
+    renderPage('jumelage?proposer=pro1', ['demandes', 'clients', 'professionals', 'appointments'])
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
+    expect(within(dialog).getByRole('combobox', { name: t('modules.demandes.propositions.form.professional') })).toHaveValue('pro1')
+  })
+
   it('Suivi: proposing a professional whose insurance is expired asks for a confirmation (rule 8)', async () => {
     const user = userEvent.setup()
     mocks.waitlist.fetchWaitlistLists.mockResolvedValue([

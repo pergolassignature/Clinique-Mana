@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -42,6 +42,26 @@ export function MatchingTab() {
   const [showOthers, setShowOthers] = useState(false)
   const [confirming, setConfirming] = useState<MatchedProfessional | null>(null)
   const [proposing, setProposing] = useState<MatchedProfessional | null>(null)
+  const [params, setParams] = useSearchParams()
+  const asked = params.get('proposer')
+
+  const data = match.data
+  const pendingNow = (propositions.data ?? []).some((p) => p.response === 'pending')
+  const openNow = ['accepted', 'waitlist', 'proposed'].includes(bundle.demande.state)
+  const canProposeNow = canEdit && openNow && !pendingNow && can('appointments.view')
+  // « Offrir la plage » (D4 part 2): `?proposer=<professional>` opens the proposal to her once,
+  // through the same path as « Proposer » (an expired insurance asks first).
+  useEffect(() => {
+    if (!asked || !data || !propositions.data) return
+    const professional = data.professionals.find((p) => p.professional_id === asked && p.eligible)
+    if (professional && canProposeNow) {
+      if (professional.warnings.includes('insurance_expired')) setConfirming(professional)
+      else setProposing(professional)
+    }
+    const next = new URLSearchParams(params)
+    next.delete('proposer')
+    setParams(next, { replace: true })
+  }, [asked, data, propositions.data, canProposeNow]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (match.isError && !match.data) {
     return <LoadError message={t(`${M}.loadError`)} retrying={match.isFetching} onRetry={() => void match.refetch()} />

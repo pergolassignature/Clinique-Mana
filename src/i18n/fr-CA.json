@@ -8281,6 +8281,25 @@
           "bodyNoList": "You are on the waiting list of {clinic}. Would you like to stay on it?",
           "stay": "Yes, I am staying on the list",
           "leave": "No, remove me from the list"
+        },
+        "offers": {
+          "title": "Personnes compatibles avec {name}",
+          "description": "Celles de sa liste et des listes de ses professions qui répondent à ses critères, dans l'ordre de la liste (« Prioritaire » d'abord, puis l'inscription la plus ancienne). Inscriptions complètes, sans proposition en cours.",
+          "none": "Personne de compatible n'attend {name} pour le moment.",
+          "loadError": "Les personnes compatibles n'ont pas pu être chargées.",
+          "herList": "Sa liste",
+          "titleList": "Liste {name}",
+          "offer": "Offrir la plage",
+          "warnings": {
+            "refused_motif": "Motif refusé (à vérifier)",
+            "insurance_expired": "Assurance expirée",
+            "insurance_expiring": "Assurance bientôt échue",
+            "insurance_missing": "Assurance manquante",
+            "age_unknown": "Âge à vérifier",
+            "sex_unknown": "Femmes seulement : à vérifier",
+            "clientele_unknown": "Clientèle à vérifier",
+            "no_places": "0 place restante"
+          }
         }
       },
       "calls": {

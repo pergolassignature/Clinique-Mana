@@ -23,7 +23,9 @@ const mocks = vi.hoisted(() => ({
     updateWaitlistEntry: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
+  offers: { fetchWaitlistCompatible: vi.fn() },
 }))
+vi.mock('../api/waitlist-offers', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.offers }))
 vi.mock('../api/waitlist', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
 vi.mock('@/core/realtime/use-org-realtime', () => ({ useOrgRealtime: () => undefined }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
@@ -117,6 +119,31 @@ function renderPage(path = '/liste-attente', modules = ['demandes', 'clients', '
 }
 
 describe('WaitlistPage', () => {
+  it('a professional\u2019s list: who she could be offered, in list order, and « Offrir la plage » to the request\u2019s Jumelage (D4 part 2)', async () => {
+    mocks.offers.fetchWaitlistCompatible.mockResolvedValue([
+      {
+        entry_id: 'w2', demande_id: 'd2', reference: 'DEM-2026-0002', person_name: 'Marc Placé', client_number: 12,
+        target_kind: 'professional', target_name: 'Pro Un', priority: 'priority', priority_reason: 'Urgent', registered_at: '2026-10-01T12:00:00Z',
+        waited_days: 12, state: 'to_call', rank: 1, list_size: 1, warnings: ['age_unknown'], order: 1,
+      },
+      {
+        entry_id: 'w1', demande_id: 'd1', reference: 'DEM-2026-0001', person_name: 'Léa Essai', client_number: 11,
+        target_kind: 'title', target_name: 'Psychologie', priority: 'normal', priority_reason: null, registered_at: '2026-08-01T12:00:00Z',
+        waited_days: 73, state: 'active', rank: 2, list_size: 2, warnings: [], order: 2,
+      },
+    ])
+    renderPage(`/liste-attente?liste=p-${PRO}`)
+    const O = `${W}.offers`
+    const list = await screen.findByRole('list', { name: t(`${O}.title`, { name: 'Pro Un' }) })
+    const rows = within(list).getAllByRole('listitem')
+    expect(within(rows[0]!).getByRole('link', { name: 'Marc Placé' })).toBeInTheDocument()
+    expect(within(rows[0]!).getByText(t(`${W}.priority.priority`))).toBeInTheDocument()
+    expect(within(rows[0]!).getByText(t(`${O}.warnings.age_unknown`))).toBeInTheDocument()
+    expect(within(rows[1]!).getByText(new RegExp(t(`${O}.titleList`, { name: 'Psychologie' })))).toBeInTheDocument()
+    expect(within(rows[1]!).getByRole('link', { name: t(`${O}.offer`) })).toHaveAttribute('href', `/demandes/d1/jumelage?proposer=${PRO}`)
+    expect(mocks.offers.fetchWaitlistCompatible).toHaveBeenCalledWith(PRO)
+  })
+
   it('one list from the address: its average wait, its people in order with their rank and what is missing', async () => {
     renderPage(`/liste-attente?liste=t-${PSY}`)
     expect(await screen.findByText(/Attente moyenne avant une place : 34 jours/)).toBeInTheDocument()

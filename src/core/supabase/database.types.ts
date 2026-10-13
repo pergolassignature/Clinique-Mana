@@ -15659,6 +15659,10 @@ export type Database = {
           waited_days: number
         }[]
       }
+      list_waitlist_compatible: {
+        Args: { p_professional_id: string }
+        Returns: Json
+      }
       list_zoom_connections_to_refresh_for_service: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: string[]
