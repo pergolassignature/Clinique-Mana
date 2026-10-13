@@ -9680,6 +9680,10 @@ export type Database = {
         Args: { p_submission_id: string }
         Returns: Json
       }
+      import_client: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_client_consent_fact_for_service: {
         Args: {
           p_client_id: string
@@ -9690,6 +9694,10 @@ export type Database = {
           p_version_label: string
         }
         Returns: boolean
+      }
+      import_client_relation: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
       }
       import_professional: {
         Args: { p_dry_run?: boolean; p_row: Json }

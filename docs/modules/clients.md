@@ -10,6 +10,7 @@ The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): o
 | C4 | Merge UI, « Confidentialité » (Loi 25 export and anonymisation), ⌘K, the record's « Historique », remembered list filters, the client picker and the referral sources for other modules | built |
 | C5a | Client consents: schema, RPCs, functions (part 1); UI (part 2) | built |
 | C5b | Withdrawal, copy to the client, reports, re-sign campaign | planned |
+| I1 | GOrendezvous import: clients, relations, price gap report (`import_client`, `import_client_relation`) | built (runs on Jonathan's go-ahead) |
 
 - **Registry:** `modules.key = 'clients'` (migration `20261012213428_clients_module`), depends on `professionals`. It **starts disabled** in every clinic; the local seed enables it.
 - **Migrations:** (Demandes' handlers: `20261013022645_demandes_client_handlers`) `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261013022637_clients_duplicates`, `20261013022641_clients_rpcs`; C3: `20261013034343_clients_list`, `20261013040106_clients_email_match_partial_update`; C4: `20261013043334_clients_merge_privacy_history`.
@@ -151,6 +152,7 @@ Migrations `20261013020443_core_signing_second_client_signer` (core: the `client
 - **Published for other modules:** `private.required_consents_for(org, client, service_code, payer_kind, professional_status, situations, context_type, context_id)` → (consent_key, frequency, state) for Rendez-vous (R1, R2, R5) and Demandes (D3); views `client_consents_status` (staff), `client_consents_to_obtain` (« Consentements à obtenir »), `my_client_consents` (the professional's linked clients, clients.self).
 - **Merge and anonymisation (with C2):** the handlers `private.clients_consents_reassign_client` and `private.clients_consents_anonymize_client` (module key `clients` in `client_merge_handlers` / `client_anonymize_handlers`, CC-9, CC-10). Who signs reads `private.client_contacts_for(…, 'appointments')` (CC-8). Follow-up: core's `signature_request_signers` keeps a signer's name and address after an anonymisation until core has its own hook.
 - **Placeholder texts:** « Publier » is never offered while a draft is still the seeded « Texte provisoire » (CC-11).
+- **Mise en service (texts):** the template editor moves to core (CC-12, a small core batch to schedule); Christine's 14 texts are entered there, then published in Paramètres → Consentements.
 - **Screens (part 2):**
   - « Consentements à obtenir » (`/clients/consentements`, nav « Consentements », `clients.view`): the open requests, overdue first; a row opens the client's consents in a side sheet.
   - `components/consents/ClientConsentsPanel`: per consent, its state, the sealed PDF (`useSignedFileUrl`), and « Envoyer » / « Renvoyer » / « Annuler la demande » (`clients.manage`). The record's « Consentements » tab (C3) mounts it.
@@ -158,3 +160,13 @@ Migrations `20261013020443_core_signing_second_client_signer` (core: the `client
   - The public page `/consentement#t=…` (`consentPublicPage`, registered in `src/app/public-pages.ts`): identity, the « Oui / Non » clauses, Documenso inside the page (`@/core/signing/components/EmbeddedSigning`, shared; Professionnels still has its own copy), « Merci ! ». French or English, the request's language.
   - The texts themselves are not edited in the app yet: the template editor lives in Professionnels; either it moves to core or the clinic's texts come by a migration (decision to take with Jonathan).
 - **Tests:** Vitest for the three screens, the panel and `lib/consents`; `e2e/consents.spec.ts` (publish; then, with the functions and the fake Documenso, send, sign on the public page, no longer to obtain). The local seed holds one fictitious client, « Camille Exemple ».
+
+## GOrendezvous import (batch I1)
+
+Migration `20261013043434_clients_import`; pgTAP `115_clients_import`; decisions I-7 … I-14; runbook [`import-gorendezvous.md`](../runbooks/import-gorendezvous.md).
+
+- **`import_client(row, dry_run)`** (clients.manage and clients.merge): one file with C2's checks, its `external_ref` (« gorendezvous:<ClientId> »), archived state, primary professional (linked « import »), free tags (the clinic's list, created when missing), main insurance and agreement note; a duplicate is imported and named (level, file number); a file already imported is `skipped`; a dry run rolls back.
+- **`import_client_relation(row, dry_run)`**: a relation between two imported files by their external refs, through `set_client_relation`.
+- **Tombstone (I-13):** trigger `clients_import_tombstone` keeps « anon: » + SHA-256 of the reference when a file is anonymised; `import_client` skips it.
+- **The script** `scripts/import-gorendezvous.mjs` (`clients`, `prix`) and its readers in `scripts/import-gorendezvous/` (mappings, payloads, price gaps), with synthetic fixtures and tests.
+
