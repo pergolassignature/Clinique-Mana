@@ -21,6 +21,7 @@ import { LogContactDialog } from '../LogContactDialog'
 import { useServerDraft } from '../../lib/use-server-draft'
 import { useDemandeRecord } from './record-context'
 import { StaleNotice } from './StaleNotice'
+import { PropositionsCard } from './PropositionsCard'
 import { WaitlistCard } from './WaitlistCard'
 
 const F = 'modules.demandes.followUp'
@@ -28,7 +29,7 @@ const F = 'modules.demandes.followUp'
 /**
  * « Suivi »: the contact attempts (how many, the last, the next try, « Noter un appel »), the
  * dated tasks (the discovery call replaces the fake « conseillère » appointments; a callback; a
- * follow-up), the waiting list's entries (D3) and the internal note (demandes.notes only; never in a journal, a notice or an AI
+ * follow-up), the proposals (D3b), the waiting list's entries (D3) and the internal note (demandes.notes only; never in a journal, a notice or an AI
  * prompt, D-4).
  */
 export function FollowUpTab() {
@@ -36,6 +37,7 @@ export function FollowUpTab() {
   return (
     <SectionSurface>
       <ContactsCard />
+      <PropositionsCard />
       <WaitlistCard />
       <TasksCard />
       {bundle.can.notes && <NoteCard />}
