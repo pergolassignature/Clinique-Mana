@@ -20,10 +20,16 @@ function auditedTables(): string[] {
   const tables = new Set<string>()
   for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith('.sql'))) {
     const sql = readFileSync(path.join(MIGRATIONS, file), 'utf8').replace(/--[^\n]*/g, '')
-    for (const match of sql.matchAll(/create\s+trigger\s+\w+[^;]*?\son\s+public\.(\w+)[^;]*?execute\s+(?:function|procedure)\s+private\.audit_trigger\s*\(/gi)) {
-      tables.add(match[1]!)
+    // Creations and drops in the order they appear: a migration may drop an audit trigger and
+    // create it again (to change the columns it redacts).
+    const events = [
+      ...[...sql.matchAll(/create\s+trigger\s+\w+[^;]*?\son\s+public\.(\w+)[^;]*?execute\s+(?:function|procedure)\s+private\.audit_trigger\s*\(/gi)].map((m) => ({ at: m.index, table: m[1]!, add: true })),
+      ...[...sql.matchAll(/drop\s+trigger\s+(?:if\s+exists\s+)?\w+_audit\s+on\s+public\.(\w+)/gi)].map((m) => ({ at: m.index, table: m[1]!, add: false })),
+    ].sort((a, b) => a.at - b.at)
+    for (const event of events) {
+      if (event.add) tables.add(event.table)
+      else tables.delete(event.table)
     }
-    for (const match of sql.matchAll(/drop\s+trigger\s+(?:if\s+exists\s+)?\w+_audit\s+on\s+public\.(\w+)/gi)) tables.delete(match[1]!)
   }
   return [...tables].sort()
 }
