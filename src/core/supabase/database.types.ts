@@ -15005,6 +15005,21 @@ export type Database = {
           video_url: string
         }[]
       }
+      list_appointment_history: {
+        Args: { p_before_id?: number; p_id: string; p_limit?: number }
+        Returns: {
+          action: string
+          actor_id: string
+          actor_name: string
+          actor_role: string
+          changed_fields: Json
+          created_at: string
+          id: number
+          record_id: string
+          source: string
+          table_name: string
+        }[]
+      }
       list_appointments_without_reminder: {
         Args: { p_from: string; p_to: string }
         Returns: {

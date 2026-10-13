@@ -5,12 +5,12 @@ import { formatClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
 import { exceptionsOn, placeAppointments, verticalBox, windowsOn } from '../lib/layout'
-import { GRID_END, GRID_START, SNAP, hhmm, instantOf, minutesOnDay, snap } from '../lib/time'
+import { DEFAULT_GRID, SNAP, gridRangeFor, hhmm, instantOf, minutesOnDay, snap, type GridRange } from '../lib/time'
 import { appointmentTitle, blockClasses, isBusyOnly, stateLabel } from '../lib/display'
 
-/** Pixels per hour of the grid (14 hours: 7:00 to 21:00). */
+/** Pixels per hour of the grid (16 hours by default: 6:00 to 22:00). */
 export const HOUR_HEIGHT = 48
-const HOURS = Array.from({ length: (GRID_END - GRID_START) / 60 }, (_, i) => GRID_START + i * 60)
+const hoursOf = (range: GridRange) => Array.from({ length: (range.end - range.start) / 60 }, (_, i) => range.start + i * 60)
 const A = 'modules.appointments.agenda'
 
 export interface GridColumn {
@@ -35,6 +35,8 @@ interface TimeGridProps {
   onCreate: (day: string, minutes: number, professionalId: string | null) => void
   onOpen: (appointment: AgendaAppointment) => void
   onMove: (appointment: AgendaAppointment, startsAt: string) => void
+  /** A service's colour (Services et tarifs), drawn on the block's left edge; null for none. */
+  serviceColour?: (serviceId: string | null) => string | null
 }
 
 interface Drag {
@@ -45,8 +47,8 @@ interface Drag {
 }
 
 /**
- * The agenda's time grid (plan R2): columns of days or professionals, 7:00–21:00, each item
- * placed by its clinic date and clock time (`lib/time`, so 9:00 stays on the 9:00 line across a
+ * The agenda's time grid (plan R2): columns of days or professionals, 6:00–22:00, widened by whole
+ * hours to any appointment outside it (one is never hidden), each item placed by its clinic date and clock time (`lib/time`, so 9:00 stays on the 9:00 line across a
  * daylight-saving change). Booking mode: availability windows shaded and exceptions hatched; a
  * click on an empty quarter hour creates an appointment there; an appointment opens on click and
  * moves by dragging (Pointer Events, 15-minute snapping), the move confirmed by the database.
@@ -54,29 +56,34 @@ interface Drag {
  */
 export function TimeGrid(props: TimeGridProps) {
   const { columns } = props
-  const height = ((GRID_END - GRID_START) / 60) * HOUR_HEIGHT
+  const range = gridRangeFor(columns.flatMap((column) => placeAppointments(ownOf(props.appointments, column), column.day)))
+  const height = ((range.end - range.start) / 60) * HOUR_HEIGHT
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-card">
       <div className="flex min-w-max">
-        <HourRail />
+        <HourRail range={range} />
         {columns.map((column) => (
-          <Column key={column.key} column={column} height={height} {...props} />
+          <Column key={column.key} column={column} height={height} range={range} {...props} />
         ))}
       </div>
     </div>
   )
 }
 
+/** A column's appointments: all of them in a week of several professionals, else its professional's. */
+const ownOf = (appointments: readonly AgendaAppointment[], column: GridColumn) =>
+  appointments.filter((a) => column.professionalId === null || a.professionalId === column.professionalId)
+
 /** The hours down the grid's left side. */
-export function HourRail() {
-  const height = ((GRID_END - GRID_START) / 60) * HOUR_HEIGHT
+export function HourRail({ range = DEFAULT_GRID }: { range?: GridRange }) {
+  const height = ((range.end - range.start) / 60) * HOUR_HEIGHT
   return (
     <div className="w-14 shrink-0 border-r border-border" aria-hidden>
       <div className="h-12 border-b border-border" />
       <div className="relative" style={{ height }}>
-        {HOURS.map((m) => (
-          <div key={m} className="absolute right-1.5 -translate-y-1/2 text-xs text-muted-foreground tabular" style={{ top: ((m - GRID_START) / 60) * HOUR_HEIGHT }}>
-            {m === GRID_START ? '' : hhmm(m)}
+        {hoursOf(range).map((m) => (
+          <div key={m} className="absolute right-1.5 -translate-y-1/2 text-xs text-muted-foreground tabular" style={{ top: ((m - range.start) / 60) * HOUR_HEIGHT }}>
+            {m === range.start ? '' : hhmm(m)}
           </div>
         ))}
       </div>
@@ -95,17 +102,16 @@ export function ColumnHeader({ column }: { column: GridColumn }) {
 }
 
 /** The hour lines of a column. */
-export function HourLines() {
-  return HOURS.map((m) => (
-    <div key={m} aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-border/60" style={{ top: ((m - GRID_START) / 60) * HOUR_HEIGHT }} />
+export function HourLines({ range = DEFAULT_GRID }: { range?: GridRange }) {
+  return hoursOf(range).map((m) => (
+    <div key={m} aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-border/60" style={{ top: ((m - range.start) / 60) * HOUR_HEIGHT }} />
   ))
 }
 
-function Column({ column, height, ...props }: TimeGridProps & { column: GridColumn; height: number }) {
+function Column({ column, height, range, ...props }: TimeGridProps & { column: GridColumn; height: number; range: GridRange }) {
   const { appointments, rules, exceptions, canWrite } = props
   const shadeFor = column.professionalId ?? props.shadeProfessionalId
-  const own = appointments.filter((a) => (column.professionalId === null || a.professionalId === column.professionalId))
-  const placed = placeAppointments(own, column.day)
+  const placed = placeAppointments(ownOf(appointments, column), column.day)
   const windows = shadeFor ? windowsOn(rules, shadeFor, column.day) : []
   const offs = shadeFor ? exceptionsOn(exceptions, shadeFor, column.day) : []
   const [drag, setDrag] = useState<Drag | null>(null)
@@ -115,7 +121,7 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
 
   const minutesAt = (event: { clientY: number; currentTarget: HTMLElement }) => {
     const rect = event.currentTarget.getBoundingClientRect()
-    return Math.floor(((event.clientY - rect.top) / HOUR_HEIGHT) * 60 / SNAP) * SNAP + GRID_START
+    return Math.floor(((event.clientY - rect.top) / HOUR_HEIGHT) * 60 / SNAP) * SNAP + range.start
   }
 
   const onBackground = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -132,10 +138,10 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
   const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>, a: AgendaAppointment) => {
     const d = dragRef.current
     if (!d) return
-    // Kept on the grid: 7:00 at the earliest, its end at 21:00 at the latest.
+    // Kept on the grid: its first hour at the earliest, its end at the last hour at the latest.
     const start = minutesOnDay(a.startsAt, column.day)
     const length = minutesOnDay(a.endsAt, column.day) - start
-    const offset = Math.min(Math.max(snap(((event.clientY - d.originY) / HOUR_HEIGHT) * 60), GRID_START - start), GRID_END - length - start)
+    const offset = Math.min(Math.max(snap(((event.clientY - d.originY) / HOUR_HEIGHT) * 60), range.start - start), range.end - length - start)
     if (offset === d.offset) return
     dragRef.current = { ...d, offset, moved: d.moved || offset !== 0 }
     setDrag(dragRef.current)
@@ -159,23 +165,31 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
         onClick={onBackground}
         data-testid={`agenda-column-${column.key}`}
       >
-        <HourLines />
+        <HourLines range={range} />
         {windows.map(({ rule, start, end }) => (
-          <div key={rule.id} aria-hidden className="pointer-events-none absolute inset-x-0 bg-primary/5" style={verticalBox(start, end, HOUR_HEIGHT)} />
+          <div key={rule.id} aria-hidden className="pointer-events-none absolute inset-x-0 bg-primary/5" style={verticalBox(start, end, HOUR_HEIGHT, range)} />
         ))}
         {offs.map(({ exception, start, end }) => (
           <div
             key={exception.id}
             aria-hidden
             className="pointer-events-none absolute inset-x-0 bg-muted [background-image:repeating-linear-gradient(135deg,transparent_0_6px,rgb(var(--border-strong))_6px_7px)]"
-            style={verticalBox(start, end, HOUR_HEIGHT)}
+            style={verticalBox(start, end, HOUR_HEIGHT, range)}
           />
         ))}
         {placed.map(({ item: a, start, end, lane, lanes }) => {
             const offset = drag?.id === a.id ? drag.offset : 0
-            const box = verticalBox(start + offset, end + offset, HOUR_HEIGHT)
+            const box = verticalBox(start + offset, end + offset, HOUR_HEIGHT, range)
             const width = 100 / lanes
-            const position = { top: box.top, height: Math.max(box.height, 18), left: `calc(${lane * width}% + 2px)`, width: `calc(${width}% - 4px)` }
+            const colour = props.serviceColour?.(a.serviceId) ?? null
+            const position = {
+              top: box.top,
+              height: Math.max(box.height, 18),
+              left: `calc(${lane * width}% + 2px)`,
+              width: `calc(${width}% - 4px)`,
+              // The service's colour on the left edge (AP-33); the state keeps the block's own tone.
+              ...(colour && { borderLeftColor: colour, borderLeftWidth: 4 }),
+            }
             // Another professional's personal appointment: busy time, nothing to open (AP-13).
             if (isBusyOnly(a)) {
               return (

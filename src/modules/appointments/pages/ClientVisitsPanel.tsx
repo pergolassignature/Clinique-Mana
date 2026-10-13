@@ -1,5 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
+import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { formatClinicDateFull, formatClinicTime } from '@/shared/lib/timezone'
@@ -7,7 +9,7 @@ import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import type { ClientVisit } from '../api/visits'
 import { useClientVisits } from '../hooks/use-visits'
-import { modeLabel, presenceLabel, stateBadgeVariant, stateLabel } from '../lib/display'
+import { appointmentLink, modeLabel, presenceLabel, stateBadgeVariant, stateLabel } from '../lib/display'
 
 const V = 'modules.appointments.visits'
 
@@ -15,7 +17,8 @@ const V = 'modules.appointments.visits'
  * Rendez-vous' panel in Clients' « Visites et paiements » (slot `client.visits`, R5, AP-24): the
  * client's appointments, coming ones first (soonest first), then the past (newest first), each
  * with its professional, service, state and her presence; « Afficher plus » pages through the
- * past. The record's id comes from the route (`/clients/:id/…`).
+ * past. The record's id comes from the route (`/clients/:id/…`). Each date opens the appointment in
+ * the agenda (`rendez-vous=<id>`, AP-33): « Agenda » for the staff, « Mon agenda » for a professional.
  */
 export function ClientVisitsPanel() {
   const { id = '' } = useParams()
@@ -47,6 +50,8 @@ export function ClientVisitsPanel() {
 }
 
 function VisitList({ title, visits, empty }: { title: string; visits: readonly ClientVisit[]; empty: string }) {
+  const { can } = useAccess()
+  const mine = !can('appointments.view')
   return (
     <div className="space-y-1.5">
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
@@ -57,9 +62,13 @@ function VisitList({ title, visits, empty }: { title: string; visits: readonly C
           {visits.map((v) => (
             <li key={v.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2">
               <span className="min-w-0">
-                <span className={v.state === 'cancelled' ? 'line-through' : 'font-medium'}>
+                <GuardedNavLink
+                  to={appointmentLink(v, mine)}
+                  aria-label={t(`${V}.openLabel`, { when: `${formatClinicDateFull(v.startsAt)}, ${formatClinicTime(v.startsAt)}` })}
+                  className={v.state === 'cancelled' ? 'line-through hover:underline' : 'font-medium hover:underline'}
+                >
                   {formatClinicDateFull(v.startsAt)}, {formatClinicTime(v.startsAt)}
-                </span>
+                </GuardedNavLink>
                 <span className="text-muted-foreground">
                   {' · '}
                   {v.professionalName}

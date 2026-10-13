@@ -20,7 +20,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 const snapDown = (minutes: number) => Math.floor(minutes / SNAP) * SNAP
 const snapNearest = (minutes: number) => Math.round(minutes / SNAP) * SNAP
 
-/** Minutes for a pointer `offsetY` pixels below the grid's 7:00 line. */
+/** Minutes for a pointer `offsetY` pixels below the grid's first line (6:00). */
 export function minutesAtOffset(offsetY: number, hourHeight: number): number {
   return GRID_START + (offsetY / hourHeight) * 60
 }

@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t, type TranslationKey } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
 import { moduleErrorMessage, rpcErrorCode } from '@/core/modules/errors'
@@ -40,6 +40,7 @@ import {
   saveAgendaSettings,
   type AgendaSettings,
 } from '../api/changes'
+import { APPOINTMENT_HISTORY_PAGE_SIZE, fetchAppointmentHistory } from '../api/history'
 import { fetchWithoutReminder } from '../api/messages'
 import type { AppointmentMode, Presence } from '../api/parse'
 import { appointmentsKeys } from './keys'
@@ -184,6 +185,16 @@ export function useBookingConsents(serviceId: string, clientIds: readonly string
     queryFn: () => fetchBookingConsents(serviceId, clientIds),
     enabled: serviceId !== '' && clientIds.length > 0,
     placeholderData: keepPreviousData,
+  })
+}
+
+/** An appointment's « Historique », 50 rows a page (keyset on the audit id), read when the tab opens. */
+export function useAppointmentHistory(id: string) {
+  return useInfiniteQuery({
+    queryKey: appointmentsKeys.history(id),
+    queryFn: ({ pageParam }) => fetchAppointmentHistory(id, pageParam),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.length < APPOINTMENT_HISTORY_PAGE_SIZE ? undefined : (last.at(-1)?.id ?? undefined)),
   })
 }
 
