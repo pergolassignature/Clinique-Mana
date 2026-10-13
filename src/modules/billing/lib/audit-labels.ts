@@ -9,9 +9,16 @@ export const BILLING_AUDITED_TABLES = [
   'invoices',
   'invoice_lines',
   'credit_notes',
+  'payments',
+  'receipts',
+  'statements',
+  'special_agreements',
+  'billing_queue_items',
+  'billing_deliveries',
   'billing_payer_defaults',
   'invoice_sequences',
   'payment_modes',
+  'billing_settings',
 ] as const
 
 /** The audit source of the per-clinic seed (`private.seed_billing_reference`). */
