@@ -36,7 +36,7 @@ select results_eq($$ select depends_on from public.module_dependencies where mod
   $$ values ('appointments'::text), ('clients'), ('professionals'), ('services') $$, 'billing depends on appointments, clients, professionals, services');
 select results_eq($$ select role, pg_catalog.array_agg(permission_key order by permission_key) from public.role_permissions
                       where permission_key like 'billing.%' group by role order by role $$,
-  $$ values ('admin'::text, array['billing.manage', 'billing.self', 'billing.settings', 'billing.view']),
+  $$ values ('admin'::text, array['billing.manage', 'billing.payroll', 'billing.self', 'billing.settings', 'billing.view']),
             ('admin_assistant', array['billing.manage', 'billing.view']),
             ('counselor', array['billing.view']),
             ('provider', array['billing.self']) $$, 'role defaults');

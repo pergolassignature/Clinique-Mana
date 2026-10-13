@@ -8960,6 +8960,10 @@
             "paid": "Paie de {name} marquée comme versée.",
             "uploaded": "Facture ajoutée.",
             "generated": "Facture générée et ajoutée."
+          },
+          "rebuildDialog": {
+            "title": "Recalculer un sommaire envoyé ?",
+            "body": "Le sommaire de {name} redevient un brouillon : il ou elle ne le voit plus jusqu’à ce que vous le renvoyiez."
           }
         },
         "dialogs": {
@@ -9058,7 +9062,21 @@
           },
           "toasts": {
             "built": "Mois calculé : {created} nouveau(x) sommaire(s), {rebuilt} recalculé(s), {locked} verrouillé(s).",
-            "sent": "{sent} sommaire(s) envoyé(s) ; {unpriced} en attente d’une ligne à compléter."
+            "sent": "{sent} sommaire(s) envoyé(s) ; {unpriced} en attente d’une ligne à compléter.",
+            "discarded": "{count} brouillon(s) supprimé(s)."
+          },
+          "discard": "Supprimer les brouillons ({count})",
+          "confirm": {
+            "rebuild": {
+              "title": "Recalculer {month} ?",
+              "body": "{count} sommaire(s) déjà envoyé(s) redeviennent des brouillons : les professionnels ne les voient plus jusqu’à ce que vous les renvoyiez. Les sommaires validés ou versés ne changent pas.",
+              "action": "Recalculer le mois"
+            },
+            "discard": {
+              "title": "Supprimer les brouillons de {month} ?",
+              "body": "{count} brouillon(s) jamais envoyé(s) seront supprimés, par exemple un mois calculé par erreur. Les sommaires envoyés, validés ou versés restent.",
+              "action": "Supprimer les brouillons"
+            }
           }
         },
         "export": {

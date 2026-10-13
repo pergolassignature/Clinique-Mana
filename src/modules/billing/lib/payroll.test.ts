@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PayoutExportRow, PayoutLine } from '../api/payroll'
 import {
+  csvField,
   exportCsv,
   formatPay,
   formatRetention,
@@ -89,5 +90,8 @@ describe('payroll display', () => {
     expect(csv.startsWith('﻿')).toBe(true)
     const [, data] = csv.slice(1).trim().split('\r\n')
     expect(data).toBe('Psychologue;"Pro; Un";2026-09;2026-10-01;711,00;Versée;2026-10-05')
+    expect(csvField('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`)
+    expect(csvField('-12')).toBe("'-12")
+    expect(csvField('2026-09')).toBe('2026-09')
   })
 })

@@ -58,7 +58,7 @@ export const preparedSchema = z.object({
     retention_pct: z.number().nullable().optional(),
     amount_cents: z.number().int().nullable().optional(),
     note: text,
-  })).max(400),
+  })).max(5000),
 })
 
 /** The prepared invoice. */

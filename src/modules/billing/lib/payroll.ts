@@ -117,8 +117,13 @@ export function monthSummary(rows: readonly PayoutPeriodRow[]): { periods: numbe
   }
 }
 
-/** A field of the CSV: quoted when it holds a separator, a quote or a line break. */
-function csvField(value: string): string {
+/**
+ * A field of the CSV: a leading `= + - @`, tab or carriage return gets a `'` (a spreadsheet never
+ * reads a typed invoice number as a formula); quoted when it holds a separator, a quote or a line
+ * break.
+ */
+export function csvField(raw: string): string {
+  const value = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
   return /[;"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }
 

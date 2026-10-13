@@ -7,6 +7,16 @@ import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { RefusalAlert } from '@/shared/components/RefusalAlert'
 import { usePageTitle } from '@/shared/lib/use-page-title'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
@@ -15,7 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { listPayoutExport, type PayoutPeriodRow } from '../api/payroll'
 import { payrollErrorMessage } from '../api/payroll-errors'
 import { PayoutPeriodDetail } from '../components/payroll/PayoutPeriodDetail'
-import { useBuildPayoutMonth, usePayoutMonth, usePayoutPeriod, useSendPayoutPeriods } from '../hooks/use-payroll'
+import { useBuildPayoutMonth, useDiscardPayoutDrafts, usePayoutMonth, usePayoutPeriod, useSendPayoutPeriods } from '../hooks/use-payroll'
 import {
   currentMonth,
   exportCsv,
@@ -51,6 +61,8 @@ export function PayrollPage() {
   const send = useSendPayoutPeriods()
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [confirm, setConfirm] = useState<null | 'rebuild' | 'discard'>(null)
+  const discard = useDiscardPayoutDrafts()
   const finished = month < currentMonth()
 
   const go = (next: { mois?: string; periode?: string | null }) => {
@@ -73,6 +85,17 @@ export function PayrollPage() {
   const rows = periods.data ?? []
   const summary = monthSummary(rows)
   const ready = rows.filter((r) => (r.state === 'draft' || r.state === 'correction_requested') && r.unpriced_count === 0)
+  const sentOpen = rows.filter((r) => r.state === 'to_validate').length
+  const neverSent = rows.filter((r) => r.state === 'draft' && r.sent_at === null).length
+
+  const runDiscard = () => {
+    if (discard.isPending) return
+    setError(null)
+    discard.mutateAsync(month).then(
+      (count) => toast.success(t(`${A}.toasts.discarded`, { count: String(count) })),
+      (failure: unknown) => setError(payrollErrorMessage(failure)),
+    )
+  }
 
   const runSend = () => {
     if (send.isPending || ready.length === 0) return
@@ -126,13 +149,23 @@ export function PayrollPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             {finished && (
-              <Button type="button" variant={rows.length === 0 ? 'default' : 'outline'} aria-disabled={build.isPending || undefined} onClick={runBuild}>
+              <Button
+                type="button"
+                variant={rows.length === 0 ? 'default' : 'outline'}
+                aria-disabled={build.isPending || undefined}
+                onClick={() => (sentOpen > 0 ? setConfirm('rebuild') : runBuild())}
+              >
                 {build.isPending ? t(`${A}.building`) : rows.length === 0 ? t(`${A}.build`) : t(`${A}.rebuild`)}
               </Button>
             )}
             {ready.length > 0 && (
               <Button type="button" aria-disabled={send.isPending || undefined} onClick={runSend}>
                 {t(`${A}.sendReady`, { count: String(ready.length) })}
+              </Button>
+            )}
+            {neverSent > 0 && (
+              <Button type="button" variant="outline" aria-disabled={discard.isPending || undefined} onClick={() => !discard.isPending && setConfirm('discard')}>
+                {t(`${A}.discard`, { count: String(neverSent) })}
               </Button>
             )}
             {summary.validated + summary.paid > 0 && (
@@ -169,6 +202,24 @@ export function PayrollPage() {
       {error && <RefusalAlert message={error} />}
       {body}
       <PeriodSheet id={periodId} onClose={() => go({ periode: null })} />
+      {confirm && (
+        <AlertDialog open onOpenChange={(o) => !o && setConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t(`${A}.confirm.${confirm}.title`, { month: monthTitle(month) })}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t(`${A}.confirm.${confirm}.body`, { count: String(confirm === 'rebuild' ? sentOpen : neverSent) })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => (confirm === 'rebuild' ? runBuild() : runDiscard())}>
+                {t(`${A}.confirm.${confirm}.action`)}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   )
 }

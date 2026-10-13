@@ -97,7 +97,6 @@ function setup(options: {
         }],
       },
       record_generated_professional_invoice: { data: INVOICE },
-      discard_system_file: { data: true },
       ...options.rpc,
     },
     storage: { upload: () => ({ data: { path: 'x' } }), ...options.storage },
@@ -171,10 +170,19 @@ Deno.test('billing-payout-invoice: a strict body', () =>
   run(async () => {
     const { handler, service } = setup()
     for (
-      const body of [{ period_id: 'x', number: '1' }, {
-        period_id: PERIOD,
-        number: '',
-      }, { period_id: PERIOD, number: '1', extra: 1 }]
+      const body of [
+        { period_id: 'x', number: '1' },
+        {
+          period_id: PERIOD,
+          number: '',
+        },
+        { period_id: PERIOD, number: '1', extra: 1 },
+        {
+          period_id: PERIOD,
+          number: 'F\u202E1',
+        },
+        { period_id: PERIOD, number: '1', issued_on: '2026-02-30' },
+      ]
     ) {
       const res = await handler(post(body))
       assertEquals(res.status, 400)
@@ -218,7 +226,6 @@ Deno.test('billing-payout-invoice: renders, stores and records the invoice for t
     assertEquals(upload.bucket, 'documents')
     const bytes = upload.args[1] as Uint8Array
     assertEquals(new TextDecoder().decode(bytes.slice(0, 5)), '%PDF-')
-    assert(!service.calls.some((c) => c.fn === 'discard_system_file'))
   }))
 
 Deno.test("billing-payout-invoice: the database's refusal is shown as written, nothing stored", () =>
@@ -255,7 +262,7 @@ Deno.test("billing-payout-invoice: another clinic's answer is refused", () =>
     assert(!service.calls.some((c) => c.fn === 'register_system_file'))
   }))
 
-Deno.test('billing-payout-invoice: a failed upload or record discards the file', () =>
+Deno.test('billing-payout-invoice: a failed upload or record is reported, the staged file left to the cleanup', () =>
   run(async () => {
     const failed = setup({
       storage: { upload: () => ({ error: { message: 'boom' } }) },
@@ -265,7 +272,6 @@ Deno.test('billing-payout-invoice: a failed upload or record discards the file',
     )
     assertEquals(res.status, 500)
     await res.body?.cancel()
-    assert(failed.service.calls.some((c) => c.fn === 'discard_system_file'))
     assert(
       !failed.service.calls.some((c) =>
         c.fn === 'record_generated_professional_invoice'
@@ -284,7 +290,6 @@ Deno.test('billing-payout-invoice: a failed upload or record discards the file',
     )
     assertEquals(again.status, 400)
     await again.body?.cancel()
-    assert(refused.service.calls.some((c) => c.fn === 'discard_system_file'))
   }))
 
 Deno.test('payout invoice document: amounts in French, clients by file number only', () => {
@@ -311,3 +316,17 @@ Deno.test('payout invoice document: amounts in French, clients by file number on
     '126,00\u202F$',
   ])
 })
+
+Deno.test('billing-payout-invoice: over 400 lines, a refusal before any render', () =>
+  run(async () => {
+    const many = Array.from({ length: 401 }, () => PREPARED.lines[0])
+    const { handler, service } = setup({
+      rpc: {
+        prepare_professional_invoice: { data: { ...PREPARED, lines: many } },
+      },
+    })
+    const res = await handler(post({ period_id: PERIOD, number: '2026-09' }))
+    assertEquals(res.status, 400)
+    assertEquals((await res.json()).error.refusal, true)
+    assert(!service.calls.some((c) => c.fn === 'register_system_file'))
+  }))

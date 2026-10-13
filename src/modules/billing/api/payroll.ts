@@ -79,6 +79,13 @@ export async function sendPayoutPeriods(ids: readonly string[]): Promise<SendRes
   return sendSchema.parse(data)
 }
 
+/** « Supprimer les brouillons »: the month's drafts never sent. Returns how many. */
+export async function discardPayoutDrafts(month: string): Promise<number> {
+  const { data, error } = await supabase.rpc('discard_payout_drafts', { p_month: month })
+  if (error) throw error
+  return z.number().int().parse(data)
+}
+
 export async function addPayoutAdjustment(periodId: string, amountCents: number, note: string): Promise<void> {
   const { error } = await supabase.rpc('add_payout_adjustment', { p_period_id: periodId, p_amount_cents: amountCents, p_note: note })
   if (error) throw error

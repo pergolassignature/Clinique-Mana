@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   addPayoutAdjustment,
   buildPayoutMonth,
+  discardPayoutDrafts,
   fetchPayoutPeriod,
   generateProfessionalInvoice,
   listMyPayoutPeriods,
@@ -65,6 +66,7 @@ function usePayrollMutation<A, R>(fn: (args: A) => Promise<R>) {
 }
 
 export const useBuildPayoutMonth = () => usePayrollMutation((month: string) => buildPayoutMonth(month))
+export const useDiscardPayoutDrafts = () => usePayrollMutation((month: string) => discardPayoutDrafts(month))
 export const useRebuildPayoutPeriod = () => usePayrollMutation((id: string) => rebuildPayoutPeriod(id))
 export const useSendPayoutPeriods = () => usePayrollMutation((ids: readonly string[]) => sendPayoutPeriods(ids))
 export const useAddPayoutAdjustment = () =>

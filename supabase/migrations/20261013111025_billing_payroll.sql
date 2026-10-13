@@ -219,10 +219,11 @@ create table public.professional_invoices (
   constraint professional_invoices_file_fkey foreign key (file_id) references public.stored_files (id),
   constraint professional_invoices_source_check check (source in ('uploaded', 'generated')),
   constraint professional_invoices_number_check check (char_length(number) between 1 and 40 and private.is_tidy_text(number)),
+  constraint professional_invoices_amount_check check (amount_cents >= 0),
   constraint professional_invoices_qbo_check check (qbo_bill_id is null or char_length(qbo_bill_id) between 1 and 64)
 );
 create index professional_invoices_org_idx on public.professional_invoices (org_id);
-create index professional_invoices_file_idx on public.professional_invoices (file_id);
+create unique index professional_invoices_file_key on public.professional_invoices (file_id);
 create index professional_invoices_created_by_idx on public.professional_invoices (created_by);
 
 -- -----------------------------------------------------------------------------
@@ -384,6 +385,9 @@ begin
   if not v_staff and (p_staff_only or not ('billing.self' = any (v_keys))) then
     raise exception 'Permission refusée : billing.payroll' using errcode = '42501';
   end if;
+  -- The build's lock first, then the row: a state change never interleaves with a build (which
+  -- would delete a period's lines while it is being validated), always in this order (no deadlock).
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('billing.payroll:' || v_org::text, 0));
   select x.* into v from public.payout_periods x where x.org_id = v_org and x.id = p_id for update;
   if v.id is null
      or (not v_staff and (v.state = 'draft'
@@ -422,7 +426,6 @@ declare
   v_tz text := private.payroll_tz(p_org);
   v_first date;
   v_low date;
-  v_from timestamptz;
   v_to timestamptz;
   v_low_ts timestamptz;
   v_created int;
@@ -431,10 +434,10 @@ declare
   v_rebuilt int;
 begin
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('billing.payroll:' || p_org::text, 0));
-  v_from := p_month::timestamp at time zone v_tz;
   v_to := (p_month + interval '1 month')::timestamp at time zone v_tz;
-  -- Months already run, three back at most, never before the clinic's first period.
-  select min(p.month) into v_first from public.payout_periods p where p.org_id = p_org;
+  -- Months already run, three back at most, never before the clinic's first period sent (a
+  -- draft, which « Supprimer les brouillons » may discard, anchors nothing).
+  select min(p.month) into v_first from public.payout_periods p where p.org_id = p_org and p.sent_at is not null;
   v_low := case when v_first is null or v_first >= p_month then p_month
                 else greatest(v_first, (p_month - interval '3 months')::date) end;
   v_low_ts := v_low::timestamp at time zone v_tz;
@@ -485,13 +488,14 @@ begin
          case when k.pct is null then null else private.retention_pay_cents(f.amount_cents, k.pct) end,
          case when k.pct is null then 'no_rate' else 'rate' end
     from private.billing_paid_fees(p_org, v_to) f
+    join private.payroll_rules(p_org) r on r.service_id = f.service_id and r.rule = 'late_cancellation'
     left join lateral (
       select (x.starts_at at time zone v_tz)::date as on_date, x.client_ids[1] as client_id
         from private.appointment_billing_facts(p_org, array[f.appointment_id]) x) b on true
     cross join lateral (
       select private.professional_compensation_rate(p_org, 'late_cancellation', (f.paid_at at time zone v_tz)::date) as pct) k
    where (p_professional is null or f.professional_id = p_professional)
-     and coalesce(b.on_date, (f.paid_at at time zone v_tz)::date) >= v_low
+     and f.paid_at >= v_low_ts
      and not exists (select 1 from public.payout_lines l where l.appointment_id = f.appointment_id and l.kind = 'late_cancellation');
 
   -- Reports, discussions, workshops: issued invoice lines naming the professional.
@@ -767,6 +771,7 @@ begin
   if v_reason is null or char_length(v_reason) < 3 or char_length(v_reason) > 500 then
     raise exception 'Indiquez la raison (3 à 500 caractères).' using errcode = 'P0001', hint = 'reason';
   end if;
+  perform private.soft_delete_stored_file(i.file_id, auth.uid()) from public.professional_invoices i where i.period_id = v.id;
   delete from public.professional_invoices i where i.period_id = v.id;
   update public.payout_periods p
      set state = 'to_validate', validated_at = null, validated_by = null, reopen_reason = v_reason
@@ -774,6 +779,28 @@ begin
   perform private.payroll_notify_professional(v, 'billing.payout_reopened', 'Sommaire de paie rouvert',
     'Votre sommaire de ' || private.payroll_month_label(v.month) || ' a été rouvert par l''administration : '
     || v_reason);
+end;
+$$;
+
+-- « Supprimer les brouillons »: the month's drafts never sent go (a month built by mistake, e.g.
+-- the GOrendezvous history). Returns how many.
+create function public.discard_payout_drafts(p_month date)
+returns int
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.billing_require('billing.payroll');
+  v_count int;
+begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('billing.payroll:' || v_org::text, 0));
+  with gone as (
+    delete from public.payout_periods p
+     where p.org_id = v_org and p.month = p_month and p.state = 'draft' and p.sent_at is null
+    returning 1)
+  select count(*) into v_count from gone;
+  return v_count;
 end;
 $$;
 
@@ -794,8 +821,12 @@ begin
   if not exists (select 1 from public.professional_invoices i where i.period_id = v.id) then
     raise exception 'La facture du professionnel est requise avant le versement.' using errcode = 'P0001', hint = 'invoice';
   end if;
-  if p_paid_on is null or p_paid_on < v.month or p_paid_on > private.billing_today(v.org_id) + 31 then
+  if p_paid_on is null then
     raise exception 'Indiquez la date du versement.' using errcode = 'P0001', hint = 'paid_on';
+  end if;
+  if p_paid_on < (v.validated_at at time zone private.payroll_tz(v.org_id))::date or p_paid_on > private.billing_today(v.org_id) then
+    raise exception 'La date du versement doit suivre la validation du sommaire et ne pas être dans le futur.'
+      using errcode = 'P0001', hint = 'paid_on';
   end if;
   if v_note is not null and char_length(v_note) > 500 then
     raise exception 'La note est trop longue (500 caractères au plus).' using errcode = 'P0001', hint = 'note';
@@ -982,6 +1013,9 @@ begin
   if v.unpriced_count > 0 or v.lines_count = 0 then
     raise exception 'Une ligne est à compléter : l''administration doit la corriger.' using errcode = 'P0001', hint = 'unpriced';
   end if;
+  if v.total_cents < 0 then
+    raise exception 'Le total du sommaire est négatif : l''administration doit le corriger.' using errcode = 'P0001', hint = 'total';
+  end if;
   update public.payout_periods p
      set state = 'validated', validated_at = pg_catalog.now(), validated_by = auth.uid()
    where p.id = v.id;
@@ -1044,7 +1078,8 @@ begin
   if not exists (select 1 from public.stored_files f
                   where f.id = p_file_id and f.org_id = v.org_id and f.status = 'ready'
                     and f.purpose = 'billing_professional_invoice' and f.uploaded_by = auth.uid()
-                    and (f.retain_until is null or f.retain_until > pg_catalog.now())) then
+                    and f.retain_until is not null and f.retain_until > pg_catalog.now()
+                    and not exists (select 1 from public.professional_invoices i where i.file_id = f.id)) then
     raise exception 'Fichier introuvable.' using errcode = 'P0001', hint = 'file_id';
   end if;
   return private.payroll_record_invoice(v, 'uploaded', p_file_id, p_number, p_issued_on, auth.uid());
@@ -1114,7 +1149,9 @@ begin
   if not exists (select 1 from public.stored_files f
                   where f.id = p_file_id and f.org_id = v.org_id and f.status = 'ready'
                     and f.purpose = 'billing_professional_invoice' and f.subject_type = 'payout_period'
-                    and f.subject_id = v.id) then
+                    and f.subject_id = v.id and f.uploaded_by is null
+                    and f.retain_until is not null and f.retain_until > pg_catalog.now()
+                    and not exists (select 1 from public.professional_invoices i where i.file_id = f.id)) then
     raise exception 'Fichier introuvable.' using errcode = 'P0001', hint = 'file_id';
   end if;
   return private.payroll_record_invoice(v, 'generated', p_file_id, p_number, p_issued_on, p_actor);
@@ -1177,6 +1214,7 @@ $$;
 revoke all on function public.list_payout_periods(date), public.build_payout_month(date), public.rebuild_payout_period(uuid),
   public.send_payout_periods(uuid[]), public.add_payout_adjustment(uuid, int, text), public.remove_payout_adjustment(uuid),
   public.reopen_payout_period(uuid, text), public.mark_period_paid(uuid, date, text), public.list_payout_export(date),
+  public.discard_payout_drafts(date),
   public.list_my_payout_periods(), public.get_payout_period(uuid), public.request_payout_correction(uuid, text),
   public.validate_payout_period(uuid), public.attach_professional_invoice(uuid, uuid, text, date),
   public.list_payout_rules(), public.set_payout_rule(uuid, text),
@@ -1185,6 +1223,7 @@ revoke all on function public.list_payout_periods(date), public.build_payout_mon
 grant execute on function public.list_payout_periods(date), public.build_payout_month(date), public.rebuild_payout_period(uuid),
   public.send_payout_periods(uuid[]), public.add_payout_adjustment(uuid, int, text), public.remove_payout_adjustment(uuid),
   public.reopen_payout_period(uuid, text), public.mark_period_paid(uuid, date, text), public.list_payout_export(date),
+  public.discard_payout_drafts(date),
   public.list_my_payout_periods(), public.get_payout_period(uuid), public.request_payout_correction(uuid, text),
   public.validate_payout_period(uuid), public.attach_professional_invoice(uuid, uuid, text, date),
   public.list_payout_rules(), public.set_payout_rule(uuid, text)
@@ -1195,8 +1234,10 @@ grant execute on function public.prepare_professional_invoice(uuid, uuid),
 -- -----------------------------------------------------------------------------
 -- The job: the previous month's drafts on the 1st
 -- -----------------------------------------------------------------------------
--- For every clinic with Facturation on: builds last month (clinic time) and tells the
--- administration once. Idempotent: a second run rebuilds the open periods.
+-- Daily (the watchdog knows daily schedules), acting for every clinic with Facturation on when it
+-- is the 1st in the clinic, or within the first week while last month has no period yet (a run
+-- missed on the 1st): builds last month (clinic time) and tells the administration once. Any
+-- other day it does nothing, so a summary already sent is never taken back to draft by the job.
 create function private.job_billing_payout_periods()
 returns text
 language plpgsql
@@ -1204,13 +1245,18 @@ set search_path = ''
 as $$
 declare
   r record;
+  v_today date;
   v_month date;
   v_result jsonb;
   v_orgs int := 0;
   v_periods int := 0;
 begin
   for r in select o.id from public.organizations o where public.module_enabled_for_org(o.id, 'billing') loop
-    v_month := (pg_catalog.date_trunc('month', (pg_catalog.now() at time zone private.payroll_tz(r.id))) - interval '1 month')::date;
+    v_today := (pg_catalog.now() at time zone private.payroll_tz(r.id))::date;
+    v_month := (pg_catalog.date_trunc('month', v_today) - interval '1 month')::date;
+    continue when not (pg_catalog.date_part('day', v_today) = 1
+                       or (pg_catalog.date_part('day', v_today) <= 7
+                           and not exists (select 1 from public.payout_periods p where p.org_id = r.id and p.month = v_month)));
     v_result := private.payroll_build(r.id, v_month, null);
     v_orgs := v_orgs + 1;
     v_periods := v_periods + (v_result ->> 'created')::int + (v_result ->> 'rebuilt')::int;
@@ -1232,12 +1278,12 @@ insert into public.scheduled_jobs
   (key, module_key, label, description, kind, sql_function, cron_job_name, is_maintenance)
 values
   ('billing.payout_periods', 'billing', 'Sommaires de paie',
-   'Le 1er du mois, calcule les sommaires de paie du mois précédent, à vérifier avant l''envoi aux professionnels.',
+   'Le 1er du mois (vérifié chaque jour), calcule les sommaires de paie du mois précédent, à vérifier avant l''envoi aux professionnels.',
    'sql', 'private.job_billing_payout_periods', 'billing.payout_periods', true)
 on conflict do nothing;
 
--- 11:15 UTC on the 1st: 6:15 or 7:15 in Montréal, after the night's completions.
-select cron.schedule('billing.payout_periods', '15 11 1 * *',
+-- Daily at 11:15 UTC (6:15 or 7:15 in Montréal, after the night's completions).
+select cron.schedule('billing.payout_periods', '15 11 * * *',
   $$select private.run_sql_job('billing.payout_periods')$$);
 
 select pg_catalog.set_config('app.audit_source', '', true);

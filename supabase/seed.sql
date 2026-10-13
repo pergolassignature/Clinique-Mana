@@ -559,6 +559,42 @@ begin
 end;
 $appointments$;
 
+-- Paie (Facturation FPay; fictional, local only): last month's two completed sessions of Félix
+-- (professional n° 4, provider@mana.test, 30 % retention) with Alice, so « Paie »
+-- (`/facturation/paie`) has a month to calculate and « Ma paie » a summary once Facturation is on
+-- (e2e/payroll.spec.ts switches it on, then off: an open Facturation, which depends on Rendez-vous,
+-- would keep e2e/module-testers.spec.ts from reserving Rendez-vous). Written directly (completed
+-- appointments cannot be booked in the past).
+do $payroll$
+declare
+  v_org constant uuid := '00000000-0000-0000-0000-000000000001';
+  v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
+  v_month date := (date_trunc('month', now() at time zone 'America/Toronto') - interval '1 month')::date;
+  v_service uuid;
+  v_alice uuid;
+  v_id uuid;
+  d int;
+begin
+  select s.id into v_service
+    from public.services_catalog s, private.professional_booking_facts(v_org, v_pro) f
+   where s.org_id = v_org and s.duration_minutes = 50
+     and (pg_catalog.cardinality(s.title_ids) = 0 or s.title_ids && f.title_ids)
+   order by s.code limit 1;
+  select id into v_alice from public.clients where last_name = 'Tremblay-Fictive';
+  foreach d in array array[6, 13] loop
+    insert into public.appointments (org_id, professional_id, service_id, starts_at, ends_at, blocks_until, state, completed_at)
+    values (v_org, v_pro, v_service,
+            (v_month + d + time '10:00') at time zone 'America/Toronto',
+            (v_month + d + time '10:50') at time zone 'America/Toronto',
+            (v_month + d + time '11:00') at time zone 'America/Toronto',
+            'completed', (v_month + d + time '11:10') at time zone 'America/Toronto')
+    returning id into v_id;
+    insert into public.appointment_participants (appointment_id, client_id, org_id, role, presence)
+    values (v_id, v_alice, v_org, 'client', 'present');
+  end loop;
+end;
+$payroll$;
+
 -- Local video links (Rendez-vous RZ): the fake Zoom's app and webhook secret token
 -- (`npm run fake:zoom`, port 55394; _shared/testing/fake-zoom.ts FAKE_ZOOM_CLIENT_ID / _SECRET; the
 -- functions reach it through ZOOM_OAUTH_BASE_URL / ZOOM_API_BASE_URL), stored as set_org_secret

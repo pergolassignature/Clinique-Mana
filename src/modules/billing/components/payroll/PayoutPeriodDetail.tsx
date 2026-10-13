@@ -35,7 +35,7 @@ import { PayoutLinesTable } from './PayoutLinesTable'
 
 const P = 'modules.billing.payroll.period'
 
-type Open = null | 'correction' | 'adjustment' | 'reopen' | 'paid' | 'validate' | 'upload' | 'generate'
+type Open = null | 'correction' | 'adjustment' | 'reopen' | 'paid' | 'validate' | 'rebuild' | 'upload' | 'generate'
 
 interface PayoutPeriodDetailProps {
   period: PayoutPeriod
@@ -102,8 +102,8 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
   }
   if (staff && period.state === 'to_validate') {
     actions.push(
-      <Button key="validateFor" type="button" variant="outline" aria-disabled={validate.isPending || undefined}
-        onClick={() => !validate.isPending && setOpen('validate')}>
+      <Button key="validateFor" type="button" variant="outline" aria-disabled={validate.isPending || period.unpriced_count > 0 || undefined}
+        onClick={() => !validate.isPending && period.unpriced_count === 0 && setOpen('validate')}>
         {t(`${P}.actions.validateFor`, { name })}
       </Button>,
     )
@@ -114,7 +114,11 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
         {t(`${P}.actions.adjust`)}
       </Button>,
       <Button key="rebuild" type="button" variant="outline" aria-disabled={rebuild.isPending || undefined}
-        onClick={() => !rebuild.isPending && void run(() => rebuild.mutateAsync(period.id), t(`${P}.toasts.rebuilt`))}>
+        onClick={() => {
+          if (rebuild.isPending) return
+          if (period.state === 'to_validate') setOpen('rebuild')
+          else void run(() => rebuild.mutateAsync(period.id), t(`${P}.toasts.rebuilt`))
+        }}>
         {rebuild.isPending ? t(`${P}.actions.rebuilding`) : t(`${P}.actions.rebuild`)}
       </Button>,
     )
@@ -178,6 +182,22 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
               <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
               <AlertDialogAction onClick={() => void run(() => validate.mutateAsync(period.id), t(`${P}.toasts.validated`))}>
                 {t(`${P}.validateDialog.confirm`)}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {open === 'rebuild' && (
+        <AlertDialog open onOpenChange={(o) => !o && setOpen(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t(`${P}.rebuildDialog.title`)}</AlertDialogTitle>
+              <AlertDialogDescription>{t(`${P}.rebuildDialog.body`, { name })}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void run(() => rebuild.mutateAsync(period.id), t(`${P}.toasts.rebuilt`))}>
+                {t(`${P}.actions.rebuild`)}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

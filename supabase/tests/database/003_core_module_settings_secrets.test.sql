@@ -158,6 +158,7 @@ select functions_are('public', array[
   'remove_payout_adjustment', 'reopen_payout_period', 'mark_period_paid', 'list_payout_export', 'list_my_payout_periods',
   'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
   'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
+  'discard_payout_drafts',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

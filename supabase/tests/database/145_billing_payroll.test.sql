@@ -10,7 +10,7 @@
 -- and the export by specialty; the job; another clinic's period and the other roles refused.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(68);
 
 -- Privileges.
 select table_privs_are('public', t, 'authenticated', array['SELECT'], t || ': select only')
@@ -274,7 +274,10 @@ select results_eq($$ select source, number, amount_cents from public.professiona
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select results_eq($$ select professional_name, specialty, invoice_number, amount_cents from public.list_payout_export('2026-09-01') $$,
   $$ values ('Pro Un'::text, 'Psychologue'::text, '2026-09'::text, 71100) $$, 'the export for QuickBooks, by specialty');
-select lives_ok(format('select public.mark_period_paid(%L, %L)', current_setting('test.p1'), '2026-10-05'), '« Marquer comme versée »');
+select throws_ok(format('select public.mark_period_paid(%L, %L)', current_setting('test.p1'), '2026-10-05'), 'P0001',
+  'La date du versement doit suivre la validation du sommaire et ne pas être dans le futur.', 'not paid before she validated');
+select lives_ok(format('select public.mark_period_paid(%L, %L)', current_setting('test.p1'), (now() at time zone 'America/Toronto')::date),
+  '« Marquer comme versée »');
 select throws_ok(format('select public.reopen_payout_period(%L, %L)', current_setting('test.p1'), 'Erreur de taux'), 'P0001',
   'Seule une période validée et non versée se rouvre.', 'a paid period never reopens');
 
@@ -286,6 +289,26 @@ select lives_ok(format('select public.set_payout_rule(%L, %L)', current_setting(
 select results_eq($$ select rule, is_default from public.list_payout_rules() where code = 50601 $$,
   $$ values ('session'::text, false) $$, '… shown as not the default');
 
+-- One file, one invoice: the paid period's file cannot serve another period.
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok(format('select public.attach_professional_invoice((select id from public.payout_periods where month = %L), %L, %L, %L)',
+                        '2026-10-01', 'f2000000-0000-0000-0000-000000000001', 'X', '2026-10-01'), 'P0001',
+  'Période de paie introuvable.', 'her October draft is not hers to read yet');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.send_payout_periods(array[(select id from public.payout_periods where month = '2026-10-01')]),
+  '{"sent": 1, "unpriced": 0}'::jsonb, 'October sent');
+select lives_ok(format('select public.validate_payout_period((select id from public.payout_periods where month = %L))', '2026-10-01'),
+  'October validated for her');
+select throws_ok(format('select public.attach_professional_invoice((select id from public.payout_periods where month = %L), %L, %L, %L)',
+                        '2026-10-01', 'f2000000-0000-0000-0000-000000000001', 'X', '2026-10-01'), 'P0001',
+  'Fichier introuvable.', 'a file already attached to September never serves October');
+
+-- « Supprimer les brouillons »: only drafts never sent.
+reset role;
+select is(private.payroll_build('b0000000-0000-0000-0000-00000000000a', '2026-09-01', null) -> 'created', '0'::jsonb, 'September once more');
+set local role authenticated;
+select is(public.discard_payout_drafts('2026-09-01'), 1, 'September: Pro Deux''s draft (never sent) is discarded, Pro Un''s paid one stays');
+
 -- Another clinic.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000009","role":"authenticated"}', true);
 select throws_ok(format('select public.get_payout_period(%L)', current_setting('test.p1')), 'P0001', 'Période de paie introuvable.',
@@ -293,7 +316,7 @@ select throws_ok(format('select public.get_payout_period(%L)', current_setting('
 reset role;
 
 -- The job.
-select matches(private.job_billing_payout_periods(), '^orgs=2 periods=[0-9]+$', 'the job builds last month for each clinic');
+select matches(private.job_billing_payout_periods(), '^orgs=[0-9]+ periods=[0-9]+$', 'the job runs (it acts on the clinic''s 1st, or a missed 1st within the week)');
 
 select * from finish();
 rollback;

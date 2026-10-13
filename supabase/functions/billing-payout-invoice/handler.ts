@@ -8,8 +8,9 @@
  *    `billing.self` (the administration generating for her holds it too; the
  *    database checks the period is hers or the caller holds `billing.payroll`).
  * 2. Body `{ period_id, number, issued_on? }`, strict: `number` is her own
- *    invoice number (1–40 characters), `issued_on` a `yyyy-MM-dd` date
- *    (default: the clinic's today).
+ *    invoice number (1–40 characters, none a file name refuses: it names the
+ *    file), `issued_on` a real `yyyy-MM-dd` date (default: the clinic's
+ *    today).
  * 3. One hit on `LIMITS.billingPayoutInvoiceUser` (20 an hour per caller).
  * 4. `prepare_professional_invoice` with the **service** client, `p_actor` =
  *    the caller: the period (validated), its lines (client file numbers, never
@@ -17,8 +18,10 @@
  * 5. `renderPdf`, then `register_system_file` (purpose
  *    `billing_professional_invoice`, subject the period, view
  *    `billing.payroll`), the upload, and `record_generated_professional_invoice`
- *    (which makes her the file's owner). A failed upload or record discards
- *    the file.
+ *    (which makes her the file's owner). A file left behind by a failed
+ *    upload or record stays staged and `storage-cleanup` removes it the
+ *    next day (`retain_days` 1). More than 400 lines: a 400 refusal
+ *    (« téléversez votre facture »), the PDF model's cap.
  * 6. 200 `{ invoice_id, file_id }`.
  *
  * Status codes: 200; 400 `invalid_request` (body, or the database's French
@@ -37,16 +40,21 @@ import type { Deps } from '../_shared/deps.ts'
 import { readJson } from '../_shared/http.ts'
 import { renderPdf } from '../_shared/pdf/render.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
+import { forbiddenNameChar } from '../_shared/file-name.ts'
 import { reportError } from '../_shared/report.ts'
 import { sha256Hex } from '../_shared/storage.ts'
 import { payoutInvoiceDocument, preparedSchema } from './document.ts'
 
 const FN = 'billing-payout-invoice'
+/** The PDF model's cap on table rows in a document (`MAX_DOCUMENT_TABLE_ROWS`). */
+const MAX_LINES = 400
 
 const bodySchema = z.strictObject({
   period_id: z.guid(),
-  number: z.string().trim().min(1).max(40),
-  issued_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  number: z.string().trim().min(1).max(40).refine(
+    (value) => ![...value].some(forbiddenNameChar),
+  ),
+  issued_on: z.iso.date().optional(),
 })
 
 const registeredSchema = z.object({
@@ -124,6 +132,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         req,
       )
     }
+    if (invoice.data.lines.length > MAX_LINES) {
+      return refusalResponse(
+        'Ce sommaire compte trop de lignes pour générer la facture : téléversez la vôtre.',
+        req,
+      )
+    }
     const issuedOn = input.issued_on ?? invoice.data.today
 
     let bytes: Uint8Array
@@ -170,11 +184,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
     const { file_id, object_path } = row.data
-    const discard = () =>
-      service.rpc('discard_system_file', {
-        p_org_id: access.org_id,
-        p_file_id: file_id,
-      })
 
     const upload = await service.storage.from('documents').upload(
       object_path,
@@ -185,7 +194,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       },
     )
     if (upload.error) {
-      await discard()
       await reportError({ fn: FN, code: 'upload_failed', ids }, deps.fetch)
       return errorResponse(
         'internal',
@@ -206,7 +214,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       },
     )
     if (recorded.error || typeof recorded.data !== 'string') {
-      await discard()
       const failure = recorded.error ? rpcFailure(recorded.error, req) : null
       if (failure) return failure
       await reportError({ fn: FN, code: 'record_failed', ids }, deps.fetch)
