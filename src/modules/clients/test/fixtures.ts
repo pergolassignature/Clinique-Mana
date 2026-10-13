@@ -44,6 +44,7 @@ export function clientFixture(overrides: Partial<Client> = {}): Client {
     country: 'CA',
     referralSourceId: CIDS.source,
     referredBy: null,
+    referredByClientId: null,
     customField: null,
     primaryProfessionalId: CIDS.pro,
     rateVariant: 'student',
@@ -83,6 +84,7 @@ export function summaryFixture(overrides: Partial<ClientSummary> = {}): ClientSu
     payers: [],
     tags: [{ id: CIDS.tag, name: 'Atelier' }],
     professionals: [{ professionalId: CIDS.pro, reason: 'primary', firstLinkedAt: '2026-10-12T15:00:00Z', lastLinkedAt: '2026-10-12T15:00:00Z' }],
+    referrer: null,
     ...overrides,
   }
 }

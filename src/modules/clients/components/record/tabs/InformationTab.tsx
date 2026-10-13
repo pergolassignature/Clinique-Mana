@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useWatch, type UseFormReturn } from 'react-hook-form'
 import { t } from '@/i18n'
 import { addressAutofill } from '@/core/address/autofill'
 import { AddressAutocomplete } from '@/core/address/components/AddressAutocomplete'
@@ -14,7 +15,8 @@ import { Textarea } from '@/shared/ui/textarea'
 import { useSetClientNotes, useSetClientTags } from '../../../hooks/use-clients'
 import { LANGUAGES, RATE_VARIANTS, SEXES } from '../../../lib/constants'
 import { choices, languageLabel, rateVariantLabel, sexLabel } from '../../../lib/display'
-import type { ClientFieldKey } from '../../../schemas/client'
+import type { ClientFieldKey, ClientFieldOutput, ClientFormValues } from '../../../schemas/client'
+import { ReferrerField } from '../../picker/ReferrerField'
 import { ClientCard } from '../ClientCard'
 import { CheckField, CheckGroup, SelectField, TextField } from '../field-parts'
 import { useClientRecordData } from '../record-context'
@@ -25,7 +27,7 @@ const F = 'modules.clients.fields'
 const IDENTITY: readonly ClientFieldKey[] = ['firstName', 'lastName', 'birthFirstName', 'pronouns', 'sex', 'birthday', 'language']
 const CONTACT: readonly ClientFieldKey[] = ['email', 'mobile', 'home', 'work', 'workExt', 'remindersBySms', 'remindersByEmail']
 const ADDRESS: readonly ClientFieldKey[] = ['addressLine1', 'addressLine2', 'city', 'province', 'postalCode', 'country']
-const FILE: readonly ClientFieldKey[] = ['referralSourceId', 'referredBy', 'customField', 'primaryProfessionalId']
+const FILE: readonly ClientFieldKey[] = ['referralSourceId', 'referredBy', 'referredByClientId', 'customField', 'primaryProfessionalId']
 const BILLING: readonly ClientFieldKey[] = ['rateVariant', 'taxExempt', 'specialAgreement', 'sharedCustody', 'fileIncomplete', 'isBanned']
 const ADDRESS_FIELDS = { line1: 'addressLine1', line2: 'addressLine2', city: 'city', province: 'province', postalCode: 'postalCode' } as const
 
@@ -136,7 +138,7 @@ export function InformationTab() {
                   options={choices(reference.referralSources, [summary.client.referralSourceId])}
                 />
               </FormRow>
-              <TextField form={form} name="referredBy" label={t(`${F}.referredBy`)} width="full" />
+              <ReferrerCardField form={form} />
               <TextField form={form} name="customField" label={t(`${F}.customField`)} width="full" />
             </>
           )}
@@ -275,5 +277,28 @@ function TagsCard() {
       </ul>
       {chosen.length >= 5 && <p className="text-xs text-muted-foreground">{t(`${I}.tagsMax`)}</p>}
     </SettingsCard>
+  )
+}
+
+/**
+ * « Référé par » in the « Dossier » card (CL-19): a file of the clinic or a typed name, sent
+ * together (choosing one clears the other); the record names the stored file (`summary.referrer`).
+ */
+function ReferrerCardField({ form }: { form: UseFormReturn<ClientFormValues, unknown, ClientFieldOutput> }) {
+  const { summary } = useClientRecordData()
+  const [text, clientId] = useWatch({ control: form.control, name: ['referredBy', 'referredByClientId'] })
+  const { errors } = form.formState
+  return (
+    <ReferrerField
+      label={t(`${F}.referredBy`)}
+      value={{ clientId, text }}
+      onChange={(next) => {
+        form.setValue('referredByClientId', next.clientId, { shouldDirty: true })
+        form.setValue('referredBy', next.text, { shouldDirty: true, shouldValidate: errors.referredBy !== undefined })
+      }}
+      known={summary.referrer}
+      excludeId={summary.client.id}
+      error={errors.referredBy?.message ?? errors.referredByClientId?.message}
+    />
   )
 }

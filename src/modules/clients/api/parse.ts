@@ -84,6 +84,8 @@ export const clientPayload = z
     country: z.string(),
     referral_source_id: z.string().nullable(),
     referred_by: z.string().nullable(),
+    // Optional: reads made before CL-19 (and other modules' rows) may not carry it.
+    referred_by_client_id: z.string().nullable().optional(),
     custom_field: z.string().nullable(),
     primary_professional_id: z.string().nullable(),
     rate_variant: z.enum(RATE_VARIANTS).nullable(),
@@ -125,6 +127,7 @@ export const clientPayload = z
     country: r.country,
     referralSourceId: r.referral_source_id,
     referredBy: r.referred_by,
+    referredByClientId: r.referred_by_client_id ?? null,
     customField: r.custom_field,
     primaryProfessionalId: r.primary_professional_id,
     rateVariant: r.rate_variant,
@@ -230,9 +233,22 @@ export const payerPayload = z
   }))
 export type ClientPayer = z.output<typeof payerPayload>
 
+/** The file a client was referred by (« Référé par », CL-19): no name once anonymised. */
+export const referrerPayload = z
+  .object({
+    id: z.string(),
+    client_number: z.number().int(),
+    display_name: z.string().nullable(),
+    anonymized: z.boolean(),
+    archived: z.boolean(),
+  })
+  .transform((r) => ({ id: r.id, clientNumber: r.client_number, name: r.display_name, anonymized: r.anonymized, archived: r.archived }))
+export type ClientReferrer = z.output<typeof referrerPayload>
+
 export const summaryPayload = z
   .object({
     client: clientPayload,
+    referrer: referrerPayload.nullable().optional(),
     notes: z
       .object({ admin_notes: z.string().nullable(), special_agreement_note: z.string().nullable() })
       .nullable(),
@@ -258,6 +274,7 @@ export const summaryPayload = z
     payers: r.payers,
     tags: r.tags,
     professionals: r.professionals,
+    referrer: r.referrer ?? null,
   }))
 export type ClientSummary = z.output<typeof summaryPayload>
 
