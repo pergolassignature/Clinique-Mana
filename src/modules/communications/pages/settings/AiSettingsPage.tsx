@@ -123,17 +123,17 @@ function SettingsFormCard({ settings, readOnly }: { settings: AiSettings; readOn
           />
         )}
       />
-      <FormField label={t(`${S}.model`)} required help={t(`${S}.modelHelp`)} error={errors.model?.message} width="sm">
+      <FormField label={t(`${S}.model`)} required help={t(`${S}.modelHelp`)} error={errors.model?.message} width="md">
         {(field) => <Input {...field} {...form.register('model')} autoComplete="off" spellCheck={false} readOnly={readOnly} />}
       </FormField>
-      <FormField label={t(`${S}.cap`)} required help={t(`${S}.capHelp`)} error={errors.cap?.message} width="xs">
+      <FormField label={t(`${S}.cap`)} required help={t(`${S}.capHelp`)} error={errors.cap?.message} width="md">
         {(field) => <Input {...field} {...form.register('cap')} inputMode="decimal" autoComplete="off" readOnly={readOnly} />}
       </FormField>
       <FormRow>
-        <FormField label={t(`${S}.inputPrice`)} required error={errors.inputPrice?.message} width="xs">
+        <FormField label={t(`${S}.inputPrice`)} required error={errors.inputPrice?.message} width="sm">
           {(field) => <Input {...field} {...form.register('inputPrice')} inputMode="decimal" autoComplete="off" readOnly={readOnly} />}
         </FormField>
-        <FormField label={t(`${S}.outputPrice`)} required error={errors.outputPrice?.message} width="xs">
+        <FormField label={t(`${S}.outputPrice`)} required error={errors.outputPrice?.message} width="sm">
           {(field) => <Input {...field} {...form.register('outputPrice')} inputMode="decimal" autoComplete="off" readOnly={readOnly} />}
         </FormField>
       </FormRow>
