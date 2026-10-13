@@ -585,8 +585,11 @@
           "title": "Réserver {module} aux testeurs ?",
           "body": "Tout le monde perd l'accès au module tout de suite, sauf les testeurs de la liste. L'administration aussi : ajoutez-vous à la liste si vous devez continuer à l'utiliser.",
           "action": "Réserver aux testeurs"
-        }
-      }
+        },
+        "moduleOff": "Le module est désactivé : activez-le pour que les testeurs le voient.",
+        "visibleTo": "Visible seulement par : {names}"
+      },
+      "dependencyOff": "{name} (désactivé)"
     },
     "jobs": {
       "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
