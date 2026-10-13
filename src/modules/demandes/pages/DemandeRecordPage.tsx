@@ -46,6 +46,7 @@ const PANELS: Record<RecordTab, ReturnType<typeof lazyPage>> = {
   accueil: lazyPage(() => import('../components/record/IntakeTab'), 'IntakeTab'),
   participants: lazyPage(() => import('../components/record/ParticipantsTab'), 'ParticipantsTab'),
   suivi: lazyPage(() => import('../components/record/FollowUpTab'), 'FollowUpTab'),
+  jumelage: lazyPage(() => import('../components/record/MatchingTab'), 'MatchingTab'),
   historique: lazyPage(() => import('../components/record/HistoryTab'), 'HistoryTab'),
 }
 
@@ -82,8 +83,11 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   useDemandesRealtime(true)
   const bundle = record.data
   usePageTitle(bundle ? `${bundle.demande.reference} · ${personLabel(bundle.demande)}` : t('modules.demandes.name'), { crumb: Boolean(bundle) })
-  const current = RECORD_TABS.find((tab) => tab === onglet)
-  const isTab = useCallback((value: string): value is RecordTab => (RECORD_TABS as readonly string[]).includes(value), [])
+  const { can } = useAccess()
+  const canMatch = can('professionals.view')
+  const tabs = useMemo(() => RECORD_TABS.filter((tab) => tab !== 'jumelage' || canMatch), [canMatch])
+  const current = tabs.find((tab) => tab === onglet)
+  const isTab = useCallback((value: string): value is RecordTab => (tabs as readonly string[]).includes(value), [tabs])
   const { onValueChange, triggerProps } = useGuardedTabs(current ?? 'accueil', isTab, (tab) => navigate(demandePath(id, tab), { replace: true }))
   const value = useMemo<DemandeRecordData | null>(
     () =>
@@ -113,7 +117,7 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
         <div className="space-y-4">
           <RecordHeader data={value} />
           <TabsList aria-label={t(`${R}.tabs.label`)}>
-            {RECORD_TABS.map((tab) => (
+            {tabs.map((tab) => (
               <TabsTrigger key={tab} value={tab} {...triggerProps(tab)} onPointerEnter={() => void PANELS[tab].preload().catch(() => undefined)}>
                 {t(`${R}.tabs.${tab}`)}
                 {tab === 'suivi' && value.bundle.tasks.some((k) => k.state === 'open') && (

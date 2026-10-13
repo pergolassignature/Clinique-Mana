@@ -150,11 +150,18 @@ export function PropositionsCard() {
   )
 }
 
-function ProposeForm({ onDone }: { onDone: () => void }) {
+/**
+ * « Proposer un professionnel »: the professional (preset from the matching panel, D4), the
+ * service, the mode, 1 to 3 of her free slots. Inside a `Dialog`.
+ */
+export function ProposeForm({ onDone, initial }: { onDone: () => void; initial?: { id: string; name: string } }) {
   const { id, bundle } = useDemandeRecord()
   const lists = useWaitlistLists()
-  const professionals = (lists.data ?? []).filter((l) => l.target_kind === 'professional').sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-  const [professionalId, setProfessionalId] = useState('')
+  const listed = (lists.data ?? []).filter((l) => l.target_kind === 'professional').sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+  // The matching panel's professional is offered even before the lists load.
+  const professionals =
+    initial && !listed.some((l) => l.target_id === initial.id) ? [{ target_id: initial.id, name: initial.name }, ...listed] : listed
+  const [professionalId, setProfessionalId] = useState(initial?.id ?? '')
   const [serviceId, setServiceId] = useState('')
   const [mode, setMode] = useState<'video' | 'phone'>(bundle.demande.modality === 'phone' ? 'phone' : 'video')
   const [chosen, setChosen] = useState<string[]>([])

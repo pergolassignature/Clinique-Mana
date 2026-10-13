@@ -118,7 +118,7 @@ select functions_are('public', array[
   'set_user_preference', 'delete_user_preference',
   'mark_professional_fiche_generated', 'get_professional_fiche_upload', 'get_professional_public_fees',
   'list_professional_submissions', 'get_my_professional_record',
-  'get_professional_account_status', 'set_professional_matching_note',
+  'get_professional_account_status', 'set_professional_matching_note', 'set_professional_refused_motifs', 'set_professional_matching_priority',
   'save_document_type', 'attach_professional_document', 'verify_professional_document', 'reject_professional_document',
   'set_professional_document_expiry', 'delete_professional_document', 'get_professional_documents',
   'run_professionals_document_notices_for_service', 'cancel_professional_submission',
@@ -180,6 +180,8 @@ select functions_are('public', array[
   'refunds_for_service', 'finish_refund_for_service',
   -- Demandes × Facturation: the waiting list's fee.
   'invoice_waitlist_fee',
+  -- Demandes, batch D4 (the matching panel).
+  'match_professionals_for_demande',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

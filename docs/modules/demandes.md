@@ -170,9 +170,41 @@ Migration `20261013064427_demandes_waitlist`; pgTAP `123_demandes_waitlist`; fun
 - **Paramètres → Liste d'attente** (`liste-attente`, seen with `demandes.view`, changed with `demandes.waitlist`): the weeks, the email, the days.
 - **`/liste-attente/reponse#t=…`** (public, `waitlistAnswerPublicPage`): the clinic and the list, « Oui, je reste sur la liste » / « Non, retirez-moi de la liste », once.
 
+## D4: the matching panel
+
+Migration `20261013171452_demandes_matching` (pgTAP `164`, with Professionnels' published facts as a fixture); Professionnels' `20261013171254_professionals_matching_exclusions` (pgTAP `163`); decisions D-27 … D-30, P4-551, P4-552, R-66.
+
+- **`match_professionals_for_demande(demande)`** (definer; `demandes.view` and `professionals.view`, both first): the request's criteria and every professional of the clinic, in the documented order, each with why. It reads Professionnels only through `private.professional_matching_facts` (active reference rows only, rule 7), Clients through `private.clients_booking_facts` (her age and sex from her file, else the principal participant's birthday) and Rendez-vous through `private.first_appointments`.
+- **Hard filters (D-27)**, each one a reason when a professional is left out:
+  - `inactive`, `not_ready`;
+  - `not_accepting` (unless the client's first appointment is already with her);
+  - `title` (the profession asked);
+  - `clientele` (the clientèle asked, else a couple's `couples`, a family's `families`, else the age's);
+  - `min_age`, `women_only`, `language`;
+  - `gender` (only when one is asked).
+- **Warnings, never filters:**
+  - `refused_motif`: a motif she refuses is in the request (R-66: « ça dépend »);
+  - `insurance_expired`: « Proposer » asks first (rule 8). Also `insurance_expiring` and `insurance_missing`;
+  - `age_unknown` / `sex_unknown`: a limit nobody can check yet (« à vérifier », never assumed);
+  - `no_places`: 0 place left.
+- **The order (D-28):**
+  1. eligible first;
+  2. then the fit: 100 per request motif she holds, 10 for a ★ clientèle, 1 per request period she has;
+  3. then places left: a number first, most first; then « non suivi »; then 0;
+  4. then the name, then the id.
+
+  Never `sort_order`, never the priority. The panel says the order in words.
+- **« À prioriser » (D-29, P4-552):** the workbook's name colours, written down with a reason in Professionnels' Jumelage tab. A badge in the panel, never the order.
+- **Places left (D-30, rule 11):** `private.demandes_places_left(org, ids[])`. It counts `new_client_places` minus the requests matched to her since `new_client_places_set_at`, but only those whose client's first appointment is still with her: a cancelled first appointment gives its place back. Every matched request counts while Rendez-vous is off. It is null when she tracks none. D5's snapshots and board read it.
+- **Screen: the record's tab « Jumelage »** (`/demandes/:id/jumelage`, shown with `professionals.view`):
+  - « Ce que la demande indique »: the language, who the request is for, the age and sex, the profession, the clientèle, the motifs (every name), the periods, a preferred gender;
+  - « Admissibles (N) »: rank, name and title, « À prioriser » and its reason, the places, the fit in words (« Motifs : Anxiété et Deuil (2 sur 3) », « ★ Clientèle spécialisée », « Disponibilités : Soir »), the warnings, « Bon à savoir », « Voir le dossier » and « Proposer » (the proposal of D3b with her preset, when the request can receive one);
+  - « Non admissibles (N) », folded, each with its reasons.
+  - The panel is its own query, a child of the record's key: every write on the request reads it again.
+
 ## What the module publishes
 
-For the professional: `my_demandes` and `my_waitlist_entries` (above). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the view `demandes_sources` (D3c, below).
+For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the view `demandes_sources` (D3c, below).
 
 ## Messages to people outside the clinic (P3-40)
 
