@@ -171,7 +171,7 @@ export const useSetClientTags = (feedback?: MutationFeedback) =>
 /** « Fusionner »: the kept file's id on success (the page then opens it). */
 export const useMergeClients = (feedback?: MutationFeedback) =>
   useClientsMutation(
-    ({ keepId, mergeId, fields }: { keepId: string; mergeId: string; fields: ClientFields }) => mergeClients(keepId, mergeId, fields),
+    ({ keepId, mergeId, take }: { keepId: string; mergeId: string; take: readonly string[] }) => mergeClients(keepId, mergeId, take),
     `${S}.merged`,
     feedback,
   )

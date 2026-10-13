@@ -6139,7 +6139,9 @@
           "payers": "payeurs : {count}",
           "tags": "étiquettes : {count}",
           "professionals": "professionnels liés : {count}"
-        }
+        },
+        "keptColumn": "Dossier conservé",
+        "mergedColumn": "Autre dossier"
       },
       "privacy": {
         "exported": "Dossier exporté.",
@@ -6212,7 +6214,8 @@
         "label": "Client",
         "help": "Par son nom, son courriel, son numéro ou son téléphone. Créez le dossier s'il n'existe pas.",
         "results": "Dossiers trouvés",
-        "noResult": "Aucun dossier trouvé."
+        "noResult": "Aucun dossier trouvé.",
+        "searchError": "La recherche n'a pas fonctionné. Réessayez."
       }
     },
     "communications": {

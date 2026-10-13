@@ -10,7 +10,7 @@ import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { useClientHistory } from '../../../hooks/use-clients'
 import { clientsAuditLabels } from '../../../lib/audit-labels'
-import { groupByDay, peopleOf, readable } from '../../../lib/history'
+import { groupByDay, peopleOf, readable, referenceNames } from '../../../lib/history'
 import { useClientRecordData } from '../record-context'
 
 const H = 'modules.clients.record.history'
@@ -43,7 +43,8 @@ function DetailLine({ line }: { line: AuditDetailLine }) {
  * a phone changed, never to what. Read when the tab opens, 50 rows a page, « Charger plus ».
  */
 export function HistoryTab() {
-  const { summary } = useClientRecordData()
+  const { summary, reference } = useClientRecordData()
+  const names = useMemo(() => referenceNames(reference), [reference])
   const history = useClientHistory(summary.client.id)
   const entries = useMemo(() => history.data?.pages.flat() ?? [], [history.data])
   const days = useMemo(() => groupByDay(entries), [entries])
@@ -72,7 +73,7 @@ export function HistoryTab() {
                       </span>
                     </p>
                     <ul className="space-y-0.5 text-xs">
-                      {auditDetailLines(readable(entry), lookups).map((line, i) => (
+                      {auditDetailLines(readable(entry, names), lookups).map((line, i) => (
                         <DetailLine key={i} line={line} />
                       ))}
                     </ul>

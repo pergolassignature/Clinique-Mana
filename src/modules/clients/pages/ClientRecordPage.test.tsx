@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     fetchClientsReference: vi.fn(),
     updateClient: vi.fn(),
     setClientArchived: vi.fn(),
+    findClientDuplicates: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
@@ -30,6 +31,7 @@ beforeEach(() => {
   mocks.api.fetchClientsReference.mockResolvedValue(REFERENCE)
   mocks.api.updateClient.mockResolvedValue(undefined)
   mocks.api.setClientArchived.mockResolvedValue(undefined)
+  mocks.api.findClientDuplicates.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
 

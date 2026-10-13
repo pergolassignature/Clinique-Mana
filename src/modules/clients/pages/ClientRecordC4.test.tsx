@@ -96,7 +96,7 @@ describe('the record, C4', () => {
     expect(within(dialog).getByText(t(`${M}.filledTitle`))).toBeInTheDocument()
     expect(within(dialog).getByText(t(`${M}.final`))).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: t(`${M}.submit`) }))
-    await waitFor(() => expect(mocks.api.mergeClients).toHaveBeenCalledWith(CIDS.alice, CIDS.marc, { email: 'alicia@exemple.test' }))
+    await waitFor(() => expect(mocks.api.mergeClients).toHaveBeenCalledWith(CIDS.alice, CIDS.marc, ['email']))
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith(`/clients/${CIDS.alice}/apercu`))
   })
 

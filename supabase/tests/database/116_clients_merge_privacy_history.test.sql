@@ -1,5 +1,6 @@
 -- Clients, batch C4 (migration *_clients_merge_privacy_history.sql). Covers: privileges (the new
--- merge_clients, list_client_history; the private core and partial update granted to no role);
+-- merge_clients(keep, merge, take), list_client_history; the private core, the take list and the partial
+-- update granted to no role);
 -- the merge with values chosen from the merged file, then C2's filling and moving; the two-argument
 -- call; refusals; update_client still partial; the export's consents section and its log; the
 -- history: the file's rows, a relation where it is the other side, the merge, newest first, the
@@ -8,12 +9,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(26);
 
-select function_privs_are('public', 'merge_clients', array['uuid', 'uuid', 'jsonb'], 'authenticated', array['EXECUTE'], 'merge_clients(keep, merge, fields): authenticated');
-select function_privs_are('public', 'merge_clients', array['uuid', 'uuid', 'jsonb'], 'anon', array[]::text[], '… never anon');
+select function_privs_are('public', 'merge_clients', array['uuid', 'uuid', 'text[]'], 'authenticated', array['EXECUTE'], 'merge_clients(keep, merge, take): authenticated');
+select function_privs_are('public', 'merge_clients', array['uuid', 'uuid', 'text[]'], 'anon', array[]::text[], '… never anon');
 select function_privs_are('public', 'list_client_history', array['uuid', 'bigint', 'integer'], 'authenticated', array['EXECUTE'], 'list_client_history: authenticated');
 select function_privs_are('private', 'clients_merge_core', array['uuid', 'uuid'], 'authenticated', array[]::text[], 'the merge core: no role');
 select function_privs_are('private', 'clients_apply_fields', array['uuid', 'uuid', 'jsonb'], 'authenticated', array[]::text[], 'the partial update: no role');
-select hasnt_function('public', 'merge_clients', array['uuid', 'uuid'], 'the two-argument merge_clients is gone (the new one defaults its fields)');
+select hasnt_function('public', 'merge_clients', array['uuid', 'uuid'], 'the two-argument merge_clients is gone (the new one defaults its take)');
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -55,12 +56,12 @@ select set_config('test.other', public.create_client(jsonb_build_object('first_n
 -- A relation where the kept file is the other side, whatever the ids' order.
 select public.set_client_relation(current_setting('test.parent')::uuid, current_setting('test.keep')::uuid, 'child', '{}', '{"main_contact": true}');
 
-select throws_ok($$ select public.merge_clients(current_setting('test.keep')::uuid, current_setting('test.keep')::uuid, '{}') $$,
+select throws_ok($$ select public.merge_clients(current_setting('test.keep')::uuid, current_setting('test.keep')::uuid, array[]::text[]) $$,
   'P0001', 'Choisissez deux dossiers différents.', 'the same file twice: refused');
-select throws_ok($$ select public.merge_clients(current_setting('test.keep')::uuid, current_setting('test.merge')::uuid, '{"first_name": " "}') $$,
-  'P0001', 'Indiquez le prénom (100 caractères au plus).', 'a chosen value is checked like an edit');
-select lives_ok($$ select public.merge_clients(current_setting('test.keep')::uuid, current_setting('test.merge')::uuid,
-  '{"email": "alicia@exemple.test", "admin_notes": "ignorée"}') $$, 'merge with a value chosen from the merged file');
+select throws_ok($$ select public.merge_clients(current_setting('test.keep')::uuid, current_setting('test.merge')::uuid, array['is_banned']) $$,
+  'P0001', 'Cette valeur ne peut pas être reprise de l''autre dossier.', 'only the listed values can be taken (never a flag)');
+select lives_ok($$ select public.merge_clients(current_setting('test.keep')::uuid, current_setting('test.merge')::uuid, array['email']) $$,
+  'merge with a value taken from the merged file (by key: the database copies it)');
 reset role;
 select results_eq(
   $$ select email, birthday, mobile_e164, city, first_name from public.clients where id = current_setting('test.keep')::uuid $$,
@@ -68,8 +69,8 @@ select results_eq(
   '… the chosen email, the empty fields filled from the merged file, the kept ones kept');
 select is((select merged_into_id from public.clients where id = current_setting('test.merge')::uuid), current_setting('test.keep')::uuid,
   '… the merged file points to the kept one');
-select is((select count(*)::int from public.client_notes where client_id = current_setting('test.keep')::uuid and admin_notes = 'ignorée'), 0,
-  '… notes are never a chosen value');
+select is((select count(*)::int from public.audit_log where table_name = 'clients' and record_id = current_setting('test.keep') and action = 'update'
+             and changed_fields ? 'email'), 1, '… the taken email written once, audited');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select lives_ok($$ select public.merge_clients(current_setting('test.keep')::uuid, current_setting('test.other')::uuid) $$,

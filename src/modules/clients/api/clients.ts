@@ -289,12 +289,12 @@ export async function fetchMyClients(): Promise<MyClient[]> {
 // --- Merge, Loi 25, history (C4) -----------------------------------------------------------------
 
 /**
- * Merges `mergeId` into `keepId` (clients.merge): `fields` are the merged file's values chosen
- * over the kept one's (RPC keys; empty when the kept file's are all kept). The kept file's empty
- * fields are then filled from the other, and everything else moves (CL-15).
+ * Merges `mergeId` into `keepId` (clients.merge): `take` names the merged file's values to keep
+ * over the kept one's (`private.clients_merge_take_columns`' keys; the database copies them). The
+ * kept file's empty fields are then filled from the other, and everything else moves (CL-15).
  */
-export async function mergeClients(keepId: string, mergeId: string, fields: ClientFields): Promise<void> {
-  const { error } = await supabase.rpc('merge_clients', { p_keep: keepId, p_merge: mergeId, p_fields: fields as Json })
+export async function mergeClients(keepId: string, mergeId: string, take: readonly string[]): Promise<void> {
+  const { error } = await supabase.rpc('merge_clients', { p_keep: keepId, p_merge: mergeId, p_take: [...take] })
   if (error) throw error
 }
 

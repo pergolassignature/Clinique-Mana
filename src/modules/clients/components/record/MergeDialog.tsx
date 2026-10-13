@@ -15,7 +15,7 @@ import type { Client, ClientSummary } from '../../api/parse'
 import { useClientRecord, useClientSearch, useClientsReference, useMergeClients } from '../../hooks/use-clients'
 import { clientPath } from '../../lib/constants'
 import { clientNumberLabel, fullName } from '../../lib/display'
-import { chosenFields, mergeMoves, mergeRows } from '../../lib/merge'
+import { chosenTakes, mergeMoves, mergeRows } from '../../lib/merge'
 
 const M = 'modules.clients.merge'
 
@@ -53,7 +53,9 @@ function OtherPicker({ current, onPick }: { current: Client; onPick: (id: string
       </FormField>
       {query.trim().length >= 2 && (
         <ul aria-label={t(`${M}.results`)} className="max-h-60 space-y-1 overflow-y-auto">
-          {results.length === 0 ? (
+          {search.isError ? (
+            <li className="text-sm text-destructive">{t('modules.clients.picker.searchError')}</li>
+          ) : results.length === 0 ? (
             <li className="text-sm text-muted-foreground">{t(search.isFetching ? 'common.loading' : `${M}.noResult`)}</li>
           ) : (
             results.map((row) => (
@@ -99,7 +101,8 @@ function MergeForm({ current, otherId, onChange, onClose }: { current: ClientSum
 
   if (other.isError) return <LoadError message={t(`${M}.loadError`)} onRetry={() => void other.refetch()} retrying={other.isFetching} />
   if (otherSummary === null) return <p className="text-sm text-muted-foreground">{t(`${M}.notFound`)}</p>
-  if (!sides || !otherSummary) return <Loading />
+  // The names (sources, professionals) are needed to compare and show the values.
+  if (!sides || !otherSummary || !reference.data) return <Loading />
   const closed = otherSummary.client.mergedIntoId !== null || otherSummary.client.anonymizedAt !== null
   const choices = rows.filter((row) => row.choice)
   const filled = rows.filter((row) => !row.choice)
@@ -110,7 +113,7 @@ function MergeForm({ current, otherId, onChange, onClose }: { current: ClientSum
     const keptId = sides.kept.client.id
     // mutateAsync: the refetch that follows the merge may unmount this dialog (« Doublons
     // possibles » hides on a merged file) before a mutate() callback would run.
-    merge.mutateAsync({ keepId: keptId, mergeId: sides.merged.client.id, fields: chosenFields(rows, takeMerged) }).then(
+    merge.mutateAsync({ keepId: keptId, mergeId: sides.merged.client.id, take: chosenTakes(rows, takeMerged) }).then(
       () => {
         onClose()
         navigate(clientPath(keptId))
@@ -161,9 +164,19 @@ function MergeForm({ current, otherId, onChange, onClose }: { current: ClientSum
           <h3 className="text-sm font-medium">{t(`${M}.valuesTitle`)}</h3>
           <p className="text-xs text-muted-foreground">{t(`${M}.valuesHelp`)}</p>
           <ul className="divide-y divide-border rounded-md border border-border">
+            <li aria-hidden className="hidden gap-3 p-2 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[10rem_1fr_1fr]">
+              <span />
+              <span>{t(`${M}.keptColumn`)}</span>
+              <span>{t(`${M}.mergedColumn`)}</span>
+            </li>
             {choices.map((row) => (
-              <li key={row.key} className="grid gap-1 p-2 sm:grid-cols-[10rem_1fr_1fr] sm:items-start sm:gap-3">
-                <span id={`merge-${row.key}`} className="text-sm text-muted-foreground">
+              <li
+                key={row.key}
+                role="radiogroup"
+                aria-labelledby={`merge-label-${row.key}`}
+                className="grid gap-1 p-2 sm:grid-cols-[10rem_1fr_1fr] sm:items-start sm:gap-3"
+              >
+                <span id={`merge-label-${row.key}`} className="text-sm text-muted-foreground">
                   {t(row.labelKey)}
                 </span>
                 {([false, true] as const).map((fromMerged) => (
@@ -171,7 +184,6 @@ function MergeForm({ current, otherId, onChange, onClose }: { current: ClientSum
                     <input
                       type="radio"
                       name={`merge-${row.key}`}
-                      aria-describedby={`merge-${row.key}`}
                       checked={takeMerged.has(row.key) === fromMerged}
                       onChange={() => {
                         const next = new Set(takeMerged)

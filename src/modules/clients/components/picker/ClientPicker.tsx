@@ -54,6 +54,8 @@ export function ClientPicker({ onSelect, onCreated, label, excludeIds = [], init
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            // Inside the caller's form: Enter searches, it never submits that form.
+            onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}
             autoComplete="off"
             aria-controls={searching ? resultsId : undefined}
           />
@@ -61,7 +63,9 @@ export function ClientPicker({ onSelect, onCreated, label, excludeIds = [], init
       </FormField>
       {searching && (
         <ul id={resultsId} aria-label={t(`${K}.results`)} className="max-h-60 space-y-1 overflow-y-auto">
-          {results.length === 0 ? (
+          {search.isError ? (
+            <li className="text-sm text-destructive">{t(`${K}.searchError`)}</li>
+          ) : results.length === 0 ? (
             <li className="text-sm text-muted-foreground">{t(search.isFetching ? 'common.loading' : `${K}.noResult`)}</li>
           ) : (
             results.map((row) => (
@@ -88,6 +92,7 @@ export function ClientPicker({ onSelect, onCreated, label, excludeIds = [], init
           initialValues={initialValues}
           onCreated={onCreated ?? ((id) => onSelect(id, null))}
           onPickExisting={(id) => onSelect(id, null)}
+          excludeIds={excludeIds}
         />
       )}
     </div>

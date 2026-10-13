@@ -4,25 +4,31 @@ import { CIDS, REFERENCE, clientFixture, summaryFixture } from '../test/fixtures
 import { buildPrivacyContent, toWinAnsi } from '../pdf/privacy-content'
 import { toSearchResult } from '../search'
 import { groupByDay, readable } from './history'
-import { chosenFields, mergeMoves, mergeRows } from './merge'
+import { chosenTakes, mergeMoves, mergeRows } from './merge'
 import { fromRememberedFilters, toRememberedFilters } from './remembered-filters'
 
 describe('the merge comparison', () => {
-  const kept = clientFixture({ email: 'alice@exemple.test', birthday: null, mobile: '+15145550101', addressLine1: null, city: null, postalCode: null })
+  // A file created in the app holds a province (« QC ») without an address.
+  const kept = clientFixture({ email: 'alice@exemple.test', birthday: null, mobile: '+15145550101', addressLine1: null, city: null, postalCode: null, province: 'QC' })
   const merged = clientFixture({ id: CIDS.marc, email: 'alicia@exemple.test', birthday: '1990-03-04', mobile: '+15145550101', addressLine1: '1 rue Test', city: 'Laval', postalCode: 'H7A 1A1' })
 
   it('a choice where both differ, the merged value taken where the kept file has none, nothing where they agree', () => {
     const rows = mergeRows(kept, merged, REFERENCE)
     expect(rows.find((r) => r.key === 'email')).toMatchObject({ choice: true, kept: 'alice@exemple.test', merged: 'alicia@exemple.test' })
     expect(rows.find((r) => r.key === 'birthday')).toMatchObject({ choice: false, kept: null })
-    expect(rows.find((r) => r.key === 'address')).toMatchObject({ choice: false, fields: { address_line1: '1 rue Test', city: 'Laval', postal_code: 'H7A 1A1' } })
+    expect(rows.find((r) => r.key === 'address')).toMatchObject({ choice: false, take: 'address' })
     expect(rows.find((r) => r.key === 'mobile')).toBeUndefined()
   })
 
-  it('sends only the merged values the person took, as the RPC keys', () => {
+  it('sends the keys of the values the person took, and the address the kept file lacks (never a value)', () => {
     const rows = mergeRows(kept, merged, REFERENCE)
-    expect(chosenFields(rows, new Set())).toEqual({})
-    expect(chosenFields(rows, new Set(['email', 'birthday']))).toEqual({ email: 'alicia@exemple.test' })
+    expect(chosenTakes(rows, new Set())).toEqual(['address'])
+    expect(chosenTakes(rows, new Set(['email', 'birthday']))).toEqual(['email', 'address'])
+  })
+
+  it('compares ids, not names: two retired sources are not the same one', () => {
+    const rows = mergeRows(clientFixture({ referralSourceId: 'gone-1' }), clientFixture({ referralSourceId: 'gone-2' }), REFERENCE)
+    expect(rows.find((r) => r.key === 'referralSourceId')).toMatchObject({ choice: true, take: 'referral_source_id' })
   })
 
   it('lists what moves, counts only', () => {
@@ -74,9 +80,10 @@ describe('⌘K and the history', () => {
     })
   })
 
-  it('leaves ids and timestamps out of the details; groups by clinic day, newest first', () => {
+  it('leaves ids and timestamps out of the details (names the professional, source and tag ones); groups by clinic day, newest first', () => {
     const entry = { id: 2, created_at: '2026-10-13T15:00:00Z', table_name: 'clients', record_id: 'x', action: 'update', changed_fields: { city: { before: 'A', after: 'B' }, updated_at: { before: 1, after: 2 }, referral_source_id: { before: null, after: 'y' } }, actor_id: null, actor_name: null, actor_role: null, source: 'app' }
-    expect(readable(entry).changed_fields).toEqual({ city: { before: 'A', after: 'B' } })
+    expect(readable(entry).changed_fields).toEqual({ city: { before: 'A', after: 'B' }, referral_source_id: { before: null, after: 'y' } })
+    expect(readable(entry, new Map([['y', 'Google']])).changed_fields).toMatchObject({ referral_source_id: { after: 'Google' } })
     const days = groupByDay([entry, { ...entry, id: 1, created_at: '2026-10-13T14:00:00Z' }, { ...entry, id: 0, created_at: '2026-10-11T14:00:00Z' }])
     expect(days.map((d) => d.entries.map((e) => e.id))).toEqual([[2, 1], [0]])
   })

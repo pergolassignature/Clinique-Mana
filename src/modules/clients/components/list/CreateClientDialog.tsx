@@ -60,13 +60,15 @@ export interface CreateClientDialogProps {
   onCreated?: (clientId: string) => void
   /** Offers « Choisir ce dossier » on each similar file: its id instead of a new file. */
   onPickExisting?: (clientId: string) => void
+  /** Similar files that cannot be chosen (the picker's `excludeIds`). */
+  excludeIds?: readonly string[]
   /** The form's first values (a name typed in the picker's search…). */
   initialValues?: Partial<Pick<ClientFormValues, 'firstName' | 'lastName' | 'email' | 'mobile'>>
   /** The trigger's look: the page's primary button, or an outline one inside a form. */
   variant?: 'default' | 'outline'
 }
 
-export function CreateClientDialog({ onCreated, onPickExisting, initialValues, variant = 'default' }: CreateClientDialogProps = {}) {
+export function CreateClientDialog({ onCreated, onPickExisting, excludeIds, initialValues, variant = 'default' }: CreateClientDialogProps = {}) {
   const [open, setOpen] = useState(false)
   const addRef = useRef<HTMLButtonElement>(null)
   return (
@@ -77,12 +79,12 @@ export function CreateClientDialog({ onCreated, onPickExisting, initialValues, v
           {t(`${C}.add`)}
         </Button>
       </SheetTrigger>
-      {open && <CreatePanel onClose={() => setOpen(false)} onCreated={onCreated} onPickExisting={onPickExisting} initialValues={initialValues} />}
+      {open && <CreatePanel onClose={() => setOpen(false)} onCreated={onCreated} onPickExisting={onPickExisting} excludeIds={excludeIds} initialValues={initialValues} />}
     </Sheet>
   )
 }
 
-function CreatePanel({ onClose, onCreated, onPickExisting, initialValues }: { onClose: () => void } & Omit<CreateClientDialogProps, 'variant'>) {
+function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], initialValues }: { onClose: () => void } & Omit<CreateClientDialogProps, 'variant'>) {
   const navigate = useNavigate()
   const reference = useClientsReference()
   const [confirming, setConfirming] = useState(false)
@@ -274,6 +276,7 @@ function CreatePanel({ onClose, onCreated, onPickExisting, initialValues }: { on
                 onPickExisting(id)
               })
             }
+            canPick={(id) => !excludeIds.includes(id)}
           />
 
           <section className="space-y-3">
@@ -443,7 +446,17 @@ function CreatePanel({ onClose, onCreated, onPickExisting, initialValues }: { on
  * existant ». Only a short line is a live region (how many were found), so a screen reader is not
  * read the whole list at each keystroke.
  */
-function DuplicatePanel({ duplicates, loading, onPick }: { duplicates: readonly ClientDuplicate[]; loading: boolean; onPick?: (clientId: string) => void }) {
+function DuplicatePanel({
+  duplicates,
+  loading,
+  onPick,
+  canPick = () => true,
+}: {
+  duplicates: readonly ClientDuplicate[]
+  loading: boolean
+  onPick?: (clientId: string) => void
+  canPick?: (clientId: string) => boolean
+}) {
   const high = duplicates.some((d) => d.level === 'high')
   return (
     <div>
@@ -469,7 +482,7 @@ function DuplicatePanel({ duplicates, loading, onPick }: { duplicates: readonly 
                     <span className="block text-xs text-muted-foreground">{d.reasons.map(reasonLabel).filter(Boolean).join(', ')}</span>
                   </span>
                   <span className="flex items-center gap-2">
-                    {onPick && (
+                    {onPick && canPick(d.clientId) && (
                       <Button type="button" variant="outline" size="sm" onClick={() => onPick(d.clientId)}>
                         {t(`${C}.duplicates.pick`)}
                       </Button>

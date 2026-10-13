@@ -10313,7 +10313,7 @@ export type Database = {
         Returns: undefined
       }
       merge_clients: {
-        Args: { p_fields?: Json; p_keep: string; p_merge: string }
+        Args: { p_keep: string; p_merge: string; p_take?: string[] }
         Returns: string
       }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
