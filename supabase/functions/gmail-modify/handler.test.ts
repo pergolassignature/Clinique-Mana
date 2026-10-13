@@ -102,7 +102,7 @@ Deno.test('gmail-modify: read asks Gmail first, then records the change in the m
       post({ thread_ids: [THREAD], action: { kind: 'read' } }),
     )
     assertEquals(res.status, 200)
-    assertEquals(await res.json(), { changed: 1 })
+    assertEquals(await res.json(), { changed: 1, failed: [] })
     assertEquals(
       h.google.calls.map((c) => c.path).filter((p) =>
         p.includes('batchModify')
@@ -131,7 +131,7 @@ Deno.test('gmail-modify: archive modifies the thread; a no-op asks nothing; an u
     let res = await handler(
       post({ thread_ids: [THREAD], action: { kind: 'archive' } }),
     )
-    assertEquals(await res.json(), { changed: 1 })
+    assertEquals(await res.json(), { changed: 1, failed: [] })
     assertEquals(
       h.google.calls.filter((c) => c.path.endsWith('/modify')).length,
       1,
@@ -143,7 +143,7 @@ Deno.test('gmail-modify: archive modifies the thread; a no-op asks nothing; an u
     res = await handler(
       post({ thread_ids: [THREAD], action: { kind: 'archive' } }),
     )
-    assertEquals(await res.json(), { changed: 0 })
+    assertEquals(await res.json(), { changed: 0, failed: [] })
     assertEquals(
       h.google.calls.filter((c) => c.path.startsWith('/gmail/')).length,
       0,
@@ -188,4 +188,52 @@ Deno.test('gmail-modify: a revoked grant is a 409; Google down is a 502, reporte
     assertEquals(res.status, 502)
     assertEquals(down.state.labelChanges.length, 0)
     assertFalse(JSON.stringify(errors).includes('@example.test'))
+  }))
+
+Deno.test('gmail-modify: a thread Gmail refuses is named in `failed`; the one done before stays recorded', () =>
+  run(async () => {
+    const OTHER = '00000000-0000-4000-8000-0000000000f2'
+    // Two threads: the first archived, the second refused by Gmail.
+    const h = gmailHarness({
+      permissions: ['communications.inbox'],
+      rpc: {
+        get_mail_threads_for_action: () => ({
+          data: [...h.google.messages.values()].map((m, i) => ({
+            thread_id: i === 0 ? THREAD : OTHER,
+            connection_id: CONNECTION_ID,
+            gmail_thread_id: m.threadId,
+            messages: [{ gmail_message_id: m.id, label_ids: m.labelIds }],
+          })),
+        }),
+      },
+    })
+    h.google.deliver({
+      from: 'a@example.test',
+      subject: 'A',
+      text: 'a',
+      labelIds: ['INBOX'],
+    })
+    const second = h.google.deliver({
+      from: 'b@example.test',
+      subject: 'B',
+      text: 'b',
+      labelIds: ['INBOX'],
+    })
+    const realFetch = h.deps.fetch
+    h.deps.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input)
+      return url.includes(`/threads/${second.threadId}/modify`)
+        ? Promise.resolve(new Response('{}', { status: 500 }))
+        : realFetch(input, init)
+    }) as typeof fetch
+    let res: Response | undefined
+    await captureConsole('error', async () => {
+      res = await createHandler(h.deps)(
+        post({ thread_ids: [THREAD, OTHER], action: { kind: 'archive' } }),
+      )
+    })
+    assertEquals(res!.status, 200)
+    assertEquals(await res!.json(), { changed: 1, failed: [OTHER] })
+    // The first thread's change reached the mirror although the second failed after it.
+    assertEquals(h.state.labelChanges.length, 1)
   }))

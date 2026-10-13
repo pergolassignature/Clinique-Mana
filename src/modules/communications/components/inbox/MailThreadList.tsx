@@ -39,6 +39,7 @@ export function MailThreadList({ threads, selected, onSelect, hasMore, loadingMo
             <li key={thread.id}>
               <button
                 type="button"
+                data-thread-id={thread.id}
                 aria-current={current || undefined}
                 onClick={() => onSelect(thread.id)}
                 className={cn(

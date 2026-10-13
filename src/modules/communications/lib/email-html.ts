@@ -25,7 +25,16 @@ const ALLOWED_ATTR = [
   'border', 'cellpadding', 'cellspacing', 'colspan', 'rowspan', 'dir', 'lang', 'target', 'rel',
 ]
 
-/** Styles that would escape the message or drown the page. */
+/**
+ * What may load something from outside in a style (a remote image tells the sender the mail was
+ * opened): any function that takes an address or an image, and the escapes and comments that
+ * could spell one (`\75rl(` is `url(`). The declaration is dropped whole.
+ */
+const STYLE_FETCH = /\\|\/\*|url\s*\(|expression\s*\(|image-set\s*\(|image\s*\(|cross-fade\s*\(|element\s*\(|src\s*\(/
+/** Properties whose only job is an image or an outside resource. */
+const STYLE_IMAGE_PROPS = /^(?:background-image|list-style-image|border-image(?:-source)?|content|cursor|mask(?:-image)?|-webkit-mask(?:-image)?|-webkit-border-image|filter|behavior|-moz-binding)$/
+
+/** Styles that would escape the message, drown the page or fetch from outside. */
 function cleanStyle(style: string): string {
   return style
     .split(';')
@@ -35,9 +44,9 @@ function cleanStyle(style: string): string {
       if (!rawProp || rest.length === 0) return false
       const prop = rawProp.trim().toLowerCase()
       const value = rest.join(':').trim().toLowerCase()
+      if (STYLE_FETCH.test(declaration.toLowerCase()) || STYLE_IMAGE_PROPS.test(prop)) return false
       if (prop === 'position' && /fixed|absolute|sticky/.test(value)) return false
-      if (prop === 'z-index' || prop === 'behavior' || prop.startsWith('-moz-binding')) return false
-      if (/url\s*\(|expression\s*\(/.test(value)) return false
+      if (prop === 'z-index') return false
       if (prop === 'font-size') {
         const px = /^(\d+(?:\.\d+)?)px$/.exec(value)
         if (px && Number(px[1]) > 32) return false

@@ -5794,7 +5794,8 @@
         "linkExpired": "La connexion a pris plus de 10 minutes. Recommencez la connexion de la boîte.",
         "linkUsed": "Ce retour de Google a déjà servi. Recommencez la connexion de la boîte au besoin.",
         "notFound": "Cette boîte n'est plus connectée. Rechargez la page.",
-        "rateLimited": "Trop de demandes Gmail en peu de temps."
+        "rateLimited": "Trop de demandes Gmail en peu de temps.",
+        "needsReconnect": "Google refuse l'accès à cette boîte : elle doit être reconnectée (Paramètres → Courriels Gmail)."
       },
       "googleReturn": {
         "title": "Connexion de la boîte Gmail",
@@ -5936,6 +5937,8 @@
         "noMailboxBody": "Une personne qui gère les boîtes les connecte dans Paramètres → Courriels Gmail.",
         "search": "Rechercher dans les courriels",
         "searchPlaceholder": "Expéditeur, objet ou texte",
+        "actionPartialOne": "1 conversation n'a pas pu être modifiée dans Gmail. Réessayez.",
+        "actionPartialOther": "{count} conversations n'ont pas pu être modifiées dans Gmail. Réessayez.",
         "messageFrame": "Contenu du courriel",
         "nav": {
           "label": "Boîtes et dossiers",

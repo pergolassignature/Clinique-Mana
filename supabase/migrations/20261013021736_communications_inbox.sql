@@ -176,3 +176,66 @@ end;
 $$;
 revoke all on function public.get_mail_threads_for_action(uuid, uuid, uuid[]) from public, anon, authenticated;
 grant execute on function public.get_mail_threads_for_action(uuid, uuid, uuid[]) to service_role;
+
+-- -----------------------------------------------------------------------------
+-- The mail itself is read with communications.inbox only (CM-11)
+-- -----------------------------------------------------------------------------
+-- CM1's `visible_mail_connection_ids` also lets communications.mailboxes_manage through, so a role
+-- that manages the connections without reading the inbox could read every body. The mailboxes
+-- (`mail_connections`) stay visible to both; their content (labels, threads, messages,
+-- attachments, links) now needs the inbox permission.
+create function private.readable_mail_connection_ids()
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(c.id), '{}'::uuid[])
+    from public.mail_connections c
+   where c.org_id = private.current_user_org_id()
+     and private.has_permission('communications.inbox')
+     and (c.kind = 'shared' or c.owner_profile_id = auth.uid())
+$$;
+revoke all on function private.readable_mail_connection_ids() from public, anon;
+grant execute on function private.readable_mail_connection_ids() to authenticated, service_role;
+
+drop policy mail_labels_select on public.mail_labels;
+create policy mail_labels_select on public.mail_labels
+  for select to authenticated
+  using (
+    org_id = (select private.current_user_org_id())
+    and connection_id = any ((select private.readable_mail_connection_ids())::uuid[])
+  );
+drop policy mail_threads_select on public.mail_threads;
+create policy mail_threads_select on public.mail_threads
+  for select to authenticated
+  using (
+    org_id = (select private.current_user_org_id())
+    and connection_id = any ((select private.readable_mail_connection_ids())::uuid[])
+  );
+drop policy mail_messages_select on public.mail_messages;
+create policy mail_messages_select on public.mail_messages
+  for select to authenticated
+  using (
+    org_id = (select private.current_user_org_id())
+    and connection_id = any ((select private.readable_mail_connection_ids())::uuid[])
+  );
+drop policy mail_attachments_select on public.mail_attachments;
+create policy mail_attachments_select on public.mail_attachments
+  for select to authenticated
+  using (
+    org_id = (select private.current_user_org_id())
+    and exists (select 1 from public.mail_messages m
+                 where m.id = mail_attachments.message_id
+                   and m.connection_id = any ((select private.readable_mail_connection_ids())::uuid[]))
+  );
+drop policy mail_thread_links_select on public.mail_thread_links;
+create policy mail_thread_links_select on public.mail_thread_links
+  for select to authenticated
+  using (
+    org_id = (select private.current_user_org_id())
+    and exists (select 1 from public.mail_threads t
+                 where t.id = mail_thread_links.thread_id
+                   and t.connection_id = any ((select private.readable_mail_connection_ids())::uuid[]))
+  );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { t } from '@/i18n'
@@ -69,6 +69,15 @@ export function InboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `update` is recreated each render; the timer reads the latest.
   }, [typed, search])
 
+  // « Retour aux courriels » (phone): the focus goes back to the row that was open.
+  const backTo = useRef<string | null>(null)
+  useEffect(() => {
+    if (threadId !== null || !backTo.current) return
+    const row = document.querySelector<HTMLElement>(`[data-thread-id="${backTo.current}"]`)
+    backTo.current = null
+    row?.focus()
+  }, [threadId])
+
   const labels = useMailLabels(mailboxId)
   const query = mailboxId ? { connectionId: mailboxId, view: search ? ('all' as const) : choice.view, labelId: search ? null : choice.labelId, search } : null
   const threads = useMailThreads(query)
@@ -109,7 +118,10 @@ export function InboxPage() {
             <MailboxNav
               mailboxes={mailboxes}
               mailboxId={mailboxId}
-              onMailbox={(id) => update({ boite: id, fil: null, vue: null, q: null })}
+              onMailbox={(id) => {
+                setTyped('')
+                update({ boite: id, fil: null, vue: null, q: null })
+              }}
               current={choice}
               onView={(next) => {
                 setTyped('')
@@ -137,7 +149,14 @@ export function InboxPage() {
           </div>
           {threadId !== null ? (
             <div className="flex min-h-0 min-w-0 flex-col">
-              <MailThreadView key={threadId} threadId={threadId} labels={labels.data ?? []} onBack={() => update({ fil: null })} />
+              <MailThreadView
+                key={threadId}
+                threadId={threadId}
+                onBack={() => {
+                  backTo.current = threadId
+                  update({ fil: null })
+                }}
+              />
             </div>
           ) : (
             <div className="hidden items-center justify-center p-6 text-sm text-muted-foreground lg:flex">{t(`${I}.thread.select`)}</div>

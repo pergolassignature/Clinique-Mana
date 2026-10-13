@@ -56,6 +56,24 @@ describe('prepareEmailHtml', () => {
     expect(html).not.toContain('1200px')
     expect(html).not.toContain('t.test')
   })
+
+  it('no style can fetch a remote image: escapes, comments, image-set and image properties are dropped', () => {
+    const { html } = prepareEmailHtml(
+      [
+        '<p style="background:\\75rl(https://t1.test/p.gif)">a</p>',
+        '<p style="background-image:image-set(&quot;https://t2.test/p.gif&quot; 1x)">b</p>',
+        '<p style="background:-webkit-image-set(&quot;https://t3.test/p.gif&quot; 1x)">c</p>',
+        '<p style="background:ur/**/l(https://t4.test/p.gif)">d</p>',
+        '<ul style="list-style-image: none"><li>e</li></ul>',
+        '<p style="cursor: pointer; color: blue">f</p>',
+      ].join(''),
+      none,
+    )
+    for (const host of ['t1.test', 't2.test', 't3.test', 't4.test']) expect(html).not.toContain(host)
+    expect(html).not.toContain('list-style-image')
+    expect(html).not.toContain('cursor')
+    expect(html).toContain('color: blue')
+  })
 })
 
 describe('htmlHasContent', () => {

@@ -44,7 +44,8 @@ export function SafeEmailHtml({ html }: { html: string }) {
     setSize((prev) => (prev.width === width && prev.height === height && prev.scale === scale ? prev : { width, height, scale }))
   }, [])
 
-  const srcDoc = `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>${BASE_CSS}</style></head><body dir="auto">${html}</body></html>`
+  // `no-referrer` here: the frame's own attribute covers its request only, not its images'.
+  const srcDoc = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><base target="_blank"><style>${BASE_CSS}</style></head><body dir="auto">${html}</body></html>`
 
   useEffect(() => {
     const frame = frameRef.current
@@ -63,6 +64,8 @@ export function SafeEmailHtml({ html }: { html: string }) {
       }
     }
     frame.addEventListener('load', onLoad)
+    // The frame may have loaded before this effect ran: measure now, the listener would never fire.
+    if (frame.contentDocument?.readyState === 'complete' && frame.contentDocument.body?.childNodes.length) onLoad()
     const outer = typeof ResizeObserver !== 'undefined' && wrapper ? new ResizeObserver(measure) : null
     if (outer && wrapper) outer.observe(wrapper)
     return () => {

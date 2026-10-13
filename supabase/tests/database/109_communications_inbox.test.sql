@@ -3,11 +3,12 @@
 -- service RPC (get_mail_threads_for_action: the actor re-checked).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(41);
 
 -- =============================================================================
--- Fixtures (as postgres): org A (module on; admin 01, counselor 02 with the inbox, provider 03),
--- org B (admin 05, module on). A shared mailbox in each, and a disconnected one in A.
+-- Fixtures (as postgres): org A (module on; admin 01, counselor 02 with the inbox, provider 03,
+-- adjointe 04 with communications.mailboxes_manage only), org B (admin 05, module on). A shared
+-- mailbox in each, a disconnected one in A, and the admin's personal one in A.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 select ('a0000000-0000-0000-0000-00000000000' || n)::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
@@ -19,22 +20,31 @@ insert into public.profiles (user_id, org_id, display_name, email, status) value
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A', 'u1@cm2.test', 'active'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'u2@cm2.test', 'active'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Pro A', 'u3@cm2.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A', 'u4@cm2.test', 'active'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B', 'u5@cm2.test', 'active');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'communications', true),
   ('b0000000-0000-0000-0000-00000000000b', 'communications', true);
 insert into public.org_role_permissions (org_id, role, permission_key) values
-  ('b0000000-0000-0000-0000-00000000000a', 'counselor', 'communications.inbox');
+  ('b0000000-0000-0000-0000-00000000000a', 'counselor', 'communications.inbox'),
+  ('b0000000-0000-0000-0000-00000000000a', 'admin_assistant', 'communications.mailboxes_manage')
+on conflict do nothing;
+delete from public.org_role_permissions
+ where org_id = 'b0000000-0000-0000-0000-00000000000a' and role = 'admin_assistant' and permission_key = 'communications.inbox';
 
 insert into public.mail_connections (id, org_id, email_address, kind, status, connected_by) values
   ('c0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000a', 'info@a.test', 'shared', 'connected', 'a0000000-0000-0000-0000-000000000001'),
   ('c0000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-00000000000a', 'old@a.test', 'shared', 'disconnected', 'a0000000-0000-0000-0000-000000000001'),
   ('c0000000-0000-0000-0000-00000000000b', 'b0000000-0000-0000-0000-00000000000b', 'info@b.test', 'shared', 'connected', 'a0000000-0000-0000-0000-000000000005');
+insert into public.mail_connections (id, org_id, email_address, kind, status, connected_by, owner_profile_id) values
+  ('c0000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000000a', 'perso@a.test', 'personal', 'connected',
+   'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001');
 
 set local role service_role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
@@ -55,11 +65,15 @@ select set_config('test.n', (select count(*)::text from public.upsert_mail_messa
 select count(*) from public.upsert_mail_messages('b0000000-0000-0000-0000-00000000000b', 'c0000000-0000-0000-0000-00000000000b', $j$[
   {"gmail_message_id":"z1","gmail_thread_id":"zt1","from_address":"x@b.test","subject":"Org B","sent_at":"2026-10-02T09:00:00Z","label_ids":["INBOX"]}
 ]$j$);
+select count(*) from public.upsert_mail_messages('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a3', $j$[
+  {"gmail_message_id":"p1","gmail_thread_id":"pt1","from_address":"x@perso.test","subject":"Personnel","sent_at":"2026-10-02T09:00:00Z","label_ids":["INBOX"]}
+]$j$);
 reset role;
 select set_config('test.t1', (select id::text from public.mail_threads where gmail_thread_id = 't1'), true);
 select set_config('test.t2', (select id::text from public.mail_threads where gmail_thread_id = 't2'), true);
 select set_config('test.t3', (select id::text from public.mail_threads where gmail_thread_id = 't3'), true);
 select set_config('test.zt1', (select id::text from public.mail_threads where gmail_thread_id = 'zt1'), true);
+select set_config('test.pt1', (select id::text from public.mail_threads where gmail_thread_id = 'pt1'), true);
 
 -- =============================================================================
 -- Privileges
@@ -111,6 +125,40 @@ select results_eq($$
   select gmail_thread_id from public.list_mail_threads('c0000000-0000-0000-0000-00000000000a', 'all', null, null,
     (select last_message_at from public.mail_threads where id = current_setting('test.t2')::uuid), current_setting('test.t2')::uuid, 1)
 $$, $$ values ('t1') $$, 'page 2 starts after the last row seen');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select count(*) from public.upsert_mail_messages('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-00000000000a', $j$[
+  {"gmail_message_id":"m6","gmail_thread_id":"t5","from_address":"dan@x.test","subject":"Même minute","sent_at":"2026-10-02T09:00:00Z","label_ids":["Label_7"]}
+]$j$);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select results_eq($$
+  with p1 as (select * from public.list_mail_threads('c0000000-0000-0000-0000-00000000000a', 'label', 'Label_7', null, null, null, 1)),
+       p2 as (select l.* from p1, lateral public.list_mail_threads('c0000000-0000-0000-0000-00000000000a', 'label', 'Label_7', null,
+                                                                     p1.last_message_at, p1.id, 1) l)
+  select gmail_thread_id from (select gmail_thread_id from p1 union all select gmail_thread_id from p2) x order by 1
+$$, $$ values ('t2'), ('t5') $$, 'two threads at the same instant: one on each page, none lost or repeated');
+
+-- Personal mailboxes: the owner's only.
+select is_empty($$ select 1 from public.list_mail_threads('c0000000-0000-0000-0000-0000000000a3', 'all') $$,
+  'the counselor lists nothing of the admin''s personal mailbox');
+select is(public.get_mail_thread(current_setting('test.pt1')::uuid), null::jsonb, '… nor reads its thread');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select gmail_thread_id from public.list_mail_threads('c0000000-0000-0000-0000-0000000000a3', 'all') $$,
+  $$ values ('pt1') $$, 'its owner does');
+
+-- communications.mailboxes_manage alone: the mailboxes, never their mail (CM-11).
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select results_eq($$ select email_address from public.mail_connections order by 1 $$,
+  $$ values ('info@a.test'), ('old@a.test') $$, 'the mailboxes manager sees the shared mailboxes');
+select is((select count(*)::int from public.mail_threads) + (select count(*)::int from public.mail_messages)
+          + (select count(*)::int from public.mail_attachments) + (select count(*)::int from public.mail_labels)
+          + (select count(*)::int from public.mail_thread_links), 0,
+  '… but no thread, message, attachment, label or link');
+select is_empty($$ select 1 from public.list_mail_threads('c0000000-0000-0000-0000-00000000000a', 'all') $$, '… and lists nothing');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 
 -- The thread.
 select results_eq($$
@@ -156,6 +204,25 @@ select throws_ok($$
   select * from public.get_mail_threads_for_action('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a',
     array(select gen_random_uuid() from generate_series(1, 51)))
 $$, '22023', null, 'at most 50 threads');
+select is_empty($$
+  select 1 from public.get_mail_threads_for_action('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', array[current_setting('test.pt1')::uuid])
+$$, 'another member''s personal mailbox takes no action of hers');
+reset role;
+update public.org_modules set testers_only = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'communications';
+set local role service_role;
+select throws_ok($$
+  select * from public.get_mail_threads_for_action('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', array[current_setting('test.t1')::uuid])
+$$, '42501', null, 'module reserved for testers: a non-tester is refused');
+reset role;
+insert into public.org_module_testers (org_id, module_key, user_id) values
+  ('b0000000-0000-0000-0000-00000000000a', 'communications', 'a0000000-0000-0000-0000-000000000002');
+set local role service_role;
+select results_eq($$
+  select gmail_thread_id from public.get_mail_threads_for_action('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', array[current_setting('test.t1')::uuid])
+$$, $$ values ('t1') $$, '… a tester acts');
+reset role;
+update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'communications';
+set local role service_role;
 reset role;
 update public.mail_connections set status = 'disconnected' where id = 'c0000000-0000-0000-0000-00000000000a';
 set local role service_role;

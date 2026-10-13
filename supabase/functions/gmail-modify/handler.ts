@@ -12,16 +12,20 @@
  *    any other id is simply absent (an unknown or foreign thread → 404 when
  *    none is left).
  * 4. Per mailbox: its access token (`mailboxCredentials`; Google refused
- *    the refresh → the mailbox is marked and the answer is 409 `conflict`),
+ *    the refresh → the mailbox is marked, its threads fail with `conflict`),
  *    then per thread **Gmail first** (`threads.modify` or
- *    `messages.batchModify`), then the mirror (`apply_mail_label_changes`):
- *    the app never shows a state Gmail refused. A thread Gmail no longer
- *    has (404) is skipped (the next sync removes it).
- * 5. 200 `{ changed }` (threads changed). A Gmail or database failure →
- *    502 `provider_error` / 500 `internal`, reported with ids only.
+ *    `messages.batchModify`), then at once its mirror
+ *    (`apply_mail_label_changes`): the app never shows a state Gmail refused,
+ *    and a later failure never leaves a change Gmail made unrecorded. A
+ *    thread Gmail no longer has (404) is skipped (the next sync removes it).
+ * 5. 200 `{ changed, failed }` (threads changed; the ids that were not).
+ *    When none changed and one failed, the first failure answers: 409
+ *    `conflict`, 502 `provider_error` or 500 `internal`, reported with ids
+ *    only.
  */
 import { z } from 'zod'
 import {
+  type ErrorCode,
   errorResponse,
   handleCors,
   jsonResponse,
@@ -46,6 +50,13 @@ import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
 const FN = 'gmail-modify'
+
+/** Why a thread was not changed; the first one answers when none was. */
+interface Failure {
+  code: ErrorCode
+  message: string
+  status: number
+}
 
 const bodySchema = z.strictObject({
   thread_ids: z.array(z.guid()).min(1).max(50),
@@ -135,9 +146,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         t,
       ])
     }
+    // Each thread on its own: Gmail, then at once its mirror, so a failure later on (another
+    // thread, another mailbox) never leaves a change Gmail made unrecorded. A thread that fails
+    // is named in `failed`; the request fails only when nothing changed.
     let changed = 0
+    const failed: string[] = []
+    const failures: Failure[] = []
+    const fail = (threadIds: string[], failure: Failure) => {
+      failed.push(...threadIds)
+      failures.push(failure)
+    }
     for (const [connectionId, threads] of byConnection) {
       ids.connection_id = connectionId
+      delete ids.thread_id
       let gmail: GmailClient
       try {
         const credentials = await mailboxCredentials(
@@ -159,25 +180,27 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           signal: req.signal,
         })
       } catch (error) {
+        const threadIds = threads.map((t) => t.thread_id)
         if (error instanceof ReconnectNeeded) {
-          return errorResponse(
-            'conflict',
-            'Mailbox needs reconnection',
-            409,
-            req,
-          )
+          fail(threadIds, {
+            code: 'conflict',
+            message: 'Mailbox needs reconnection',
+            status: 409,
+          })
+        } else {
+          await report('credentials_unavailable')
+          fail(threadIds, {
+            code: 'provider_error',
+            message: 'Google unavailable',
+            status: 502,
+          })
         }
-        await report('credentials_unavailable')
-        return errorResponse('provider_error', 'Google unavailable', 502, req)
+        continue
       }
-      const mirror: {
-        gmail_message_id: string
-        add: string[]
-        remove: string[]
-      }[] = []
       for (const thread of threads) {
         const plan = planAction(input.action, thread as ThreadForAction)
         if (!plan.gmail) continue
+        ids.thread_id = thread.thread_id
         try {
           if (plan.gmail.type === 'thread') {
             await gmail.modifyThread(
@@ -196,34 +219,47 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           if (error instanceof GmailError && error.code === 'not_found') {
             continue
           }
-          ids.thread_id = thread.thread_id
           await report(
             error instanceof GmailError
               ? `gmail_${error.code}`
               : 'gmail_failed',
           )
-          return errorResponse(
-            'provider_error',
-            'Google unavailable',
-            502,
-            req,
-          )
+          fail([thread.thread_id], {
+            code: 'provider_error',
+            message: 'Google unavailable',
+            status: 502,
+          })
+          continue
         }
-        mirror.push(...plan.mirror)
+        let recorded = true
+        for (let i = 0; i < plan.mirror.length; i += 500) {
+          const applied = await service.rpc('apply_mail_label_changes', {
+            p_org_id: orgId,
+            p_connection_id: connectionId,
+            p_changes: plan.mirror.slice(i, i + 500),
+          })
+          if (applied.error) {
+            recorded = false
+            break
+          }
+        }
+        if (!recorded) {
+          // Gmail changed; the next sync brings the mirror along.
+          await report('mirror_failed')
+          fail([thread.thread_id], {
+            code: 'internal',
+            message: 'Request failed',
+            status: 500,
+          })
+          continue
+        }
         changed++
       }
-      for (let i = 0; i < mirror.length; i += 500) {
-        const applied = await service.rpc('apply_mail_label_changes', {
-          p_org_id: orgId,
-          p_connection_id: connectionId,
-          p_changes: mirror.slice(i, i + 500),
-        })
-        if (applied.error) {
-          await report('mirror_failed')
-          return errorResponse('internal', 'Request failed', 500, req)
-        }
-      }
     }
-    return jsonResponse({ changed }, 200, req)
+    const refused = failures[0]
+    if (changed === 0 && refused) {
+      return errorResponse(refused.code, refused.message, refused.status, req)
+    }
+    return jsonResponse({ changed, failed }, 200, req)
   }
 }

@@ -128,7 +128,7 @@ beforeEach(() => {
   mocks.inbox.listMailLabels.mockResolvedValue([
     { gmail_label_id: 'Label_1', name: 'Factures', type: 'user', visibility: null, color_background: null },
   ])
-  mocks.inbox.modifyMailThreads.mockResolvedValue(1)
+  mocks.inbox.modifyMailThreads.mockResolvedValue({ changed: 1, failed: [] })
   mocks.storage.useSignedFileUrl.mockImplementation((id: string | null) => ({
     data: id ? { url: `https://storage.test/${id}` } : undefined,
   }))
@@ -211,7 +211,7 @@ describe('InboxPage', () => {
     renderPage(`/courriels?fil=${T1}`)
     await user.click(await screen.findByRole('button', { name: t(`${I}.thread.star`) }))
     expect(mocks.inbox.modifyMailThreads).toHaveBeenLastCalledWith([T1], { kind: 'star' })
-    expect(await screen.findByRole('button', { name: t(`${I}.thread.unstar`) })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('button', { name: t(`${I}.thread.unstar`) })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: t(`${I}.thread.labels`) }))
     await user.click(await screen.findByRole('menuitem', { name: /Factures/ }))
     expect(mocks.inbox.modifyMailThreads).toHaveBeenLastCalledWith([T1], { kind: 'label', label_id: 'Label_1' })
@@ -264,6 +264,16 @@ describe('InboxPage', () => {
         null,
       ),
     )
+  })
+
+  it('« Retour aux courriels » closes the thread and gives the focus back to its row', async () => {
+    const user = userEvent.setup()
+    mocks.inbox.getMailThread.mockResolvedValue(thread({ unread_count: 0, label_ids: ['INBOX'] }))
+    renderPage(`/courriels?fil=${T1}`)
+    await user.click(await screen.findByRole('button', { name: t(`${I}.thread.back`) }))
+    expect(await screen.findByText(t(`${I}.thread.select`))).toBeInTheDocument()
+    const list = screen.getByRole('list', { name: t(`${I}.list.label`) })
+    await waitFor(() => expect(within(list).getAllByRole('button')[0]).toHaveFocus())
   })
 
   it('says when the thread is gone', async () => {

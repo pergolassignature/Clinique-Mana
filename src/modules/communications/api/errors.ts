@@ -6,7 +6,8 @@ import { functionErrorText } from '@/core/supabase/function-errors'
 
 /**
  * The codes whose meaning is the Gmail functions' own (C-4): the clinic's Google application not
- * set, Google not answering, the return link from Google spent, expired or forged, a mailbox gone.
+ * set, Google not answering, the return link from Google spent, expired or forged, a mailbox gone
+ * or to reconnect.
  */
 const OVERRIDES = {
   not_configured: () => t('modules.communications.errors.notConfigured'),
@@ -16,6 +17,8 @@ const OVERRIDES = {
   link_used: () => t('modules.communications.errors.linkUsed'),
   not_found: () => t('modules.communications.errors.notFound'),
   rate_limited: () => t('modules.communications.errors.rateLimited'),
+  // gmail-modify: Google refused the mailbox's refresh token (it is marked « à reconnecter »).
+  conflict: () => t('modules.communications.errors.needsReconnect'),
 } as const
 
 /**

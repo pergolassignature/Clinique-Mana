@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
 import type { MailAction, MailAttachment, MailLabel, MailMessage, MailThread } from '../../api/inbox'
-import { useMailAction, useMailThread } from '../../hooks/use-inbox'
+import { useMailAction, useMailLabels, useMailThread } from '../../hooks/use-inbox'
 import { htmlHasContent, prepareEmailHtml } from '../../lib/email-html'
 import { SafeEmailHtml } from '../SafeEmailHtml'
 import { gmailThreadUrl, senderLabel } from '../../lib/inbox-format'
@@ -30,7 +30,6 @@ function fileSize(bytes: number | null): string | null {
 
 interface MailThreadViewProps {
   threadId: string
-  labels: MailLabel[]
   /** On a phone, the list and the thread are stacked: « Retour aux courriels ». */
   onBack: () => void
 }
@@ -42,8 +41,10 @@ interface MailThreadViewProps {
  * (as Gmail). Received HTML is sanitized and shown in a sandboxed frame; remote images wait for
  * « Afficher les images ».
  */
-export function MailThreadView({ threadId, labels, onBack }: MailThreadViewProps) {
+export function MailThreadView({ threadId, onBack }: MailThreadViewProps) {
   const thread = useMailThread(threadId)
+  // The labels of the thread's own mailbox (a link may open a thread of another one).
+  const labels = useMailLabels(thread.data?.connection_id ?? null).data ?? []
   const action = useMailAction()
   const markRead = useMailAction({ silent: true })
   const heading = useRef<HTMLHeadingElement>(null)
@@ -81,7 +82,7 @@ export function MailThreadView({ threadId, labels, onBack }: MailThreadViewProps
         <h2 id={`${threadId}-subject`} ref={heading} tabIndex={-1} className="text-lg font-semibold text-foreground outline-none">
           {data.subject?.trim() || t('modules.communications.inbox.list.noSubject')}
         </h2>
-        <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label={t(`${V}.actions`)}>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t(`${V}.actions`)}>
           {inInbox ? (
             <Button type="button" variant="outline" size="sm" className="max-sm:h-11" onClick={() => run({ kind: 'archive' })}>
               <Archive aria-hidden />
@@ -101,7 +102,6 @@ export function MailThreadView({ threadId, labels, onBack }: MailThreadViewProps
             type="button"
             variant="outline"
             size="sm"
-            aria-pressed={starred}
             className="max-sm:h-11"
             onClick={() => run({ kind: starred ? 'unstar' : 'star' })}
           >

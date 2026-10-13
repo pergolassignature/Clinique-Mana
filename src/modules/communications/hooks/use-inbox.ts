@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import { t } from '@/i18n'
 import { toast } from '@/shared/ui/sonner'
 import {
   getMailThread,
@@ -107,14 +108,21 @@ function applyToThread(thread: MailThread, action: MailAction): MailThread {
  * An action on threads (`gmail-modify`), optimistic: the lists and the open thread show the
  * result at once and roll back if Gmail refuses (a French toast says why). Once settled, the
  * lists, the threads and the mailboxes' unread counts are read again: that is when an archived
- * thread leaves « Boîte de réception ».
+ * thread leaves « Boîte de réception », and when threads named in a partial answer's `failed`
+ * show their real state again. Actions run one after the other (one mutation scope), so a
+ * rollback never undoes a later action and Gmail receives them in order.
  */
 export function useMailAction({ silent = false }: { silent?: boolean } = {}) {
   const queryClient = useQueryClient()
   return useMutation({
+    scope: { id: 'communications-mail-action' },
     mutationFn: ({ threadIds, action }: { threadIds: string[]; action: MailAction }) => modifyMailThreads(threadIds, action),
     onMutate: async ({ threadIds, action }) => {
-      await queryClient.cancelQueries({ queryKey: mailKeys.threads() })
+      // Only what the action rewrites: a list page still loading elsewhere keeps loading.
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: mailKeys.threadLists() }),
+        ...threadIds.map((id) => queryClient.cancelQueries({ queryKey: mailKeys.thread(id) })),
+      ])
       const lists = queryClient.getQueriesData<InfiniteData<MailThreadRow[]>>({ queryKey: mailKeys.threadLists() })
       const threads = threadIds.map((id) => [id, queryClient.getQueryData<MailThread | null>(mailKeys.thread(id))] as const)
       const ids = new Set(threadIds)
@@ -125,6 +133,14 @@ export function useMailAction({ silent = false }: { silent?: boolean } = {}) {
         if (thread) queryClient.setQueryData(mailKeys.thread(id), applyToThread(thread, action))
       }
       return { lists, threads }
+    },
+    onSuccess: ({ failed }) => {
+      if (silent || failed.length === 0) return
+      toast.error(
+        failed.length === 1
+          ? t('modules.communications.inbox.actionPartialOne')
+          : t('modules.communications.inbox.actionPartialOther', { count: String(failed.length) }),
+      )
     },
     onError: (error, _vars, context) => {
       for (const [key, data] of context?.lists ?? []) queryClient.setQueryData(key, data)

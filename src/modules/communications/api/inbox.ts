@@ -142,9 +142,13 @@ export type MailAction =
   | { kind: 'read' | 'unread' | 'archive' | 'inbox' | 'star' | 'unstar' }
   | { kind: 'label' | 'unlabel'; label_id: string }
 
-const modifySchema = z.object({ changed: z.number() })
+const modifySchema = z.object({ changed: z.number(), failed: z.array(z.string()).default([]) })
+export type ModifyResult = z.infer<typeof modifySchema>
 
-/** Applies `action` to threads (Gmail first, then the mirror); answers how many changed. */
-export async function modifyMailThreads(threadIds: string[], action: MailAction): Promise<number> {
-  return modifySchema.parse(await invokeFunction('gmail-modify', { thread_ids: threadIds, action })).changed
+/**
+ * Applies `action` to threads (Gmail first, then the mirror, thread by thread): how many changed,
+ * and the ids Gmail or the mirror refused (the request fails only when none changed).
+ */
+export async function modifyMailThreads(threadIds: string[], action: MailAction): Promise<ModifyResult> {
+  return modifySchema.parse(await invokeFunction('gmail-modify', { thread_ids: threadIds, action }))
 }
