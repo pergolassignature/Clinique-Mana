@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Ban, Phone, TriangleAlert } from 'lucide-react'
+import { Ban, Phone, Repeat, TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import { formatClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
@@ -217,6 +217,7 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
                   {a.mode === 'phone' && <Phone aria-hidden className="size-3" />}
                   {a.outsideAvailability && <TriangleAlert aria-hidden className="size-3 text-warning" />}
                   {a.state === 'cancelled' && <Ban aria-hidden className="size-3" />}
+                  {a.seriesId && <Repeat aria-hidden className="size-3" />}
                 </span>
                 <span className="block truncate">{appointmentTitle(a)}</span>
                 {a.state === 'held' && <span className="block truncate text-muted-foreground">{stateLabel(a.state)}</span>}

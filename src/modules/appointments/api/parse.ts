@@ -56,6 +56,7 @@ export const agendaRowPayload = z
     video_url: z.string().nullable(),
     video_status: z.string().nullable(),
     participants: z.array(participantPayload),
+    series_id: z.string().nullable().optional(),
   })
   .transform((r) => ({
     id: r.id,
@@ -77,8 +78,18 @@ export const agendaRowPayload = z
     videoUrl: r.video_url,
     videoStatus: r.video_status,
     participants: r.participants,
+    seriesId: r.series_id ?? null,
   }))
 export type AgendaAppointment = z.output<typeof agendaRowPayload>
+
+export const SERIES_CONFLICTS = ['overlap', 'outside_availability'] as const
+export type SeriesConflict = (typeof SERIES_CONFLICTS)[number]
+
+/** One date of `preview_series`, with its conflict. */
+export const seriesDatePayload = z
+  .object({ occurrence: z.number().int(), starts_at: z.string(), ends_at: z.string(), conflict: z.enum(SERIES_CONFLICTS).nullable() })
+  .transform((r) => ({ occurrence: r.occurrence, startsAt: r.starts_at, endsAt: r.ends_at, conflict: r.conflict }))
+export type SeriesDate = z.output<typeof seriesDatePayload>
 
 /** The editor's extra fields (the table, RLS): notes, message, cancellation, the override's reason. */
 export const appointmentDetailPayload = z
