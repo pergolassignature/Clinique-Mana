@@ -148,7 +148,14 @@ export async function setSpecialAgreement(clientId: string, note: string | null)
   if (error) throw error
 }
 
-const settingsPayload = z.object({ queue_from: z.string().nullable() }).transform((r) => ({ queueFrom: r.queue_from }))
+const settingsPayload = z
+  .object({
+    queue_from: z.string().nullable(),
+    dunning_from: z.string().nullable().default(null),
+    dunning_days: z.array(z.number().int()).default([3, 5, 7, 10]),
+    block_after_days: z.number().int().default(10),
+  })
+  .transform((r) => ({ queueFrom: r.queue_from, dunningFrom: r.dunning_from, dunningDays: r.dunning_days, blockAfterDays: r.block_after_days }))
 export type BillingSettings = z.output<typeof settingsPayload>
 
 export async function fetchBillingSettings(): Promise<BillingSettings> {

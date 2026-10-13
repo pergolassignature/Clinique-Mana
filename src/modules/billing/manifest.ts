@@ -124,5 +124,7 @@ export const billingManifest: ModuleManifest = {
       // FS: the dossier's payers' card on file.
       { id: 'billing.card', permissions: ['billing.view'], component: lazyPage(() => import('./pages/ClientCardPanel'), 'ClientCardPanel') },
     ],
+    // « Mon agenda »: the professional's cancellation fees to decide (F3, R-59).
+    'agenda.mine': [{ id: 'billing.fees', permissions: ['billing.self'], component: lazyPage(() => import('./pages/FollowUp'), 'MyFeesPanel') }],
   },
 }

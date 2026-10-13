@@ -30,8 +30,9 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import { Textarea } from '@/shared/ui/textarea'
-import type { InvoiceBundle, InvoiceLine } from '../api/invoices'
-import { deliveryText, PdfLink, PreviewButton } from '../components/documents'
+import type { InvoiceBundle, InvoiceLine, Payment } from '../api/invoices'
+import { PdfLink, PreviewButton } from '../components/documents'
+import { deliveryText } from '../lib/delivery'
 import {
   useAddAdjustment,
   useDeleteDraft,
@@ -43,6 +44,7 @@ import {
   useSetInvoicePayer,
   useSetLinePrice,
 } from '../hooks/use-invoices'
+import { useRefundPayment } from '../hooks/use-follow-up'
 import { useRecordPayment, useReleaseDraft, useResendDocument, useSendInvoices } from '../hooks/use-queue'
 import { formatCents, lineTypeLabel, paymentLabel, paymentVariant, parseDollars, statusLabel, statusVariant } from '../lib/money'
 import { HoldButton } from './MorningQueue'
@@ -425,14 +427,93 @@ function Payments({ bundle, manage }: { bundle: InvoiceBundle; manage: boolean }
                     {deliveryText(p.receiptDeliveries[0]) ? ` · ${deliveryText(p.receiptDeliveries[0])}` : ''}
                   </span>
                 )}
+                {p.refunds.map((r) => (
+                  <span key={r.id} className="block text-xs text-muted-foreground">
+                    {t(r.status === 'recorded' ? `${P}.refundLine` : r.status === 'pending_provider' ? `${P}.refundPending` : `${P}.refundFailed`, {
+                      amount: formatCents(r.amountCents),
+                      reason: r.reason,
+                    })}
+                  </span>
+                ))}
               </span>
-              {p.receiptNumber && <PdfLink fileId={p.receiptFileId} label={t(`${P}.receiptPdf`, { number: p.receiptNumber })} />}
+              <span className="flex flex-wrap items-center gap-3">
+                {p.receiptNumber && <PdfLink fileId={p.receiptFileId} label={t(`${P}.receiptPdf`, { number: p.receiptNumber })} />}
+                {manage && invoice.status === 'issued' && p.refundableCents > 0 && <RefundButton payment={p} />}
+              </span>
             </li>
           ))}
         </ul>
       )}
       {manage && invoice.status === 'issued' && balance > 0 && <PaymentForm key={balance} bundle={bundle} balance={balance} />}
+      {bundle.reminders.length > 0 && (
+        <div className="space-y-1 text-sm">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t(`${R}.title`)}</h3>
+          <ul className="space-y-0.5 text-muted-foreground">
+            {bundle.reminders.map((m) => (
+              <li key={m.step}>
+                {m.sent ? t(`${R}.step`, { step: String(m.step), date: formatDateOnly(m.runOn) }) : t(`${R}.stepMissed`, { step: String(m.step) })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
+  )
+}
+
+const R = 'modules.billing.invoice.reminders'
+
+/** « Rembourser » a payment: an amount (what is left of it by default) and a reason. */
+function RefundButton({ payment }: { payment: Payment }) {
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState((payment.refundableCents / 100).toFixed(2).replace('.', ','))
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const refund = useRefundPayment({ onErrorMessage: setError })
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
+        {t(`${P}.refund`)}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t(`${P}.refundTitle`)}</DialogTitle>
+            <DialogDescription>{t(`${P}.refundBody`)}</DialogDescription>
+          </DialogHeader>
+          <form
+            noValidate
+            className="grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (refund.isPending) return
+              const cents = parseDollars(amount)
+              if (cents === null) return setError(t(`${I}.amountInvalid`))
+              if (reason.trim().length < 3) return setError(t(`${P}.reasonInvalid`))
+              setError(null)
+              refund.mutate({ paymentId: payment.id, amountCents: cents, reason: reason.trim() }, { onSuccess: () => setOpen(false) })
+            }}
+          >
+            <FormField label={t(`${P}.refundAmount`)} help={t(`${P}.refundAmountHelp`, { amount: formatCents(payment.refundableCents) })} width="sm" required>
+              {(field) => <Input {...field} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="tabular" />}
+            </FormField>
+            <FormField label={t(`${P}.refundReason`)} width="full" required error={error ?? undefined}>
+              {(field) => <Input {...field} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />}
+            </FormField>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  {t('common.cancel')}
+                </Button>
+              </DialogClose>
+              <Button type="submit" aria-disabled={refund.isPending || undefined}>
+                {t(`${P}.refundSubmit`)}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

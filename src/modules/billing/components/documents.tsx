@@ -3,13 +3,9 @@ import { FileText } from 'lucide-react'
 import { t } from '@/i18n'
 import { useSignedFileUrl } from '@/core/storage/hooks'
 import { saveBlob } from '@/shared/lib/files'
-import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/sonner'
-import type { Delivery } from '../api/invoices'
 import { previewDocument, type DocumentKind } from '../api/queue'
-
-const D = 'modules.billing.invoice.delivery'
 
 /** A stored document's PDF, opened through a signed URL (P3-33); nothing until it is stored. */
 export function PdfLink({ fileId, label }: { fileId: string | null; label: string }) {
@@ -48,14 +44,4 @@ export function PreviewButton({ kind, id }: { kind: DocumentKind; id: string }) 
       {t('modules.billing.invoice.preview')}
     </Button>
   )
-}
-
-/** What happened to a document's last delivery, in plain French (« il faut toujours être clair »). */
-export function deliveryText(delivery: Delivery | undefined): string | null {
-  if (!delivery) return null
-  if (delivery.status === 'pending' || delivery.status === 'sending') return t(`${D}.pending`)
-  if (delivery.status === 'failed') return t(`${D}.failed`)
-  if (delivery.emailStatus === 'sent') return t(`${D}.sent`, { date: formatClinicDateTime(delivery.finishedAt ?? delivery.createdAt) })
-  if (delivery.emailStatus === 'failed') return t(`${D}.emailFailed`)
-  return t(`${D}.${delivery.skipReason ?? 'not_requested'}`)
 }

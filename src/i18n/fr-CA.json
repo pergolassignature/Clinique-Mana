@@ -8840,7 +8840,10 @@
           "qbo_vendor_links": "Fournisseurs QuickBooks des professionnels",
           "stripe_customers": "Cartes au dossier (Stripe)",
           "stripe_charges": "Prélèvements Stripe",
-          "interac_notices": "Avis de virement Interac"
+          "interac_notices": "Avis de virement Interac",
+          "billing_dunning_runs": "Relances",
+          "cancellation_fee_decisions": "Frais d'annulation",
+          "refunds": "Remboursements"
         },
         "fields": {
           "invoices": {
@@ -8983,7 +8986,10 @@
             "finished_at": "Terminé le"
           },
           "billing_settings": {
-            "queue_from": "File du matin à partir du"
+            "queue_from": "File du matin à partir du",
+            "dunning_from": "Relances à partir du",
+            "dunning_days": "Jours de relance",
+            "block_after_days": "Rendez-vous refusés après (jours)"
           },
           "qbo_connections": {
             "realm_id": "Numéro de l'entreprise",
@@ -9134,6 +9140,36 @@
             "matched_at": "Rapproché le",
             "matched_by": "Rapproché par",
             "ignored_reason": "Raison (ignoré)"
+          },
+          "billing_dunning_runs": {
+            "invoice_id": "Facture",
+            "step": "Relance (jours)",
+            "run_on": "Le",
+            "delivery_id": "Envoi"
+          },
+          "cancellation_fee_decisions": {
+            "appointment_id": "Rendez-vous",
+            "client_id": "Dossier",
+            "professional_id": "Professionnel",
+            "kind": "Type",
+            "status": "Décision",
+            "fee_percent": "Pourcentage",
+            "amount_cents": "Montant",
+            "invoice_id": "Facture",
+            "decided_as": "Décidé par",
+            "decided_by": "Décidé par (personne)",
+            "decided_at": "Décidé le",
+            "note": "Note"
+          },
+          "refunds": {
+            "payment_id": "Paiement",
+            "invoice_id": "Facture",
+            "amount_cents": "Montant",
+            "reason": "Raison",
+            "status": "État",
+            "provider_ref": "Référence du fournisseur",
+            "error_code": "Erreur",
+            "processed_at": "Traité le"
           }
         },
         "values": {
@@ -9189,7 +9225,8 @@
               "invoice": "Facture",
               "credit_note": "Note de crédit",
               "receipt": "Reçu",
-              "statement": "Relevé"
+              "statement": "Relevé",
+              "reminder": "Relance"
             },
             "status": {
               "pending": "À faire",
@@ -9334,6 +9371,29 @@
               "matched": "Rapproché",
               "ignored": "Ignoré"
             }
+          },
+          "cancellation_fee_decisions": {
+            "kind": {
+              "late_cancellation": "Annulation tardive",
+              "no_show": "Absence"
+            },
+            "status": {
+              "pending": "À décider",
+              "applied": "Frais appliqués",
+              "waived": "Pas facturés"
+            },
+            "decided_as": {
+              "professional": "Le professionnel",
+              "staff": "L'équipe",
+              "automatic": "Automatique"
+            }
+          },
+          "refunds": {
+            "status": {
+              "recorded": "Remboursé",
+              "pending_provider": "En attente de Stripe",
+              "failed": "Échec"
+            }
           }
         },
         "sources": {
@@ -9367,7 +9427,11 @@
         "resent": "Envoi au payeur demandé.",
         "payment": "Paiement enregistré : le reçu part au payeur.",
         "agreement": "Entente particulière enregistrée.",
-        "queueFrom": "File du matin enregistrée."
+        "queueFrom": "File du matin enregistrée.",
+        "refund": "Remboursement enregistré.",
+        "dunning": "Relances enregistrées.",
+        "feeApplied": "Frais appliqués : le brouillon est dans la file du matin.",
+        "feeWaived": "Frais non facturés."
       },
       "list": {
         "title": "Factures",
@@ -9375,6 +9439,8 @@
         "views": "États des factures",
         "view": {
           "file": "File du matin",
+          "impayes": "Impayés",
+          "frais": "Frais d'annulation",
           "brouillons": "Brouillons",
           "emises": "Émises",
           "creditees": "Créditées",
@@ -9494,7 +9560,23 @@
           "reference": "Référence",
           "referenceHelp": "Le numéro du virement Interac ou du chèque, par exemple.",
           "submit": "Enregistrer le paiement",
-          "dateInvalid": "Indiquez la date du paiement."
+          "dateInvalid": "Indiquez la date du paiement.",
+          "refund": "Rembourser",
+          "refundTitle": "Rembourser ce paiement ?",
+          "refundBody": "Le montant remboursé est retiré du paiement de la facture. Un paiement par carte (Stripe) est remboursé par Stripe : il reste « En attente » jusque-là.",
+          "refundAmount": "Montant à rembourser",
+          "refundAmountHelp": "Au plus ce qui reste du paiement ({amount}).",
+          "refundReason": "Raison",
+          "refundSubmit": "Rembourser",
+          "refundLine": "Remboursé : {amount} ({reason})",
+          "refundPending": "Remboursement en attente de Stripe : {amount}",
+          "refundFailed": "Remboursement refusé par Stripe : {amount}",
+          "reasonInvalid": "La raison compte de 3 à 500 caractères."
+        },
+        "reminders": {
+          "title": "Relances",
+          "step": "Relance du jour {step} : {date}",
+          "stepMissed": "Jour {step} : passé sans envoi"
         }
       },
       "client": {
@@ -9556,6 +9638,18 @@
           "description": "Chaque nuit, les séances réalisées la veille deviennent des brouillons de facture à relire et à envoyer. Rien n’est préparé avant la date choisie : à la bascule, choisissez le premier jour qui suit GOrendezvous.",
           "from": "À partir du",
           "fromHelp": "Au plus tôt il y a 14 jours. Vide : la file est arrêtée."
+        },
+        "dunning": {
+          "title": "Relances",
+          "description": "Les rappels de paiement partent aux jours choisis après l'échéance, la facture jointe. Au jour du refus, un client avec un solde ne peut plus réserver sans exception approuvée. Rien ne part et rien ne bloque avant la date de départ : à la bascule, choisissez le premier jour qui suit GOrendezvous.",
+          "from": "Relances à partir du",
+          "fromHelp": "Pour les factures émises à partir de cette date. Vide : aucune relance, aucun refus.",
+          "days": "Jours de relance",
+          "daysHelp": "Après l'échéance, séparés par des virgules (par exemple 3, 5, 7, 10).",
+          "daysInvalid": "Indiquez de 1 à 6 jours entre 1 et 60, séparés par des virgules.",
+          "block": "Refus des rendez-vous après (jours)",
+          "blockHelp": "Un client dont une facture est impayée depuis ce nombre de jours ne peut plus réserver sans exception.",
+          "blockInvalid": "Indiquez un nombre de jours entre 1 et 90."
         }
       },
       "qbo": {
@@ -10319,6 +10413,52 @@
           "submit": "Ajouter l’avis",
           "saved": "Avis ajouté : choisissez la facture à rapprocher."
         }
+      },
+      "overdue": {
+        "label": "Factures impayées",
+        "description": "Les factures dont l'échéance est passée, des plus anciennes aux plus récentes. Les relances partent seules aux jours choisis dans Paramètres → Facturation.",
+        "loadError": "Les factures impayées ne se chargent pas.",
+        "empty": "Aucune facture impayée.",
+        "number": "Facture",
+        "client": "Client",
+        "payer": "Facturé à",
+        "due": "Échéance",
+        "days": "Retard",
+        "daysValue": "{days} jours",
+        "balance": "Solde",
+        "reminder": "Dernière relance",
+        "reminderValue": "Au jour {step}",
+        "noReminder": "Aucune",
+        "blocking": "Rendez-vous refusés",
+        "noEmail": "Pas d'adresse courriel"
+      },
+      "fees": {
+        "label": "Frais d'annulation à décider",
+        "description": "Les annulations tardives et les absences. Le professionnel décide s'il applique les frais ; l'équipe peut décider pour lui.",
+        "mineTitle": "Frais d'annulation à décider",
+        "mineDescription": "Vos annulations tardives et absences : appliquez les frais ou non. Les frais appliqués partent au client dans la file du matin ; vous recevez votre part une fois la facture payée.",
+        "loadError": "Les frais d'annulation ne se chargent pas.",
+        "empty": "Aucun frais d'annulation à décider.",
+        "kinds": {
+          "late_cancellation": "Annulation tardive",
+          "no_show": "Absence"
+        },
+        "statuses": {
+          "pending": "À décider",
+          "applied": "Frais appliqués",
+          "waived": "Pas facturés"
+        },
+        "decidedAs": {
+          "professional": "par le professionnel",
+          "staff": "par l'équipe",
+          "automatic": "automatiquement"
+        },
+        "line": "{date} · {client} · {professional}",
+        "amount": "{percent} % de la séance : {amount}",
+        "amountToType": "{percent} % de la séance : montant à indiquer",
+        "apply": "Appliquer les frais",
+        "waive": "Ne pas facturer",
+        "openInvoice": "Ouvrir la facture"
       }
     }
   },
