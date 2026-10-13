@@ -1,4 +1,5 @@
 import { t } from '@/i18n'
+import { getClinicDateString } from '@/shared/lib/timezone'
 import type { AgendaReference } from '../api/agenda'
 import type { AgendaAppointment, AppointmentMode, AppointmentState, ExceptionKind, Presence } from '../api/parse'
 
@@ -47,3 +48,17 @@ export function servicesFor(reference: AgendaReference, professionalId: string) 
 
 /** Another professional's personal appointment, as `list_agenda` gives it to the staff: busy time only. */
 export const isBusyOnly = (a: AgendaAppointment) => a.isPersonal && a.serviceId === null && a.personalLabel === null && a.participants.length === 0
+
+/** The agenda's query parameter that opens an appointment's sheet (with its `date`, AP-33). */
+export const APPOINTMENT_LINK_PARAM = 'rendez-vous'
+
+/**
+ * The agenda's day of an appointment, its sheet open: the clinic's (« Agenda », that professional)
+ * for the staff, « Mon agenda » for a professional.
+ */
+export function appointmentLink(a: { id: string; startsAt: string; professionalId: string }, mine: boolean): string {
+  const params = new URLSearchParams({ date: getClinicDateString(a.startsAt), vue: 'jour' })
+  if (!mine) params.set('professionnel', a.professionalId)
+  params.set(APPOINTMENT_LINK_PARAM, a.id)
+  return `${mine ? '/mon-agenda' : '/agenda'}?${params.toString()}`
+}

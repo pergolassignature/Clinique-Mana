@@ -17,8 +17,8 @@ import {
 const H = (h: number, m = 0) => h * 60 + m
 
 describe('snapping', () => {
-  it('reads the pointer as minutes below 7:00 and snaps distances to quarter hours', () => {
-    expect(minutesAtOffset(48 * 2, 48)).toBe(H(9))
+  it('reads the pointer as minutes below 6:00 and snaps distances to quarter hours', () => {
+    expect(minutesAtOffset(48 * 3, 48)).toBe(H(9))
     expect(snappedDelta(48 / 4 + 5, 48)).toBe(15)
     expect(snappedDelta(48 / 8 - 1, 48)).toBe(0)
     expect(snappedDelta(-48, 48)).toBe(-60)
@@ -35,26 +35,26 @@ describe('snapping', () => {
 
   it('a tiny drag is one quarter hour; never off the grid', () => {
     expect(rangeFromDrag(H(9, 2), H(9, 9))).toEqual({ start: H(9), end: H(9, 15) })
-    expect(rangeFromDrag(H(20, 50), H(23))).toEqual({ start: H(20, 45), end: H(21) })
-    expect(rangeFromDrag(H(8), H(5))).toEqual({ start: H(7), end: H(8, 15) })
+    expect(rangeFromDrag(H(21, 50), H(23))).toEqual({ start: H(21, 45), end: H(22) })
+    expect(rangeFromDrag(H(8), H(5))).toEqual({ start: H(6), end: H(8, 15) })
   })
 
   it('a click is one hour from its quarter hour', () => {
     expect(rangeFromClick(H(13, 20))).toEqual({ start: H(13, 15), end: H(14, 15) })
-    expect(rangeFromClick(H(20, 40))).toEqual({ start: H(20, 30), end: H(21) })
+    expect(rangeFromClick(H(21, 40))).toEqual({ start: H(21, 30), end: H(22) })
   })
 
   it('a move keeps the length and stays on the grid', () => {
     expect(moveRange({ start: H(9), end: H(12) }, 90)).toEqual({ start: H(10, 30), end: H(13, 30) })
-    expect(moveRange({ start: H(9), end: H(12) }, -240)).toEqual({ start: H(7), end: H(10) })
-    expect(moveRange({ start: H(18), end: H(20) }, 120)).toEqual({ start: H(19), end: H(21) })
+    expect(moveRange({ start: H(9), end: H(12) }, -240)).toEqual({ start: H(6), end: H(9) })
+    expect(moveRange({ start: H(19), end: H(21) }, 120)).toEqual({ start: H(20), end: H(22) })
   })
 
   it('a resize moves one edge, a quarter hour long at least', () => {
     expect(resizeRange({ start: H(9), end: H(12) }, 'end', -60)).toEqual({ start: H(9), end: H(11) })
     expect(resizeRange({ start: H(9), end: H(12) }, 'start', 60)).toEqual({ start: H(10), end: H(12) })
     expect(resizeRange({ start: H(9), end: H(12) }, 'start', 600)).toEqual({ start: H(11, 45), end: H(12) })
-    expect(resizeRange({ start: H(9), end: H(12) }, 'end', 900)).toEqual({ start: H(9), end: H(21) })
+    expect(resizeRange({ start: H(9), end: H(12) }, 'end', 900)).toEqual({ start: H(9), end: H(22) })
   })
 })
 

@@ -6,10 +6,33 @@ import { clinicTimeToUTC, getClinicDateString, getClinicTimeString } from '@/sha
  * 9:00 stays on the 9:00 line across a daylight-saving change (R2 acceptance).
  */
 
-/** The grid: 7:00 to 21:00, 15-minute snapping (plan R2). */
-export const GRID_START = 7 * 60
-export const GRID_END = 21 * 60
+/**
+ * The grid: 6:00 to 22:00 by default (as the legacy agenda), 15-minute snapping (plan R2). The
+ * appointments' grid widens to any appointment outside it (`gridRangeFor`): one is never hidden.
+ */
+export const GRID_START = 6 * 60
+export const GRID_END = 22 * 60
 export const SNAP = 15
+
+/** The minutes a grid shows, [start, end), on whole hours. */
+export interface GridRange {
+  start: number
+  end: number
+}
+
+export const DEFAULT_GRID: GridRange = { start: GRID_START, end: GRID_END }
+
+/** The default range widened, by whole hours, to every [start, end) given (within the day). */
+export function gridRangeFor(spans: readonly { start: number; end: number }[]): GridRange {
+  let start = GRID_START
+  let end = GRID_END
+  for (const span of spans) {
+    if (span.end <= span.start) continue
+    start = Math.min(start, Math.floor(span.start / 60) * 60)
+    end = Math.max(end, Math.ceil(span.end / 60) * 60)
+  }
+  return { start: Math.max(0, start), end: Math.min(24 * 60, end) }
+}
 
 const parts = (day: string): [number, number, number] => {
   const [y, m, d] = day.split('-').map(Number)
