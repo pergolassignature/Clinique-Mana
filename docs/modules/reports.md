@@ -9,7 +9,7 @@ The clinic's reports, read-only: what GOrendezvous's « Revenus », « Annulatio
 | RP2 | Payouts, IVAC (FP) | planned (lane B, February) |
 
 - **Registry:** `modules.key = 'reports'`, depends on `billing` and `appointments`; starts disabled in every clinic (Paramètres → Modules).
-- **Migrations:** `20261013160528_billing_report_facts` (Facturation's published facts), `20261013160534_appointments_report_facts` (Rendez-vous'), `20261013160540_reports_module` (registry, permissions, the three RPCs); D6: `20261013222122_demandes_report_facts` (Demandes' published facts), `20261013222131_appointments_first_after` (Rendez-vous'), `20261013222139_reports_demandes` (`report_demandes`). pgTAP `171_reports_demandes`.
+- **Migrations:** `20261013160528_billing_report_facts` (Facturation's published facts), `20261013160534_appointments_report_facts` (Rendez-vous'), `20261013160540_reports_module` (registry, permissions, the three RPCs); D6: `20261013233833_demandes_report_facts` (Demandes' published facts), `20261013233844_appointments_first_after` (Rendez-vous'), `20261013233851_reports_demandes` (`report_demandes`). pgTAP `172_reports_demandes`.
 - **Tests:** pgTAP `165_reports` (privileges, registry and roles, the three views and their filters, a credited invoice apart and a draft never, the period's rules, cancellations per reason with a couple's appointment once and never a personal one, the clinic's day bounds, the clients to call back, the permissions, the module off, another clinic); Vitest `src/shared/lib/csv.test.ts` (formula guard, quoting, numbers) and `src/modules/reports/**` (periods, labels, each report's CSV, the pages, the manifest); Playwright `e2e/reports.spec.ts`.
 
 ## Permissions (RP-1)
