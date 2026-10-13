@@ -120,8 +120,13 @@ export function passReport(entries, dryRun) {
     if (hits.length > 30) out.push(`  … et ${fmt(hits.length - 30)} autres`)
   }
   // Tag names are the clinic's labels, never personal data (decision I-4).
-  const tags = [...new Set(ok.flatMap((e) => e.tagsCreated))].sort((a, b) => a.localeCompare(b, 'fr'))
-  if (tags.length > 0) out.push(`Étiquettes ${dryRun ? 'à ajouter' : 'ajoutées'} à la liste de la clinique (${fmt(tags.length)}) : ${tags.join(', ')}`)
+  const names = (key) => [...new Set(ok.flatMap((e) => e[key] ?? []))].sort((a, b) => a.localeCompare(b, 'fr'))
+  const created = names('tagsCreated')
+  const reactivated = names('tagsReactivated')
+  if (created.length > 0) out.push(`Étiquettes ${dryRun ? 'à ajouter' : 'ajoutées'} à la liste de la clinique (${fmt(created.length)}) : ${created.join(', ')}`)
+  if (reactivated.length > 0) out.push(`Étiquettes archivées de la clinique ${dryRun ? 'à remettre' : 'remises'} en service (${fmt(reactivated.length)}) : ${reactivated.join(', ')}`)
+  const anonymised = entries.filter((e) => e.reason === 'Dossier anonymisé').length
+  if (anonymised > 0) out.push(`Dossiers anonymisés depuis leur import (jamais recréés, Loi 25) : ${fmt(anonymised)}`)
   return out
 }
 
@@ -137,15 +142,25 @@ async function select(client, view, columns) {
   return data
 }
 
-/** Every row through `fn`, in order, stopping between two rows once asked; a progress line every 500. */
+/**
+ * Every row through `fn`, in order, stopping between two rows once asked; a progress line every
+ * 500. A database error stops the pass but keeps the rows done (`error`), so the caller can still
+ * say what was imported.
+ */
 async function pass(ctx, items, fn, label) {
   const entries = []
+  let error = null
   for (const item of items) {
     if (ctx.stop.requested) break
-    entries.push(await fn(item))
+    try {
+      entries.push(await fn(item))
+    } catch (failure) {
+      error = failure
+      break
+    }
     if (entries.length % 500 === 0) ctx.out(`  ${label} : ${fmt(entries.length)} / ${fmt(items.length)}`)
   }
-  return entries
+  return Object.assign(entries, { error })
 }
 
 const clientEntry = (line, result) => ({
@@ -154,6 +169,8 @@ const clientEntry = (line, result) => ({
   errors: result.errors ?? [],
   duplicates: result.duplicates ?? [],
   tagsCreated: result.tags_created ?? [],
+  tagsReactivated: result.tags_reactivated ?? [],
+  reason: result.reason ?? null,
 })
 
 async function signIn(client, terminal) {
@@ -163,8 +180,9 @@ async function signIn(client, terminal) {
 }
 
 /**
- * The whole run; returns the exit code: 0 done, 1 a row in error or the import cancelled, 2 the
- * run stopped (arguments, files, target, report, sign-in, a database error, an interruption).
+ * The whole run; returns the exit code: 0 done, 1 a row in error, a refused relation line or the
+ * import cancelled (a prompt answered with Ctrl-C included), 2 the run stopped (arguments, files,
+ * target, report, sign-in, a database error, an interruption between rows).
  * `deps` is injected (terminal, client, files, signals, clock, output) so tests need none of them.
  */
 export async function run(argv, deps) {
@@ -234,6 +252,7 @@ export async function run(argv, deps) {
     unsubscribe?.()
     if (ctx.client) {
       try {
+        ctx.client.auth.stopAutoRefresh?.()
         await ctx.client.auth.signOut({ scope: 'local' })
       } catch {
         out('Déconnexion : la session locale est abandonnée.')
@@ -249,6 +268,7 @@ export async function run(argv, deps) {
 }
 
 async function clients(ctx, { cli, target, parsedClients, parsedRelations, employees, say }) {
+  ctx.targetUrl = target.url
   const professionalFor = employees ? employees.lookup : () => null
   const prepared = parsedClients.clients.map((record) => ({ record, ...clientPayload(record, professionalFor) }))
   const fileDuplicates = findDuplicates(parsedClients.clients)
@@ -271,41 +291,69 @@ async function clients(ctx, { cli, target, parsedClients, parsedRelations, emplo
   say('', '== Essai dans la base (chaque ligne est vérifiée puis annulée)')
   const dry = await pass(ctx, prepared, async (p) => clientEntry(p.record.line, await rpc(ctx.client, 'import_client', { p_row: p.row, p_dry_run: true })), 'essai')
   say(...passReport(dry, true))
+  if (dry.error) throw dry.error
   if (dry.length < prepared.length) {
     say(`Essai interrompu après ${fmt(dry.length)} ligne(s) sur ${fmt(prepared.length)} : rien n’a été écrit.`)
     return 2
   }
   const errors = dry.some((e) => e.status === 'error')
-  if (!cli.commit || errors || !dry.some((e) => e.status === 'ok')) {
-    if (cli.commit) say(errors ? 'Rien n’a été importé : corrigez les erreurs, puis relancez.' : 'Rien à importer.')
-    return errors ? 1 : 0
+  const relationProblems = parsedRelations ? parsedRelations.rejected.length + relationsMissing(parsedClients, parsedRelations) : 0
+  const toCreate = dry.filter((e) => e.status === 'ok').length
+  const relations = parsedRelations?.relations ?? []
+  if (!cli.commit) return errors || relationProblems > 0 ? 1 : 0
+  if (errors || relationProblems > 0) {
+    say(errors ? 'Rien n’a été importé : corrigez les erreurs, puis relancez.' : 'Rien n’a été importé : corrigez le fichier des liens, puis relancez.')
+    return 1
   }
-
-  const count = dry.filter((e) => e.status === 'ok').length
-  const typed = await ctx.terminal.ask(`Importer ${fmt(count)} client(s) dans ${target.url} ? Tapez « importer » pour confirmer : `)
+  // A re-run after every client is in still imports the relations (a resumed run, or a relations file that came later).
+  if (toCreate === 0 && relations.length === 0) {
+    say('Rien à importer.')
+    return 0
+  }
+  if (ctx.stop.requested) throw new Aborted('Interrompu.')
+  const left = parsedClients.rejected.length
+  const typed = await ctx.terminal.ask(
+    `Importer ${fmt(toCreate)} client(s)${relations.length > 0 ? ` et ${fmt(relations.length)} lien(s)` : ''} dans ${ctx.targetUrl}${left > 0 ? ` (${fmt(left)} ligne(s) refusée(s) du fichier ne le seront pas)` : ''} ? Tapez « importer » pour confirmer : `,
+  )
   if (typed.trim() !== 'importer') {
     say('Import annulé : rien n’a été écrit.')
     return 1
   }
-  say('', '== Import')
-  const real = await pass(ctx, prepared, async (p) => clientEntry(p.record.line, await rpc(ctx.client, 'import_client', { p_row: p.row, p_dry_run: false })), 'import')
-  say(...passReport(real, false))
-  if (real.length < prepared.length) {
-    say(`Import arrêté après ${fmt(real.length)} ligne(s) sur ${fmt(prepared.length)}. Relancez la même commande : les fiches déjà importées reviendront « déjà importées ».`)
-    return 2
+  const RESUME = 'Relancez la même commande avec --commit : les fiches et les liens déjà importés reviendront « déjà importés ».'
+  let failed = false
+  if (toCreate > 0) {
+    say('', '== Import')
+    const real = await pass(ctx, prepared, async (p) => clientEntry(p.record.line, await rpc(ctx.client, 'import_client', { p_row: p.row, p_dry_run: false })), 'import')
+    say(...passReport(real, false))
+    if (real.error || real.length < prepared.length) {
+      say(`Import arrêté après ${fmt(real.length)} ligne(s) sur ${fmt(prepared.length)}. ${RESUME}`)
+      if (real.error) throw real.error
+      return 2
+    }
+    failed = real.some((e) => e.status === 'error')
   }
-  let failed = real.some((e) => e.status === 'error')
-  if (parsedRelations && parsedRelations.relations.length > 0) {
-    const links = await pass(ctx, parsedRelations.relations, async (r) => ({ line: r.line, ...(await rpc(ctx.client, 'import_client_relation', { p_row: r.row, p_dry_run: false })) }), 'liens')
+  if (relations.length > 0) {
+    say('', '== Liens entre clients')
+    const links = await pass(ctx, relations, async (r) => ({ line: r.line, ...(await rpc(ctx.client, 'import_client_relation', { p_row: r.row, p_dry_run: false })) }), 'liens')
     const linkErrors = links.filter((l) => l.status === 'error').map((l) => ({ line: l.line, reasons: l.errors.map((x) => (x.field ? `${x.field} : ${x.message}` : x.message)) }))
     say(
       `Liens créés : ${fmt(links.filter((l) => l.status === 'ok').length)} ; déjà là : ${fmt(links.filter((l) => l.status === 'skipped').length)} ; en erreur : ${fmt(linkErrors.length)}`,
       ...byReason(linkErrors, {}),
     )
-    if (links.length < parsedRelations.relations.length) return 2
+    if (links.error || links.length < relations.length) {
+      say(`Liens arrêtés après ${fmt(links.length)} sur ${fmt(relations.length)}. ${RESUME}`)
+      if (links.error) throw links.error
+      return 2
+    }
     failed ||= linkErrors.length > 0
   }
   return failed ? 1 : 0
+}
+
+/** The relations whose client or related person is not in the clients export. */
+function relationsMissing(parsedClients, parsedRelations) {
+  const refs = new Set(parsedClients.clients.map((c) => c.externalRef))
+  return parsedRelations.relations.filter((r) => !refs.has(r.row.client_ref) || !refs.has(r.row.related_ref)).length
 }
 
 async function prix(ctx, { on, parsedLines, employees, texts, say }) {
@@ -373,7 +421,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       },
       now: () => new Date(),
       openTerminal,
-      createClient: (url, key) => createSupabaseClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }),
+      createClient: (url, key) => createSupabaseClient(url, key, { auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false } }),
     })
   } catch (error) {
     // InputError messages are ours (no value from a file); anything else by its name only.

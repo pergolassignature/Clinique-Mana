@@ -74,6 +74,8 @@ export function readEmployees(text, directory) {
     const reasons = []
     if (key === '') reasons.push('missing_employee')
     else if (seen.has(key)) reasons.push('duplicate_employee')
+    // Seen even when refused: a repeat of a refused line is a duplicate too.
+    if (key !== '') seen.add(key)
     const excluded = parseYesNo(row.get('excluded'))
     if (excluded === null) reasons.push('invalid_excluded')
     let target = null
@@ -90,7 +92,6 @@ export function readEmployees(text, directory) {
       rejected.push({ line: row.line, reasons })
       continue
     }
-    seen.add(key)
     if (!EXCLUDED_EMPLOYEES.some((label) => foldText(label) === key)) map.set(key, target)
   }
   return { lookup: (label) => map.get(foldText(label)) ?? null, rejected, size: map.size }
@@ -112,6 +113,7 @@ export const SERVICE_COLUMNS = {
 export function readServiceCodes(text, codes) {
   const catalogue = new Set(codes)
   const map = new Map()
+  const seen = new Set()
   const rejected = []
   if (text !== undefined) {
     const { rows } = readTable(text, { columns: SERVICE_COLUMNS, required: ['service', 'code'] })
@@ -120,7 +122,8 @@ export function readServiceCodes(text, codes) {
       const code = row.get('code')
       const reasons = []
       if (key === '') reasons.push('missing_service')
-      else if (map.has(key)) reasons.push('duplicate_service')
+      else if (seen.has(key)) reasons.push('duplicate_service')
+      if (key !== '') seen.add(key)
       if (!/^[0-9]{5}$/.test(code)) reasons.push('invalid_code')
       else if (!catalogue.has(code)) reasons.push('unknown_code')
       if (reasons.length > 0) rejected.push({ line: row.line, reasons })

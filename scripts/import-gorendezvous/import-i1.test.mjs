@@ -136,16 +136,16 @@ describe('price gaps', () => {
 
   it('per title and code: the most frequent price, the others, the grid and the gap; the lines left out are counted', () => {
     expect(gaps.groups).toEqual([
-      { titleId: 't-psy', code: '10150', lines: 3, prices: [[13000, 2], [12000, 1]], observed: 13000, grid: 13500, gap: -500 },
-      { titleId: 't-psy', code: '10130', lines: 1, prices: [[7500, 1]], observed: 7500, grid: 7500, gap: 0 },
+      { titleId: 't-psy', code: '10150', lines: 3, from: '2026-09-02', to: '2026-09-04', prices: [[13000, 2], [12000, 1]], observed: 13000, grid: 13500, gap: -500 },
+      { titleId: 't-psy', code: '10130', lines: 1, from: '2026-09-05', to: '2026-09-05', prices: [[7500, 1]], observed: 7500, grid: 7500, gap: 0 },
     ])
     expect(gaps.skipped).toEqual({ excluded: 1, no_code: 1, free: 1 })
   })
 
   it('the report names titles and codes, never a client or a professional', () => {
     const text = priceGapReport(gaps, { titleName: () => 'Psychologue', serviceName: (c) => (c === '10150' ? 'Psychothérapie 50 min' : 'Consultation 30 min'), on: TODAY }).join('\n')
-    expect(text).toContain('10150 Psychothérapie 50 min : GOrendezvous 130,00 $ (2 lignes ; aussi 120,00 $ ×1) · app 135,00 $ · écart (app − GOrendezvous) +5,00 $')
-    expect(text).toContain('10130 Consultation 30 min : GOrendezvous 75,00 $ (1 ligne) · app 75,00 $ · aucun écart')
+    expect(text).toContain('10150 Psychothérapie 50 min : GOrendezvous 130,00 $ (2 lignes ; aussi 120,00 $ ×1, du 2026-09-02 au 2026-09-04) · app 135,00 $ · écart (app − GOrendezvous) +5,00 $')
+    expect(text).toContain('10130 Consultation 30 min : GOrendezvous 75,00 $ (1 ligne, du 2026-09-05 au 2026-09-05) · app 75,00 $ · aucun écart')
     expect(text).not.toMatch(/Fictif|Pro Alpha|Pro Beta|Tremblay|Roy/)
   })
 })
@@ -180,6 +180,7 @@ function setup({ answers = [], results = {}, files = {}, local = true } = {}) {
   return { deps, client, terminal, output, report }
 }
 
+const CLEAN_LINKS = 'Client;Proche;Lien;Contact principal;Gère les rendez-vous;Reçoit les communications;Reçoit les factures\n1011;1001;parent;oui;oui;oui;non\n'
 const ARGS = ['clients', '--clients', 'clients.csv', '--employees', 'employes.csv', '--relations', 'liens.csv', '--report', 'rapport.txt']
 const personal = /Camille|Tremblay|Fictif|exemple\.test|555|1990-04-12|gorendezvous:/i
 
@@ -193,7 +194,8 @@ describe('import-gorendezvous run', () => {
 
   it('a dry run by default: every client through import_client(row, true), no relation written, a report with no personal value', async () => {
     const { deps, client, output, report } = setup({ answers: ['admin@mana.test'] })
-    expect(await run(ARGS, deps)).toBe(0)
+    // 1: two relation lines are refused (the fixture's), to fix before a commit.
+    expect(await run(ARGS, deps)).toBe(1)
     const calls = client.rpc.mock.calls
     expect(calls).toHaveLength(10)
     expect(calls.every(([fn, args]) => fn === 'import_client' && args.p_dry_run === true)).toBe(true)
@@ -204,8 +206,15 @@ describe('import-gorendezvous run', () => {
     expect(client.auth.signOut).toHaveBeenCalled()
   })
 
-  it('--commit: the dry run, « importer », the clients for real, then the relations', async () => {
+  it('--commit refuses a relations file with refused lines: nothing imported', async () => {
     const { deps, client, output } = setup({ answers: ['admin@mana.test', 'importer'] })
+    expect(await run([...ARGS, '--commit'], deps)).toBe(1)
+    expect(client.rpc.mock.calls.some(([, args]) => args.p_dry_run === false)).toBe(false)
+    expect(output).toContain('Rien n’a été importé : corrigez le fichier des liens, puis relancez.')
+  })
+
+  it('--commit: the dry run, « importer », the clients for real, then the relations', async () => {
+    const { deps, client, output } = setup({ answers: ['admin@mana.test', 'importer'], files: { 'liens.csv': CLEAN_LINKS } })
     expect(await run([...ARGS, '--commit'], deps)).toBe(0)
     const real = client.rpc.mock.calls.filter(([, args]) => args.p_dry_run === false)
     expect(real.filter(([fn]) => fn === 'import_client')).toHaveLength(10)
@@ -219,13 +228,35 @@ describe('import-gorendezvous run', () => {
       'gorendezvous:1003': { status: 'error', dry_run: true, errors: [{ field: 'email', message: 'Le courriel n’est pas une adresse valide.' }] },
       'gorendezvous:1004': { status: 'ok', dry_run: true, id: null, duplicates: [{ level: 'high', client_number: 42 }], tags_created: [] },
     }
-    const { deps, client, output, report } = setup({ answers: ['admin@mana.test'], results })
+    const { deps, client, output, report } = setup({ answers: ['admin@mana.test'], results, files: { 'liens.csv': CLEAN_LINKS } })
     expect(await run([...ARGS, '--commit'], deps)).toBe(1)
     expect(client.rpc.mock.calls.some(([, args]) => args.p_dry_run === false)).toBe(false)
     expect(output).toContain('  - email : Le courriel n’est pas une adresse valide. (1) : lignes 6')
     expect(output).toContain('  - ligne 7 ↔ dossier n° 42')
     expect(output).toContain('Rien n’a été importé : corrigez les erreurs, puis relancez.')
     expect(report.text).not.toMatch(personal)
+  })
+
+  it('a re-run once every client is in still imports the relations (resumed run)', async () => {
+    const skipped = Object.fromEntries([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1010, 1011].map((n) => [`gorendezvous:${n}`, { status: 'skipped', reason: 'Déjà importé' }]))
+    const { deps, client, output } = setup({ answers: ['admin@mana.test', 'importer'], results: skipped, files: { 'liens.csv': CLEAN_LINKS } })
+    expect(await run([...ARGS, '--commit'], deps)).toBe(0)
+    expect(client.rpc.mock.calls.filter(([fn, args]) => fn === 'import_client' && args.p_dry_run === false)).toHaveLength(0)
+    expect(client.rpc.mock.calls.filter(([fn, args]) => fn === 'import_client_relation' && args.p_dry_run === false)).toHaveLength(1)
+    expect(output).toContain('À créer : 0 ; déjà importés : 10 ; en erreur : 0')
+  })
+
+  it('a database error mid-import: what was imported is said, with how to resume', async () => {
+    const { deps, client, output } = setup({ answers: ['admin@mana.test', 'importer'], files: { 'liens.csv': CLEAN_LINKS } })
+    const rpc = client.rpc
+    let real = 0
+    client.rpc = vi.fn(async (fn, args) => {
+      if (args.p_dry_run === false && ++real === 3) return { data: null, error: { code: 'PGRST301', message: 'JWT expired' } }
+      return rpc(fn, args)
+    })
+    expect(await run([...ARGS, '--commit'], deps)).toBe(2)
+    expect(output).toContain('Créés : 2 ; déjà importés : 0 ; en erreur : 0')
+    expect(output.some((l) => l.startsWith('Import arrêté après 2 ligne(s) sur 10.'))).toBe(true)
   })
 
   it('a remote database: its project reference typed back first, else nothing happens', async () => {

@@ -115,9 +115,10 @@ Migrations `20261013020443_core_signing_second_client_signer` (core: the `client
 
 ## GOrendezvous import (batch I1)
 
-Migration `20261013034027_clients_import`; pgTAP `113_clients_import`; decisions I-7 … I-12; runbook [`import-gorendezvous.md`](../runbooks/import-gorendezvous.md).
+Migration `20261013034027_clients_import`; pgTAP `113_clients_import`; decisions I-7 … I-14; runbook [`import-gorendezvous.md`](../runbooks/import-gorendezvous.md).
 
 - **`import_client(row, dry_run)`** (clients.manage and clients.merge): one file with C2's checks, its `external_ref` (« gorendezvous:<ClientId> »), archived state, primary professional (linked « import »), free tags (the clinic's list, created when missing), main insurance and agreement note; a duplicate is imported and named (level, file number); a file already imported is `skipped`; a dry run rolls back.
 - **`import_client_relation(row, dry_run)`**: a relation between two imported files by their external refs, through `set_client_relation`.
+- **Tombstone (I-13):** trigger `clients_import_tombstone` keeps « anon: » + SHA-256 of the reference when a file is anonymised; `import_client` skips it.
 - **The script** `scripts/import-gorendezvous.mjs` (`clients`, `prix`) and its readers in `scripts/import-gorendezvous/` (mappings, payloads, price gaps), with synthetic fixtures and tests.
 

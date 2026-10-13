@@ -457,7 +457,7 @@ Jonathan (2026-10-11): « faut que notre module client gère bien ça comme GOre
 | I3 | Invoices and payments dry run with payers, reconciliation vs QuickBooks, QBO customer mapping report, runbook written | sums per month and mode | gaps listed and explained; every payer matched to a QBO customer or « à trancher » | 3 d | B, Dec 28–30 |
 | I4 | Rehearsal and final import | — | §4 steps 3–5 | (in buffer) | A + B, Jan 4–10 |
 
-**I1 built (lane C, 2026-10-12):** `scripts/import-gorendezvous.mjs` (`clients`: dry run, `--commit`, relations; `prix`: the price gap report), `public.import_client` / `import_client_relation` (decision I-7 replaces the service-role `private.import_client`), the employees and services mapping files, runbook `docs/runbooks/import-gorendezvous.md`; decisions I-7 … I-12.
+**I1 built (lane C, 2026-10-12):** `scripts/import-gorendezvous.mjs` (`clients`: dry run, `--commit`, relations; `prix`: the price gap report), `public.import_client` / `import_client_relation` (decision I-7 replaces the service-role `private.import_client`), the employees and services mapping files, runbook `docs/runbooks/import-gorendezvous.md`; decisions I-7 … I-14.
 
 **Built ahead of I1 (lane C, 2026-10-12):** `scripts/import-gorendezvous/` holds the readers (clients, the three « Revenus » exports, waitlist, cancellations), the normalisers (names, E.164, emails, date-only, cents), the tag and payment-method tables, the duplicate rules and a local dry-run report (`dry-run.mjs`, no database), with synthetic fixtures and tests; decisions I-1 … I-6. I1 wires them to `scripts/import-gorendezvous.mjs` and `private.import_client` once C2 lands.
 

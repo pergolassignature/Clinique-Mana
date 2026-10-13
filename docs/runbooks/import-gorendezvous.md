@@ -43,6 +43,13 @@ node scripts/import-gorendezvous.mjs prix --lines ~/Clinique-MANA-import/revenus
   --employees ~/Clinique-MANA-import/employes.csv --services ~/Clinique-MANA-import/services.csv --url … --anon-key …
 ```
 
+## Good to know
+- **Resuming:** a run stopped by Ctrl-C, a lost connection or an expired session (the session is refreshed during long runs) is resumed by the same command: the files and relations already imported come back « déjà importés ». A relations file added later is imported by a re-run, even when every client is already in.
+- **Blocking a `--commit`:** a row the database refuses (one of the two names missing, for example) blocks it, and so does a refused line of the relations file. Fix the file, then run it again.
+- **Anonymised files:** a file anonymised after its import is never re-created by a later run (I-13).
+- **Defaults:** reminders are on and the time zone is the clinic's for every imported file. GOrendezvous's notes are not imported (I-14).
+- **Errors before the report:** an argument or file error stops the run before the report is opened. The terminal says what to fix.
+
 ## After
 - **Duplicates:** merge them in the app (« Fusionner », `clients.merge`). The import never merges.
 - **Payers to complete:** the IVAC, PAE and external payer tags. I3 creates the payers from the invoices; until then the tag stays on the file.

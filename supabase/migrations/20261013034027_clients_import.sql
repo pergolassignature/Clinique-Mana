@@ -15,12 +15,47 @@
 --   (level and file number, never a name). A dry run does everything and rolls it back.
 -- - `import_client_relation(row, dry_run)`: a relation between two imported files, named by their
 --   external refs, through C2's `set_client_relation`.
+-- - A file anonymised after its import (Loi 25) keeps a one-way tombstone instead of its reference
+--   (trigger `clients_import_tombstone`): a later run finds it and never re-creates the person.
 -- Both need clients.manage and clients.merge (whoever imports also resolves the duplicates), run
 -- with the audit source `import`, and answer {status: ok | skipped | error, …}; a row error is a
 -- French message with the field, never a value.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:clients_import', true);
+
+-- -----------------------------------------------------------------------------
+-- Anonymised files stay anonymised (Loi 25)
+-- -----------------------------------------------------------------------------
+-- C2's anonymisation blanks external_ref. Before it does, this trigger keeps a one-way tombstone in
+-- its place (« anon: » and the SHA-256 of the reference, base64): no GOrendezvous id remains, and a
+-- later import of the same export finds the tombstone and never re-creates the person.
+create function private.clients_import_tombstone_ref(p_ref text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select 'anon:' || pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p_ref, 'UTF8')), 'base64')
+$$;
+revoke all on function private.clients_import_tombstone_ref(text) from public, anon, authenticated, service_role;
+
+create function private.clients_import_tombstone()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.anonymized_at is not null and old.anonymized_at is null and old.external_ref is not null
+     and new.external_ref is null and old.external_ref !~ '^anon:' then
+    new.external_ref := private.clients_import_tombstone_ref(old.external_ref);
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.clients_import_tombstone() from public, anon, authenticated, service_role;
+create trigger clients_import_tombstone before update of anonymized_at on public.clients
+  for each row execute function private.clients_import_tombstone();
 
 -- Checks the import's permissions (both: the one who imports merges the duplicates).
 create function private.clients_import_assert()
@@ -50,8 +85,8 @@ revoke all on function private.clients_import_assert() from public, anon, authen
 -- (boolean), special_agreement_note, tags (≤ 5 names: the clinic's tag of that name, created when
 -- missing) and insurance ({insurer, policy_number, certificate_number, holder_relation,
 -- holder_name}: the main one). Returns {status, dry_run, id, client_number, duplicates: [{level,
--- client_number}], tags_created (the names of the tags added to the clinic's list), errors: [{field,
--- message}]}.
+-- client_number}], tags_created / tags_reactivated (the clinic's tags added, or archived ones put
+-- back), errors: [{field, message}]}; `skipped` for a file already imported, or anonymised since.
 create function public.import_client(p_row jsonb, p_dry_run boolean default true)
 returns jsonb
 language plpgsql
@@ -72,7 +107,9 @@ declare
   v_tag_id uuid;
   v_tag_ids uuid[] := '{}';
   v_created text[] := '{}';
+  v_reactivated text[] := '{}';
   v_ins jsonb;
+  v_bad text;
   v_errors jsonb := '[]';
   v_message text;
   v_hint text;
@@ -89,26 +126,42 @@ begin
         'message', 'La référence GOrendezvous est requise (64 caractères au plus).')));
   end if;
   v_tags := coalesce(p_row -> 'tags', '[]');
-  if pg_catalog.jsonb_typeof(v_tags) <> 'array' then
+  if pg_catalog.jsonb_typeof(v_tags) <> 'array'
+     or exists (select 1 from pg_catalog.jsonb_array_elements(v_tags) t where pg_catalog.jsonb_typeof(t.value) <> 'string') then
     raise exception 'tags : une liste de noms est attendue.' using errcode = '22023';
   end if;
   v_ins := p_row -> 'insurance';
   if v_ins is not null and pg_catalog.jsonb_typeof(v_ins) not in ('object', 'null') then
     raise exception 'insurance : un objet est attendu.' using errcode = '22023';
   end if;
+  -- A yes / no field that is not a boolean is a row error (never a cast that stops the whole run).
+  select k into v_bad from pg_catalog.unnest(array['archived', 'tax_exempt', 'is_banned', 'file_incomplete', 'special_agreement',
+                                                   'shared_custody', 'reminders_by_sms', 'reminders_by_email']) k
+   where pg_catalog.jsonb_typeof(p_row -> k) not in ('boolean', 'null')
+   limit 1;
+  if v_bad is not null then
+    return pg_catalog.jsonb_build_object('status', 'error', 'dry_run', v_dry, 'id', null,
+      'errors', pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('field', v_bad, 'message', 'Oui ou non attendu.')));
+  end if;
 
+  -- Same lock as the file number's and create_client's, taken before the reference is looked up:
+  -- two runs of the same file never both create it.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('clients.client_number:' || v_org::text, 0));
   -- A resumed run: the file is already there.
   select c.id, c.client_number into v_existing from public.clients c where c.org_id = v_org and c.external_ref = v_ref;
   if v_existing.id is not null then
     return pg_catalog.jsonb_build_object('status', 'skipped', 'dry_run', v_dry, 'id', v_existing.id,
                                          'client_number', v_existing.client_number, 'reason', 'Déjà importé');
   end if;
+  -- An imported file anonymised since (Loi 25) is never brought back by a later run: its reference
+  -- left a tombstone (private.clients_import_tombstone).
+  if exists (select 1 from public.clients c where c.org_id = v_org and c.external_ref = private.clients_import_tombstone_ref(v_ref)) then
+    return pg_catalog.jsonb_build_object('status', 'skipped', 'dry_run', v_dry, 'id', null, 'reason', 'Dossier anonymisé');
+  end if;
 
   perform pg_catalog.set_config('app.audit_source', 'import', true);
   begin
     v := private.clients_from_json(v_org, p_row - 'tags' - 'insurance' - 'archived' - 'external_ref');
-    -- Same lock as the file number's and create_client's.
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('clients.client_number:' || v_org::text, 0));
     select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('level', x.level, 'client_number', x.client_number)
                                          order by (x.level = 'high') desc, x.client_number), '[]')
       into v_dups
@@ -151,11 +204,13 @@ begin
        where t.org_id = v_org and pg_catalog.lower(normalize(t.name, NFKC)) = pg_catalog.lower(normalize(v_tag, NFKC));
       if v_tag_id is null then
         insert into public.client_tags (org_id, name, sort_order)
-        values (v_org, v_tag, coalesce((select max(t.sort_order) + 1 from public.client_tags t where t.org_id = v_org), 0))
+        values (v_org, v_tag, coalesce((select max(t.sort_order) from public.client_tags t where t.org_id = v_org), 0) + 10)
         returning id into v_tag_id;
         v_created := v_created || v_tag;
       elsif not exists (select 1 from public.client_tags t where t.id = v_tag_id and t.is_active) then
+        -- An archived tag of the clinic comes back: said in the report, never silently.
         update public.client_tags t set is_active = true where t.id = v_tag_id;
+        v_reactivated := v_reactivated || v_tag;
       end if;
       v_tag_ids := v_tag_ids || v_tag_id;
       v_tag_id := null;
@@ -186,7 +241,8 @@ begin
   end if;
   return pg_catalog.jsonb_build_object('status', 'ok', 'dry_run', v_dry, 'id', case when not v_dry then v_id end,
                                        'client_number', case when not v_dry then v_number end,
-                                       'duplicates', v_dups, 'tags_created', pg_catalog.to_jsonb(v_created));
+                                       'duplicates', v_dups, 'tags_created', pg_catalog.to_jsonb(v_created),
+                                       'tags_reactivated', pg_catalog.to_jsonb(v_reactivated));
 end;
 $$;
 revoke all on function public.import_client(jsonb, boolean) from public, anon, authenticated;
@@ -219,8 +275,9 @@ begin
   if p_row is null or pg_catalog.jsonb_typeof(p_row) <> 'object' then
     raise exception 'Une ligne d''import est un objet JSON.' using errcode = '22023';
   end if;
-  select c.id into v_client from public.clients c where c.org_id = v_org and c.external_ref = private.clients_text(p_row ->> 'client_ref');
-  select c.id into v_related from public.clients c where c.org_id = v_org and c.external_ref = private.clients_text(p_row ->> 'related_ref');
+  -- A file merged since its import stands for the file it was merged into.
+  select coalesce(c.merged_into_id, c.id) into v_client from public.clients c where c.org_id = v_org and c.external_ref = private.clients_text(p_row ->> 'client_ref');
+  select coalesce(c.merged_into_id, c.id) into v_related from public.clients c where c.org_id = v_org and c.external_ref = private.clients_text(p_row ->> 'related_ref');
   if v_client is null or v_related is null then
     return pg_catalog.jsonb_build_object('status', 'error', 'dry_run', v_dry,
       'errors', pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('field', case when v_client is null then 'client_ref' else 'related_ref' end,

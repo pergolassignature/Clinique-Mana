@@ -8,12 +8,13 @@ import { fmtMoney } from './report.mjs'
 /** A line's price before taxes for one unit: the unit price when exported, else (total − taxes) / quantity. */
 export function unitPriceCents(line) {
   if (line.unit_price_cents !== null && line.unit_price_cents !== undefined) return line.unit_price_cents
-  const net = line.total_cents - (line.tps_cents ?? 0) - (line.tvq_cents ?? 0) + (line.discount_cents ?? 0)
+  // A discount may be exported either sign (« Rabais » is not documented, I-2): it is added back.
+  const net = line.total_cents - (line.tps_cents ?? 0) - (line.tvq_cents ?? 0) + Math.abs(line.discount_cents ?? 0)
   return Math.round(net / (line.quantity || 1))
 }
 
 /**
- * Groups the lines by (title, code). `professionalFor(label)` → `{ id, titleId }`, `{ excluded }`
+ * Groups the lines by (title, code); a professional counts under her primary title (I-12). `professionalFor(label)` → `{ id, titleId }`, `{ excluded }`
  * or null; `codeFor(line)` → a code or null; `gridPrice(code, titleId)` → cents or null.
  * Returns `{ groups, skipped }`: `groups` [{ titleId, code, lines, prices: [[cents, count]] (most
  * frequent first), observed (the most frequent), grid, gap (observed − grid) }]; `skipped`: the
@@ -55,16 +56,20 @@ export function priceGaps(lines, { professionalFor, codeFor, gridPrice }) {
       continue
     }
     const key = `${pro.titleId}|${code}`
-    if (!groups.has(key)) groups.set(key, { titleId: pro.titleId, code, lines: 0, counts: new Map() })
+    if (!groups.has(key)) groups.set(key, { titleId: pro.titleId, code, lines: 0, counts: new Map(), from: null, to: null })
     const group = groups.get(key)
     group.lines++
+    if (line.date) {
+      if (!group.from || line.date < group.from) group.from = line.date
+      if (!group.to || line.date > group.to) group.to = line.date
+    }
     group.counts.set(price, (group.counts.get(price) ?? 0) + 1)
   }
   const result = [...groups.values()].map((g) => {
     const prices = [...g.counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])
     const observed = prices[0][0]
     const grid = gridPrice(g.code, g.titleId)
-    return { titleId: g.titleId, code: g.code, lines: g.lines, prices, observed, grid, gap: grid === null ? null : observed - grid }
+    return { titleId: g.titleId, code: g.code, lines: g.lines, from: g.from, to: g.to, prices, observed, grid, gap: grid === null ? null : observed - grid }
   })
   return { groups: result, skipped }
 }
@@ -98,7 +103,9 @@ export function priceGapReport({ groups, skipped }, { titleName, serviceName, on
     out.push(`${titleName(titleId)} :`)
     for (const g of list.sort((a, b) => a.code.localeCompare(b.code))) {
       const others = g.prices.slice(1, 4).map(([cents, n]) => `${fmtMoney(cents)} ×${n}`)
-      const observed = `${fmtMoney(g.observed)} (${g.prices[0][1]} ligne${g.prices[0][1] > 1 ? 's' : ''}${others.length > 0 ? ` ; aussi ${others.join(', ')}` : ''})`
+      // The period invoiced: an old price from before a rise shows as a gap; the dates say so.
+      const period = g.from ? `, du ${g.from} au ${g.to}` : ''
+      const observed = `${fmtMoney(g.observed)} (${g.prices[0][1]} ligne${g.prices[0][1] > 1 ? 's' : ''}${others.length > 0 ? ` ; aussi ${others.join(', ')}` : ''}${period})`
       const grid = g.grid === null ? 'pas de prix dans l’app' : `app ${fmtMoney(g.grid)}`
       const gap = g.gap === null ? '' : g.gap === 0 ? ' · aucun écart' : ` · écart (app − GOrendezvous) ${signed(-g.gap)}`
       out.push(`  - ${g.code} ${serviceName(g.code)} : GOrendezvous ${observed} · ${grid}${gap}`)

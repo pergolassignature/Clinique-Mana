@@ -8,7 +8,7 @@
 -- re-run, unknown file, bad type).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(40);
 
 select function_privs_are('public', f.name, array['jsonb', 'boolean'], 'authenticated', array['EXECUTE'], f.name || ': authenticated may call it')
   from (values ('import_client'), ('import_client_relation')) as f(name);
@@ -32,6 +32,7 @@ insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000a', 'clients', true);
 insert into public.client_tags (org_id, name) values ('b0000000-0000-0000-0000-00000000000a', 'Atelier');
+insert into public.client_tags (org_id, name, is_active) values ('b0000000-0000-0000-0000-00000000000a', 'Archivée', false);
 
 create temporary table row_alice as
 select jsonb_build_object(
@@ -62,7 +63,7 @@ select results_eq($$ select x ->> 'status', (x ->> 'dry_run')::boolean, x ->> 'i
   $$ values ('ok', true, null::text, '[]'::jsonb, '["Couple"]'::jsonb) $$, 'a dry run: ok, « Couple » would be added to the list, no id');
 reset role;
 select is((select count(*)::int from public.clients where org_id = 'b0000000-0000-0000-0000-00000000000a'), 0, '… and nothing is written');
-select is((select count(*)::int from public.client_tags where org_id = 'b0000000-0000-0000-0000-00000000000a'), 1, '… not even the new tag');
+select is((select count(*)::int from public.client_tags where org_id = 'b0000000-0000-0000-0000-00000000000a'), 2, '… not even the new tag');
 
 -- =============================================================================
 -- A real run
@@ -83,7 +84,7 @@ select is((select reason from public.client_professional_links where client_id =
 select results_eq($$ select t.name from public.client_tag_links l join public.client_tags t on t.id = l.tag_id
                       where l.client_id = current_setting('test.alice_id')::uuid order by t.name $$,
   array['Atelier', 'Couple'], 'the free tags: the clinic''s « Atelier » reused, « Couple » created');
-select is((select count(*)::int from public.client_tags where org_id = 'b0000000-0000-0000-0000-00000000000a'), 2, '… one tag added to the list');
+select is((select count(*)::int from public.client_tags where org_id = 'b0000000-0000-0000-0000-00000000000a'), 3, '… one tag added to the list');
 select results_eq($$ select rank, insurer, policy_number from public.client_insurances where client_id = current_setting('test.alice_id')::uuid $$,
   $$ values (1::smallint, 'Assureur fictif', 'P-1') $$, 'the main insurance');
 select is((select special_agreement_note from public.client_notes where client_id = current_setting('test.alice_id')::uuid),
@@ -119,8 +120,16 @@ select results_eq($$ select x ->> 'status', x -> 'errors' -> 0 ->> 'field'
                        from (select public.import_client(jsonb_build_object('external_ref', 'gorendezvous:1005', 'first_name', 'Bob', 'last_name', 'Roy',
                                                                             'insurance', jsonb_build_object('insurer', '')), false) as x) s $$,
   $$ values ('error', 'insurer') $$, 'an insurance without its insurer: refused');
+select results_eq($$ select x ->> 'status', x -> 'errors' -> 0 ->> 'field'
+                       from (select public.import_client(jsonb_build_object('external_ref', 'gorendezvous:1006', 'first_name', 'Bob', 'last_name', 'Roy',
+                                                                            'archived', 'peut-être'), false) as x) s $$,
+  $$ values ('error', 'archived') $$, 'a yes / no field that is not a boolean: a row error, never a stopped run');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select public.import_client_relation((select r from rel), true) $$, '42501', 'Permission refusée : clients.merge',
+  'relations: whoever lacks clients.merge may not import them');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 reset role;
-select is((select count(*)::int from public.clients where external_ref in ('gorendezvous:1003', 'gorendezvous:1004', 'gorendezvous:1005')), 0,
+select is((select count(*)::int from public.clients where external_ref in ('gorendezvous:1003', 'gorendezvous:1004', 'gorendezvous:1005', 'gorendezvous:1006')), 0,
   'no refused row is written');
 
 -- =============================================================================
@@ -149,6 +158,41 @@ select is(public.import_client_relation(jsonb_build_object('client_ref', 'gorend
             -> 'errors' -> 0 ->> 'field', 'client_ref', 'a file not imported yet: refused');
 select is(public.import_client_relation(jsonb_build_object('client_ref', 'gorendezvous:1001', 'related_ref', 'gorendezvous:2002', 'type', 'cousin'), false)
             -> 'errors' -> 0 ->> 'field', 'type', 'an unknown relation type: refused with its field');
+reset role;
+
+-- An archived tag of the clinic is put back, and said; a tag that is not text is refused.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select x ->> 'status', x -> 'tags_reactivated', x -> 'tags_created'
+                       from (select public.import_client(jsonb_build_object('external_ref', 'gorendezvous:3002', 'first_name', 'Rose', 'last_name', 'Lalonde',
+                                                                            'tags', '["archivée"]'::jsonb), false) as x) s $$,
+  $$ values ('ok', '["archivée"]'::jsonb, '[]'::jsonb) $$, 'an archived tag is put back and reported');
+select throws_ok($$ select public.import_client(jsonb_build_object('external_ref', 'gorendezvous:3003', 'first_name', 'Rose', 'last_name', 'Roy',
+                                                                  'tags', '[1]'::jsonb), true) $$, '22023', 'tags : une liste de noms est attendue.',
+  'a tag that is not text is refused');
+
+-- Loi 25: an imported file anonymised since is never brought back by a later run.
+select public.import_client(jsonb_build_object('external_ref', 'gorendezvous:3001', 'first_name', 'Effacée', 'last_name', 'Plus-Tard'), false);
+select public.anonymize_client((select id from public.clients where external_ref = 'gorendezvous:3001'));
+reset role;
+select ok((select count(*) = 1 from public.clients where external_ref ~ '^anon:' and external_ref !~ '3001' and anonymized_at is not null),
+  'the anonymised file keeps a one-way tombstone, no GOrendezvous id');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select x ->> 'status', x ->> 'reason'
+                       from (select public.import_client(jsonb_build_object('external_ref', 'gorendezvous:3001', 'first_name', 'Effacée', 'last_name', 'Plus-Tard'), false) as x) s $$,
+  $$ values ('skipped', 'Dossier anonymisé') $$, 'a re-run skips it: the person is not re-created');
+reset role;
+select is((select count(*)::int from public.clients where first_name = 'Effacée'), 0, '… and nothing of her is back');
+
+-- The module off: nobody imports (has_permission drops a disabled module's keys).
+update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'clients';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok($$ select public.import_client((select r from row_alice), true) $$, '42501', 'Permission refusée : clients.manage',
+  'Clients disabled: import_client refused');
+select throws_ok($$ select public.import_client_relation((select r from rel), true) $$, '42501', 'Permission refusée : clients.manage',
+  'Clients disabled: import_client_relation refused');
 reset role;
 
 select * from finish();
