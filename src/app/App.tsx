@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { BookingCancelPage, BookingPage, ConfirmPage, ConsentPage, InvitationPage } from './public-pages'
+import { BookingCancelPage, BookingPage, ConfirmPage, ConsentPage, InvitationPage, WaitlistAnswerPage } from './public-pages'
 import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
@@ -129,6 +129,15 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <BookingCancelPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: the waiting list's « still waiting? » link (Demandes D3); the token is in the fragment. */}
+                <Route
+                  path="/liste-attente/reponse"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <WaitlistAnswerPage />
                     </Suspense>
                   }
                 />

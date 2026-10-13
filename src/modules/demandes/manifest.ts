@@ -1,4 +1,4 @@
-import { Inbox, PhoneCall } from 'lucide-react'
+import { Inbox, ListOrdered, PhoneCall } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -12,20 +12,25 @@ import { lazyPage } from '@/shared/lib/lazy-page'
  */
 export const bookingPublicPage = lazyPage(() => import('./pages/public/BookingPage'), 'BookingPage')
 export const bookingCancelPublicPage = lazyPage(() => import('./pages/public/BookingCancelPage'), 'BookingCancelPage')
+/** `/liste-attente/reponse#t=…` (D3): the answer to the « still on the waiting list? » email. Public. */
+export const waitlistAnswerPublicPage = lazyPage(() => import('./pages/public/WaitlistAnswerPage'), 'WaitlistAnswerPage')
 
 /**
  * Module Demandes (plan §10): the counselors' requests — intake, discovery call, proposal, first
  * appointment — and the waiting list (roadmap §2.3 bis). D1 is the schema and the RPCs; D2 the
  * inbox (« Demandes ») and the record (Accueil, Participants, Suivi, Historique), live between
- * counselors; the waiting list's screens come with D3; D3c the public booking page and
- * Paramètres → Appels découverte. Depends on Clients (the person's file, the participants) and
+ * counselors; D3 the waiting list (« Liste d'attente », its follow-up, Paramètres → Liste
+ * d'attente); D3c the public booking page and Paramètres → Appels découverte. Depends on Clients (the person's file, the participants) and
  * Professionnels (the match, the catalogues).
  */
 export const demandesManifest: ModuleManifest = {
   key: 'demandes',
   labelKey: 'modules.demandes.name',
   dependsOn: ['clients', 'professionals'],
-  nav: [{ path: '/demandes', labelKey: 'modules.demandes.name', icon: Inbox, permission: 'demandes.view', order: 12 }],
+  nav: [
+    { path: '/demandes', labelKey: 'modules.demandes.name', icon: Inbox, permission: 'demandes.view', order: 12 },
+    { path: '/liste-attente', labelKey: 'modules.demandes.waitlist.name', icon: ListOrdered, permission: 'demandes.view', order: 13 },
+  ],
   routes: [
     { path: 'demandes', permission: 'demandes.view', component: lazyPage(() => import('./pages/DemandesInboxPage'), 'DemandesInboxPage') },
     // The tab is a URL segment: accueil, participants, suivi, historique (RECORD_TABS).
@@ -34,6 +39,7 @@ export const demandesManifest: ModuleManifest = {
       permission: 'demandes.view',
       component: lazyPage(() => import('./pages/DemandeRecordPage'), 'DemandeRecordPage'),
     },
+    { path: 'liste-attente', permission: 'demandes.view', component: lazyPage(() => import('./pages/WaitlistPage'), 'WaitlistPage') },
   ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.demandesAuditLabels),
@@ -47,6 +53,16 @@ export const demandesManifest: ModuleManifest = {
       editPermission: 'demandes.manage',
       group: 'modules',
       component: lazyPage(() => import('./pages/settings/BookingSettingsPage'), 'BookingSettingsPage'),
+    },
+    {
+      id: 'waitlist',
+      path: 'liste-attente',
+      labelKey: 'modules.demandes.waitlist.settings.title',
+      icon: ListOrdered,
+      permission: 'demandes.view',
+      editPermission: 'demandes.waitlist',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/WaitlistSettingsPage'), 'WaitlistSettingsPage'),
     },
   ],
 }

@@ -421,6 +421,12 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 600,
   },
+  /** `demandes-waitlist-answer`, per IP, before any lookup (one answer per link; a few retries). */
+  waitlistAnswerIp: {
+    bucket: 'demandes.waitlist_answer_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

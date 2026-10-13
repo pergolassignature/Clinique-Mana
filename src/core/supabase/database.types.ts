@@ -9718,7 +9718,19 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      add_waitlist_offer: {
+        Args: { p_id: string; p_professional_id: string; p_slots?: Json }
+        Returns: string
+      }
       anonymize_client: { Args: { p_id: string }; Returns: undefined }
+      answer_waitlist_followup_for_service: {
+        Args: { p_answer: string; p_token_hash: string }
+        Returns: Json
+      }
+      answer_waitlist_offer: {
+        Args: { p_id: string; p_offer_id: string; p_response: string }
+        Returns: undefined
+      }
       apply_email_event: {
         Args: {
           p_at: string
@@ -10123,6 +10135,10 @@ export type Database = {
         Args: { p_effective_to: string; p_id: string }
         Returns: undefined
       }
+      exit_waitlist: {
+        Args: { p_id: string; p_professional_id?: string; p_reason: string }
+        Returns: undefined
+      }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
       export_client_privacy: { Args: { p_id: string }; Returns: Json }
       fail_webhook_event: {
@@ -10198,6 +10214,7 @@ export type Database = {
       get_demande: { Args: { p_id: string }; Returns: Json }
       get_demandes_booking_settings: { Args: never; Returns: Json }
       get_demandes_reference: { Args: never; Returns: Json }
+      get_demandes_waitlist_settings: { Args: never; Returns: Json }
       get_email_context: {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
@@ -10374,6 +10391,7 @@ export type Database = {
         Args: { p_submission_id: string }
         Returns: Json
       }
+      get_waitlist_entry: { Args: { p_id: string }; Returns: Json }
       import_client: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
@@ -11013,6 +11031,43 @@ export type Database = {
           title: string
         }[]
       }
+      list_waitlist: {
+        Args: {
+          p_demande_id?: string
+          p_professional_id?: string
+          p_states?: string[]
+          p_title_id?: string
+        }
+        Returns: {
+          bridge_name: string
+          bridge_professional_id: string
+          client_id: string
+          client_number: number
+          consent_state: string
+          demande_id: string
+          exit_reason: string
+          exited_at: string
+          fee_status: string
+          fee_waived_reason: string
+          followup_unanswered: boolean
+          id: string
+          last_contact_at: string
+          list_size: number
+          next_contact_at: string
+          pending_offer: boolean
+          person_name: string
+          priority: string
+          priority_reason: string
+          rank: number
+          reference: string
+          registered_at: string
+          state: string
+          target_id: string
+          target_kind: string
+          target_name: string
+          waited_days: number
+        }[]
+      }
       log_demande_contact: {
         Args: {
           p_channel: string
@@ -11021,6 +11076,15 @@ export type Database = {
           p_outcome: string
         }
         Returns: number
+      }
+      log_waitlist_contact: {
+        Args: {
+          p_id: string
+          p_kind: string
+          p_next_contact_at?: string
+          p_outcome: string
+        }
+        Returns: undefined
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_email_failed: {
@@ -11066,6 +11130,10 @@ export type Database = {
           p_provider_msg_id: number
           p_provider_session_id: number
         }
+        Returns: undefined
+      }
+      mark_waitlist_followup_sent_for_service: {
+        Args: { p_entry_id: string; p_org_id: string; p_sent: boolean }
         Returns: undefined
       }
       merge_clients: {
@@ -11138,6 +11206,10 @@ export type Database = {
           p_id: string
           p_idempotency_key: string
         }
+        Returns: Json
+      }
+      prepare_waitlist_followup_for_service: {
+        Args: { p_entry_id: string; p_org_id: string; p_token_hash: string }
         Returns: Json
       }
       publish_client_consent_version: {
@@ -11247,6 +11319,15 @@ export type Database = {
           object_path: string
         }[]
       }
+      register_waitlist: {
+        Args: {
+          p_demande_id: string
+          p_priority?: string
+          p_priority_reason?: string
+          p_targets: Json
+        }
+        Returns: string[]
+      }
       reissue_professional_invitation_for_service: {
         Args: { p_id: string; p_org: string; p_token_hash: string }
         Returns: Json
@@ -11322,6 +11403,10 @@ export type Database = {
         Returns: Json
       }
       resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
+      resolve_waitlist_followup_link: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
       restore_professional_invitation_for_service: {
         Args: {
           p_id: string
@@ -11643,6 +11728,10 @@ export type Database = {
         Args: { p_settings: Json }
         Returns: Json
       }
+      set_demandes_waitlist_settings: {
+        Args: { p_settings: Json }
+        Returns: Json
+      }
       set_document_template_active: {
         Args: { p_active: boolean; p_id: string }
         Returns: undefined
@@ -11845,6 +11934,10 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
       }
+      set_waitlist_fee: {
+        Args: { p_id: string; p_reason?: string; p_status: string }
+        Returns: undefined
+      }
       sms_event_known_for_service: {
         Args: {
           p_org_id: string
@@ -11917,6 +12010,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_waitlist_entry: {
+        Args: { p_id: string; p_patch: Json }
+        Returns: undefined
+      }
       upsert_client_insurance: {
         Args: {
           p_certificate_number: string
@@ -11944,6 +12041,23 @@ export type Database = {
       verify_professional_document: {
         Args: { p_doc_id: string; p_expires_on?: string }
         Returns: undefined
+      }
+      waitlist_followup_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: Json
+      }
+      waitlist_lists: {
+        Args: never
+        Returns: {
+          average_wait_days: number
+          incomplete_count: number
+          name: string
+          offered_count: number
+          open_count: number
+          target_id: string
+          target_kind: string
+          to_call_count: number
+        }[]
       }
       withdraw_professional_image_consent: {
         Args: { p_id: string; p_note?: string; p_withdrawn_on: string }
