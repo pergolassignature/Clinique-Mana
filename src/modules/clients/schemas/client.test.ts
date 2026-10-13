@@ -28,6 +28,14 @@ describe('the client form', () => {
     expect(toClientFields(output)).toMatchObject({ first_name: 'Alice', mobile_e164: '+15145550101', postal_code: 'H2X 1A1', reminders_by_sms: true })
   })
 
+  it('« Référé par »: the file and the typed name both sent, the empty one as null (CL-30)', () => {
+    const card = clientCardSchema(['referredBy', 'referredByClientId'])
+    expect(toClientFields(card.parse({ ...emptyClientForm(), referredByClientId: 'c-42' }))).toEqual({ referred_by: null, referred_by_client_id: 'c-42' })
+    expect(toClientFields(card.parse({ ...emptyClientForm(), referredBy: ' Une amie ' }))).toEqual({ referred_by: 'Une amie', referred_by_client_id: null })
+    expect(clientFormValues(clientFixture({ referredByClientId: 'c-42' })).referredByClientId).toBe('c-42')
+    expect(fieldOfHint('referred_by_client_id')).toBe('referredByClientId')
+  })
+
   it('refuses a missing name, a phone it cannot read and a Canadian postal code in another shape', () => {
     const result = clientCardSchema(ALL_CLIENT_FIELDS).safeParse({ ...emptyClientForm(), lastName: 'X', mobile: '555-12' })
     expect(result.success).toBe(false)

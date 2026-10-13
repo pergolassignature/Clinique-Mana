@@ -88,7 +88,7 @@ function fileSections(summary: ClientSummary, reference: ClientsReference | unde
       groups: [
         [
           line(t(`${F}.referralSource`), nameOf(reference?.referralSources, c.referralSourceId)),
-          line(t(`${F}.referredBy`), c.referredBy),
+          line(t(`${F}.referredBy`), c.referredBy ?? (c.referredByClientId ? t('modules.clients.referrer.linked') : null)),
           line(t(`${F}.customField`), c.customField),
           line(t(`${F}.primaryProfessional`), nameOf(reference?.professionals, c.primaryProfessionalId)),
           line(t(`${F}.rateVariant`), c.rateVariant ? rateVariantLabel(c.rateVariant) : t(`${F}.regularRate`)),
