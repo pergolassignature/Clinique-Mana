@@ -26,6 +26,7 @@ import type { OAuthApp } from './credentials.ts'
 import {
   cleanName,
   ensureBillingCustomer,
+  ensureOrganisationCustomer,
   type LinkStore,
   type QboPerson,
   requestIdFor,
@@ -122,6 +123,17 @@ const prepareSchema = z.discriminatedUnion('action', [
     tax_taxable: z.string().nullable(),
     tax_exempt: z.string().nullable(),
     deposit_account_id: z.string().nullable(),
+    // FQ-13: a third-party payer's invoice (IVAC, a PAE).
+    organisation: z.object({
+      id: z.string(),
+      kind: z.string().nullable(),
+      name: z.string(),
+      reference: z.string().nullable(),
+    })
+      .nullable().optional(),
+    organisation_customer_id: z.string().nullable().optional(),
+    organisation_matched: z.boolean().nullable().optional(),
+    organisation_dossier_customer_id: z.string().nullable().optional(),
     refund: refundSchema.nullable().optional(),
     receivable_account_id: z.string().nullable().optional(),
   }),
@@ -499,6 +511,29 @@ async function pushOne(
   let customerId = prep.push_kind === 'credit_memo'
     ? prep.invoice_customer_id
     : null
+  const organisation = prep.organisation ?? null
+  if (!customerId && organisation) {
+    // FQ-13: the organisation is the parent, the dossier its sub-customer.
+    if (!prep.dossier) throw new PushFailure('client_gone')
+    customerId = (await ensureOrganisationCustomer(qbo, {
+      record: async (link) => {
+        await rpc(client, 'record_qbo_organisation_link_for_service', {
+          p_org_id: orgId,
+          p_kind: link.kind,
+          p_organisation: link.organisationId,
+          p_client: link.clientId ?? null,
+          p_qbo_customer_id: link.qboCustomerId,
+          p_source: link.source,
+        })
+      },
+    }, {
+      id: organisation.id,
+      name: organisation.name,
+      customerId: prep.organisation_customer_id ?? null,
+      matched: prep.organisation_matched ?? false,
+      dossierCustomerId: prep.organisation_dossier_customer_id ?? null,
+    }, toPerson(prep.dossier))).customerId
+  }
   if (!customerId) {
     if (!prep.payer || !prep.dossier) throw new PushFailure('client_gone')
     const store: LinkStore = {
@@ -557,6 +592,18 @@ async function pushOne(
     taxable: prep.tax_taxable,
     exempt: prep.tax_exempt,
   })
+  // The payer's reference (its file number) on the document the payer reads.
+  const memo = organisation?.reference
+    ? {
+      CustomerMemo: {
+        value: `Référence : ${organisation.reference}`.replace(
+          /[\r\n\t]+/g,
+          ' ',
+        )
+          .slice(0, 1000),
+      },
+    }
+    : {}
 
   if (prep.push_kind === 'credit_memo') {
     const note = prep.invoice.credit_note
@@ -566,6 +613,7 @@ async function pushOne(
       DocNumber: docNumber(note.number),
       TxnDate: note.issued_on,
       GlobalTaxCalculation: 'TaxExcluded',
+      ...memo,
       Line: lines,
     }, await requestIdFor('credit_memo', event.entity_id))
     return {
@@ -581,6 +629,7 @@ async function pushOne(
     ...(prep.invoice.issued_on ? { TxnDate: prep.invoice.issued_on } : {}),
     ...(prep.invoice.due_on ? { DueDate: prep.invoice.due_on } : {}),
     GlobalTaxCalculation: 'TaxExcluded',
+    ...memo,
     Line: lines,
   }, await requestIdFor('invoice', event.entity_id))
   return {

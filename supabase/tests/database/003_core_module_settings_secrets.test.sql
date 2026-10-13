@@ -205,7 +205,7 @@ select functions_are('public', array[
   'prune_qbo_customers', 'match_qbo_customers', 'get_qbo_settings', 'set_qbo_account_map',
   'replace_qbo_items', 'replace_qbo_tax_codes', 'qbo_push_state_for_service', 'prepare_qbo_push_for_service',
   'record_qbo_link_for_service', 'record_qbo_item_for_service', 'record_qbo_push_for_service', 'qbo_bills_to_push_for_service',
-  'record_qbo_vendor_for_service', 'set_qbo_push_paused', 'list_qbo_pushes', 'retry_qbo_push', 'qbo_invoice_push_status',
+  'record_qbo_vendor_for_service', 'record_qbo_organisation_link_for_service', 'set_qbo_push_paused', 'list_qbo_pushes', 'retry_qbo_push', 'qbo_invoice_push_status',
   'qbo_customer_match_counts', 'list_qbo_customer_matches', 'decide_qbo_customer_match',
   'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
   'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices',
