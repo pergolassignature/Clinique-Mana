@@ -99,7 +99,10 @@ test('the admin reads « Indicateurs des demandes »: activity, sources, waiting
     await expect(page.getByLabel('Totaux de la période')).toBeVisible()
     await tabs.getByRole('tab', { name: 'Provenance' }).click()
     await expect(page).toHaveURL(/onglet=provenance/)
-    await expect(page.getByRole('heading', { name: 'Comment avez-vous entendu parler de MANA ?' })).toBeVisible()
+    // The seed may hold no request this year (the spec runs on its own): the tab then says so.
+    await expect(
+      page.getByRole('heading', { name: 'Comment avez-vous entendu parler de MANA ?' }).or(page.getByText('Aucune demande reçue dans cette période.')),
+    ).toBeVisible()
     await tabs.getByRole('tab', { name: 'Liste d\'attente et places' }).click()
     await expect(page).toHaveURL(/onglet=liste-attente/)
     await expect(page.getByRole('heading', { name: 'Places des professionnels' })).toBeVisible()
