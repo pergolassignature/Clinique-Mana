@@ -4,7 +4,7 @@
 -- job), the request closed, a slot no longer possible, permissions, clinics.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(42);
+select plan(44);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -159,6 +159,13 @@ update public.appointments set held_until = now() - interval '1 minute' where ho
 select is(public.answer_proposition_for_service(decode(repeat('b2', 32), 'hex'),
   (select id from public.appointments where hold_reference = current_setting('test.p3')::uuid)),
   '{"state": "unavailable", "reason": "hold_expired"}'::jsonb, 'a slot no longer held: unavailable, with R1b''s HINT');
+-- P3-40: Demandes reserved for its testers after the email left: the link shows and books nothing.
+update public.org_modules set testers_only = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'demandes';
+select is(public.resolve_proposition_link((select id from public.secure_links where token_hash = decode(repeat('b2', 32), 'hex'))), null,
+  'P3-40: reserved, the link shows nothing');
+select is(public.answer_proposition_for_service(decode(repeat('b2', 32), 'hex'), null) ->> 'state', 'invalid',
+  'P3-40: reserved, nothing is answered or booked');
+update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'demandes';
 update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'appointments';
 select is(public.answer_proposition_for_service(decode(repeat('b2', 32), 'hex'), null) ->> 'state', 'invalid', 'Rendez-vous switched off: invalid');
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'appointments';

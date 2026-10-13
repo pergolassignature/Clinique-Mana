@@ -392,6 +392,8 @@ as $$
      and l.revoked_at is null and l.expires_at > pg_catalog.now() and l.use_count < l.max_uses
      and x.response = 'pending' and x.expires_at > pg_catalog.now()
      and public.module_enabled_for_org(l.org_id, 'appointments')
+     -- P3-40: while Demandes is reserved for its testers, a link sent before shows nothing.
+     and public.module_open_to_all_for_org(l.org_id, 'demandes')
 $$;
 revoke all on function public.resolve_proposition_link(uuid) from public, anon, authenticated;
 grant execute on function public.resolve_proposition_link(uuid) to service_role;
@@ -406,8 +408,8 @@ on conflict do nothing;
 -- rule), the others freed, the request matched with the professional (its waiting-list entries
 -- « Placée »); a slot no longer possible answers {state: unavailable, reason: the HINT} and the link
 -- stays usable for another. p_appointment_id null → declined (p_decline_reason: schedule, fee,
--- professional, changed_mind, other, or none), all freed. Demandes or Rendez-vous switched off, a
--- used, expired or revoked link → {state: invalid}.
+-- professional, changed_mind, other, or none), all freed. Demandes switched off or reserved for its
+-- testers (P3-40), Rendez-vous off, a used, expired or revoked link → {state: invalid}.
 create function public.answer_proposition_for_service(p_token_hash bytea, p_appointment_id uuid, p_decline_reason text default null)
 returns jsonb
 language plpgsql
@@ -428,8 +430,9 @@ begin
   -- order every other writer takes (set_demande_state, withdraw, the job), and checked again.
   select l.* into v_link from public.secure_links l
    where l.token_hash = p_token_hash and l.purpose = 'proposition' and l.subject_type = 'demande_proposition';
-  if v_link.id is null
-     or not public.module_enabled_for_org(v_link.org_id, 'demandes') or not public.module_enabled_for_org(v_link.org_id, 'appointments') then
+  -- P3-40: while Demandes is reserved for its testers, nothing is booked for a client through a link.
+  if v_link.id is null or not public.module_open_to_all_for_org(v_link.org_id, 'demandes')
+     or not public.module_enabled_for_org(v_link.org_id, 'appointments') then
     return pg_catalog.jsonb_build_object('state', 'invalid');
   end if;
   select x.* into v from public.demande_propositions x where x.id = v_link.subject_id and x.org_id = v_link.org_id;
