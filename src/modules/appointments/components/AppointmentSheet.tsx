@@ -31,7 +31,7 @@ import {
   useSetAppointmentDetails,
   useSetPresence,
 } from '../hooks/use-agenda'
-import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateLabel } from '../lib/display'
+import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVariant, stateLabel } from '../lib/display'
 
 const E = 'modules.appointments.editor'
 
@@ -312,7 +312,7 @@ function EditPanel({
           {pro && ` · ${pro.name}`}
         </SheetDescription>
         <p className="flex flex-wrap gap-1.5">
-          <Badge variant={a.state === 'cancelled' ? 'secondary' : a.state === 'booked' ? 'outline' : 'success'}>{stateLabel(a.state)}</Badge>
+          <Badge variant={stateBadgeVariant(a.state)}>{stateLabel(a.state)}</Badge>
           {a.keptOnSchedule && <Badge variant="secondary">{t(`${E}.keptOnSchedule`)}</Badge>}
           {a.cancelLate && <Badge variant="warning">{t(`${E}.lateCancel`)}</Badge>}
           {a.outsideAvailability && <Badge variant="warning">{t(`${E}.outsideBadge`)}</Badge>}
@@ -370,6 +370,7 @@ function AppointmentTab({
 
   return (
     <>
+      {a.state === 'held' && <p className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-sm">{t(`${E}.heldNotice`)}</p>}
       {detail.data?.outsideAvailabilityReason && (
         <p className="text-sm">
           <span className="text-muted-foreground">{t(`${E}.outsideBadge`)} : </span>
@@ -390,7 +391,7 @@ function AppointmentTab({
                 <Select
                   aria-label={t(`${E}.presenceOf`, { name: p.name })}
                   value={p.presence}
-                  disabled={a.state === 'cancelled'}
+                  disabled={a.state === 'cancelled' || a.state === 'held'}
                   onChange={(e) => presence.mutate({ appointmentId: a.id, clientId: p.clientId, presence: e.target.value as Presence })}
                   className="w-40"
                 >
@@ -513,7 +514,13 @@ function CancelTab({ appointment: a, reference, open, onDone }: { appointment: A
     const name = reference.reasons.find((r) => r.id === a.cancelReasonId)?.name
     return (
       <div className="space-y-1 text-sm">
-        <p>{a.state === 'cancelled' ? t(`${E}.cancelledWith`, { reason: name ?? t(`${E}.noReason`) }) : t(`${E}.notCancellable`)}</p>
+        <p>
+          {a.state === 'cancelled'
+            ? t(`${E}.cancelledWith`, { reason: name ?? t(`${E}.noReason`) })
+            : a.state === 'held'
+              ? t(`${E}.heldNotice`)
+              : t(`${E}.notCancellable`)}
+        </p>
         {detail.data?.cancelDetails && <p className="text-muted-foreground">{detail.data.cancelDetails}</p>}
       </div>
     )
