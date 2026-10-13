@@ -65,7 +65,8 @@ begin
          fee_invoice_id = case when p_state = 'credited' then null else e.fee_invoice_id end
    where e.org_id = p_org and e.id = p_entry_id and e.fee_invoice_id = p_invoice_id
      and e.fee_status in ('invoiced', 'paid');
-  if p_state = 'paid' then
+  -- Only an entry holding this invoice moves.
+  if found and p_state = 'paid' then
     perform private.waitlist_promote(p_org, p_entry_id);
   end if;
   perform pg_catalog.set_config('app.audit_source', coalesce(v_prev, ''), true);
