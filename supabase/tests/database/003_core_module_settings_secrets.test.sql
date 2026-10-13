@@ -258,7 +258,9 @@ select functions_are('public', array[
   -- Clients, CC-13 (each consent text version's clauses).
   'get_client_consent_clauses', 'set_client_consent_clauses',
   -- Clients, batch C5b (withdrawal and the signed copy).
-  'withdraw_client_consent', 'prepare_client_consent_copy_for_service', 'mark_client_consent_copy_sent_for_service'
+  'withdraw_client_consent', 'prepare_client_consent_copy_for_service', 'mark_client_consent_copy_sent_for_service',
+  -- Rendez-vous, the parity audit's gaps (AP-28 … AP-32).
+  'change_appointment_service', 'restore_appointment', 'confirm_appointment', 'get_booking_consents'
 ],'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

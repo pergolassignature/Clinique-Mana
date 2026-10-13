@@ -147,6 +147,60 @@ test('« Mon agenda »: Félix sees his week and adds then removes a personal ap
   await expect(page.getByText('Rendez-vous annulé.')).toBeVisible()
 })
 
+test('the parity audit: « Changer le service », « Marquer confirmé », « Rétablir » (AP-28 … AP-30)', async ({ page, signIn }) => {
+  const monday = nextMonday()
+  const thursday = new Date(`${monday}T12:00:00Z`)
+  thursday.setUTCDate(thursday.getUTCDate() + 3)
+  await signIn('admin')
+  await page.goto(`/agenda?professionnel=${FELIX}&date=${thursday.toISOString().slice(0, 10)}&vue=jour`)
+  await page.getByRole('button', { name: 'Nouveau rendez-vous' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Nouveau rendez-vous' })
+  await sheet.getByLabel(/^Heure/).fill('15:00')
+  await sheet.getByLabel(/^Service/).selectOption({ index: 1 })
+  await sheet.getByRole('searchbox', { name: /^Client/ }).fill('Gagnon-Fictif')
+  await sheet.getByRole('button', { name: /Marc Gagnon-Fictif/ }).click()
+  await sheet.getByRole('button', { name: 'Réserver' }).click()
+  await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
+
+  await page.getByRole('button', { name: '15:00, Marc Gagnon-Fictif' }).click()
+  const editor = page.getByRole('dialog', { name: 'Marc Gagnon-Fictif' })
+  // « Changer le service »: another service, the same moment.
+  const service = editor.getByRole('combobox', { name: /^Service/ })
+  const current = await service.inputValue()
+  const values = await service.locator('option').evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))
+  await service.selectOption(values.find((v) => v !== current)!)
+  await editor.getByRole('button', { name: 'Changer le service' }).click()
+  await expect(page.getByText('Service changé.')).toBeVisible()
+  // « Marquer confirmé ».
+  await editor.getByRole('button', { name: 'Marquer confirmé' }).click()
+  await expect(page.getByText('Rendez-vous marqué confirmé.')).toBeVisible()
+  await expect(editor.getByRole('button', { name: 'Marquer confirmé' })).toHaveCount(0)
+  // Cancelled, then « Rétablir ».
+  await editor.getByRole('tab', { name: 'Annulation' }).click()
+  await editor.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
+  await editor.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
+  await expect(page.getByText('Rendez-vous annulé.')).toBeVisible()
+  await page.getByRole('button', { name: /^15:00, Marc Gagnon-Fictif/ }).click()
+  const cancelled = page.getByRole('dialog', { name: 'Marc Gagnon-Fictif' })
+  await cancelled.getByRole('tab', { name: 'Annulation' }).click()
+  await cancelled.getByRole('button', { name: 'Rétablir le rendez-vous' }).click()
+  await expect(page.getByText('Rendez-vous rétabli.')).toBeVisible()
+
+  // Cancel it again (leave the database as found).
+  await expect(cancelled.getByRole('button', { name: 'Annuler le rendez-vous' })).toBeVisible()
+  await cancelled.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
+  await cancelled.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
+  await expect(page.getByText('Rendez-vous annulé.').first()).toBeVisible()
+})
+
+test('Paramètres → Agenda: the late notice counts business hours by default (AP-31)', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto('/parametres/agenda')
+  await expect(page.getByRole('heading', { level: 1, name: 'Agenda' })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'Préavis compté en heures ouvrables' })).toBeChecked()
+  await expect(page.getByRole('checkbox', { name: 'Lundi' })).toBeChecked()
+})
+
 test('« Clients sans rappel » opens the coming appointments nobody can be reminded of (R4)', async ({ page, signIn }) => {
   await signIn('admin')
   await page.goto(`/agenda?professionnel=${FELIX}`)

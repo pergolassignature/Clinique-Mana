@@ -14,12 +14,15 @@ const unreachablePayload = z
     professional_id: z.string(),
     starts_at: z.string(),
     participants: z.array(z.object({ client_id: z.string(), name: z.string().nullable(), client_number: z.number().int().nullable() })),
+    state: z.enum(['booked', 'confirmed']),
   })
   .transform((r) => ({
     id: r.id,
     professionalId: r.professional_id,
     startsAt: r.starts_at,
     participants: r.participants.map((p) => ({ clientId: p.client_id, name: p.name ?? '', clientNumber: p.client_number })),
+    /** « Marquer confirmé » once called (AP-30). */
+    confirmed: r.state === 'confirmed',
   }))
 export type UnreachableAppointment = z.output<typeof unreachablePayload>
 

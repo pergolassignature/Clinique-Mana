@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarRange, Video } from 'lucide-react'
+import { CalendarCog, CalendarDays, CalendarRange, Video } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -62,6 +62,17 @@ export const appointmentsManifest: ModuleManifest = {
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.appointmentsAuditLabels),
   settingsSections: [
+    {
+      // Paramètres → Agenda (AP-31): business days and hours, reminders, the late notice's count.
+      id: 'agenda',
+      path: 'agenda',
+      labelKey: 'modules.appointments.settings.title',
+      icon: CalendarCog,
+      permission: 'appointments.view',
+      editPermission: 'appointments.settings',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/AgendaSettingsPage'), 'AgendaSettingsPage'),
+    },
     {
       // Paramètres → Vidéoconférence (RZ): who is ready for video appointments, the Zoom app.
       id: 'video',

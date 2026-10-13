@@ -147,6 +147,7 @@ export type Database = {
           channel: string
           client_id: string
           created_at: string
+          event_at: string | null
           id: string
           kind: string
           language: string
@@ -166,6 +167,7 @@ export type Database = {
           channel: string
           client_id: string
           created_at?: string
+          event_at?: string | null
           id?: string
           kind: string
           language?: string
@@ -185,6 +187,7 @@ export type Database = {
           channel?: string
           client_id?: string
           created_at?: string
+          event_at?: string | null
           id?: string
           kind?: string
           language?: string
@@ -363,6 +366,7 @@ export type Database = {
           business_days: number[]
           business_end: string
           business_start: string
+          late_notice_business_hours: boolean
           org_id: string
           reminder_business_days: number
           reminder_local_hour: number
@@ -373,6 +377,7 @@ export type Database = {
           business_days?: number[]
           business_end?: string
           business_start?: string
+          late_notice_business_hours?: boolean
           org_id: string
           reminder_business_days?: number
           reminder_local_hour?: number
@@ -383,6 +388,7 @@ export type Database = {
           business_days?: number[]
           business_end?: string
           business_start?: string
+          late_notice_business_hours?: boolean
           org_id?: string
           reminder_business_days?: number
           reminder_local_hour?: number
@@ -14059,6 +14065,14 @@ export type Database = {
         Args: { p_by: string; p_id: string }
         Returns: boolean
       }
+      change_appointment_service: {
+        Args: {
+          p_id: string
+          p_outside_availability_reason?: string
+          p_service_id: string
+        }
+        Returns: undefined
+      }
       claim_sms_batch_for_service: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
@@ -14159,6 +14173,7 @@ export type Database = {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
       }
+      confirm_appointment: { Args: { p_id: string }; Returns: string }
       confirm_appointment_by_link_for_service: {
         Args: { p_token_hash: string }
         Returns: Json
@@ -14575,6 +14590,7 @@ export type Database = {
         Returns: {
           client_id: string
           consent_key: string
+          consent_name: string
           frequency: string
           state: string
         }[]
@@ -14603,6 +14619,16 @@ export type Database = {
         Returns: Json
       }
       get_billing_settings: { Args: never; Returns: Json }
+      get_booking_consents: {
+        Args: { p_client_ids: string[]; p_service_id: string }
+        Returns: {
+          client_id: string
+          consent_key: string
+          consent_name: string
+          frequency: string
+          state: string
+        }[]
+      }
       get_client_billing: { Args: { p_client_id: string }; Returns: Json }
       get_client_consent_clauses: {
         Args: { p_version_id: string }
@@ -14946,6 +14972,7 @@ export type Database = {
           participants: Json
           professional_id: string
           starts_at: string
+          state: string
         }[]
       }
       list_audit_actors: {
@@ -16472,6 +16499,7 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: Json
       }
+      restore_appointment: { Args: { p_id: string }; Returns: undefined }
       restore_professional_invitation_for_service: {
         Args: {
           p_id: string
@@ -16761,6 +16789,7 @@ export type Database = {
           p_business_days: number[]
           p_business_end: string
           p_business_start: string
+          p_late_notice_business_hours?: boolean
           p_reminder_business_days: number
           p_reminder_local_hour: number
         }
