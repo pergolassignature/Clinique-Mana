@@ -557,7 +557,7 @@ declare
   v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
   v_monday date := (date_trunc('week', now() at time zone 'America/Toronto'))::date + 7;
   v_service uuid;
-  v_alice uuid; v_lea uuid; v_marc uuid; v_past uuid;
+  v_alice uuid; v_lea uuid; v_marc uuid; v_past uuid; v_day date;
   d int;
 begin
   perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
@@ -579,7 +579,17 @@ begin
   -- Last week's Wednesday: Alice's completed session, to invoice (Facturation F1).
   v_past := public.book_appointment(v_pro, v_service, (v_monday - 12 + time '10:00') at time zone 'America/Toronto', array[v_alice]);
   update public.appointments set state = 'completed', completed_at = ends_at where id = v_past;
+  -- The last weekday before today: Marc's completed session, for the morning queue (Facturation
+  -- F2); the queue starts that day (Alice's session above stays « à facturer » for F1's e2e).
+  v_day := (now() at time zone 'America/Toronto')::date - 1;
+  while extract(isodow from v_day) > 5 loop
+    v_day := v_day - 1;
+  end loop;
+  v_past := public.book_appointment(v_pro, v_service, (v_day + time '11:00') at time zone 'America/Toronto', array[v_marc]);
+  update public.appointments set state = 'completed', completed_at = ends_at where id = v_past;
+  perform public.set_billing_queue_from(v_day);
   perform set_config('request.jwt.claims', '', false);
+  perform private.job_billing_build_drafts();
 end;
 $appointments$;
 

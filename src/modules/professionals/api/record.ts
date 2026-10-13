@@ -253,3 +253,18 @@ export function deactivateProfessional(id: string, reasonId: string, note?: stri
 export function syncProfessionalSignin(id: string): Promise<SigninSync> {
   return callStatusFunction({ action: 'sync_signin', professional_id: id }, signinSyncPayload)
 }
+
+/** The intern's supervisor (null: none). A refusal is a French `P0001` with HINT `supervisor`. */
+export async function setSupervisor(id: string, supervisorId: string | null): Promise<void> {
+  const { error } = await supabase.rpc('set_professional_supervisor', sqlArgs<'set_professional_supervisor'>({ p_professional_id: id, p_supervisor_id: supervisorId }))
+  if (error) throw error
+}
+
+const supervisorOptionRows = z.array(z.object({ id: z.string(), display_name: z.string().nullable(), status: z.string() }))
+
+/** Who may supervise: the clinic's active professionals, by name (the directory). */
+export async function fetchSupervisorOptions(): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await supabase.from('professionals_directory').select('id, display_name, status').eq('status', 'active').order('display_name').limit(500)
+  if (error) throw error
+  return parseRpc(supervisorOptionRows, data).map((r) => ({ id: r.id, name: r.display_name ?? '' }))
+}

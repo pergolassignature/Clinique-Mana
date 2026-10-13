@@ -15,7 +15,8 @@ import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import type { ProfessionalRecord } from '../../../api/parse'
-import { useSaveExperienceAndIvac, useSaveProfessionalFields } from '../../../hooks/use-card-saves'
+import { useSaveExperienceAndIvac, useSaveProfessionalFields, useSaveSupervisor } from '../../../hooks/use-card-saves'
+import { useSupervisorOptions } from '../../../hooks/use-professional-record'
 import { GENDERS } from '../../../lib/constants'
 import { genderLabel, professionLine } from '../../../lib/display'
 import { contactSchema, toContactFormValues } from '../../../schemas/contact'
@@ -25,7 +26,9 @@ import {
   normalizeIvac,
   toExperienceFormValues,
   toIdentityFormValues,
+  supervisorSchema,
   toPayerNumbersFormValues,
+  toSupervisorFormValues,
 } from '../../../schemas/identity'
 import { isLiveInvitation } from '../../../lib/onboarding'
 import { ChangeEmailDialog } from '../ChangeEmailDialog'
@@ -41,6 +44,9 @@ const ADDRESS_FIELDS = { line1: 'addressLine1', line2: 'addressLine2', city: 'ci
 // Module level: ProfessionalCard memoises on them.
 const toIdentity = (record: ProfessionalRecord) => toIdentityFormValues(record.professional)
 const toContact = (record: ProfessionalRecord) => toContactFormValues(record.professional)
+const toSupervisor = (record: ProfessionalRecord) => toSupervisorFormValues(record.professional)
+/** `set_professional_supervisor` refusals carry HINT `supervisor`. */
+const supervisorError = (error: unknown) => (rpcErrorCode(error) === 'P0001' && rpcErrorHint(error) === 'supervisor' ? ('supervisorId' as const) : null)
 const toExperienceAndPayers = (record: ProfessionalRecord) => ({
   ...toExperienceFormValues(record.professional),
   ...toPayerNumbersFormValues(record.payerNumbers),
@@ -226,8 +232,59 @@ export function IdentityTab() {
           )
         }}
       </ProfessionalCard>
+
+      <SupervisorCard readOnly={readOnly} />
       </SectionSurface>
     </div>
+  )
+}
+
+/** « Supervision » (F2.0, R-60): an intern's supervisor, printed on her receipts. */
+function SupervisorCard({ readOnly }: { readOnly: boolean }) {
+  const { record } = useRecordData()
+  const options = useSupervisorOptions()
+  const choices = (options.data ?? []).filter((o) => o.id !== record.professional.id)
+  return (
+    <ProfessionalCard
+      layout="section"
+      title={t(`${I}.supervisor.title`)}
+      description={t(`${I}.supervisor.description`)}
+      readOnly={readOnly}
+      schema={supervisorSchema}
+      toFormValues={toSupervisor}
+      firstField="supervisorId"
+      useSave={useSaveSupervisor}
+      errorField={supervisorError}
+    >
+      {({ control, formState: { errors } }) => (
+        <FormField
+          label={t(`${I}.supervisor.label`)}
+          error={errors.supervisorId?.message ?? (options.isError ? t(`${I}.supervisor.loadError`) : undefined)}
+        >
+          {(field) => (
+            <Controller
+              control={control}
+              name="supervisorId"
+              render={({ field: supervisor }) => (
+                <div className="w-field-md max-w-full">
+                  <Select {...field} {...supervisor} readOnlyEmptyLabel={t(`${I}.supervisor.none`)}>
+                    <option value="">{t(`${I}.supervisor.none`)}</option>
+                    {choices.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                    {record.professional.supervisorId && !choices.some((o) => o.id === record.professional.supervisorId) && options.data && (
+                      <option value={record.professional.supervisorId}>{t(`${I}.supervisor.inactive`)}</option>
+                    )}
+                  </Select>
+                </div>
+              )}
+            />
+          )}
+        </FormField>
+      )}
+    </ProfessionalCard>
   )
 }
 

@@ -2575,7 +2575,8 @@
             "label": "Superviseur",
             "none": "Aucun (pas un stagiaire)",
             "saved": "Superviseur enregistré.",
-            "loadError": "La liste des professionnels ne se charge pas."
+            "loadError": "La liste des professionnels ne se charge pas.",
+            "inactive": "Un professionnel inactif"
           }
         }
       },
