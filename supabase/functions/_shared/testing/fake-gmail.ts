@@ -21,14 +21,17 @@
  *   otherwise); every write bumps the history id and appends records;
  * - `history.list` from an id older than `HISTORY_KEPT` records → 404
  *   (Google's « start history id too old »);
- * - `messages.list` honours `q=newer_than:Nd`, `maxResults` and `pageToken`;
+ * - `messages.list` honours `q=newer_than:Nd`, `q=rfc822msgid:<id>`,
+ *   `maxResults` and `pageToken`;
  * - `watch` records the topic and answers an expiry 7 days ahead;
  *   `onWatchNotification` (the local server posts Pub/Sub pushes) fires on
  *   each `deliver`;
  * - `messages.send` (`/upload/gmail/v1/users/me/messages/send?uploadType=
  *   multipart`) needs the `gmail.send` scope (403 otherwise), keeps the raw
  *   message in `sent` and adds it to the mailbox with the `SENT` label, in
- *   the thread its metadata names (else a new one);
+ *   the thread its metadata names (else a new one), with its own Message-ID;
+ *   `failNextSend` makes the next one fail after it was sent (Gmail sent, then
+ *   answered 503) or before (refused, 400);
  * - `/oauth2/v3/certs` publishes the `signer`'s key, as Google publishes the
  *   keys of the ID tokens Pub/Sub's authenticated pushes carry.
  * Error bodies carry `FAKE_ERROR_MARKER`, so tests can prove the function
@@ -111,6 +114,8 @@ export interface Delivery {
   }[]
   /** Unix ms; defaults to the fake's clock. */
   at?: number
+  /** The Message-ID header, with its angle brackets; else `<id@fake.gmail.test>`. */
+  messageId?: string
 }
 
 export interface FakeGmailOptions {
@@ -149,6 +154,8 @@ export interface FakeGmail {
   deliver(input: Delivery): FakeMessage
   /** Issues an authorization code (what the consent page does). */
   issueCode(scope?: string): string
+  /** The next `messages.send`: sent then a 503 (`after_send`), or refused with a 400 (`refused`). */
+  failNextSend(mode: 'after_send' | 'refused'): void
   /** Removes the messages and the history. */
   reset(): void
 }
@@ -191,6 +198,7 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
   let counter = 1
   let watch: FakeGmail['watch'] = null
   let labels: FakeLabel[] = defaultLabels()
+  let nextSendFailure: 'after_send' | 'refused' | null = null
 
   const nextHistory = (record: Omit<HistoryRecord, 'id'>) => {
     historyId++
@@ -226,7 +234,10 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       { name: 'To', value: input.to ?? emailAddress },
       { name: 'Subject', value: input.subject },
       { name: 'Date', value: new Date(at).toUTCString() },
-      { name: 'Message-ID', value: `<${id}@fake.gmail.test>` },
+      {
+        name: 'Message-ID',
+        value: input.messageId ?? `<${id}@fake.gmail.test>`,
+      },
     ]
     const text = input.text ?? ''
     const html = input.html ??
@@ -565,7 +576,11 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
           [...messages.values()].some((x) => x.threadId === meta.threadId)
         ? meta.threadId
         : undefined
+      const failure = nextSendFailure
+      nextSendFailure = null
+      if (failure === 'refused') return error(400, 'INVALID_ARGUMENT')
       const message = deliver({
+        messageId: field('Message-ID') || undefined,
         from: decodeWords(field('From')),
         to: decodeWords(field('To')),
         subject: decodeWords(field('Subject')),
@@ -574,6 +589,7 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
         labelIds: ['SENT'],
       })
       sent.push({ threadId: meta.threadId ?? null, raw, id: message.id })
+      if (failure === 'after_send') return error(503, 'UNAVAILABLE')
       return json(200, {
         id: message.id,
         threadId: message.threadId,
@@ -603,10 +619,17 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       const q = url.searchParams.get('q') ?? ''
       const newer = /newer_than:(\d+)d/.exec(q)
       const since = newer ? now() - Number(newer[1]) * 86_400_000 : 0
+      const msgid = /rfc822msgid:<?([^<>\s]+)>?/.exec(q)?.[1]
       const labelIds = url.searchParams.getAll('labelIds')
       let all = [...messages.values()].filter((m) =>
         Number(m.internalDate) >= since
       )
+        .filter((m) =>
+          !msgid ||
+          m.payload.headers.some((h) =>
+            h.name === 'Message-ID' && h.value === `<${msgid}>`
+          )
+        )
         .filter((m) => labelIds.every((l) => m.labelIds.includes(l)))
         .sort((a, b) => Number(b.internalDate) - Number(a.internalDate))
       const start = Number(url.searchParams.get('pageToken') ?? 0)
@@ -746,6 +769,9 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
     sent,
     deliver,
     issueCode,
+    failNextSend(mode) {
+      nextSendFailure = mode
+    },
     reset() {
       messages.clear()
       attachments.clear()
@@ -754,6 +780,7 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       calls.length = 0
       watch = null
       counter = 1
+      nextSendFailure = null
     },
   }
   return fake

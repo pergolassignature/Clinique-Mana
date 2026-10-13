@@ -6,6 +6,7 @@ import {
   hardenHtml,
   htmlToText,
   type OutgoingMessage,
+  referencesHeader,
 } from './compose.ts'
 
 const decoder = new TextDecoder()
@@ -104,7 +105,9 @@ Deno.test('buildMime: headers, threading, a text and an HTML part', () => {
   assert(raw.includes('To: alice@exemple.test\r\n'))
   assert(raw.includes('Cc: bruno@exemple.test\r\n'))
   assert(raw.includes('In-Reply-To: <m1@exemple.test>\r\n'))
-  assert(raw.includes('References: <m0@exemple.test> <m1@exemple.test>\r\n'))
+  assert(
+    raw.includes('References: <m0@exemple.test>\r\n <m1@exemple.test>\r\n'),
+  )
   assert(raw.includes('Message-ID: <r1@clinique.test>\r\n'))
   assert(raw.includes('Content-Type: multipart/alternative; boundary="alt_r2"'))
   assertEquals(partTexts(raw), ['Bonjour', '<p>Bonjour</p>'])
@@ -127,11 +130,40 @@ Deno.test('buildMime: attachments in a mixed part, their French names in RFC 223
   assertEquals(partTexts(raw)[2], '%PDF-1.4')
 })
 
-Deno.test('buildMime: refuses a bad address, a forged Message-ID or no recipient', () => {
+Deno.test('buildMime: the send’s own Message-ID, the same on every try', () => {
+  const raw = decoder.decode(buildMime(message({ messageId: 'send-1' })))
+  assert(raw.includes('Message-ID: <send-1@clinique.test>\r\n'))
+  assertThrows(() => buildMime(message({ messageId: 'a>\r\nBcc: x@y.test' })))
+})
+
+Deno.test('referencesHeader: valid ids only, first and latest of a long chain, folded', () => {
+  assertEquals(referencesHeader(null), null)
+  assertEquals(
+    referencesHeader('<a@x> pas-un-id <b c> <b@x>'),
+    '<a@x>\r\n <b@x>',
+  )
+  const long = Array.from({ length: 30 }, (_, i) => `<m${i}@x>`).join(' ')
+  const kept = referencesHeader(long)!.split('\r\n ')
+  assertEquals(kept.length, 20)
+  assertEquals(kept[0], '<m0@x>')
+  assertEquals(kept[1], '<m11@x>')
+  assertEquals(kept[19], '<m29@x>')
+})
+
+Deno.test('buildMime: refuses a bad address or no recipient; drops a forged Message-ID', () => {
   assertThrows(() =>
     buildMime(message({ to: ['alice@exemple.test\r\nBcc: x@y.test'] }))
   )
-  assertThrows(() => buildMime(message({ inReplyTo: '<a>\r\nBcc: x@y.test' })))
+  const forged = decoder.decode(
+    buildMime(
+      message({
+        inReplyTo: '<a>\r\nBcc: x@y.test',
+        references: '<a>\r\nBcc: x@y.test',
+      }),
+    ),
+  )
+  assertFalse(forged.includes('x@y.test'))
+  assertFalse(forged.includes('In-Reply-To'))
   assertThrows(() => buildMime(message({ to: [] })))
   assertThrows(() =>
     buildMime(

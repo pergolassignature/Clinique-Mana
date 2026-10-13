@@ -104,21 +104,23 @@ revoke all on function private.mail_connection_for(uuid, uuid, uuid) from public
 -- -----------------------------------------------------------------------------
 -- The composer's uploads
 -- -----------------------------------------------------------------------------
--- A file the composer attaches (« Joindre »): uploaded with communications.inbox, read with it,
--- kept 30 days unless sent (then kept with the send, CM-16).
+-- A file the composer attaches (« Joindre »): uploaded with communications.inbox, read by its owner
+-- (the person who uploaded it; the mailbox managers too), kept 30 days unless sent (then kept with
+-- the send, CM-16). Never every inbox user's: an upload is a person's until she sends it.
 insert into public.upload_purposes
   (key, module_key, bucket, upload_permission, view_permission, owner_permission, max_bytes, mime_types,
    max_image_side, retain_days)
 values
-  ('mail_outgoing', 'communications', 'documents', 'communications.inbox', 'communications.inbox', null,
+  ('mail_outgoing', 'communications', 'documents', 'communications.inbox', 'communications.mailboxes_manage', 'communications.inbox',
    10485760,
    array['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/msword',
          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
    null, 30)
 on conflict do nothing;
 
--- The files p_actor may attach in p_org (CM-16): her own uploads for the composer, or a mirrored
--- message's attachment she may read (a forward); ready, of the clinic. Others are absent.
+-- The files p_actor may attach in p_org (CM-16): her own uploads for the composer, or an attachment
+-- of a message of a mailbox she reads (shared, or her own: a forward), with its view permission;
+-- ready, of the clinic. Others are absent.
 create function private.mail_files_for(p_org uuid, p_actor uuid, p_file_ids uuid[])
 returns table (id uuid, bucket text, object_path text, original_name text, mime_type text, size_bytes int, purpose text)
 language sql
@@ -131,7 +133,12 @@ as $$
      and (f.retain_until is null or f.retain_until > pg_catalog.now())
      and ((f.purpose = 'mail_outgoing' and f.uploaded_by = p_actor)
           or (f.purpose = 'mail_attachment'
-              and (f.view_permission is null or f.view_permission = any (private.permission_keys_for(p_actor)))))
+              and (f.view_permission is null or f.view_permission = any (private.permission_keys_for(p_actor)))
+              and exists (select 1 from public.mail_attachments a
+                            join public.mail_messages m on m.id = a.message_id
+                            join public.mail_connections c on c.id = m.connection_id
+                           where a.stored_file_id = f.id and c.org_id = p_org
+                             and (c.kind = 'shared' or c.owner_profile_id = p_actor))))
 $$;
 revoke all on function private.mail_files_for(uuid, uuid, uuid[]) from public, anon, authenticated, service_role;
 
@@ -279,7 +286,8 @@ create table public.mail_sends (
   recipient_count int not null check (recipient_count between 1 and 150),
   -- The composer's uploads and the forwarded attachments.
   file_ids uuid[] not null default '{}',
-  -- `pending` (Gmail asked), `sent`, `failed` (a retry with the same key tries again).
+  -- `pending` (Gmail asked), `sent`, `failed` (Gmail refused: a retry with the same key tries
+  -- again), `unknown` (Gmail did not answer: maybe sent; a retry first looks for its Message-ID).
   status text not null default 'pending',
   error_code text,
   gmail_message_id text,
@@ -289,7 +297,7 @@ create table public.mail_sends (
   sent_at timestamptz,
   unique (org_id, send_key),
   constraint mail_sends_mode_check check (mode in ('new', 'reply', 'reply_all', 'forward')),
-  constraint mail_sends_status_check check (status in ('pending', 'sent', 'failed')),
+  constraint mail_sends_status_check check (status in ('pending', 'sent', 'failed', 'unknown')),
   constraint mail_sends_error_check check (error_code is null or error_code ~ '^[a-z_]{1,40}$'),
   constraint mail_sends_sent_check check (status <> 'sent' or (gmail_message_id is not null and sent_at is not null))
 );
@@ -527,11 +535,12 @@ declare
   v_org uuid := private.current_user_org_id();
   v_id uuid;
   v_name text := pg_catalog.btrim(coalesce(p_name, ''));
-  v_error text := coalesce(private.mail_placeholder_error(p_subject), private.mail_placeholder_error(p_body_html));
+  v_error text;
 begin
   if not private.has_permission('communications.inbox') then
     raise exception 'Permission refusée : communications.inbox' using errcode = '42501';
   end if;
+  v_error := coalesce(private.mail_placeholder_error(p_subject), private.mail_placeholder_error(p_body_html));
   if pg_catalog.length(v_name) not between 1 and 80 then
     raise exception 'Donnez un nom au modèle (80 caractères au plus).' using errcode = 'P0001', hint = 'name';
   end if;
@@ -717,7 +726,7 @@ begin
       return pg_catalog.jsonb_build_object('send_id', v_existing.id, 'already_sent', true,
                'gmail_message_id', v_existing.gmail_message_id, 'gmail_thread_id', v_existing.gmail_thread_id);
     end if;
-    if v_existing.status = 'pending' then
+    if v_existing.status = 'pending' and v_existing.updated_at > pg_catalog.now() - interval '2 minutes' then
       raise exception 'Ce courriel est déjà en cours d''envoi.' using errcode = 'P0001', hint = 'in_progress';
     end if;
   end if;
@@ -786,7 +795,10 @@ begin
 
   -- The file it is about: named, else the thread's link (only while Clients is on).
   v_client := nullif(p_send ->> 'client_id', '')::uuid;
-  if v_client is null and v_thread.id is not null then
+  if v_client is not null and not ('clients.view' = any (private.permission_keys_for(p_actor))) then
+    raise exception 'Choisissez un dossier client de la clinique.' using errcode = 'P0001', hint = 'client_id';
+  end if;
+  if v_client is null and v_thread.id is not null and 'clients.view' = any (private.permission_keys_for(p_actor)) then
     select l.client_id into v_client from public.mail_thread_links l where l.thread_id = v_thread.id and l.status = 'linked';
   end if;
   if v_client is not null then
@@ -856,17 +868,25 @@ begin
      where s.id = v_existing.id;
     v_send_id := v_existing.id;
   else
-    insert into public.mail_sends (org_id, connection_id, sent_by, send_key, mode, thread_id, client_id, draft_id,
-                                   template_key, recipient_count, file_ids)
-    values (p_org_id, v_connection.id, p_actor, v_key, v_mode, v_thread.id, v_client,
-            nullif(p_send ->> 'draft_id', '')::uuid, nullif(pg_catalog.left(p_send ->> 'template_key', 100), ''),
-            pg_catalog.cardinality(v_all), v_files)
-    returning id into v_send_id;
+    begin
+      insert into public.mail_sends (org_id, connection_id, sent_by, send_key, mode, thread_id, client_id, draft_id,
+                                     template_key, recipient_count, file_ids)
+      values (p_org_id, v_connection.id, p_actor, v_key, v_mode, v_thread.id, v_client,
+              nullif(p_send ->> 'draft_id', '')::uuid, nullif(pg_catalog.left(p_send ->> 'template_key', 100), ''),
+              pg_catalog.cardinality(v_all), v_files)
+      returning id into v_send_id;
+    exception
+      when unique_violation then
+        raise exception 'Ce courriel est déjà en cours d''envoi.' using errcode = 'P0001', hint = 'in_progress';
+    end;
   end if;
 
   return pg_catalog.jsonb_build_object(
     'send_id', v_send_id,
     'already_sent', false,
+    -- The message's Message-ID is <send_id@mailbox domain>: the same for every try, so a try after
+    -- `unknown` first asks Gmail whether it went (CM-16).
+    'verify_first', coalesce(v_existing.status in ('unknown', 'pending'), false),
     'from_name', v_clinic,
     'from_address', v_connection.email_address,
     'to', pg_catalog.to_jsonb(v_to), 'cc', pg_catalog.to_jsonb(v_cc), 'bcc', pg_catalog.to_jsonb(v_bcc),
@@ -874,11 +894,12 @@ begin
     -- A forward starts a new thread in Gmail; a reply stays in its thread.
     'gmail_thread_id', case when v_mode in ('reply', 'reply_all') then v_thread.gmail_thread_id end,
     -- The mirror keeps Message-IDs without their angle brackets (mime.ts): the headers need them.
-    'in_reply_to', case when v_mode in ('reply', 'reply_all') then '<' || v_message.rfc_message_id || '>' end,
+    'in_reply_to', case when v_mode in ('reply', 'reply_all') and v_message.rfc_message_id ~ '^[^<>[:space:]]{1,250}$'
+                        then '<' || v_message.rfc_message_id || '>' end,
     'references', case when v_mode in ('reply', 'reply_all') then (
         select pg_catalog.string_agg('<' || r.rfc_message_id || '>', ' ' order by r.sent_at, r.id)
           from (select m.rfc_message_id, m.sent_at, m.id from public.mail_messages m
-                 where m.thread_id = v_thread.id and m.rfc_message_id is not null
+                 where m.thread_id = v_thread.id and m.rfc_message_id ~ '^[^<>[:space:]]{1,250}$'
                    and (v_message.id is null or m.sent_at <= v_message.sent_at)
                  order by m.sent_at desc, m.id desc limit 20) r) end,
     'values', v_values,
@@ -913,7 +934,7 @@ declare
   v public.mail_sends;
   v_thread uuid;
 begin
-  if p_status not in ('sent', 'failed') then
+  if p_status not in ('sent', 'failed', 'unknown') then
     raise exception 'Invalid status' using errcode = '22023';
   end if;
   select s.* into v from public.mail_sends s where s.id = p_send_id and s.org_id = p_org_id for update;
@@ -921,8 +942,8 @@ begin
     raise exception 'Send not pending' using errcode = '22023';
   end if;
   perform pg_catalog.set_config('app.audit_source', 'fn:gmail-send', true);
-  if p_status = 'failed' then
-    update public.mail_sends s set status = 'failed', error_code = coalesce(p_error_code, 'failed') where s.id = v.id;
+  if p_status in ('failed', 'unknown') then
+    update public.mail_sends s set status = p_status, error_code = coalesce(p_error_code, 'failed') where s.id = v.id;
     return null;
   end if;
   if p_gmail_message_id is null or p_gmail_message_id !~ '^[A-Za-z0-9_-]{1,64}$'
@@ -1052,6 +1073,22 @@ begin
       exit when pg_catalog.cardinality(v_ids) < 500;
     end loop;
   end loop;
+  -- A message sent from the app about a file whose thread was mirrored only later (the immediate
+  -- mirror failed): its thread is the file's (a person's choice, manual), unless someone decided.
+  insert into public.mail_thread_links as l (thread_id, org_id, status, client_id, candidate_client_ids, source, linked_by, linked_at)
+  select distinct on (t.id) t.id, s.org_id, 'linked', s.client_id, '{}', 'manual', s.sent_by, pg_catalog.now()
+    from public.mail_sends s
+    join public.mail_threads t on t.connection_id = s.connection_id and t.gmail_thread_id = s.gmail_thread_id
+   where s.status = 'sent' and s.client_id is not null and s.thread_id is null
+     and public.module_enabled_for_org(s.org_id, 'clients')
+   order by t.id, s.sent_at desc
+  on conflict (thread_id) do update
+    set status = 'linked', client_id = excluded.client_id, candidate_client_ids = '{}', source = 'manual',
+        linked_by = excluded.linked_by, linked_at = excluded.linked_at
+    where l.status <> 'linked' and l.source is distinct from 'manual';
+  update public.mail_sends s set thread_id = t.id
+    from public.mail_threads t
+   where s.status = 'sent' and s.thread_id is null and t.connection_id = s.connection_id and t.gmail_thread_id = s.gmail_thread_id;
   select pg_catalog.count(*) into v_linked_after from public.mail_thread_links l where l.status = 'linked';
   return 'threads=' || v_seen || ' linked=' || (v_linked_after - v_linked_before);
 end;

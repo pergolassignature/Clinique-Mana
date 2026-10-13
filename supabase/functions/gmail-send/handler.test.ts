@@ -51,6 +51,7 @@ const prepared = (
 ) => ({
   send_id: SEND_ID,
   already_sent: false,
+  verify_first: false,
   from_name: 'Clinique MANA',
   from_address: MAILBOX,
   to: ['alice@exemple.test'],
@@ -154,6 +155,8 @@ Deno.test('gmail-send: a reply goes in its thread with its headers, the values f
     const sent = h.google.sent[0]
     assertEquals(sent.threadId, [...h.google.messages.values()][0].threadId)
     assert(sent.raw.includes('In-Reply-To: <m1@exemple.test>\r\n'))
+    // The send's own Message-ID: the same on every try (a retry can look for it).
+    assert(sent.raw.includes(`Message-ID: <${SEND_ID}@clinique.test>\r\n`))
     assert(sent.raw.includes('To: alice@exemple.test\r\n'))
     assert(sent.raw.includes('From: "Clinique MANA" <info@clinique.test>\r\n'))
     const [text, html] = decodedParts(sent.raw)
@@ -284,7 +287,8 @@ Deno.test('gmail-send: Gmail refuses (no send scope) → 502, the send marked fa
     })
     const res = await createHandler(h.deps)(post(body()))
     assertEquals(res.status, 502)
-    assertEquals((await res.json()).error.code, 'provider_error')
+    const json = await res.json()
+    assertEquals([json.error.code, json.outcome], ['provider_error', 'refused'])
     assertEquals(
       h.google.calls.filter((c) => c.path.endsWith('/messages/send')).length,
       1,
@@ -306,4 +310,60 @@ Deno.test('gmail-send: a mailbox Google no longer accepts → 409, nothing sent'
     assertEquals(h.google.sent.length, 0)
     const close = h.service.calls.find((c) => c.fn === 'complete_mail_send')!
     assertEquals(close.args.p_error_code, 'needs_reconnect')
+  }))
+
+Deno.test('gmail-send: no answer from Gmail → unknown; the retry finds the message by its Message-ID and never sends twice', () =>
+  run(async () => {
+    let verify = false
+    const h = setup({
+      prepare: () => ({
+        data: {
+          ...prepared([...h.google.messages.values()][0].threadId),
+          verify_first: verify,
+        },
+      }),
+    })
+    h.google.failNextSend('after_send')
+    let res = await createHandler(h.deps)(post(body()))
+    assertEquals(res.status, 502)
+    assertEquals((await res.json()).outcome, 'unknown')
+    assertEquals(h.google.sent.length, 1)
+    let close = h.service.calls.find((c) => c.fn === 'complete_mail_send')!
+    assertEquals([close.args.p_status, close.args.p_error_code], [
+      'unknown',
+      'gmail_provider_error',
+    ])
+
+    // The same key again: prepare says look first; Gmail has it.
+    verify = true
+    res = await createHandler(h.deps)(post(body()))
+    assertEquals(res.status, 200)
+    const answer = await res.json()
+    assertEquals(answer.gmail_message_id, h.google.sent[0].id)
+    assertEquals(h.google.sent.length, 1)
+    close = h.service.calls.filter((c) => c.fn === 'complete_mail_send').at(-1)!
+    assertEquals([close.args.p_status, close.args.p_gmail_message_id], [
+      'sent',
+      h.google.sent[0].id,
+    ])
+  }))
+
+Deno.test('gmail-send: a retry after no answer that Gmail never received is sent once', () =>
+  run(async () => {
+    const h = setup({
+      prepare: () => ({
+        data: {
+          ...prepared([...h.google.messages.values()][0].threadId),
+          verify_first: true,
+        },
+      }),
+    })
+    const res = await createHandler(h.deps)(post(body()))
+    assertEquals(res.status, 200)
+    assertEquals(h.google.sent.length, 1)
+    assert(
+      h.google.calls.some((c) =>
+        c.method === 'GET' && c.path.endsWith('/messages')
+      ),
+    )
   }))

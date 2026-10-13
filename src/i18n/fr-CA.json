@@ -6945,6 +6945,7 @@
         "expand": "Agrandir",
         "savedAt": "Brouillon enregistré à {time}",
         "saveFailed": "Le brouillon n'a pas pu être enregistré.",
+        "cancelledByClose": "Envoi annulé : le message n'est pas parti, il est dans « Brouillons ».",
         "draftGone": "Ce brouillon n'existe plus.",
         "prefixReply": "Re :",
         "prefixForward": "TR :",
@@ -6962,7 +6963,8 @@
         },
         "errors": {
           "sendFailed": "Le courriel n'a pas pu être envoyé.",
-          "notConfirmed": "Gmail n'a pas confirmé l'envoi. Regardez dans « Envoyés » avant de réessayer.",
+          "notConfirmed": "Gmail n'a pas confirmé l'envoi. Cliquez de nouveau sur « Envoyer » sans rien changer : l'app vérifie d'abord s'il est déjà parti, il ne partira pas deux fois.",
+          "refused": "Gmail a refusé le courriel. Vérifiez les adresses et les pièces jointes, puis réessayez.",
           "uploadFailed": "Le fichier n'a pas pu être joint."
         }
       },

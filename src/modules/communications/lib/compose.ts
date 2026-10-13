@@ -53,13 +53,22 @@ export function replyRecipients(message: MailMessage, mailbox: string, all: bool
   return { to, cc }
 }
 
+/**
+ * Someone else's text (a quoted message, its subject): a `{{` in it is not a placeholder, so it is
+ * broken with a zero-width space — never filled by the server, never a reason to refuse the send.
+ */
+export function inertPlaceholders(text: string): string {
+  return text.replaceAll('{{', '{\u200B{').replaceAll('}}', '}\u200B}')
+}
+
 /** « Re : … » / « TR : … », once (the French prefixes and Gmail's English ones are recognised). */
 export function prefixedSubject(subject: string | null, mode: ComposeMode): string {
   const base = (subject ?? '').trim()
   if (mode === 'new') return base
   const prefix = mode === 'forward' ? t('modules.communications.composer.prefixForward') : t('modules.communications.composer.prefixReply')
   const already = mode === 'forward' ? /^(tr|fwd?)\s*:/i : /^(re)\s*:/i
-  return already.test(base) ? base : `${prefix} ${base}`.trim()
+  const subjectText = inertPlaceholders(base)
+  return already.test(subjectText) ? subjectText : `${prefix} ${subjectText}`.trim()
 }
 
 const escapeHtml = (text: string) =>
@@ -76,16 +85,18 @@ export function textToHtml(text: string): string {
 
 /** The quoted message under a reply or a forward (its text, never its HTML: nothing remote comes along). */
 export function quoteHtml(message: MailMessage, mode: ComposeMode): string {
-  const from = message.from_name?.trim() ? `${message.from_name} <${message.from_address ?? ''}>` : (message.from_address ?? '')
+  const from = inertPlaceholders(
+    message.from_name?.trim() ? `${message.from_name} <${message.from_address ?? ''}>` : (message.from_address ?? ''),
+  )
   const date = formatClinicDateTime(message.sent_at)
-  const text = message.body_text?.trim() || message.snippet?.trim() || ''
+  const text = inertPlaceholders(message.body_text?.trim() || message.snippet?.trim() || '')
   const body = textToHtml(text)
   if (mode === 'forward') {
     const header = [
       t('modules.communications.composer.forwardHeader'),
       t('modules.communications.composer.forwardFrom', { from }),
       t('modules.communications.composer.forwardDate', { date }),
-      t('modules.communications.composer.forwardSubject', { subject: message.subject ?? '' }),
+      t('modules.communications.composer.forwardSubject', { subject: inertPlaceholders(message.subject ?? '') }),
     ]
       .map(escapeHtml)
       .join('<br>')

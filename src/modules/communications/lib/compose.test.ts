@@ -77,6 +77,16 @@ describe('subject and quote', () => {
     expect(quoteHtml(message(), 'forward')).toContain(t('modules.communications.composer.forwardHeader'))
   })
 
+  it('a {{ in the quoted text or its subject is not a placeholder: never filled, never refused', () => {
+    const quoted = message({ subject: 'Tarifs {{2027}}', body_text: 'Mon code est {{person.first_name}}.' })
+    const reply = quoteHtml(quoted, 'reply')
+    expect(reply).not.toContain('{{')
+    expect(reply).toContain('Mon code est {\u200B{person.first_name}\u200B}.')
+    expect(quoteHtml(quoted, 'forward')).not.toMatch(/\{\{|\}\}/)
+    expect(prefixedSubject('Tarifs {{2027}}', 'reply')).not.toContain('{{')
+    expect(prefixedSubject('Tarifs {{2027}}', 'new')).toBe('Tarifs {{2027}}')
+  })
+
   it('a template’s text as paragraphs, escaped', () => {
     expect(textToHtml('Bonjour {{person.first_name}},\n\nMerci <3\nÀ bientôt')).toBe('<p>Bonjour {{person.first_name}},</p><p>Merci &lt;3<br>À bientôt</p>')
     expect(hasText('<p></p><p>&nbsp;</p>')).toBe(false)

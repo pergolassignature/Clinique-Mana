@@ -4,7 +4,7 @@
 -- idempotency) and its close (complete_mail_send), the merge, and the backfill of CM2b's link.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(59);
+select plan(70);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -36,19 +36,21 @@ $$, 'the helpers are granted to no role');
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 select ('a0000000-0000-0000-0000-00000000000' || n)::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
        'u' || n || '@cm.test', '', now(), '{}', '{}', now(), now()
-  from generate_series(1, 4) n;
+  from generate_series(1, 5) n;
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Clinique A'), ('b0000000-0000-0000-0000-00000000000b', 'Clinique B');
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Julie Gagnon', 'u1@cm.test', 'active'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Pro A', 'u2@cm.test', 'active'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000b', 'Admin B', 'u3@cm.test', 'active'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Admin Deux', 'u4@cm.test', 'active');
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Admin Deux', 'u4@cm.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe', 'u5@cm.test', 'active');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000b', 'admin'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'admin');
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant');
 insert into public.org_modules (org_id, module_key, enabled)
 select o.id, m.key, true
   from (values ('b0000000-0000-0000-0000-00000000000a'::uuid), ('b0000000-0000-0000-0000-00000000000b'::uuid)) o(id)
@@ -261,6 +263,8 @@ select lives_ok($$ select public.prepare_mail_send('a0000000-0000-0000-0000-0000
 reset role;
 update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'communications';
 update public.org_modules set testers_only = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'clients';
+insert into public.org_module_testers (org_id, module_key, user_id)
+values ('b0000000-0000-0000-0000-00000000000a', 'clients', 'a0000000-0000-0000-0000-000000000001');
 set local role service_role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select throws_ok($$ select public.prepare_mail_send('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
@@ -283,6 +287,81 @@ select lives_ok($$ select public.prepare_mail_send('a0000000-0000-0000-0000-0000
   'after a failure, the same « Envoyer » tries again');
 select is((select status from public.mail_sends where send_key = 'f0000000-0000-0000-0000-000000000007'), 'pending', '… pending again');
 reset role;
+
+-- No answer from Gmail: `unknown`; the same key then looks in Gmail first (CM-16).
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select public.complete_mail_send('b0000000-0000-0000-0000-00000000000a', s.id, 'unknown', null, null, 'gmail_timeout')
+  from public.mail_sends s where s.send_key = 'f0000000-0000-0000-0000-000000000007';
+select is((select status from public.mail_sends where send_key = 'f0000000-0000-0000-0000-000000000007'), 'unknown',
+  'no answer from Gmail: unknown, not failed');
+select is((public.prepare_mail_send('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
+  '{"send_key": "f0000000-0000-0000-0000-000000000007", "connection_id": "c0000000-0000-0000-0000-00000000000a", "to": ["x@y.test"], "subject": "Essai", "body_html": "<p>x</p>"}')
+  ->> 'verify_first'), 'true', 'the next try with the same key looks in Gmail before sending');
+select is((public.prepare_mail_send('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
+  '{"send_key": "f0000000-0000-0000-0000-000000000008", "connection_id": "c0000000-0000-0000-0000-00000000000a", "to": ["x@y.test"], "subject": "Essai", "body_html": "<p>x</p>"}')
+  ->> 'verify_first'), 'false', 'a first try sends at once');
+reset role;
+-- A send left pending (the function died while Gmail was asked): after two minutes, tried again, looking first.
+alter table public.mail_sends disable trigger mail_sends_set_updated_at;
+update public.mail_sends set updated_at = now() - interval '3 minutes' where send_key = 'f0000000-0000-0000-0000-000000000008';
+alter table public.mail_sends enable trigger mail_sends_set_updated_at;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select is((public.prepare_mail_send('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
+  '{"send_key": "f0000000-0000-0000-0000-000000000008", "connection_id": "c0000000-0000-0000-0000-00000000000a", "to": ["x@y.test"], "subject": "Essai", "body_html": "<p>x</p>"}')
+  ->> 'verify_first'), 'true', 'a pending send left behind is tried again, looking first');
+reset role;
+
+-- The file needs clients.view: the adjointe reads the inbox without it, names no file, and a
+-- thread's link is not hers to use.
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'clients.view', false),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'communications.inbox', true);
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select throws_ok($$ select public.prepare_mail_send('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a',
+  '{"send_key": "f0000000-0000-0000-0000-000000000009", "connection_id": "c0000000-0000-0000-0000-00000000000a", "client_id": "d0000000-0000-0000-0000-000000000002", "to": ["bruno@x.test"], "subject": "Essai", "body_html": "<p>x</p>"}') $$,
+  'P0001', 'Choisissez un dossier client de la clinique.', 'without clients.view: no file named');
+select is((public.prepare_mail_send('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a',
+  jsonb_build_object('send_key', 'f0000000-0000-0000-0000-00000000000a', 'connection_id', 'c0000000-0000-0000-0000-00000000000a',
+    'mode', 'reply', 'thread_id', current_setting('test.t1'), 'reply_to_message_id', current_setting('test.m1'),
+    'to', '["alice@x.test"]'::jsonb, 'subject', 'Re: Rendez-vous', 'body_html', '<p>x</p>')) -> 'values' ->> 'person.first_name'), null,
+  '… nor the name from the thread''s link');
+select is((select client_id from public.mail_sends where send_key = 'f0000000-0000-0000-0000-00000000000a'), null,
+  '… and the send is about no file');
+
+-- A mirrored attachment is hers to forward only from a mailbox she reads.
+reset role;
+insert into public.mail_connections (id, org_id, email_address, kind, owner_profile_id, status, scopes, connected_by) values
+  ('c0000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000000a', 'julie@a.test', 'personal',
+   'a0000000-0000-0000-0000-000000000001', 'connected', array['https://www.googleapis.com/auth/gmail.modify'], 'a0000000-0000-0000-0000-000000000001');
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select count(*) from public.upsert_mail_messages('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a3', $j$[
+  {"gmail_message_id":"p1","gmail_thread_id":"pt1","from_address":"ami@x.test","subject":"Personnel","sent_at":"2026-10-01T12:00:00Z","label_ids":["INBOX"]}
+]$j$);
+reset role;
+insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id,
+  view_permission, original_name, mime_type, ext, size_bytes, sha256, status, confirmed_at, uploaded_by)
+select ('e0000000-0000-0000-0000-00000000000' || x.n)::uuid, 'b0000000-0000-0000-0000-00000000000a', 'documents',
+       'b0000000-0000-0000-0000-00000000000a/communications/' || m.id || '/e0000000-0000-0000-0000-00000000000' || x.n || '.pdf',
+       'communications', 'mail_attachment', 'mail_message', m.id, 'communications.inbox', 'piece.pdf',
+       'application/pdf', 'pdf', 1000, repeat('a', 64), 'ready', now(), null
+  from (values (4, 'p1'), (5, 'm1')) x(n, gm) join public.mail_messages m on m.gmail_message_id = x.gm;
+insert into public.mail_attachments (org_id, message_id, part_id, filename, mime_type, size_bytes, status, stored_file_id)
+select 'b0000000-0000-0000-0000-00000000000a', m.id, '1', 'piece.pdf', 'application/pdf', 1000, 'stored',
+       ('e0000000-0000-0000-0000-00000000000' || x.n)::uuid
+  from (values (4, 'p1'), (5, 'm1')) x(n, gm) join public.mail_messages m on m.gmail_message_id = x.gm;
+select is((select count(*)::int from private.mail_files_for('b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000004',
+  array['e0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000005']::uuid[])), 1,
+  'Admin Deux forwards the shared mailbox''s attachment, never one of Julie''s personal mailbox');
+select is((select count(*)::int from private.mail_files_for('b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000001',
+  array['e0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000005']::uuid[])), 2,
+  'Julie forwards both');
+select results_eq($$ select view_permission, owner_permission from public.upload_purposes where key = 'mail_outgoing' $$,
+  $$ values ('communications.mailboxes_manage', 'communications.inbox') $$,
+  'a composer upload is read by its owner (and the mailbox managers), not every inbox user');
 
 -- =============================================================================
 -- Merge, and the backfill of CM2b
@@ -313,6 +392,23 @@ select results_eq($$ select t.gmail_thread_id, l.status, l.source from public.ma
                       where t.gmail_thread_id in ('old1', 'old2') order by 1 $$,
   $$ values ('old1', 'linked', 'auto'), ('old2', 'unlinked', 'manual') $$, 'the old thread linked, the one a person unlinked left alone');
 select matches(private.job_mail_links_backfill(), '^threads=\d+ linked=0$', 'a second run changes nothing');
+-- A message sent about Alice's file whose mirror failed: the thread arrives with the next sync, the job links it.
+insert into public.mail_sends (org_id, connection_id, sent_by, send_key, mode, client_id, recipient_count, status, gmail_message_id, gmail_thread_id, sent_at)
+values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000001',
+        'f0000000-0000-0000-0000-0000000000ff', 'new', 'd0000000-0000-0000-0000-000000000001', 1, 'sent', 'late1', 'tlate', now());
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select count(*) from public.upsert_mail_messages('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-00000000000a', $j$[
+  {"gmail_message_id":"late1","gmail_thread_id":"tlate","from_address":"info@a.test","subject":"Envoyé","sent_at":"2026-10-03T12:00:00Z","label_ids":["SENT"]}
+]$j$);
+reset role;
+select private.job_mail_links_backfill();
+select results_eq($$ select l.status, l.client_id::text, l.source, s.thread_id = t.id
+                       from public.mail_threads t join public.mail_thread_links l on l.thread_id = t.id
+                       join public.mail_sends s on s.gmail_thread_id = t.gmail_thread_id
+                      where t.gmail_thread_id = 'tlate' $$,
+  $$ values ('linked', 'd0000000-0000-0000-0000-000000000001', 'manual', true) $$,
+  'a sent thread mirrored late is linked to the file it was written about');
 select ok(exists (select 1 from public.scheduled_jobs where key = 'communications.mail_links_backfill' and is_maintenance and kind = 'sql'),
   'a nightly maintenance job (« Exécuter maintenant »)');
 

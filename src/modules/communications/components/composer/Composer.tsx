@@ -86,8 +86,10 @@ function useAddressField(initial: string[]) {
  * seconds to « Annuler l'envoi ». The draft is saved as one types (the database, never the
  * browser's storage): closing keeps it in « Brouillons ».
  */
-export function Composer({ draftId: initialDraftId, initial, mailboxes, fileLabel, personKnown, onClose, onSent }: ComposerProps) {
+export function Composer({ draftId: initialDraftId, initial: initialProp, mailboxes, fileLabel, personKnown, onClose, onSent }: ComposerProps) {
   const ids = useId()
+  // The starting content, as it was at the opening: a parent rendering again never resets it.
+  const [initial] = useState(initialProp)
   const [connectionId, setConnectionId] = useState(initial.connectionId)
   const [subject, setSubject] = useState(initial.subject)
   const [body, setBody] = useState(initial.bodyHtml)
@@ -108,12 +110,19 @@ export function Composer({ draftId: initialDraftId, initial, mailboxes, fileLabe
   const quote = useRef(initial.mode === 'new' ? '' : initial.bodyHtml)
   const draftId = useRef<string | null>(initialDraftId)
   const saving = useRef<Promise<void>>(Promise.resolve())
-  const sendKey = useRef<string | null>(null)
+  // The send's key, and the content it was made for: the same content sends with the same key
+  // (the server answers what the first « Envoyer » did, and looks in Gmail after no answer).
+  const sendKey = useRef<{ key: string; content: string } | null>(null)
   const firstField = useRef<HTMLInputElement>(null)
   // A change not saved yet: kept even when the composer goes (replaced, or the page left).
   const dirty = useRef(false)
+  const phaseRef = useRef<Phase>({ kind: 'editing' })
 
   const saveDraft = useSaveDraft()
+  // The mutation object changes each render: read through a ref, so the autosave's timer is not
+  // restarted (nor a save run) by a render.
+  const saveDraftRef = useRef(saveDraft.mutateAsync)
+  saveDraftRef.current = saveDraft.mutateAsync
   const deleteDraft = useDeleteDraft()
   const send = useSendMail()
   // The mutation object changes each render: the countdown reads it through a ref, so a render
@@ -139,14 +148,21 @@ export function Composer({ draftId: initialDraftId, initial, mailboxes, fileLabe
   )
   const latest = useRef(content)
   latest.current = content
+  const snapshot = useMemo(() => JSON.stringify(content), [content])
+  // What the database holds (the opening's content until a save): nothing is saved on opening.
+  const savedSnapshot = useRef(snapshot)
+  phaseRef.current = phase
 
   /** Saves what is there now, after any save under way (so a new draft is created once). */
   const saveNow = useCallback(() => {
     saving.current = saving.current.then(async () => {
+      const value = latest.current
+      const text = JSON.stringify(value)
       try {
-        const saved = await saveDraft.mutateAsync({ id: draftId.current, content: latest.current })
+        const saved = await saveDraftRef.current({ id: draftId.current, content: value })
         draftId.current = saved.id
-        dirty.current = false
+        savedSnapshot.current = text
+        dirty.current = JSON.stringify(latest.current) !== text
         setSavedAt(saved.updatedAt)
         setSaveFailed(false)
       } catch {
@@ -154,25 +170,23 @@ export function Composer({ draftId: initialDraftId, initial, mailboxes, fileLabe
       }
     })
     return saving.current
-  }, [saveDraft])
+  }, [])
 
-  // The autosave: a while after the last change, while editing.
-  const first = useRef(true)
+  // The autosave: a while after the last change, while editing; only a real change.
   useEffect(() => {
-    if (first.current) {
-      first.current = false
-      return
-    }
-    if (phase.kind !== 'editing') return
+    if (snapshot === savedSnapshot.current) return
     dirty.current = true
-    sendKey.current = null
+    if (phase.kind !== 'editing') return
     const timer = setTimeout(() => void saveNow(), AUTOSAVE_MS)
     return () => clearTimeout(timer)
-  }, [content, phase.kind, saveNow])
+  }, [snapshot, phase.kind, saveNow])
 
   useEffect(() => {
     firstField.current?.focus()
     return () => {
+      // Closed (or replaced, or the page left) during the five seconds: nothing leaves, and the
+      // person is told where the message is.
+      if (phaseRef.current.kind === 'counting') toast.info(t(`${C}.cancelledByClose`))
       // Unmounted with a change the autosave had not reached: saved once more, quietly.
       if (dirty.current) void saveDraftNow(draftId.current, latest.current).catch(() => undefined)
     }
@@ -183,9 +197,10 @@ export function Composer({ draftId: initialDraftId, initial, mailboxes, fileLabe
     if (phase.kind !== 'counting') return
     if (phase.left === 0) {
       setPhase({ kind: 'sending' })
-      sendKey.current ??= crypto.randomUUID()
+      const text = JSON.stringify(latest.current)
+      if (sendKey.current?.content !== text) sendKey.current = { key: crypto.randomUUID(), content: text }
       sendRef.current.mutate(
-        { sendKey: sendKey.current, draftId: draftId.current, content: latest.current },
+        { sendKey: sendKey.current.key, draftId: draftId.current, content: latest.current },
         {
           onSuccess: (result) => {
             dirty.current = false
@@ -196,7 +211,9 @@ export function Composer({ draftId: initialDraftId, initial, mailboxes, fileLabe
             setPhase({ kind: 'editing' })
             setProblem(
               error instanceof FunctionCallError && error.code === 'provider_error'
-                ? t(`${C}.errors.notConfirmed`)
+                ? error.extra.outcome === 'refused'
+                  ? t(`${C}.errors.refused`)
+                  : t(`${C}.errors.notConfirmed`)
                 : communicationsErrorMessage(error, t(`${C}.errors.sendFailed`)),
             )
           },

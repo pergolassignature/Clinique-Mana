@@ -18,16 +18,21 @@
  *    (never a message sent without its attachment, PS Hub's flaw).
  * 5. The placeholders are filled here (HTML-escaped in the body), the HTML is
  *    hardened, a text alternative written, the MIME built
- *    (`_shared/gmail/compose.ts`), then Gmail `messages.send` (never retried:
- *    Gmail may have sent before failing to answer).
+ *    (`_shared/gmail/compose.ts`) with the send's own Message-ID
+ *    (`<send_id@domain>`, the same on every try), then Gmail `messages.send`
+ *    (never retried, never cut short by the browser leaving: Gmail may have
+ *    sent before failing to answer). A try after an unanswered one
+ *    (`verify_first`) first asks Gmail for that Message-ID: found, it is not
+ *    sent twice.
  * 6. The sent message is mirrored at once (`mirrorMessage`; a failure is left
  *    to the next sync), then `complete_mail_send` closes the send (draft
  *    deleted, uploads kept, the new thread linked to the file).
  * 7. 200 `{ status: 'sent', thread_id, gmail_message_id }`. Failures: 409
- *    `conflict` (the mailbox needs reconnecting), 502 `provider_error`
- *    (Gmail refused or did not answer: the send is marked failed, the same
- *    key may try again), 503 `not_configured`, 500 `internal`; reported with
- *    ids and codes only, never an address, a subject or a body.
+ *    `conflict` (the mailbox needs reconnecting), 502 `provider_error` with
+ *    `outcome`: `refused` (Gmail answered no: marked `failed`) or `unknown`
+ *    (no usable answer, maybe sent: marked `unknown`; the same key looks
+ *    first), 503 `not_configured`, 500 `internal`; reported with ids and codes
+ *    only, never an address, a subject or a body.
  */
 import { z } from 'zod'
 import {
@@ -38,7 +43,11 @@ import {
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
-import { GmailClient, GmailError } from '../_shared/gmail/client.ts'
+import {
+  GmailClient,
+  GmailError,
+  type GmailErrorCode,
+} from '../_shared/gmail/client.ts'
 import {
   buildMime,
   fillPlaceholders,
@@ -58,6 +67,16 @@ import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
 const FN = 'gmail-send'
+
+/** Gmail answered, and not with a send: nothing went (the rest may have sent). */
+const REFUSED: readonly GmailErrorCode[] = [
+  'bad_request',
+  'unauthorized',
+  'forbidden',
+  'not_found',
+  'rate_limited',
+  'too_large',
+]
 
 const addresses = z.array(z.string().trim().min(3).max(254)).max(50)
 
@@ -97,6 +116,7 @@ const preparedSchema = z.union([
   z.object({
     send_id: z.string(),
     already_sent: z.literal(false),
+    verify_first: z.boolean(),
     from_name: z.string(),
     from_address: z.string(),
     to: z.array(z.string()),
@@ -174,20 +194,38 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
 
-    /** Marks the send failed (the same key may try again), then answers. */
+    /**
+     * Marks the send `failed` (nothing went) or `unknown` (maybe sent), then
+     * answers; the same key may try again (after `unknown`, it looks first).
+     */
     const fail = async (
       code: string,
       response: Response,
+      status: 'failed' | 'unknown' = 'failed',
     ): Promise<Response> => {
       const closed = await service.rpc('complete_mail_send', {
         p_org_id: orgId,
         p_send_id: send.send_id,
-        p_status: 'failed',
+        p_status: status,
         p_error_code: code,
       })
       if (closed.error) await report('close_failed')
       return response
     }
+    const providerResponse = (outcome: 'refused' | 'unknown') =>
+      jsonResponse(
+        {
+          error: {
+            code: 'provider_error',
+            message: outcome === 'refused'
+              ? 'Google refused the send'
+              : 'Google did not answer',
+          },
+          outcome,
+        },
+        502,
+        req,
+      )
 
     // The files, from our storage (paths from the database only).
     const attachments: OutgoingAttachment[] = []
@@ -225,6 +263,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         inReplyTo: send.in_reply_to,
         references: send.references,
         attachments,
+        messageId: send.send_id,
         random: () => crypto.randomUUID(),
         date: deps.now(),
       })
@@ -272,11 +311,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         input.connection_id,
         app,
       )
+      // No request signal: a browser leaving mid-send must not cut Gmail short.
       gmail = new GmailClient({
         fetch: deps.fetch,
         origin: origins.api,
         accessToken: credentials.accessToken,
-        signal: req.signal,
       })
     } catch (error) {
       if (error instanceof ReconnectNeeded) {
@@ -292,18 +331,45 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
 
-    let sent: { id: string; threadId: string }
-    try {
-      sent = await gmail.sendMessage(raw, send.gmail_thread_id)
-    } catch (error) {
-      const code = error instanceof GmailError
-        ? `gmail_${error.code}`
-        : 'gmail_failed'
-      await report(code)
-      return fail(
-        code,
-        errorResponse('provider_error', 'Google refused the send', 502, req),
-      )
+    let sent: { id: string; threadId: string } | null = null
+    if (send.verify_first) {
+      // The last try had no answer: did it go? (Its Message-ID is this one.)
+      const domain = send.from_address.split('@')[1]
+      try {
+        const found = await gmail.listMessages({
+          q: `rfc822msgid:<${send.send_id}@${domain}>`,
+          maxResults: 1,
+        })
+        const first = found.messages?.[0]
+        if (first) {
+          sent = {
+            id: first.id,
+            threadId: first.threadId ??
+              (await gmail.getMessage(first.id, 'minimal')).threadId,
+          }
+        }
+      } catch (error) {
+        const code = error instanceof GmailError
+          ? `gmail_${error.code}`
+          : 'gmail_failed'
+        await report(`verify_${code}`)
+        return fail(code, providerResponse('unknown'), 'unknown')
+      }
+    }
+    if (!sent) {
+      try {
+        sent = await gmail.sendMessage(raw, send.gmail_thread_id)
+      } catch (error) {
+        const refused = error instanceof GmailError &&
+          REFUSED.includes(error.code)
+        const code = error instanceof GmailError
+          ? `gmail_${error.code}`
+          : 'gmail_failed'
+        await report(code)
+        return refused
+          ? fail(code, providerResponse('refused'))
+          : fail(code, providerResponse('unknown'), 'unknown')
+      }
     }
     ids.gmail_message_id = sent.id
 

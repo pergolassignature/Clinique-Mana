@@ -135,7 +135,13 @@ export interface OutgoingMessage {
   inReplyTo?: string | null
   references?: string | null
   attachments: OutgoingAttachment[]
-  /** For the `Message-ID` (`<random@domain>`) and the boundaries. */
+  /**
+   * The `Message-ID`'s left part (`<messageId@domain>`): the send's own id, the
+   * same on every try, so a try after an unanswered one can ask Gmail whether
+   * it went. Else random.
+   */
+  messageId?: string
+  /** For the boundaries (and the `Message-ID` without `messageId`). */
   random: () => string
   date: Date
 }
@@ -143,6 +149,26 @@ export interface OutgoingMessage {
 const ADDRESS =
   /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}$/
 const MESSAGE_ID = /^<[^<>\s]{1,250}>$/
+/** At most this many References (the first and the latest, RFC 5322 §3.6.4). */
+const MAX_REFERENCES = 20
+
+/**
+ * The References chain: valid ids only (a malformed one from another mail
+ * program is dropped, never a reason to refuse the reply), the first and the
+ * latest when it is long, one per folded line.
+ */
+export function referencesHeader(
+  references: string | null | undefined,
+): string | null {
+  const ids = (references ?? '').split(/\s+/).filter((id) =>
+    MESSAGE_ID.test(id)
+  )
+  if (ids.length === 0) return null
+  const kept = ids.length > MAX_REFERENCES
+    ? [ids[0], ...ids.slice(ids.length - (MAX_REFERENCES - 1))]
+    : ids
+  return kept.join('\r\n ')
+}
 
 const encoder = new TextEncoder()
 
@@ -207,11 +233,16 @@ function fileNameParams(name: string): string {
 /** The message as RFC 5322 bytes (CRLF line ends). */
 export function buildMime(message: OutgoingMessage): Uint8Array {
   if (message.to.length === 0) throw new Error('no_recipient')
-  for (
-    const id of [message.inReplyTo, ...(message.references?.split(/\s+/) ?? [])]
+  if (
+    message.messageId !== undefined &&
+    !/^[A-Za-z0-9.-]{1,100}$/.test(message.messageId)
   ) {
-    if (id && !MESSAGE_ID.test(id)) throw new Error('invalid_message_id')
+    throw new Error('invalid_message_id')
   }
+  const inReplyTo = message.inReplyTo && MESSAGE_ID.test(message.inReplyTo)
+    ? message.inReplyTo
+    : null
+  const references = referencesHeader(message.references)
   const domain = message.from.address.split('@')[1]
   const headers = [
     `From: ${formatAddress(message.from)}`,
@@ -221,9 +252,9 @@ export function buildMime(message: OutgoingMessage): Uint8Array {
     ...(message.bcc.length ? [`Bcc: ${addressList(message.bcc)}`] : []),
     `Subject: ${encodeWord(message.subject)}`,
     `Date: ${message.date.toUTCString().replace('GMT', '+0000')}`,
-    `Message-ID: <${message.random()}@${domain}>`,
-    ...(message.inReplyTo ? [`In-Reply-To: ${message.inReplyTo}`] : []),
-    ...(message.references ? [`References: ${message.references}`] : []),
+    `Message-ID: <${message.messageId ?? message.random()}@${domain}>`,
+    ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`] : []),
+    ...(references ? [`References: ${references}`] : []),
     'MIME-Version: 1.0',
   ]
   const alternative = `alt_${message.random()}`

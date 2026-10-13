@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
     deleteTemplate: vi.fn(),
     sendMail: vi.fn(),
   },
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
 vi.mock('../../api/composer', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/composer')>()), ...mocks.api }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
@@ -56,14 +56,21 @@ function renderComposer(initial: DraftContent = initialContent({ connectionId: M
   const onClose = vi.fn()
   const onSent = vi.fn()
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(
+  const tree = (value: DraftContent) => (
     <QueryClientProvider client={queryClient}>
       {renderWithContexts(
-        <Composer draftId={draftId} initial={initial} mailboxes={[MAILBOX]} personKnown={false} onClose={onClose} onSent={onSent} />,
+        <Composer draftId={draftId} initial={value} mailboxes={[MAILBOX]} personKnown={false} onClose={onClose} onSent={onSent} />,
       )}
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
-  return { onClose, onSent, user: userEvent.setup({ advanceTimers: vi.advanceTimersByTime }) }
+  const view = render(tree(initial))
+  return {
+    onClose,
+    onSent,
+    view,
+    rerender: (value: DraftContent) => view.rerender(tree(value)),
+    user: userEvent.setup({ advanceTimers: vi.advanceTimersByTime }),
+  }
 }
 
 describe('Composer', () => {
@@ -77,6 +84,17 @@ describe('Composer', () => {
     expect(id).toBeNull()
     expect(content).toMatchObject({ to: ['alice@exemple.test'], subject: 'Bonjour', mode: 'new' })
     expect(await screen.findByText(new RegExp(t(`${C}.savedAt`, { time: '' }).trim().slice(0, 10)))).toBeInTheDocument()
+  })
+
+  it('saves nothing on opening, nor when the page renders again: only a real change', async () => {
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour' }
+    const { rerender, view } = renderComposer(initial, 'd1')
+    await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_MS * 3))
+    // The parent builds the same content again (a new object): still nothing to save.
+    rerender({ ...initial, to: [...initial.to] })
+    await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_MS * 3))
+    view.unmount()
+    expect(mocks.api.saveDraft).not.toHaveBeenCalled()
   })
 
   it('says what is missing instead of counting down', async () => {
@@ -118,6 +136,39 @@ describe('Composer', () => {
     await tick(UNDO_SECONDS + 1)
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.notConfirmed`))
     expect(onSent).not.toHaveBeenCalled()
+  })
+
+  it('« Envoyer » again after no answer keeps the same key (the server looks before sending)', async () => {
+    mocks.api.sendMail.mockRejectedValueOnce(new FunctionCallError('provider_error', 502, 'x', { outcome: 'unknown' }))
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
+    const { user, onSent } = renderComposer(initial, 'd1')
+    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await tick(UNDO_SECONDS + 1)
+    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.notConfirmed`))
+    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await tick(UNDO_SECONDS + 1)
+    await waitFor(() => expect(onSent).toHaveBeenCalledWith('t9'))
+    const [first, second] = mocks.api.sendMail.mock.calls
+    expect(second![0]).toBe(first![0])
+  })
+
+  it('a send Gmail refused says so (not « look in Envoyés »)', async () => {
+    mocks.api.sendMail.mockRejectedValue(new FunctionCallError('provider_error', 502, 'x', { outcome: 'refused' }))
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
+    const { user } = renderComposer(initial, 'd1')
+    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await tick(UNDO_SECONDS + 1)
+    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.refused`))
+  })
+
+  it('closed during the five seconds: nothing leaves, and the person is told', async () => {
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
+    const { user, view } = renderComposer(initial, 'd1')
+    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    view.unmount()
+    await act(() => vi.advanceTimersByTimeAsync((UNDO_SECONDS + 1) * 1_000))
+    expect(mocks.api.sendMail).not.toHaveBeenCalled()
+    expect(mocks.toast.info).toHaveBeenCalledWith(t(`${C}.cancelledByClose`))
   })
 
   it('a clinic template fills an empty message and its subject', async () => {
