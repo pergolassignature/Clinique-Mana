@@ -14821,6 +14821,10 @@ export type Database = {
         Args: { p_id: string; p_participants: Json }
         Returns: undefined
       }
+      set_demande_source: {
+        Args: { p_channel: string; p_id: string; p_referral_source_id: string }
+        Returns: undefined
+      }
       set_demande_state: {
         Args: {
           p_closed_reason?: string

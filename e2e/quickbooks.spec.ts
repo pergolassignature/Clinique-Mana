@@ -13,7 +13,7 @@ import { E2E_ORIGIN } from './fixtures/origin'
  *    answer (CI).
  */
 
-const FAKE_INTUIT = 'http://127.0.0.1:55394'
+const FAKE_INTUIT = 'http://127.0.0.1:55395'
 /** The functions' APP_URL (supabase/functions/.env): where Intuit sends the browser back. */
 const APP_ORIGIN = 'http://localhost:5173'
 

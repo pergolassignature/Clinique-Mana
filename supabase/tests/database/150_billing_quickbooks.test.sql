@@ -296,7 +296,10 @@ select is((select count(*)::int from public.qbo_connections) + (select count(*):
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is((select get_qbo_settings()->'connection') , 'null'::jsonb, 'another clinic''s admin sees no connection');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select ok((select (s->'connection'->>'company_name') = 'Clinique A' and s::text not like '%acc-4%' and s::text not like '%ref-4%'
+-- Exact keys and values, never a substring of the serialised row (a random uuid may hold « acc-4 »).
+select ok((select (s->'connection'->>'company_name') = 'Clinique A'
+                  and not (s->'connection' ?| array['access_token', 'refresh_token', 'tokens'])
+                  and not exists (select 1 from pg_catalog.jsonb_each_text(s->'connection') e where e.value in ('acc-4', 'ref-4'))
              from public.get_qbo_settings() s), 'the admin reads the connection, never a token');
 
 -- =============================================================================

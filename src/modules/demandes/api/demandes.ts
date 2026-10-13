@@ -258,6 +258,13 @@ export async function updateDemande(id: string, patch: Record<string, unknown>):
   if (error) throw error
 }
 
+/** « Provenance » corrected (D-26): the channel and the declared source (null: « Non précisé »). */
+export async function setDemandeSource(id: string, channel: string, referralSourceId: string | null): Promise<void> {
+  // The generated types want a uuid; null is « Non précisé ».
+  const { error } = await supabase.rpc('set_demande_source', { p_id: id, p_channel: channel, p_referral_source_id: referralSourceId as string })
+  if (error) throw error
+}
+
 export async function setDemandeState(id: string, state: DemandeState, closedReason: ClosedReason | null): Promise<void> {
   const { error } = await supabase.rpc('set_demande_state', {
     p_id: id,

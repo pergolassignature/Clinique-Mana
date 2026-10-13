@@ -50,10 +50,10 @@ Deno.test('env: Intuit by default; the fake only while APP_URL is local; a fixed
   const local = qboOrigins((k) =>
     ({
       APP_URL: 'http://localhost:5173',
-      QBO_API_BASE_URL: 'http://127.0.0.1:55394/x',
+      QBO_API_BASE_URL: 'http://127.0.0.1:55395/x',
     })[k]
   )
-  assertEquals(local.api('production'), 'http://127.0.0.1:55394')
+  assertEquals(local.api('production'), 'http://127.0.0.1:55395')
   assertEquals(
     redirectUri((k) => ({ APP_URL: 'https://app.cliniquemana.com/' })[k]),
     'https://app.cliniquemana.com/facturation/retour-quickbooks',
