@@ -15,7 +15,7 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 | CM1 | the Gmail connection and mirror: `mail_connections` (encrypted tokens), `gmail-connect` / `gmail-callback` (signed state), `gmail-webhook`, `gmail-sync`, `gmail-watch-renew`, the jobs, the 24-month purge, Paramètres → « Courriels Gmail » (the status screen) | built |
 | CM1b | the Interac notices of `administration@` parsed into `interac_notices` for Facturation (`private.interac_notices_since`) | waits for sample notices (status doc E11, CM-9) |
 | CM2 | « Courriels »: three panes, read / archive / follow / labels (`gmail-modify`), attachments, search | built |
-| CM2b | the thread → client link: identity match in the sync, « À rattacher », manual link (CM-12) | waits for Clients C2 / C3 |
+| CM2b | the thread → client link: identity match in the sync, « À rattacher », manual link (CM-12) | waits for Clients C3 and an email lookup |
 | CM3 | composer, `gmail-send`, templates | planned |
 | CM4 | « Rédiger avec l'IA » | planned |
 | SM | « Textos »: SMS through the clinic's Yeastar PBX (as PS Hub, R-73), consents, « ARRÊT », the « OUI » hook, Paramètres → Textos | built (lane C) |
@@ -71,7 +71,7 @@ The upload purpose `mail_attachment` (bucket `documents`, read with `communicati
 
 ## CM2: « Courriels »
 
-Migration `20261013021736_communications_inbox` (pgTAP `109`); decisions CM-11, CM-12.
+Migration `20261013033913_communications_inbox` (pgTAP `109`); decisions CM-11, CM-12.
 
 ### RPCs
 
@@ -99,7 +99,7 @@ Designed now, built when Clients publishes what it needs. The table is CM1's `ma
 - **Automatic, in the sync:** after `upsert_mail_messages`, each new inbound thread's sender address (lower case) goes to a Clients-published definer helper (asked of lane A: `private.clients_match_email(p_org, p_emails text[])` → client ids, archived, merged and anonymised files left out), called from a Communications definer helper `private.communications_link_threads(p_org, p_thread_ids)`: one match → `linked` (`source = 'auto'`), several → `needs_review` with the candidates (≤ 20), none → `unlinked`. A manual link is never overwritten.
 - **« À rattacher »:** a view of the left pane (`needs_review`, then the unlinked inbound threads), shown only while Clients is enabled and the person holds `clients.view`.
 - **Manual:** `link_mail_thread(p_thread_id, p_client_id)` / `unlink_mail_thread(p_thread_id)` (`communications.inbox` and `clients.view`, the client checked in `clients_directory` for the same clinic), audited; the picker uses C2's `search_clients`. The thread's header then shows the file's number and name (from `clients_directory`), linking to the record (C3).
-- A merge of clients re-points the links through the hook `private.communications_reassign_client(old, new)` that C2's `merge_clients` calls.
+- A merge of clients re-points the links through a row of Clients' `client_merge_handlers` naming `private.communications_reassign_client(old, new) → int`; an anonymisation clears them through `client_anonymize_handlers` (`private.communications_anonymize_client(id) → int`), as Professionnels and Demandes do.
 
 ## Textos (batch SM)
 
