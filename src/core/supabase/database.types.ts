@@ -10159,6 +10159,9 @@ export type Database = {
           meeting_connection_state: string
           meeting_external_id: string
           meeting_join_url: string
+          meeting_professional_id: string
+          professional_id: string
+          started: boolean
           starts_at: string
           target_connection_id: string
           timezone: string
@@ -10725,6 +10728,7 @@ export type Database = {
         Returns: {
           access_token: string
           access_token_expires_at: string
+          connected_at: string
           refresh_token: string
           state: string
         }[]
@@ -11443,7 +11447,12 @@ export type Database = {
         Returns: undefined
       }
       mark_zoom_needs_reconnect_for_service: {
-        Args: { p_connection_id: string; p_org_id: string; p_reason: string }
+        Args: {
+          p_connected_at: string
+          p_connection_id: string
+          p_org_id: string
+          p_reason: string
+        }
         Returns: boolean
       }
       merge_clients: {
@@ -12235,6 +12244,7 @@ export type Database = {
         Args: {
           p_access_token: string
           p_access_token_expires_at: string
+          p_connected_at: string
           p_connection_id: string
           p_org_id: string
           p_refresh_token: string

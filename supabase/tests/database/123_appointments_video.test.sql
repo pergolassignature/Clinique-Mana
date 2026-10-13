@@ -10,7 +10,7 @@
 -- recipients of the link email; the published Professionnels helpers.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(110);
+select plan(108);
 
 -- =============================================================================
 -- Privileges

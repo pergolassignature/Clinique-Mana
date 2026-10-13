@@ -53,17 +53,23 @@ test('« Connecter mon Zoom » through the fake Zoom, then « Déconnecter »', 
   await signIn('provider')
   await page.goto('/mon-agenda/videoconference')
   // The fake's consent page sends the browser back to the functions' APP_URL (the shared dev
-  // server's origin): that return is redirected to this server, where the session is.
-  await page.route(/^http:\/\/localhost:5173\/mon-agenda\/videoconference\?/, (route) => {
-    const url = new URL(route.request().url())
-    return route.fulfill({ status: 302, headers: { Location: `${E2E_ORIGIN}${url.pathname}${url.search}` } })
+  // server's origin): the consent is asked here instead, and its return opened on this server,
+  // where the session is.
+  let consent: string | null = null
+  await page.route(/^http:\/\/127\.0\.0\.1:55394\/oauth\/authorize/, async (route) => {
+    consent = route.request().url()
+    await route.abort()
   })
   await page.getByRole('button', { name: 'Connecter mon Zoom' }).click()
+  await expect.poll(() => consent, { timeout: 15_000 }).not.toBeNull()
+  const answer = await request.get(consent!, { maxRedirects: 0 })
+  const back = new URL(answer.headers()['location'] ?? '')
+  await page.goto(`${back.pathname}${back.search}`)
   await expect(page).toHaveURL(`${E2E_ORIGIN}/mon-agenda/videoconference`, { timeout: 15_000 })
   await expect(page.getByText('Zoom connecté', { exact: true })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(/^Compte pro\.zoom@exemple\.test, connecté le/)).toBeVisible()
 
-  await page.getByRole('button', { name: 'Déconnecter' }).click()
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Déconnecter' }).click()
+  await page.getByRole('button', { name: 'Déconnecter', exact: true }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Déconnecter', exact: true }).click()
   await expect(page.getByText(/^Zoom n.est pas connecté$/)).toBeVisible()
 })

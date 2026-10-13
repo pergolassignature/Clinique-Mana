@@ -14,6 +14,7 @@ import {
 } from '../api/video'
 import { videoErrorMessage } from '../api/video-errors'
 import { leaveFor } from '../lib/leave-for'
+import { appointmentsKeys } from './keys'
 
 const V = 'modules.appointments.video'
 
@@ -23,7 +24,7 @@ const V = 'modules.appointments.video'
  * links), so the agenda's reads that show a link follow a change of setup.
  */
 export const videoKeys = {
-  all: ['appointments', 'video'] as const,
+  all: [...appointmentsKeys.all, 'video'] as const,
   mine: () => [...videoKeys.all, 'mine'] as const,
   professionals: () => [...videoKeys.all, 'professionals'] as const,
   names: () => [...videoKeys.all, 'names'] as const,
