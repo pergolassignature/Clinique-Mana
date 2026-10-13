@@ -16592,6 +16592,10 @@ export type Database = {
         Args: { p_from: string; p_professional_id?: string; p_to: string }
         Returns: Json
       }
+      report_consents: {
+        Args: { p_from: string; p_professional_id?: string; p_to: string }
+        Returns: Json
+      }
       report_demandes: { Args: { p_from: string; p_to: string }; Returns: Json }
       report_revenue: {
         Args: {

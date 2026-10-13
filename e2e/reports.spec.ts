@@ -13,7 +13,8 @@ import { E2E_ORIGIN } from './fixtures/origin'
  *    mode filter; a period longer than a year is said.
  * 2. « Annulations »: per reason, then « Clients à relancer » (the tab in the address).
  * 3. The adjointe has « Revenus » but not « Annulations ».
- * 4. « Indicateurs des demandes » (Demandes D6; the seed enables Demandes): this year's totals, then
+ * 4. « Consentements » (Clients C5b): today's states per consent, per month.
+ * 5. « Indicateurs des demandes » (Demandes D6; the seed enables Demandes): this year's totals, then
  *    « Provenance » and « Liste d'attente et places » (the tabs in the address).
  */
 
@@ -66,6 +67,19 @@ test('the admin reads « Annulations et absences », then « Clients à relancer
     await page.getByRole('tab', { name: 'Clients à relancer' }).click()
     await expect(page).toHaveURL(/onglet=relancer/)
     await expect(page.getByText(/Clients à relancer\s*:\s*\d+\./)).toBeVisible()
+  })
+})
+
+test('the admin reads « Consentements »: today per consent (the seed’s imported one counted), per month (CC-19)', async ({ page, signIn }) => {
+  await withReports(page, signIn, async () => {
+    await page.goto('/accueil')
+    await page.getByRole('link', { name: 'Rapport des consentements' }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Consentements' })).toBeVisible()
+    const gaps = page.getByRole('table', { name: 'Aujourd’hui, par consentement' })
+    await expect(gaps.getByRole('row').filter({ hasText: 'Consentement général' })).toBeVisible()
+    await page.getByRole('button', { name: 'Cette année' }).click()
+    await expect(page.getByRole('table', { name: 'Signatures et retraits par mois' })).toBeVisible()
+    await expect(page.getByLabel('Totaux')).toBeVisible()
   })
 })
 

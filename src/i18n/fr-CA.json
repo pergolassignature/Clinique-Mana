@@ -11586,6 +11586,51 @@
           "events": "Annulations et absences"
         }
       },
+      "consents": {
+        "nav": "Rapport des consentements",
+        "title": "Consentements",
+        "description": "L’état des consentements des clients actifs aujourd’hui, par consentement et par professionnel ; les signatures et les retraits de la période ; le délai entre l’envoi et la signature.",
+        "filters": {
+          "professional": "Professionnel principal",
+          "allProfessionals": "Tous les professionnels"
+        },
+        "totals": "Totaux",
+        "totalLabels": {
+          "clients": "Clients actifs",
+          "signed": "Signatures de la période",
+          "withdrawn": "Retraits de la période"
+        },
+        "gapsTitle": "Aujourd’hui, par consentement",
+        "gapsHelp": "Les mêmes états que l’onglet « Consentements » des dossiers. « Jamais demandé » compte les clients à qui ce consentement n’a pas été envoyé ; il ne s’applique souvent qu’à certaines situations.",
+        "byProfessionalTitle": "Par professionnel principal",
+        "byProfessionalHelp": "« À obtenir » : en attente, en retard, à signer de nouveau ou retiré.",
+        "noProfessional": "Sans professionnel principal",
+        "monthsTitle": "Signatures et retraits par mois",
+        "delaysTitle": "Délai entre l’envoi et la signature",
+        "delaysHelp": "Les signatures dans l’application de la période, depuis le premier envoi de leur demande.",
+        "delaysEmpty": "Aucune signature dans l’application pendant cette période.",
+        "empty": "Aucun client actif.",
+        "days": "{days} j",
+        "loadError": "Le rapport des consentements ne se charge pas.",
+        "fileName": "consentements-{from}-au-{to}.csv",
+        "columns": {
+          "consent": "Consentement",
+          "signed": "Signé",
+          "resign": "À signer de nouveau",
+          "pending": "En attente",
+          "overdue": "En retard",
+          "withdrawn": "Retiré",
+          "none": "Jamais demandé",
+          "professional": "Professionnel",
+          "toObtain": "À obtenir",
+          "month": "Mois",
+          "signedApp": "Signés dans l’application",
+          "imported": "Importés de GOrendezvous",
+          "count": "Signatures",
+          "average": "Délai moyen",
+          "median": "Délai médian"
+        }
+      },
       "demandes": {
         "nav": "Indicateurs des demandes",
         "title": "Indicateurs des demandes",

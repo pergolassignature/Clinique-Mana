@@ -11,6 +11,7 @@ describe('reportsManifest', () => {
     expect(reportsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['rapports/revenus', 'reports.finance'],
       ['rapports/annulations', 'reports.view'],
+      ['rapports/consentements', 'reports.view'],
       ['rapports/demandes', 'reports.view'],
     ])
   })
@@ -20,6 +21,7 @@ describe('reportsManifest', () => {
     expect(nav.map((n) => [n.path, n.group, n.permission, t(n.labelKey)])).toEqual([
       ['/rapports/revenus', 'billing', 'reports.finance', 'Revenus'],
       ['/rapports/annulations', 'followUp', 'reports.view', 'Annulations'],
+      ['/rapports/consentements', 'followUp', 'reports.view', 'Rapport des consentements'],
       ['/rapports/demandes', 'intake', 'reports.view', 'Indicateurs des demandes'],
     ])
   })
