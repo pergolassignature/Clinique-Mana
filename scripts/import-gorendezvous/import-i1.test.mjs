@@ -161,6 +161,7 @@ function setup({ answers = [], results = {}, files = {}, local = true } = {}) {
     from: vi.fn((view) => ({ select: async () => ({ data: view === 'professionals_directory' ? DIRECTORY : [], error: null }) })),
     rpc: vi.fn(async (fn, { p_row, p_dry_run }) => {
       if (fn === 'import_client_relation') return { data: { status: 'ok', dry_run: p_dry_run }, error: null }
+      if (fn === 'import_client_payers') return { data: results[`payers:${p_row.client_ref}`] ?? { status: 'ok', dry_run: p_dry_run, created: p_row.payers.length }, error: null }
       const given = results[p_row.external_ref]
       return { data: given ?? { status: 'ok', dry_run: p_dry_run, id: p_dry_run ? null : `id-${p_row.external_ref}`, duplicates: [], tags_created: [] }, error: null }
     }),
@@ -235,6 +236,29 @@ describe('import-gorendezvous run', () => {
     expect(output).toContain('  - ligne 7 ↔ dossier n° 42')
     expect(output).toContain('Rien n’a été importé : corrigez les erreurs, puis relancez.')
     expect(report.text).not.toMatch(personal)
+  })
+
+  it('--commit, then the payer tags (FP-9): one import_client_payers per tagged file, after the clients; said by count only', async () => {
+    const { deps, client, output, report } = setup({ answers: ['admin@mana.test', 'importer'], files: { 'liens.csv': CLEAN_LINKS } })
+    expect(await run([...ARGS, '--commit'], deps)).toBe(0)
+    const payers = client.rpc.mock.calls.filter(([fn]) => fn === 'import_client_payers')
+    expect(payers.map(([, args]) => args)).toEqual([
+      { p_row: { client_ref: expect.stringMatching(/^gorendezvous:/), payers: ['ivac'] }, p_dry_run: false },
+      { p_row: { client_ref: expect.stringMatching(/^gorendezvous:/), payers: ['pae'] }, p_dry_run: false },
+    ])
+    const order = client.rpc.mock.calls.map(([fn]) => fn)
+    expect(order.indexOf('import_client_payers')).toBeGreaterThan(order.lastIndexOf('import_client'))
+    expect(output.some((l) => l.startsWith('Payeurs tiers des étiquettes (IVAC, PAE) : 2 client(s)'))).toBe(true)
+    expect(output).toContain('Payeurs « à compléter » ajoutés : 2 ; clients qui les avaient déjà : 0 ; en erreur : 0')
+    expect(report.text).not.toMatch(personal)
+  })
+
+  it('a re-run adds no payer twice (each file already has its payer)', async () => {
+    const skipped = Object.fromEntries([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1010, 1011].map((n) => [`gorendezvous:${n}`, { status: 'skipped', reason: 'Déjà importé' }]))
+    const already = Object.fromEntries([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1010, 1011].map((n) => [`payers:gorendezvous:${n}`, { status: 'ok', dry_run: false, created: 0 }]))
+    const { deps, output } = setup({ answers: ['admin@mana.test', 'importer'], results: { ...skipped, ...already }, files: { 'liens.csv': CLEAN_LINKS } })
+    expect(await run([...ARGS, '--commit'], deps)).toBe(0)
+    expect(output).toContain('Payeurs « à compléter » ajoutés : 0 ; clients qui les avaient déjà : 2 ; en erreur : 0')
   })
 
   it('a re-run once every client is in still imports the relations (resumed run)', async () => {

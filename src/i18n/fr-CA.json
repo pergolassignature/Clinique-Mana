@@ -6427,7 +6427,8 @@
           "mail_connection_tokens": "Jetons d'accès Gmail",
           "mail_thread_links": "Rattachements des conversations",
           "mail_sends": "Courriels envoyés",
-          "mail_templates": "Modèles de courriel personnels"
+          "mail_templates": "Modèles de courriel personnels",
+          "ai_settings": "Réglages de l'IA"
         },
         "fields": {
           "sms_consents": {
@@ -6490,6 +6491,14 @@
             "name": "Nom",
             "subject": "Objet",
             "body_html": "Texte"
+          },
+          "ai_settings": {
+            "enabled": "« Rédiger avec l'IA » activé",
+            "model": "Modèle",
+            "monthly_cap_cents": "Plafond mensuel",
+            "input_cents_per_mtok": "Prix du texte envoyé",
+            "output_cents_per_mtok": "Prix du texte reçu",
+            "updated_by": "Modifié par"
           }
         },
         "values": {
@@ -7077,6 +7086,64 @@
         "messagesOther": "{count} messages",
         "unread": "non lu",
         "open": "Ouvrir dans Courriels"
+      },
+      "ai": {
+        "write": "Rédiger avec l'IA",
+        "reply": "Générer une réponse",
+        "writing": "Rédaction en cours…",
+        "capReached": "Le plafond mensuel de l'IA est atteint.",
+        "promptLabel": "Ce que l'IA doit écrire",
+        "promptPlaceholder": "Ex. : proposez un rendez-vous mardi en fin de journée",
+        "promptHelp": "Entrée pour envoyer, Maj+Entrée pour aller à la ligne, Échap pour fermer. Les noms, adresses et numéros ne sont jamais envoyés à l'IA.",
+        "send": "Envoyer à l'IA",
+        "proposal": "Proposition de l'IA",
+        "proposedSubject": "Objet proposé :",
+        "use": "Utiliser",
+        "reject": "Annuler",
+        "refine": "Raffiner",
+        "refineLabel": "Comment raffiner la proposition",
+        "refinePlaceholder": "Ex. : plus court, et ajoutez les heures d’ouverture",
+        "refineSend": "Raffiner la proposition",
+        "used": "Brouillon remplacé par l'IA.",
+        "restore": "Rétablir",
+        "errors": {
+          "rateLimited": "Trop de demandes à l'IA en peu de temps.",
+          "notConfigured": "La clé OpenAI de la clinique manque : un administrateur l'entre dans Paramètres → IA.",
+          "providerError": "OpenAI n'a pas répondu. Réessayez dans un instant.",
+          "failed": "L'IA n'a pas pu rédiger. Réessayez."
+        },
+        "settings": {
+          "title": "IA",
+          "description": "« Rédiger avec l'IA » dans le composeur de courriels : la clé OpenAI de la clinique, le modèle et le plafond mensuel. Aucun texte n'est gardé ; les noms, adresses et numéros sont remplacés avant l'envoi à OpenAI.",
+          "loadError": "Impossible de charger les réglages de l'IA.",
+          "keyTitle": "Clé OpenAI",
+          "keyDescription": "La clé du compte OpenAI de la clinique. Elle reste dans le coffre de la base, jamais dans le navigateur.",
+          "key": "Clé API OpenAI",
+          "keyHelp": "Créez-la dans platform.openai.com → API keys, puis collez-la ici.",
+          "keyUnknown": "L'état de la clé n'est visible qu'avec la permission de voir les paramètres.",
+          "keyLoadError": "Impossible de lire l'état de la clé.",
+          "formTitle": "Réglages",
+          "formDescription": "Le modèle utilisé et le plafond de dépenses par mois.",
+          "enabled": "« Rédiger avec l'IA » activé",
+          "enabledHelp": "Le bouton paraît dans le composeur pour les rôles qui ont la permission.",
+          "enabledNeedsKey": "Entrez d'abord la clé OpenAI de la clinique.",
+          "model": "Modèle",
+          "modelHelp": "Le nom du modèle chez OpenAI, par exemple gpt-5.4.",
+          "modelInvalid": "Le modèle s’écrit comme OpenAI le nomme (par exemple gpt-5.4).",
+          "cap": "Plafond mensuel ($)",
+          "capHelp": "Une fois atteint, l'IA s'arrête jusqu'au 1er du mois suivant.",
+          "capInvalid": "Indiquez un montant en dollars, par exemple 50.",
+          "inputPrice": "Texte envoyé ($ par million de jetons)",
+          "outputPrice": "Texte reçu ($ par million de jetons)",
+          "priceInvalid": "Indiquez un montant en dollars, par exemple 1,25.",
+          "pricesHelp": "Les prix de la grille d'OpenAI pour ce modèle : l'app s'en sert pour compter la dépense du mois.",
+          "usageTitle": "Ce mois-ci",
+          "usageDescription": "Les demandes faites à l'IA depuis le 1er du mois, et leur coût estimé.",
+          "usage": "{count} demande(s), {spent} sur un plafond de {cap}.",
+          "capReached": "Le plafond est atteint : l'IA reprend le 1er du mois, ou relevez le plafond.",
+          "saved": "Réglages de l'IA enregistrés.",
+          "saveError": "Impossible d'enregistrer les réglages de l'IA."
+        }
       }
     },
     "demandes": {

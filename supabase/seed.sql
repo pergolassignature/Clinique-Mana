@@ -655,3 +655,13 @@ values
    vault.create_secret('local-dev-zoom-client-secret', 'org:00000000-0000-0000-0000-000000000001:zoom_client_secret')),
   ('00000000-0000-0000-0000-000000000001', 'zoom_webhook_secret',
    vault.create_secret('local-dev-zoom-webhook-secret', 'org:00000000-0000-0000-0000-000000000001:zoom_webhook_secret'));
+
+-- Local « Rédiger avec l'IA » (Communications CM4): the fake OpenAI's key (`npm run fake:openai`,
+-- port 55398; _shared/testing/fake-openai.ts FAKE_OPENAI_KEY; the function reaches it through
+-- OPENAI_API_BASE_URL), stored as set_org_secret stores it, and the feature switched on locally (a
+-- clinic switches it on in Paramètres → IA once its key is in).
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values ('00000000-0000-0000-0000-000000000001', 'openai_api_key',
+        vault.create_secret('sk-local-dev-openai', 'org:00000000-0000-0000-0000-000000000001:openai_api_key'));
+insert into public.ai_settings (org_id, enabled, updated_by)
+values ('00000000-0000-0000-0000-000000000001', true, '11111111-1111-1111-1111-111111111111');

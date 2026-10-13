@@ -194,6 +194,8 @@ select functions_are('public', array[
   'list_waitlist_compatible',
   -- Facturation: the GOrendezvous import (I3).
   'import_invoice',
+  -- Communications: « Rédiger avec l'IA » (CM4).
+  'get_ai_settings', 'set_ai_settings', 'get_ai_draft_status', 'ai_draft_context_for_service', 'record_ai_request_for_service',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

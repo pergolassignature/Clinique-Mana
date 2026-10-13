@@ -35,6 +35,111 @@ export type Database = {
           },
         ]
       }
+      ai_requests: {
+        Row: {
+          completion_tokens: number
+          cost_cents: number
+          created_at: string
+          error_code: string | null
+          id: string
+          kind: string
+          model: string
+          org_id: string
+          prompt_tokens: number
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          completion_tokens?: number
+          cost_cents?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          kind: string
+          model: string
+          org_id: string
+          prompt_tokens?: number
+          status: string
+          user_id?: string | null
+        }
+        Update: {
+          completion_tokens?: number
+          cost_cents?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          kind?: string
+          model?: string
+          org_id?: string
+          prompt_tokens?: number
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      ai_settings: {
+        Row: {
+          enabled: boolean
+          input_cents_per_mtok: number
+          model: string
+          monthly_cap_cents: number
+          org_id: string
+          output_cents_per_mtok: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          input_cents_per_mtok?: number
+          model?: string
+          monthly_cap_cents?: number
+          org_id: string
+          output_cents_per_mtok?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          input_cents_per_mtok?: number
+          model?: string
+          monthly_cap_cents?: number
+          org_id?: string
+          output_cents_per_mtok?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       appointment_messages: {
         Row: {
           appointment_id: string
@@ -13697,6 +13802,15 @@ export type Database = {
         Args: { p_id: string; p_professional_id: string; p_slots?: Json }
         Returns: string
       }
+      ai_draft_context_for_service: {
+        Args: {
+          p_actor: string
+          p_client_id: string
+          p_org_id: string
+          p_thread_id: string
+        }
+        Returns: Json
+      }
       anonymize_client: { Args: { p_id: string }; Returns: undefined }
       answer_proposition_for_service: {
         Args: {
@@ -14424,6 +14538,8 @@ export type Database = {
         }
         Returns: Json
       }
+      get_ai_draft_status: { Args: never; Returns: Json }
+      get_ai_settings: { Args: never; Returns: Json }
       get_appointment_consents: {
         Args: { p_appointment_id: string }
         Returns: {
@@ -15952,6 +16068,20 @@ export type Database = {
         Returns: Json
       }
       rebuild_payout_period: { Args: { p_id: string }; Returns: Json }
+      record_ai_request_for_service: {
+        Args: {
+          p_actor: string
+          p_completion_tokens: number
+          p_cost_cents: number
+          p_error_code: string
+          p_kind: string
+          p_model: string
+          p_org_id: string
+          p_prompt_tokens: number
+          p_status: string
+        }
+        Returns: string
+      }
       record_generated_professional_invoice: {
         Args: {
           p_actor: string
@@ -16561,6 +16691,16 @@ export type Database = {
         }[]
       }
       send_payout_periods: { Args: { p_ids: string[] }; Returns: Json }
+      set_ai_settings: {
+        Args: {
+          p_enabled: boolean
+          p_input_cents_per_mtok: number
+          p_model: string
+          p_monthly_cap_cents: number
+          p_output_cents_per_mtok: number
+        }
+        Returns: undefined
+      }
       set_appointment_details: {
         Args: {
           p_client_message: string

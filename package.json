@@ -39,7 +39,8 @@
     "fake:yeastar": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_YEASTAR_HOST,FAKE_YEASTAR_PORT,FAKE_YEASTAR_WEBHOOK_URL,FAKE_YEASTAR_WEBHOOK_SECRET scripts/fake-yeastar.ts",
     "fake:qbo": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_QBO_HOST,FAKE_QBO_PORT scripts/fake-qbo.ts",
     "fake:stripe": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_STRIPE_HOST,FAKE_STRIPE_PORT,FAKE_STRIPE_WEBHOOK_URL scripts/fake-stripe.ts",
-    "fake:zoom": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_ZOOM_HOST,FAKE_ZOOM_PORT scripts/fake-zoom.ts"
+    "fake:zoom": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_ZOOM_HOST,FAKE_ZOOM_PORT scripts/fake-zoom.ts",
+    "fake:openai": "deno run --frozen --config supabase/functions/deno.json --allow-net --allow-env=FAKE_OPENAI_HOST,FAKE_OPENAI_PORT scripts/fake-openai.ts"
   },
   "dependencies": {
     "@documenso/embed-react": "0.6.2",

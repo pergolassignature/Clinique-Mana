@@ -119,6 +119,44 @@ Deno.test('the invoice: billed to the payer, taxes per line with their rates, th
   assertStringIncludes(exempt, 'Exempté de taxes (Statut Indien)')
 })
 
+Deno.test('an IVAC invoice (FP-11): billed to IVAC with the clinic’s provider number and the file number, due on its date, each professional’s IVAC number', () => {
+  const ivac = invoiceDoc({
+    invoice: {
+      ...invoiceDoc().invoice,
+      due_on: '2026-11-12',
+      payer_kind: 'organisation',
+      payer_reference: 'IV-1',
+    },
+    payer: {
+      id: 'o1',
+      name: 'IVAC',
+      first_name: 'IVAC',
+      client_number: null,
+      language: 'fr',
+      organisation_kind: 'ivac',
+      provider_number: 'FOURN-1',
+    },
+    payer_numbers: [{
+      professional_id: PROFESSIONALS[0].professional_id,
+      number: 'IVAC-123',
+    }],
+  })
+  const all = texts(billingPdf(parse(ivac), { logo: false }))
+  assertStringIncludes(all, 'Facturé à : IVAC')
+  assertStringIncludes(
+    all,
+    'N° de fournisseur de la clinique : FOURN-1',
+  )
+  assertStringIncludes(all, 'N° de dossier : IV-1')
+  assertStringIncludes(all, 'Échéance : 12 novembre 2026')
+  assert(!all.includes('sur réception'))
+  assertStringIncludes(all, 'N° IVAC IVAC-123')
+  // A client's invoice: due on receipt, no provider nor IVAC number.
+  const own = texts(billingPdf(parse(invoiceDoc()), { logo: false }))
+  assertStringIncludes(own, 'Échéance : sur réception')
+  assert(!own.includes('N° IVAC') && !own.includes('fournisseur'))
+})
+
 Deno.test('in the payer’s language: English', () => {
   const doc = parse(invoiceDoc({
     payer: {
