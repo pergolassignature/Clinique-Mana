@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { ConfirmPage, InvitationPage } from './public-pages'
+import { ConfirmPage, ConsentPage, InvitationPage } from './public-pages'
 import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
@@ -103,6 +103,15 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <InvitationPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: a client consent request email lands here (Clients C5a); the token is in the fragment. */}
+                <Route
+                  path="/consentement"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <ConsentPage />
                     </Suspense>
                   }
                 />

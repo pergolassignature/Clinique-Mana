@@ -133,9 +133,9 @@ select is((select count(*)::int from public.document_templates t
            where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key like 'clients.consent_%' and v.status = 'draft' and v.version = 1),
   14, '14 draft templates (7 consents × fr / en), nothing published');
 select is((select count(*)::int from public.document_template_versions v join public.document_templates t on t.id = v.template_id
-            where t.key like 'clients.consent_%' and v.body -> 'blocks' -> 0 -> 'runs' -> 0 ->> 'text' like 'Texte provisoire%'),
-  (select count(*)::int from public.document_templates t where t.key like 'clients.consent_%'),
-  'every text says « Texte provisoire » first');
+            where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key like 'clients.consent_%'
+              and v.body -> 'blocks' -> 0 -> 'runs' -> 0 ->> 'text' like 'Texte provisoire%'),
+  14, 'every text says « Texte provisoire » first (the local seed rewrites two of its own: never a clinic''s)');
 select results_eq($$ select r.consent_key, r.trigger_kind, r.target, r.is_active from public.client_consent_rules r
                       where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.consent_key in ('general', 'naturopathy', 'eap') order by 1 $$,
   $$ values ('eap', 'payer_kind', 'pae', false), ('general', 'general', null::text, false), ('naturopathy', 'service', '10157', false) $$,

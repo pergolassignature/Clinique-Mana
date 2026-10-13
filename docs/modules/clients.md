@@ -8,7 +8,7 @@ The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): o
 | C2 | RPCs: duplicates, create / update / archive, relations, insurance, payers, tags, merge, search, summary, Loi 25 export and anonymisation, `client_contacts_for` | built |
 | C3 | List, « Nouveau client », record, « Mes clients » | planned |
 | C4 | Merge UI, « Confidentialité », ⌘K, e2e, this doc completed | planned |
-| C5a | Client consents: schema, RPCs, functions (part 1); UI (part 2) | part 1 built |
+| C5a | Client consents: schema, RPCs, functions (part 1); UI (part 2) | built (the record tab waits for C3) |
 | C5b | Withdrawal, copy to the client, reports, re-sign campaign | planned |
 
 - **Registry:** `modules.key = 'clients'` (migration `20261012213428_clients_module`), depends on `professionals`. It **starts disabled** in every clinic; the local seed enables it.
@@ -93,7 +93,7 @@ All definer, permission first, French `P0001` with a HINT naming the field (the 
 
 ## Consents (batch C5a)
 
-Migrations `20261013020443_core_signing_second_client_signer` (core: the `client_2` role) and `20261013020447_clients_consents`; pgTAP `108_clients_consents`; decisions R-46 … R-51, **CC-1 … CC-7**.
+Migrations `20261013020443_core_signing_second_client_signer` (core: the `client_2` role), `20261013020447_clients_consents` and `20261013031103_clients_consents_handlers`; pgTAP `108_clients_consents`, `112_clients_consents_handlers`; decisions R-46 … R-51, **CC-1 … CC-11**.
 
 - **Tables:** `client_consent_types` (the 7 consents and their clauses), `client_consent_rules`, `client_consent_settings` (one row per clinic), `client_consent_requests` (one open per client and consent; the version, the language and the clauses are fixed when it is sent; the answers are redacted in the audit), `client_consent_request_signers` (`client` / `client_2`, each with her own link), `client_consents` (the consent in force: not superseded, not withdrawn; signer names, answers and note redacted). Read with `clients.view`; every write is an RPC.
 - **Templates:** `clients.consent_<key>_fr` / `_en` (core templates of the module, view `clients.view`, edit `clients.manage`), seeded as drafts « Texte provisoire »; the clauses print through the block placeholder `{{consent.clauses}}`.
@@ -101,4 +101,12 @@ Migrations `20261013020443_core_signing_second_client_signer` (core: the `client
 - **Service RPCs:** `prepare_client_consent_request_for_service` (actor model: two token hashes, one per signer), `open_client_consent_for_service`, `start_client_consent_signing_for_service`, `client_consent_reminders_for_service`, `import_client_consent_fact_for_service` (I1). Link purpose `client_consent` with `resolve_client_consent_link`.
 - **Functions:** `clients-consent-send` (user, `clients.manage`: send or resend, emails `clients.consent_request` / `_en` with `/consentement#t=…`), `clients-consent-sign` (public token: open, then answers and embedded signing; renders), `clients-consent-reminders` (job `clients.consent_reminders`).
 - **Published for other modules:** `private.required_consents_for(org, client, service_code, payer_kind, professional_status, situations, context_type, context_id)` → (consent_key, frequency, state) for Rendez-vous (R1, R2, R5) and Demandes (D3); views `client_consents_status` (staff), `client_consents_to_obtain` (« Consentements à obtenir »), `my_client_consents` (the professional's linked clients, clients.self).
-- **Coming in C5a part 2 (UI):** the record tab « Consentements », Paramètres → Consentements (rules, settings, publishing the texts), the public page `/consentement`, the list « Consentements à obtenir ». The template text editor lives in Professionnels today; for the clinic's texts, either it moves to core or the texts are pasted by a migration (decision to take with Jonathan).
+- **Merge and anonymisation (with C2):** the handlers `private.clients_consents_reassign_client` and `private.clients_consents_anonymize_client` (module key `clients` in `client_merge_handlers` / `client_anonymize_handlers`, CC-9, CC-10). Who signs reads `private.client_contacts_for(…, 'appointments')` (CC-8). Follow-up: core's `signature_request_signers` keeps a signer's name and address after an anonymisation until core has its own hook.
+- **Placeholder texts:** « Publier » is never offered while a draft is still the seeded « Texte provisoire » (CC-11).
+- **Screens (part 2):**
+  - « Consentements à obtenir » (`/clients/consentements`, nav « Consentements », `clients.view`): the open requests, overdue first; a row opens the client's consents in a side sheet.
+  - `components/consents/ClientConsentsPanel`: per consent, its state, the sealed PDF (`useSignedFileUrl`), and « Envoyer » / « Renvoyer » / « Annuler la demande » (`clients.manage`). C3 mounts it as the record's « Consentements » tab.
+  - Paramètres → Consentements (`consentements`, seen with `clients.view`, changed with `clients.manage`): the 14 texts with « Publier » and who must sign again; the rules (a switch, enabled once the text is published; « Une fois » or « À chaque rendez-vous »); the delays and the retention policy.
+  - The public page `/consentement#t=…` (`consentPublicPage`, registered in `src/app/public-pages.ts`): identity, the « Oui / Non » clauses, Documenso inside the page (`@/core/signing/components/EmbeddedSigning`, shared; Professionnels still has its own copy), « Merci ! ». French or English, the request's language.
+  - The texts themselves are not edited in the app yet: the template editor lives in Professionnels; either it moves to core or the clinic's texts come by a migration (decision to take with Jonathan).
+- **Tests:** Vitest for the three screens, the panel and `lib/consents`; `e2e/consents.spec.ts` (publish; then, with the functions and the fake Documenso, send, sign on the public page, no longer to obtain). The local seed holds one fictitious client, « Camille Exemple ».
