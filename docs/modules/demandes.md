@@ -6,10 +6,13 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 |---|---|---|
 | D1 | Schema (requests, states, events, tasks, proposals, waiting-list tables), RPCs (create, edit, state, assign, contact attempts, tasks, note, participants), pgTAP | built |
 | D2 | Inbox (the 24–48 h promise, « sans réponse », filters), quick entry, record (Accueil, Participants, Suivi, Historique), « Je m'en occupe », core realtime | built |
-| D3 | Waiting list part 1 | planned |
-| D3b | Discovery-call tasks, proposals with acceptance link | planned |
+| D3 | Waiting list part 1 | built |
+| D3b | Discovery-call tasks, proposals with acceptance link | built |
 | D3c | Public discovery-call booking page with source tracking (lane C) | built |
-| D4–D6 | Matching panel and waiting list part 2, places, KPIs (after the cutover) | planned |
+| D4 | Matching panel; waiting list part 2 (« Place disponible », compatible registrants, « Offrir la plage ») | built |
+| D5 | Places and the availability board (nightly snapshots) | built |
+| Parity | The audit's gaps before the cutover: participants' files, intake follow-ups, « Jumelée » by hand, consents per file, the primary professional at the match | built |
+| D6 | KPIs feeding Rapports | planned |
 
 - **Registry:** `modules.key = 'demandes'` (migration `20261012223803_demandes_module`), depends on `clients` and `professionals`. It **starts disabled** in every clinic; the local seed enables it.
 - **Migrations:** `20261012223803_demandes_module` (registry, tables, RLS, audit), `20261012223807_demandes_rpcs` (RPCs).
@@ -256,6 +259,31 @@ Migrations `20261013191827_demandes_capacity` (pgTAP `166`) and Professionnels' 
   - real tabs « Tous », « Avec des places », « Complets », « Non suivis » with their counts (`?vue=`);
   - one row per professional: her name (to her file's Jumelage tab), title and « À prioriser »; « 2 sur 3 restantes » (0 is a warning) and « Depuis le … : N prises »; « Accepte » or « N'accepte pas »; the periods, the languages, her matches of 30 days, « Bon à savoir »;
   - « Modifier » (`professionals.matching`): the number and « Recommencer le décompte ».
+
+## The parity gaps before the cutover
+
+Migrations `20261013210942_clients_primary_from_match` (Clients) and `20261013210953_demandes_parity`; pgTAP `169`, `170`; decisions **D-37 … D-41**; [parity audit](../plans/2026-10-13-parity-audit.md) P6–P9 and L19.
+
+- **Participants' files (B-1, D-37):**
+  - « Ajouter un dossier de la clinique » in « Participants » opens Clients' picker (search, or « Nouveau client » with its duplicate check). The file joins the list, as « Conjoint ou conjointe » on a couple request; it is saved with the set.
+  - A couple request that does not count two people, or a family that counts fewer than two, is said in plain words. It is never blocked, as in legacy.
+  - A proposal books the request's file and the participants' other files, the main person first: all of them, two at most (an appointment counts two clients). A couple service with one file asks for the second person's; three files or more are refused in plain words (book in the agenda). The helper is `private.demandes_booking_clients`.
+- **The intake's follow-ups (B-2, D-40)**, legacy's questions, labels « déléguée — révisable » until Christine confirms the wording:
+  - « Enjeux » oui / non → Coparentalité, Autre, and « Précisions sur les enjeux »;
+  - « Déjà consulté » (the existing `previous_therapy`) → « Professionnels consultés » (Psychologue, Travailleuse sociale ou travailleur social, Psychoéducatrice ou psychoéducateur, Médecin, Autre) and « Précisions sur les consultations »;
+  - « Contexte légal » oui / non → Ordonnance du tribunal, DPJ, and « Précisions sur le contexte légal »;
+  - « Autre motif » (a motif not in the list) and « Autres disponibilités ».
+
+  « Non », or no answer, clears what follows: the screen at once, and the database before every write (`private.demandes_clear_followups`, with a check). The comments and « Autre motif » are redacted in the journal like `concerns`. No diagnostic field (D8). `create_demande` and `update_demande` accept the new keys.
+- **« Jumelée » by hand (B-3, D-38):** for a person matched and booked by phone.
+  - « Passer à Jumelée » (from « Acceptée », « Proposée » or the waiting list) asks for the professional: any active one of the clinic. « Jumeler » on a row of « Jumelage » presets her.
+  - It calls `set_demande_state(…, 'matched', …, p_professional_id)`. A pending proposal is withdrawn and the waiting list closes, as before.
+- **Consents per file (B-4, D-39):** `demande_consents(p_id)` (`demandes.view`) gives, for the request's file and each participant's, the consents its situation requires and their state.
+  - The requirements are Clients' rules: `general`, plus the payer kind (IVAC, PAE).
+  - The states are signed, « à signer de nouveau », sent, late (`client_consents_status`), and to be signed.
+  - It is read live each time; nothing is copied onto the request.
+  - « Participants » shows a badge per file, and one line for the request: « Tous les consentements requis … sont valides », or what to settle, file by file. It never blocks the match or the proposal.
+- **The primary professional (A-6, D-41):** at the match, and when a file is added to a matched request, the files without a primary professional get her. This goes through Clients' `private.clients_fill_primary_professional`; a file that has one keeps it, merged and anonymised files are left alone.
 
 ## What the module publishes
 

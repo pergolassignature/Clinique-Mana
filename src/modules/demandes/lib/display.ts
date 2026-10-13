@@ -11,18 +11,22 @@ export type RecordTab = (typeof RECORD_TABS)[number]
 
 export const demandePath = (id: string, tab: RecordTab = 'accueil') => `/demandes/${id}/${tab}`
 
-/** The moves the database allows (D-2: `private.demande_state_allowed`). */
+/**
+ * The moves the database allows (D-2: `private.demande_state_allowed`). « Proposée » is reached by
+ * a proposal (D3b); « Jumelée » asks for the professional (D-38: a match by hand, for a person
+ * booked by phone).
+ */
 const MOVES: Record<DemandeState, DemandeState[]> = {
   new: ['evaluating', 'accepted', 'waitlist', 'closed'],
   evaluating: ['new', 'accepted', 'waitlist', 'closed'],
-  accepted: ['evaluating', 'proposed', 'waitlist', 'closed'],
-  proposed: ['accepted', 'waitlist', 'closed'],
+  accepted: ['evaluating', 'proposed', 'matched', 'waitlist', 'closed'],
+  proposed: ['accepted', 'matched', 'waitlist', 'closed'],
   matched: ['accepted', 'closed'],
-  waitlist: ['accepted', 'proposed', 'closed'],
+  waitlist: ['accepted', 'proposed', 'matched', 'closed'],
   closed: ['new', 'evaluating'],
 }
 
-/** Where a request can go from `state` (« Jumelée » needs the matching panel, D4: not offered here). */
+/** Where a request can go from `state`. */
 export function nextStates(state: DemandeState): DemandeState[] {
   return MOVES[state]
 }

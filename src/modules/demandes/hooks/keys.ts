@@ -20,6 +20,8 @@ import type { CallsPeriod } from '../api/calls'
  * | a task done, cancelled, moved or given (D3b); realtime    | also `calls()`                     |
  * | a proposal made or withdrawn (D3b); realtime              | also `propositions()`, the record  |
  * | the matching panel (D4) is `record(id)`'s child: any write on the request reads it again        |
+ * | the files' consents (D-39) are `record(id)`'s child too                                         |
+ * | « Jumelée » (D-38): also Clients' root `['clients']` (the files' links, primary professional)    |
  */
 export const demandesKeys = {
   all: ['demandes'] as const,
@@ -30,6 +32,8 @@ export const demandesKeys = {
   record: (id: string) => [...demandesKeys.all, 'record', id] as const,
   /** The matching panel (D4): under its request, so every write on the request reads it again. */
   matching: (id: string) => [...demandesKeys.record(id), 'matching'] as const,
+  /** The consents of the request's files (D-39): under its request, read again with it. */
+  consents: (id: string) => [...demandesKeys.record(id), 'consents'] as const,
   reference: () => [...demandesKeys.all, 'reference'] as const,
   /** The availability board (D5): read again after a change of places; the matching panels too (`all`). */
   capacity: () => [...demandesKeys.all, 'capacity'] as const,
