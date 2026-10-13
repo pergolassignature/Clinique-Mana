@@ -13,6 +13,9 @@ import type { ThreadListQuery } from '../api/inbox'
  * | label: `gmail-modify`)                          | at once (optimistic), then `threadLists()`,    |
  * |                                                 | each `thread(id)` and `connections()` (unread  |
  * |                                                 | counts) once Gmail answered                    |
+ * | a thread linked to a file or unlinked (CM2b)    | `threadLink(id)`, `threadLists()` (« À         |
+ * |                                                 | rattacher » and each row's link status)        |
+ * | a sync (new threads, linked by the sync)        | `threads()` covers every `threadLink(id)`      |
  *
  * The SMS side keeps its own root (`smsKeys`), so neither invalidates the other.
  */
@@ -26,6 +29,10 @@ export const mailKeys = {
   threadList: (query: ThreadListQuery) =>
     [...mailKeys.threadLists(), query.connectionId, query.view, query.labelId ?? null, query.search?.trim() || null] as const,
   thread: (id: string) => [...mailKeys.threads(), 'one', id] as const,
+  /** The thread's file (CM2b): under `threads()`, so a sync reads it again. */
+  threadLink: (id: string) => [...mailKeys.threads(), 'link', id] as const,
+  /** The search of a file to link a thread to (Clients' `search_clients`). */
+  fileSearch: (query: string) => [...mailKeys.all, 'file-search', query] as const,
   labels: (connectionId: string) => [...mailKeys.all, 'labels', connectionId] as const,
 }
 

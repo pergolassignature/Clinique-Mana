@@ -18,6 +18,12 @@ const mocks = vi.hoisted(() => ({
     modifyMailThreads: vi.fn(),
   },
   mailboxes: { listMailConnections: vi.fn() },
+  links: {
+    getMailThreadLink: vi.fn(),
+    linkMailThread: vi.fn(),
+    unlinkMailThread: vi.fn(),
+    searchFiles: vi.fn(),
+  },
   storage: {
     useSignedFileUrl: vi.fn(),
     useSignedFileUrls: vi.fn(),
@@ -28,6 +34,10 @@ vi.mock('../api/inbox', async (importOriginal) => ({ ...(await importOriginal<ty
 vi.mock('../api/mailboxes', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/mailboxes')>()),
   ...mocks.mailboxes,
+}))
+vi.mock('../api/client-links', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/client-links')>()),
+  ...mocks.links,
 }))
 vi.mock('@/core/storage/hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/storage/hooks')>()),
@@ -129,6 +139,10 @@ beforeEach(() => {
     { gmail_label_id: 'Label_1', name: 'Factures', type: 'user', visibility: null, color_background: null },
   ])
   mocks.inbox.modifyMailThreads.mockResolvedValue({ changed: 1, failed: [] })
+  mocks.links.getMailThreadLink.mockResolvedValue({ status: 'unlinked', source: null, client: null, candidates: [] })
+  mocks.links.linkMailThread.mockResolvedValue(undefined)
+  mocks.links.unlinkMailThread.mockResolvedValue(undefined)
+  mocks.links.searchFiles.mockResolvedValue([])
   mocks.storage.useSignedFileUrl.mockImplementation((id: string | null) => ({
     data: id ? { url: `https://storage.test/${id}` } : undefined,
   }))
@@ -136,9 +150,10 @@ beforeEach(() => {
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage(path = '/courriels') {
+function renderPage(path = '/courriels', { files = true }: { files?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const access = accessForRole('counselor', { modules: ['communications'] })
+  const base = accessForRole('counselor', { modules: ['communications', 'clients'] })
+  const access = files ? base : { ...base, modules: ['communications'], permissions: base.permissions.filter((p) => !p.startsWith('clients.')) }
   render(<QueryClientProvider client={queryClient}>{renderWithContexts(<InboxPage />, { access: { access }, path })}</QueryClientProvider>)
   return queryClient
 }
@@ -315,5 +330,102 @@ describe('InboxPage', () => {
     expect(await screen.findByText(t(`${I}.list.loadError`))).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: t('common.retry') }))
     expect(await screen.findByRole('list', { name: t(`${I}.list.label`) })).toBeInTheDocument()
+  })
+})
+
+describe('InboxPage: the thread → client link (CM2b)', () => {
+  const C1 = 'c0000000-0000-0000-0000-000000000001'
+  const C2 = 'c0000000-0000-0000-0000-000000000002'
+  const L = `${I}.link`
+
+  it('« À rattacher » is a view for whoever sees files, read with `to_link`', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const nav = await screen.findByRole('navigation', { name: t(`${I}.nav.label`) })
+    await user.click(within(nav).getByRole('button', { name: t(`${I}.nav.views.to_link`) }))
+    await waitFor(() =>
+      expect(mocks.inbox.listMailThreads).toHaveBeenCalledWith({ connectionId: MAILBOX.id, view: 'to_link', labelId: null, search: '' }, null),
+    )
+  })
+
+  it('without clients.view: no « À rattacher », `?vue=to_link` is the inbox, and no file in the thread', async () => {
+    renderPage(`/courriels?vue=to_link&fil=${T1}`, { files: false })
+    const nav = await screen.findByRole('navigation', { name: t(`${I}.nav.label`) })
+    expect(within(nav).queryByRole('button', { name: t(`${I}.nav.views.to_link`) })).not.toBeInTheDocument()
+    expect(mocks.inbox.listMailThreads).toHaveBeenCalledWith({ connectionId: MAILBOX.id, view: 'inbox', labelId: null, search: '' }, null)
+    expect(await screen.findByRole('heading', { level: 2, name: 'Demande de rendez-vous' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: t(`${L}.label`) })).not.toBeInTheDocument()
+    expect(mocks.links.getMailThreadLink).not.toHaveBeenCalled()
+  })
+
+  it('a linked thread shows its file (opening the record) and « Détacher » unlinks it', async () => {
+    const user = userEvent.setup()
+    mocks.links.getMailThreadLink.mockResolvedValue({
+      status: 'linked',
+      source: 'auto',
+      client: { id: C1, client_number: 42, display_name: 'Alice Exemple' },
+      candidates: [],
+    })
+    renderPage(`/courriels?fil=${T1}`)
+    const group = await screen.findByRole('group', { name: t(`${L}.label`) })
+    expect(within(group).getByRole('link', { name: 'CLI-000042 · Alice Exemple' })).toHaveAttribute('href', `/clients/${C1}`)
+    expect(within(group).getByText(t(`${L}.auto`))).toBeInTheDocument()
+    await user.click(within(group).getByRole('button', { name: t(`${L}.unlink`) }))
+    await waitFor(() => expect(mocks.links.unlinkMailThread).toHaveBeenCalledWith(T1))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${L}.unlinkedToast`))
+  })
+
+  it('to review: each matching file with « Rattacher »', async () => {
+    const user = userEvent.setup()
+    mocks.links.getMailThreadLink.mockResolvedValue({
+      status: 'needs_review',
+      source: 'auto',
+      client: null,
+      candidates: [
+        { id: C1, client_number: 42, display_name: 'Alice Exemple' },
+        { id: C2, client_number: 43, display_name: 'Bruno Exemple' },
+      ],
+    })
+    renderPage(`/courriels?fil=${T1}`)
+    const group = await screen.findByRole('group', { name: t(`${L}.label`) })
+    expect(within(group).getByRole('link', { name: 'CLI-000043 · Bruno Exemple' })).toHaveAttribute('href', `/clients/${C2}`)
+    await user.click(within(group).getByRole('button', { name: t(`${L}.linkToLabel`, { file: 'CLI-000043 · Bruno Exemple' }) }))
+    await waitFor(() => expect(mocks.links.linkMailThread).toHaveBeenCalledWith(T1, C2))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${L}.linkedToast`))
+  })
+
+  it('not linked: « Rattacher à un dossier » searches the files (two characters at least) and links the one chosen', async () => {
+    const user = userEvent.setup()
+    mocks.links.searchFiles.mockResolvedValue([{ id: C1, clientNumber: 42, name: 'Alice Exemple', isArchived: true }])
+    renderPage(`/courriels?fil=${T1}`)
+    const group = await screen.findByRole('group', { name: t(`${L}.label`) })
+    expect(within(group).getByText(t(`${L}.none`))).toBeInTheDocument()
+    await user.click(within(group).getByRole('button', { name: t(`${L}.link`) }))
+    const input = await screen.findByLabelText(t(`${L}.searchLabel`))
+    await user.type(input, 'a')
+    expect(screen.getByText(t(`${L}.searchHint`))).toBeInTheDocument()
+    expect(mocks.links.searchFiles).not.toHaveBeenCalled()
+    await user.type(input, 'li')
+    const results = await screen.findByRole('list', { name: t(`${L}.results`) })
+    expect(mocks.links.searchFiles).toHaveBeenCalledWith('ali', expect.anything())
+    const choice = within(results).getByRole('button', { name: /CLI-000042 · Alice Exemple/ })
+    expect(choice).toHaveTextContent(t(`${L}.archived`))
+    await user.click(choice)
+    await waitFor(() => expect(mocks.links.linkMailThread).toHaveBeenCalledWith(T1, C1))
+  })
+
+  it('a refused link says why in French', async () => {
+    const user = userEvent.setup()
+    mocks.links.getMailThreadLink.mockResolvedValue({
+      status: 'needs_review',
+      source: 'auto',
+      client: null,
+      candidates: [{ id: C1, client_number: 42, display_name: 'Alice Exemple' }],
+    })
+    mocks.links.linkMailThread.mockRejectedValue({ code: 'P0001', message: 'Choisissez un dossier client de la clinique.', hint: 'client_id' })
+    renderPage(`/courriels?fil=${T1}`)
+    const group = await screen.findByRole('group', { name: t(`${L}.label`) })
+    await user.click(within(group).getByRole('button', { name: t(`${L}.linkToLabel`, { file: 'CLI-000042 · Alice Exemple' }) }))
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith('Choisissez un dossier client de la clinique.'))
   })
 })

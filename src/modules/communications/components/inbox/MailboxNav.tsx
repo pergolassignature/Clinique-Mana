@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { Inbox, Mail, MailOpen, Send, Star, Tag } from 'lucide-react'
+import { Inbox, Mail, MailOpen, Send, Star, Tag, UserRoundSearch } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
@@ -17,6 +17,8 @@ const VIEWS: { view: Exclude<MailView, 'label'>; icon: LucideIcon }[] = [
   { view: 'starred', icon: Star },
   { view: 'sent', icon: Send },
   { view: 'all', icon: Mail },
+  // « À rattacher » (CM2b): only with `clients.view` (`showToLink`).
+  { view: 'to_link', icon: UserRoundSearch },
 ]
 
 export interface ViewChoice {
@@ -31,6 +33,8 @@ interface MailboxNavProps {
   current: ViewChoice
   onView: (choice: ViewChoice) => void
   labels: MailLabel[]
+  /** « À rattacher »: the person may see files (`clients.view`, Clients enabled). */
+  showToLink: boolean
 }
 
 /** `?vue=`-style value of a choice in the phone's select: the view, or `libelle:<id>`. */
@@ -39,10 +43,11 @@ const choiceValue = (choice: ViewChoice) => (choice.view === 'label' ? `libelle:
 /**
  * The left pane: the mailbox (a choice when the person reads more than one), its views
  * (« Boîte de réception » with its unread count, « Non lus », « Suivis », « Envoyés », « Tous les
- * courriels ») and its own labels. Each entry is a button; the current one is `aria-current`. On a
+ * courriels », and « À rattacher » with `clients.view`) and its own labels. Each entry is a button; the current one is `aria-current`. On a
  * phone the views and labels fold into one « Dossier » choice, so the list starts at the top.
  */
-export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, labels }: MailboxNavProps) {
+export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, labels, showToLink }: MailboxNavProps) {
+  const views = showToLink ? VIEWS : VIEWS.filter(({ view }) => view !== 'to_link')
   const selectId = useId()
   const folderId = useId()
   const mailbox = mailboxes.find((m) => m.id === mailboxId)
@@ -94,7 +99,7 @@ export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, l
             onView(value.startsWith('libelle:') ? { view: 'label', labelId: value.slice('libelle:'.length) } : { view: value as MailView, labelId: null })
           }}
         >
-          {VIEWS.map(({ view }) => (
+          {views.map(({ view }) => (
             <option key={view} value={view}>
               {view !== 'inbox' || !mailbox?.unread_count
                 ? t(`${N}.views.${view}`)
@@ -115,7 +120,7 @@ export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, l
         </Select>
       </div>
       <ul className="space-y-0.5 max-lg:hidden">
-        {VIEWS.map(({ view, icon }) =>
+        {views.map(({ view, icon }) =>
           entry(
             view,
             current.view === view,

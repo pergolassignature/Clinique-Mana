@@ -16,8 +16,9 @@
  *    `appointments.<kind>` (`_en` in English) with the confirmation link
  *    `/rendez-vous/confirmer#t=…` (none for a cancellation), then
  *    `finish_appointment_message_for_service`: sent, or tried again at the next
- *    pass (three tries, then failed; the link revoked). One after the other; a
- *    failure is counted and the others go on.
+ *    pass (three tries, then failed; the link revoked); an email core held
+ *    (`module_reserved`, P3-40) is set aside (`reserved`), counted skipped. One
+ *    after the other; a failure is counted and the others go on.
  * 4. The detail: counts only (`reminders=… emailed=… skipped=… failed=…`).
  *
  * Nothing logs or reports an address, a name or a token: reports carry ids.
@@ -130,6 +131,7 @@ export async function sendOrg(
     }
     const p = prepared.data
     let sent = false
+    let held = false
     try {
       const result = await sendTemplatedEmail(
         { fn: FN, client, env: deps.env, fetch: deps.fetch },
@@ -158,15 +160,23 @@ export async function sendOrg(
         },
       )
       sent = result.ok
+      // Core held it (its module reserved for testers, CC-14): set aside, not tried again.
+      held = !result.ok && result.code === 'module_reserved'
     } catch {
       // sendTemplatedEmail (or linkUrl's configuration check) reported it.
     }
     const { error: finishError } = await client.rpc(
       'finish_appointment_message_for_service',
-      { p_org_id: orgId, p_message_id: messageId, p_sent: sent },
+      {
+        p_org_id: orgId,
+        p_message_id: messageId,
+        p_sent: sent,
+        p_skip_reason: held ? 'reserved' : null,
+      },
     )
     if (finishError) await report('finish_failed')
     if (sent) emailed++
+    else if (held) skipped++
     else failed++
   }
   return `reminders=${pass.data.reminders} emailed=${emailed} skipped=${skipped} failed=${failed}`

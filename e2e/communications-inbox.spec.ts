@@ -9,7 +9,8 @@ import { E2E_ORIGIN } from './fixtures/origin'
  *    menu; without a connected mailbox the page says who connects one.
  * 2. With the fake Google (`npm run fake:gmail`) and the functions served (`npx supabase functions
  *    serve --env-file supabase/functions/.env`): the admin connects the fake mailbox (its first
- *    read brings the fictional messages), reads a thread with its attachment, follows and archives
+ *    read brings the fictional messages), reads a thread with its attachment, links it to a client
+ *    file and unlinks it (CM2b), follows and archives
  *    it, finds it with the search, puts everything back, then disconnects the mailbox so the next
  *    run starts as the first. Skipped when the fake does not answer (CI).
  */
@@ -59,6 +60,23 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await expect(page.getByText(/pourriez-vous m’envoyer une attestation/)).toBeVisible()
   const attachment = page.getByRole('link', { name: /formulaire-assurance\.pdf/ })
   await expect(attachment).toHaveAttribute('href', /\/storage\/v1\/object\/sign\//)
+
+  // CM2b: no file has the sender's address; link the thread to Camille (the seed's file), see it
+  // leave « À rattacher », then « Détacher » (a person's choice: the next runs start the same).
+  const file = page.getByRole('group', { name: 'Dossier client' })
+  await expect(file.getByText('Aucun dossier client rattaché.')).toBeVisible()
+  await file.getByRole('button', { name: 'Rattacher à un dossier' }).click()
+  await page.getByLabel('Chercher un dossier').fill('Camille')
+  await page.getByRole('list', { name: 'Dossiers trouvés' }).getByRole('button', { name: /Camille Exemple/ }).click()
+  await expect(page.getByText('Courriel rattaché au dossier.')).toBeVisible()
+  await expect(file.getByRole('link', { name: /CLI-\d{6} · Camille Exemple/ })).toHaveAttribute('href', /\/clients\/[0-9a-f-]{36}$/)
+  await page.getByRole('navigation', { name: 'Boîtes et dossiers' }).getByRole('button', { name: 'À rattacher' }).click()
+  await expect(list.getByRole('button', { name: /Annulation de mon rendez-vous de jeudi/ })).toBeVisible()
+  await expect(list.getByRole('button', { name: /Attestation pour mes assurances/ })).toHaveCount(0)
+  await page.getByRole('navigation', { name: 'Boîtes et dossiers' }).getByRole('button', { name: /Boîte de réception/ }).click()
+  await list.getByRole('button', { name: /Attestation pour mes assurances/ }).click()
+  await file.getByRole('button', { name: 'Détacher' }).click()
+  await expect(file.getByText('Aucun dossier client rattaché.')).toBeVisible()
 
   // Follow, then stop following: Gmail first, the mirror after.
   await page.getByRole('button', { name: 'Suivre', exact: true }).click()

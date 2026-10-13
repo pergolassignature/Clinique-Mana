@@ -149,6 +149,10 @@ select functions_are('public', array[
   'resolve_appointment_confirm_link', 'confirm_appointment_by_link_for_service', 'list_appointments_without_reminder',
   -- Rendez-vous, batch R5.
   'get_my_agenda_reference', 'list_client_visits',
+  -- Facturation, batch F1.
+  'create_invoice', 'create_manual_invoice', 'add_invoice_line', 'set_invoice_line_price', 'remove_invoice_line',
+  'set_invoice_payer', 'set_invoice_notes', 'delete_invoice_draft', 'finalize_invoice', 'issue_credit_note',
+  'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',
@@ -187,6 +191,8 @@ select functions_are('public', array[
   -- Demandes, batch D3b (the proposals).
   'proposition_services', 'create_proposition_for_service', 'resolve_proposition_link', 'answer_proposition_for_service',
   'withdraw_proposition', 'list_demande_propositions',
+  -- Communications, batch CM2b (threads linked to clients).
+  'link_mail_thread', 'unlink_mail_thread', 'get_mail_thread_link',
   -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
   'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
   'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',
