@@ -10,7 +10,7 @@
 -- IVAC rate (billing.settings); the conseillère refused.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(71);
+select plan(72);
 
 -- Privileges.
 select table_privs_are('public', t, 'authenticated', array['SELECT'], t || ': select only')
@@ -165,6 +165,9 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select is((select pg_catalog.jsonb_array_length(o -> 'drafts') from pg_catalog.jsonb_array_elements(public.list_payer_queue()) o
             where o -> 'organisation' ->> 'name' = 'Fournisseur X'), 1, '« Payeurs » lists the draft per organisation');
+select results_eq($$ select payer_kind, payer_name from public.list_invoices('draft', 'd0000000-0000-0000-0000-000000000002')
+                      where id = current_setting('test.p_paula')::uuid $$,
+  $$ values ('organisation'::text, 'Fournisseur X'::text) $$, '« Factures » names the organisation as the payer');
 select throws_ok(format($$ select public.set_invoice_payer(%L, 'd0000000-0000-0000-0000-000000000002') $$, current_setting('test.p_paula')),
   'P0001', 'La facture d''un organisme payeur garde son payeur.', 'a payer invoice keeps its payer');
 select is((select count(*)::int from public.send_invoices(array[current_setting('test.p_ivan')::uuid, current_setting('test.p_paula')::uuid]) s

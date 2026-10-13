@@ -926,11 +926,12 @@ begin
 end;
 $$;
 
--- « Factures »: an organisation's invoice says its payer (FP-4).
+drop function public.list_invoices(text, uuid, timestamptz, int);
+-- « Factures »: an organisation's invoice says its payer and its kind (FP-4); the return type grows, so dropped and made again.
 create or replace function public.list_invoices(p_status text default null, p_client_id uuid default null, p_before timestamptz default null, p_limit int default 50)
 returns table (
   id uuid, number text, status text, client_id uuid, client_name text, client_number int, payer_client_id uuid, payer_name text,
-  issued_on date, total_cents int, paid_cents int, payment_status text, created_at timestamptz
+  issued_on date, total_cents int, paid_cents int, payment_status text, created_at timestamptz, payer_kind text
 )
 language plpgsql
 stable
@@ -955,13 +956,15 @@ begin
     )
     select v.id, v.number, v.status, v.client_id, c.display_name, c.client_number, v.payer_client_id,
            case when v.payer_kind = 'organisation' then (select o.name from public.payer_organisations o where o.id = v.payer_organisation_id) else p.display_name end,
-           v.issued_on, v.total_cents, v.paid_cents, v.payment_status, v.created_at
+           v.issued_on, v.total_cents, v.paid_cents, v.payment_status, v.created_at, v.payer_kind
       from v
       left join names c on c.client_id = v.client_id
       left join names p on p.client_id = v.payer_client_id
      order by v.created_at desc;
 end;
 $$;
+revoke all on function public.list_invoices(text, uuid, timestamptz, int) from public, anon;
+grant execute on function public.list_invoices(text, uuid, timestamptz, int) to authenticated;
 
 -- The invoice page: an organisation as its payer (FP-4).
 create or replace function public.get_invoice(p_invoice_id uuid)

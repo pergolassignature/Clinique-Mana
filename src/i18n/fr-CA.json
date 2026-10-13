@@ -9809,6 +9809,7 @@
         "payer": "Facturé à",
         "payerHelp": "Le client, ou un proche qui a le droit « recevoir reçus et factures ». Une facture ne se partage jamais.",
         "payerSelf": "{name} (le client)",
+        "payerReference": "Dossier n° {number}",
         "lines": "Lignes de la facture",
         "noLines": "Aucune ligne : ajoutez un ajustement.",
         "description": "Description",

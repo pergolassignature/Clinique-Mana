@@ -14964,6 +14964,7 @@ export type Database = {
           number: string
           paid_cents: number
           payer_client_id: string
+          payer_kind: string
           payer_name: string
           payment_status: string
           status: string
