@@ -13,6 +13,8 @@ export const COMMUNICATIONS_AUDITED_TABLES = [
   'mail_sends',
   'mail_templates',
   'sms_consents',
+  // CM4: the clinic's settings of « Rédiger avec l'IA » (the calls are a usage log, not audited).
+  'ai_settings',
 ] as const
 
 /**

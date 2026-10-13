@@ -17,7 +17,7 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 | CM2 | « Courriels »: three panes, read / archive / follow / labels (`gmail-modify`), attachments, search | built |
 | CM2b | the thread → client link: identity match in the sync, « À rattacher », manual link (CM-12, CM-13) | built |
 | CM3 | composer (drafts, templates, 5-s undo), `gmail-send`, the record's « Courriels », the CM2b backfill (CM-14 … CM-17) | built |
-| CM4 | « Rédiger avec l'IA » | planned |
+| CM4 | « Rédiger avec l'IA »: PS Hub's bar « Utiliser / Annuler / Raffiner », `communications-draft` (OpenAI Chat Completions, names and numbers hidden), Paramètres → IA (key, model, monthly cap), usage log without text (CM-18 … CM-20) | built |
 | SM | « Textos »: SMS through the clinic's Yeastar PBX (as PS Hub, R-73), consents, « ARRÊT », the « OUI » hook, Paramètres → Textos | built (lane C) |
 
 ## CM1: Gmail
@@ -120,6 +120,28 @@ Migration `20261013165711_communications_composer` (pgTAP `156`); decisions CM-1
 - **Clients' merge and anonymisation:** CM2b's two handlers also move or clear `mail_drafts.client_id` and `mail_sends.client_id`.
 - **The backfill of CM2b (CM-17):** the nightly maintenance job « Rattachement des anciens courriels » (`communications.mail_links_backfill`, `private.job_mail_links_backfill`, « Exécuter maintenant » in Tâches planifiées) hands every thread with inbound mail that no person linked or unlinked, and that is not linked yet, to `communications_link_threads`, 500 at a time; idempotent, and it also links the threads of a file created after its first email, and a thread sent from the app about a file whose immediate mirror failed (manual, unless a person decided).
 - **Tests:** pgTAP `156_communications_composer` (70); Deno `gmail-send/handler.test.ts`, `_shared/gmail/compose.test.ts`; Vitest `Composer`, `lib/compose`, `InboxPage` (reply, new message, drafts), `ClientMailPanel`; e2e `communications-inbox.spec.ts` (reply and send through the fake Gmail).
+
+## CM4: « Rédiger avec l'IA » (CM-18 … CM-20)
+- **Migration** `20261013193134_communications_ai_draft` (pgTAP `148`):
+  - **Permissions:** `communications.ai_draft` for Conseillère, Adjointe and admin (A C J, given since CC-15) and `communications.ai_manage` for the admin.
+  - **`ai_settings`** (audited), one row per clinic: on or off, the model (`gpt-5.4`), the monthly cap (50 $) and the prices per million tokens the cost is counted with. **Off until the clinic enters its OpenAI key** (org secret `openai_api_key`, SecretField, `settings.integrations_manage`) and switches it on.
+  - **`ai_requests`:** one row per call, **never the text**: who, when, the model, the kind (`write` / `reply` / `refine`), `ok` / `failed` with a code, the tokens and the cost. A usage log, not audited (000_invariants); read with `communications.ai_manage`.
+  - **RPCs:** `get_ai_settings`, `set_ai_settings` (switching on refused without the key; French checks), `get_ai_draft_status` (the composer: available, cap reached); for the function, `ai_draft_context_for_service` (the actor's right, the settings, the month's spending, the names to hide: the file's person as gmail-send finds it, the sender, the clinic) and `record_ai_request_for_service`.
+- **Edge function `communications-draft`** (user, `communications.ai_draft`):
+  - **Limits:** 40 calls an hour per caller (`communications.ai_draft_user`). The monthly cap is a French refusal before any call.
+  - **What OpenAI sees** (`mask.ts`): the file's person, the sender and the clinic become the composer's placeholders `{{person.first_name}}`, `{{person.last_name}}`, `{{sender.name}}`, `{{clinic.name}}`, which gmail-send fills at the send. Email addresses, phone numbers and long digit runs become numbered tokens `[[courriel-1]]`, `[[téléphone-1]]`, `[[numéro-1]]`, put back in the answer.
+  - **Prompts:** PS Hub's (`prompts.ts`), plus the placeholders to keep and « jamais d'information clinique ». The call is OpenAI Chat Completions with `fetch` (no SDK: ADR 0008), `max_completion_tokens` 3 072, a 45 s timeout.
+  - **Answer:** `{ text, subject, history }`. OpenAI's refusals: the credit exhausted or the key refused give a French refusal; a busy service gives 429; anything else gives 502 `provider_error`. Each call is recorded, a failure at 0 $.
+  - **Origin:** OpenAI's. `OPENAI_API_BASE_URL` (the local fake, `npm run fake:openai`, port 55398) is honoured only while APP_URL is local.
+- **Frontend:**
+  - **The bar** (`AiBar`, in the composer when `get_ai_draft_status` says available): « Rédiger avec l'IA » opens the instruction box (Entrée sends, Maj+Entrée goes to the line, Échap closes); in a reply, « Générer une réponse » writes one at once.
+  - **The proposal:** « Objet proposé » when the subject is empty, then **« Utiliser »** (it replaces the text above the quote, with « Rétablir » for 10 s in the toast), **« Annuler »** and **« Raffiner »** (one more instruction in the same conversation). These are PS Hub's labels, taken as is (CM-18).
+  - **Paramètres → IA** (`ia`, `communications.ai_manage`): the key (SecretField), the settings and the month's use.
+- **Tests:**
+  - pgTAP `148_communications_ai_draft`;
+  - Deno `communications-draft/handler.test.ts` (nothing personal reaches the fake OpenAI, refine, off and cap, limits, OpenAI's refusals, the masker, the prompts, the origin);
+  - Vitest `AiBar.test.tsx`, `AiSettingsPage.test.tsx`.
+- **Local:** the seed holds the fake's key and switches the feature on; run `npm run fake:openai`.
 
 ## Textos (batch SM)
 
