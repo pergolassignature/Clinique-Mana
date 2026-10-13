@@ -10178,6 +10178,10 @@ export type Database = {
         Args: { p_assignee: string; p_id: string }
         Returns: undefined
       }
+      assign_demande_task: {
+        Args: { p_assigned_to: string; p_demande_id: string; p_task_id: string }
+        Returns: undefined
+      }
       attach_professional_document: {
         Args: {
           p_expires_on?: string
@@ -11066,6 +11070,27 @@ export type Database = {
           waiting_hours: number
         }[]
       }
+      list_discovery_calls: {
+        Args: { p_from: string; p_overdue?: boolean; p_to: string }
+        Returns: {
+          assigned_name: string
+          assigned_to: string
+          booked_online: boolean
+          demande_id: string
+          demande_state: string
+          done_at: string
+          done_by_name: string
+          due_at: string
+          is_urgent: boolean
+          language: string
+          outcome: string
+          person_name: string
+          phone_e164: string
+          reference: string
+          state: string
+          task_id: string
+        }[]
+      }
       list_document_template_versions: {
         Args: { p_template_id: string }
         Returns: {
@@ -11937,6 +11962,10 @@ export type Database = {
       request_professional_update: {
         Args: { p_id: string; p_sections: string[] }
         Returns: Json
+      }
+      reschedule_demande_task: {
+        Args: { p_demande_id: string; p_due_at: string; p_task_id: string }
+        Returns: undefined
       }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
       reset_mail_history: {

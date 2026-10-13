@@ -177,6 +177,8 @@ select functions_are('public', array[
   'list_waitlist', 'waitlist_lists', 'get_waitlist_entry', 'waitlist_followup_for_service',
   'prepare_waitlist_followup_for_service', 'mark_waitlist_followup_sent_for_service', 'resolve_waitlist_followup_link',
   'answer_waitlist_followup_for_service',
+  -- Demandes, batch D3b (the discovery calls).
+  'list_discovery_calls', 'reschedule_demande_task', 'assign_demande_task',
   -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
   'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
   'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',

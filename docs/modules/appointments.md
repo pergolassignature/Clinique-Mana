@@ -123,7 +123,7 @@ Service-side helpers, `security definer`, **granted to no role**: call them from
 
 ## Video links (batch RZ)
 
-Migrations `20261013083104_professionals_appointments_facts` (Professionnels' published names and accounts) and `20261013083107_appointments_video`; pgTAP `123_appointments_video`; functions `zoom-connect`, `zoom-callback`, `zoom-deauthorize`, `appointments-video-sync`; decisions R-55, RZ-1 … RZ-8.
+Migrations `20261013085921_professionals_appointments_facts` (Professionnels' published names and accounts) and `20261013085924_appointments_video`; pgTAP `123_appointments_video`; functions `zoom-connect`, `zoom-callback`, `zoom-deauthorize`, `appointments-video-sync`; decisions R-55, RZ-1 … RZ-8.
 
 - **Tables:**
   - `professional_video_links`: a professional's fixed link, https only, ≤ 500 characters, the link redacted in the journal.

@@ -7851,6 +7851,52 @@
           "stay": "Oui, je reste sur la liste",
           "leave": "Non, retirez-moi de la liste"
         }
+      },
+      "calls": {
+        "nav": "Appels découverte",
+        "title": "Appels découverte",
+        "description": "Les appels découverte à faire, réservés en ligne ou par téléphone : l'heure, la personne et son numéro, qui appelle. Ils remplacent les faux rendez-vous de l'agenda « conseillère ».",
+        "views": "Période",
+        "view": {
+          "today": "Aujourd'hui",
+          "tomorrow": "Demain",
+          "week": "7 prochains jours"
+        },
+        "loadError": "Les appels n'ont pas pu être chargés.",
+        "empty": {
+          "today": "Aucun appel aujourd'hui.",
+          "tomorrow": "Aucun appel demain.",
+          "week": "Aucun appel ces 7 prochains jours."
+        },
+        "emptyBody": "Un appel découverte s'ajoute depuis la demande (onglet Suivi, « Appel découverte ») ou arrive par la page de réservation en ligne.",
+        "late": "En retard",
+        "urgent": "Urgente",
+        "bookedOnline": "Réservé en ligne",
+        "noPhone": "Pas de numéro",
+        "english": "En anglais",
+        "doneLine": "Fait : {outcome} · {name}",
+        "whoFor": "Qui appelle {person}",
+        "anyone": "La première disponible",
+        "assignedTo": "Appelle : {name}",
+        "reached": "Jointe",
+        "noAnswer": "Pas de réponse",
+        "done": "Appel noté pour {person}.",
+        "move": "Reporter…",
+        "moveFor": "Reporter l'appel de {person}",
+        "moveTitle": "Reporter l'appel de {person}",
+        "moveBody": "Choisissez le nouveau moment de l'appel.",
+        "moveBodyOnline": "Choisissez le nouveau moment de l'appel. Prévenez la personne : son lien d'annulation reste valide jusqu'à l'heure réservée au départ.",
+        "date": "Date",
+        "time": "Heure",
+        "moveSave": "Reporter",
+        "moved": "Appel reporté.",
+        "cancel": "Annuler",
+        "cancelFor": "Annuler l'appel de {person}",
+        "cancelTitle": "Annuler l'appel de {person} ?",
+        "cancelBody": "L'appel disparaît de la liste ; la demande reste ouverte.",
+        "cancelBodyOnline": "L'appel disparaît de la liste ; la demande reste ouverte. La personne a réservé en ligne : prévenez-la, aucun courriel ne part.",
+        "cancelAction": "Annuler l'appel",
+        "cancelled": "Appel annulé."
       }
     },
     "appointments": {

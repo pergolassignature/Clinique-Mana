@@ -91,9 +91,24 @@ Migrations `20261013062721_core_realtime` (core, see the [core doc](core.md#real
 - **`/demandes/:id/:onglet`** (`accueil`, `participants`, `suivi`, `historique`): the header (the person, the number, the state and its moves (closing asks for the reason), the counselor, « Je m'en occupe », « Noter un appel »); **Accueil** the file (« Rattacher un dossier »), the contact and the intake, saved together (only the changed keys); **Participants** who the request is for, one main person; **Suivi** the attempts, the dated tasks (the discovery call, a callback, a follow-up; done with an outcome, cancelled), the internal note; **Historique** the events in words, by whom and when. Read-only without `demandes.manage` or once closed. « Jumelée » is not offered here: the matching panel (D4) and the proposals (D3b) set it.
 - **Clients (D-14):** « Rattacher un dossier » opens Clients' `ClientPicker` (`@/modules/clients`, lazy) in the Accueil card: a search result, « Choisir ce dossier » in its duplicates panel or a file made through « Nouveau client » (prefilled with the request's contact) becomes the request's file; `get_demandes_reference()` reads the referral sources from Clients' view `referral_sources_catalog`.
 
+## D3b: the discovery calls
+
+Migration `20261013084345_demandes_discovery_calls`; pgTAP `124_demandes_discovery_calls`; decision D-20.
+
+A discovery call is a dated task of its request (D1, kind `discovery_call`), made by the public booking page (D3c) or by a counselor (Suivi, « Ajouter une tâche »). « Appels découverte » replaces the fake appointments of GOrendezvous's shared « conseillère » agenda.
+
+| RPC | Permission | Does |
+|---|---|---|
+| `list_discovery_calls(p_from, p_to, p_overdue)` | `demandes.view` | the calls of a period (32 days at most) in time order, and with `p_overdue` the open ones due before it: the request, the person (the file's name, else the contact), the number to call (the file's mobile, else the request's), booked online, urgent, who calls, done (outcome, by whom); cancelled ones left out |
+| `reschedule_demande_task(p_demande_id, p_task_id, p_due_at)` | `demandes.manage` | an open task moved, never into the past; a call booked online keeps its cancel link, valid until the time first booked |
+| `assign_demande_task(p_demande_id, p_task_id, p_assigned_to)` | `demandes.manage` | who does an open task (someone who works the requests), or nobody: the first one free |
+
+- **`/demandes/appels`** (« Appels découverte », nav, `demandes.view`): real tabs « Aujourd'hui » (with the calls not made since, « En retard »), « Demain », « 7 prochains jours » (`?vue=`), grouped by day; each call: the time, the person (to the request's Suivi), the number (`tel:`), « Réservé en ligne », « Urgente », « En anglais »; with `demandes.manage`: « Qui appelle », « Jointe », « Pas de réponse » (D1's `complete_demande_task`: the request's contact attempts count it), « Reporter… », « Annuler » (asks first; nothing is sent to the person: she is told by phone).
+- Done and cancelled calls follow the clinic's Demandes channel (the inbox and the record too).
+
 ## D3: the waiting list, part 1
 
-Migration `20261013064427_demandes_waitlist`; pgTAP `122_demandes_waitlist`; functions `demandes-waitlist-followup` (job) and `demandes-waitlist-answer` (public token); decisions D-15 … D-19 ([roadmap §2.3 bis](../plans/2026-10-11-next-modules-roadmap.md)).
+Migration `20261013064427_demandes_waitlist`; pgTAP `123_demandes_waitlist`; functions `demandes-waitlist-followup` (job) and `demandes-waitlist-answer` (public token); decisions D-15 … D-19 ([roadmap §2.3 bis](../plans/2026-10-11-next-modules-roadmap.md)).
 
 ### RPCs
 
@@ -121,7 +136,7 @@ Migration `20261013064427_demandes_waitlist`; pgTAP `122_demandes_waitlist`; fun
 
 - **Job `demandes.waitlist_followup`** (function `demandes-waitlist-followup`, hourly, due at 7 h clinic time, off until the clinic switches it on): settled entries become active; active entries without a conversation for `followup_weeks` (or whose next call is due) → « À rappeler », with one notice `demandes.waitlist_to_call` (`demandes.waitlist`, link `/liste-attente?etat=a-rappeler`, one per day); a « still waiting? » email unanswered after `answer_days` → a follow-up « Pas de réponse » (« Sans réponse au courriel de suivi »).
 - **The email** (`demandes.waitlist_still_waiting` / `_en`, the recipient's language; when `followup_email` is on and Demandes is open to everyone): one per request (its oldest « À rappeler » entry), the request not emailed during the last `followup_weeks`; the address from Clients' published `private.client_contacts_for(…, 'communications')` (the client herself, else her main contact or another related person who receives her communications; never a merged or anonymised file), the request's own only without a file; noted in the follow-ups only once sent (`mark_waitlist_followup_sent_for_service`; a failed send revokes its link and the next pass tries again); a link (purpose `waitlist_followup`, valid `answer_days`, one use) to `/liste-attente/reponse#t=…`. The answer covers the whole request: « Oui, je reste » → its « À rappeler » entries « Active » (no call needed); « Non, retirez-moi » → every entry out « Ne souhaite plus » (the request closes), notice `demandes.waitlist_left`. The page is in French (as D3c's, D-11).
-- **P3-40:** while Demandes is reserved for its testers, `waitlist_followup_for_service` lists no email and `prepare_waitlist_followup_for_service` prepares none (pgTAP 122).
+- **P3-40:** while Demandes is reserved for its testers, `waitlist_followup_for_service` lists no email and `prepare_waitlist_followup_for_service` prepares none (pgTAP 123).
 
 ### Screens
 

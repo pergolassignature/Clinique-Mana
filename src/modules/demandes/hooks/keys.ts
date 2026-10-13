@@ -1,5 +1,6 @@
 import type { InboxQuery } from '../api/demandes'
 import type { WaitlistQuery } from '../api/waitlist'
+import type { CallsPeriod } from '../api/calls'
 
 /**
  * React Query keys of Demandes (D2):
@@ -16,6 +17,7 @@ import type { WaitlistQuery } from '../api/waitlist'
  * |                                                           | `record(demande)`                  |
  * | realtime, a change of a request (its entries announce it) | also `waitlist()`                  |
  * | the follow-up settings saved                              | `waitlistSettings()`               |
+ * | a task done, cancelled, moved or given (D3b); realtime    | also `calls()`                     |
  */
 export const demandesKeys = {
   all: ['demandes'] as const,
@@ -32,4 +34,6 @@ export const demandesKeys = {
   waitlistOfDemande: (demandeId: string) => [...demandesKeys.waitlist(), 'demande', demandeId] as const,
   waitlistEntry: (id: string) => [...demandesKeys.waitlist(), 'entry', id] as const,
   waitlistSettings: () => [...demandesKeys.all, 'waitlist-settings'] as const,
+  calls: () => [...demandesKeys.all, 'calls'] as const,
+  callsOf: (period: CallsPeriod) => [...demandesKeys.calls(), period.from, period.to, period.overdue] as const,
 }
