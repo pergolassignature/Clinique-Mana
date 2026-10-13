@@ -257,3 +257,110 @@ Deno.test('billing-stripe: a charge Stripe is still processing is pending, never
       !service.calls.some((c) => c.fn === 'finish_stripe_charge_for_service'),
     )
   }))
+
+const REFUND = '00000000-0000-4000-8000-0000000000d1'
+const pendingRefund = (over: Record<string, unknown> = {}) => ({
+  data: {
+    refund_id: REFUND,
+    amount_cents: 5000,
+    payment_intent_id: 'pi_paid1',
+    invoice_id: INVOICE,
+    module_open: true,
+    ...over,
+  },
+})
+
+Deno.test('billing-stripe: « Rembourser » refunds the card once at Stripe, then settles the refund (FS-9)', () =>
+  run(async () => {
+    const { handler, service, stripe } = setup({
+      rpc: {
+        stripe_refund_for_service: pendingRefund(),
+        settle_stripe_refund_for_service: { data: true },
+      },
+    })
+    stripe.paymentIntents.set('pi_paid1', {
+      amount: 20000,
+      status: 'succeeded',
+      metadata: {},
+    })
+    const res = await handler(post({ action: 'refund', refund_id: REFUND }))
+    assertEquals(await res.json(), { status: 'recorded' })
+    const call = stripe.calls.find((c) => c.path === '/v1/refunds')!
+    assertEquals(call.idempotencyKey, `refund:${REFUND}`)
+    assertEquals(call.params.get('payment_intent'), 'pi_paid1')
+    assertEquals(call.params.get('amount'), '5000')
+    assertEquals(call.params.get('metadata[refund_id]'), REFUND)
+    const settled = service.calls.find((c) =>
+      c.fn === 'settle_stripe_refund_for_service'
+    )!
+    assertEquals(settled.args.p_ok, true)
+    assertMatch(String(settled.args.p_provider_ref), /^re_fake/)
+
+    // Twice: the same refund at Stripe (its key), never a second one.
+    await (await handler(post({ action: 'refund', refund_id: REFUND }))).body
+      ?.cancel()
+    assertEquals(stripe.refunds.size, 1)
+  }))
+
+Deno.test('billing-stripe: a refund Stripe refuses, or a card payment without its PaymentIntent, settles as failed', () =>
+  run(async () => {
+    const refused = setup({
+      rpc: {
+        stripe_refund_for_service: pendingRefund({ amount_cents: 999999 }),
+        settle_stripe_refund_for_service: { data: true },
+      },
+    })
+    refused.stripe.paymentIntents.set('pi_paid1', {
+      amount: 20000,
+      status: 'succeeded',
+      metadata: {},
+    })
+    const r = await refused.handler(
+      post({ action: 'refund', refund_id: REFUND }),
+    )
+    assertEquals(await r.json(), { status: 'failed' })
+    const settled = refused.service.calls.find((c) =>
+      c.fn === 'settle_stripe_refund_for_service'
+    )!
+    assertEquals([settled.args.p_ok, settled.args.p_error_code], [
+      false,
+      'amount_too_large',
+    ])
+
+    const imported = setup({
+      rpc: {
+        stripe_refund_for_service: pendingRefund({
+          payment_intent_id: 'gor:123',
+        }),
+        settle_stripe_refund_for_service: { data: true },
+      },
+    })
+    const i = await imported.handler(
+      post({ action: 'refund', refund_id: REFUND }),
+    )
+    assertEquals(await i.json(), { status: 'failed' })
+    assert(!imported.stripe.calls.some((c) => c.path === '/v1/refunds'))
+    assertEquals(
+      imported.service.calls.find((c) =>
+        c.fn === 'settle_stripe_refund_for_service'
+      )?.args.p_error_code,
+      'not_refundable_online',
+    )
+  }))
+
+Deno.test('billing-stripe: a settled refund is said so; a reserved module moves no money (P3-40)', () =>
+  run(async () => {
+    const done = setup({ rpc: { stripe_refund_for_service: { data: null } } })
+    const d = await done.handler(post({ action: 'refund', refund_id: REFUND }))
+    assertEquals(await d.json(), { status: 'settled' })
+
+    const reserved = setup({
+      rpc: { stripe_refund_for_service: pendingRefund({ module_open: false }) },
+    })
+    const r = await reserved.handler(
+      post({ action: 'refund', refund_id: REFUND }),
+    )
+    assertEquals(r.status, 409)
+    await r.body?.cancel()
+    assert(!reserved.stripe.calls.some((c) => c.path === '/v1/refunds'))
+  }))

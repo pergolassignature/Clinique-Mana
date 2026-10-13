@@ -491,7 +491,7 @@ function RefundButton({ payment }: { payment: Payment }) {
               if (cents === null) return setError(t(`${I}.amountInvalid`))
               if (reason.trim().length < 3) return setError(t(`${P}.reasonInvalid`))
               setError(null)
-              refund.mutate({ paymentId: payment.id, amountCents: cents, reason: reason.trim() }, { onSuccess: () => setOpen(false) })
+              refund.mutate({ paymentId: payment.id, amountCents: cents, reason: reason.trim(), modeCode: payment.modeCode }, { onSuccess: () => setOpen(false) })
             }}
           >
             <FormField label={t(`${P}.refundAmount`)} help={t(`${P}.refundAmountHelp`, { amount: formatCents(payment.refundableCents) })} width="sm" required>

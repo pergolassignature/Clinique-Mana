@@ -9295,7 +9295,12 @@
         "refund": "Remboursement enregistré.",
         "dunning": "Relances enregistrées.",
         "feeApplied": "Frais appliqués : le brouillon est dans la file du matin.",
-        "feeWaived": "Frais non facturés."
+        "feeWaived": "Frais non facturés.",
+        "refundStripe": {
+          "recorded": "Remboursement fait par Stripe : la carte du payeur est remboursée.",
+          "pending": "Remboursement demandé à Stripe : il est confirmé dès sa réponse.",
+          "failed": "Stripe n’a pas fait le remboursement : rien n’est remboursé. La facturation en est avisée."
+        }
       },
       "list": {
         "title": "Factures",
@@ -10178,7 +10183,7 @@
             "webhook": "Secret de signature du webhook",
             "webhookHelp": "Commence par whsec_ : affiché par Stripe quand vous ajoutez l’adresse ci-dessous.",
             "address": "Adresse du webhook",
-            "addressHelp": "À ajouter dans Stripe (Développeurs → Webhooks) avec les événements checkout.session.completed, payment_intent.succeeded et payment_intent.payment_failed.",
+            "addressHelp": "À ajouter dans Stripe (Développeurs → Webhooks) avec les événements checkout.session.completed, payment_intent.succeeded, payment_intent.payment_failed, charge.refunded et refund.updated.",
             "readOnly": "Seule une personne qui gère les intégrations peut changer les clés.",
             "secretsUnknown": "L’état des clés n’est visible qu’avec la permission de voir les paramètres.",
             "secretsLoadError": "L’état des clés n’a pas pu être chargé."
