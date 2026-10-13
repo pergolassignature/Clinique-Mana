@@ -376,6 +376,27 @@ export const LIMITS = {
   smsTestUser: { bucket: 'sms.test_user', max: 5, windowSeconds: 3_600 },
   /** Every text `sms-send` sends, per org: a runaway-loop brake (the dispatch has the queue's own pace). */
   smsOrgDay: { bucket: 'sms.org_day', max: 500, windowSeconds: 86_400 },
+  /** `clients-consent-send` (« Envoyer », « Renvoyer » a consent request), per caller. */
+  clientConsentSendUser: {
+    bucket: 'clients.consent_send_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `clients-consent-sign` (the public page), per IP, before any lookup: a
+   * signer opens, answers and signs in a few calls; a guesser is cut early.
+   */
+  clientConsentSignIp: {
+    bucket: 'clients.consent_sign_ip',
+    max: 60,
+    windowSeconds: 600,
+  },
+  /** The same page, per link: the identity check (first name, birth year) cannot be brute-forced. */
+  clientConsentLink: {
+    bucket: 'clients.consent_link',
+    max: 20,
+    windowSeconds: 3_600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

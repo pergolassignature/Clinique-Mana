@@ -61,7 +61,10 @@ Deno.test('pdfmake: the signing functions that do not render never reach it', as
       'signing-webhook',
       'signing-sync',
       'signing-test-connection',
+      'clients-consent-send',
+      'clients-consent-reminders',
       '_shared/signing-events.ts',
+      '_shared/client-consents.ts',
     ]
   ) {
     const entry = new URL(
@@ -81,6 +84,10 @@ Deno.test('pdfmake: the signing functions that do not render never reach it', as
     new URL('professionals-contract-send/index.ts', FUNCTIONS),
   )
   assert(contract.has(RENDER), 'professionals-contract-send renders')
+  const consent = await graph(
+    new URL('clients-consent-sign/index.ts', FUNCTIONS),
+  )
+  assert(consent.has(RENDER), 'clients-consent-sign renders')
 })
 
 Deno.test('pdfmake: only render.ts (and tests) import the vendored module', async () => {

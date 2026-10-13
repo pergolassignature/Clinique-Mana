@@ -71,7 +71,7 @@ The upload purpose `mail_attachment` (bucket `documents`, read with `communicati
 
 ## CM2: « Courriels »
 
-Migration `20261013021736_communications_inbox` (pgTAP `108`); decisions CM-11, CM-12.
+Migration `20261013021736_communications_inbox` (pgTAP `109`); decisions CM-11, CM-12.
 
 ### RPCs
 

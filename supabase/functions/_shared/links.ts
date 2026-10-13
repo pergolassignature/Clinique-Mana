@@ -38,13 +38,16 @@ const TOKEN_BYTES = 32
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/
 
 /** Paths the app serves a link page on. */
-const LINK_PATHS: ReadonlySet<string> = new Set(['/invitation'])
+const LINK_PATHS: ReadonlySet<string> = new Set([
+  '/invitation',
+  '/consentement',
+])
 
 /** The only plain-http app origin accepted: the local Vite server. */
 const LOCAL_DEV_ORIGIN = 'http://localhost:5173'
 
 /** A path the app serves a link page on (the page reads `#t=`). */
-export type LinkPath = '/invitation'
+export type LinkPath = '/invitation' | '/consentement'
 
 /** Base64url of `bytes`, without padding (RFC 4648 §5). */
 function base64Url(bytes: Uint8Array): string {
