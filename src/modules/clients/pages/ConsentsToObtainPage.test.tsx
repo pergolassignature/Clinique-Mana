@@ -15,8 +15,9 @@ const mocks = vi.hoisted(() => ({
     fetchConsentTypes: vi.fn(),
     fetchConsentTemplates: vi.fn(),
     fetchClientConsentStatus: vi.fn(),
-    fetchClientConsentFiles: vi.fn(),
     sendConsentRequest: vi.fn(),
+    withdrawConsent: vi.fn(),
+    sendConsentCopy: vi.fn(),
     resendConsentRequest: vi.fn(),
     cancelConsentRequest: vi.fn(),
   },
@@ -46,7 +47,8 @@ beforeEach(() => {
   mocks.api.fetchClientConsentStatus.mockResolvedValue([
     statusOf({ consentKey: 'general', state: 'pending', requestId: 'q2', lastSentAt: '2026-10-10T14:00:00Z' }),
   ])
-  mocks.api.fetchClientConsentFiles.mockResolvedValue({})
+  mocks.api.withdrawConsent.mockResolvedValue('2026-10-13T15:00:00Z')
+  mocks.api.sendConsentCopy.mockResolvedValue({ consent_id: 'k1', copy_sent_at: '2026-10-13T15:00:00Z', recipients: [{ role: 'client', sent: true }] })
   mocks.api.resendConsentRequest.mockResolvedValue({ request_id: 'q2', resent: true, signers: [{ role: 'client', sent: true }] })
   mocks.api.sendConsentRequest.mockResolvedValue({ request_id: 'q9', resent: false, signers: [{ role: 'client', sent: false, code: 'provider_error' }] })
   mocks.api.cancelConsentRequest.mockResolvedValue(undefined)
@@ -80,10 +82,9 @@ describe('ConsentsToObtainPage', () => {
 
   it('a signed consent: its date and version, its sealed PDF downloaded in one press', async () => {
     mocks.api.fetchClientConsentStatus.mockResolvedValue([
-      statusOf({ consentKey: 'general', state: 'signed', signedAt: '2026-10-11T14:00:00Z', versionLabel: 'version 1' }),
+      statusOf({ consentKey: 'general', state: 'signed', signedAt: '2026-10-11T14:00:00Z', versionLabel: 'version 1', fileId: 'f1', source: 'app' }),
       statusOf({ consentKey: 'waitlist', state: 'signed', signedAt: '2026-10-11T14:00:00Z', versionLabel: null }),
     ])
-    mocks.api.fetchClientConsentFiles.mockResolvedValue({ general: { fileId: 'f1', source: 'app' } })
     mocks.storage.fetchStoredFile.mockResolvedValue(new Uint8Array([37, 80, 68, 70]))
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: t(`${S}.open`, { client: 'Camille Test' }) }))
@@ -123,6 +124,98 @@ describe('ConsentsToObtainPage', () => {
     await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.resend`) }))
     await waitFor(() => expect(mocks.api.resendConsentRequest).toHaveBeenCalledExactlyOnceWith('q2'))
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.sent`))
+  })
+
+  it('« Retirer le consentement »: a note is required, then the consent in force is withdrawn (CC-16)', async () => {
+    mocks.api.fetchClientConsentStatus.mockResolvedValue([
+      statusOf({ consentKey: 'general', state: 'signed', signedAt: '2026-10-11T14:00:00Z', versionLabel: 'version 1', consentId: 'k1', fileId: 'f1', source: 'app', inForce: true }),
+    ])
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: t(`${S}.open`, { client: 'Camille Test' }) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${S}.sheetTitle`, { client: 'Camille Test' }) })
+    await userEvent.click(await within(sheet).findByRole('button', { name: t(`${S}.withdraw.action`) }))
+    const dialog = await screen.findByRole('alertdialog', { name: t(`${S}.withdraw.title`, { name: 'Consentement général' }) })
+    const note = within(dialog).getByRole('textbox', { name: new RegExp(`^${t(`${S}.withdraw.note`)}`) })
+    await waitFor(() => expect(note).toHaveFocus())
+    await userEvent.type(note, 'ok')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.withdraw.confirm`) }))
+    expect(await within(dialog).findByText(t(`${S}.withdraw.noteRequired`))).toBeInTheDocument()
+    expect(mocks.api.withdrawConsent).not.toHaveBeenCalled()
+    await userEvent.type(note, ' — retrait reçu au téléphone')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.withdraw.confirm`) }))
+    await waitFor(() => expect(mocks.api.withdrawConsent).toHaveBeenCalledExactlyOnceWith('k1', 'ok — retrait reçu au téléphone'))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.withdraw.done`))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+  })
+
+  it('a refusal of the withdrawal is shown in the dialog, as written', async () => {
+    mocks.api.fetchClientConsentStatus.mockResolvedValue([
+      statusOf({ consentKey: 'general', state: 'signed', signedAt: '2026-10-11T14:00:00Z', consentId: 'k1', inForce: true }),
+    ])
+    mocks.api.withdrawConsent.mockRejectedValue({ code: 'P0001', message: 'Ce consentement n’est plus en vigueur.', hint: 'state' })
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: t(`${S}.open`, { client: 'Camille Test' }) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${S}.sheetTitle`, { client: 'Camille Test' }) })
+    await userEvent.click(await within(sheet).findByRole('button', { name: t(`${S}.withdraw.action`) }))
+    const dialog = await screen.findByRole('alertdialog')
+    await userEvent.type(within(dialog).getByRole('textbox'), 'Au téléphone.')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.withdraw.confirm`) }))
+    expect(await within(dialog).findByText('Ce consentement n’est plus en vigueur.')).toBeInTheDocument()
+  })
+
+  it('a withdrawn consent: « Retiré le … », no « Retirer », « Envoyer » again, its signed copy still offered', async () => {
+    mocks.api.fetchClientConsentStatus.mockResolvedValue([
+      statusOf({
+        consentKey: 'general', state: 'withdrawn', signedAt: '2026-10-01T14:00:00Z', versionLabel: 'version 1', consentId: 'k1',
+        withdrawnAt: '2026-10-12T14:00:00Z', fileId: 'f1', source: 'app', copySentAt: '2026-10-13T14:00:00Z', inForce: false,
+      }),
+    ])
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: t(`${S}.open`, { client: 'Camille Test' }) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${S}.sheetTitle`, { client: 'Camille Test' }) })
+    expect(await within(sheet).findByText(t(`${S}.state.withdrawn`))).toBeInTheDocument()
+    expect(within(sheet).getByText(t(`${S}.withdrawnOn`, { date: '12 oct. 2026' }))).toBeInTheDocument()
+    expect(within(sheet).getByText(t(`${S}.copySentOn`, { date: '13 oct. 2026' }))).toBeInTheDocument()
+    expect(within(sheet).queryByRole('button', { name: t(`${S}.withdraw.action`) })).not.toBeInTheDocument()
+    expect(within(sheet).getByRole('button', { name: t(`${S}.send`) })).toBeInTheDocument()
+    expect(within(sheet).getByRole('button', { name: t(`${S}.copy.action`) })).toBeInTheDocument()
+  })
+
+  it('« Envoyer la copie signée » asks first, then says what left; a refusal is shown as written (CC-17)', async () => {
+    mocks.api.fetchClientConsentStatus.mockResolvedValue([
+      statusOf({ consentKey: 'general', state: 'signed', signedAt: '2026-10-11T14:00:00Z', consentId: 'k1', fileId: 'f1', source: 'app', inForce: true }),
+    ])
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: t(`${S}.open`, { client: 'Camille Test' }) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${S}.sheetTitle`, { client: 'Camille Test' }) })
+    await userEvent.click(await within(sheet).findByRole('button', { name: t(`${S}.copy.action`) }))
+    let dialog = await screen.findByRole('alertdialog', { name: t(`${S}.copy.title`) })
+    expect(within(dialog).getByText(t(`${S}.copy.description`, { name: 'Consentement général' }))).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.copy.confirm`) }))
+    await waitFor(() => expect(mocks.api.sendConsentCopy).toHaveBeenCalledExactlyOnceWith('k1'))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.copy.sent`))
+
+    mocks.api.sendConsentCopy.mockRejectedValue(
+      new FunctionCallError('invalid_request', 400, 'Le module Clients est réservé aux testeurs : aucune copie ne part aux clients avant son ouverture à tous.', { refusal: true }),
+    )
+    await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.copy.action`) }))
+    dialog = await screen.findByRole('alertdialog', { name: t(`${S}.copy.title`) })
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.copy.confirm`) }))
+    await waitFor(() =>
+      expect(mocks.toast.error).toHaveBeenCalledWith('Le module Clients est réservé aux testeurs : aucune copie ne part aux clients avant son ouverture à tous.'),
+    )
+  })
+
+  it('a counselor without clients.manage sees the PDF but neither « Retirer » nor « Envoyer la copie signée »', async () => {
+    mocks.api.fetchClientConsentStatus.mockResolvedValue([
+      statusOf({ consentKey: 'general', state: 'signed', signedAt: '2026-10-11T14:00:00Z', consentId: 'k1', fileId: 'f1', source: 'app', inForce: true }),
+    ])
+    renderPage('counselor', ['clients.view'])
+    await userEvent.click(await screen.findByRole('button', { name: t(`${S}.open`, { client: 'Camille Test' }) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${S}.sheetTitle`, { client: 'Camille Test' }) })
+    expect(await within(sheet).findByRole('button', { name: t(`${S}.openPdf`) })).toBeInTheDocument()
+    expect(within(sheet).queryByRole('button', { name: t(`${S}.withdraw.action`) })).not.toBeInTheDocument()
+    expect(within(sheet).queryByRole('button', { name: t(`${S}.copy.action`) })).not.toBeInTheDocument()
   })
 
   it('« Annuler la demande » asks first', async () => {

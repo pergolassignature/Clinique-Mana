@@ -5467,7 +5467,8 @@
             "due_days_before_first_appointment": "Délai avant le premier rendez-vous (jours)",
             "reminder_days": "Rappel après (jours)",
             "pre_appointment_reminder_hours": "Avis avant le rendez-vous (heures)",
-            "retention_policy": "Conservation"
+            "retention_policy": "Politique de conservation",
+            "signed_pdf_retention_years": "Conservation des PDF signés (années)"
           },
           "client_consent_requests": {
             "client_id": "Client",
@@ -5514,7 +5515,9 @@
             "superseded_at": "Remplacé le",
             "withdrawn_at": "Retiré le",
             "withdrawn_by": "Retiré par",
-            "withdrawal_note": "Note de retrait"
+            "withdrawal_note": "Note de retrait",
+            "copy_sent_at": "Copie signée envoyée le",
+            "copy_sent_by": "Copie signée envoyée par"
           },
           "client_consent_version_clauses": {
             "version_id": "Version du texte",
@@ -5743,10 +5746,7 @@
             "dueHelp": "Date limite d’une demande faite pour un premier rendez-vous (0 à 30 jours).",
             "preHours": "Avis avant un rendez-vous (heures)",
             "preHelp": "Avis et courriel quand un consentement requis manque (12 à 168 heures).",
-            "retention": "Conservation des consentements signés",
-            "retentionHelp": "La politique décidée par la direction (texte libre). Rien n’est effacé automatiquement.",
-            "invalid": "Indiquez un nombre entier dans les limites.",
-            "retentionTooLong": "La politique tient en 500 caractères au plus."
+            "invalid": "Indiquez un nombre entier dans les limites."
           },
           "editor": {
             "title": "Texte : {name}",
@@ -5786,6 +5786,20 @@
             "emptyText": "Chaque clause a un texte.",
             "saved": "Clauses enregistrées.",
             "loadError": "Impossible de charger les clauses."
+          },
+          "retention": {
+            "title": "Conservation des consentements signés",
+            "description": "La politique de la direction et, une fois décidée, la durée de conservation des PDF des consentements terminés (retirés, remplacés par une nouvelle signature, ou d’un dossier anonymisé). Un consentement en vigueur est toujours conservé.",
+            "policy": "Politique de conservation",
+            "policyHelp": "Le texte décidé par la direction (500 caractères au plus).",
+            "policyTooLong": "La politique tient en 500 caractères au plus.",
+            "years": "Durée de conservation (années)",
+            "yearsHelp": "Laissez vide : rien n’est supprimé. Sinon, de 1 à 50 ans après la fin du consentement.",
+            "yearsInvalid": "Indiquez un nombre entier d’années, de 1 à 50, ou laissez vide.",
+            "kept": "Aucune durée : tous les PDF signés sont conservés.",
+            "confirmTitle": "Supprimer les PDF signés anciens ?",
+            "confirmBody": "Les PDF signés des consentements terminés depuis plus de {years} an(s) seront supprimés définitivement au prochain nettoyage des fichiers. Cela ne peut pas être annulé.",
+            "confirm": "Enregistrer la durée"
           }
         },
         "page": {
@@ -5886,7 +5900,33 @@
         },
         "signedOnNoVersion": "Signé le {date}",
         "separator": " · ",
-        "templatesError": "Impossible de charger les textes : l’envoi n’est pas offert pour le moment."
+        "templatesError": "Impossible de charger les textes : l’envoi n’est pas offert pour le moment.",
+        "withdrawnOn": "Retiré le {date}",
+        "copySentOn": "Copie envoyée le {date}",
+        "withdraw": {
+          "action": "Retirer le consentement",
+          "title": "Retirer « {name} »",
+          "description": "Le consentement sera « Retiré » dès maintenant : les rendez-vous qui l’exigent l’indiqueront comme manquant. L’historique et le PDF signé sont conservés.",
+          "note": "Note",
+          "noteHelp": "Comment et quand le client a retiré son consentement (3 à 500 caractères).",
+          "noteRequired": "Notez comment le retrait a été reçu (3 caractères au moins).",
+          "noteTooLong": "La note tient en 500 caractères au plus.",
+          "confirm": "Retirer le consentement",
+          "pending": "Retrait…",
+          "done": "Consentement retiré.",
+          "error": "Impossible de retirer le consentement."
+        },
+        "copy": {
+          "action": "Envoyer la copie signée",
+          "title": "Envoyer la copie signée",
+          "description": "Le PDF signé de « {name} » part par courriel, en pièce jointe, à la personne qui signe pour ce client (lui-même dès 14 ans, sinon son parent ou tuteur).",
+          "confirm": "Envoyer la copie",
+          "pending": "Envoi…",
+          "sent": "Copie envoyée.",
+          "sentPartly": "La copie est partie, mais un courriel n’est pas parti. Réessayez plus tard.",
+          "notSent": "La copie n’est pas partie. Réessayez plus tard.",
+          "error": "Impossible d’envoyer la copie."
+        }
       },
       "saved": {
         "created": "Dossier créé.",

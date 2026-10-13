@@ -143,7 +143,7 @@ select results_eq($$ select r.consent_key, r.trigger_kind, r.target, r.is_active
 select isnt_empty($$ select 1 from public.client_consent_settings where org_id = 'b0000000-0000-0000-0000-00000000000b' $$, 'settings for every clinic');
 select results_eq($$ select module_key, default_ttl, max_uses, creates_account, resolve_rpc from public.secure_link_purposes where key = 'client_consent' $$,
   $$ values ('clients', interval '14 days', 1, false, 'resolve_client_consent_link') $$, 'the link purpose');
-select results_eq($$ select key from public.email_template_defaults where module_key = 'clients' order by key $$,
+select results_eq($$ select key from public.email_template_defaults where module_key = 'clients' and key like 'clients.consent\_request%' order by key $$,
   array['clients.consent_request', 'clients.consent_request_en'], 'the request email, in French and English');
 select results_eq($$ select function_name, local_hour from public.scheduled_jobs where key = 'clients.consent_reminders' $$,
   $$ values ('clients-consent-reminders', 8::smallint) $$, 'the reminder job, at 8 h clinic time');

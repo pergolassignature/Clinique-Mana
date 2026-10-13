@@ -36,7 +36,7 @@ const S = 'modules.clients.consents.settings'
  * Paramètres → Consentements (Clients C5a; seen with `clients.view`, changed with `clients.manage`):
  * the 14 texts (7 consents × French and English) with « Publier » and who must sign again (R-49);
  * when each consent is asked (the rules, switched on once a text is published); the delays and
- * reminders. « Modifier le texte » opens a text in core's shared editor under the cards (CC-12);
+ * reminders; how long the sealed PDFs of ended consents are kept (CC-18: none by default). « Modifier le texte » opens a text in core's shared editor under the cards (CC-12);
  * opening another one or closing it asks first while a draft has unsaved changes.
  */
 export function ConsentsSettingsPage() {
@@ -64,6 +64,7 @@ export function ConsentsSettingsPage() {
         <TextsCard types={types.data} templates={templates.data} readOnly={readOnly} onOpen={openText} />
         <RulesCard types={types.data} rules={rules.data} templates={templates.data} readOnly={readOnly} />
         <DelaysCard settings={settings.data} readOnly={readOnly} />
+        <RetentionCard settings={settings.data} readOnly={readOnly} />
       </SectionSurface>
     )
   }
@@ -250,18 +251,12 @@ const delaysSchema = z.object({
   reminderDays: intIn(1, 30),
   dueDays: intIn(0, 30),
   preAppointmentHours: intIn(12, 168),
-  retentionPolicy: z
-    .string()
-    .transform((v) => v.replace(/\s+/g, ' ').trim())
-    .pipe(z.string().max(500, t(`${S}.delays.retentionTooLong`)))
-    .transform((v) => (v === '' ? null : v)),
 })
 
 const toValues = (s: ConsentSettings) => ({
   reminderDays: String(s.reminderDays),
   dueDays: String(s.dueDays),
   preAppointmentHours: String(s.preAppointmentHours),
-  retentionPolicy: s.retentionPolicy ?? '',
 })
 
 function DelaysCard({ settings, readOnly }: { settings: ConsentSettings; readOnly: boolean }) {
@@ -291,14 +286,97 @@ function DelaysCard({ settings, readOnly }: { settings: ConsentSettings; readOnl
       <FormField label={t(`${S}.delays.preHours`)} help={t(`${S}.delays.preHelp`)} error={errors.preAppointmentHours?.message}>
         {(field) => <Input {...field} {...form.register('preAppointmentHours')} inputMode="numeric" maxLength={3} autoComplete="off" className="tabular w-20" />}
       </FormField>
-      <FormField label={t(`${S}.delays.retention`)} help={t(`${S}.delays.retentionHelp`)} error={errors.retentionPolicy?.message}>
-        {(field) => <Input {...field} {...form.register('retentionPolicy')} maxLength={500} autoComplete="off" />}
-      </FormField>
       {errors.root?.server?.message && (
         <p role="alert" className="text-sm text-destructive">
           {errors.root.server.message}
         </p>
       )}
+    </SettingsCard>
+  )
+}
+
+const retentionSchema = z.object({
+  retentionPolicy: z
+    .string()
+    .transform((v) => v.replace(/\s+/g, ' ').trim())
+    .pipe(z.string().max(500, t(`${S}.retention.policyTooLong`)))
+    .transform((v) => (v === '' ? null : v)),
+  retentionYears: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || (/^[0-9]{1,2}$/.test(v) && Number(v) >= 1 && Number(v) <= 50), t(`${S}.retention.yearsInvalid`))
+    .transform((v) => (v === '' ? null : Number(v))),
+})
+
+const toRetentionValues = (s: ConsentSettings) => ({
+  retentionPolicy: s.retentionPolicy ?? '',
+  retentionYears: s.retentionYears === null ? '' : String(s.retentionYears),
+})
+
+/**
+ * « Conservation des consentements signés » (CC-18): the policy's text and the duration, empty by
+ * default (nothing is purged). A duration set or shortened is confirmed first: the sealed PDFs of
+ * consents ended longer ago are purged at the next file cleanup, for good.
+ */
+function RetentionCard({ settings, readOnly }: { settings: ConsentSettings; readOnly: boolean }) {
+  const values = useMemo(() => toRetentionValues(settings), [settings])
+  const { form, cancel, handleSave } = useSettingsForm({ schema: retentionSchema, values })
+  const save = useSaveConsentSettings({ onErrorMessage: (message) => form.setError('root.server', { message }) })
+  const [confirming, setConfirming] = useState<{ run: () => void; years: number } | null>(null)
+  const { errors, isDirty } = form.formState
+  useUnsavedChanges(isDirty && !readOnly)
+  const onSubmit = handleSave((patch, onSaved) => {
+    const run = () => save.mutate(patch, { onSuccess: (saved) => onSaved(toRetentionValues(saved)) })
+    const years = patch.retentionYears
+    if (years !== null && (settings.retentionYears === null || years < settings.retentionYears)) setConfirming({ run, years })
+    else run()
+  })
+  return (
+    <SettingsCard
+      layout="section"
+      title={t(`${S}.retention.title`)}
+      description={t(`${S}.retention.description`)}
+      dirty={isDirty}
+      readOnly={readOnly}
+      pending={save.isPending}
+      onSubmit={(event) => void onSubmit(event)}
+      footer={<FormActions onCancel={cancel} onReset={() => form.setFocus('retentionPolicy')} dirty={isDirty} pending={save.isPending} />}
+    >
+      <FormField label={t(`${S}.retention.policy`)} help={t(`${S}.retention.policyHelp`)} error={errors.retentionPolicy?.message}>
+        {(field) => <Input {...field} {...form.register('retentionPolicy')} maxLength={500} autoComplete="off" />}
+      </FormField>
+      <FormField label={t(`${S}.retention.years`)} help={t(`${S}.retention.yearsHelp`)} error={errors.retentionYears?.message}>
+        {(field) => <Input {...field} {...form.register('retentionYears')} inputMode="numeric" maxLength={2} autoComplete="off" className="tabular w-20" />}
+      </FormField>
+      {settings.retentionYears === null && <p className="text-sm text-muted-foreground">{t(`${S}.retention.kept`)}</p>}
+      {errors.root?.server?.message && (
+        <p role="alert" className="text-sm text-destructive">
+          {errors.root.server.message}
+        </p>
+      )}
+      <Dialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t(`${S}.retention.confirmTitle`)}</DialogTitle>
+            <DialogDescription>{t(`${S}.retention.confirmBody`, { years: String(confirming?.years ?? '') })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirming(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                confirming?.run()
+                setConfirming(null)
+              }}
+            >
+              {t(`${S}.retention.confirm`)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SettingsCard>
   )
 }

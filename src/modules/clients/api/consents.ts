@@ -87,22 +87,25 @@ const settingsSchema = z
     reminder_days: z.number().int(),
     pre_appointment_reminder_hours: z.number().int(),
     retention_policy: z.string().nullable(),
+    signed_pdf_retention_years: z.number().int().nullable(),
   })
   .transform((r) => ({
     dueDays: r.due_days_before_first_appointment,
     reminderDays: r.reminder_days,
     preAppointmentHours: r.pre_appointment_reminder_hours,
     retentionPolicy: r.retention_policy,
+    /** Years an ended consent's sealed PDF is kept; null: kept, nothing purged (CC-18). */
+    retentionYears: r.signed_pdf_retention_years,
   }))
 export type ConsentSettings = z.output<typeof settingsSchema>
 
 export async function fetchConsentSettings(): Promise<ConsentSettings> {
   const { data, error } = await supabase
     .from('client_consent_settings')
-    .select('due_days_before_first_appointment, reminder_days, pre_appointment_reminder_hours, retention_policy')
+    .select('due_days_before_first_appointment, reminder_days, pre_appointment_reminder_hours, retention_policy, signed_pdf_retention_years')
     .maybeSingle()
   if (error) throw error
-  if (!data) return { dueDays: 1, reminderDays: 7, preAppointmentHours: 48, retentionPolicy: null }
+  if (!data) return { dueDays: 1, reminderDays: 7, preAppointmentHours: 48, retentionPolicy: null, retentionYears: null }
   return parse(settingsSchema, data)
 }
 
@@ -111,6 +114,7 @@ const SETTING_KEYS = {
   reminderDays: 'reminder_days',
   preAppointmentHours: 'pre_appointment_reminder_hours',
   retentionPolicy: 'retention_policy',
+  retentionYears: 'signed_pdf_retention_years',
 } as const satisfies Record<keyof ConsentSettings, string>
 
 export async function saveConsentSettings(patch: Partial<ConsentSettings>): Promise<ConsentSettings> {
@@ -248,6 +252,12 @@ const statusSchema = z
     request_id: z.string().nullable(),
     due_at: z.string().nullable(),
     last_sent_at: z.string().nullable(),
+    consent_id: z.string().nullable(),
+    withdrawn_at: z.string().nullable(),
+    signed_file_id: z.string().nullable(),
+    source: z.enum(['app', 'import']).nullable(),
+    copy_sent_at: z.string().nullable(),
+    in_force: z.boolean(),
   })
   .transform((r) => ({
     consentKey: r.consent_key,
@@ -257,30 +267,26 @@ const statusSchema = z
     requestId: r.request_id,
     dueAt: r.due_at,
     lastSentAt: r.last_sent_at,
+    /** The consent shown (in force, or the withdrawn one); null when only a request is out. */
+    consentId: r.consent_id,
+    withdrawnAt: r.withdrawn_at,
+    /** Its sealed PDF (one press downloads it); null for an imported signature. */
+    fileId: r.signed_file_id,
+    source: r.source,
+    copySentAt: r.copy_sent_at,
+    /** Whether that consent is in force (« Retirer le consentement »), even with a new request out. */
+    inForce: r.in_force,
   }))
 export type ClientConsentStatus = z.output<typeof statusSchema>
 
-/** One client's consents in force and open requests (the id in the filter is a file id, not personal data). */
+/** One client's consents in force (or withdrawn) and open requests (the id in the filter is a file id, not personal data). */
 export async function fetchClientConsentStatus(clientId: string): Promise<ClientConsentStatus[]> {
   const { data, error } = await supabase
     .from('client_consents_status')
-    .select('consent_key, state, version_label, signed_at, request_id, due_at, last_sent_at')
+    .select('consent_key, state, version_label, signed_at, request_id, due_at, last_sent_at, consent_id, withdrawn_at, signed_file_id, source, copy_sent_at, in_force')
     .eq('client_id', clientId)
   if (error) throw error
   return parse(z.array(statusSchema), data)
-}
-
-const signedFileSchema = z.object({ consent_key: z.string(), signed_file_id: z.string().nullable(), source: z.enum(['app', 'import']) })
-
-/** The sealed PDFs of a client's consents in force (`useSignedFileUrl` opens one). */
-export async function fetchClientConsentFiles(clientId: string): Promise<Record<string, { fileId: string | null; source: 'app' | 'import' }>> {
-  const { data, error } = await supabase
-    .from('client_consents')
-    .select('consent_key, signed_file_id, source')
-    .eq('client_id', clientId)
-    .is('superseded_at', null)
-  if (error) throw error
-  return Object.fromEntries(parse(z.array(signedFileSchema), data).map((r) => [r.consent_key, { fileId: r.signed_file_id, source: r.source }]))
 }
 
 const sentSchema = z.object({
@@ -300,6 +306,26 @@ export async function sendConsentRequest(clientId: string, consentKey: string): 
 export async function resendConsentRequest(requestId: string): Promise<ConsentSent> {
   const data = await invokeFunction('clients-consent-send', { action: 'resend', request_id: requestId })
   return parse(sentSchema, data)
+}
+
+const copySchema = z.object({
+  consent_id: z.string(),
+  copy_sent_at: z.string().nullable(),
+  recipients: z.array(z.object({ role: z.enum(['client', 'client_2']), sent: z.boolean(), code: z.string().optional() })),
+})
+export type ConsentCopySent = z.infer<typeof copySchema>
+
+/** « Envoyer la copie signée »: the sealed PDF emailed to the people who sign for the client today (C5b). Throws a FunctionCallError. */
+export async function sendConsentCopy(consentId: string): Promise<ConsentCopySent> {
+  const data = await invokeFunction('clients-consent-send', { action: 'copy', consent_id: consentId })
+  return parse(copySchema, data)
+}
+
+/** « Retirer le consentement » (clients.manage): from now, with the note (3 to 500 characters). Returns when. */
+export async function withdrawConsent(consentId: string, note: string): Promise<string> {
+  const { data, error } = await supabase.rpc('withdraw_client_consent', { p_id: consentId, p_note: note })
+  if (error) throw error
+  return parse(z.string(), data)
 }
 
 /** « Annuler la demande » (refused once a signature has started). */

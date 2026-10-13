@@ -186,17 +186,37 @@ describe('ConsentsSettingsPage', () => {
     await userEvent.clear(reminder)
     await userEvent.type(reminder, '10')
     await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
-    await waitFor(() => expect(mocks.api.saveConsentSettings).toHaveBeenCalledExactlyOnceWith({ ...SETTINGS, reminderDays: 10 }))
+    await waitFor(() => expect(mocks.api.saveConsentSettings).toHaveBeenCalledExactlyOnceWith({ dueDays: 1, reminderDays: 10, preAppointmentHours: 48 }))
   })
 
-  it('the retention policy is one line of 500 characters at most', async () => {
+  it('the retention policy is one line of 500 characters at most; no duration: nothing purged, no question', async () => {
     renderPage()
-    const retention = await screen.findByRole('textbox', { name: new RegExp(`^${t(`${S}.delays.retention`)}`) })
+    const retention = await screen.findByRole('textbox', { name: new RegExp(`^${t(`${S}.retention.policy`)}`) })
+    const form = retention.closest('form')!
+    expect(within(form).getByText(t(`${S}.retention.kept`))).toBeInTheDocument()
     await userEvent.type(retention, '  Dix   ans après la fin du suivi.  ')
-    await userEvent.click(within(retention.closest('form')!).getByRole('button', { name: t('common.save') }))
+    await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
     await waitFor(() =>
-      expect(mocks.api.saveConsentSettings).toHaveBeenCalledExactlyOnceWith({ ...SETTINGS, retentionPolicy: 'Dix ans après la fin du suivi.' }),
+      expect(mocks.api.saveConsentSettings).toHaveBeenCalledExactlyOnceWith({ retentionPolicy: 'Dix ans après la fin du suivi.', retentionYears: null }),
     )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('a retention duration (1 to 50 years) is confirmed first: older sealed PDFs are purged for good (CC-18)', async () => {
+    renderPage()
+    const years = await screen.findByRole('textbox', { name: (name) => name.startsWith(t(`${S}.retention.years`)) })
+    const form = years.closest('form')!
+    await userEvent.type(years, '60')
+    await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
+    expect(await within(form).findByText(t(`${S}.retention.yearsInvalid`))).toBeInTheDocument()
+    await userEvent.clear(years)
+    await userEvent.type(years, '7')
+    await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${S}.retention.confirmTitle`) })
+    expect(within(dialog).getByText(t(`${S}.retention.confirmBody`, { years: '7' }))).toBeInTheDocument()
+    expect(mocks.api.saveConsentSettings).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.retention.confirm`) }))
+    await waitFor(() => expect(mocks.api.saveConsentSettings).toHaveBeenCalledExactlyOnceWith({ retentionPolicy: null, retentionYears: 7 }))
   })
 
   it('« Modifier le texte » opens the text in the shared editor: the provisional line said, the answers\' table shown, no « Publier » there (CC-11, CC-12)', async () => {
