@@ -5279,7 +5279,9 @@
           "client_consent_requests": "Demandes de consentement",
           "client_consent_request_signers": "Signataires des demandes de consentement",
           "client_consents": "Consentements signés",
-          "client_consent_version_clauses": "Clauses des textes de consentement"
+          "client_consent_version_clauses": "Clauses des textes de consentement",
+          "client_consent_campaigns": "Campagnes de nouvelles signatures",
+          "client_consent_campaign_items": "Clients des campagnes de nouvelles signatures"
         },
         "fields": {
           "clients": {
@@ -5523,6 +5525,30 @@
             "version_id": "Version du texte",
             "clauses": "Clauses",
             "updated_by": "Modifié par"
+          },
+          "client_consent_campaigns": {
+            "id": "Identifiant",
+            "org_id": "Clinique",
+            "consent_key": "Consentement",
+            "state": "État",
+            "total": "Clients à qui demander",
+            "created_by": "Lancée par",
+            "created_at": "Lancée le",
+            "updated_at": "Modifiée le",
+            "finished_at": "Terminée le",
+            "cancelled_by": "Arrêtée par"
+          },
+          "client_consent_campaign_items": {
+            "id": "Identifiant",
+            "org_id": "Clinique",
+            "campaign_id": "Campagne",
+            "client_id": "Client",
+            "state": "État",
+            "request_id": "Demande",
+            "failure": "Raison de l’échec",
+            "processed_at": "Traité le",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le"
           }
         },
         "values": {
@@ -5630,6 +5656,22 @@
             "language": {
               "fr": "Français",
               "en": "Anglais"
+            }
+          },
+          "client_consent_campaigns": {
+            "state": {
+              "running": "En cours",
+              "done": "Terminée",
+              "cancelled": "Arrêtée"
+            }
+          },
+          "client_consent_campaign_items": {
+            "state": {
+              "queued": "À envoyer",
+              "sending": "En cours d’envoi",
+              "sent": "Envoyée",
+              "failed": "Non envoyée",
+              "skipped": "Annulée"
             }
           }
         },
@@ -5800,6 +5842,26 @@
             "confirmTitle": "Supprimer les PDF signés anciens ?",
             "confirmBody": "Les PDF signés des consentements terminés depuis plus de {years} an(s) seront supprimés définitivement au prochain nettoyage des fichiers. Cela ne peut pas être annulé.",
             "confirm": "Enregistrer la durée"
+          },
+          "campaigns": {
+            "title": "Nouvelles signatures",
+            "description": "Demander à tous les clients actifs de signer la version en vigueur d’un consentement. Les demandes partent par la tâche « Campagne de nouvelles signatures », 100 clients par jour au plus.",
+            "start": "Demander une nouvelle signature à tous les clients actifs",
+            "startLabel": "Demander une nouvelle signature de « {name} » à tous les clients actifs",
+            "confirmTitle": "Nouvelle signature de « {name} »",
+            "confirmBody": "Chaque client actif qui a signé une version précédente (ou GOrendezvous) recevra une demande de signature, 100 par jour au plus, quand la tâche « Campagne de nouvelles signatures » est activée. Son consentement passe à « À signer de nouveau » dès maintenant.",
+            "confirm": "Lancer la campagne",
+            "starting": "Lancement…",
+            "started": "Campagne lancée : {count} client(s) à qui demander.",
+            "stopped": "Campagne arrêtée.",
+            "error": "Impossible de gérer la campagne.",
+            "stop": "Arrêter la campagne",
+            "running": "En cours : {sent} envoyée(s) sur {total}, {queued} à envoyer, {failed} non envoyée(s)",
+            "done": "Terminée le {date} : {sent} envoyée(s) sur {total}, {failed} non envoyée(s)",
+            "cancelled": "Arrêtée le {date} : {sent} envoyée(s) sur {total}",
+            "none": "Aucune campagne pour le moment.",
+            "noText": "Publiez d’abord le texte de ce consentement.",
+            "loadError": "Les campagnes ne se chargent pas."
           }
         },
         "page": {

@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
     publishConsentVersion: vi.fn(),
     fetchConsentClauses: vi.fn(),
     saveConsentClauses: vi.fn(),
+    fetchConsentCampaigns: vi.fn(),
+    startConsentCampaign: vi.fn(),
+    cancelConsentCampaign: vi.fn(),
   },
   templates: {
     listModuleTemplates: vi.fn(),
@@ -97,6 +100,9 @@ beforeEach(() => {
     editable: true,
   })
   mocks.api.saveConsentClauses.mockImplementation(async (_id: string, clauses: object) => clauses)
+  mocks.api.fetchConsentCampaigns.mockResolvedValue([])
+  mocks.api.startConsentCampaign.mockResolvedValue(340)
+  mocks.api.cancelConsentCampaign.mockResolvedValue(undefined)
   mocks.templates.listModuleTemplates.mockResolvedValue([SUMMARY])
   mocks.templates.fetchTemplateVersions.mockResolvedValue([placeholderVersion()])
   mocks.templates.updateTemplateVersion.mockResolvedValue(undefined)
@@ -314,5 +320,31 @@ describe('ConsentsSettingsPage', () => {
     const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
     expect(await within(editor).findByText(t(`${ED}.readOnlyHelp`))).toBeInTheDocument()
     expect(within(editor).queryByRole('button', { name: t(`${G}.save`) })).not.toBeInTheDocument()
+  })
+
+  it('« Nouvelles signatures » (C5b.4): a published consent offers the campaign, confirmed first; one running says its counts and « Arrêter »', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const card = (await screen.findByRole('heading', { name: t(`${S}.campaigns.title`) })).closest('section')!
+    // « Liste d'attente » has no published text: nothing to start.
+    expect(await within(card).findByText(t(`${S}.campaigns.noText`))).toBeInTheDocument()
+    await user.click(within(card).getByRole('button', { name: t(`${S}.campaigns.startLabel`, { name: 'Consentement général' }) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${S}.campaigns.confirmTitle`, { name: 'Consentement général' }) })
+    expect(mocks.api.startConsentCampaign).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: t(`${S}.campaigns.confirm`) }))
+    await waitFor(() => expect(mocks.api.startConsentCampaign).toHaveBeenCalledExactlyOnceWith('general'))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.campaigns.started`, { count: '340' }))
+  })
+
+  it('… a campaign running: its counts and « Arrêter la campagne »; a refusal is shown in the dialog', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchConsentCampaigns.mockResolvedValue([
+      { id: 'k1', consentKey: 'general', state: 'running', total: 340, createdAt: '2026-10-13T14:00:00Z', finishedAt: null, queued: 240, sent: 98, failed: 2, skipped: 0 },
+    ])
+    renderPage()
+    const card = (await screen.findByRole('heading', { name: t(`${S}.campaigns.title`) })).closest('section')!
+    expect(await within(card).findByText(t(`${S}.campaigns.running`, { sent: '98', total: '340', queued: '240', failed: '2' }))).toBeInTheDocument()
+    await user.click(within(card).getByRole('button', { name: t(`${S}.campaigns.stop`) }))
+    await waitFor(() => expect(mocks.api.cancelConsentCampaign).toHaveBeenCalledWith('k1'))
   })
 })
