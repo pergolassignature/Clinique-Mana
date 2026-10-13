@@ -42,6 +42,7 @@ export const BILLING_AUDITED_TABLES = [
   'qbo_account_map',
   'qbo_customer_matches',
   'qbo_links',
+  'qbo_organisation_links',
   'qbo_vendor_links',
 ] as const
 
