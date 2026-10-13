@@ -11,9 +11,9 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 | D3c | Public discovery-call booking page with source tracking (lane C) | planned |
 | D4–D6 | Matching panel and waiting list part 2, places, KPIs (after the cutover) | planned |
 
-- **Registry:** `modules.key = 'demandes'` (migration `20261012214809_demandes_module`), depends on `clients` and `professionals`. It **starts disabled** in every clinic; the local seed enables it.
-- **Migrations:** `20261012214809_demandes_module` (registry, tables, RLS, audit), `20261012214911_demandes_rpcs` (RPCs).
-- **Tests:** pgTAP `105_demandes_module`, `106_demandes_rpcs`; Vitest `src/modules/demandes/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Registry:** `modules.key = 'demandes'` (migration `20261012223803_demandes_module`), depends on `clients` and `professionals`. It **starts disabled** in every clinic; the local seed enables it.
+- **Migrations:** `20261012223803_demandes_module` (registry, tables, RLS, audit), `20261012223807_demandes_rpcs` (RPCs).
+- **Tests:** pgTAP `106_demandes_module`, `107_demandes_rpcs`; Vitest `src/modules/demandes/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
 
 ## Permissions
 
@@ -69,3 +69,7 @@ All `security definer`, permission first, the caller's clinic only, the request'
 ## What the module publishes
 
 For the professional: `my_demandes` and `my_waitlist_entries` (above). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the public booking function's write path (D3c).
+
+## Messages to people outside the clinic (P3-40)
+
+D1 sends nothing. Every send path the module adds (the proposal's acceptance link D3b, the waiting-list follow-ups D3, the booking page's confirmations D3c) checks `module_open_to_all_for_org(org, 'demandes')` first, in SQL at its choke point: while Demandes is « Réservé aux testeurs », a manual send is refused in French and an automatic one is not queued; the admin's test still goes. Its pgTAP covers the refusal ([core doc](core.md), « Modules reserved for testers »).
