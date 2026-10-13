@@ -100,12 +100,13 @@ insert into public.user_roles (user_id, org_id, role) values
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'communications', true),
   ('b0000000-0000-0000-0000-00000000000b', 'communications', true);
--- SM-11: the clinic gives the conseillères communications.sms (the template holds admin only).
+-- The conseillères hold communications.sms by the template (CC-15; SM-11 had it given by hand).
 insert into public.org_role_permissions (org_id, role, permission_key) values
-  ('b0000000-0000-0000-0000-00000000000a', 'counselor', 'communications.sms');
+  ('b0000000-0000-0000-0000-00000000000a', 'counselor', 'communications.sms')
+on conflict do nothing;
 
 select results_eq($$ select rp.role from public.role_permissions rp where rp.permission_key in ('communications.sms', 'communications.sms_manage') order by rp.role $$,
-  $$ values ('admin'), ('admin') $$, 'the template grants the SMS permissions to admin only (SM-11)');
+  $$ values ('admin'), ('admin'), ('admin_assistant'), ('counselor') $$, 'the template: both SMS permissions to the admin, the texts to Adjointe and Conseillère (CC-15)');
 select isnt_empty($$ select 1 from public.modules where key = 'communications' $$, 'the module row exists');
 
 -- =============================================================================

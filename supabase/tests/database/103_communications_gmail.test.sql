@@ -31,11 +31,11 @@ insert into public.user_roles (user_id, org_id, role) values
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'communications', true),
   ('b0000000-0000-0000-0000-00000000000b', 'communications', true);
--- The clinic gives the inbox to its counselors and adjointes once the module is on (the template
--- carries the admin's rows only: *_communications_module.sql).
+-- The counselors and adjointes hold the inbox by the template (CC-15).
 insert into public.org_role_permissions (org_id, role, permission_key) values
   ('b0000000-0000-0000-0000-00000000000a', 'counselor', 'communications.inbox'),
-  ('b0000000-0000-0000-0000-00000000000a', 'admin_assistant', 'communications.inbox');
+  ('b0000000-0000-0000-0000-00000000000a', 'admin_assistant', 'communications.inbox')
+on conflict do nothing;
 
 -- =============================================================================
 -- Registry
