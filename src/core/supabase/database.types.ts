@@ -15400,6 +15400,31 @@ export type Database = {
         Args: { p_codes: Json; p_org_id: string }
         Returns: number
       }
+      report_cancellations: {
+        Args: {
+          p_from: string
+          p_kind?: string
+          p_professional_id?: string
+          p_reason_id?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      report_clients_to_follow_up: {
+        Args: { p_from: string; p_professional_id?: string; p_to: string }
+        Returns: Json
+      }
+      report_revenue: {
+        Args: {
+          p_from: string
+          p_mode_code?: string
+          p_professional_id?: string
+          p_service_id?: string
+          p_to: string
+          p_view: string
+        }
+        Returns: Json
+      }
       request_mail_sync: {
         Args: { p_email_address: string; p_org_id: string }
         Returns: string
