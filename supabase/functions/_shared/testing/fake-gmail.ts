@@ -3,7 +3,8 @@
  * endpoints (`/o/oauth2/v2/auth` consent page, `/token`, `/revoke`) and the
  * Gmail API calls the functions make (`users.getProfile`, `labels.list`,
  * `messages.list`, `messages.get`, `messages.attachments.get`,
- * `history.list`, `watch`, `stop`, `messages.batchModify`, `threads.modify`),
+ * `history.list`, `watch`, `stop`, `messages.batchModify`, `threads.modify`,
+ * and CM3's `messages.send` through the upload endpoint),
  * over one in-memory mailbox with a history log, as Google answers them.
  * One fake for the Deno tests (`fakeGmail().fetch`) and local development
  * (`scripts/fake-gmail.ts`, `npm run fake:gmail`). Test-only: no `index.ts`
@@ -20,10 +21,17 @@
  *   otherwise); every write bumps the history id and appends records;
  * - `history.list` from an id older than `HISTORY_KEPT` records → 404
  *   (Google's « start history id too old »);
- * - `messages.list` honours `q=newer_than:Nd`, `maxResults` and `pageToken`;
+ * - `messages.list` honours `q=newer_than:Nd`, `q=rfc822msgid:<id>`,
+ *   `maxResults` and `pageToken`;
  * - `watch` records the topic and answers an expiry 7 days ahead;
  *   `onWatchNotification` (the local server posts Pub/Sub pushes) fires on
  *   each `deliver`;
+ * - `messages.send` (`/upload/gmail/v1/users/me/messages/send?uploadType=
+ *   multipart`) needs the `gmail.send` scope (403 otherwise), keeps the raw
+ *   message in `sent` and adds it to the mailbox with the `SENT` label, in
+ *   the thread its metadata names (else a new one), with its own Message-ID;
+ *   `failNextSend` makes the next one fail after it was sent (Gmail sent, then
+ *   answered 503) or before (refused, 400);
  * - `/oauth2/v3/certs` publishes the `signer`'s key, as Google publishes the
  *   keys of the ID tokens Pub/Sub's authenticated pushes carry.
  * Error bodies carry `FAKE_ERROR_MARKER`, so tests can prove the function
@@ -106,6 +114,8 @@ export interface Delivery {
   }[]
   /** Unix ms; defaults to the fake's clock. */
   at?: number
+  /** The Message-ID header, with its angle brackets; else `<id@fake.gmail.test>`. */
+  messageId?: string
 }
 
 export interface FakeGmailOptions {
@@ -138,10 +148,14 @@ export interface FakeGmail {
   grants: Map<string, { scopes: string[]; revoked: boolean }>
   /** The access tokens: token → expiry (ms) and its grant's refresh token. */
   tokens: Map<string, { expiresAt: number; refresh: string }>
+  /** What `messages.send` received: the metadata's thread and the raw RFC 5322 text. */
+  sent: { threadId: string | null; raw: string; id: string }[]
   /** Adds an inbound message (a history record, a notification); answers its id. */
   deliver(input: Delivery): FakeMessage
   /** Issues an authorization code (what the consent page does). */
   issueCode(scope?: string): string
+  /** The next `messages.send`: sent then a 503 (`after_send`), or refused with a 400 (`refused`). */
+  failNextSend(mode: 'after_send' | 'refused'): void
   /** Removes the messages and the history. */
   reset(): void
 }
@@ -179,10 +193,12 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
   const grants = new Map<string, { scopes: string[]; revoked: boolean }>()
   const accessTokens = new Map<string, { expiresAt: number; refresh: string }>()
   const history: HistoryRecord[] = []
+  const sent: FakeGmail['sent'] = []
   let historyId = 1000
   let counter = 1
   let watch: FakeGmail['watch'] = null
   let labels: FakeLabel[] = defaultLabels()
+  let nextSendFailure: 'after_send' | 'refused' | null = null
 
   const nextHistory = (record: Omit<HistoryRecord, 'id'>) => {
     historyId++
@@ -218,7 +234,10 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       { name: 'To', value: input.to ?? emailAddress },
       { name: 'Subject', value: input.subject },
       { name: 'Date', value: new Date(at).toUTCString() },
-      { name: 'Message-ID', value: `<${id}@fake.gmail.test>` },
+      {
+        name: 'Message-ID',
+        value: input.messageId ?? `<${id}@fake.gmail.test>`,
+      },
     ]
     const text = input.text ?? ''
     const html = input.html ??
@@ -507,6 +526,77 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       return json(200, {})
     }
 
+    // --- messages.send (the upload endpoint) -------------------------------
+    if (
+      path === '/upload/gmail/v1/users/me/messages/send' &&
+      req.method === 'POST'
+    ) {
+      if (!bearer(req)) return error(401, 'UNAUTHENTICATED')
+      const refresh = accessTokens.get(
+        /^Bearer\s+(\S+)$/.exec(req.headers.get('Authorization') ?? '')?.[1] ??
+          '',
+      )?.refresh
+      const scopes = refresh ? grants.get(refresh)?.scopes ?? [] : []
+      if (!scopes.includes('https://www.googleapis.com/auth/gmail.send')) {
+        return error(403, 'PERMISSION_DENIED')
+      }
+      const boundary = /boundary=([^;]+)/.exec(
+        req.headers.get('Content-Type') ?? '',
+      )?.[1]
+      if (url.searchParams.get('uploadType') !== 'multipart' || !boundary) {
+        return error(400, 'INVALID_ARGUMENT')
+      }
+      const parts = (await req.text()).split(`--${boundary}`).slice(1, -1)
+        .map((p) => p.replace(/^\r\n/, '').replace(/\r\n$/, ''))
+      if (parts.length !== 2) return error(400, 'INVALID_ARGUMENT')
+      const body = (part: string) => part.slice(part.indexOf('\r\n\r\n') + 4)
+      let meta: { threadId?: string }
+      try {
+        meta = JSON.parse(body(parts[0]))
+      } catch {
+        return error(400, 'INVALID_ARGUMENT')
+      }
+      const raw = body(parts[1])
+      const head = raw.slice(0, raw.indexOf('\r\n\r\n')).replace(
+        /\r\n[ \t]+/g,
+        ' ',
+      )
+      const field = (name: string) =>
+        new RegExp(`^${name}: (.*)$`, 'im').exec(head)?.[1] ?? ''
+      const decodeWords = (v: string) =>
+        v.replace(
+          /=\?UTF-8\?B\?([^?]+)\?=\s*/gi,
+          (_a, b64: string) =>
+            new TextDecoder().decode(
+              Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)),
+            ),
+        )
+      if (!field('To') || !field('From')) return error(400, 'INVALID_ARGUMENT')
+      const threadId = meta.threadId &&
+          [...messages.values()].some((x) => x.threadId === meta.threadId)
+        ? meta.threadId
+        : undefined
+      const failure = nextSendFailure
+      nextSendFailure = null
+      if (failure === 'refused') return error(400, 'INVALID_ARGUMENT')
+      const message = deliver({
+        messageId: field('Message-ID') || undefined,
+        from: decodeWords(field('From')),
+        to: decodeWords(field('To')),
+        subject: decodeWords(field('Subject')),
+        text: '(message envoyé depuis l’app)',
+        threadId,
+        labelIds: ['SENT'],
+      })
+      sent.push({ threadId: meta.threadId ?? null, raw, id: message.id })
+      if (failure === 'after_send') return error(503, 'UNAVAILABLE')
+      return json(200, {
+        id: message.id,
+        threadId: message.threadId,
+        labelIds: message.labelIds,
+      })
+    }
+
     // --- Gmail API -----------------------------------------------------------
     const api = /^\/gmail\/v1\/users\/me\/(.*)$/.exec(path)
     if (!api) return error(404, 'NOT_FOUND')
@@ -529,10 +619,17 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       const q = url.searchParams.get('q') ?? ''
       const newer = /newer_than:(\d+)d/.exec(q)
       const since = newer ? now() - Number(newer[1]) * 86_400_000 : 0
+      const msgid = /rfc822msgid:<?([^<>\s]+)>?/.exec(q)?.[1]
       const labelIds = url.searchParams.getAll('labelIds')
       let all = [...messages.values()].filter((m) =>
         Number(m.internalDate) >= since
       )
+        .filter((m) =>
+          !msgid ||
+          m.payload.headers.some((h) =>
+            h.name === 'Message-ID' && h.value === `<${msgid}>`
+          )
+        )
         .filter((m) => labelIds.every((l) => m.labelIds.includes(l)))
         .sort((a, b) => Number(b.internalDate) - Number(a.internalDate))
       const start = Number(url.searchParams.get('pageToken') ?? 0)
@@ -669,15 +766,21 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
     },
     grants,
     tokens: accessTokens,
+    sent,
     deliver,
     issueCode,
+    failNextSend(mode) {
+      nextSendFailure = mode
+    },
     reset() {
       messages.clear()
       attachments.clear()
       history.length = 0
+      sent.length = 0
       calls.length = 0
       watch = null
       counter = 1
+      nextSendFailure = null
     },
   }
   return fake

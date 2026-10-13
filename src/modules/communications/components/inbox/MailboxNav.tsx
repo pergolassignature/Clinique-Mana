@@ -1,12 +1,16 @@
 import { useId } from 'react'
-import { Inbox, Mail, MailOpen, Send, Star, Tag, UserRoundSearch } from 'lucide-react'
+import { FileText, Inbox, Mail, MailOpen, PenLine, Send, Star, Tag, UserRoundSearch } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
+import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
 import { Select } from '@/shared/ui/select'
 import type { MailConnection } from '../../api/mailboxes'
 import type { MailLabel, MailView } from '../../api/inbox'
+import { useDrafts } from '../../hooks/use-composer'
+import { useComposerLauncher } from '../../hooks/use-composer-launcher'
+import { initialContent } from '../../lib/compose'
 
 const N = 'modules.communications.inbox.nav'
 
@@ -19,6 +23,8 @@ const VIEWS: { view: Exclude<MailView, 'label'>; icon: LucideIcon }[] = [
   { view: 'all', icon: Mail },
   // « À rattacher » (CM2b): only with `clients.view` (`showToLink`).
   { view: 'to_link', icon: UserRoundSearch },
+  // « Brouillons » (CM3): the person's own drafts.
+  { view: 'drafts', icon: FileText },
 ]
 
 export interface ViewChoice {
@@ -35,6 +41,8 @@ interface MailboxNavProps {
   labels: MailLabel[]
   /** « À rattacher »: the person may see files (`clients.view`, Clients enabled). */
   showToLink: boolean
+  /** « Nouveau message » and « Brouillons » (CM3): inside a `ComposerHost`. */
+  canCompose?: boolean
 }
 
 /** `?vue=`-style value of a choice in the phone's select: the view, or `libelle:<id>`. */
@@ -46,8 +54,15 @@ const choiceValue = (choice: ViewChoice) => (choice.view === 'label' ? `libelle:
  * courriels », and « À rattacher » with `clients.view`) and its own labels. Each entry is a button; the current one is `aria-current`. On a
  * phone the views and labels fold into one « Dossier » choice, so the list starts at the top.
  */
-export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, labels, showToLink }: MailboxNavProps) {
-  const views = showToLink ? VIEWS : VIEWS.filter(({ view }) => view !== 'to_link')
+export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, labels, showToLink, canCompose = false }: MailboxNavProps) {
+  const views = VIEWS.filter(({ view }) => (view !== 'to_link' || showToLink) && (view !== 'drafts' || canCompose))
+  const composer = useComposerLauncher()
+  const drafts = useDrafts(canCompose)
+  const draftsCount = drafts.data?.length
+  const onCompose =
+    canCompose && composer
+      ? () => composer.open({ kind: 'content', personKnown: false, content: initialContent({ connectionId: mailboxId, mode: 'new' }) })
+      : undefined
   const selectId = useId()
   const folderId = useId()
   const mailbox = mailboxes.find((m) => m.id === mailboxId)
@@ -73,6 +88,12 @@ export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, l
   }
   return (
     <nav aria-label={t(`${N}.label`)} className="space-y-3 p-3">
+      {onCompose && (
+        <Button type="button" onClick={onCompose} className="w-full max-sm:h-11">
+          <PenLine aria-hidden className="size-4" />
+          {t(`${N}.newMessage`)}
+        </Button>
+      )}
       {mailboxes.length > 1 ? (
         <div className="space-y-1">
           <Label htmlFor={selectId}>{t(`${N}.mailbox`)}</Label>
@@ -127,7 +148,7 @@ export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, l
             () => onView({ view, labelId: null }),
             icon,
             t(`${N}.views.${view}`),
-            view === 'inbox' ? mailbox?.unread_count : undefined,
+            view === 'inbox' ? mailbox?.unread_count : view === 'drafts' ? draftsCount : undefined,
           ),
         )}
       </ul>

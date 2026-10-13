@@ -228,6 +228,10 @@ select functions_are('public', array[
   'withdraw_proposition', 'list_demande_propositions',
   -- Communications, batch CM2b (threads linked to clients).
   'link_mail_thread', 'unlink_mail_thread', 'get_mail_thread_link',
+  -- Communications, batch CM3 (the composer and the Gmail send).
+  'save_mail_draft', 'delete_mail_draft', 'list_mail_drafts', 'get_mail_draft', 'list_mail_compose_templates',
+  'save_mail_template', 'delete_mail_template', 'get_mail_compose_context', 'list_client_mail_threads',
+  'prepare_mail_send', 'complete_mail_send',
   -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
   'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
   'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',

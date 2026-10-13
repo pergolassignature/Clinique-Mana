@@ -13,6 +13,8 @@ import { MAIL_VIEWS, type MailView } from '../api/inbox'
 import { MailboxNav, type ViewChoice } from '../components/inbox/MailboxNav'
 import { MailThreadList } from '../components/inbox/MailThreadList'
 import { MailThreadView } from '../components/inbox/MailThreadView'
+import { DraftList } from '../components/inbox/DraftList'
+import { ComposerHost } from '../components/composer/ComposerHost'
 import { useMailLabels, useMailThreads } from '../hooks/use-inbox'
 import { useMailConnections } from '../hooks/use-mailboxes'
 
@@ -27,6 +29,7 @@ const SEARCH_DELAY_MS = 300
 function parseView(raw: string | null, canSeeFiles: boolean): ViewChoice {
   if (raw?.startsWith('libelle:')) return { view: 'label', labelId: raw.slice('libelle:'.length) || null }
   if (raw === 'to_link' && !canSeeFiles) return { view: 'inbox', labelId: null }
+  if (raw === 'drafts') return { view: 'drafts', labelId: null }
   return (MAIL_VIEWS as readonly string[]).includes(raw ?? '') ? { view: raw as MailView, labelId: null } : { view: 'inbox', labelId: null }
 }
 const viewParam = (choice: ViewChoice) => (choice.view === 'label' ? `libelle:${choice.labelId}` : choice.view)
@@ -44,6 +47,8 @@ export function InboxPage() {
   const connections = useMailConnections()
   const [params, setParams] = useSearchParams()
   const mailboxes = useMemo(() => (connections.data ?? []).filter((m) => m.status !== 'disconnected'), [connections.data])
+  // The composer sends from a connected mailbox only (CM3).
+  const sendable = useMemo(() => mailboxes.filter((m) => m.status === 'connected'), [mailboxes])
   const wanted = params.get('boite')
   const mailboxId = mailboxes.find((m) => m.id === wanted)?.id ?? mailboxes[0]?.id ?? null
   const canSeeFiles = useAccess().can('clients.view')
@@ -85,12 +90,15 @@ export function InboxPage() {
   }, [threadId])
 
   const labels = useMailLabels(mailboxId)
-  const query = mailboxId ? { connectionId: mailboxId, view: search ? ('all' as const) : choice.view, labelId: search ? null : choice.labelId, search } : null
+  const showDrafts = choice.view === 'drafts' && !search
+  const query =
+    mailboxId && !showDrafts ? { connectionId: mailboxId, view: search ? ('all' as const) : choice.view, labelId: search ? null : choice.labelId, search } : null
   const threads = useMailThreads(query)
   const rows = useMemo(() => threads.data?.pages.flat() ?? [], [threads.data])
 
   let list
   if (!mailboxId) list = null
+  else if (showDrafts) list = <DraftList />
   else if (threads.isError && !threads.data) {
     list = <LoadError className="p-3" message={t(`${I}.list.loadError`)} retrying={threads.isFetching} onRetry={() => void threads.refetch()} />
   } else if (!threads.data) list = <Loading className="p-3" />
@@ -123,6 +131,7 @@ export function InboxPage() {
       ) : !mailboxId ? (
         <EmptyState title={t(`${I}.noMailboxTitle`)} body={t(`${I}.noMailboxBody`)} />
       ) : (
+        <ComposerHost mailboxes={sendable} onSent={(sentThread) => sentThread && update({ fil: sentThread })}>
         <div className="overflow-hidden rounded-lg border border-border bg-card lg:grid lg:h-[calc(100dvh-13rem)] lg:min-h-[32rem] lg:grid-cols-[13rem_22rem_minmax(0,1fr)]">
           <div className={cn('min-h-0 overflow-y-auto border-b border-border lg:border-r lg:border-b-0', threadId !== null && 'max-lg:hidden')}>
             <MailboxNav
@@ -139,6 +148,7 @@ export function InboxPage() {
               }}
               labels={labels.data ?? []}
               showToLink={canSeeFiles}
+              canCompose={sendable.length > 0}
             />
           </div>
           <div className={cn('flex min-h-0 flex-col lg:border-r lg:border-border', threadId !== null && 'max-lg:hidden')}>
@@ -173,6 +183,7 @@ export function InboxPage() {
             <div className="hidden items-center justify-center p-6 text-sm text-muted-foreground lg:flex">{t(`${I}.thread.select`)}</div>
           )}
         </div>
+        </ComposerHost>
       )}
     </div>
   )
