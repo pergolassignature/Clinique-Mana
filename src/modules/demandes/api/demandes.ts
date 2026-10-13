@@ -115,6 +115,8 @@ const demandeSchema = z.looseObject({
   referral_source_id: nullableString,
   source_campaign: nullableString,
   source_referrer: nullableString,
+  source_utm: z.record(z.string(), z.string()).nullable().catch(null),
+  source_landing_page: nullableString,
   client_id: nullableString,
   contact_name: nullableString,
   contact_email: nullableString,

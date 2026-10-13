@@ -260,6 +260,8 @@ Module jobs are in their module docs; Communications (batch SM): `communications
 
 Clients (C5a): `clients.consent_reminders` (function `clients-consent-reminders`, hourly, `local_hour` 8: pending consent requests sent again once, overdue ones notified) ([clients doc](clients.md#consents-batch-c5a)).
 
+Demandes (D3): `demandes.waitlist_followup` (function `demandes-waitlist-followup`, hourly, `local_hour` 7: waiting-list entries without news → « À rappeler », the optional « still waiting? » email) ([demandes doc](demandes.md#the-follow-up-d-17)).
+
 **Cron times are in UTC**, whatever the clinic's timezone: `10 8 * * *` runs at 4:10 in Montréal in summer (EDT, UTC−4) and 3:10 in winter (EST, UTC−5). « Tâches planifiées » shows a daily time converted to the clinic's timezone (`scheduleLabel`). Only a `local_hour` job follows the clinic clock (P3-22).
 
 **The two frequent jobs run every 15 minutes** (final Phase 3 review; every 5 before): `core.scheduled_jobs_reconcile` and `core.email_log_stale_queued` almost always find nothing, and every run writes a `scheduled_job_runs` row. At 15 minutes a stuck email or a failed dispatch shows at most 15 minutes later than it did, an unfinished run is closed 15 to 30 minutes after its start, and `no_response` still waits for 1 hour (pg_net keeps responses 6 hours). Skipping the row of an empty run was the other option; it was not taken because the run log is how « Tâches planifiées » shows that pg_cron is alive.

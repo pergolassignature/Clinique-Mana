@@ -1,6 +1,6 @@
 import { matchPath } from 'react-router-dom'
 import { consentPublicPage } from '@/modules/clients'
-import { bookingCancelPublicPage, bookingPublicPage } from '@/modules/demandes'
+import { bookingCancelPublicPage, bookingPublicPage, waitlistAnswerPublicPage } from '@/modules/demandes'
 import { lazyPage, type LazyPage } from '@/shared/lib/lazy-page'
 
 /** `/connexion/confirmer`: where the auth emails land (design §5). Public, code-split. */
@@ -18,6 +18,9 @@ export const BookingPage = bookingPublicPage
 /** `/appel-decouverte/annuler`: the booking confirmation's cancel link (Demandes D3c). Public, code-split. */
 export const BookingCancelPage = bookingCancelPublicPage
 
+/** `/liste-attente/reponse`: the waiting list's « still waiting? » link (Demandes D3). Public, code-split. */
+export const WaitlistAnswerPage = waitlistAnswerPublicPage
+
 /** The code-split public pages, by their exact path. */
 const PUBLIC_PAGES: { path: string; component: LazyPage }[] = [
   { path: '/connexion/confirmer', component: ConfirmPage },
@@ -25,6 +28,7 @@ const PUBLIC_PAGES: { path: string; component: LazyPage }[] = [
   { path: '/consentement', component: ConsentPage },
   { path: '/appel-decouverte', component: BookingPage },
   { path: '/appel-decouverte/annuler', component: BookingCancelPage },
+  { path: '/liste-attente/reponse', component: WaitlistAnswerPage },
 ]
 
 /** The code-split public page at `pathname` (exact path only), if any. */

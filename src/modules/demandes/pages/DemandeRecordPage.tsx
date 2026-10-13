@@ -1,7 +1,7 @@
 import { createElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { t } from '@/i18n'
-import { useReadyAccess } from '@/core/access/access-context'
+import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { demandesError } from '../lib/errors'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -32,8 +32,10 @@ import { StatusDot } from '@/shared/ui/status-dot'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { CLOSED_REASONS, type ClosedReason, type DemandeBundle, type DemandeState } from '../api/demandes'
 import { LogContactDialog } from '../components/LogContactDialog'
+import { RegisterWaitlistDialog } from '../components/waitlist/RegisterWaitlistDialog'
 import { DemandeRecordContext, type DemandeRecordData } from '../components/record/record-context'
 import { useAssignDemande, useDemande, useDemandesRealtime, useDemandesReference, useSetDemandeState, useSetHandler } from '../hooks/use-demandes'
+import { useDemandeWaitlist } from '../hooks/use-waitlist'
 import { RECORD_TABS, demandePath, nextStates, optionLabel, personLabel, promiseText, stateLabel, stateTone, type RecordTab } from '../lib/display'
 
 const R = 'modules.demandes.record'
@@ -186,10 +188,16 @@ function RecordHeader({ data }: { data: DemandeRecordData }) {
   )
 }
 
-/** « État » and its moves; closing asks for the reason. */
+/**
+ * « État » and its moves; closing asks for the reason; « Liste d'attente » registers the request
+ * on a list (D-15) unless it already has an open entry (back from « Proposée » or « Acceptée »).
+ */
 function StateControl({ data }: { data: DemandeRecordData }) {
   const d = data.bundle.demande
+  const { can } = useAccess()
   const setState = useSetDemandeState(data.id)
+  const entries = useDemandeWaitlist(data.id)
+  const [registering, setRegistering] = useState(false)
   const [closing, setClosing] = useState(false)
   const [reason, setReason] = useState<ClosedReason>('not_relevant')
   const move = (state: DemandeState, closedReason: ClosedReason | null) =>
@@ -211,7 +219,10 @@ function StateControl({ data }: { data: DemandeRecordData }) {
           const next = event.target.value as DemandeState
           if (!next) return
           if (next === 'closed') setClosing(true)
-          else move(next, null)
+          else if (next === 'waitlist' && !(entries.data ?? []).some((e) => e.state !== 'closed')) {
+            if (can('demandes.waitlist')) setRegistering(true)
+            else toast.error(t(`${R}.waitlistPermission`))
+          } else move(next, null)
         }}
         className="w-56"
       >
@@ -222,6 +233,7 @@ function StateControl({ data }: { data: DemandeRecordData }) {
           </option>
         ))}
       </Select>
+      <RegisterWaitlistDialog demandeId={data.id} hasFile={data.bundle.client !== null} open={registering} onOpenChange={setRegistering} />
       <AlertDialog open={closing} onOpenChange={setClosing}>
         <AlertDialogContent>
           <AlertDialogHeader>

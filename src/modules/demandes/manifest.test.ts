@@ -1,25 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { bookingCancelPublicPage, bookingPublicPage, demandesManifest } from './index'
+import { bookingCancelPublicPage, bookingPublicPage, demandesManifest, waitlistAnswerPublicPage } from './index'
 
 describe('demandesManifest', () => {
   it('uses the English module key, depends on clients and professionals; « Demandes » and its record (D2)', () => {
     expect(demandesManifest.key).toBe('demandes')
     expect(t(demandesManifest.labelKey)).toBe('Demandes')
     expect(demandesManifest.dependsOn).toEqual(['clients', 'professionals'])
-    expect(demandesManifest.nav).toEqual([expect.objectContaining({ path: '/demandes', permission: 'demandes.view' })])
+    expect([demandesManifest.nav ?? []].flat().map((n) => [n.path, n.permission, t(n.labelKey)])).toEqual([
+      ['/demandes', 'demandes.view', 'Demandes'],
+      ['/liste-attente', 'demandes.view', "Liste d'attente"],
+    ])
     expect(demandesManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['demandes', 'demandes.view'],
       ['demandes/:id/:onglet?', 'demandes.view'],
+      ['liste-attente', 'demandes.view'],
     ])
   })
 
-  it('Paramètres → Appels découverte (D3c): seen with demandes.view, changed with demandes.manage; the public pages are lazy', () => {
+  it('Paramètres → Appels découverte (D3c) and → Liste d’attente (D3); the public pages are lazy', () => {
     expect(demandesManifest.settingsSections.map((s) => [s.id, s.path, s.permission, s.editPermission, s.group, t(s.labelKey)])).toEqual([
       ['booking', 'appels-decouverte', 'demandes.view', 'demandes.manage', 'modules', 'Appels découverte'],
+      ['waitlist', 'liste-attente', 'demandes.view', 'demandes.waitlist', 'modules', "Liste d'attente"],
     ])
     expect(typeof bookingPublicPage.preload).toBe('function')
     expect(typeof bookingCancelPublicPage.preload).toBe('function')
+    expect(typeof waitlistAnswerPublicPage.preload).toBe('function')
   })
 
   it('names its audited tables, columns and codes for the Journal d’audit, in its own chunk', async () => {
