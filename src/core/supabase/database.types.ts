@@ -6959,6 +6959,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          redacted_at: string | null
           rejected_at: string | null
           request_id: string
           role: string
@@ -6975,6 +6976,7 @@ export type Database = {
           id?: string
           name: string
           org_id: string
+          redacted_at?: string | null
           rejected_at?: string | null
           request_id: string
           role: string
@@ -6991,6 +6993,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          redacted_at?: string | null
           rejected_at?: string | null
           request_id?: string
           role?: string
