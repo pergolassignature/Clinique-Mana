@@ -63,6 +63,17 @@ export async function chargeNow(invoiceId: string): Promise<z.infer<typeof charg
 }
 
 /** « Retirer la carte » (billing.manage). */
+const refundSchema = z.object({ status: z.enum(['recorded', 'failed', 'pending', 'settled']) })
+export type StripeRefundStatus = z.infer<typeof refundSchema>['status']
+
+/**
+ * FS-9: right after `refund_payment` on a Stripe payment, the card refunded at Stripe (`billing-stripe`,
+ * once per refund). `pending`: Stripe answers later (the webhook or the job settles it).
+ */
+export async function refundByStripe(refundId: string): Promise<StripeRefundStatus> {
+  return refundSchema.parse(await invokeFunction('billing-stripe', { action: 'refund', refund_id: refundId })).status
+}
+
 export async function removeCard(payerClientId: string): Promise<void> {
   await invokeFunction('billing-stripe', { action: 'remove_card', payer_client_id: payerClientId })
 }

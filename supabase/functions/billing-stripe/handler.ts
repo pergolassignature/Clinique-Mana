@@ -22,6 +22,13 @@
  *    - `{ action: 'remove_card', payer_client_id }`: « Retirer la carte »:
  *      the card detached at Stripe (already gone is fine), then
  *      `stripe_card_removed_for_service`.
+ *    - `{ action: 'refund', refund_id }` (FS-9): right after F3's
+ *      `refund_payment` on a Stripe payment, the card refunded at Stripe
+ *      (`processRefund`, once per refund) and the refund settled; 200
+ *      `{ status }`: `recorded`, `failed` (Stripe refused, or a card payment
+ *      without its PaymentIntent: refunded by hand), `pending` (the webhook or
+ *      the job settles it), `settled` (already done, or not a Stripe refund).
+ *      A reserved module moves no money (P3-40): 409 `module_reserved`.
  * 3. One hit on `LIMITS.billingStripeUser` (60 an hour per caller).
  *
  * Status codes: 200; 400 `invalid_request` (body, a French refusal); 401 /
@@ -47,6 +54,7 @@ import { reportError } from '../_shared/report.ts'
 import { StripeError } from '../_shared/stripe/client.ts'
 import { clinicStripe } from '../_shared/stripe/clinic.ts'
 import { CARD_PATH } from '../_shared/stripe/env.ts'
+import { processRefund } from '../_shared/stripe/refunds.ts'
 
 const FN = 'billing-stripe'
 
@@ -57,7 +65,15 @@ const bodySchema = z.discriminatedUnion('action', [
     action: z.literal('remove_card'),
     payer_client_id: z.guid(),
   }),
+  z.strictObject({ action: z.literal('refund'), refund_id: z.guid() }),
 ])
+
+const refundSchema = z.object({
+  refund_id: z.guid(),
+  amount_cents: z.number().int().positive(),
+  payment_intent_id: z.string().nullable(),
+  module_open: z.boolean(),
+})
 
 const contextSchema = z.object({
   payer_client_id: z.string(),
@@ -274,6 +290,30 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           200,
           req,
         )
+      }
+
+      if (input.action === 'refund') {
+        ids.refund_id = input.refund_id
+        const found = await service.rpc('stripe_refund_for_service', {
+          p_org_id: orgId,
+          p_refund_id: input.refund_id,
+        })
+        if (found.error) return await internal('refund_read_failed')
+        if (found.data === null) {
+          return jsonResponse({ status: 'settled' }, 200, req)
+        }
+        const pending = refundSchema.safeParse(found.data)
+        if (!pending.success) return await internal('refund_invalid')
+        if (!pending.data.module_open) {
+          return errorResponse(
+            'conflict',
+            'The module is reserved for its testers',
+            409,
+            req,
+          )
+        }
+        const status = await processRefund(stripe, service, orgId, pending.data)
+        return jsonResponse({ status }, 200, req)
       }
 
       ids.client_id = input.payer_client_id

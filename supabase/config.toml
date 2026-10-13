@@ -277,5 +277,7 @@ verify_jwt = false
 verify_jwt = false
 [functions.billing-stripe-charges]
 verify_jwt = false
+[functions.billing-stripe-refunds]
+verify_jwt = false
 [functions.stripe-webhook]
 verify_jwt = false
