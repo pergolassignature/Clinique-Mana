@@ -558,3 +558,17 @@ begin
   perform set_config('request.jwt.claims', '', false);
 end;
 $appointments$;
+
+-- Local video links (Rendez-vous RZ): the fake Zoom's app and webhook secret token
+-- (`npm run fake:zoom`, port 55394; _shared/testing/fake-zoom.ts FAKE_ZOOM_CLIENT_ID / _SECRET; the
+-- functions reach it through ZOOM_OAUTH_BASE_URL / ZOOM_API_BASE_URL), stored as set_org_secret
+-- stores them. Félix Gauthier (provider@mana.test, professional n° 4) connects his Zoom in
+-- « Vidéoconférence ».
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'zoom_client_id',
+   vault.create_secret('local-dev-zoom-client-id', 'org:00000000-0000-0000-0000-000000000001:zoom_client_id')),
+  ('00000000-0000-0000-0000-000000000001', 'zoom_client_secret',
+   vault.create_secret('local-dev-zoom-client-secret', 'org:00000000-0000-0000-0000-000000000001:zoom_client_secret')),
+  ('00000000-0000-0000-0000-000000000001', 'zoom_webhook_secret',
+   vault.create_secret('local-dev-zoom-webhook-secret', 'org:00000000-0000-0000-0000-000000000001:zoom_webhook_secret'));

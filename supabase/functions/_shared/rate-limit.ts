@@ -439,6 +439,27 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 600,
   },
+  /**
+   * `zoom-connect` (« Connecter mon Zoom », « Déconnecter »), per caller:
+   * each start issues a signed state; each disconnection revokes a grant.
+   */
+  zoomConnectUser: {
+    bucket: 'zoom.connect_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /** `zoom-callback` (the code exchange), per caller: each call reaches Zoom's token endpoint. */
+  zoomCallbackUser: {
+    bucket: 'zoom.callback_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /** `zoom-deauthorize`, per IP, before the org's secret is read (anyone can post there). */
+  zoomWebhookIp: {
+    bucket: 'webhooks.zoom_ip',
+    max: 120,
+    windowSeconds: 60,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

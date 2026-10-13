@@ -108,7 +108,7 @@ A discovery call is a dated task of its request (D1, kind `discovery_call`), mad
 
 ## D3b: the proposals
 
-Migrations `20261013085909_professionals_display_facts` (Professionnels: `private.professional_display_facts`) and `20261013085916_demandes_propositions`; pgTAP `125_demandes_propositions`; functions `demandes-propose` (user) and `demandes-proposition-answer` (public token); decisions D-21 … D-23; Rendez-vous R1b (AP-15, held appointments).
+Migrations `20261013091849_professionals_display_facts` (Professionnels: `private.professional_display_facts`) and `20261013091853_demandes_propositions`; pgTAP `125_demandes_propositions`; functions `demandes-propose` (user) and `demandes-proposition-answer` (public token); decisions D-21 … D-23; Rendez-vous R1b (AP-15, held appointments).
 
 | RPC | Permission | Does |
 |---|---|---|
