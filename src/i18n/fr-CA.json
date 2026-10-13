@@ -7660,7 +7660,9 @@
             "video_status": "État du lien de la rencontre",
             "external_ref": "Référence GOrendezvous",
             "outside_availability_reason": "Raison « Hors disponibilités »",
-            "outside_availability_by": "Réservé hors disponibilités par"
+            "outside_availability_by": "Réservé hors disponibilités par",
+            "held_until": "Proposé jusqu'au",
+            "hold_reference": "Proposition (demande)"
           },
           "appointment_participants": {
             "appointment_id": "Rendez-vous",
@@ -7709,6 +7711,7 @@
               "phone": "Téléphone"
             },
             "state": {
+              "held": "En attente d'acceptation",
               "booked": "Réservé",
               "confirmed": "Confirmé par le client",
               "completed": "Terminé",
@@ -7848,7 +7851,8 @@
         "cancelledWith": "Annulé : {reason}.",
         "noReason": "sans raison",
         "notCancellable": "Ce rendez-vous est terminé : il ne s’annule plus.",
-        "findSecondRequired": "Deuxième personne"
+        "findSecondRequired": "Deuxième personne",
+        "heldNotice": "Ce créneau est proposé au client et attend son acceptation. Il se gère depuis la demande : il devient un rendez-vous quand le client l'accepte, et se libère sinon."
       },
       "availability": {
         "newTitle": "Nouvelle plage",
