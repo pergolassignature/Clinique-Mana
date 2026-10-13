@@ -8611,7 +8611,12 @@
           "credit_notes": "Notes de crédit",
           "billing_payer_defaults": "Payeurs par défaut",
           "invoice_sequences": "Numérotation des factures",
-          "payment_modes": "Modes de paiement"
+          "payment_modes": "Modes de paiement",
+          "qbo_connections": "Connexion QuickBooks",
+          "qbo_connection_tokens": "Accès QuickBooks (chiffré)",
+          "qbo_account_map": "Comptes QuickBooks",
+          "qbo_customer_matches": "Correspondance des clients QuickBooks",
+          "qbo_links": "Clients QuickBooks facturés"
         },
         "fields": {
           "invoices": {
@@ -8687,6 +8692,59 @@
             "is_deposit": "Dépôt",
             "is_active": "Actif",
             "sort_order": "Ordre"
+          },
+          "qbo_connections": {
+            "realm_id": "Numéro de l'entreprise",
+            "environment": "Environnement",
+            "company_name": "Entreprise",
+            "status": "Statut",
+            "status_reason": "Raison du statut",
+            "connected_by": "Connecté par",
+            "connected_at": "Connecté le",
+            "disconnected_at": "Déconnecté le",
+            "disconnected_by": "Déconnecté par",
+            "refresh_token_expires_at": "Fin de l'accès sans renouvellement",
+            "last_sync_at": "Dernière synchronisation",
+            "last_sync_status": "Résultat de la synchronisation",
+            "last_error_code": "Code de la dernière erreur",
+            "last_error_at": "Dernière erreur le",
+            "accounts_synced_at": "Comptes lus le",
+            "customers_synced_at": "Clients lus le"
+          },
+          "qbo_connection_tokens": {
+            "connection_id": "Connexion",
+            "access_token": "Jeton d'accès",
+            "refresh_token": "Jeton de renouvellement",
+            "access_token_expires_at": "Fin du jeton d'accès",
+            "key_version": "Version de la clé"
+          },
+          "qbo_account_map": {
+            "map_key": "Type d'écriture",
+            "profession_title_id": "Titre",
+            "qbo_account_id": "Compte QuickBooks",
+            "suggested": "Suggéré",
+            "updated_by": "Modifié par"
+          },
+          "qbo_customer_matches": {
+            "connection_id": "Connexion",
+            "qbo_id": "Client QuickBooks",
+            "client_id": "Dossier client",
+            "level": "Niveau",
+            "reasons": "Raisons",
+            "candidate_client_ids": "Dossiers possibles",
+            "status": "Statut",
+            "source": "Origine",
+            "match_input_hash": "Empreinte des données lues",
+            "decided_by": "Décidé par",
+            "decided_at": "Décidé le"
+          },
+          "qbo_links": {
+            "connection_id": "Connexion",
+            "kind": "Type",
+            "payer_client_id": "Payeur",
+            "client_id": "Dossier client",
+            "qbo_customer_id": "Client QuickBooks",
+            "source": "Origine"
           }
         },
         "values": {
@@ -8725,6 +8783,61 @@
               "invoice": "Facture",
               "credit_note": "Note de crédit"
             }
+          },
+          "qbo_connections": {
+            "environment": {
+              "production": "Production",
+              "sandbox": "Bac à sable"
+            },
+            "status": {
+              "connected": "Connecté",
+              "needs_reconnect": "À reconnecter",
+              "disconnected": "Déconnecté"
+            },
+            "last_sync_status": {
+              "ok": "Réussie",
+              "partial": "Partielle",
+              "failed": "Échouée"
+            }
+          },
+          "qbo_account_map": {
+            "map_key": {
+              "revenue_services": "Factures des clients",
+              "revenue_file_opening": "Ouvertures de dossier",
+              "deposit_interac": "Virement Interac",
+              "deposit_stripe": "Carte (Stripe)",
+              "deposit_qbo_payments_card": "Carte (QuickBooks Payments)",
+              "deposit_bank_transfer": "Virement bancaire",
+              "deposit_cheque": "Chèque",
+              "expense": "Dépenses par spécialité"
+            }
+          },
+          "qbo_customer_matches": {
+            "status": {
+              "linked": "Rattaché",
+              "to_decide": "À décider",
+              "no_match": "Sans correspondance",
+              "ignored": "Ignoré"
+            },
+            "level": {
+              "high": "Forte",
+              "medium": "Possible",
+              "none": "Aucune"
+            },
+            "source": {
+              "auto": "Automatique",
+              "manual": "Choisie par une personne"
+            }
+          },
+          "qbo_links": {
+            "kind": {
+              "payer": "Payeur (client parent)",
+              "dossier": "Dossier (sous-client)"
+            },
+            "source": {
+              "matched": "Rapproché",
+              "created": "Créé par l'application"
+            }
           }
         },
         "sources": {
@@ -8732,7 +8845,15 @@
         }
       },
       "errors": {
-        "failed": "L'opération n'a pas pu être enregistrée. Réessayez dans un moment."
+        "failed": "L'opération n'a pas pu être enregistrée. Réessayez dans un moment.",
+        "notConfigured": "L'application Intuit n'est pas encore configurée (Paramètres → QuickBooks → Application Intuit).",
+        "providerError": "QuickBooks n'a pas répondu. Réessayez dans quelques minutes.",
+        "linkInvalid": "Le retour de QuickBooks n'est pas valide. Recommencez la connexion.",
+        "linkExpired": "La connexion a pris plus de 10 minutes. Recommencez la connexion à QuickBooks.",
+        "linkUsed": "Ce retour de QuickBooks a déjà servi. Recommencez la connexion au besoin.",
+        "notConnected": "QuickBooks n'est pas connecté. Rechargez la page.",
+        "needsReconnect": "QuickBooks refuse l’accès : reconnectez l’entreprise (Paramètres → QuickBooks).",
+        "rateLimited": "Trop de demandes à QuickBooks en peu de temps."
       },
       "saved": {
         "created": "Brouillon de facture créé.",
@@ -8859,6 +8980,224 @@
           "description": "Les factures sont numérotées par année (AAAA-N), sans trou. La prochaine facture sera la {next}.",
           "last": "Dernier numéro utilisé en {year}",
           "lastHelp": "À la bascule, le dernier numéro de GOrendezvous pour l'année ; jamais moins qu'un numéro déjà donné ici."
+        }
+      },
+      "qbo": {
+        "title": "QuickBooks",
+        "description": "L'entreprise QuickBooks Online de la clinique, les comptes utilisés et la correspondance des clients. Rien n'est encore envoyé à QuickBooks : les factures et les paiements suivront avec la facturation.",
+        "loadError": "Les réglages de QuickBooks n'ont pas pu être chargés.",
+        "environments": {
+          "production": "Production (l'entreprise réelle de la clinique)",
+          "sandbox": "Bac à sable Intuit (essais)"
+        },
+        "status": {
+          "notConnected": "Non connecté",
+          "connected": "Connecté",
+          "needsReconnect": "À reconnecter",
+          "needsReconnectDetail": "QuickBooks a refusé de renouveler l'accès (connexion retirée chez Intuit ou expirée). Reconnectez l'entreprise.",
+          "syncFailed": "Dernière synchronisation échouée",
+          "syncFailedDetail": "QuickBooks n’a pas répondu à la dernière lecture. Réessayez « Synchroniser » dans quelques minutes."
+        },
+        "counts": {
+          "accountsOne": "1 compte",
+          "accountsOther": "{count} comptes",
+          "customersOne": "1 client QuickBooks",
+          "customersOther": "{count} clients QuickBooks"
+        },
+        "sync": {
+          "read": "Synchronisé : {accounts}, {customers}.",
+          "pending": "La correspondance des clients continue : cliquez de nouveau sur « Synchroniser » pour la terminer.",
+          "failed": "La synchronisation a échoué : QuickBooks n'a pas répondu. Réessayez dans quelques minutes."
+        },
+        "connection": {
+          "title": "Connexion",
+          "description": "L'entreprise QuickBooks Online de la clinique. Une seule entreprise à la fois.",
+          "environment": "Environnement",
+          "environmentHelp": "Le bac à sable sert aux essais, avec une entreprise de test d'Intuit. Choisissez Production pour l'entreprise réelle.",
+          "connect": "Connecter QuickBooks",
+          "connecting": "Ouverture de QuickBooks…",
+          "connectHelp": "Chez Intuit, connectez-vous avec un compte administrateur de l'entreprise, puis acceptez.",
+          "appMissing": "Saisissez d'abord l'identifiant et le secret de l'application Intuit ci-dessous.",
+          "unnamed": "Entreprise QuickBooks",
+          "someone": "une personne",
+          "connectedBy": "Connecté le {date} par {name}",
+          "lastSync": "Dernière synchronisation : {date}",
+          "neverSynced": "Jamais synchronisé",
+          "expires": "Sans renouvellement, l'accès expirerait le {date} : la tâche quotidienne le renouvelle.",
+          "sync": "Synchroniser",
+          "syncing": "Synchronisation…",
+          "reconnect": "Reconnecter",
+          "disconnect": "Déconnecter",
+          "disconnecting": "Déconnexion…",
+          "disconnected": "QuickBooks est déconnecté.",
+          "customersHint": "Les clients de QuickBooks et les dossiers qui leur correspondent :",
+          "disconnectConfirm": {
+            "title": "Déconnecter {company} ?",
+            "body": "L'accès de l'application à QuickBooks est retiré chez Intuit. Les comptes choisis et la correspondance des clients restent, pour une reconnexion à la même entreprise. Rien n'est effacé dans QuickBooks.",
+            "action": "Déconnecter QuickBooks"
+          }
+        },
+        "app": {
+          "title": "Application Intuit",
+          "description": "L'application que la clinique crée sur developer.intuit.com. Ses deux valeurs ne s'affichent jamais une fois enregistrées.",
+          "clientId": "Identifiant du client (Client ID)",
+          "clientIdHelp": "Intuit → Mon application → Clés et identifiants.",
+          "clientSecret": "Secret du client (Client Secret)",
+          "clientSecretHelp": "Même page, à côté de l’identifiant. Production et bac à sable ont chacun leurs clés.",
+          "redirect": "Adresse de retour à déclarer chez Intuit",
+          "redirectHelp": "À copier dans « URI de redirection » de l’application Intuit.",
+          "readOnly": "Seule une personne qui gère les intégrations peut changer ces valeurs.",
+          "secretsUnknown": "L'état de cette valeur n'est visible qu'avec la permission de voir les paramètres.",
+          "secretsLoadError": "L'état des valeurs enregistrées n'a pas pu être chargé."
+        },
+        "accounts": {
+          "title": "Comptes",
+          "description": "Le compte QuickBooks de chaque type d'écriture. Les valeurs suggérées viennent du plan comptable de la clinique (noms et numéros) ; un choix fait ici n'est jamais remplacé.",
+          "connectFirst": "Connectez d'abord QuickBooks.",
+          "syncFirst": "Synchronisez QuickBooks pour lire le plan comptable.",
+          "none": "— Aucun compte choisi —",
+          "suggested": "Suggéré",
+          "missingOne": "1 ligne sans compte.",
+          "missingOther": "{count} lignes sans compte.",
+          "revenueAndDeposits": "Revenus et paiements",
+          "expenses": "Dépenses par spécialité",
+          "expensesHelp": "Les factures des professionnels, classées selon leur titre.",
+          "expenseHelp": "Un compte de dépenses.",
+          "unknownTitle": "Titre",
+          "saveError": "Les comptes n'ont pas pu être enregistrés.",
+          "keys": {
+            "revenue_services": {
+              "label": "Factures des clients",
+              "help": "Un compte de revenus. Habituellement « Services »."
+            },
+            "revenue_file_opening": {
+              "label": "Ouvertures de dossier",
+              "help": "Un compte de revenus. Habituellement « Ventes »."
+            },
+            "deposit_interac": {
+              "label": "Paiements par virement Interac",
+              "help": "Habituellement « 1075 Virement bancaire à recevoir »."
+            },
+            "deposit_stripe": {
+              "label": "Paiements par carte (Stripe)",
+              "help": "Habituellement « 1070 Banque Stripe »."
+            },
+            "deposit_qbo_payments_card": {
+              "label": "Paiements par carte (QuickBooks Payments)",
+              "help": "Habituellement « Fonds non déposés »."
+            },
+            "deposit_bank_transfer": {
+              "label": "Paiements par virement bancaire",
+              "help": "Habituellement « Compte courant »."
+            },
+            "deposit_cheque": {
+              "label": "Paiements par chèque",
+              "help": "Habituellement « Compte courant »."
+            }
+          },
+          "depositOther": "Dépôts : {mode}",
+          "depositOtherHelp": "Le compte où arrivent les paiements de ce mode."
+        },
+        "jobs": {
+          "title": "Tâches planifiées",
+          "description": "Chaque jour, l'accès à QuickBooks est renouvelé : Intuit le retire après 100 jours sans usage.",
+          "unknown": "L'état des tâches planifiées n'est visible qu'avec la permission de voir les paramètres.",
+          "refresh": {
+            "on": "La tâche « Maintien de la connexion QuickBooks » est activée.",
+            "onNoHour": "La tâche « Maintien de la connexion QuickBooks » est activée.",
+            "off": "La tâche « Maintien de la connexion QuickBooks » est désactivée : sans usage, la connexion expire après 100 jours.",
+            "enable": "Activer la tâche planifiée",
+            "enabling": "Activation…",
+            "askAdmin": "Une personne qui gère les tâches planifiées peut l'activer :",
+            "openJobs": "Ouvrir Tâches planifiées",
+            "unknown": "La tâche « Maintien de la connexion QuickBooks » n'est pas disponible pour la clinique.",
+            "loadError": "L'état des tâches planifiées n'a pas pu être chargé."
+          }
+        },
+        "return": {
+          "title": "Connexion à QuickBooks",
+          "pendingTitle": "Connexion à QuickBooks en cours…",
+          "pendingBody": "L'entreprise est enregistrée, puis son plan comptable et ses clients sont lus. Cela peut prendre une minute : gardez cette page ouverte.",
+          "connected": "{company} est connectée à l’application.",
+          "connectedNoName": "L'entreprise QuickBooks est connectée à l’application.",
+          "declinedTitle": "QuickBooks n'a pas été connecté",
+          "declinedBody": "L'autorisation a été refusée chez Intuit. Recommencez si c'était une erreur.",
+          "failedTitle": "QuickBooks n'a pas pu être connecté",
+          "missing": "Intuit n'a pas renvoyé les informations attendues. Recommencez la connexion.",
+          "back": "Retour à QuickBooks"
+        },
+        "customers": {
+          "title": "Correspondance des clients QuickBooks",
+          "description": "Chaque client de QuickBooks (ceux créés par GOrendezvous) est rapproché d'un dossier avec les règles de doublons des clients, pour que l'application n'en crée jamais un deuxième. Rien n'est créé ni modifié dans QuickBooks ici.",
+          "loadError": "La correspondance n'a pas pu être chargée.",
+          "listError": "La liste n'a pas pu être chargée.",
+          "connectFirst": "Connectez d'abord QuickBooks :",
+          "syncFirst": "Synchronisez QuickBooks pour lire ses clients :",
+          "readAt": "Clients de QuickBooks lus le {date}.",
+          "views": "Correspondance",
+          "tabs": {
+            "to_decide": "À décider",
+            "linked": "Rattachés",
+            "no_match": "Sans correspondance",
+            "ignored": "Ignorés"
+          },
+          "tabHelp": {
+            "to_decide": "Un dossier ressemble à ce client sans certitude, plusieurs dossiers correspondent, ou le dossier est déjà rattaché à un autre client QuickBooks. Choisissez le bon dossier ou ignorez.",
+            "linked": "Ce client QuickBooks est le dossier indiqué : l'application facturera sous lui, sans en créer un autre.",
+            "no_match": "Aucun dossier ne correspond (une entreprise, l'IVAC, un client absent de l'application). Rattachez-le à un dossier au besoin.",
+            "ignored": "Ces clients QuickBooks ne seront jamais rattachés automatiquement."
+          },
+          "search": "Rechercher un client QuickBooks",
+          "searchPlaceholder": "Nom ou courriel",
+          "noResult": "Aucun client QuickBooks ne correspond à la recherche.",
+          "empty": {
+            "to_decide": "Rien à décider.",
+            "linked": "Aucun client rattaché.",
+            "no_match": "Aucun client sans correspondance.",
+            "ignored": "Aucun client ignoré."
+          },
+          "previous": "Précédents",
+          "next": "Suivants",
+          "inactive": "Inactif dans QuickBooks",
+          "levels": {
+            "high": "Correspondance forte",
+            "medium": "Correspondance possible"
+          },
+          "file": "N° {number} · {name}",
+          "linkedAuto": "Rattaché au dossier {file} (automatiquement).",
+          "linkedManual": "Rattaché au dossier {file} (choisi par une personne).",
+          "candidates": "Dossiers possibles :",
+          "why": "Pourquoi : {reasons}.",
+          "link": "Rattacher",
+          "linkTo": "Rattacher {customer} au dossier {file}",
+          "ignore": "Ignorer",
+          "reset": "Annuler la décision",
+          "ignoredOn": "Ignoré le {date}.",
+          "archived": "(archivé)",
+          "searchFile": "Chercher un dossier…",
+          "searchFileTitle": "Rattacher {customer} à un dossier",
+          "searchFileHelp": "Cherchez le dossier par nom, courriel, numéro ou téléphone.",
+          "searchFileLabel": "Rechercher un dossier",
+          "searchFilePlaceholder": "Nom, courriel, numéro ou téléphone",
+          "searchFileNone": "Aucun dossier ne correspond.",
+          "searchFileResults": "Dossiers trouvés",
+          "reasons": {
+            "email": "même courriel",
+            "phone": "même téléphone",
+            "same_name": "même nom",
+            "similar_name": "nom semblable",
+            "birthday": "même date de naissance",
+            "birthday_differs": "autre date de naissance",
+            "shared_contact": "coordonnée partagée sous un autre nom",
+            "partial_email": "courriel en partie semblable",
+            "partial_phone": "téléphone en partie semblable"
+          },
+          "done": {
+            "linked": "{customer} est rattaché.",
+            "ignored": "{customer} est ignoré.",
+            "to_decide": "{customer} est de nouveau à décider.",
+            "no_match": "{customer} est sans correspondance."
+          }
         }
       }
     }
