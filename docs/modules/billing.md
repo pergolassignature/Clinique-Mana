@@ -4,7 +4,7 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 
 | Batch | What | Status |
 |---|---|---|
-| F1 | Invoices, lines, payer model (« Facturé à »), numbering `AAAA-N`, taxes per line with « Statut Indien », credit notes (schema and RPCs; the screens next) | built (schema) |
+| F1 | Invoices, lines, payer model (« Facturé à »), numbering `AAAA-N`, taxes per line with « Statut Indien », credit notes; « Factures », the invoice page, the client's panel, Paramètres → Facturation | built |
 | F2 | Morning queue, receipts on payment, statements, PDFs, emails, screens | planned |
 | F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | planned |
 | FQ | QuickBooks Online (lane B): its `qbo_*` tables and two settings sections plug into this module | planned |
@@ -12,7 +12,7 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 
 - **Registry:** `modules.key = 'billing'`, depends on `clients`, `services`, `professionals`, `appointments`; starts disabled in every clinic.
 - **Migrations:** `20261013105811_clients_billing_facts` (Clients' published facts), `20261013105814_appointments_billing_facts` (Rendez-vous' published facts), `20261013105817_billing_module` (registry, tables, RLS, audit, seeds, RPCs, handlers).
-- **Tests:** pgTAP `135_billing_invoices` (privileges, registry and roles, payment modes, an invoice from an appointment with the grid price and the file-opening fee, taxes per line, never twice, the payer rule, the default payer, « Statut Indien », an amount to type, gapless numbering continuing a set sequence and never backwards, credit notes, drafts only edited, reads, anonymisation); Vitest `src/modules/billing/manifest.test.ts`; the audit labels by `src/app/audit-labels.test.ts`.
+- **Tests:** pgTAP `135_billing_invoices` (privileges, registry and roles, payment modes, an invoice from an appointment with the grid price and the file-opening fee, taxes per line, never twice, the payer rule, the default payer, « Statut Indien », an amount to type, gapless numbering continuing a set sequence and never backwards, credit notes, drafts only edited, reads, anonymisation); Vitest `src/modules/billing/**/*.test.ts(x)` (manifest; `InvoicePage`: lines and totals, the payer, an amount to type, finalising, an adjustment, a credit note, read-only for the conseillère; `ClientBillingPanel`: invoices, default payer, « Créer la facture »); Playwright `e2e/billing.spec.ts` (invoice Alice's appointment, finalise, credit); the audit labels by `src/app/audit-labels.test.ts`.
 
 ## Permissions
 
@@ -57,6 +57,13 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 | `set_default_payer(client, payer)` | same | from today |
 | `set_invoice_sequence(year, last_number)` | `billing.settings` | the cutover's continuation |
 | `list_invoices(status, client, before, limit)`, `get_invoice(id)` (lines, credit note, names, payer options), `get_client_billing(client)` (default payer, options, invoices, the last year's appointments not invoiced) | `billing.view` | |
+
+## Screens (F1)
+
+- **« Facturation »** (`/facturation`, `billing.view`): « Factures » newest first by state (real tabs, the view in the URL: Brouillons, Émises, Créditées, Toutes), each row opening the invoice. A new invoice starts from the client's record.
+- **The invoice** (`/facturation/factures/:id`): the dossier, « Facturé à » (a draft: the client or a relation with the right), the lines (type, code, quantity, unit price, taxes, total; a « montant saisi » line's amount typed in place; removed from a draft), « Ajouter une ligne » (an adjustment, taxable or not), the totals (sous-total, TPS and TVQ with their rates, total), « Exempté de taxes (Statut Indien) », the notes (the client's fixed once issued). A draft: « Finaliser la facture » (the number in a toast) or « Supprimer le brouillon »; an issued invoice: « Émettre une note de crédit » (a reason), shown on it afterwards. Read-only without `billing.manage`.
+- **Clients → « Visites et paiements »** (slot `client.visits`, panel `billing.invoices`): « Facturé à, par défaut », the last year's appointments not invoiced yet with « Créer la facture » (it opens the draft; a second person's appointment is invoiced on the first person's dossier), « Nouvelle facture (sans rendez-vous) », and the dossier's invoices with their payer and state. Payments come with F2.
+- **Paramètres → Facturation** (`billing.view`, changed with `billing.settings`): « Numérotation »: the year's last number used (GOrendezvous's at the cutover) and the next one.
 
 ## What the module publishes
 
