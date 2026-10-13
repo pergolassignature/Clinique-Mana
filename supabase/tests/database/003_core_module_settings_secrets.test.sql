@@ -144,6 +144,11 @@ select functions_are('public', array[
   'upsert_mail_labels', 'upsert_mail_messages', 'delete_mail_messages', 'apply_mail_label_changes',
   'list_mail_attachments_to_store', 'record_mail_attachment',
   'list_mail_threads', 'get_mail_thread', 'get_mail_threads_for_action',
+  -- Facturation, batch FQ (QuickBooks connection).
+  'store_qbo_connection', 'disconnect_qbo_connection', 'get_qbo_credentials', 'set_qbo_tokens',
+  'set_qbo_connection_status', 'finish_qbo_sync', 'replace_qbo_accounts', 'upsert_qbo_customers',
+  'prune_qbo_customers', 'match_qbo_customers', 'get_qbo_settings', 'set_qbo_account_map',
+  'qbo_customer_match_counts', 'list_qbo_customer_matches', 'decide_qbo_customer_match',
   'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
   'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices',
   -- Communications, batch SM (textos).
