@@ -139,7 +139,7 @@ select functions_are('public', array[
   'merge_clients', 'search_clients', 'get_client_summary', 'export_client_privacy', 'anonymize_client', 'list_clients', 'list_client_history',
   -- Rendez-vous, batch R1.
   'set_appointment_settings', 'set_availability_rule', 'delete_availability_rule', 'add_availability_exception',
-  'remove_availability_exception', 'book_appointment', 'move_appointment', 'set_appointment_presence', 'cancel_appointment', 'get_open_slots',
+  'remove_availability_exception', 'book_appointment', 'move_appointment', 'set_appointment_presence', 'cancel_appointment', 'get_open_slots', 'get_appointment_consents',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

@@ -1,6 +1,6 @@
 # Module `appointments` (« Rendez-vous »)
 
-The clinic's agenda: each professional's availability (weekly windows in clinic time, exceptions), the appointments with their clients and presence, cancellations with a reason, the business hours. Plan: [coding plan §7](../plans/2026-10-11-modules-coding-plan.md#7-rendez-vous-appointments--batches); data: [GOrendezvous tour §1 and §18](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); legacy inventory [§E](../plans/2026-10-06-legacy-feature-inventory.md#e-rendez-vous--disponibilités); decisions R-11 … R-16, R-52, R-53, R-55, R-58, R-59 and **AP-1 … AP-10** in the [decisions log](../plans/2026-10-07-decisions-log.md).
+The clinic's agenda: each professional's availability (weekly windows in clinic time, exceptions), the appointments with their clients and presence, cancellations with a reason, the business hours. Plan: [coding plan §7](../plans/2026-10-11-modules-coding-plan.md#7-rendez-vous-appointments--batches); data: [GOrendezvous tour §1 and §18](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); legacy inventory [§E](../plans/2026-10-06-legacy-feature-inventory.md#e-rendez-vous--disponibilités); decisions R-11 … R-16, R-52, R-53, R-55, R-58, R-59 and **AP-1 … AP-11** in the [decisions log](../plans/2026-10-07-decisions-log.md).
 
 | Batch | What | Status |
 |---|---|---|
@@ -12,8 +12,8 @@ The clinic's agenda: each professional's availability (weekly windows in clinic 
 | RZ | Zoom per professional (lane C) | planned |
 
 - **Registry:** `modules.key = 'appointments'`, depends on `clients`, `services`, `professionals`. It **starts disabled** in every clinic.
-- **Migrations:** `20261013055753_appointments_module` (registry, tables, RLS, audit, seeds), `20261013055754_professionals_booking_facts` and `20261013055755_clients_booking_facts` (the owning modules' published facts), `20261013055757_appointments_booking` (RPCs, handlers).
-- **Tests:** pgTAP `118_appointments` (83 tests: privileges, RLS per role, seeds, availability, a 50 min session blocking 60, overlap and « pause après », outside availability, the two 2027 daylight-saving Sundays, services and titles, couples, the professional's limits, archived files, the balance rule and its override, move, presence, cancellation and its late flag, open slots, the handlers); Vitest `src/modules/appointments/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`. No screen in R1.
+- **Migrations:** `20261013055753_appointments_module` (registry, tables, RLS, audit, seeds), `20261013055754_professionals_booking_facts`, `20261013055755_clients_booking_facts` and `20261013055756_services_booking_facts` (the owning modules' published facts), `20261013055757_appointments_booking` (RPCs, handlers).
+- **Tests:** pgTAP `118_appointments` (97 tests: privileges, RLS per role, seeds, availability, a 50 min session blocking 60, overlap and « pause après », outside availability, the two 2027 daylight-saving Sundays, services and titles, couples, the professional's limits, archived files, the balance rule (HINT `balance_due`) and its override, a retired service, personal appointments, move, presence, cancellation and its late flag, open slots (also under a Montréal session), the consents read, the handlers); Vitest `src/modules/appointments/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`. No screen in R1.
 
 ## Permissions
 
@@ -38,6 +38,8 @@ All per clinic (`org_id`), RLS on, `select` only for clients (every write is an 
 | `appointments` | professional, service, `starts_at`, `ends_at` (the session), `blocks_until` (+ « pause après »), mode `video` / `phone`, state `booked` / `confirmed` / `completed` / `cancelled`, personal and work flags, `internal_note` and `client_message` (R-11), cancellation (reason, details, by, at, `cancel_late`, `kept_on_schedule`), balance override (reason, by), video fields (R4, RZ), `external_ref` (the import) | **no two active appointments of a professional overlap, pause included** (exclusion constraint; a cancelled one kept on the schedule still counts); cancelled ⇔ `cancelled_at`, completed ⇔ `completed_at` |
 | `appointment_participants` | the clients: `client` (the person seen) then `second`; presence `expected` / `present` / `absent`; confirmed at | one row per client and appointment |
 
+**Personal appointments** are their professional's only: the staff neither read nor move, cancel or mark them.
+
 **RLS:** staff (`appointments.view`) read the clinic's rows but personal appointments; a professional (`appointments.self`) reads her own, personal ones included, and her own availability; participants follow their appointment. Another professional's busy time comes with the agenda's RPC (R2), never her clients.
 
 ## RPCs (R1)
@@ -54,10 +56,11 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 | `set_appointment_presence(appointment, client, presence)` | same | not on a cancelled appointment |
 | `cancel_appointment(id, reason_key, details, kept_on_schedule = false)` | same | `cancel_late` from Services' `billing_policy_on(the session's date)` (`late_notice_hours`); the fee is Facturation's (R-59) |
 | `get_open_slots(professional, service, from, to)` → (starts_at, ends_at) | `appointments.view`, or `.self` for her own | the free slots, 62 days at most (below) |
+| `get_appointment_consents(appointment)` → (client_id, consent_key, frequency, state) | `appointments.view` (not a personal one), or her own | the consents Clients requires for each client (`private.required_consents_for` with the service code, the client's active payer for staff, the appointment as context): R2 shows « Consentement signé / manquant »; never blocks (R-47, AP-11) |
 
 **What a booking checks (in the database):**
 
-1. The professional is **active** and **offers the service**: one of her titles is among the service's, or the service is the clinic's (no titles). The service has a duration (fees are not booked).
+1. The professional is **active** and **offers the service**: one of her titles is among the service's, or the service is the clinic's (no titles). The service has a duration (fees are not booked) and is active (an appointment of a service retired since still moves).
 2. The slot is **duration + « pause après »** (a 50 min session blocks 60, R-13), on a five-minute mark, at most two years ahead.
 3. It lies **in one of her windows** for that service, in clinic local time and on the same local day (9:00 stays 9:00 across a daylight-saving change), and **no exception** overlaps the session; else « Ce créneau est en dehors des disponibilités du professionnel pour ce service. »
 4. **No overlap** with her other active appointments, the pause included (HINT `overlap`).
@@ -69,14 +72,15 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 ## What the module publishes
 
 - **`get_open_slots(professional, service, from, to)`**: Demandes (D3) and the public booking page (later) read free slots through it.
-- **For Clients:** `private.appointments_reassign_client(old, new)` in `client_merge_handlers` (the merged file's places move; an appointment holding both keeps the kept file once) and `private.appointments_anonymize_client(id)` in `client_anonymize_handlers` (the free texts of her appointments are blanked; dates, services and presence stay).
+- **For Clients:** `private.appointments_reassign_client(old, new)` in `client_merge_handlers` (the merged file's places move; an appointment holding both keeps the kept file once, as the person seen if either was) and `private.appointments_anonymize_client(id)` in `client_anonymize_handlers` (the free texts of her appointments are blanked; her future appointments stop: cancelled when she is alone in one, else she leaves it and the other is the person seen; past dates, services and presence stay).
 - **Coming:** the agenda's read RPC with busy blocks (R2), `appointments_for_billing`, `first_appointments_confirmed`, `client_visits(client)` (R5).
 
 ### What this module reads from the others (published only)
 
 - **Professionnels:** `private.professional_booking_facts(org, professional)` → status, title ids, women only, minimum client age (migration `…_professionals_booking_facts`).
 - **Clients:** `private.clients_booking_facts(org, client_ids[])` → per id: found, sex, birthday, archived, closed (merged or anonymised); `private.clients_link_professional`.
-- **Services et tarifs:** `services_catalog` (active services: duration, « pause après », `for_two`, title ids), `billing_policy_on(date)` (late notice).
+- **Services et tarifs:** `private.service_booking_facts(org, service)` → active, code, duration, « pause après », `for_two`, title ids (a retired service too), `billing_policy_on(date)` (late notice).
+- **Clients (consents):** `private.required_consents_for`, the view `client_payers_active`.
 
 ## Rules for the other lanes
 

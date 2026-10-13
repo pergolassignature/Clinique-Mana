@@ -9,7 +9,7 @@
 -- get_open_slots; the Clients merge and anonymisation handlers.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(83);
+select plan(97);
 
 -- =============================================================================
 -- Registry and privileges
@@ -34,10 +34,12 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array['EXEC
     ('move_appointment', array['uuid', 'timestamp with time zone', 'uuid']),
     ('set_appointment_presence', array['uuid', 'uuid', 'text']),
     ('cancel_appointment', array['uuid', 'text', 'text', 'boolean']),
-    ('get_open_slots', array['uuid', 'uuid', 'date', 'date'])
+    ('get_open_slots', array['uuid', 'uuid', 'date', 'date']),
+    ('get_appointment_consents', array['uuid'])
   ) as f(name, args);
 select function_privs_are('private', f.name, f.args, 'authenticated', array[]::text[], f.name || ': no role')
   from (values ('client_has_balance', array['uuid', 'uuid']), ('professional_booking_facts', array['uuid', 'uuid']),
+               ('service_booking_facts', array['uuid', 'uuid']),
                ('clients_booking_facts', array['uuid', 'uuid[]']), ('appointments_reassign_client', array['uuid', 'uuid']),
                ('appointments_anonymize_client', array['uuid'])) as f(name, args);
 
@@ -196,7 +198,20 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
   '2027-04-05 13:00Z', array['d0000000-0000-0000-0000-000000000002'::uuid]) $$,
-  'P0001', 'Ce client a un solde dû : il faut le régler, ou une exception approuvée, avant un nouveau rendez-vous.', 'a balance: refused (HINT balance_due)');
+  'P0001', 'Ce client a un solde dû : il faut le régler, ou une exception approuvée, avant un nouveau rendez-vous.', 'a balance: refused');
+do $$
+begin
+  perform public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
+    '2027-04-05 13:00Z', array['d0000000-0000-0000-0000-000000000002'::uuid]);
+exception when others then
+  declare v_hint text;
+  begin
+    get stacked diagnostics v_hint = pg_exception_hint;
+    perform set_config('test.hint', v_hint, true);
+  end;
+end;
+$$;
+select is(current_setting('test.hint'), 'balance_due', '… with HINT balance_due (R-58)');
 select throws_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
   '2027-04-05 13:00Z', array['d0000000-0000-0000-0000-000000000002'::uuid], 'video', null, null, 'Entente de paiement') $$,
   '42501', 'Permission refusée : appointments.balance_override', '… a conseillère cannot override');
@@ -208,6 +223,13 @@ select results_eq($$ select balance_override_reason, balance_override_by from pu
   $$ values ('Entente de paiement', 'a0000000-0000-0000-0000-000000000002'::uuid) $$, '… the adjointe overrides, the reason kept');
 create or replace function private.client_has_balance(p_org uuid, p_client_id uuid) returns boolean
 language sql stable set search_path = '' as $$ select false $$;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select set_config('test.a_noreason', public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
+  '2027-04-26 13:00Z', array['d0000000-0000-0000-0000-000000000001'::uuid], 'video', null, null, 'Pas de solde')::text, true);
+reset role;
+select is((select balance_override_reason from public.appointments where id = current_setting('test.a_noreason')::uuid), null,
+  'a reason without a balance to override is not kept');
 set local role authenticated;
 
 -- =============================================================================
@@ -260,8 +282,39 @@ select results_eq($$ select starts_at from public.get_open_slots('c0000000-0000-
   $$ values (timestamptz '2027-03-15 13:00Z') $$, 'Monday: 9:00 freed by the move, 10:00 taken, 11:00 cancelled but kept on the schedule');
 select results_eq($$ select starts_at from public.get_open_slots('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, '2027-03-14', '2027-03-14') $$,
   $$ values (timestamptz '2027-03-14 14:00Z'), (timestamptz '2027-03-14 15:00Z') $$, 'the spring Sunday: 9:00 taken; 10:00 and 11:00 EDT');
+set local timezone = 'America/Toronto';
+select results_eq($$ select starts_at from public.get_open_slots('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, '2027-11-07', '2027-11-07') $$,
+  $$ values (timestamptz '2027-11-07 15:00Z'), (timestamptz '2027-11-07 16:00Z') $$, 'the fall Sunday, under a Montréal session: 9:00 EST taken; 10:00 and 11:00');
+set local timezone = 'UTC';
 select throws_ok($$ select * from public.get_open_slots('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, '2027-03-01', '2027-06-01') $$,
   'P0001', 'Choisissez une période de 62 jours au plus.', 'a bounded period');
+
+-- A retired service: its appointments still move; it is not booked any more.
+reset role;
+update public.services set is_active = false where id = current_setting('test.s50')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select lives_ok($$ select public.move_appointment(current_setting('test.a_override')::uuid, '2027-04-05 14:00Z') $$, 'a retired service''s appointment still moves');
+select throws_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
+  '2027-05-03 13:00Z', array['d0000000-0000-0000-0000-000000000001'::uuid]) $$,
+  'P0001', 'Ce service n''existe pas ou n''est plus offert.', '… and is not booked any more');
+reset role;
+update public.services set is_active = true where id = current_setting('test.s50')::uuid;
+-- A personal appointment of P1: the staff never act on it, P1 does.
+insert into public.appointments (id, org_id, professional_id, starts_at, ends_at, blocks_until, is_personal, personal_label)
+values ('e0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001',
+        '2027-05-10 18:00Z', '2027-05-10 19:00Z', '2027-05-10 19:00Z', true, 'Dentiste');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select public.cancel_appointment('e0000000-0000-0000-0000-000000000002', 'other') $$,
+  '42501', 'Permission refusée : appointments.manage', 'the staff never cancel a personal appointment');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select lives_ok($$ select public.cancel_appointment('e0000000-0000-0000-0000-000000000002', 'other') $$, '… its professional does');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select lives_ok($$ select * from public.get_appointment_consents(current_setting('test.a_override')::uuid) $$, 'the consents an appointment requires (C5a.6)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok($$ select * from public.get_appointment_consents((select id from public.appointments where professional_id = 'c0000000-0000-0000-0000-000000000002' limit 1)) $$,
+  'P0001', 'Rendez-vous introuvable.', '… never for another professional''s appointment');
 
 -- =============================================================================
 -- RLS and the professional's own agenda
@@ -299,10 +352,32 @@ select is((select count(*)::int from public.appointment_participants p
             where p.client_id = 'd0000000-0000-0000-0000-000000000001'
               and p.appointment_id = (select a.id from public.appointments a where a.service_id = current_setting('test.couple')::uuid and a.state = 'booked' limit 1)), 1,
   '… a couple appointment holding both keeps the kept file once');
+-- Marc (2) the person seen, Zoé (5) the second: merging Marc into Zoé makes her the person seen.
+insert into public.clients (id, org_id, first_name, last_name) values ('d0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'Zoé', 'Essai');
+insert into public.appointments (id, org_id, professional_id, service_id, starts_at, ends_at, blocks_until)
+values ('e0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001',
+        current_setting('test.s50')::uuid, '2027-06-07 13:00Z', '2027-06-07 13:50Z', '2027-06-07 14:00Z');
+insert into public.appointment_participants (appointment_id, client_id, org_id, role) values
+  ('e0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'client'),
+  ('e0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'second');
+select private.appointments_reassign_client('d0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000005');
+select results_eq($$ select client_id, role from public.appointment_participants where appointment_id = 'e0000000-0000-0000-0000-000000000003' $$,
+  $$ values ('d0000000-0000-0000-0000-000000000005'::uuid, 'client') $$, '… the kept file becomes the person seen');
 update public.appointments set internal_note = 'Note', client_message = 'Message' where id = current_setting('test.a_override')::uuid;
+-- A future appointment Alice shares with Zoé (Alice the person seen).
+insert into public.appointments (id, org_id, professional_id, service_id, starts_at, ends_at, blocks_until)
+values ('e0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001',
+        current_setting('test.s50')::uuid, '2027-06-14 13:00Z', '2027-06-14 13:50Z', '2027-06-14 14:00Z');
+insert into public.appointment_participants (appointment_id, client_id, org_id, role) values
+  ('e0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'client'),
+  ('e0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'second');
 select is(private.appointments_anonymize_client('d0000000-0000-0000-0000-000000000001') > 0, true, 'an anonymisation blanks the free texts');
 select results_eq($$ select internal_note, client_message from public.appointments where id = current_setting('test.a_override')::uuid $$,
   $$ values (null::text, null::text) $$, '… of her appointments');
+select is((select state from public.appointments where id = current_setting('test.a_override')::uuid), 'cancelled',
+  '… her future appointment alone is cancelled (no reminder to an anonymised file)');
+select results_eq($$ select client_id, role from public.appointment_participants where appointment_id = 'e0000000-0000-0000-0000-000000000004' $$,
+  $$ values ('d0000000-0000-0000-0000-000000000005'::uuid, 'client') $$, '… and leaves a shared one, the other the person seen');
 select ok(exists (select 1 from public.client_merge_handlers where module_key = 'appointments')
           and exists (select 1 from public.client_anonymize_handlers where module_key = 'appointments'), 'both handlers registered');
 

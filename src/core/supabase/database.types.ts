@@ -10120,6 +10120,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_appointment_consents: {
+        Args: { p_appointment_id: string }
+        Returns: {
+          client_id: string
+          consent_key: string
+          frequency: string
+          state: string
+        }[]
+      }
       get_bank_details: {
         Args: never
         Returns: {
