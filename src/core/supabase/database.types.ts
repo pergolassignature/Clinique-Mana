@@ -35,6 +35,282 @@ export type Database = {
           },
         ]
       }
+      appointment_participants: {
+        Row: {
+          appointment_id: string
+          client_id: string
+          confirmed_at: string | null
+          created_at: string
+          org_id: string
+          presence: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          client_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          org_id: string
+          presence?: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          client_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          org_id?: string
+          presence?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_participants_appointment_fkey"
+            columns: ["org_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_participants_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_participants_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      appointment_settings: {
+        Row: {
+          business_days: number[]
+          business_end: string
+          business_start: string
+          org_id: string
+          reminder_business_days: number
+          reminder_local_hour: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_days?: number[]
+          business_end?: string
+          business_start?: string
+          org_id: string
+          reminder_business_days?: number
+          reminder_local_hour?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_days?: number[]
+          business_end?: string
+          business_start?: string
+          org_id?: string
+          reminder_business_days?: number
+          reminder_local_hour?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          balance_override_by: string | null
+          balance_override_reason: string | null
+          blocks_until: string
+          cancel_details: string | null
+          cancel_late: boolean | null
+          cancel_reason_id: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_message: string | null
+          completed_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          external_ref: string | null
+          id: string
+          internal_note: string | null
+          is_personal: boolean
+          is_work: boolean
+          kept_on_schedule: boolean
+          mode: string
+          org_id: string
+          personal_label: string | null
+          professional_id: string
+          service_id: string | null
+          starts_at: string
+          state: string
+          updated_at: string
+          video_external_id: string | null
+          video_status: string | null
+          video_url: string | null
+        }
+        Insert: {
+          balance_override_by?: string | null
+          balance_override_reason?: string | null
+          blocks_until: string
+          cancel_details?: string | null
+          cancel_late?: boolean | null
+          cancel_reason_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_message?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          external_ref?: string | null
+          id?: string
+          internal_note?: string | null
+          is_personal?: boolean
+          is_work?: boolean
+          kept_on_schedule?: boolean
+          mode?: string
+          org_id: string
+          personal_label?: string | null
+          professional_id: string
+          service_id?: string | null
+          starts_at: string
+          state?: string
+          updated_at?: string
+          video_external_id?: string | null
+          video_status?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          balance_override_by?: string | null
+          balance_override_reason?: string | null
+          blocks_until?: string
+          cancel_details?: string | null
+          cancel_late?: boolean | null
+          cancel_reason_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_message?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          external_ref?: string | null
+          id?: string
+          internal_note?: string | null
+          is_personal?: boolean
+          is_work?: boolean
+          kept_on_schedule?: boolean
+          mode?: string
+          org_id?: string
+          personal_label?: string | null
+          professional_id?: string
+          service_id?: string | null
+          starts_at?: string
+          state?: string
+          updated_at?: string
+          video_external_id?: string | null
+          video_status?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_balance_override_by_fkey"
+            columns: ["balance_override_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_cancel_reason_fkey"
+            columns: ["org_id", "cancel_reason_id"]
+            isOneToOne: false
+            referencedRelation: "cancellation_reasons"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "appointments_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -73,6 +349,168 @@ export type Database = {
           table_name?: string
         }
         Relationships: []
+      }
+      availability_exceptions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          kind: string
+          label: string | null
+          org_id: string
+          professional_id: string
+          starts_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          kind: string
+          label?: string | null
+          org_id: string
+          professional_id: string
+          starts_at: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          kind?: string
+          label?: string | null
+          org_id?: string
+          professional_id?: string
+          starts_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_exceptions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      availability_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          org_id: string
+          overflow_allowed: boolean
+          professional_id: string
+          service_ids: string[]
+          start_time: string
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+          visible_to_clients: boolean
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_time: string
+          id?: string
+          org_id: string
+          overflow_allowed?: boolean
+          professional_id: string
+          service_ids?: string[]
+          start_time: string
+          updated_at?: string
+          valid_from: string
+          valid_until?: string | null
+          visible_to_clients?: boolean
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          org_id?: string
+          overflow_allowed?: boolean
+          professional_id?: string
+          service_ids?: string[]
+          start_time?: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+          visible_to_clients?: boolean
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
       }
       billing_policies: {
         Row: {
@@ -138,6 +576,50 @@ export type Database = {
           },
           {
             foreignKeyName: "billing_policies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cancellation_reasons: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancellation_reasons_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2088,6 +2570,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           external_ref: string | null
+          handled_at: string | null
+          handled_by: string | null
           id: string
           insurer: string | null
           is_urgent: boolean
@@ -2134,6 +2618,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           external_ref?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
@@ -2180,6 +2666,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           external_ref?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
@@ -2249,6 +2737,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "demandes_handled_by_fkey"
+            columns: ["handled_by", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
           },
           {
             foreignKeyName: "demandes_matched_professional_fkey"
@@ -9154,6 +9649,16 @@ export type Database = {
           status: string
         }[]
       }
+      add_availability_exception: {
+        Args: {
+          p_ends_at: string
+          p_kind: string
+          p_label: string
+          p_professional_id: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
       add_billing_policy: {
         Args: {
           p_effective_from: string
@@ -9281,9 +9786,31 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      book_appointment: {
+        Args: {
+          p_balance_override_reason?: string
+          p_client_ids: string[]
+          p_client_message?: string
+          p_internal_note?: string
+          p_mode?: string
+          p_professional_id: string
+          p_service_id: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
       book_discovery_call_for_service: {
         Args: { p_org_id: string; p_payload: Json; p_token_hash: string }
         Returns: Json
+      }
+      cancel_appointment: {
+        Args: {
+          p_details?: string
+          p_id: string
+          p_kept_on_schedule?: boolean
+          p_reason_key: string
+        }
+        Returns: undefined
       }
       cancel_client_consent_request: {
         Args: { p_id: string }
@@ -9506,6 +10033,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_availability_rule: { Args: { p_id: string }; Returns: undefined }
       delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
       delete_client_insurance: {
         Args: { p_client_id: string; p_rank: number }
@@ -9544,6 +10072,18 @@ export type Database = {
       demandes_booking_page_for_service: {
         Args: { p_org_id: string }
         Returns: Json
+      }
+      demandes_counts: {
+        Args: never
+        Returns: {
+          due: number
+          late: number
+          mine: number
+          no_answer: number
+          open: number
+          unassigned: number
+          waitlist: number
+        }[]
       }
       discard_consent_draft: { Args: { p_id: string }; Returns: undefined }
       discard_system_file: {
@@ -9608,6 +10148,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_appointment_consents: {
+        Args: { p_appointment_id: string }
+        Returns: {
+          client_id: string
+          consent_key: string
+          frequency: string
+          state: string
+        }[]
+      }
       get_bank_details: {
         Args: never
         Returns: {
@@ -9626,7 +10175,9 @@ export type Database = {
         Returns: Json
       }
       get_consent_versions: { Args: { p_key?: string }; Returns: Json }
+      get_demande: { Args: { p_id: string }; Returns: Json }
       get_demandes_booking_settings: { Args: never; Returns: Json }
+      get_demandes_reference: { Args: never; Returns: Json }
       get_email_context: {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
@@ -9671,6 +10222,18 @@ export type Database = {
       }
       get_my_professional_record: { Args: never; Returns: Json }
       get_my_submission: { Args: never; Returns: Json }
+      get_open_slots: {
+        Args: {
+          p_from: string
+          p_professional_id: string
+          p_service_id: string
+          p_to: string
+        }
+        Returns: {
+          ends_at: string
+          starts_at: string
+        }[]
+      }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
         Returns: string
@@ -9893,6 +10456,44 @@ export type Database = {
           special_agreement: boolean
           tag_ids: string[]
           tax_exempt: boolean
+        }[]
+      }
+      list_demandes: {
+        Args: {
+          p_assigned?: string
+          p_flags?: string[]
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_view?: string
+        }
+        Returns: {
+          assigned_name: string
+          assigned_to: string
+          beneficiary: string
+          channel: string
+          client_id: string
+          client_number: number
+          contact_attempts: number
+          first_contact_at: string
+          handled_at: string
+          handled_by: string
+          handled_by_name: string
+          id: string
+          is_urgent: boolean
+          last_contact_at: string
+          last_outcome: string
+          motif_count: number
+          next_contact_at: string
+          next_task_due: string
+          no_answer: boolean
+          open_tasks: number
+          person_name: string
+          promise: string
+          received_at: string
+          reference: string
+          state: string
+          waiting_hours: number
         }[]
       }
       list_document_template_versions: {
@@ -10436,6 +11037,10 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      move_appointment: {
+        Args: { p_id: string; p_professional_id?: string; p_starts_at: string }
+        Returns: undefined
+      }
       open_client_consent_for_service: {
         Args: {
           p_birth_year: number
@@ -10612,6 +11217,10 @@ export type Database = {
       }
       release_sms_provider_lock: {
         Args: { p_org_id: string; p_owner: string }
+        Returns: undefined
+      }
+      remove_availability_exception: {
+        Args: { p_id: string }
         Returns: undefined
       }
       remove_client_relation: {
@@ -10862,6 +11471,39 @@ export type Database = {
           title_label: string
         }[]
       }
+      set_appointment_presence: {
+        Args: {
+          p_appointment_id: string
+          p_client_id: string
+          p_presence: string
+        }
+        Returns: undefined
+      }
+      set_appointment_settings: {
+        Args: {
+          p_business_days: number[]
+          p_business_end: string
+          p_business_start: string
+          p_reminder_business_days: number
+          p_reminder_local_hour: number
+        }
+        Returns: undefined
+      }
+      set_availability_rule: {
+        Args: {
+          p_end_time: string
+          p_id: string
+          p_overflow_allowed: boolean
+          p_professional_id: string
+          p_service_ids: string[]
+          p_start_time: string
+          p_valid_from: string
+          p_valid_until: string
+          p_visible_to_clients: boolean
+          p_weekday: number
+        }
+        Returns: string
+      }
       set_bank_details: {
         Args: {
           p_account_number: string
@@ -10917,6 +11559,10 @@ export type Database = {
           p_retention_pct: number
         }
         Returns: string
+      }
+      set_demande_handler: {
+        Args: { p_expected?: string; p_id: string; p_take: boolean }
+        Returns: undefined
       }
       set_demande_note: {
         Args: { p_id: string; p_note: string }

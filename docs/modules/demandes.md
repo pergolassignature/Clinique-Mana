@@ -5,7 +5,7 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 | Batch | What | Status |
 |---|---|---|
 | D1 | Schema (requests, states, events, tasks, proposals, waiting-list tables), RPCs (create, edit, state, assign, contact attempts, tasks, note, participants), pgTAP | built |
-| D2 | Inbox, intake, record, core realtime hook | planned (gate: C3) |
+| D2 | Inbox (the 24–48 h promise, « sans réponse », filters), quick entry, record (Accueil, Participants, Suivi, Historique), « Je m'en occupe », core realtime | built |
 | D3 | Waiting list part 1 | planned |
 | D3b | Discovery-call tasks, proposals with acceptance link | planned |
 | D3c | Public discovery-call booking page with source tracking (lane C) | built |
@@ -65,6 +65,31 @@ All `security definer`, permission first, the caller's clinic only, the request'
 | `add_demande_task`, `complete_demande_task`, `cancel_demande_task` | `demandes.manage` | tasks; a call done counts as a contact attempt; reaching the person clears the next try |
 | `set_demande_note(p_id, p_note)` | `demandes.notes` | the internal note (empty removes it) |
 | `set_demande_participants(p_id, p_participants)` | `demandes.manage` | who the request is for, as a set (≤ 10, exactly one main person, each id once; an id of another request is a new row); not on a closed request; on a matched request the clients added are linked to the professional |
+
+## D2: the inbox and the record
+
+Migrations `20261013062721_core_realtime` (core, see the [core doc](core.md#realtime-between-staff-d2)) and `20261013062727_demandes_inbox`; pgTAP `120`, `121`; decisions D-12 … D-14.
+
+### RPCs
+
+| RPC | Permission | Does |
+|---|---|---|
+| `list_demandes(p_view, p_assigned, p_flags, p_search, p_offset, p_limit)` | `demandes.view` | the inbox: `open` (new, evaluating, accepted, proposed), `matched`, `waitlist`, `closed`, `all`; `me` / `none` / `any`; flags `late`, `no_answer`, `urgent`, `due` (all must hold); the search on the number, a name or an email (accents ignored) or 4+ digits of a phone. Open views: the urgent, then the late, then the oldest. Each row: the person (the file's name, else the contact), the promise and the waiting business hours, the last attempt and its outcome, the next try, who handles it, the open tasks |
+| `demandes_counts()` | `demandes.view` | open, late, no answer, due now, mine, unassigned, waiting list |
+| `get_demande(p_id)` | `demandes.view` | the record's bundle: the request (no internal numbering), its file (`clients_directory`), the matched professional, motifs, participants, tasks, events with the people's names, the note (only with `demandes.notes`), what the caller may do. Null for another clinic's |
+| `get_demandes_reference()` | `demandes.view` | the people who work requests (`demandes.manage`), the referral sources, Professionnels' motifs (by category), titles and clientèles |
+| `set_demande_handler(p_id, p_take, p_expected)` | `demandes.manage` | « Je m'en occupe » / « Je laisse » (one's own hold only); taking over needs the handler the person saw (`p_expected`), else a French refusal naming who has it (D-13) |
+
+- **The promise (D-12):** « nous vous rappelons en 24 à 48 h ouvrables » (the website's words), measured in business hours (Monday–Friday, the clinic's time zone) from reception to the first contact attempt (any event with a channel: « Noter un appel » or a call task done): `ok` under 24 h, `soon` from 24 h, `late` from 48 h; once contacted, `met` or `met_late`; a request no longer open and never called has `none`.
+- **« Sans réponse »:** an open request whose latest attempt did not reach the person.
+- **Forms and realtime:** a form being edited keeps its edits when another counselor saves; « Recharger » takes the new values (`useServerDraft`).
+- **Realtime:** `demandes`, `demande_tasks`, `demande_participants`, `demande_notes` and `demande_motifs` announce `{ module: 'demandes', table: 'demandes', record_id: <the request>, op }` on `org:<org>:demandes`; the inbox and the record read again (`useDemandesRealtime`).
+
+### Screens
+
+- **`/demandes`** (« Demandes », nav, `demandes.view`): real tabs for the views (decision #35) with their counts; filters « En retard », « Sans réponse », « Urgentes », « À rappeler maintenant » and « Toutes / Les miennes / Non assignées » in the address (`?vue=`, `?filtres=`, `?pour=`), the search in the history state (Loi 25: never in the URL). Each row: the person and the number, when it came in and how, the promise in words, the state, the counselor, the follow-up; « Noter un appel » (`demandes.manage`). « Nouvelle demande » is the quick entry (a name, a phone or an email, the channel, urgent, « Je m'en occupe », the note with `demandes.notes`), then the record opens.
+- **`/demandes/:id/:onglet`** (`accueil`, `participants`, `suivi`, `historique`): the header (the person, the number, the state and its moves (closing asks for the reason), the counselor, « Je m'en occupe », « Noter un appel »); **Accueil** the file (« Rattacher un dossier »), the contact and the intake, saved together (only the changed keys); **Participants** who the request is for, one main person; **Suivi** the attempts, the dated tasks (the discovery call, a callback, a follow-up; done with an outcome, cancelled), the internal note; **Historique** the events in words, by whom and when. Read-only without `demandes.manage` or once closed. « Jumelée » is not offered here: the matching panel (D4) and the proposals (D3b) set it.
+- **Clients (D-14):** « Rattacher un dossier » opens Clients' `ClientPicker` (`@/modules/clients`, lazy) in the Accueil card: a search result, « Choisir ce dossier » in its duplicates panel or a file made through « Nouveau client » (prefilled with the request's contact) becomes the request's file; `get_demandes_reference()` reads the referral sources from Clients' view `referral_sources_catalog`.
 
 ## What the module publishes
 
