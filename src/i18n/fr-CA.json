@@ -5892,6 +5892,7 @@
         "provinceAbroad": "Province ou État",
         "postalCode": "Code postal",
         "referralSource": "Comment avez-vous entendu parler de MANA ?",
+        "referralSourceShort": "Provenance",
         "referredBy": "Référé par",
         "customField": "Champ personnalisé",
         "primaryProfessional": "Professionnel principal",

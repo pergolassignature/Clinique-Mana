@@ -201,8 +201,8 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
         <SheetBody className="space-y-5">
           <section className="space-y-3">
             <SectionHeading as="h3">{t(`${C}.sections.identity`)}</SectionHeading>
-            <FormRow>
-              <FormField label={t('modules.clients.fields.firstName')} width="md" required error={errors.firstName?.message}>
+            <FormRow columns={2}>
+              <FormField label={t('modules.clients.fields.firstName')} required error={errors.firstName?.message}>
                 {(field) => {
                   const { ref, ...rest } = form.register('firstName')
                   return (
@@ -218,15 +218,15 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
                   )
                 }}
               </FormField>
-              <FormField label={t('modules.clients.fields.lastName')} width="md" required error={errors.lastName?.message}>
+              <FormField label={t('modules.clients.fields.lastName')} required error={errors.lastName?.message}>
                 {(field) => <Input {...field} {...form.register('lastName')} autoComplete="off" />}
               </FormField>
             </FormRow>
-            <FormRow>
-              <FormField label={t('modules.clients.fields.birthday')} width="sm" error={errors.birthday?.message}>
+            <FormRow columns={3}>
+              <FormField label={t('modules.clients.fields.birthday')} error={errors.birthday?.message}>
                 {(field) => <Input {...field} {...form.register('birthday')} type="date" min="1900-01-01" autoComplete="off" />}
               </FormField>
-              <FormField label={t('modules.clients.fields.sex')} width="sm" error={errors.sex?.message}>
+              <FormField label={t('modules.clients.fields.sex')} error={errors.sex?.message}>
                 {(field) => (
                   <Controller
                     control={form.control}
@@ -243,7 +243,7 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
                   />
                 )}
               </FormField>
-              <FormField label={t('modules.clients.fields.language')} width="sm" required error={errors.language?.message}>
+              <FormField label={t('modules.clients.fields.language')} required error={errors.language?.message}>
                 {(field) => (
                   <Controller
                     control={form.control}
@@ -261,9 +261,11 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
                 )}
               </FormField>
             </FormRow>
-            <FormField label={t('modules.clients.fields.pronouns')} width="md" help={t('modules.clients.fields.pronounsHelp')} error={errors.pronouns?.message}>
-              {(field) => <Input {...field} {...form.register('pronouns')} autoComplete="off" />}
-            </FormField>
+            <FormRow columns={2}>
+              <FormField label={t('modules.clients.fields.pronouns')} help={t('modules.clients.fields.pronounsHelp')} error={errors.pronouns?.message}>
+                {(field) => <Input {...field} {...form.register('pronouns')} autoComplete="off" />}
+              </FormField>
+            </FormRow>
           </section>
 
           <DuplicatePanel
@@ -284,11 +286,11 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
             <FormField label={t('modules.clients.fields.email')} width="full" error={errors.email?.message}>
               {(field) => <Input {...field} {...form.register('email')} type="email" autoComplete="off" spellCheck={false} />}
             </FormField>
-            <FormRow>
-              <FormField label={t('modules.clients.fields.mobile')} width="md" error={errors.mobile?.message}>
+            <FormRow columns={2}>
+              <FormField label={t('modules.clients.fields.mobile')} error={errors.mobile?.message}>
                 {(field) => <Input {...field} {...form.register('mobile', regroupOnBlur(form, 'mobile', regroupPhone))} type="tel" autoComplete="off" />}
               </FormField>
-              <FormField label={t('modules.clients.fields.home')} width="md" error={errors.home?.message}>
+              <FormField label={t('modules.clients.fields.home')} error={errors.home?.message}>
                 {(field) => <Input {...field} {...form.register('home', regroupOnBlur(form, 'home', regroupPhone))} type="tel" autoComplete="off" />}
               </FormField>
             </FormRow>
@@ -315,49 +317,55 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
                 <AddressAutocomplete {...field} {...form.register('addressLine1')} autofill={addressAutofill(form, ADDRESS_FIELDS)} placeholder={t('address.line1Placeholder')} />
               )}
             </FormField>
-            <FormField label={t('modules.clients.fields.addressLine2')} width="md" error={errors.addressLine2?.message}>
-              {(field) => <Input {...field} {...form.register('addressLine2')} placeholder={t('address.line2Placeholder')} autoComplete="off" />}
-            </FormField>
-            <FormRow>
-              <FormField label={t('modules.clients.fields.city')} width="md" error={errors.city?.message}>
+            {/* Alone in the first column, as Professionnels' address forms (P4-220). */}
+            <FormRow columns={2}>
+              <FormField label={t('modules.clients.fields.addressLine2')} error={errors.addressLine2?.message}>
+                {(field) => <Input {...field} {...form.register('addressLine2')} placeholder={t('address.line2Placeholder')} autoComplete="off" />}
+              </FormField>
+            </FormRow>
+            <FormRow columns="address">
+              <FormField label={t('modules.clients.fields.city')} error={errors.city?.message}>
                 {(field) => <Input {...field} {...form.register('city')} autoComplete="off" />}
               </FormField>
-              <FormRow className="flex-nowrap">
-                <FormField label={t('modules.clients.fields.province')} width="sm" error={errors.province?.message}>
-                  {(field) => (
-                    <Controller
-                      control={form.control}
-                      name="province"
-                      render={({ field: f }) => (
-                        <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} autoComplete="off" clearable placeholder={t('modules.clients.fields.notSaid')}>
-                          {PROVINCE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {t(option.labelKey)}
-                            </option>
-                          ))}
-                        </Select>
-                      )}
-                    />
-                  )}
-                </FormField>
-                <FormField label={t('modules.clients.fields.postalCode')} width="xs" error={errors.postalCode?.message}>
-                  {(field) => (
-                    <Input
-                      {...field}
-                      {...form.register('postalCode', regroupOnBlur(form, 'postalCode', (v) => formatPostalCode(v.trim())))}
-                      autoComplete="off"
-                      autoCapitalize="characters"
-                    />
-                  )}
-                </FormField>
-              </FormRow>
+              <FormField label={t('modules.clients.fields.province')} error={errors.province?.message}>
+                {(field) => (
+                  <Controller
+                    control={form.control}
+                    name="province"
+                    render={({ field: f }) => (
+                      <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} autoComplete="off" clearable placeholder={t('modules.clients.fields.notSaid')}>
+                        {PROVINCE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {t(option.labelKey)}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('modules.clients.fields.postalCode')} error={errors.postalCode?.message}>
+                {(field) => (
+                  <Input
+                    {...field}
+                    {...form.register('postalCode', regroupOnBlur(form, 'postalCode', (v) => formatPostalCode(v.trim())))}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                  />
+                )}
+              </FormField>
             </FormRow>
           </section>
 
           <section className="space-y-3">
             <SectionHeading as="h3">{t(`${C}.sections.file`)}</SectionHeading>
-            <FormRow>
-              <FormField label={t('modules.clients.fields.referralSource')} width="md" error={errors.referralSourceId?.message}>
+            <FormRow columns={2}>
+              {/* A one-line label, so both selects stay on one line; the question is the help. */}
+              <FormField
+                label={t('modules.clients.fields.referralSourceShort')}
+                help={t('modules.clients.fields.referralSource')}
+                error={errors.referralSourceId?.message}
+              >
                 {(field) => (
                   <Controller
                     control={form.control}
@@ -374,7 +382,7 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
                   />
                 )}
               </FormField>
-              <FormField label={t('modules.clients.fields.primaryProfessional')} width="md" error={errors.primaryProfessionalId?.message}>
+              <FormField label={t('modules.clients.fields.primaryProfessional')} error={errors.primaryProfessionalId?.message}>
                 {(field) => (
                   <Controller
                     control={form.control}
