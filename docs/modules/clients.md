@@ -175,6 +175,13 @@ Migrations `20261013205008_core_stored_files_retention` (core: `private.set_stor
 - **Status view:** `client_consents_status` gains `consent_id`, `withdrawn_at`, `signed_file_id`, `source`, `copy_sent_at` and `in_force` (the panel reads the PDF from it; `fetchClientConsentFiles` is gone).
 - **Tests:** Vitest (the panel through « Consentements à obtenir »: withdrawal, its refusal, the withdrawn state, the copy and its refusal, a counselor without `clients.manage`; the settings card; the API), Deno (`clients-consent-send/copy.test.ts`), Playwright (`consents.spec.ts`: the withdrawal on the seed's imported consent of « Amélie Tremblay », always; the copy in Mailpit after the local signature). The local seed holds that imported consent.
 
+## Consents, part 3 (batch C5b: the report)
+
+Migrations `20261013230407_clients_consent_report_facts` (Clients) and `20261013230412_reports_consents` (Rapports); pgTAP `174`, `175`; decision **CC-19**.
+
+- **Published for Rapports:** `private.client_consent_state_facts(org)` (one row per active file and active consent: the file's primary professional and the state as the record's tab shows it, `client_consents_status`, or `none`) and `private.client_consent_event_facts(org, from, to)` (the signatures, app or import, and the withdrawals of a period, with the request's first send for the app's).
+- **Rapports → « Consentements »:** see [reports doc](reports.md). The counts are the record tabs' (C5b acceptance).
+
 ## GOrendezvous import (batch I1)
 
 Migration `20261013043434_clients_import`; pgTAP `115_clients_import`; decisions I-7 … I-14; runbook [`import-gorendezvous.md`](../runbooks/import-gorendezvous.md).

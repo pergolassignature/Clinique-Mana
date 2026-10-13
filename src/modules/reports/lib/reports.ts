@@ -4,6 +4,7 @@ import { formatInClinicTimezone, isCalendarDate, shiftCalendarDay } from '@/shar
 import type {
   CancellationRow,
   CancellationsReport,
+  ConsentsReport,
   FollowUpReport,
   RevenueLineRow,
   RevenueReport,
@@ -144,4 +145,21 @@ export function followUpCsv(report: FollowUpReport, period: Period): { fileName:
   const rows: CsvCell[][] = report.rows.map((r) => [when(r.starts_at), fileNumber(r.client_number), r.client_name, kindLabel(r),
     r.kind === 'absent' ? null : reasonLabel(r), r.professional_name, r.service_name, csvNumber(r.events)])
   return { fileName: t(`${R}.followUp.fileName`, { from: period.from, to: period.to }), content: buildCsv(header, rows) }
+}
+
+/** « 2026-09 » → « septembre 2026 ». */
+export function monthLabel(month: string): string {
+  return formatInClinicTimezone(`${month}-15T12:00:00Z`, 'MMMM yyyy')
+}
+
+/** « 4,5 jours ». */
+export const daysLabel = (days: number): string => t(`${R}.consents.days`, { days: decimals.format(days) })
+
+/** The consents report as a CSV: the states per consent (what the clinic has today). */
+export function consentsCsv(report: ConsentsReport, period: Period): { fileName: string; content: string } {
+  const C = `${R}.consents.columns`
+  const header = [t(`${C}.consent`), t(`${C}.signed`), t(`${C}.resign`), t(`${C}.pending`), t(`${C}.overdue`), t(`${C}.withdrawn`), t(`${C}.none`)]
+  const rows: CsvCell[][] = report.gaps.map((g) => [g.consent_name, csvNumber(g.signed), csvNumber(g.resign), csvNumber(g.pending),
+    csvNumber(g.overdue), csvNumber(g.withdrawn), csvNumber(g.none)])
+  return { fileName: t(`${R}.consents.fileName`, { from: period.from, to: period.to }), content: buildCsv(header, rows) }
 }
