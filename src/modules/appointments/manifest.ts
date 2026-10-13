@@ -23,4 +23,14 @@ export const appointmentsManifest: ModuleManifest = {
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.appointmentsAuditLabels),
   settingsSections: [],
+  // Clients' « Visites et paiements » (R5): the client's appointments.
+  slots: {
+    'client.visits': [
+      {
+        id: 'appointments.visits',
+        permissions: ['appointments.view', 'appointments.self'],
+        component: lazyPage(() => import('./pages/ClientVisitsPanel'), 'ClientVisitsPanel'),
+      },
+    ],
+  },
 }

@@ -315,6 +315,21 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
 
 type EditTab = 'appointment' | 'notes' | 'cancel'
 
+/** A personal appointment (AP-17): its professional takes it off her agenda (a cancellation, « Non spécifiée »). */
+function PersonalCancel({ id, onDone }: { id: string; onDone: () => void }) {
+  const cancel = useCancelAppointment()
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      aria-disabled={cancel.isPending || undefined}
+      onClick={() => !cancel.isPending && cancel.mutate({ id, reasonKey: 'not_specified', details: null, keptOnSchedule: false }, { onSuccess: onDone })}
+    >
+      {t('modules.appointments.personal.cancel')}
+    </Button>
+  )
+}
+
 function EditPanel({
   appointment: a,
   move,
@@ -360,6 +375,7 @@ function EditPanel({
       )}
       <SheetBody className="space-y-4">
         {tab === 'appointment' && <AppointmentTab key={a.startsAt} appointment={a} move={move} reference={reference} open={open} />}
+        {a.isPersonal && open && <PersonalCancel id={a.id} onDone={onClose} />}
         {tab === 'notes' && <NotesTab appointment={a} />}
         {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
       </SheetBody>

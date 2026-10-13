@@ -3,8 +3,9 @@ import { useSearchParams } from 'react-router-dom'
 import { BellOff, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
-import { rpcErrorHint } from '@/core/modules/errors'
+import { rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
@@ -19,10 +20,11 @@ import type { AgendaAppointment, AvailabilityRule } from '../api/parse'
 import { AppointmentSheet, type SheetTarget } from '../components/AppointmentSheet'
 import { ExceptionsPanel, RuleDialog, type RuleTarget } from '../components/AvailabilityEditors'
 import { MonthView } from '../components/MonthView'
+import { PersonalDialog } from '../components/PersonalDialog'
 import { TimeGrid, type GridColumn } from '../components/TimeGrid'
 import { UpcomingList } from '../components/UpcomingList'
 import { WithoutReminderSheet } from '../components/WithoutReminderSheet'
-import { useAgenda, useAgendaReference, useAvailability, useMoveAppointment } from '../hooks/use-agenda'
+import { useAgenda, useAgendaReference, useAvailability, useMoveAppointment, useMyAgendaReference } from '../hooks/use-agenda'
 import { servicesFor, weekdayLabel } from '../lib/display'
 import { addDays, daysFrom, hhmm, isoWeekday, monthGrid, rangeOf, startOfWeek } from '../lib/time'
 
@@ -49,17 +51,36 @@ export function AgendaPage() {
   return <Agenda reference={reference.data} />
 }
 
-function Agenda({ reference }: { reference: AgendaReference }) {
+/**
+ * « Mon agenda » (plan R5, AP-23): the professional's own agenda, the same views on her alone. She
+ * moves and cancels her appointments, notes presence, edits her availability and adds personal
+ * appointments (a click on a free quarter hour); booking clients is the clinic's (dispatch).
+ */
+export function MyAgendaPage() {
+  usePageTitle(t('modules.appointments.mine.title'))
+  const reference = useMyAgendaReference()
+  if (reference.isError) {
+    if (rpcErrorCode(reference.error) === '42501') {
+      return <FullPageMessage role="status" title={t('modules.appointments.mine.notProfessionalTitle')} body={t('modules.appointments.mine.notProfessionalBody')} />
+    }
+    return <LoadError message={t('modules.appointments.mine.loadError')} onRetry={() => void reference.refetch()} retrying={reference.isFetching} />
+  }
+  if (!reference.data) return <Loading />
+  return <Agenda reference={reference.data} mine />
+}
+
+function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?: boolean }) {
   const { can } = useAccess()
-  const canWrite = can('appointments.manage')
+  const canWrite = can(mine ? 'appointments.self' : 'appointments.manage')
+  const [personal, setPersonal] = useState<{ day: string; time: string } | null>(null)
   const [params, setParams] = useSearchParams()
   const [unreachable, setUnreachable] = useState(false)
   const today = getClinicDateString(new Date())
   const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : 'semaine'
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : today
   const proParam = params.get('professionnel')
-  const pro = reference.professionals.some((p) => p.id === proParam) ? proParam : null
-  const service = reference.services.find((s) => s.id === params.get('service')) ?? null
+  const pro = mine ? (reference.professionals[0]?.id ?? null) : reference.professionals.some((p) => p.id === proParam) ? proParam : null
+  const service = mine ? null : (reference.services.find((s) => s.id === params.get('service')) ?? null)
   const mode: Mode = params.get('mode') === 'disponibilites' ? 'disponibilites' : 'rendez-vous'
   // The editor holds an id: it always shows the agenda's current row (never a stale snapshot).
   const [sheet, setSheet] = useState<SheetState | null>(null)
@@ -142,28 +163,38 @@ function Agenda({ reference }: { reference: AgendaReference }) {
       if (pro) setRule({ professionalId: pro, weekday: isoWeekday(d), startTime: hhmm(minutes) })
       return
     }
-    setSheet({ kind: 'create', professionalId: professionalId ?? pro, day: d, time: hhmm(minutes) })
+    if (mine) setPersonal({ day: d, time: hhmm(minutes) })
+    else setSheet({ kind: 'create', professionalId: professionalId ?? pro, day: d, time: hhmm(minutes) })
   }
 
   return (
     <>
       <PageHeader
         level={1}
-        title={t(`${A}.title`)}
-        description={t(`${A}.description`)}
+        title={mine ? t('modules.appointments.mine.title') : t(`${A}.title`)}
+        description={mine ? t('modules.appointments.mine.description') : t(`${A}.description`)}
         actions={
-          <>
-            <Button type="button" variant="outline" onClick={() => setUnreachable(true)}>
-              <BellOff aria-hidden />
-              {t('modules.appointments.withoutReminder.title')}
-            </Button>
-            {canWrite && mode === 'rendez-vous' && (
-              <Button type="button" onClick={() => setSheet({ kind: 'create', professionalId: pro, day, time: '09:00' })}>
+          mine ? (
+            canWrite && mode === 'rendez-vous' ? (
+              <Button type="button" onClick={() => setPersonal({ day, time: '12:00' })}>
                 <Plus aria-hidden />
-                {t(`${A}.new`)}
+                {t('modules.appointments.personal.new')}
               </Button>
-            )}
-          </>
+            ) : undefined
+          ) : (
+            <>
+              <Button type="button" variant="outline" onClick={() => setUnreachable(true)}>
+                <BellOff aria-hidden />
+                {t('modules.appointments.withoutReminder.title')}
+              </Button>
+              {canWrite && mode === 'rendez-vous' && (
+                <Button type="button" onClick={() => setSheet({ kind: 'create', professionalId: pro, day, time: '09:00' })}>
+                  <Plus aria-hidden />
+                  {t(`${A}.new`)}
+                </Button>
+              )}
+            </>
+          )
         }
       />
       {unreachable && (
@@ -196,24 +227,28 @@ function Agenda({ reference }: { reference: AgendaReference }) {
             {title}
           </h2>
         </div>
-        <div className="w-field-md max-w-full">
-          <Select aria-label={t(`${A}.professional`)} value={pro ?? ''} onChange={(e) => update({ professionnel: e.target.value })} placeholder={t(`${A}.allProfessionals`)} clearable>
-            {reference.professionals.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="w-field-md max-w-full">
-          <Select aria-label={t(`${A}.service`)} value={service?.id ?? ''} onChange={(e) => update({ service: e.target.value })} placeholder={t(`${A}.allServices`)} clearable>
-            {reference.services.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.code} · {s.name}
-              </option>
-            ))}
-          </Select>
-        </div>
+        {!mine && (
+          <>
+            <div className="w-field-md max-w-full">
+              <Select aria-label={t(`${A}.professional`)} value={pro ?? ''} onChange={(e) => update({ professionnel: e.target.value })} placeholder={t(`${A}.allProfessionals`)} clearable>
+                {reference.professionals.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-field-md max-w-full">
+              <Select aria-label={t(`${A}.service`)} value={service?.id ?? ''} onChange={(e) => update({ service: e.target.value })} placeholder={t(`${A}.allServices`)} clearable>
+                {reference.services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.code} · {s.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </>
+        )}
         <SegmentedToggle
           label={t(`${A}.modeLabel`)}
           value={mode}
@@ -260,6 +295,7 @@ function Agenda({ reference }: { reference: AgendaReference }) {
 
       {sheetTarget && <AppointmentSheet target={sheetTarget} reference={reference} onClose={() => setSheet(null)} />}
       {rule && <RuleDialog target={rule} reference={reference} onClose={() => setRule(null)} />}
+      {personal && <PersonalDialog day={personal.day} time={personal.time} onClose={() => setPersonal(null)} />}
     </>
   )
 }
