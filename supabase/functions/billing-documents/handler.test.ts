@@ -59,6 +59,8 @@ function harness(opts: {
   mailStatus?: number
   permissions?: string[]
   userRpc?: Record<string, RpcRoute>
+  payLink?: boolean
+  buttonLabel?: string | null
 } = {}) {
   const docs = opts.deliveries ?? [delivery(11)]
   const service = fakeSupabase({
@@ -78,6 +80,7 @@ function harness(opts: {
         }],
       }),
       discard_billing_file_for_service: { data: null },
+      issue_billing_link_for_service: { data: opts.payLink ?? false },
       finish_billing_delivery_for_service: { data: null },
       consume_rate_limit: {
         data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }],
@@ -91,7 +94,7 @@ function harness(opts: {
             subject: 'Facture {{document.number}} — {{clinic.name}}',
             body:
               'Bonjour {{recipient.first_name}}, voici la facture {{document.number}} de {{client.first_name}} : {{document.amount}}.',
-            button_label: null,
+            button_label: opts.buttonLabel ?? null,
             view_permission: 'billing.view',
             variables: VARIABLES,
             allows_attachments: true,
@@ -404,5 +407,48 @@ Deno.test('billing-documents: a claim that fails ends the run with a code', asyn
     }
     assertEquals(code, 'claim_failed')
     assertEquals(service.calls, [])
+  })
+})
+
+Deno.test('billing-documents: an invoice to a payer without a card carries « Payer en ligne » (FS-4)', async () => {
+  await run(async () => {
+    const { handler, service, http } = harness({
+      payLink: true,
+      buttonLabel: 'Payer en ligne',
+    })
+    const res = await handler(await jobRequest())
+    assertEquals(res.status, 200)
+    await res.body?.cancel()
+    const [issued] = callsTo(service.calls, 'issue_billing_link_for_service')
+    assertEquals([issued.p_purpose, issued.p_subject_id, issued.p_actor], [
+      'billing_pay',
+      rid(1),
+      null,
+    ])
+    const sent = JSON.stringify(http.calls[0])
+    assert(
+      sent.includes('http://localhost:5173/payer#t='),
+      'the button opens the pay link',
+    )
+    assert(sent.includes('Payer en ligne'))
+  })
+})
+
+Deno.test('billing-documents: no pay link (a card on file, Stripe not set): the button is left out, the email still sent', async () => {
+  await run(async () => {
+    const { handler, service, http } = harness({
+      payLink: false,
+      buttonLabel: 'Payer en ligne',
+    })
+    const res = await handler(await jobRequest())
+    assertEquals(res.status, 200)
+    await res.body?.cancel()
+    assertEquals(http.calls.length, 1)
+    assert(!JSON.stringify(http.calls[0]).includes('Payer en ligne'))
+    assertEquals(
+      callsTo(service.calls, 'finish_billing_delivery_for_service')[0]!
+        .p_email_status,
+      'sent',
+    )
   })
 })

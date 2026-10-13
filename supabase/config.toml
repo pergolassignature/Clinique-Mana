@@ -268,3 +268,11 @@ verify_jwt = false
 verify_jwt = false
 [functions.billing-payout-invoice]
 verify_jwt = false
+[functions.billing-stripe]
+verify_jwt = false
+[functions.billing-stripe-checkout]
+verify_jwt = false
+[functions.billing-stripe-charges]
+verify_jwt = false
+[functions.stripe-webhook]
+verify_jwt = false
