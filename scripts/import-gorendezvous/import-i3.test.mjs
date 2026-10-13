@@ -130,7 +130,7 @@ describe('import-gorendezvous factures', () => {
     expect(client.rpc.mock.calls).toHaveLength(3)
     expect(client.rpc.mock.calls.every(([fn, args]) => fn === 'import_invoice' && args.p_dry_run === true)).toBe(true)
     expect(output).toContain('À importer : 3 ; déjà importées : 0 ; sans dossier : 0 ; en erreur : 0')
-    expect(output).toContain('  2026-09 : export 2 facture(s), 244,98 $ ; à importer 2, 244,98 $')
+    expect(output).toContain('  2026-09 : export 2 facture(s), 244,98 $ ; dans l’app après l’import 2, 244,98 $')
     expect(output).toContain('  - facture sans ligne dans « par service-produit » (1) : lignes 5')
     expect(output).toContain('Factures payées par un tiers (IVAC, PAE…) : 1 ; importées au nom du client, le payeur reste à compléter.')
     expect(output.join('\n')).not.toMatch(personal)
@@ -145,6 +145,15 @@ describe('import-gorendezvous factures', () => {
     expect(output).toContain('  - plusieurs dossiers importés à ce nom (départagez avec --clients-map) (1) : lignes 3')
     expect(output).toContain('Importées : 2 ; déjà importées : 0 ; sans dossier : 1 ; en erreur : 0')
     expect(output).toContain('Numérotation : la prochaine facture de l’app suit 2026-103.')
+  })
+
+  it('a re-run once everything is in: the months still count what the app holds', async () => {
+    const results = Object.fromEntries(['2026-0000101', '2026-0000102', '2026-0000103'].map((n) => [n, { status: 'skipped', reason: 'Déjà importée' }]))
+    const { deps, output } = setup({ answers: ['adjointe@mana.test'], results })
+    expect(await run([...ARGS, '--commit'], deps)).toBe(0)
+    expect(output).toContain('À importer : 0 ; déjà importées : 3 ; sans dossier : 0 ; en erreur : 0')
+    expect(output).toContain('  2026-09 : export 2 facture(s), 244,98 $ ; dans l’app après l’import 2, 244,98 $')
+    expect(output).toContain('Rien à importer.')
   })
 
   it('an invoice the database refuses: nothing imported, its line and French reason', async () => {
