@@ -55,6 +55,7 @@ import { documentTemplateKeys } from '@/core/signing/templates/hooks'
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
  */
 export const professionalKeys = {
+  /** Demandes' availability board (D5) invalidates this root after setting a professional's places. */
   all: ['professionals'] as const,
   /** Every list query: the whole list and the keyset pages. */
   lists: () => [...professionalKeys.all, 'list'] as const,
