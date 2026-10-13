@@ -393,7 +393,11 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
       )}
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-foreground">{t(`${Q}.accounts.revenueAndDeposits`)}</legend>
-        {fixed.map((mapRow, index) => row(mapRow, index, t(`${Q}.accounts.keys.${mapRow.key}.label`), t(`${Q}.accounts.keys.${mapRow.key}.help`)))}
+        {fixed.map((mapRow, index) => {
+          // « revenue.services » → the label of « revenue_services » (a dot would be a path in t()).
+          const id = mapRow.key.replace('.', '_')
+          return row(mapRow, index, t(`${Q}.accounts.keys.${id}.label` as never), t(`${Q}.accounts.keys.${id}.help` as never))
+        })}
       </fieldset>
       {expenses.length > 0 && (
         <fieldset className="space-y-3">

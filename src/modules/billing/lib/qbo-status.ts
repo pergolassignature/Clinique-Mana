@@ -19,7 +19,7 @@ export function connectionStatus(connection: QboConnection | null): { tone: Stat
 }
 
 /** One plural line: « 1 compte » / « 12 comptes ». */
-function counted(key: string, count: number): string {
+function counted(key: 'accounts' | 'customers', count: number): string {
   return t(count === 1 ? `${S}.counts.${key}One` : `${S}.counts.${key}Other`, { count: String(count) })
 }
 

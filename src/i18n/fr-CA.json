@@ -8628,31 +8628,31 @@
           "unknownTitle": "Titre",
           "saveError": "Les comptes n'ont pas pu être enregistrés.",
           "keys": {
-            "revenue.services": {
+            "revenue_services": {
               "label": "Factures des clients",
               "help": "Un compte de revenus. Habituellement « Services »."
             },
-            "revenue.file_opening": {
+            "revenue_file_opening": {
               "label": "Ouvertures de dossier",
               "help": "Un compte de revenus. Habituellement « Ventes »."
             },
-            "deposit.interac": {
+            "deposit_interac": {
               "label": "Paiements par virement Interac",
               "help": "Habituellement « 1075 Virement bancaire à recevoir »."
             },
-            "deposit.stripe": {
+            "deposit_stripe": {
               "label": "Paiements par carte (Stripe)",
               "help": "Habituellement « 1070 Banque Stripe »."
             },
-            "deposit.qbo_payments_card": {
+            "deposit_qbo_payments_card": {
               "label": "Paiements par carte (QuickBooks Payments)",
               "help": "Habituellement « Fonds non déposés »."
             },
-            "deposit.bank_transfer": {
+            "deposit_bank_transfer": {
               "label": "Paiements par virement bancaire",
               "help": "Habituellement « Compte courant »."
             },
-            "deposit.cheque": {
+            "deposit_cheque": {
               "label": "Paiements par chèque",
               "help": "Habituellement « Compte courant »."
             }

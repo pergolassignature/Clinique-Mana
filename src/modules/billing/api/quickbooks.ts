@@ -85,10 +85,11 @@ export function accountFits(key: string, accountType: string): boolean {
 
 /** One map row's account (null: none chosen). A person's choice is never replaced by a suggestion. */
 export async function saveAccountMapRow(key: string, professionTitleId: string | null, accountId: string | null): Promise<void> {
+  // The generated types want uuids; null is « none » (a row of no profession, no account).
   const { error } = await supabase.rpc('set_qbo_account_map', {
     p_key: key,
-    ...(professionTitleId ? { p_profession_title_id: professionTitleId } : {}),
-    ...(accountId ? { p_account_id: accountId } : {}),
+    p_profession_title_id: professionTitleId as string,
+    p_account_id: accountId as string,
   })
   if (error) throw error
 }
