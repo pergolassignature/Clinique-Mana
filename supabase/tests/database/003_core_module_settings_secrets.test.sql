@@ -178,7 +178,10 @@ select functions_are('public', array[
   'prepare_waitlist_followup_for_service', 'mark_waitlist_followup_sent_for_service', 'resolve_waitlist_followup_link',
   'answer_waitlist_followup_for_service',
   -- Demandes, batch D3b (the discovery calls).
-  'list_discovery_calls', 'reschedule_demande_task', 'assign_demande_task'
+  'list_discovery_calls', 'reschedule_demande_task', 'assign_demande_task',
+  -- Demandes, batch D3b (the proposals).
+  'proposition_services', 'create_proposition_for_service', 'resolve_proposition_link', 'answer_proposition_for_service',
+  'withdraw_proposition', 'list_demande_propositions'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
