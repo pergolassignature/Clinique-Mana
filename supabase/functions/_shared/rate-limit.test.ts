@@ -362,6 +362,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     zoomCallbackUser: ['zoom.callback_user', 20, 3600],
     zoomWebhookIp: ['webhooks.zoom_ip', 120, 60],
     appointmentConfirmIp: ['appointments.confirm_ip', 20, 600],
+    billingPayoutInvoiceUser: ['billing.payout_invoice_user', 20, 3_600],
   })
   for (const l of Object.values(LIMITS)) {
     assertMatch(l.bucket, /^[a-z][a-z0-9_.]{0,62}$/)
