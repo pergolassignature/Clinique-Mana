@@ -34,7 +34,8 @@ node scripts/import-gorendezvous.mjs clients --clients ~/Clinique-MANA-import/cl
   - relations.
 - **Then the same command with `--commit`:**
   - nothing is imported if one row is in error;
-  - otherwise type `importer`: the clients are imported one by one, then the relations;
+  - otherwise type `importer`: the clients are imported one by one, then the relations, then the payer tags;
+  - the payer tags (IVAC, PAE): each tagged file gets a payer « à compléter » (`import_client_payers`, FP-9), once per kind; a re-run, even after every client is in, adds the missing ones and never one twice;
   - Ctrl-C stops between two rows, and a re-run skips the files already imported.
 
 The price gap report only reads:
@@ -89,5 +90,5 @@ node scripts/import-gorendezvous.mjs factures --invoices ~/Clinique-MANA-import/
 
 ## After
 - **Duplicates:** merge them in the app (« Fusionner », `clients.merge`). The import never merges.
-- **Payers to complete:** the IVAC, PAE and external payer tags. I3 creates the payers from the invoices; until then the tag stays on the file.
+- **Payers to complete:** the IVAC and PAE tags became payers « à compléter » (the tag also stays on the file). The adjointe completes each one from Clients → « Payeurs à compléter »: the IVAC file number; for a PAE, its provider (as in Paramètres → Payeurs tiers), the amount or share per session, the maximum, the renewal day and what was used this agreement year before the app. Until a payer is completed, its client's drafts wait in the morning queue (« Payeur tiers à compléter »), never billed in full by mistake.
 - **The report:** delete it when it is no longer needed. It holds line numbers, file numbers, codes and reasons, never a personal value (I-6), but it describes the clinic's files.
