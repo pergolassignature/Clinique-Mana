@@ -25,7 +25,7 @@ select table_privs_are('public', t.name, 'authenticated', array['SELECT'], t.nam
 select table_privs_are('public', 'appointments', 'anon', array[]::text[], 'appointments: nothing for anon');
 select function_privs_are('public', f.name, f.args, 'authenticated', array['EXECUTE'], f.name || ': authenticated may call it')
   from (values
-    ('set_appointment_settings', array['integer[]', 'time without time zone', 'time without time zone', 'integer', 'integer']),
+    ('set_appointment_settings', array['integer[]', 'time without time zone', 'time without time zone', 'integer', 'integer', 'boolean']),
     ('set_availability_rule', array['uuid', 'uuid', 'integer', 'time without time zone', 'time without time zone', 'uuid[]', 'boolean', 'boolean', 'date', 'date']),
     ('delete_availability_rule', array['uuid']),
     ('add_availability_exception', array['uuid', 'text', 'timestamp with time zone', 'timestamp with time zone', 'text']),
