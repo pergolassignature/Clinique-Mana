@@ -11,8 +11,8 @@ The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): o
 | C5a / C5b | Client consents (lane C) | planned |
 
 - **Registry:** `modules.key = 'clients'` (migration `20261012213428_clients_module`), depends on `professionals`. It **starts disabled** in every clinic; the local seed enables it.
-- **Migrations:** `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261012223641_clients_duplicates`, `20261012223643_clients_rpcs`.
-- **Tests:** pgTAP `104_clients_module`, `106_clients_duplicates` (the import library's cases), `107_clients_rpcs`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Migrations:** `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261013022637_clients_duplicates`, `20261013022641_clients_rpcs`.
+- **Tests:** pgTAP `104_clients_module`, `108_clients_duplicates` (the import library's cases), `109_clients_rpcs`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
 
 ## Permissions
 

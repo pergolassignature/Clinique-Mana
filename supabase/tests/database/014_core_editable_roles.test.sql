@@ -56,7 +56,8 @@ insert into public.user_roles (user_id, org_id, role) values
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000a', 'services', true),
-  ('b0000000-0000-0000-0000-00000000000a', 'clients', true);
+  ('b0000000-0000-0000-0000-00000000000a', 'clients', true),
+  ('b0000000-0000-0000-0000-00000000000a', 'demandes', true);
 insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'roles.manage', true),
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'users.manage', true),

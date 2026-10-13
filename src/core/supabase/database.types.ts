@@ -199,29 +199,6 @@ export type Database = {
           },
         ]
       }
-      client_merge_handlers: {
-        Row: {
-          function_name: string
-          module_key: string
-        }
-        Insert: {
-          function_name: string
-          module_key: string
-        }
-        Update: {
-          function_name?: string
-          module_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_merge_handlers_module_key_fkey"
-            columns: ["module_key"]
-            isOneToOne: true
-            referencedRelation: "modules"
-            referencedColumns: ["key"]
-          },
-        ]
-      }
       client_merges: {
         Row: {
           id: string
@@ -1103,6 +1080,665 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      demande_events: {
+        Row: {
+          assignee: string | null
+          at: string
+          by_user: string | null
+          closed_reason: string | null
+          contact_channel: string | null
+          contact_outcome: string | null
+          demande_id: string
+          from_state: string | null
+          id: string
+          kind: string
+          org_id: string
+          professional_id: string | null
+          to_state: string | null
+        }
+        Insert: {
+          assignee?: string | null
+          at?: string
+          by_user?: string | null
+          closed_reason?: string | null
+          contact_channel?: string | null
+          contact_outcome?: string | null
+          demande_id: string
+          from_state?: string | null
+          id?: string
+          kind: string
+          org_id: string
+          professional_id?: string | null
+          to_state?: string | null
+        }
+        Update: {
+          assignee?: string | null
+          at?: string
+          by_user?: string | null
+          closed_reason?: string | null
+          contact_channel?: string | null
+          contact_outcome?: string | null
+          demande_id?: string
+          from_state?: string | null
+          id?: string
+          kind?: string
+          org_id?: string
+          professional_id?: string | null
+          to_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demande_events_assignee_fkey"
+            columns: ["assignee", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "demande_events_by_user_fkey"
+            columns: ["by_user"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "demande_events_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_events_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_events_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_events_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_events_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      demande_motifs: {
+        Row: {
+          created_at: string
+          demande_id: string
+          motif_id: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          demande_id: string
+          motif_id: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          demande_id?: string
+          motif_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demande_motifs_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_motifs_motif_fkey"
+            columns: ["org_id", "motif_id"]
+            isOneToOne: false
+            referencedRelation: "motifs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_motifs_motif_fkey"
+            columns: ["org_id", "motif_id"]
+            isOneToOne: false
+            referencedRelation: "motifs_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      demande_notes: {
+        Row: {
+          demande_id: string
+          internal_note: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          demande_id: string
+          internal_note: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          demande_id?: string
+          internal_note?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demande_notes_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_notes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      demande_participants: {
+        Row: {
+          birthday: string | null
+          client_id: string | null
+          created_at: string
+          demande_id: string
+          display_name: string | null
+          id: string
+          is_primary: boolean
+          org_id: string
+          relationship: string
+          updated_at: string
+        }
+        Insert: {
+          birthday?: string | null
+          client_id?: string | null
+          created_at?: string
+          demande_id: string
+          display_name?: string | null
+          id?: string
+          is_primary?: boolean
+          org_id: string
+          relationship?: string
+          updated_at?: string
+        }
+        Update: {
+          birthday?: string | null
+          client_id?: string | null
+          created_at?: string
+          demande_id?: string
+          display_name?: string | null
+          id?: string
+          is_primary?: boolean
+          org_id?: string
+          relationship?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demande_participants_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_participants_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_participants_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      demande_propositions: {
+        Row: {
+          created_at: string
+          decline_reason: string | null
+          demande_id: string
+          directory_snapshot: Json
+          directory_updated_at: string | null
+          expires_at: string | null
+          id: string
+          org_id: string
+          professional_id: string
+          proposed_at: string
+          proposed_by: string | null
+          responded_at: string | null
+          response: string
+          secure_link_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          decline_reason?: string | null
+          demande_id: string
+          directory_snapshot?: Json
+          directory_updated_at?: string | null
+          expires_at?: string | null
+          id?: string
+          org_id: string
+          professional_id: string
+          proposed_at?: string
+          proposed_by?: string | null
+          responded_at?: string | null
+          response?: string
+          secure_link_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          decline_reason?: string | null
+          demande_id?: string
+          directory_snapshot?: Json
+          directory_updated_at?: string | null
+          expires_at?: string | null
+          id?: string
+          org_id?: string
+          professional_id?: string
+          proposed_at?: string
+          proposed_by?: string | null
+          responded_at?: string | null
+          response?: string
+          secure_link_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demande_propositions_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_propositions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_propositions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_propositions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_propositions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "demande_propositions_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      demande_tasks: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          created_by: string | null
+          demande_id: string
+          done_at: string | null
+          done_by: string | null
+          due_at: string
+          id: string
+          kind: string
+          org_id: string
+          outcome: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          demande_id: string
+          done_at?: string | null
+          done_by?: string | null
+          due_at: string
+          id?: string
+          kind: string
+          org_id: string
+          outcome?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          demande_id?: string
+          done_at?: string | null
+          done_by?: string | null
+          due_at?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          outcome?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demande_tasks_assigned_to_fkey"
+            columns: ["assigned_to", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "demande_tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "demande_tasks_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_tasks_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      demandes: {
+        Row: {
+          assigned_at: string | null
+          assigned_to: string | null
+          availability_days: number[]
+          availability_periods: string[]
+          beneficiary: string | null
+          channel: string
+          client_id: string | null
+          clientele_id: string | null
+          closed_at: string | null
+          closed_reason: string | null
+          concerns: string | null
+          contact_attempts: number
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone_e164: string | null
+          created_at: string
+          created_by: string | null
+          external_ref: string | null
+          id: string
+          insurer: string | null
+          is_urgent: boolean
+          language: string
+          last_contact_at: string | null
+          matched_at: string | null
+          matched_professional_id: string | null
+          modality: string
+          next_contact_at: string | null
+          org_id: string
+          payer_kind: string
+          preferred_pro_gender: string
+          previous_therapy: boolean | null
+          profession_title_id: string | null
+          received_at: string
+          received_by: string | null
+          reference: string
+          reference_seq: number
+          reference_year: number
+          referral_source_id: string | null
+          source_campaign: string | null
+          source_referrer: string | null
+          source_utm: Json
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          availability_days?: number[]
+          availability_periods?: string[]
+          beneficiary?: string | null
+          channel?: string
+          client_id?: string | null
+          clientele_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          concerns?: string | null
+          contact_attempts?: number
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone_e164?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_ref?: string | null
+          id?: string
+          insurer?: string | null
+          is_urgent?: boolean
+          language?: string
+          last_contact_at?: string | null
+          matched_at?: string | null
+          matched_professional_id?: string | null
+          modality?: string
+          next_contact_at?: string | null
+          org_id: string
+          payer_kind?: string
+          preferred_pro_gender?: string
+          previous_therapy?: boolean | null
+          profession_title_id?: string | null
+          received_at?: string
+          received_by?: string | null
+          reference: string
+          reference_seq: number
+          reference_year: number
+          referral_source_id?: string | null
+          source_campaign?: string | null
+          source_referrer?: string | null
+          source_utm?: Json
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          availability_days?: number[]
+          availability_periods?: string[]
+          beneficiary?: string | null
+          channel?: string
+          client_id?: string | null
+          clientele_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          concerns?: string | null
+          contact_attempts?: number
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone_e164?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_ref?: string | null
+          id?: string
+          insurer?: string | null
+          is_urgent?: boolean
+          language?: string
+          last_contact_at?: string | null
+          matched_at?: string | null
+          matched_professional_id?: string | null
+          modality?: string
+          next_contact_at?: string | null
+          org_id?: string
+          payer_kind?: string
+          preferred_pro_gender?: string
+          previous_therapy?: boolean | null
+          profession_title_id?: string | null
+          received_at?: string
+          received_by?: string | null
+          reference?: string
+          reference_seq?: number
+          reference_year?: number
+          referral_source_id?: string | null
+          source_campaign?: string | null
+          source_referrer?: string | null
+          source_utm?: Json
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_assigned_to_fkey"
+            columns: ["assigned_to", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "demandes_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_clientele_fkey"
+            columns: ["org_id", "clientele_id"]
+            isOneToOne: false
+            referencedRelation: "clienteles"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_clientele_fkey"
+            columns: ["org_id", "clientele_id"]
+            isOneToOne: false
+            referencedRelation: "clienteles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "demandes_matched_professional_fkey"
+            columns: ["org_id", "matched_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_matched_professional_fkey"
+            columns: ["org_id", "matched_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_matched_professional_fkey"
+            columns: ["org_id", "matched_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_matched_professional_fkey"
+            columns: ["org_id", "matched_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "demandes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_profession_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_profession_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "demandes_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -6710,6 +7346,377 @@ export type Database = {
           },
         ]
       }
+      waitlist_contacts: {
+        Row: {
+          at: string
+          by_user: string | null
+          entry_id: string
+          id: string
+          kind: string
+          org_id: string
+          outcome: string
+        }
+        Insert: {
+          at?: string
+          by_user?: string | null
+          entry_id: string
+          id?: string
+          kind: string
+          org_id: string
+          outcome: string
+        }
+        Update: {
+          at?: string
+          by_user?: string | null
+          entry_id?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          outcome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_contacts_by_user_fkey"
+            columns: ["by_user"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "waitlist_contacts_entry_fkey"
+            columns: ["org_id", "entry_id"]
+            isOneToOne: false
+            referencedRelation: "waitlist_entries"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      waitlist_entries: {
+        Row: {
+          availability_days: number[]
+          availability_periods: string[]
+          bridge_professional_id: string | null
+          client_id: string | null
+          clientele_id: string | null
+          consent_signed_at: string | null
+          created_at: string
+          demande_id: string
+          exit_reason: string | null
+          exited_at: string | null
+          exited_by: string | null
+          external_ref: string | null
+          fee_invoice_id: string | null
+          fee_status: string
+          fee_waived_reason: string | null
+          id: string
+          language: string
+          last_contact_at: string | null
+          modality: string
+          motif_ids: string[]
+          next_contact_at: string | null
+          org_id: string
+          payer_kind: string
+          preferred_pro_gender: string
+          priority: string
+          priority_reason: string | null
+          registered_at: string
+          registered_by: string | null
+          state: string
+          target_profession_title_id: string | null
+          target_professional_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          availability_days?: number[]
+          availability_periods?: string[]
+          bridge_professional_id?: string | null
+          client_id?: string | null
+          clientele_id?: string | null
+          consent_signed_at?: string | null
+          created_at?: string
+          demande_id: string
+          exit_reason?: string | null
+          exited_at?: string | null
+          exited_by?: string | null
+          external_ref?: string | null
+          fee_invoice_id?: string | null
+          fee_status?: string
+          fee_waived_reason?: string | null
+          id?: string
+          language?: string
+          last_contact_at?: string | null
+          modality?: string
+          motif_ids?: string[]
+          next_contact_at?: string | null
+          org_id: string
+          payer_kind?: string
+          preferred_pro_gender?: string
+          priority?: string
+          priority_reason?: string | null
+          registered_at?: string
+          registered_by?: string | null
+          state?: string
+          target_profession_title_id?: string | null
+          target_professional_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          availability_days?: number[]
+          availability_periods?: string[]
+          bridge_professional_id?: string | null
+          client_id?: string | null
+          clientele_id?: string | null
+          consent_signed_at?: string | null
+          created_at?: string
+          demande_id?: string
+          exit_reason?: string | null
+          exited_at?: string | null
+          exited_by?: string | null
+          external_ref?: string | null
+          fee_invoice_id?: string | null
+          fee_status?: string
+          fee_waived_reason?: string | null
+          id?: string
+          language?: string
+          last_contact_at?: string | null
+          modality?: string
+          motif_ids?: string[]
+          next_contact_at?: string | null
+          org_id?: string
+          payer_kind?: string
+          preferred_pro_gender?: string
+          priority?: string
+          priority_reason?: string | null
+          registered_at?: string
+          registered_by?: string | null
+          state?: string
+          target_profession_title_id?: string | null
+          target_professional_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_entries_bridge_fkey"
+            columns: ["org_id", "bridge_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_bridge_fkey"
+            columns: ["org_id", "bridge_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_bridge_fkey"
+            columns: ["org_id", "bridge_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_bridge_fkey"
+            columns: ["org_id", "bridge_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_clientele_fkey"
+            columns: ["org_id", "clientele_id"]
+            isOneToOne: false
+            referencedRelation: "clienteles"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_clientele_fkey"
+            columns: ["org_id", "clientele_id"]
+            isOneToOne: false
+            referencedRelation: "clienteles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_exited_by_fkey"
+            columns: ["exited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_professional_fkey"
+            columns: ["org_id", "target_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_professional_fkey"
+            columns: ["org_id", "target_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_professional_fkey"
+            columns: ["org_id", "target_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_professional_fkey"
+            columns: ["org_id", "target_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_registered_by_fkey"
+            columns: ["registered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_title_fkey"
+            columns: ["org_id", "target_profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_title_fkey"
+            columns: ["org_id", "target_profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      waitlist_offers: {
+        Row: {
+          channel: string
+          created_at: string
+          entry_id: string
+          expires_at: string | null
+          id: string
+          offered_at: string
+          offered_by: string | null
+          org_id: string
+          professional_id: string
+          responded_at: string | null
+          response: string
+          secure_link_id: string | null
+          slots: Json
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          entry_id: string
+          expires_at?: string | null
+          id?: string
+          offered_at?: string
+          offered_by?: string | null
+          org_id: string
+          professional_id: string
+          responded_at?: string | null
+          response?: string
+          secure_link_id?: string | null
+          slots?: Json
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          entry_id?: string
+          expires_at?: string | null
+          id?: string
+          offered_at?: string
+          offered_by?: string | null
+          org_id?: string
+          professional_id?: string
+          responded_at?: string | null
+          response?: string
+          secure_link_id?: string | null
+          slots?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_offers_entry_fkey"
+            columns: ["org_id", "entry_id"]
+            isOneToOne: false
+            referencedRelation: "waitlist_entries"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_offers_offered_by_fkey"
+            columns: ["offered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "waitlist_offers_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_offers_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_offers_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_offers_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           attempts: number
@@ -6771,63 +7778,6 @@ export type Database = {
       }
     }
     Views: {
-      client_payers_active: {
-        Row: {
-          client_id: string | null
-          expires_on: string | null
-          file_number: string | null
-          id: string | null
-          kind: string | null
-          max_amount_cents: number | null
-          max_sessions: number | null
-          org_id: string | null
-          organisation_name: string | null
-          session_amount_cents: number | null
-          starts_on: string | null
-        }
-        Insert: {
-          client_id?: string | null
-          expires_on?: string | null
-          file_number?: string | null
-          id?: string | null
-          kind?: string | null
-          max_amount_cents?: number | null
-          max_sessions?: number | null
-          org_id?: string | null
-          organisation_name?: string | null
-          session_amount_cents?: number | null
-          starts_on?: string | null
-        }
-        Update: {
-          client_id?: string | null
-          expires_on?: string | null
-          file_number?: string | null
-          id?: string | null
-          kind?: string | null
-          max_amount_cents?: number | null
-          max_sessions?: number | null
-          org_id?: string | null
-          organisation_name?: string | null
-          session_amount_cents?: number | null
-          starts_on?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_payers_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "client_payers_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
       clienteles_catalog: {
         Row: {
           id: string | null
@@ -7093,6 +8043,51 @@ export type Database = {
           org_id: string | null
           pronouns: string | null
           reason: string | null
+        }
+        Relationships: []
+      }
+      my_demandes: {
+        Row: {
+          availability_days: number[] | null
+          availability_periods: string[] | null
+          beneficiary: string | null
+          client_id: string | null
+          clientele_id: string | null
+          concerns: string | null
+          id: string | null
+          insurer: string | null
+          language: string | null
+          matched_at: string | null
+          modality: string | null
+          motif_ids: string[] | null
+          org_id: string | null
+          participants: Json | null
+          payer_kind: string | null
+          preferred_pro_gender: string | null
+          previous_therapy: boolean | null
+          profession_title_id: string | null
+          received_at: string | null
+          reference: string | null
+        }
+        Relationships: []
+      }
+      my_waitlist_entries: {
+        Row: {
+          availability_days: number[] | null
+          availability_periods: string[] | null
+          client_id: string | null
+          clientele_id: string | null
+          demande_id: string | null
+          id: string | null
+          language: string | null
+          modality: string | null
+          motif_ids: string[] | null
+          org_id: string | null
+          preferred_pro_gender: string | null
+          priority: string | null
+          rank: number | null
+          registered_at: string | null
+          state: string | null
         }
         Relationships: []
       }
@@ -7378,6 +8373,15 @@ export type Database = {
         }
         Returns: string
       }
+      add_demande_task: {
+        Args: {
+          p_assigned_to?: string
+          p_demande_id: string
+          p_due_at: string
+          p_kind: string
+        }
+        Returns: string
+      }
       add_module_tester: {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
@@ -7398,7 +8402,6 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
-      anonymize_client: { Args: { p_id: string }; Returns: undefined }
       apply_email_event: {
         Args: {
           p_at: string
@@ -7443,8 +8446,11 @@ export type Database = {
         }
         Returns: string
       }
-      archive_client: { Args: { p_id: string }; Returns: undefined }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
+      assign_demande: {
+        Args: { p_assignee: string; p_id: string }
+        Returns: undefined
+      }
       attach_professional_document: {
         Args: {
           p_expires_on?: string
@@ -7480,6 +8486,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      cancel_demande_task: {
+        Args: { p_demande_id: string; p_task_id: string }
+        Returns: undefined
       }
       cancel_professional_submission: {
         Args: { p_submission_id: string }
@@ -7526,6 +8536,10 @@ export type Database = {
         Args: { p_field: string; p_id: string }
         Returns: undefined
       }
+      complete_demande_task: {
+        Args: { p_demande_id: string; p_outcome: string; p_task_id: string }
+        Returns: undefined
+      }
       complete_signature_request: {
         Args: {
           p_id: string
@@ -7566,10 +8580,7 @@ export type Database = {
           total: number
         }[]
       }
-      create_client: {
-        Args: { p_client: Json; p_confirm_medium?: boolean }
-        Returns: string
-      }
+      create_demande: { Args: { p_data: Json }; Returns: string }
       create_document_template: {
         Args: {
           p_description: string
@@ -7682,10 +8693,6 @@ export type Database = {
         Returns: Json
       }
       delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
-      delete_client_insurance: {
-        Args: { p_client_id: string; p_rank: number }
-        Returns: undefined
-      }
       delete_compensation_rate: { Args: { p_id: string }; Returns: undefined }
       delete_mail_messages: {
         Args: {
@@ -7725,7 +8732,6 @@ export type Database = {
         Args: { p_actor: string; p_connection_id: string; p_org_id: string }
         Returns: boolean
       }
-      end_client_payer: { Args: { p_id: string }; Returns: undefined }
       end_professional_client_agreement: {
         Args: { p_effective_to: string; p_row_id: string }
         Returns: undefined
@@ -7735,31 +8741,9 @@ export type Database = {
         Returns: undefined
       }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
-      export_client_privacy: { Args: { p_id: string }; Returns: Json }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
-      }
-      find_client_duplicates: {
-        Args: {
-          p_birthday: string
-          p_email: string
-          p_exclude?: string
-          p_first: string
-          p_last: string
-          p_phones: string[]
-        }
-        Returns: {
-          birthday: string
-          client_id: string
-          client_number: number
-          display_name: string
-          email: string
-          is_archived: boolean
-          level: string
-          mobile_e164: string
-          reasons: string[]
-        }[]
       }
       finish_job_run: {
         Args: { p_detail: string; p_id: string; p_status: string }
@@ -7790,7 +8774,6 @@ export type Database = {
           updated_by_name: string
         }[]
       }
-      get_client_summary: { Args: { p_id: string }; Returns: Json }
       get_communications_settings: { Args: never; Returns: Json }
       get_communications_settings_for_org: {
         Args: { p_org_id: string }
@@ -8437,6 +9420,15 @@ export type Database = {
           title: string
         }[]
       }
+      log_demande_contact: {
+        Args: {
+          p_channel: string
+          p_id: string
+          p_next_contact_at?: string
+          p_outcome: string
+        }
+        Returns: number
+      }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_email_failed: {
         Args: { p_attempts: number; p_error_code: string; p_id: string }
@@ -8482,10 +9474,6 @@ export type Database = {
           p_provider_session_id: number
         }
         Returns: undefined
-      }
-      merge_clients: {
-        Args: { p_keep: string; p_merge: string }
-        Returns: string
       }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
@@ -8647,10 +9635,6 @@ export type Database = {
         Args: { p_org_id: string; p_owner: string }
         Returns: undefined
       }
-      remove_client_relation: {
-        Args: { p_client_id: string; p_related_id: string }
-        Returns: undefined
-      }
       remove_module_tester: {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
@@ -8713,26 +9697,6 @@ export type Database = {
         Returns: Json
       }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
-      save_client_payer: {
-        Args: {
-          p_client_id: string
-          p_expires_on: string
-          p_file_number: string
-          p_id: string
-          p_kind: string
-          p_max_amount_cents: number
-          p_max_sessions: number
-          p_note: string
-          p_organisation_name: string
-          p_session_amount_cents: number
-          p_starts_on: string
-        }
-        Returns: string
-      }
-      save_client_tag: {
-        Args: { p_id: string; p_name: string }
-        Returns: string
-      }
       save_clientele: {
         Args: {
           p_id: string
@@ -8861,19 +9825,6 @@ export type Database = {
         }
         Returns: string
       }
-      search_clients: {
-        Args: { p_limit?: number; p_query: string }
-        Returns: {
-          birthday: string
-          client_number: number
-          email: string
-          first_name: string
-          id: string
-          is_archived: boolean
-          last_name: string
-          mobile_e164: string
-        }[]
-      }
       search_professionals: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -8896,32 +9847,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      set_client_notes: {
-        Args: {
-          p_admin_notes: string
-          p_id: string
-          p_special_agreement_note: string
-        }
-        Returns: undefined
-      }
-      set_client_relation: {
-        Args: {
-          p_client_id: string
-          p_client_rights?: Json
-          p_related_id: string
-          p_related_rights?: Json
-          p_type: string
-        }
-        Returns: undefined
-      }
-      set_client_tag_active: {
-        Args: { p_active: boolean; p_id: string }
-        Returns: undefined
-      }
-      set_client_tags: {
-        Args: { p_client_id: string; p_tag_ids: string[] }
-        Returns: undefined
-      }
       set_communications_settings: { Args: { p_patch: Json }; Returns: Json }
       set_compensation_rate: {
         Args: {
@@ -8930,6 +9855,23 @@ export type Database = {
           p_retention_pct: number
         }
         Returns: string
+      }
+      set_demande_note: {
+        Args: { p_id: string; p_note: string }
+        Returns: undefined
+      }
+      set_demande_participants: {
+        Args: { p_id: string; p_participants: Json }
+        Returns: undefined
+      }
+      set_demande_state: {
+        Args: {
+          p_closed_reason?: string
+          p_id: string
+          p_professional_id?: string
+          p_state: string
+        }
+        Returns: undefined
       }
       set_document_template_active: {
         Args: { p_active: boolean; p_id: string }
@@ -9175,9 +10117,8 @@ export type Database = {
       }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
-      unarchive_client: { Args: { p_id: string }; Returns: undefined }
-      update_client: {
-        Args: { p_client: Json; p_id: string }
+      update_demande: {
+        Args: { p_id: string; p_patch: Json }
         Returns: undefined
       }
       update_template_version: {
@@ -9188,18 +10129,6 @@ export type Database = {
           p_id: string
           p_signers: Json
           p_variables: Json
-        }
-        Returns: undefined
-      }
-      upsert_client_insurance: {
-        Args: {
-          p_certificate_number: string
-          p_client_id: string
-          p_holder_name: string
-          p_holder_relation: string
-          p_insurer: string
-          p_policy_number: string
-          p_rank: number
         }
         Returns: undefined
       }
