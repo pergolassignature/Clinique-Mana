@@ -248,9 +248,9 @@ describe('the Revenus exports', () => {
   it('payments: « Argent comptant » is a card through QuickBooks Payments; unknown methods and unreadable amounts are rejected', () => {
     const { payments, rejected } = readPayments(fixture('revenus-paiements.csv'))
     expect(payments.map((p) => [p.line, p.method, p.amount_cents])).toEqual([
-      [2, 'card_qbo_payments', 17500],
+      [2, 'qbo_payments_card', 17500],
       [3, 'interac', 123456],
-      [4, 'card_stripe', 12000],
+      [4, 'stripe', 12000],
       [5, 'credit_note', -2174],
     ])
     expect(payments[3].refund).toBe(true)
