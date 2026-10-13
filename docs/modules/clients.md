@@ -1,20 +1,21 @@
 # Module `clients` (« Clients »)
 
-The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): one row per person, the relations between people and what each may do for the other, insurance, payers (IVAC, PAE), tags, and which professionals may see a client. Plan: [coding plan §6](../plans/2026-10-11-modules-coding-plan.md#6-clients-clients--full-task-detail); roadmap §2.2 and §2.2 bis; data: [GOrendezvous tour §2](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); decisions R-5, R-7 … R-10, R-48, R-54, R-61, R-64 and **CL-1 … CL-11** in the [decisions log](../plans/2026-10-07-decisions-log.md).
+The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): one row per person, the relations between people and what each may do for the other, insurance, payers (IVAC, PAE), tags, and which professionals may see a client. Plan: [coding plan §6](../plans/2026-10-11-modules-coding-plan.md#6-clients-clients--full-task-detail); roadmap §2.2 and §2.2 bis; data: [GOrendezvous tour §2](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); decisions R-5, R-7 … R-10, R-48, R-54, R-61, R-64 and **CL-1 … CL-23** in the [decisions log](../plans/2026-10-07-decisions-log.md).
 
 | Batch | What | Status |
 |---|---|---|
 | C1 | Schema: registry, tables, RLS, audit, published views and helpers, the agreements' FK | built |
 | C2 | RPCs: duplicates, create / update / archive, relations, insurance, payers, tags, merge, search, summary, Loi 25 export and anonymisation, `client_contacts_for` | built |
-| C3 | List, « Nouveau client », record, « Mes clients » | planned |
-| C4 | Merge UI, « Confidentialité », ⌘K, e2e, this doc completed | planned |
-| C5a | Client consents: schema, RPCs, functions (part 1); UI (part 2) | built (the record tab waits for C3) |
+| C3 | List, « Nouveau client », record (with C5a's « Consentements » tab), « Mes clients » | built |
+| C4 | Merge UI, « Confidentialité », ⌘K, the record's « Historique », remembered list filters, this doc completed | planned |
+| C5a | Client consents: schema, RPCs, functions (part 1); UI (part 2) | built |
 | C5b | Withdrawal, copy to the client, reports, re-sign campaign | planned |
 | I1 | GOrendezvous import: clients, relations, price gap report (`import_client`, `import_client_relation`) | built (runs on Jonathan's go-ahead) |
 
 - **Registry:** `modules.key = 'clients'` (migration `20261012213428_clients_module`), depends on `professionals`. It **starts disabled** in every clinic; the local seed enables it.
-- **Migrations:** (Demandes' handlers: `20261013022645_demandes_client_handlers`) `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261013022637_clients_duplicates`, `20261013022641_clients_rpcs`.
-- **Tests:** pgTAP `104_clients_module`, `110_clients_duplicates` (the import library's cases), `111_clients_rpcs`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Migrations:** (Demandes' handlers: `20261013022645_demandes_client_handlers`) `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261013022637_clients_duplicates`, `20261013022641_clients_rpcs`; C3: `20261013034343_clients_list`, `20261013040106_clients_email_match_partial_update`.
+- **Tests:** pgTAP `104_clients_module`, `110_clients_duplicates` (the import library's cases), `111_clients_rpcs`, `113_clients_list`, `114_clients_email_match_partial_update`; Vitest `src/modules/clients/**/*.test.ts(x)` (manifest, form schema, payloads, list page with the creation sheet, record page); Playwright `e2e/clients.spec.ts` (duplicate refused, creation, a parent with rights, « Mes clients »); the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Local seed:** five fictional files (« …-Fictive »), Léa with her two parents, an IVAC payer, an insurance, the tags Atelier and Visio; Félix (`provider@mana.test`) is the primary professional of Alice and Léa, so « Mes clients » has rows.
 
 ## Permissions
 
@@ -61,19 +62,31 @@ All definer, permission first, French `P0001` with a HINT naming the field (the 
 |---|---|---|
 | `find_client_duplicates(first, last, email, phones[], birthday, exclude)` | `clients.view` | HIGH / MEDIUM candidates with reasons (I-5, CL-12), at most 10, with number, name, birthday, email, mobile, archived |
 | `create_client(client jsonb, confirm_medium)` | `clients.manage` | normalises (names trimmed, email lower case, phones to E.164, postal code `A1A 1A1`, province code), refuses a HIGH duplicate (HINT `duplicate`, « n° X »), needs `confirm_medium` for a MEDIUM one (HINT `duplicate_medium`), saves the notes, links the primary professional |
-| `update_client(id, client jsonb)` | `clients.manage` | replaces every editable field (the form sends them all; duplicates not re-checked); the notes only when their keys are present |
+| `update_client(id, client jsonb)` | `clients.manage` | changes the keys it is sent, the others kept as stored (since C3: a record card sends its own fields), the whole file checked again; duplicates not re-checked; the notes only when their keys are present |
 | `set_client_notes(id, admin_notes, special_agreement_note)`, `archive_client`, `unarchive_client` | `clients.manage` | |
 | `set_client_relation(client, related, type, related_rights, client_rights)`, `remove_client_relation` | `clients.manage` | `type` is what the related person is to the client; rights `{main_contact, manages_appointments, receives_communications, receives_invoices}` per direction; one main contact per client (CL-14) |
 | `upsert_client_insurance(client, rank, …)`, `delete_client_insurance` | `clients.manage` | deleting the main one promotes the secondary |
 | `save_client_payer(client, id, kind, …)`, `end_client_payer(id)` | `clients.manage` | one active per kind (a second save updates it), an active IVAC file once per clinic; ended payers stay |
 | `set_client_tags(client, tag_ids[])`, `save_client_tag(id, name)`, `set_client_tag_active` | `clients.manage` | ≤ 5 active tags of the clinic's list |
 | `merge_clients(keep, merge)` | `clients.merge` | CL-15, CL-16 |
+| `list_clients(query, status, professional, tag, after…, limit)` (C3) | `clients.view` | the list page: active / archived / all, by primary professional or tag, the search words of `search_clients`; keyset by the folded last name, first name, id (50 a page); merged and anonymised files never |
 | `search_clients(query, limit)` | `clients.view`, or `clients.self` (her linked clients) | ⌘K: every word in the name (accents ignored), the email, the number or a phone's digits; never merged or anonymised files |
 | `get_client_summary(id)` | `clients.view`; `clients.self` linked: the `my_clients` columns | the record's bundle: file, notes, relations both ways, insurance, payers, tags, professionals, merges |
 | `export_client_privacy(id)` | `clients.privacy` | the summary + `exported_at`; an `audit_log` read row (sections, never values) |
 | `anonymize_client(id)` | `clients.privacy` | CL-17; the files merged into it too, every module's copies through its handler |
 
-**For other modules:** `private.client_contacts_for(org, client, right)` (`communications`, `invoices`, `appointments`: the client herself and each relation holding the right, with her own language and channels; the caller decides what age means), `private.clients_unlink_professional(org, client, pro)` (Demandes' reassignment; a primary professional's link stays), the view **`client_payers_active`** (Facturation), and the catalogue **`client_merge_handlers`**: a module adds a row naming `private.<module>_reassign_client(old, new) → int` and the merge runs it (Professionnels' moves the « Ententes particulières », Demandes' its requests, participants and waiting-list entries; Rendez-vous and Facturation add theirs), and **`client_anonymize_handlers`** the same way for an anonymisation (`private.<module>_anonymize_client(id) → int`: Professionnels turns an agreement's label into « CLI-n » and drops its note; Demandes blanks the contact typed before the file and the participants' names).
+**For other modules** (all `private`, granted to no role: called from the caller's definer RPC, after its own permission check, with the org it verified; signatures kept stable):
+
+- **`private.clients_find_duplicates(p_org uuid, p_first text, p_last text, p_email text, p_phones text[], p_birthday date, p_exclude uuid) returns table (client_id uuid, level text, reasons text[])`**: the I-5 rules (CL-12), the same as `find_client_duplicates` and the import. `level` is `high` or `medium`; `reasons` among `email`, `phone`, `same_name`, `similar_name`, `birthday`, `birthday_differs`, `shared_contact`, `partial_email`, `partial_phone`. HIGH first, then by file number; merged and anonymised files never; `p_exclude` leaves one file out (the one being edited). Used by `create_client` and by Facturation's QuickBooks customer matching (lane B, FQ).
+- **`private.clients_match_email(p_org uuid, p_emails text[]) returns table (email text, client_id uuid, match_kind text)`**: which files an address belongs to (Communications' Gmail thread linking, CM2b, CM-12). The addresses are trimmed and folded to lower case (I-5); `match_kind` is `client` (her own file) or `relation` (a file she is related to, whatever the rights: the caller filters). An address on 6 or more files is a placeholder and matches nothing; merged and anonymised files never match, archived ones do. Ordered by email, `client` before `relation`, then file number (CL-23).
+- `private.client_contacts_for(org, client, right)` (`communications`, `invoices`, `appointments`: the client herself and each relation holding the right, with her own language and channels; the caller decides what age means), `private.clients_unlink_professional(org, client, pro)` (Demandes' reassignment; a primary professional's link stays), the view **`client_payers_active`** (Facturation), and the catalogue **`client_merge_handlers`**: a module adds a row naming `private.<module>_reassign_client(old, new) → int` and the merge runs it (Professionnels' moves the « Ententes particulières », Demandes' its requests, participants and waiting-list entries; Rendez-vous and Facturation add theirs), and **`client_anonymize_handlers`** the same way for an anonymisation (`private.<module>_anonymize_client(id) → int`: Professionnels turns an agreement's label into « CLI-n » and drops its note; Demandes blanks the contact typed before the file and the participants' names).
+
+## Screens (C3)
+
+- **« Clients »** (`/clients`, `clients.view`, nav order 20): search (name, email, number, phone; 250 ms), « Actifs / Archivés / Tous », primary professional, tag; the filters live in the URL (`q`, `statut`, `professionnel`, `etiquette`); « Afficher plus » loads the next 50 (`list_clients`). Columns: name and number, birthday and age, email and mobile, primary professional, the flags (banned, incomplete, agreement, Statut Indien, rate) and tags.
+- **« Nouveau client »** (`clients.manage`): a sheet in sections (Identité, Coordonnées, Adresse with `AddressAutocomplete`, Dossier with the staff note). The similar files show while typing (400 ms, `find_client_duplicates`) with their reasons and « Ouvrir le dossier existant »: a HIGH one blocks « Créer le dossier », a MEDIUM one needs « C'est une autre personne » (CL-13, CL-20). A refusal goes under its field (the HINT). The new file opens on « Aperçu ».
+- **The record** (`/clients/:id/:onglet`): the header (name, pronouns, number, age, state, flags, tags; « Archiver / Restaurer »; a merged file links to the kept one) and six page-level Radix tabs, each its own chunk reading the one bundle (`get_client_summary`): « Aperçu » (read-only), « Informations » (cards Identité, Coordonnées, Adresse, Dossier, Tarif et indicateurs, Notes, Étiquettes; CL-21), « Proches » (relations with both directions' rights), « Assurance et payeurs », « Consentements » (C5a's `ClientConsentsPanel`), « Visites et paiements » (empty until Rendez-vous and Facturation). Read-only without `clients.manage`, or for a merged or anonymised file. « Historique » comes in C4.
+- **« Mes clients »** (`/mes-clients`, `clients.self`, shown to an account linked to a professional file): `my_clients` with a local search; nothing but what CL-5 allows.
 
 ## Rules for the other lanes
 
@@ -90,7 +103,7 @@ All definer, permission first, French `P0001` with a HINT naming the field (the 
 - **Links:** `private.clients_unlink_professional` (C2) ends a link on reassignment, except the primary professional's. `clients_link_professional` moves `last_linked_at` at most once a day.
 - **Anonymisation** (built in C2): `anonymize_client` deletes the relations and tag links (their audit rows would still tie the person to a relative), blanks the identity and `external_ref`; `anonymized_at` can never be cleared (trigger).
 - **File numbers:** a transaction-level advisory lock per clinic (not the org row), also for an explicit number (the import's).
-- **Search:** at ~8 500 rows a scan is fine; C2 may add an `unaccent` expression index (Professionnels' immutable normaliser) for accent-insensitive search and the phone digit matches.
+- **Search:** at ~8 500 rows a scan is fine (measured in C3: a `list_clients` page in about 70 ms locally over 8 500 files); C2 may add an `unaccent` expression index (Professionnels' immutable normaliser) for accent-insensitive search and the phone digit matches.
 
 ## Consents (batch C5a)
 
@@ -107,7 +120,7 @@ Migrations `20261013020443_core_signing_second_client_signer` (core: the `client
 - **Mise en service (texts):** the template editor moves to core (CC-12, a small core batch to schedule); Christine's 14 texts are entered there, then published in Paramètres → Consentements.
 - **Screens (part 2):**
   - « Consentements à obtenir » (`/clients/consentements`, nav « Consentements », `clients.view`): the open requests, overdue first; a row opens the client's consents in a side sheet.
-  - `components/consents/ClientConsentsPanel`: per consent, its state, the sealed PDF (`useSignedFileUrl`), and « Envoyer » / « Renvoyer » / « Annuler la demande » (`clients.manage`). C3 mounts it as the record's « Consentements » tab.
+  - `components/consents/ClientConsentsPanel`: per consent, its state, the sealed PDF (`useSignedFileUrl`), and « Envoyer » / « Renvoyer » / « Annuler la demande » (`clients.manage`). The record's « Consentements » tab (C3) mounts it.
   - Paramètres → Consentements (`consentements`, seen with `clients.view`, changed with `clients.manage`): the 14 texts with « Publier » and who must sign again; the rules (a switch, enabled once the text is published; « Une fois » or « À chaque rendez-vous »); the delays and the retention policy.
   - The public page `/consentement#t=…` (`consentPublicPage`, registered in `src/app/public-pages.ts`): identity, the « Oui / Non » clauses, Documenso inside the page (`@/core/signing/components/EmbeddedSigning`, shared; Professionnels still has its own copy), « Merci ! ». French or English, the request's language.
   - The texts themselves are not edited in the app yet: the template editor lives in Professionnels; either it moves to core or the clinic's texts come by a migration (decision to take with Jonathan).

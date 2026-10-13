@@ -136,7 +136,7 @@ select functions_are('public', array[
   'find_client_duplicates', 'create_client', 'update_client', 'set_client_notes', 'archive_client', 'unarchive_client',
   'set_client_relation', 'remove_client_relation', 'upsert_client_insurance', 'delete_client_insurance',
   'save_client_payer', 'end_client_payer', 'set_client_tags', 'save_client_tag', 'set_client_tag_active',
-  'merge_clients', 'search_clients', 'get_client_summary', 'export_client_privacy', 'anonymize_client',
+  'merge_clients', 'search_clients', 'get_client_summary', 'export_client_privacy', 'anonymize_client', 'list_clients',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

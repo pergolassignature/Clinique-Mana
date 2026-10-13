@@ -469,6 +469,37 @@ begin
 end;
 $seed$;
 
+-- Clients (fictional, local only): a few files to see the list, a record with relations and
+-- payers, and « Mes clients » for provider@mana.test (Félix, professional n° 4), written through the
+-- RPCs as the admin, as the app writes them.
+do $clients$
+declare
+  v_alice uuid; v_marc uuid; v_lea uuid; v_paul uuid; v_ines uuid;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
+  v_alice := public.create_client(jsonb_build_object('first_name', 'Alice', 'last_name', 'Tremblay-Fictive', 'email', 'alice.fictive@exemple.test',
+    'mobile_e164', '514 555-0201', 'birthday', '1990-03-04', 'sex', 'female', 'city', 'Montréal', 'province', 'QC', 'postal_code', 'H2X 1A1',
+    'primary_professional_id', '5eed0000-0000-0000-0000-000000000004', 'rate_variant', 'student'));
+  v_marc := public.create_client(jsonb_build_object('first_name', 'Marc', 'last_name', 'Gagnon-Fictif', 'email', 'marc.fictif@exemple.test',
+    'mobile_e164', '438 555-0202', 'birthday', '1978-11-20', 'sex', 'male', 'reminders_by_sms', false));
+  v_lea := public.create_client(jsonb_build_object('first_name', 'Léa', 'last_name', 'Gagnon-Fictive', 'birthday', '2012-06-01', 'sex', 'female',
+    'mobile_e164', '438 555-0203', 'reminders_by_email', false, 'shared_custody', true,
+    'primary_professional_id', '5eed0000-0000-0000-0000-000000000004'));
+  v_paul := public.create_client(jsonb_build_object('first_name', 'Paule', 'last_name', 'Roy-Fictive', 'email', 'paule.fictive@exemple.test',
+    'birthday', '1980-02-14', 'sex', 'female'));
+  v_ines := public.create_client(jsonb_build_object('first_name', 'Inès', 'last_name', 'Côté-Fictive', 'email', 'ines.fictive@exemple.test',
+    'mobile_e164', '819 555-0204', 'birthday', '1995-09-09', 'tax_exempt', true, 'special_agreement', true,
+    'admin_notes', 'Préfère les rendez-vous en soirée (note fictive).'));
+  perform public.set_client_relation(v_lea, v_marc, 'parent', '{"main_contact": true, "manages_appointments": true, "receives_communications": true, "receives_invoices": true}', '{}');
+  perform public.set_client_relation(v_lea, v_paul, 'parent', '{"manages_appointments": true, "receives_invoices": true}', '{}');
+  perform public.save_client_payer(v_ines, null, 'ivac', null, 'IVAC-FICTIF-001', 9450, 20, null, null, null, null);
+  perform public.upsert_client_insurance(v_alice, 1, 'Assurances Fictives inc.', 'POL-0001', 'CERT-0001', 'self', null);
+  perform public.save_client_tag(null, 'Atelier');
+  perform public.save_client_tag(null, 'Visio');
+  perform set_config('request.jwt.claims', '', false);
+end;
+$clients$;
+
 -- Local clients (C5a): one fictitious adult client with a Mailpit address, so the consents can be
 -- sent and signed locally (e2e/consents.spec.ts) before the client screens (C3) exist.
 insert into public.clients (id, org_id, first_name, last_name, birthday, email, language, created_by)
