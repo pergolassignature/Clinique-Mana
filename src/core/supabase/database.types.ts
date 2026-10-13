@@ -11619,6 +11619,63 @@ export type Database = {
           },
         ]
       }
+      sms_thread_links: {
+        Row: {
+          candidate_client_ids: string[]
+          client_id: string | null
+          created_at: string
+          id: string
+          linked_at: string | null
+          linked_by: string | null
+          org_id: string
+          peer_e164: string
+          source: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          candidate_client_ids?: string[]
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          linked_at?: string | null
+          linked_by?: string | null
+          org_id: string
+          peer_e164: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          candidate_client_ids?: string[]
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          linked_at?: string | null
+          linked_by?: string | null
+          org_id?: string
+          peer_e164?: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_thread_links_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "sms_thread_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       special_agreements: {
         Row: {
           client_id: string
@@ -14901,6 +14958,7 @@ export type Database = {
       }
       get_sms_provider_context: { Args: { p_org_id: string }; Returns: Json }
       get_sms_settings: { Args: never; Returns: Json }
+      get_sms_thread_link: { Args: { p_phone: string }; Returns: Json }
       get_submission_review: {
         Args: { p_submission_id: string }
         Returns: Json
@@ -14979,6 +15037,10 @@ export type Database = {
       link_professional_account: {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
         Returns: Json
+      }
+      link_sms_thread: {
+        Args: { p_client_id: string; p_phone: string }
+        Returns: undefined
       }
       list_agenda: {
         Args: { p_from: string; p_professional_ids?: string[]; p_to: string }
@@ -15090,6 +15152,17 @@ export type Database = {
         }[]
       }
       list_client_payers_to_complete: { Args: never; Returns: Json }
+      list_client_sms: {
+        Args: { p_client_id: string }
+        Returns: {
+          consent_status: string
+          kind: string
+          last_message_at: string
+          link_status: string
+          message_count: number
+          phone: string
+        }[]
+      }
       list_client_visits: {
         Args: { p_before?: string; p_client_id: string; p_limit?: number }
         Returns: {
@@ -15754,6 +15827,26 @@ export type Database = {
           id: string
           module_key: string
           status: string
+        }[]
+      }
+      list_sms_conversations: {
+        Args: { p_search?: string; p_view?: string }
+        Returns: {
+          client_id: string
+          client_name: string
+          client_number: number
+          consent_status: string
+          last_body: string
+          last_body_purged: boolean
+          last_direction: string
+          last_has_media: boolean
+          last_inbound_at: string
+          last_message_at: string
+          last_status: string
+          link_source: string
+          link_status: string
+          message_count: number
+          phone: string
         }[]
       }
       list_sms_thread: {
@@ -17422,6 +17515,7 @@ export type Database = {
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
       unarchive_client: { Args: { p_id: string }; Returns: undefined }
       unlink_mail_thread: { Args: { p_thread_id: string }; Returns: undefined }
+      unlink_sms_thread: { Args: { p_phone: string }; Returns: undefined }
       update_client: {
         Args: { p_client: Json; p_id: string }
         Returns: undefined

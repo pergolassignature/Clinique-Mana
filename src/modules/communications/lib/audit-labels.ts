@@ -13,6 +13,8 @@ export const COMMUNICATIONS_AUDITED_TABLES = [
   'mail_sends',
   'mail_templates',
   'sms_consents',
+  // SM-15: a number's thread → its client (the number redacted).
+  'sms_thread_links',
   // CM4: the clinic's settings of « Rédiger avec l'IA » (the calls are a usage log, not audited).
   'ai_settings',
 ] as const

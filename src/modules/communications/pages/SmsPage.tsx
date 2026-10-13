@@ -8,10 +8,13 @@ import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { cn } from '@/shared/lib/utils'
+import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
 import { ConsentDialog } from '../components/sms/ConsentDialog'
 import { ThreadList } from '../components/sms/ThreadList'
 import { ThreadView } from '../components/sms/ThreadView'
+import { SMS_VIEWS, type SmsConsentStatus, type SmsView } from '../api/sms'
 import { useFollowSmsNotices, useSmsMessagePhone, useSmsThreads } from '../hooks/use-sms'
 
 const S = 'modules.communications.sms'
@@ -28,7 +31,13 @@ export function SmsPage() {
   usePageTitle(t(`${S}.title`))
   useFollowSmsNotices()
   const { can } = useAccess()
-  const threads = useSmsThreads()
+  // SM-15: « À rattacher » and the search by a file's name need clients.view.
+  const files = can('clients.view')
+  const [view, setView] = useState<SmsView>('all')
+  const [search, setSearch] = useState('')
+  const threads = useSmsThreads(files ? view : 'all', search)
+  // The consent of the thread opened, kept when a filter hides its row.
+  const [openedConsent, setOpenedConsent] = useState<SmsConsentStatus | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const param = searchParams.get('message')
   const messageId = param && UUID.test(param) ? param : null
@@ -42,11 +51,12 @@ export function SmsPage() {
 
   const select = (phone: string | null) => {
     setSelected(phone)
+    setOpenedConsent(threads.data?.find((thread) => thread.phone === phone)?.consent ?? null)
     if (messageId) setSearchParams({}, { replace: true })
   }
 
   const rows = threads.data
-  const consent = rows?.find((thread) => thread.phone === selected)?.consent ?? null
+  const consent = rows?.find((thread) => thread.phone === selected)?.consent ?? openedConsent
   const notFound = messageId !== null && fromNotice.isSuccess && fromNotice.data === null
 
   return (
@@ -71,6 +81,29 @@ export function SmsPage() {
           ) : undefined
         }
       />
+      <div className="flex flex-wrap items-end gap-3">
+        {files && (
+          <SegmentedToggle
+            label={t(`${S}.views.label`)}
+            value={view}
+            onChange={setView}
+            options={SMS_VIEWS.map((value) => ({ value, label: t(`${S}.views.${value}`) }))}
+          />
+        )}
+        <div className="w-full max-w-xs">
+          <label htmlFor="sms-search" className="sr-only">
+            {t(files ? `${S}.search.label` : `${S}.search.labelDigits`)}
+          </label>
+          <Input
+            id="sms-search"
+            type="search"
+            autoComplete="off"
+            placeholder={t(files ? `${S}.search.label` : `${S}.search.labelDigits`)}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+      </div>
       {notFound && (
         <p role="status" className="text-sm text-muted-foreground">
           {t(`${S}.thread.notFound`)}
@@ -81,7 +114,11 @@ export function SmsPage() {
       ) : !rows ? (
         <Loading />
       ) : rows.length === 0 && selected === null ? (
-        <EmptyState title={t(`${S}.threads.emptyTitle`)} body={t(`${S}.threads.emptyBody`)} />
+        search.trim() || view !== 'all' ? (
+          <EmptyState title={t(view === 'to_link' && !search.trim() ? `${S}.threads.emptyToLink` : `${S}.threads.emptySearch`)} />
+        ) : (
+          <EmptyState title={t(`${S}.threads.emptyTitle`)} body={t(`${S}.threads.emptyBody`)} />
+        )
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card lg:grid lg:h-[calc(100dvh-13rem)] lg:min-h-[30rem] lg:grid-cols-[20rem_minmax(0,1fr)]">
           <div className={cn('min-h-0 overflow-y-auto lg:border-r lg:border-border', selected !== null && 'max-lg:hidden')}>

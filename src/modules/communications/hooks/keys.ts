@@ -59,12 +59,19 @@ export const mailKeys = {
  * |                                             | queued shows in the thread)                         |
  * | the bell's unread count changed (a text     | `smsKeys.all` (no polling of its own: CLAUDE.md §8, |
  * | received raises a notice)                   | « only the bell's unread count polls »)              |
+ * | a thread linked or unlinked (SM-15)          | `threads()` (the lists, its link, a file's numbers) |
  * | the settings saved                          | none: the RPC returns the effective settings,       |
  * |                                             | written into `settings()` as is                     |
  */
 export const smsKeys = {
   all: ['communications', 'sms'] as const,
   threads: () => [...smsKeys.all, 'threads'] as const,
+  /** The list by view and search (SM-15), under `threads()`. */
+  threadList: (view: string, search: string) => [...smsKeys.threads(), 'list', view, search.trim()] as const,
+  /** A number's file (SM-15), under `threads()`: a text received may link it. */
+  threadLink: (phone: string) => [...smsKeys.threads(), 'link', phone] as const,
+  /** A file's numbers and threads (SM-16), under `threads()`. */
+  clientNumbers: (clientId: string) => [...smsKeys.threads(), 'client', clientId] as const,
   /** Keyed by the number (E.164): never put in a URL, only in the cache. */
   thread: (phone: string) => [...smsKeys.all, 'thread', phone] as const,
   /** A notice's `?message=<id>` resolved to its thread's number. */

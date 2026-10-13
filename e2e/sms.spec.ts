@@ -98,3 +98,20 @@ test('with the fake PBX: a reply leaves, a text arrives, « ARRÊT » withdraws 
   await expect(after.getByText('Consentement retiré')).toBeVisible()
   await expect(after.getByText('Confirmation du retrait')).toBeVisible()
 })
+
+test('SM-16: Alice’s file lists her mobile under « Textos »; « Textos » offers « À rattacher » and the search', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto('/clients')
+  await page.getByRole('link', { name: /Alice Tremblay-Fictive/ }).first().click()
+  await page.getByRole('tab', { name: 'Courriels' }).click()
+  const numbers = page.getByRole('list', { name: 'Numéros du dossier' })
+  await expect(numbers).toContainText('514 555-0201')
+  await expect(numbers).toContainText('Cellulaire')
+  await numbers.getByRole('button', { name: 'Ouvrir la conversation avec le 514 555-0201' }).click()
+  await expect(page.getByRole('region', { name: 'Conversation avec 514 555-0201' })).toBeVisible()
+
+  await openTextos(page)
+  await page.getByRole('button', { name: 'À rattacher' }).click()
+  await page.getByRole('searchbox').fill('aucun-client-de-ce-nom')
+  await expect(page.getByText('Aucune conversation ne correspond.')).toBeVisible()
+})

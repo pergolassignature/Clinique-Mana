@@ -6,7 +6,7 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
-import { FILE_SEARCH_MIN_CHARS, type LinkedFile } from '../../api/client-links'
+import { FILE_SEARCH_MIN_CHARS, type LinkedFile, type ThreadLink } from '../../api/client-links'
 import { useFileSearch, useMailThreadLink, useSetThreadLink } from '../../hooks/use-client-links'
 import { fileLabel } from '../../lib/inbox-format'
 
@@ -25,10 +25,22 @@ export function ThreadClientLink({ threadId }: { threadId: string }) {
   const setLink = useSetThreadLink(threadId)
   if (link.isPending) return null
   if (link.isError && !link.data) return <p className="text-xs text-muted-foreground">{t(`${L}.loadError`)}</p>
-  const data = link.data
-  if (!data) return null
-  const busy = setLink.isPending
-  const choose = (clientId: string) => setLink.mutate(clientId)
+  if (!link.data) return null
+  return <ClientLinkBox data={link.data} busy={setLink.isPending} onChoose={(clientId) => setLink.mutate(clientId)} />
+}
+
+interface ClientLinkBoxProps {
+  data: ThreadLink
+  busy: boolean
+  /** A file's id to link, null to unlink (« Détacher »). */
+  onChoose: (clientId: string | null) => void
+  /** The `sourceAuto` wording: « trouvé par l'adresse de l'expéditeur » or, for a text, « … par le numéro ». */
+  autoLabel?: string
+}
+
+/** The link's box, shared by « Courriels » (CM2b) and « Textos » (SM-15): what the thread is linked to, and how to change it. */
+export function ClientLinkBox({ data, busy, onChoose, autoLabel }: ClientLinkBoxProps) {
+  const choose = (clientId: string) => onChoose(clientId)
 
   return (
     <div role="group" aria-label={t(`${L}.label`)} className="space-y-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
@@ -39,9 +51,9 @@ export function ThreadClientLink({ threadId }: { threadId: string }) {
           <Link to={recordPath(data.client.id)} className="font-medium text-link underline-offset-[3px] hover:underline">
             {fileLabel(data.client.client_number, data.client.display_name)}
           </Link>
-          {data.source === 'auto' && <span className="text-xs text-muted-foreground">{t(`${L}.auto`)}</span>}
+          {data.source === 'auto' && <span className="text-xs text-muted-foreground">{autoLabel ?? t(`${L}.auto`)}</span>}
           <span className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" className="max-sm:h-11" disabled={busy} onClick={() => setLink.mutate(null)}>
+            <Button type="button" variant="outline" size="sm" className="max-sm:h-11" disabled={busy} onClick={() => onChoose(null)}>
               {t(`${L}.unlink`)}
             </Button>
             <FilePicker triggerText={t(`${L}.change`)} excludeId={data.client.id} disabled={busy} onChoose={choose} />

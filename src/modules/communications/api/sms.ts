@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 import { invokeFunction } from '@/core/supabase/functions'
+import { threadLinkSchema, type ThreadLink } from './client-links'
 
 /**
  * « Textos » (batch SM; *_communications_sms.sql): the threads (`sms_threads`, one row per number),
@@ -43,6 +44,11 @@ const threadSchema = z
     message_count: z.number().int(),
     last_inbound_at: z.string().nullable(),
     consent_status: consentStatus,
+    // SM-15: the thread's file (null without one, or without clients.view).
+    link_status: z.enum(['unlinked', 'needs_review', 'linked']).default('unlinked'),
+    client_id: z.string().nullable().default(null),
+    client_number: z.number().int().nullable().default(null),
+    client_name: z.string().nullable().default(null),
   })
   .transform((r) => ({
     phone: r.peer_e164,
@@ -55,6 +61,8 @@ const threadSchema = z
     messageCount: r.message_count,
     lastInboundAt: r.last_inbound_at,
     consent: r.consent_status,
+    linkStatus: r.link_status,
+    client: r.client_id && r.client_name !== null ? { id: r.client_id, clientNumber: r.client_number, name: r.client_name } : null,
   }))
 export type SmsThread = z.output<typeof threadSchema>
 
@@ -93,15 +101,66 @@ const messageSchema = z
   }))
 export type SmsMessage = z.output<typeof messageSchema>
 
-/** The clinic's threads, the latest first (RLS: the caller's clinic, `communications.sms`). */
-export async function listSmsThreads(): Promise<SmsThread[]> {
-  const { data, error } = await supabase
-    .from('sms_threads')
-    .select('peer_e164, last_message_at, last_direction, last_status, last_body, last_body_purged, last_has_media, message_count, last_inbound_at, consent_status')
-    .order('last_message_at', { ascending: false })
-    .limit(THREADS_LIMIT)
+/** « Toutes » or « À rattacher » (SM-15: not linked, never unlinked by a person). */
+export const SMS_VIEWS = ['all', 'to_link'] as const
+export type SmsView = (typeof SMS_VIEWS)[number]
+
+/**
+ * The clinic's threads, the latest first (200 at most), with their file (`list_sms_conversations`,
+ * invoker: the caller's clinic and `communications.sms`; a file's name only with `clients.view`).
+ * `search`: a file's name, or 3 digits or more of the number. An RPC, so neither the search nor a
+ * number ever goes in a URL.
+ */
+export async function listSmsThreads(view: SmsView = 'all', search = ''): Promise<SmsThread[]> {
+  const { data, error } = await supabase.rpc('list_sms_conversations', { p_view: view, p_search: search.trim() || undefined })
   if (error) throw error
-  return parse(z.array(threadSchema), data)
+  // The RPC names the number `phone`; the thread's schema reads it as the view did (`peer_e164`).
+  const rows = Array.isArray(data) ? (data as Record<string, unknown>[]).map(({ phone, ...r }) => ({ ...r, peer_e164: phone })) : data
+  return parse(z.array(threadSchema), rows)
+}
+
+/** A number's file (SM-15): linked, to review with its candidates, or none. */
+export async function getSmsThreadLink(phone: string): Promise<ThreadLink> {
+  const { data, error } = await supabase.rpc('get_sms_thread_link', { p_phone: phone })
+  if (error) throw error
+  return parse(threadLinkSchema, data)
+}
+
+/** « Rattacher » (a file's id) or « Détacher » (null): a person's choice, never undone by a later text. */
+export async function setSmsThreadLink(phone: string, clientId: string | null): Promise<void> {
+  const { error } = clientId
+    ? await supabase.rpc('link_sms_thread', { p_phone: phone, p_client_id: clientId })
+    : await supabase.rpc('unlink_sms_thread', { p_phone: phone })
+  if (error) throw error
+}
+
+export const CLIENT_NUMBER_KINDS = ['mobile', 'home', 'work', 'linked'] as const
+export type ClientNumberKind = (typeof CLIENT_NUMBER_KINDS)[number]
+
+const clientNumberSchema = z
+  .object({
+    phone: z.string(),
+    kind: z.enum(CLIENT_NUMBER_KINDS),
+    consent_status: consentStatus,
+    message_count: z.number().int(),
+    last_message_at: z.string().nullable(),
+    link_status: z.enum(['unlinked', 'needs_review', 'linked']),
+  })
+  .transform((r) => ({
+    phone: r.phone,
+    kind: r.kind,
+    consent: r.consent_status,
+    messageCount: r.message_count,
+    lastMessageAt: r.last_message_at,
+    linkStatus: r.link_status,
+  }))
+export type ClientNumber = z.output<typeof clientNumberSchema>
+
+/** A file's numbers and threads (SM-16, `list_client_sms`: communications.sms and clients.view). */
+export async function listClientSms(clientId: string): Promise<ClientNumber[]> {
+  const { data, error } = await supabase.rpc('list_client_sms', { p_client_id: clientId })
+  if (error) throw error
+  return parse(z.array(clientNumberSchema), data)
 }
 
 /**
