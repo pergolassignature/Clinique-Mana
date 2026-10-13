@@ -159,7 +159,10 @@ select functions_are('public', array[
   'prepare_client_consent_request_for_service', 'open_client_consent_for_service', 'start_client_consent_signing_for_service',
   'client_consent_reminders_for_service', 'import_client_consent_fact_for_service', 'resolve_client_consent_link',
   -- Clients, batch I1 (the GOrendezvous import).
-  'import_client', 'import_client_relation'
+  'import_client', 'import_client_relation',
+  -- Demandes, batch D3c (the booking page).
+  'get_demandes_booking_settings', 'set_demandes_booking_settings', 'demandes_booking_page_for_service',
+  'book_discovery_call_for_service', 'cancel_discovery_call_for_service', 'resolve_discovery_call_link'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

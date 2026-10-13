@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { demandesManifest } from './index'
+import { bookingCancelPublicPage, bookingPublicPage, demandesManifest } from './index'
 
 describe('demandesManifest', () => {
-  it('uses the English module key, depends on clients and professionals, and has no screen yet (D1)', () => {
+  it('uses the English module key and depends on clients and professionals', () => {
     expect(demandesManifest.key).toBe('demandes')
     expect(t(demandesManifest.labelKey)).toBe('Demandes')
     expect(demandesManifest.dependsOn).toEqual(['clients', 'professionals'])
-    expect(demandesManifest.routes).toEqual([])
-    expect(demandesManifest.settingsSections).toEqual([])
+  })
+
+  it('Paramètres → Appels découverte (D3c): seen with demandes.view, changed with demandes.manage; the public pages are lazy', () => {
+    expect(demandesManifest.settingsSections.map((s) => [s.id, s.path, s.permission, s.editPermission, s.group, t(s.labelKey)])).toEqual([
+      ['booking', 'appels-decouverte', 'demandes.view', 'demandes.manage', 'modules', 'Appels découverte'],
+    ])
+    expect(typeof bookingPublicPage.preload).toBe('function')
+    expect(typeof bookingCancelPublicPage.preload).toBe('function')
   })
 
   it('names its audited tables, columns and codes for the Journal d’audit, in its own chunk', async () => {

@@ -72,6 +72,17 @@ insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'clients', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111');
 
+-- Local discovery-call booking (Demandes D3c): open, every day 8 h – 20 h, 30-minute calls, two at
+-- once, an hour's notice, two weeks ahead, so /appel-decouverte?clinique=00000000-0000-0000-0000-000000000001
+-- always offers slots locally (e2e/booking.spec.ts).
+insert into public.org_module_settings (org_id, module_key, settings, updated_by)
+values ('00000000-0000-0000-0000-000000000001', 'demandes',
+        jsonb_build_object('booking', jsonb_build_object(
+          'enabled', true, 'slot_minutes', 30, 'notice_hours', 1, 'horizon_days', 14, 'capacity', 2,
+          'weekly', (select jsonb_agg(jsonb_build_object('day', d, 'start', '08:00', 'end', '20:00') order by d) from generate_series(1, 7) d))),
+        '11111111-1111-1111-1111-111111111111')
+on conflict (org_id, module_key) do update set settings = public.org_module_settings.settings || excluded.settings;
+
 -- Local Vault secrets for pg_net → edge functions (fake values; staging gets real ones, plan « Mise en service »).
 select vault.create_secret('http://supabase_kong_clinique-mana:8000', 'project_url', 'Local: Kong as seen from the DB container');
 select vault.create_secret('local-dev-internal-function-secret', 'internal_function_secret', 'Local: matches supabase/functions/.env');
