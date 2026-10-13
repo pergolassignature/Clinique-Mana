@@ -16,6 +16,10 @@ export const BILLING_AUDITED_TABLES = [
   'special_agreements',
   'billing_queue_items',
   'billing_deliveries',
+  // F3: reminders, cancellation fees, refunds.
+  'billing_dunning_runs',
+  'cancellation_fee_decisions',
+  'refunds',
   'billing_payer_defaults',
   'invoice_sequences',
   'payment_modes',

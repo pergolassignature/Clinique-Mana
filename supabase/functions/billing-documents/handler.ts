@@ -27,7 +27,8 @@
  *    (`register_system_file`, purpose `billing_document`, subject the
  *    document; a failed upload discards the row); then the email when the
  *    database names one (`billing.<kind>`, `_en` in English, the PDF
- *    attached; the template's module reserved → set aside `reserved`, CC-14);
+ *    attached; a reminder (F3): `billing.reminder`, its invoice's PDF, the days
+ *    and the balance; the template's module reserved → set aside `reserved`, CC-14);
  *    `finish_billing_delivery_for_service` with the outcome: a failure is a
  *    code, tried again by the database (10, 20 minutes), failed at the
  *    third try.
@@ -58,6 +59,7 @@ import {
   billingDocumentSchema,
   billingEmail,
   billingPdf,
+  billingReminderEmail,
   documentLanguage,
   documentTitle,
 } from './document.ts'
@@ -70,6 +72,14 @@ export const BATCH_LIMIT = 25
 const SOFT_DEADLINE_MS = 45_000
 
 const KIND = z.enum(['invoice', 'credit_note', 'receipt', 'statement'])
+/** A delivery's kind: a document, or a reminder (F3), which prints and attaches its invoice. */
+const DELIVERY_KIND = z.enum([
+  'invoice',
+  'credit_note',
+  'receipt',
+  'statement',
+  'reminder',
+])
 
 const bodySchema = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('deliver') }),
@@ -80,7 +90,7 @@ const fileRef = z.object({ bucket: z.string(), object_path: z.string() })
 
 const deliverySchema = z.object({
   delivery_id: z.string(),
-  kind: KIND,
+  kind: DELIVERY_KIND,
   document_id: z.string(),
   explicit: z.boolean(),
   document: z.unknown(),
@@ -92,6 +102,12 @@ const deliverySchema = z.object({
     language: z.string().nullable(),
   }).nullable(),
   skip_reason: z.enum(['not_requested', 'no_email', 'reserved']).nullable(),
+  reminder: z.object({
+    step: z.number().int(),
+    days: z.number().int(),
+    balance_cents: z.number().int(),
+  })
+    .nullable().optional(),
 })
 
 const registeredSchema = z.object({
@@ -366,7 +382,15 @@ async function deliverOne(
         assets,
       )
       bytes = pdf.bytes
-      newFileId = await store(client, orgId, d.kind, d.document_id, doc, bytes)
+      // A reminder's PDF is its invoice's, stored on the invoice.
+      newFileId = await store(
+        client,
+        orgId,
+        d.kind === 'reminder' ? 'invoice' : d.kind,
+        d.document_id,
+        doc,
+        bytes,
+      )
     }
   } catch (error) {
     const code = error instanceof DeliveryFailure ? error.code : 'render_failed'
@@ -384,7 +408,15 @@ async function deliverOne(
     return true
   }
 
-  const email = billingEmail(doc, d.email.first_name ?? doc.payer.name)
+  const firstName = d.email.first_name ?? doc.payer.name
+  const email = d.kind === 'reminder' && d.reminder
+    ? billingReminderEmail(
+      doc,
+      firstName,
+      d.reminder.days,
+      d.reminder.balance_cents,
+    )
+    : billingEmail(doc, firstName)
   let result: SendResult | null = null
   try {
     result = await sendTemplatedEmail(
@@ -393,7 +425,10 @@ async function deliverOne(
         orgId,
         templateKey: email.templateKey,
         to: { email: d.email.to, profileId: null },
-        subject: { type: d.kind, id: d.document_id },
+        subject: {
+          type: d.kind === 'reminder' ? 'invoice' : d.kind,
+          id: d.document_id,
+        },
         values: email.values,
         actionUrl: null,
         sentBy: null,

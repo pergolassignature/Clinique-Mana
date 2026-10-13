@@ -165,6 +165,9 @@ select functions_are('public', array[
   'billing_deliveries_for_service', 'billing_document_for_service', 'finish_billing_delivery_for_service',
   'discard_billing_file_for_service', 'set_professional_supervisor',
   'billing_sync_events_for_service', 'finish_billing_sync_event_for_service',
+  -- Facturation, batch F3.
+  'set_billing_dunning', 'decide_cancellation_fee', 'list_fee_decisions', 'list_overdue_invoices', 'refund_payment',
+  'refunds_for_service', 'finish_refund_for_service',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

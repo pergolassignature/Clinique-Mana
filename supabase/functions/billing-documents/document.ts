@@ -719,3 +719,26 @@ export function billingEmail(
     },
   }
 }
+
+/** A reminder's email (F3, R-58): its invoice's PDF, the days since the due date, the balance. */
+export function billingReminderEmail(
+  doc: BillingDocument,
+  recipientFirstName: string,
+  days: number,
+  balanceCents: number,
+): { templateKey: string; values: Record<string, unknown>; filename: string } {
+  const language = documentLanguage(doc)
+  const invoice = billingEmail(doc, recipientFirstName)
+  return {
+    templateKey: `billing.reminder${language === 'en' ? '_en' : ''}`,
+    filename: invoice.filename,
+    values: {
+      ...invoice.values,
+      document: {
+        number: doc.kind === 'statement' ? '' : (doc.number ?? ''),
+        amount: money(balanceCents, language),
+        days: String(days),
+      },
+    },
+  }
+}

@@ -8641,7 +8641,10 @@
           "payout_periods": "Sommaires de paie",
           "payout_lines": "Lignes de paie",
           "professional_invoices": "Factures des professionnels",
-          "payout_service_rules": "Règles de paie"
+          "payout_service_rules": "Règles de paie",
+          "billing_dunning_runs": "Relances",
+          "cancellation_fee_decisions": "Frais d'annulation",
+          "refunds": "Remboursements"
         },
         "fields": {
           "invoices": {
@@ -8784,7 +8787,10 @@
             "finished_at": "Terminé le"
           },
           "billing_settings": {
-            "queue_from": "File du matin à partir du"
+            "queue_from": "File du matin à partir du",
+            "dunning_from": "Relances à partir du",
+            "dunning_days": "Jours de relance",
+            "block_after_days": "Rendez-vous refusés après (jours)"
           },
           "qbo_connections": {
             "realm_id": "Numéro de l'entreprise",
@@ -8891,6 +8897,36 @@
             "service_id": "Service",
             "rule": "Règle",
             "updated_by": "Modifiée par"
+          },
+          "billing_dunning_runs": {
+            "invoice_id": "Facture",
+            "step": "Relance (jours)",
+            "run_on": "Le",
+            "delivery_id": "Envoi"
+          },
+          "cancellation_fee_decisions": {
+            "appointment_id": "Rendez-vous",
+            "client_id": "Dossier",
+            "professional_id": "Professionnel",
+            "kind": "Type",
+            "status": "Décision",
+            "fee_percent": "Pourcentage",
+            "amount_cents": "Montant",
+            "invoice_id": "Facture",
+            "decided_as": "Décidé par",
+            "decided_by": "Décidé par (personne)",
+            "decided_at": "Décidé le",
+            "note": "Note"
+          },
+          "refunds": {
+            "payment_id": "Paiement",
+            "invoice_id": "Facture",
+            "amount_cents": "Montant",
+            "reason": "Raison",
+            "status": "État",
+            "provider_ref": "Référence du fournisseur",
+            "error_code": "Erreur",
+            "processed_at": "Traité le"
           }
         },
         "values": {
@@ -8946,7 +8982,8 @@
               "invoice": "Facture",
               "credit_note": "Note de crédit",
               "receipt": "Reçu",
-              "statement": "Relevé"
+              "statement": "Relevé",
+              "reminder": "Relance"
             },
             "status": {
               "pending": "À faire",
@@ -9061,6 +9098,29 @@
               "other_fees": "Autres frais",
               "workshop": "Ateliers et conférences",
               "none": "Non payé"
+            }
+          },
+          "cancellation_fee_decisions": {
+            "kind": {
+              "late_cancellation": "Annulation tardive",
+              "no_show": "Absence"
+            },
+            "status": {
+              "pending": "À décider",
+              "applied": "Frais appliqués",
+              "waived": "Pas facturés"
+            },
+            "decided_as": {
+              "professional": "Le professionnel",
+              "staff": "L'équipe",
+              "automatic": "Automatique"
+            }
+          },
+          "refunds": {
+            "status": {
+              "recorded": "Remboursé",
+              "pending_provider": "En attente de Stripe",
+              "failed": "Échec"
             }
           }
         },

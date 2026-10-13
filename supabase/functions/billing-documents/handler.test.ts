@@ -291,6 +291,37 @@ Deno.test('billing-documents: a stored PDF is reused (no new file); no address o
   })
 })
 
+Deno.test('billing-documents: a reminder (F3) attaches its invoice\u2019s PDF, stored on the invoice, with the days and the balance', async () => {
+  await run(async () => {
+    const { handler, service, http } = harness({
+      deliveries: [
+        delivery(13, {
+          kind: 'reminder',
+          reminder: { step: 10, days: 12, balance_cents: 17349 },
+        }),
+      ],
+    })
+    await handler(await jobRequest())
+    assertEquals(
+      callsTo(service.calls, 'get_email_context').map((a) => a.p_template_key),
+      ['billing.reminder'],
+    )
+    const [registered] = callsTo(service.calls, 'register_system_file')
+    assertEquals([registered.p_subject_type, registered.p_subject_id], [
+      'invoice',
+      rid(1),
+    ])
+    const sent = JSON.stringify(http.calls[0])
+    assert(sent.includes('Facture 2026-412.pdf'), 'the invoice attached')
+    assertEquals(
+      callsTo(service.calls, 'finish_billing_delivery_for_service').map((a) =>
+        a.p_email_status
+      ),
+      ['sent'],
+    )
+  })
+})
+
 Deno.test('billing-documents: an email core holds (Facturation reserved, P3-40, CC-14) is set aside, never retried', async () => {
   await run(async () => {
     const { handler, service, http } = harness({ moduleOpen: false })
