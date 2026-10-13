@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import type { DocumentTemplateSummary, TemplateVersion } from '@/core/signing/templates/api'
 import { accessForRole } from '@/test/role-fixtures'
 import { renderInSettingsSection } from '@/test/settings-section'
 import { clientsManifest } from '../../manifest'
@@ -19,13 +20,67 @@ const mocks = vi.hoisted(() => ({
     saveConsentSettings: vi.fn(),
     publishConsentVersion: vi.fn(),
   },
+  templates: {
+    listModuleTemplates: vi.fn(),
+    fetchTemplateVersions: vi.fn(),
+    updateTemplateVersion: vi.fn(),
+    publishTemplateVersion: vi.fn(),
+  },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../api/consents', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
+vi.mock('@/core/signing/templates/api', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.templates }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const S = 'modules.clients.consents.settings'
+const ED = `${S}.editor`
+/** The shared editor's own words (core, CC-12). */
+const G = 'signing.templates.editor'
+
+/** « Liste d'attente » in English, as core lists it: a draft, never published. */
+const SUMMARY: DocumentTemplateSummary = {
+  id: 'tw-en',
+  key: 'clients.consent_waitlist_en',
+  title: 'Waitlist (anglais)',
+  description: null,
+  isActive: true,
+  canEdit: true,
+  publishedVersion: null,
+  publishedAt: null,
+  draftVersionId: 'vwe1',
+}
+
+/** The seeded placeholder's shape (migration clients_consents): the provisional line, the clauses, the signature page. */
+function placeholderVersion({ provisional = true } = {}): TemplateVersion {
+  return {
+    id: 'vwe1',
+    version: 1,
+    status: 'draft',
+    body: {
+      title: 'Waitlist',
+      footer: { text: '{{clinic.name}} — Waitlist' },
+      blocks: [
+        ...(provisional ? [{ type: 'paragraph', runs: [{ text: 'Texte provisoire — Provisional text.', bold: true }] }] : []),
+        { type: 'heading', level: 1, text: 'Waitlist' },
+        { type: 'paragraph', runs: [{ text: '{{consent.clauses}}' }] },
+        { type: 'signaturePage', signers: [{ role: 'client', label: '{{signer.full_name}}' }] },
+      ],
+    },
+    variables: [
+      { path: 'clinic.name', label: 'Nom de la clinique', sample: 'Clinique MANA', required: true, kind: 'text' },
+      { path: 'signer.full_name', label: 'Nom de la personne qui signe', sample: 'Camille Exemple', required: true, kind: 'text' },
+      { path: 'consent.clauses', label: 'Réponses aux clauses (Oui / Non)', sample: 'Oui', required: false, kind: 'text' },
+    ],
+    signers: [{ role: 'client', label: 'Client, ou parent ou tuteur', order: 1, required: true }],
+    emailSubject: 'Waitlist — {{clinic.name}}',
+    emailMessage: '',
+    createdAt: '2026-10-12T12:00:00Z',
+    updatedAt: '2026-10-12T12:00:00Z',
+    publishedAt: null,
+    archivedAt: null,
+  }
+}
 
 beforeEach(() => {
   mocks.api.fetchConsentTypes.mockResolvedValue(TYPES)
@@ -35,6 +90,9 @@ beforeEach(() => {
   mocks.api.saveConsentRule.mockResolvedValue('r1')
   mocks.api.saveConsentSettings.mockImplementation(async (patch: object) => ({ ...SETTINGS, ...patch }))
   mocks.api.publishConsentVersion.mockResolvedValue(3)
+  mocks.templates.listModuleTemplates.mockResolvedValue([SUMMARY])
+  mocks.templates.fetchTemplateVersions.mockResolvedValue([placeholderVersion()])
+  mocks.templates.updateTemplateVersion.mockResolvedValue(undefined)
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -134,6 +192,52 @@ describe('ConsentsSettingsPage', () => {
     )
   })
 
+  it('« Modifier le texte » opens the text in the shared editor: the provisional line said, the answers\' table shown, no « Publier » there (CC-11, CC-12)', async () => {
+    renderPage()
+    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
+    expect(within(texts).getAllByRole('button', { name: new RegExp(`^${t(`${S}.texts.editLabel`, { name: '' })}`) })).toHaveLength(4)
+    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
+    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
+    await waitFor(() => expect(within(editor).getByRole('heading', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })).toHaveFocus())
+    expect(mocks.templates.fetchTemplateVersions).toHaveBeenCalledWith('tw-en')
+    expect(await within(editor).findByText(t(`${ED}.bannerNotice`, { banner: 'Texte provisoire' }))).toBeInTheDocument()
+    expect(within(editor).getByText(t(`${ED}.clausesNote`))).toBeInTheDocument()
+    expect(within(editor).queryByRole('button', { name: t(`${G}.publish`, { version: '1' }) })).not.toBeInTheDocument()
+    // Never published: discarding the draft would leave nothing to copy.
+    expect(within(editor).queryByRole('button', { name: t(`${G}.discard`, { version: '1' }) })).not.toBeInTheDocument()
+    const frame = within(editor).getByTitle(t(`${G}.preview.frameTitle`))
+    expect(frame.getAttribute('srcdoc')).toContain('accord requis')
+  })
+
+  it('saving the text replaces the provisional line and refreshes « Textes » (where « Publier » then shows)', async () => {
+    renderPage()
+    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
+    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
+    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
+    const body = await within(editor).findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })
+    const markup = (body as HTMLTextAreaElement).value
+    expect(markup).toContain('Texte provisoire')
+    mocks.api.fetchConsentTemplates.mockClear()
+    fireEvent.change(body, { target: { value: markup.replace(/^\*\*Texte provisoire[^\n]*\n\n/, '') } })
+    expect(within(editor).queryByText(t(`${ED}.bannerNotice`, { banner: 'Texte provisoire' }))).not.toBeInTheDocument()
+    await userEvent.click(within(editor).getByRole('button', { name: t(`${G}.save`) }))
+    await waitFor(() => expect(mocks.templates.updateTemplateVersion).toHaveBeenCalledTimes(1))
+    const [versionId, content] = mocks.templates.updateTemplateVersion.mock.calls[0]!
+    expect(versionId).toBe('vwe1')
+    expect(JSON.stringify(content)).not.toContain('Texte provisoire')
+    expect(JSON.stringify(content)).toContain('{{consent.clauses}}')
+    await waitFor(() => expect(mocks.api.fetchConsentTemplates).toHaveBeenCalled())
+  })
+
+  it('« Fermer le texte » closes the editor', async () => {
+    renderPage()
+    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
+    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
+    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
+    await userEvent.click(within(editor).getByRole('button', { name: t(`${ED}.close`) }))
+    expect(screen.queryByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })).not.toBeInTheDocument()
+  })
+
   it('read-only: no « Publier », the switches and the frequencies read only (not disabled), no save', async () => {
     renderPage({ readOnly: true })
     await screen.findByRole('heading', { name: t(`${S}.texts.title`) })
@@ -145,5 +249,10 @@ describe('ConsentsSettingsPage', () => {
     expect(mocks.api.saveConsentRule).not.toHaveBeenCalled()
     expect(screen.queryByRole('combobox', { name: t(`${S}.rules.frequency`) })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
+    // The texts can still be read: « Voir le texte », in a read-only editor.
+    await userEvent.click(screen.getByRole('button', { name: t(`${S}.texts.viewLabel`, { name: 'Liste d’attente (anglais)' }) }))
+    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
+    expect(await within(editor).findByText(t(`${ED}.readOnlyHelp`))).toBeInTheDocument()
+    expect(within(editor).queryByRole('button', { name: t(`${G}.save`) })).not.toBeInTheDocument()
   })
 })

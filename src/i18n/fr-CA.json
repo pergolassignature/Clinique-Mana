@@ -440,6 +440,83 @@
         "openInPage": "Open it as a full page",
         "close": "Close the signing page"
       }
+    },
+    "templates": {
+      "editor": {
+        "loadError": "Les versions du modèle n'ont pas pu être chargées.",
+        "unreadable": "Cette version n'a pas la forme attendue : elle ne peut pas être affichée ici.",
+        "versions": {
+          "title": "Versions",
+          "description": "Une seule version est publiée à la fois; un brouillon se modifie jusqu'à sa publication.",
+          "draft": "Version {version} · brouillon, modifié le {date}",
+          "published": "Version {version} · publiée le {date}",
+          "archived": "Version {version} · retirée le {date}",
+          "inUse": "Utilisée pour les envois",
+          "editing": "En modification"
+        },
+        "newVersion": "Nouvelle version",
+        "newVersionFrom": "Nouvelle version (copie de la version {version})",
+        "discard": "Supprimer le brouillon {version}",
+        "save": "Enregistrer le brouillon",
+        "saving": "Enregistrement…",
+        "publish": "Publier la version {version}",
+        "publishBlocked": {
+          "unsaved": "Enregistrez le brouillon avant de le publier."
+        },
+        "unknownPlaceholders": "Ces variables n'existent pas : {names}. Utilisez celles de la liste « Variables ».",
+        "form": {
+          "titleDraft": "Brouillon de la version {version}",
+          "titlePublished": "Version {version} publiée (lecture seule)",
+          "titleArchived": "Version {version} retirée (lecture seule)",
+          "descriptionDraft": "Modifiez le texte, enregistrez, vérifiez l'aperçu, puis publiez.",
+          "descriptionReadOnly": "Une version publiée ou retirée ne change plus. Créez une nouvelle version pour modifier le texte.",
+          "title": "Titre du document",
+          "header": "En-tête des pages",
+          "headerHelp": "Affiché en haut de chaque page.",
+          "footer": "Pied de page",
+          "footerHelp": "Affiché au bas de chaque page, avant « Page x de y ».",
+          "initialsOn": "Oui",
+          "initialsOff": "Non (signature et date seulement)",
+          "body": "Texte du document",
+          "bodyHelp": "Une ligne vide sépare les paragraphes. # Titre, ## Sous-titre, ### Intertitre; - pour une liste, 1. pour une liste numérotée; | a | b | pour un tableau; --- pour un saut de page; **gras**. La page des signatures est ajoutée à la fin.",
+          "emailSubject": "Objet du courriel de signature",
+          "emailSubjectHelp": "Envoyé par Documenso, en français, avec le lien de signature.",
+          "emailMessage": "Message du courriel de signature"
+        },
+        "variables": {
+          "title": "Variables",
+          "description": "Copiez une variable telle quelle dans le texte : elle est remplacée par la valeur du dossier ou des paramètres au moment de l'envoi.",
+          "markup": "Une valeur requise vide empêche l'envoi, avec le nom de l'information à compléter."
+        },
+        "preview": {
+          "title": "Aperçu",
+          "description": "Avec des valeurs d'exemple. Le PDF envoyé suit la même structure, mis en page en format lettre.",
+          "frameTitle": "Aperçu du document",
+          "initials": "Initiales",
+          "signature": "Signature",
+          "date": "Date",
+          "page": "Page 1 de 7"
+        },
+        "confirm": {
+          "publish": {
+            "title": "Publier la version {version} ?",
+            "body": "Les prochains envois utiliseront cette version. Les documents déjà envoyés ne changent pas.",
+            "action": "Publier la version {version}"
+          },
+          "discard": {
+            "title": "Supprimer le brouillon {version} ?",
+            "body": "Les modifications de ce brouillon seront perdues. La version publiée ne change pas.",
+            "action": "Supprimer le brouillon"
+          }
+        },
+        "saveError": "Impossible d’enregistrer : réessayez."
+      },
+      "toasts": {
+        "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
+        "draftSaved": "Brouillon enregistré.",
+        "published": "Version publiée : les prochains envois l'utiliseront.",
+        "archived": "Version retirée."
+      }
     }
   },
   "address": {
@@ -3526,62 +3603,20 @@
             "link": "Modifier dans Paramètres → Signataire"
           },
           "editor": {
-            "loadError": "Les versions du modèle n'ont pas pu être chargées.",
-            "unreadable": "Cette version n'a pas la forme attendue : elle ne peut pas être affichée ici.",
-            "versions": {
-              "title": "Versions",
-              "description": "Une seule version est publiée à la fois; un brouillon se modifie jusqu'à sa publication.",
-              "draft": "Version {version} · brouillon, modifié le {date}",
-              "published": "Version {version} · publiée le {date}",
-              "archived": "Version {version} · retirée le {date}",
-              "inUse": "Utilisée pour les envois",
-              "editing": "En modification"
-            },
-            "newVersion": "Nouvelle version",
-            "newVersionFrom": "Nouvelle version (copie de la version {version})",
-            "discard": "Supprimer le brouillon {version}",
-            "save": "Enregistrer le brouillon",
-            "saving": "Enregistrement…",
-            "publish": "Publier la version {version}",
+            "annexeMissing": "Le tableau de l'Annexe A ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : il ne serait pas imprimé.",
+            "bannerNotice": "Ce brouillon commence par « {banner} ». Faites valider le texte par la direction, retirez cette ligne, enregistrez, puis publiez.",
             "publishBlocked": {
-              "unsaved": "Enregistrez le brouillon avant de le publier.",
               "banner": "Retirez la ligne de validation avant de publier : le texte doit d'abord être validé par la direction.",
               "annexe": "Ajoutez {placeholder} seul sur une ligne avant de publier : c'est là que s'imprime l'Annexe A."
             },
-            "bannerNotice": "Ce brouillon commence par « {banner} ». Faites valider le texte par la direction, retirez cette ligne, enregistrez, puis publiez.",
-            "unknownPlaceholders": "Ces variables n'existent pas : {names}. Utilisez celles de la liste « Variables ».",
-            "annexeMissing": "Le tableau de l'Annexe A ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : il ne serait pas imprimé.",
             "form": {
-              "titleDraft": "Brouillon de la version {version}",
-              "titlePublished": "Version {version} publiée (lecture seule)",
-              "titleArchived": "Version {version} retirée (lecture seule)",
-              "descriptionDraft": "Modifiez le texte, enregistrez, vérifiez l'aperçu, puis publiez.",
-              "descriptionReadOnly": "Une version publiée ou retirée ne change plus. Créez une nouvelle version pour modifier le texte.",
-              "title": "Titre du document",
-              "header": "En-tête des pages",
-              "headerHelp": "Affiché en haut de chaque page.",
-              "footer": "Pied de page",
-              "footerHelp": "Affiché au bas de chaque page, avant « Page x de y ».",
               "initials": "Initiales du professionnel sur chaque page",
-              "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page.",
-              "initialsOn": "Oui",
-              "initialsOff": "Non (signature et date seulement)",
-              "body": "Texte du document",
-              "bodyHelp": "Une ligne vide sépare les paragraphes. # Titre, ## Sous-titre, ### Intertitre; - pour une liste, 1. pour une liste numérotée; | a | b | pour un tableau; --- pour un saut de page; **gras**. La page des signatures est ajoutée à la fin.",
-              "emailSubject": "Objet du courriel de signature",
-              "emailSubjectHelp": "Envoyé par Documenso, en français, avec le lien de signature.",
-              "emailMessage": "Message du courriel de signature"
+              "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page."
             },
             "variables": {
-              "title": "Variables",
-              "description": "Copiez une variable telle quelle dans le texte : elle est remplacée par la valeur du dossier ou des paramètres au moment de l'envoi.",
-              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel.",
-              "markup": "Une valeur requise vide empêche l'envoi, avec le nom de l'information à compléter."
+              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel."
             },
             "preview": {
-              "title": "Aperçu",
-              "description": "Avec des valeurs d'exemple. Le PDF envoyé suit la même structure, mis en page en format lettre.",
-              "frameTitle": "Aperçu du document",
               "annexeCaption": "Exemple : les tableaux réels viennent de la grille de rémunération du professionnel.",
               "annexeColumns": {
                 "sessions": "Séances cumulées",
@@ -3593,22 +3628,6 @@
                 "first": "0 à 50 séances",
                 "second": "51 à 100 séances",
                 "last": "301 séances et plus"
-              },
-              "initials": "Initiales",
-              "signature": "Signature",
-              "date": "Date",
-              "page": "Page 1 de 7"
-            },
-            "confirm": {
-              "publish": {
-                "title": "Publier la version {version} ?",
-                "body": "Les prochains envois utiliseront cette version. Les documents déjà envoyés ne changent pas.",
-                "action": "Publier la version {version}"
-              },
-              "discard": {
-                "title": "Supprimer le brouillon {version} ?",
-                "body": "Les modifications de ce brouillon seront perdues. La version publiée ne change pas.",
-                "action": "Supprimer le brouillon"
               }
             }
           }
@@ -4292,11 +4311,7 @@
           "renew": "Nouveau contrat envoyé à {firstName}. Le contrat signé actuel reste en vigueur jusqu'à sa signature.",
           "resend": "Courriel de signature renvoyé à {firstName}.",
           "paperRecorded": "Contrat signé hors application ajouté au dossier.",
-          "paperReplaced": "Contrat remplacé : l'ancien est dans « Contrats précédents ».",
-          "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
-          "draftSaved": "Brouillon enregistré.",
-          "published": "Version publiée : les prochains envois l'utiliseront.",
-          "archived": "Version retirée."
+          "paperReplaced": "Contrat remplacé : l'ancien est dans « Contrats précédents »."
         },
         "errors": {
           "missingVariable": "Le contrat ne peut pas être préparé : « {label} » est vide. Complétez le dossier ou les paramètres, puis réessayez.",
@@ -5609,7 +5624,11 @@
             "english": "Anglais",
             "line": "{language} : {state}",
             "placeholder": "Texte provisoire : à remplacer par le texte validé avant de publier",
-            "editNote": "Les textes affichés sont provisoires. Ils se publient une fois remplacés par les textes validés par la direction."
+            "editNote": "Les textes affichés sont provisoires. Remplacez chacun par le texte validé par la direction (« Modifier le texte »), enregistrez, puis publiez-le.",
+            "edit": "Modifier le texte",
+            "view": "Voir le texte",
+            "editLabel": "Modifier le texte : {name}",
+            "viewLabel": "Voir le texte : {name}"
           },
           "rules": {
             "title": "Quand demander",
@@ -5645,6 +5664,25 @@
             "retentionHelp": "La politique décidée par la direction (texte libre). Rien n’est effacé automatiquement.",
             "invalid": "Indiquez un nombre entier dans les limites.",
             "retentionTooLong": "La politique tient en 500 caractères au plus."
+          },
+          "editor": {
+            "title": "Texte : {name}",
+            "help": "Modifiez le brouillon et enregistrez-le, puis publiez-le dans « Textes » : vous y choisissez qui doit signer de nouveau.",
+            "readOnlyHelp": "Lecture seule : seule une personne qui gère les clients peut modifier ce texte.",
+            "close": "Fermer le texte",
+            "loadError": "Impossible de charger ce texte.",
+            "bannerNotice": "Ce brouillon est encore le texte provisoire (« {banner} »). Remplacez-le par le texte validé par la direction et retirez cette ligne : « Publier » apparaîtra ensuite dans « Textes ».",
+            "clausesNote": "Seule sur une ligne, elle devient le tableau des clauses et des réponses du client (Oui / Non).",
+            "clausesMissing": "Le tableau des réponses ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : les réponses du client ne seraient pas imprimées.",
+            "sample": {
+              "caption": "Exemple : le tableau réel reprend les clauses de ce consentement et les réponses du client.",
+              "clause": "Clause",
+              "answer": "Réponse",
+              "first": "J'ai lu ce consentement et je l'accepte. (accord requis)",
+              "second": "J'accepte de recevoir les rappels par courriel.",
+              "yes": "Oui",
+              "no": "Non"
+            }
           }
         },
         "page": {
@@ -7812,6 +7850,128 @@
           "bodyNoList": "Vous êtes sur la liste d'attente de {clinic}. Souhaitez-vous y rester ?",
           "stay": "Oui, je reste sur la liste",
           "leave": "Non, retirez-moi de la liste"
+        }
+      }
+    },
+    "appointments": {
+      "name": "Rendez-vous",
+      "audit": {
+        "tables": {
+          "appointments": "Rendez-vous",
+          "appointment_participants": "Clients des rendez-vous",
+          "availability_rules": "Disponibilités",
+          "availability_exceptions": "Exceptions aux disponibilités",
+          "cancellation_reasons": "Raisons d'annulation",
+          "appointment_settings": "Heures d'ouverture et réglages de l'agenda"
+        },
+        "fields": {
+          "appointments": {
+            "professional_id": "Professionnel",
+            "service_id": "Service",
+            "starts_at": "Début",
+            "ends_at": "Fin de la séance",
+            "blocks_until": "Fin de la pause après",
+            "mode": "Mode",
+            "state": "État",
+            "is_personal": "Rendez-vous personnel",
+            "is_work": "Rendez-vous de travail",
+            "personal_label": "Libellé",
+            "internal_note": "Note interne",
+            "client_message": "Message au client",
+            "confirmed_at": "Confirmé par le client le",
+            "completed_at": "Terminé le",
+            "cancelled_at": "Annulé le",
+            "cancelled_by": "Annulé par",
+            "cancel_reason_id": "Raison d'annulation",
+            "cancel_details": "Détails de l'annulation",
+            "cancel_late": "Annulation tardive",
+            "kept_on_schedule": "Gardé à l'horaire",
+            "balance_override_reason": "Raison de la réservation malgré un solde",
+            "balance_override_by": "Réservé malgré un solde par",
+            "video_url": "Lien de la rencontre",
+            "video_external_id": "Référence de la rencontre",
+            "video_status": "État du lien de la rencontre",
+            "external_ref": "Référence GOrendezvous"
+          },
+          "appointment_participants": {
+            "appointment_id": "Rendez-vous",
+            "client_id": "Client",
+            "role": "Rôle",
+            "presence": "Présence",
+            "confirmed_at": "Confirmé le"
+          },
+          "availability_rules": {
+            "professional_id": "Professionnel",
+            "weekday": "Jour",
+            "start_time": "Début",
+            "end_time": "Fin",
+            "service_ids": "Services",
+            "visible_to_clients": "Visible aux clients",
+            "overflow_allowed": "Dépassement permis",
+            "valid_from": "Valide à partir du",
+            "valid_until": "Valide jusqu'au"
+          },
+          "availability_exceptions": {
+            "professional_id": "Professionnel",
+            "kind": "Type",
+            "starts_at": "Début",
+            "ends_at": "Fin",
+            "label": "Libellé"
+          },
+          "cancellation_reasons": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Raison de base",
+            "sort_order": "Ordre",
+            "is_active": "Active"
+          },
+          "appointment_settings": {
+            "business_days": "Jours ouvrables",
+            "business_start": "Ouverture",
+            "business_end": "Fermeture",
+            "reminder_business_days": "Rappel (jours ouvrables avant)",
+            "reminder_local_hour": "Heure d'envoi des rappels"
+          }
+        },
+        "values": {
+          "appointments": {
+            "mode": {
+              "video": "Vidéo",
+              "phone": "Téléphone"
+            },
+            "state": {
+              "booked": "Réservé",
+              "confirmed": "Confirmé par le client",
+              "completed": "Terminé",
+              "cancelled": "Annulé"
+            },
+            "video_status": {
+              "ready": "Prêt",
+              "pending": "En attente",
+              "failed": "Échec"
+            }
+          },
+          "appointment_participants": {
+            "role": {
+              "client": "Client",
+              "second": "Deuxième personne"
+            },
+            "presence": {
+              "expected": "Sera présent",
+              "present": "Présent",
+              "absent": "Absent"
+            }
+          },
+          "availability_exceptions": {
+            "kind": {
+              "holiday": "Jour férié",
+              "vacation": "Vacances",
+              "other": "Autre"
+            }
+          }
+        },
+        "sources": {
+          "seed:appointments_reference": "Réglages initiaux de l’agenda"
         }
       }
     }

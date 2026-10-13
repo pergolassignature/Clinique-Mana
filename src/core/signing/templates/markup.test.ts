@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { bodyJson } from '../test/fixtures-contract'
 import {
-  ANNEXE_PLACEHOLDER,
   asBody,
   bodyToMarkup,
-  hasAnnexePlaceholder,
-  hasValidationBanner,
+  hasBanner,
+  hasBlockPlaceholder,
   markupToBody,
   parseRuns,
   previewHtml,
@@ -13,11 +11,30 @@ import {
   VALIDATION_BANNER,
   type PdfBody,
   type PreviewText,
-} from './contract-markup'
+} from './markup'
+
+const ANNEXE_PLACEHOLDER = '{{pricing.annexe_a}}'
+
+/** A contract-like body (Professionnels' shape): the validation line, Annexe A's placeholder, the professional's initials. */
+function bodyJson({ banner = true, annexe = true, initials = true } = {}): Record<string, unknown> {
+  return {
+    title: 'Contrat de service',
+    header: { text: 'Contrat de service', ...(initials && { initialsFor: ['professional'] }) },
+    footer: { text: 'Convention de prestation de services' },
+    blocks: [
+      ...(banner ? [{ type: 'paragraph', runs: [{ text: VALIDATION_BANNER, bold: true }] }] : []),
+      { type: 'heading', level: 1, text: 'Convention' },
+      { type: 'paragraph', runs: [{ text: 'Entre ' }, { text: '{{clinic.name}}', bold: true }, { text: ' et {{professional.full_name}}.' }] },
+      { type: 'heading', level: 2, text: 'Annexe A' },
+      ...(annexe ? [{ type: 'paragraph', runs: [{ text: ANNEXE_PLACEHOLDER }] }] : []),
+      { type: 'signaturePage', signers: [{ role: 'professional', label: 'Le Professionnel' }, { role: 'clinic', label: 'La Clinique' }] },
+    ],
+  }
+}
 
 const body = (options?: Parameters<typeof bodyJson>[0]) => asBody(bodyJson(options)) as PdfBody
 const TEXT: PreviewText = {
-  annexeSample: { caption: 'Exemple', columns: ['Séances', '50 min'], rows: [['0 à 50', '100 $']] },
+  blockSample: { placeholder: ANNEXE_PLACEHOLDER, caption: 'Exemple', columns: ['Séances', '50 min'], rows: [['0 à 50', '100 $']] },
   initials: 'Initiales',
   signature: 'Signature',
   date: 'Date',
@@ -89,14 +106,14 @@ describe('markup ⇄ body', () => {
 
 describe('checks before publishing', () => {
   it('sees the validation line', () => {
-    expect(hasValidationBanner(bodyToMarkup(body()))).toBe(true)
-    expect(hasValidationBanner(bodyToMarkup(body({ banner: false })))).toBe(false)
+    expect(hasBanner(bodyToMarkup(body()), VALIDATION_BANNER)).toBe(true)
+    expect(hasBanner(bodyToMarkup(body({ banner: false })), VALIDATION_BANNER)).toBe(false)
   })
 
   it('sees Annexe A only alone in its paragraph', () => {
-    expect(hasAnnexePlaceholder(bodyToMarkup(body()))).toBe(true)
-    expect(hasAnnexePlaceholder(bodyToMarkup(body({ annexe: false })))).toBe(false)
-    expect(hasAnnexePlaceholder(`Voir ${ANNEXE_PLACEHOLDER} ici`)).toBe(false)
+    expect(hasBlockPlaceholder(bodyToMarkup(body()), ANNEXE_PLACEHOLDER)).toBe(true)
+    expect(hasBlockPlaceholder(bodyToMarkup(body({ annexe: false })), ANNEXE_PLACEHOLDER)).toBe(false)
+    expect(hasBlockPlaceholder(`Voir ${ANNEXE_PLACEHOLDER} ici`, ANNEXE_PLACEHOLDER)).toBe(false)
   })
 
   it('lists the undeclared placeholders once each', () => {

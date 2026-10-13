@@ -1,4 +1,5 @@
 import type { ModuleManifest } from '@/core/modules/types'
+import { appointmentsManifest } from '@/modules/appointments'
 import { clientsManifest } from '@/modules/clients'
 import { communicationsManifest } from '@/modules/communications'
 import { demandesManifest } from '@/modules/demandes'
@@ -12,4 +13,5 @@ export const ALL_MODULES: ModuleManifest[] = [
   clientsManifest,
   communicationsManifest,
   demandesManifest,
+  appointmentsManifest,
 ]
