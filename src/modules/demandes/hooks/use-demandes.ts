@@ -7,6 +7,7 @@ import {
   completeTask,
   createDemande,
   fetchCounts,
+  fetchDemandeConsents,
   fetchReference,
   getDemande,
   listDemandes,
@@ -69,11 +70,18 @@ export function useDemandesRealtime(enabled: boolean) {
   })
 }
 
-/** After a write on a request: its lists, counters and record are read again. */
+/**
+ * After a write on a request: its lists, counters and record are read again. On a matched request
+ * a file added is linked to her and may get her as primary professional (D-41): Clients' screens
+ * read again too (the state as the record last read it).
+ */
 function useAfterWrite() {
   const queryClient = useQueryClient()
   return (id: string) =>
     Promise.all([
+      queryClient.getQueryData<Awaited<ReturnType<typeof getDemande>>>(demandesKeys.record(id))?.demande.state === 'matched'
+        ? queryClient.invalidateQueries({ queryKey: ['clients'] })
+        : undefined,
       queryClient.invalidateQueries({ queryKey: demandesKeys.waitlist() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.calls() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.propositions() }),
@@ -104,10 +112,22 @@ export function useSetDemandeSource(id: string) {
 
 export function useSetDemandeState(id: string) {
   const after = useAfterWrite()
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ state, closedReason }: { state: DemandeState; closedReason: ClosedReason | null }) => setDemandeState(id, state, closedReason),
-    onSettled: () => after(id),
+    mutationFn: ({ state, closedReason, professionalId = null }: { state: DemandeState; closedReason: ClosedReason | null; professionalId?: string | null }) =>
+      setDemandeState(id, state, closedReason, professionalId),
+    onSettled: (_data, _error, { state }) =>
+      Promise.all([
+        after(id),
+        // A match links the files to her and may fill their primary professional (D-41): Clients' screens read again.
+        state === 'matched' ? queryClient.invalidateQueries({ queryKey: ['clients'] }) : undefined,
+      ]),
   })
+}
+
+/** The consents of the request's files (D-39), live: under the record, read again with it. */
+export function useDemandeConsents(id: string, enabled = true) {
+  return useQuery({ queryKey: demandesKeys.consents(id), queryFn: () => fetchDemandeConsents(id), enabled })
 }
 
 export function useAssignDemande(id: string) {

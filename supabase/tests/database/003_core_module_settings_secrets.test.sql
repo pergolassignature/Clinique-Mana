@@ -182,7 +182,7 @@ select functions_are('public', array[
   'discard_billing_file_for_service', 'set_professional_supervisor',
   'billing_sync_events_for_service', 'finish_billing_sync_event_for_service',
   -- Facturation, batch F3.
-  'set_billing_dunning', 'decide_cancellation_fee', 'list_fee_decisions', 'list_overdue_invoices', 'refund_payment',
+  'set_billing_dunning', 'set_billing_invoice_note', 'decide_cancellation_fee', 'list_fee_decisions', 'list_overdue_invoices', 'refund_payment',
   'refunds_for_service', 'finish_refund_for_service',
   -- Demandes × Facturation: the waiting list's fee.
   'invoice_waitlist_fee',
@@ -192,6 +192,8 @@ select functions_are('public', array[
   'list_professional_capacity', 'set_professional_new_client_places',
   -- Demandes, batch D4 part 2 (the waiting list's offers).
   'list_waitlist_compatible',
+  -- Demandes, the parity gaps (the consents of the request's files).
+  'demande_consents',
   -- Facturation: the GOrendezvous import (I3).
   'import_invoice',
   -- Communications: « Rédiger avec l'IA » (CM4).

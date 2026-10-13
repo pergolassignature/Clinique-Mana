@@ -227,7 +227,7 @@ select results_eq($$ select payer_kind, status, payer_reference from public.invo
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select results_eq($$ select x ->> 'client_name', (x ->> 'is_stub')::boolean, x -> 'missing' from pg_catalog.jsonb_array_elements(public.list_client_payers_to_complete()) x $$,
-  $$ values ('Sam Essai'::text, true, '["organisation_name", "coverage"]'::jsonb) $$, '« Payeurs à compléter »: Sam''s stub and what it lacks');
+  $$ values ('Sam Essai'::text, true, '["file_number", "organisation_name", "coverage"]'::jsonb) $$, '« Payeurs à compléter »: Sam''s stub and what it lacks');
 select throws_ok($$ select public.save_client_payer('d0000000-0000-0000-0000-000000000003', 'f9000000-0000-0000-0000-000000000003', 'pae', 'Fournisseur X',
                      'PX-1', 5000, null, null, null, null, null, 80) $$, 'P0001',
   'Le PAE couvre un montant par séance ou une part de la séance, pas les deux.', 'an amount or a share, not both');

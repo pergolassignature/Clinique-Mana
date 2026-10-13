@@ -27,6 +27,10 @@ export const GENDERS = ['female', 'male', 'any'] as const
 export const PAYER_KINDS = ['self', 'insurance', 'eap', 'ivac', 'other', 'unknown'] as const
 export const PERIODS = ['am', 'pm', 'end_of_day', 'evening', 'weekend'] as const
 export const RELATIONSHIPS = ['self', 'child', 'partner', 'parent', 'sibling', 'other'] as const
+/** The intake's follow-up questions (D-40, legacy's codes; the table checks them). */
+export const ISSUES = ['coparenting', 'other'] as const
+export const PREVIOUS_PROFESSIONALS = ['psychologist', 'social_worker', 'psychoeducator', 'physician', 'other'] as const
+export const LEGAL_CONTEXTS = ['court_order', 'dpj'] as const
 export const PROMISES = ['ok', 'soon', 'late', 'met', 'met_late', 'none'] as const
 export type Promise_ = (typeof PROMISES)[number]
 
@@ -123,6 +127,17 @@ const demandeSchema = z.looseObject({
   contact_phone_e164: nullableString,
   beneficiary: nullableString,
   previous_therapy: z.boolean().nullable(),
+  // D-40: the follow-up questions (« Non » holds none; the database clears them).
+  has_issues: z.boolean().nullable().catch(null),
+  issues: z.array(z.string()).catch([]),
+  issues_comment: nullableString.catch(null),
+  previous_professionals: z.array(z.string()).catch([]),
+  previous_comment: nullableString.catch(null),
+  has_legal_context: z.boolean().nullable().catch(null),
+  legal_context: z.array(z.string()).catch([]),
+  legal_detail: nullableString.catch(null),
+  motif_other: nullableString.catch(null),
+  availability_other: nullableString.catch(null),
   language: z.string(),
   modality: z.string(),
   availability_periods: z.array(z.string()),
@@ -265,13 +280,36 @@ export async function setDemandeSource(id: string, channel: string, referralSour
   if (error) throw error
 }
 
-export async function setDemandeState(id: string, state: DemandeState, closedReason: ClosedReason | null): Promise<void> {
+/** A move (D-2); `closed` needs the reason, `matched` the professional (D-38: « Jumelée » by hand). */
+export async function setDemandeState(id: string, state: DemandeState, closedReason: ClosedReason | null, professionalId: string | null = null): Promise<void> {
   const { error } = await supabase.rpc('set_demande_state', {
     p_id: id,
     p_state: state,
     ...(closedReason && { p_closed_reason: closedReason }),
+    ...(professionalId && { p_professional_id: professionalId }),
   })
   if (error) throw error
+}
+
+export const CONSENT_STATES = ['signed', 'resign', 'pending', 'overdue', 'missing'] as const
+export type ConsentState = (typeof CONSENT_STATES)[number]
+const consentsSchema = z.array(
+  z.object({
+    client_id: z.string(),
+    // A state Clients adds later reads as « à faire signer », never an error for the whole tab.
+    consents: z.array(z.object({ key: z.string(), name: z.string(), state: z.enum(CONSENT_STATES).catch('missing') })),
+  }),
+)
+export type DemandeFileConsents = z.infer<typeof consentsSchema>[number]
+
+/**
+ * The consents of the request's files (D-39): per file, the consents its situation requires and
+ * their state, read live from Clients (nothing copied onto the request). Null: not this clinic's.
+ */
+export async function fetchDemandeConsents(id: string): Promise<DemandeFileConsents[] | null> {
+  const { data, error } = await supabase.rpc('demande_consents', { p_id: id })
+  if (error) throw error
+  return data === null ? null : consentsSchema.parse(data)
 }
 
 export async function assignDemande(id: string, assignee: string | null): Promise<void> {

@@ -110,6 +110,25 @@ describe('CoverageTab (FP)', () => {
     expect(mocks.api.saveClientPayer).not.toHaveBeenCalled()
   })
 
+  it('one active payer per kind (FP-12): with IVAC active, a new payer can only be a PAE; with both, no « Ajouter un payeur »', async () => {
+    const user = userEvent.setup()
+    const ivac: ClientPayer = { ...STUB, id: 'cp2', kind: 'ivac', fileNumber: 'IV-1', isStub: false, renewalMonth: null, renewalDay: null }
+    mocks.api.fetchClientSummary.mockResolvedValue(summaryFixture({ payers: [ivac] }))
+    renderTab()
+    await user.click(await screen.findByRole('button', { name: t(`${C}.addPayer`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${C}.addPayer`) })
+    const kinds = within(within(dialog).getByLabelText(/^Type/)).getAllByRole('option').map((o) => o.textContent)
+    expect(kinds).toEqual(['PAE'])
+  })
+
+  it('… and with an IVAC and a PAE both active, it says how to add another', async () => {
+    const ivac: ClientPayer = { ...STUB, id: 'cp2', kind: 'ivac', fileNumber: 'IV-1', isStub: false, renewalMonth: null, renewalDay: null }
+    mocks.api.fetchClientSummary.mockResolvedValue(summaryFixture({ payers: [STUB, ivac] }))
+    renderTab()
+    expect(await screen.findByText(t(`${C}.bothKinds`))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t(`${C}.addPayer`) })).not.toBeInTheDocument()
+  })
+
   it('a share outside 1–100 % is refused before saving', async () => {
     const user = userEvent.setup()
     renderTab()

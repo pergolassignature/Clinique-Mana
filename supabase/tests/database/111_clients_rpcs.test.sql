@@ -155,8 +155,8 @@ select public.delete_client_insurance(current_setting('test.alice')::uuid, 1);
 select results_eq($$ select rank, insurer from public.client_insurances where client_id = current_setting('test.alice')::uuid $$,
   $$ values (1::smallint, 'Assureur Deux') $$, 'the secondary insurance becomes the main one');
 select set_config('test.ivac', public.save_client_payer(current_setting('test.alice')::uuid, null, 'ivac', null, 'IV-123', 9450, null, null, null, null, null)::text, true);
-select is(public.save_client_payer(current_setting('test.alice')::uuid, null, 'ivac', null, 'IV-124', 9450, 20, null, null, null, null)::text,
-  current_setting('test.ivac'), 'one active payer per kind: the second save updates it');
+select is(public.save_client_payer(current_setting('test.alice')::uuid, current_setting('test.ivac')::uuid, 'ivac', null, 'IV-124', 9450, 20, null, null, null, null)::text,
+  current_setting('test.ivac'), 'one active payer per kind: a save by its id updates it (a new one is refused, FP-12)');
 select throws_ok($$ select public.save_client_payer(current_setting('test.marc')::uuid, null, 'ivac', null, 'iv-124', null, null, null, null, null, null) $$,
   'P0001', 'Ce numéro de dossier IVAC est déjà au dossier d''un autre client.', 'an IVAC file once in the clinic');
 select throws_ok($$ select public.save_client_payer(current_setting('test.marc')::uuid, null, 'pae', null, null, null, null, null, null, null, null) $$,

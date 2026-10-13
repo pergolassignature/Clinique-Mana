@@ -1243,6 +1243,8 @@ export type Database = {
           block_after_days: number
           dunning_days: number[]
           dunning_from: string | null
+          invoice_note_en: string | null
+          invoice_note_fr: string | null
           org_id: string
           queue_from: string | null
           updated_at: string
@@ -1252,6 +1254,8 @@ export type Database = {
           block_after_days?: number
           dunning_days?: number[]
           dunning_from?: string | null
+          invoice_note_en?: string | null
+          invoice_note_fr?: string | null
           org_id: string
           queue_from?: string | null
           updated_at?: string
@@ -1261,6 +1265,8 @@ export type Database = {
           block_after_days?: number
           dunning_days?: number[]
           dunning_from?: string | null
+          invoice_note_en?: string | null
+          invoice_note_fr?: string | null
           org_id?: string
           queue_from?: string | null
           updated_at?: string
@@ -3745,6 +3751,7 @@ export type Database = {
           assigned_at: string | null
           assigned_to: string | null
           availability_days: number[]
+          availability_other: string | null
           availability_periods: string[]
           beneficiary: string | null
           channel: string
@@ -3762,18 +3769,27 @@ export type Database = {
           external_ref: string | null
           handled_at: string | null
           handled_by: string | null
+          has_issues: boolean | null
+          has_legal_context: boolean | null
           id: string
           insurer: string | null
           is_urgent: boolean
+          issues: string[]
+          issues_comment: string | null
           language: string
           last_contact_at: string | null
+          legal_context: string[]
+          legal_detail: string | null
           matched_at: string | null
           matched_professional_id: string | null
           modality: string
+          motif_other: string | null
           next_contact_at: string | null
           org_id: string
           payer_kind: string
           preferred_pro_gender: string
+          previous_comment: string | null
+          previous_professionals: string[]
           previous_therapy: boolean | null
           profession_title_id: string | null
           received_at: string
@@ -3793,6 +3809,7 @@ export type Database = {
           assigned_at?: string | null
           assigned_to?: string | null
           availability_days?: number[]
+          availability_other?: string | null
           availability_periods?: string[]
           beneficiary?: string | null
           channel?: string
@@ -3810,18 +3827,27 @@ export type Database = {
           external_ref?: string | null
           handled_at?: string | null
           handled_by?: string | null
+          has_issues?: boolean | null
+          has_legal_context?: boolean | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
+          issues?: string[]
+          issues_comment?: string | null
           language?: string
           last_contact_at?: string | null
+          legal_context?: string[]
+          legal_detail?: string | null
           matched_at?: string | null
           matched_professional_id?: string | null
           modality?: string
+          motif_other?: string | null
           next_contact_at?: string | null
           org_id: string
           payer_kind?: string
           preferred_pro_gender?: string
+          previous_comment?: string | null
+          previous_professionals?: string[]
           previous_therapy?: boolean | null
           profession_title_id?: string | null
           received_at?: string
@@ -3841,6 +3867,7 @@ export type Database = {
           assigned_at?: string | null
           assigned_to?: string | null
           availability_days?: number[]
+          availability_other?: string | null
           availability_periods?: string[]
           beneficiary?: string | null
           channel?: string
@@ -3858,18 +3885,27 @@ export type Database = {
           external_ref?: string | null
           handled_at?: string | null
           handled_by?: string | null
+          has_issues?: boolean | null
+          has_legal_context?: boolean | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
+          issues?: string[]
+          issues_comment?: string | null
           language?: string
           last_contact_at?: string | null
+          legal_context?: string[]
+          legal_detail?: string | null
           matched_at?: string | null
           matched_professional_id?: string | null
           modality?: string
+          motif_other?: string | null
           next_contact_at?: string | null
           org_id?: string
           payer_kind?: string
           preferred_pro_gender?: string
+          previous_comment?: string | null
+          previous_professionals?: string[]
           previous_therapy?: boolean | null
           profession_title_id?: string | null
           received_at?: string
@@ -6738,6 +6774,7 @@ export type Database = {
           id: string
           invoice_id: string
           mode_code: string
+          note: string | null
           org_id: string
           paid_on: string
           payer_client_id: string
@@ -6751,6 +6788,7 @@ export type Database = {
           id?: string
           invoice_id: string
           mode_code: string
+          note?: string | null
           org_id: string
           paid_on: string
           payer_client_id: string
@@ -6764,6 +6802,7 @@ export type Database = {
           id?: string
           invoice_id?: string
           mode_code?: string
+          note?: string | null
           org_id?: string
           paid_on?: string
           payer_client_id?: string
@@ -14430,6 +14469,7 @@ export type Database = {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
       }
+      demande_consents: { Args: { p_id: string }; Returns: Json }
       demandes_booking_page_for_service: {
         Args: { p_org_id: string }
         Returns: Json
@@ -16200,6 +16240,7 @@ export type Database = {
           p_amount_cents: number
           p_invoice_id: string
           p_mode_code: string
+          p_note?: string
           p_paid_on?: string
           p_reference?: string
         }
@@ -16838,6 +16879,10 @@ export type Database = {
           p_days: number[]
           p_dunning_from: string
         }
+        Returns: undefined
+      }
+      set_billing_invoice_note: {
+        Args: { p_en: string; p_fr: string }
         Returns: undefined
       }
       set_billing_queue_from: {
