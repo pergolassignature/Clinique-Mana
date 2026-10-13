@@ -2,7 +2,7 @@
 -- module, joined only by members holding a permission of the module; triggers send ids only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(17);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 select ('a0000000-0000-0000-0000-00000000000' || n)::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
@@ -47,7 +47,7 @@ select ok(not private.realtime_topic_allowed('org:b0000000-0000-0000-0000-000000
 select ok(not private.realtime_topic_allowed('org:b0000000-0000-0000-0000-00000000000a:demandes:extra')
           and not private.realtime_topic_allowed('anything') and not private.realtime_topic_allowed(null), 'a malformed topic is refused');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select ok(private.realtime_topic_allowed(current_setting('test.topic_a')), 'the professional (demandes.self) joins it too: ids only travel');
+select ok(not private.realtime_topic_allowed(current_setting('test.topic_a')), 'the professional (demandes.self only) does not see the clinic''s flow');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(not private.realtime_topic_allowed(current_setting('test.topic_a')), 'a disabled member does not');
 reset role;
@@ -81,6 +81,22 @@ select case when current_setting('test.partition')::boolean then
                   and (m.payload::text like '%Temps%' or m.payload::text like '%5550111%')),
      'neither the name nor the phone travels')
   else skip('no realtime.messages partition for today', 1) end;
+-- The policy end to end: the counselor reads her topic's messages, not another clinic's; nobody
+-- sends from the browser.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select set_config('realtime.topic', current_setting('test.topic_a'), true);
+select case when current_setting('test.partition')::boolean then
+  ok((select count(*) from realtime.messages m where m.topic = current_setting('test.topic_a')) > 0,
+     'through the policy, the counselor receives her channel''s messages')
+  else skip('no realtime.messages partition for today', 1) end;
+select set_config('realtime.topic', 'org:b0000000-0000-0000-0000-00000000000b:demandes', true);
+select is((select count(*)::int from realtime.messages), 0, '… and nothing of another clinic''s channel');
+select set_config('realtime.topic', current_setting('test.topic_a'), true);
+select throws_ok($$ insert into realtime.messages (topic, extension, payload, event, private)
+                    values (current_setting('test.topic_a'), 'broadcast', '{"module":"demandes"}', 'change', true) $$,
+  null, null, 'the browser cannot send on the channel');
+reset role;
 select case when current_setting('test.partition')::boolean then
   ok(exists (select 1 from realtime.messages m where m.topic = current_setting('test.topic_a')
               and m.payload->>'record_id' = current_setting('test.d') and m.payload->>'table' = 'demandes'

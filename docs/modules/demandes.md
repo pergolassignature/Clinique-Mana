@@ -78,10 +78,11 @@ Migrations `20261013043542_core_realtime` (core, see the [core doc](core.md#real
 | `demandes_counts()` | `demandes.view` | open, late, no answer, due now, mine, unassigned, waiting list |
 | `get_demande(p_id)` | `demandes.view` | the record's bundle: the request (no internal numbering), its file (`clients_directory`), the matched professional, motifs, participants, tasks, events with the people's names, the note (only with `demandes.notes`), what the caller may do. Null for another clinic's |
 | `get_demandes_reference()` | `demandes.view` | the people who work requests (`demandes.manage`), the referral sources, Professionnels' motifs (by category), titles and clientèles |
-| `set_demande_handler(p_id, p_take)` | `demandes.manage` | « Je m'en occupe » / « Je laisse » (D-8) |
+| `set_demande_handler(p_id, p_take, p_expected)` | `demandes.manage` | « Je m'en occupe » / « Je laisse » (one's own hold only); taking over needs the handler the person saw (`p_expected`), else a French refusal naming who has it (D-8) |
 
-- **The promise (D-7):** « nous vous rappelons en 24 à 48 h ouvrables » (the website's words), measured in business hours (Monday–Friday, the clinic's time zone) from reception to the first contact attempt: `ok` under 24 h, `soon` from 24 h, `late` from 48 h; once contacted, `met` or `met_late`.
+- **The promise (D-7):** « nous vous rappelons en 24 à 48 h ouvrables » (the website's words), measured in business hours (Monday–Friday, the clinic's time zone) from reception to the first contact attempt (any event with a channel: « Noter un appel » or a call task done): `ok` under 24 h, `soon` from 24 h, `late` from 48 h; once contacted, `met` or `met_late`; a request no longer open and never called has `none`.
 - **« Sans réponse »:** an open request whose latest attempt did not reach the person.
+- **Forms and realtime:** a form being edited keeps its edits when another counselor saves; « Recharger » takes the new values (`useServerDraft`).
 - **Realtime:** `demandes`, `demande_tasks`, `demande_participants`, `demande_notes` and `demande_motifs` announce `{ module: 'demandes', table: 'demandes', record_id: <the request>, op }` on `org:<org>:demandes`; the inbox and the record read again (`useDemandesRealtime`).
 
 ### Screens

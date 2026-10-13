@@ -10804,7 +10804,7 @@ export type Database = {
         Returns: string
       }
       set_demande_handler: {
-        Args: { p_id: string; p_take: boolean }
+        Args: { p_expected?: string; p_id: string; p_take: boolean }
         Returns: undefined
       }
       set_demande_note: {

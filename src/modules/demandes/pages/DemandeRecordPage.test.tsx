@@ -126,7 +126,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage(tab = 'accueil') {
+function renderPage(tab = 'accueil'): QueryClient {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -138,6 +138,7 @@ function renderPage(tab = 'accueil') {
       )}
     </QueryClientProvider>,
   )
+  return queryClient
 }
 
 describe('DemandeRecordPage', () => {
@@ -162,6 +163,19 @@ describe('DemandeRecordPage', () => {
     expect(mocks.api.updateDemande).toHaveBeenCalledWith(ID, { concerns: 'Anxiété, sommeil', motif_ids: ['m1'] })
   })
 
+  it('another counselor\'s save while editing: the edits stay, « Recharger » offered', async () => {
+    const user = userEvent.setup()
+    const queryClient = renderPage()
+    const concerns = await screen.findByRole('textbox', { name: t('modules.demandes.intake.need.concerns') })
+    await user.type(concerns, ' et sommeil')
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { concerns: 'Changé ailleurs' }))
+    await queryClient.invalidateQueries()
+    expect(await screen.findByText(t(`${R}.stale`))).toBeInTheDocument()
+    expect(concerns).toHaveValue('Anxiété et sommeil')
+    await user.click(screen.getByRole('button', { name: t(`${R}.reload`) }))
+    expect(screen.getByRole('textbox', { name: t('modules.demandes.intake.need.concerns') })).toHaveValue('Changé ailleurs')
+  })
+
   it('closing asks for the reason', async () => {
     const user = userEvent.setup()
     renderPage()
@@ -180,7 +194,7 @@ describe('DemandeRecordPage', () => {
     await user.click(screen.getByRole('button', { name: t(`${R}.take`) }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: t(`${R}.takeOver.action`) }))
-    await waitFor(() => expect(mocks.api.setHandler).toHaveBeenCalledWith(ID, true))
+    await waitFor(() => expect(mocks.api.setHandler).toHaveBeenCalledWith(ID, true, 'someone-else'))
   })
 
   it('Suivi: a task done with its outcome; the internal note saved', async () => {

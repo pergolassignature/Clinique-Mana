@@ -57,6 +57,8 @@ export function promiseText(promise: Promise_, hours: number): { label: string; 
       return { label: t(`${D}.promise.met`), tone: 'success' }
     case 'met_late':
       return { label: t(`${D}.promise.metLate`), tone: 'warning' }
+    case 'none':
+      return { label: t(`${D}.promise.none`), tone: 'neutral' }
   }
 }
 

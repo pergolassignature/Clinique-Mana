@@ -8,8 +8,8 @@
 --
 -- * Who may listen: `private.realtime_topic_allowed(topic)`, the RLS policy on
 --   `realtime.messages` (Supabase's authorization of private channels): the caller's own clinic
---   and a module whose permission she holds (any key of the module, so the module gate and a
---   disabled or reserved module follow `private.permission_keys_for`).
+--   and the module's `<module>.view` (the module gate and a disabled or reserved module follow
+--   `private.permission_keys_for`).
 -- * Who may send: nobody from the browser (no insert policy); the database only, through
 --   `realtime.send` (a failure of the broadcast is a warning, never a failed write).
 -- * The payload's key is `record_id`, never `id` (`realtime.send` would take an `id` as the
@@ -28,8 +28,9 @@ as $$
 $$;
 revoke all on function private.realtime_topic(uuid, text) from public, anon, authenticated, service_role;
 
--- Whether the caller may listen to `p_topic`: `org:<her clinic>:<module>` and a permission of
--- that module. Definer: the policy below calls it for every join.
+-- Whether the caller may listen to `p_topic`: `org:<her clinic>:<module>` and the module's staff
+-- permission `<module>.view` (a professional's `.self` alone does not see the clinic's flow).
+-- Definer: the policy below calls it for every join.
 create function private.realtime_topic_allowed(p_topic text)
 returns boolean
 language plpgsql
@@ -48,8 +49,7 @@ begin
   if v_parts[2] <> v_org::text then
     return false;
   end if;
-  return exists (select 1 from unnest(private.current_permission_keys()) k
-                  where k like v_parts[3] || '.%');
+  return (v_parts[3] || '.view') = any (private.current_permission_keys());
 end;
 $$;
 revoke all on function private.realtime_topic_allowed(text) from public, anon, service_role;

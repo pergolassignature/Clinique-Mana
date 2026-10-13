@@ -145,7 +145,10 @@ export function useSaveParticipants(id: string) {
 
 export function useSetHandler() {
   const after = useAfterWrite()
-  return useMutation({ mutationFn: ({ id, take }: { id: string; take: boolean }) => setHandler(id, take), onSettled: (_d, _e, { id }) => after(id) })
+  return useMutation({
+    mutationFn: ({ id, take, expected = null }: { id: string; take: boolean; expected?: string | null }) => setHandler(id, take, expected),
+    onSettled: (_d, _e, { id }) => after(id),
+  })
 }
 
 // TEMPORAIRE (D-9): the small client picker, until Clients exports its own (C4).

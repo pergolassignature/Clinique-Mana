@@ -6962,7 +6962,8 @@
         "late": "En retard : {hours} h ouvrables sans appel",
         "met": "Rappelée dans les délais",
         "metLate": "Rappelée après 48 h ouvrables",
-        "fresh": "Reçue depuis moins d’une heure ouvrable"
+        "fresh": "Reçue depuis moins d’une heure ouvrable",
+        "none": "Jamais appelée"
       },
       "options": {
         "channel": {
@@ -7202,7 +7203,9 @@
           "title": "Prendre la demande ?",
           "body": "{name} s'en occupe déjà. Prévenez-la avant de reprendre la demande.",
           "action": "Je la prends"
-        }
+        },
+        "stale": "Quelqu'un d'autre a modifié cette demande pendant que vous la changiez.",
+        "reload": "Recharger (vos changements seront perdus)"
       },
       "intake": {
         "file": {
@@ -7265,7 +7268,8 @@
         "addFile": "Ajouter {file}",
         "nameNeeded": "Chaque personne a un nom ou un dossier.",
         "onePrimary": "Choisissez une seule personne principale.",
-        "saved": "Les participants sont enregistrés."
+        "saved": "Les participants sont enregistrés.",
+        "tooMany": "Au plus {max} personnes par demande."
       },
       "followUp": {
         "contacts": {

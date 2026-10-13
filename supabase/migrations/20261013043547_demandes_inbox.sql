@@ -42,9 +42,10 @@ as $$
 $$;
 revoke all on function private.demandes_handling_window() from public, anon, authenticated, service_role;
 
--- « Je m'en occupe » (p_take) or « Je laisse » (release). Taking over from someone else is allowed
--- (a soft lock); the screen asks first. Not a KPI event: the journal keeps it.
-create function public.set_demande_handler(p_id uuid, p_take boolean)
+-- « Je m'en occupe » (p_take) or « Je laisse » (release: one's own hold only). Taking over from
+-- someone else is allowed (a soft lock) when the caller names the handler she saw (p_expected):
+-- if someone else took it meanwhile, a French refusal says who. Not a KPI event: the journal keeps it.
+create function public.set_demande_handler(p_id uuid, p_take boolean, p_expected uuid default null)
 returns void
 language plpgsql
 security definer
@@ -52,20 +53,27 @@ set search_path = ''
 as $$
 declare
   v_row public.demandes;
+  v_current uuid;
+  v_name text;
 begin
   perform private.demandes_require('demandes.manage');
   v_row := private.demandes_lock(p_id);
   perform pg_catalog.set_config('app.audit_source', 'rpc:set_demande_handler', true);
+  v_current := case when v_row.handled_at > pg_catalog.now() - private.demandes_handling_window() then v_row.handled_by end;
   if p_take then
+    if v_current is not null and v_current <> auth.uid() and v_current is distinct from p_expected then
+      select p.display_name into v_name from public.profiles p where p.user_id = v_current;
+      raise exception '% vient de prendre cette demande.', coalesce(v_name, 'Une autre personne') using errcode = 'P0001';
+    end if;
     update public.demandes d set handled_by = auth.uid(), handled_at = pg_catalog.now() where d.id = v_row.id;
   else
     update public.demandes d set handled_by = null, handled_at = null
-     where d.id = v_row.id and d.handled_by is not null;
+     where d.id = v_row.id and d.handled_by = auth.uid();
   end if;
 end;
 $$;
-revoke all on function public.set_demande_handler(uuid, boolean) from public, anon, authenticated;
-grant execute on function public.set_demande_handler(uuid, boolean) to authenticated;
+revoke all on function public.set_demande_handler(uuid, boolean, uuid) from public, anon, authenticated;
+grant execute on function public.set_demande_handler(uuid, boolean, uuid) to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- The promise, in business hours
@@ -116,8 +124,11 @@ as $$
 $$;
 revoke all on function private.demandes_fold(text) from public, anon, authenticated, service_role;
 
--- The rows of the inbox with what the list shows, for one clinic (the RPCs below check first).
-create function private.demandes_inbox_rows(p_org uuid)
+-- The rows of the inbox with what the list shows, for one clinic (the RPCs below check first):
+-- only the states asked (null: all) or one request. A contact attempt is any event with a channel
+-- (« Noter un appel », or a call task done). The waiting hours run to the first attempt, or to now
+-- while the request is open; a request no longer open and never called has no promise (`none`).
+create function private.demandes_inbox_rows(p_org uuid, p_states text[] default null, p_id uuid default null)
 returns table (
   id uuid, reference text, received_at timestamptz, channel text, state text, is_urgent boolean,
   client_id uuid, client_number int, person_name text, beneficiary text,
@@ -126,7 +137,7 @@ returns table (
   waiting_hours numeric, promise text, no_answer boolean,
   handled_by uuid, handled_by_name text, handled_at timestamptz,
   open_tasks int, next_task_due timestamptz, motif_count int,
-  search_text text, contact_digits text
+  search_text text, phone_digits text[]
 )
 language sql
 stable
@@ -137,30 +148,38 @@ as $$
          d.client_id, c.client_number, coalesce(c.display_name, d.contact_name, d.contact_email, d.contact_phone_e164),
          d.beneficiary, d.assigned_to, pa.display_name, d.contact_attempts, d.last_contact_at,
          lc.contact_outcome, d.next_contact_at, fc.at,
-         private.demandes_business_hours(d.received_at, coalesce(fc.at, pg_catalog.now()), (select tz from tz)),
-         private.demandes_promise(private.demandes_business_hours(d.received_at, coalesce(fc.at, pg_catalog.now()), (select tz from tz)),
-                                  fc.at is not null),
-         d.state not in ('matched', 'closed') and d.contact_attempts > 0 and lc.contact_outcome is distinct from 'reached',
+         h.hours,
+         case when fc.at is null and not h.open then 'none' else private.demandes_promise(h.hours, fc.at is not null) end,
+         h.open and lc.contact_outcome is not null and lc.contact_outcome <> 'reached',
          case when d.handled_at > pg_catalog.now() - private.demandes_handling_window() then d.handled_by end,
          case when d.handled_at > pg_catalog.now() - private.demandes_handling_window() then ph.display_name end,
          case when d.handled_at > pg_catalog.now() - private.demandes_handling_window() then d.handled_at end,
          coalesce(t.open_tasks, 0), t.next_due,
-         (select count(*)::int from public.demande_motifs m where m.demande_id = d.id),
+         (select count(*)::int from public.demande_motifs m where m.org_id = d.org_id and m.demande_id = d.id),
          private.demandes_fold(concat_ws(' ', d.reference, c.display_name, d.contact_name, d.contact_email, c.email)),
-         pg_catalog.regexp_replace(concat_ws(' ', d.contact_phone_e164, c.mobile_e164), '[^0-9 ]', '', 'g')
+         array_remove(array[pg_catalog.regexp_replace(coalesce(d.contact_phone_e164, ''), '[^0-9]', '', 'g'),
+                            pg_catalog.regexp_replace(coalesce(c.mobile_e164, ''), '[^0-9]', '', 'g')], '')
     from public.demandes d
     left join public.clients_directory c on c.id = d.client_id
     left join public.profiles pa on pa.user_id = d.assigned_to
     left join public.profiles ph on ph.user_id = d.handled_by
     left join lateral (select e.contact_outcome from public.demande_events e
-                        where e.demande_id = d.id and e.kind = 'contact' order by e.at desc, e.id desc limit 1) lc on true
+                        where e.org_id = d.org_id and e.demande_id = d.id and e.contact_channel is not null
+                        order by e.at desc, e.id desc limit 1) lc on true
     left join lateral (select min(e.at) as at from public.demande_events e
-                        where e.demande_id = d.id and e.kind = 'contact') fc on true
+                        where e.org_id = d.org_id and e.demande_id = d.id and e.contact_channel is not null) fc on true
     left join lateral (select count(*)::int as open_tasks, min(k.due_at) as next_due from public.demande_tasks k
-                        where k.demande_id = d.id and k.state = 'open') t on true
+                        where k.org_id = d.org_id and k.demande_id = d.id and k.state = 'open') t on true
+    cross join lateral (
+      select d.state not in ('matched', 'closed') as open,
+             case when fc.at is null and d.state in ('matched', 'closed') then 0::numeric(10, 1)
+                  else private.demandes_business_hours(d.received_at, coalesce(fc.at, pg_catalog.now()), (select tz from tz)) end as hours
+    ) h
    where d.org_id = p_org
+     and (p_states is null or d.state = any (p_states))
+     and (p_id is null or d.id = p_id)
 $$;
-revoke all on function private.demandes_inbox_rows(uuid) from public, anon, authenticated, service_role;
+revoke all on function private.demandes_inbox_rows(uuid, text[], uuid) from public, anon, authenticated, service_role;
 
 -- The inbox (`demandes.view`): one view, filters, 50 a page.
 -- p_view: `open` (new, evaluating, accepted, proposed), `matched`, `waitlist`, `closed`, `all`.
@@ -206,19 +225,15 @@ begin
            r.beneficiary, r.assigned_to, r.assigned_name, r.contact_attempts, r.last_contact_at, r.last_outcome,
            r.next_contact_at, r.first_contact_at, r.waiting_hours, r.promise, r.no_answer,
            r.handled_by, r.handled_by_name, r.handled_at, r.open_tasks, r.next_task_due, r.motif_count
-      from private.demandes_inbox_rows(v_org) r
-     where case p_view
-             when 'open' then r.state in ('new', 'evaluating', 'accepted', 'proposed')
-             when 'all' then true
-             else r.state = p_view
-           end
-       and case p_assigned when 'me' then r.assigned_to = v_me when 'none' then r.assigned_to is null else true end
+      from private.demandes_inbox_rows(v_org,
+             case p_view when 'open' then array['new', 'evaluating', 'accepted', 'proposed'] when 'all' then null else array[p_view] end) r
+     where case p_assigned when 'me' then r.assigned_to = v_me when 'none' then r.assigned_to is null else true end
        and (not ('late' = any (p_flags)) or r.promise = 'late')
        and (not ('no_answer' = any (p_flags)) or r.no_answer)
        and (not ('urgent' = any (p_flags)) or r.is_urgent)
        and (not ('due' = any (p_flags)) or r.next_contact_at <= pg_catalog.now() or r.next_task_due <= pg_catalog.now())
-       and (v_search is null or r.search_text like '%' || v_search || '%'
-            or (pg_catalog.length(v_digits) >= 4 and pg_catalog.replace(r.contact_digits, ' ', '') like '%' || v_digits || '%'))
+       and (v_search is null or pg_catalog.strpos(r.search_text, v_search) > 0
+            or (pg_catalog.length(v_digits) >= 4 and exists (select 1 from unnest(r.phone_digits) p where pg_catalog.strpos(p, v_digits) > 0)))
      order by case when p_view = 'open' then r.is_urgent end desc nulls last,
               case when p_view = 'open' then r.promise = 'late' end desc nulls last,
               case when p_view = 'open' then r.received_at end asc,
@@ -250,7 +265,8 @@ begin
            count(*) filter (where o and r.assigned_to = auth.uid()),
            count(*) filter (where o and r.assigned_to is null),
            count(*) filter (where r.state = 'waitlist')
-      from (select x.*, x.state in ('new', 'evaluating', 'accepted', 'proposed') as o from private.demandes_inbox_rows(v_org) x) r;
+      from (select x.*, x.state in ('new', 'evaluating', 'accepted', 'proposed') as o
+              from private.demandes_inbox_rows(v_org, array['new', 'evaluating', 'accepted', 'proposed', 'waitlist']) x) r;
 end;
 $$;
 revoke all on function public.demandes_counts() from public, anon, authenticated;
@@ -278,7 +294,7 @@ begin
   if v_row.id is null then
     return null;
   end if;
-  select * into v_inbox from private.demandes_inbox_rows(v_org) r where r.id = v_row.id;
+  select * into v_inbox from private.demandes_inbox_rows(v_org, null, v_row.id) r;
   v_notes := private.has_permission('demandes.notes');
   return jsonb_build_object(
     'demande', to_jsonb(v_row) - 'handled_by' - 'handled_at' - 'reference_year' - 'reference_seq'

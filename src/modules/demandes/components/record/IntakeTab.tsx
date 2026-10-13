@@ -16,7 +16,9 @@ import { BENEFICIARIES, GENDERS, MODALITIES, PAYER_KINDS, PERIODS, type DemandeB
 import { useUpdateDemande } from '../../hooks/use-demandes'
 import { fileLabel, optionLabel } from '../../lib/display'
 import { ClientLinkDialog } from './ClientLinkDialog'
+import { useServerDraft } from '../../lib/use-server-draft'
 import { useDemandeRecord } from './record-context'
+import { StaleNotice } from './StaleNotice'
 
 const A = 'modules.demandes.intake'
 const DAYS = [1, 2, 3, 4, 5, 6, 7] as const
@@ -106,12 +108,10 @@ function patchOf(initial: Values, values: Values): Record<string, unknown> | { e
  * changed keys reach `update_demande`. Read-only once closed or without demandes.manage.
  */
 export function IntakeTab() {
-  const { bundle } = useDemandeRecord()
   return (
     <SectionSurface>
       <FileCard />
-      {/* Remounted when the stored request changes (another counselor's save). */}
-      <IntakeForm key={JSON.stringify(valuesOf(bundle))} />
+      <IntakeForm />
     </SectionSurface>
   )
 }
@@ -140,11 +140,12 @@ function FileCard() {
 
 function IntakeForm() {
   const { id, bundle, reference, canEdit } = useDemandeRecord()
-  const initial = useMemo(() => valuesOf(bundle), [bundle])
-  const [values, setValues] = useState(initial)
+  // Another counselor's save (realtime) never wipes the edits under way: see useServerDraft.
+  const draft = useServerDraft(useMemo(() => valuesOf(bundle), [bundle]))
+  const { values, setValues, dirty } = draft
+  const initial = draft.base
   const [error, setError] = useState<string | null>(null)
   const update = useUpdateDemande(id)
-  const dirty = JSON.stringify(values) !== JSON.stringify(initial)
   useUnsavedChanges(dirty)
   const set = <K extends keyof Values>(key: K, value: Values[K]) => setValues((prev) => ({ ...prev, [key]: value }))
   const toggle = <K extends 'availability_periods' | 'availability_days' | 'motif_ids'>(key: K, item: Values[K][number]) =>
@@ -195,6 +196,7 @@ function IntakeForm() {
 
   return (
     <form onSubmit={submit} noValidate className="contents">
+      {draft.stale && <StaleNotice onReload={draft.reload} />}
       <SettingsCard as="section" layout="section" title={t(`${A}.contact.title`)} description={t(`${A}.contact.description`)}>
         <FormField label={t(`${A}.contact.name`)}>
           {(field) => <Input {...field} value={values.contact_name} onChange={(e) => set('contact_name', e.target.value)} readOnly={!canEdit} autoComplete="off" />}
@@ -299,7 +301,7 @@ function IntakeForm() {
         )}
         {canEdit && (
           <div className="flex justify-end gap-2 empty:hidden">
-            <FormActions onCancel={() => setValues(initial)} dirty={dirty} pending={update.isPending} />
+            <FormActions onCancel={draft.reset} dirty={dirty} pending={update.isPending} />
           </div>
         )}
       </SettingsCard>

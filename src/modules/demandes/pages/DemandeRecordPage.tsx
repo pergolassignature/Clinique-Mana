@@ -287,7 +287,7 @@ function HandlerControl({ bundle, id }: { bundle: DemandeBundle; id: string }) {
   const mine = d.handled_by === me
   const other = d.handled_by !== null && !mine
   const run = (take: boolean) =>
-    handler.mutate({ id, take }, { onError: (error) => toast.error(demandesError(error)) })
+    handler.mutate({ id, take, expected: take ? d.handled_by : null }, { onError: (error) => toast.error(demandesError(error)) })
   return (
     <div className="flex flex-wrap items-center gap-2">
       {other && d.handled_by_name && d.handled_at && (

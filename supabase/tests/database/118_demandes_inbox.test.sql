@@ -3,7 +3,7 @@
 -- reference lists.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(44);
 
 -- =============================================================================
 -- Privileges
@@ -114,6 +114,11 @@ select results_eq($$ select id::text from public.list_demandes('all', 'any', '{}
   $$ values (current_setting('test.closed')) $$, '… and the number');
 select is((select count(*)::int from public.list_demandes('open', 'any', '{}', null, 0, 2)), 2, 'pages');
 select throws_ok($$ select * from public.list_demandes('nope') $$, '22023', null, 'an unknown view is refused');
+select results_eq($$ select id::text from public.list_demandes('all', 'any', '{}', 'elo_die') $$,
+  $$ select null::text where false $$, 'a « _ » in the search is a character, not a wildcard');
+select is((select promise from public.list_demandes('closed')), 'none', 'a closed request never called has no promise …');
+select is_empty($$ select 1 from public.list_demandes('all', 'any', array['late']) where id = current_setting('test.closed')::uuid $$,
+  '… and is never « en retard »');
 select results_eq($$ select open, late, no_answer, mine, unassigned, waitlist from public.demandes_counts() $$,
   $$ values (4::bigint, 1::bigint, 1::bigint, 1::bigint, 2::bigint, 0::bigint) $$, 'the counters');
 
@@ -132,6 +137,23 @@ select is((select handled_by from public.list_demandes() where id = current_sett
 select lives_ok($$ select public.set_demande_handler(current_setting('test.old')::uuid, false) $$, '« Je laisse »');
 reset role;
 select is((select handled_by from public.demandes where id = current_setting('test.old')::uuid), null::uuid, 'released');
+-- The adjointe takes it; the counselor's stale « Je laisse » leaves her hold; a take-over needs to
+-- name the handler seen.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select public.set_demande_handler(current_setting('test.old')::uuid, true);
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select public.set_demande_handler(current_setting('test.old')::uuid, false);
+reset role;
+select is((select handled_by::text from public.demandes where id = current_setting('test.old')::uuid), 'a0000000-0000-0000-0000-000000000002',
+  '« Je laisse » releases one''s own hold only');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select public.set_demande_handler(current_setting('test.old')::uuid, true) $$,
+  'P0001', 'Adjointe A vient de prendre cette demande.', 'taking over unseen: refused, naming who has it');
+select lives_ok($$ select public.set_demande_handler(current_setting('test.old')::uuid, true, 'a0000000-0000-0000-0000-000000000002') $$,
+  'taking over from the handler seen: allowed');
+reset role;
 
 -- =============================================================================
 -- The record
@@ -140,6 +162,11 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select public.set_demande_note(current_setting('test.called')::uuid, 'Préfère le soir.');
 select public.add_demande_task(current_setting('test.called')::uuid, 'callback', now() + interval '2 days', null);
+-- A call logged by completing a task counts as a contact attempt.
+select set_config('test.task', public.add_demande_task(current_setting('test.urgent')::uuid, 'discovery_call', now() + interval '1 hour', null)::text, true);
+select public.complete_demande_task(current_setting('test.urgent')::uuid, current_setting('test.task')::uuid, 'reached');
+select results_eq($$ select promise, no_answer, last_outcome, first_contact_at is not null from public.list_demandes() where id = current_setting('test.urgent')::uuid $$,
+  $$ values ('met', false, 'reached', true) $$, 'a discovery call done (reached): the promise met, not « sans réponse »');
 select results_eq($$
   select j->'demande'->>'reference' is not null, j->'client'->>'display_name', jsonb_array_length(j->'events'),
          (select string_agg(x->>'kind', ',' order by x->>'kind') from jsonb_array_elements(j->'events') x),

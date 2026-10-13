@@ -14,9 +14,13 @@ import { toast } from '@/shared/ui/sonner'
 import { RELATIONSHIPS, type DemandeParticipant, type ParticipantInput } from '../../api/demandes'
 import { useSaveParticipants } from '../../hooks/use-demandes'
 import { fileLabel, optionLabel } from '../../lib/display'
+import { useServerDraft } from '../../lib/use-server-draft'
 import { useDemandeRecord } from './record-context'
+import { StaleNotice } from './StaleNotice'
 
 const P = 'modules.demandes.participants'
+/** `set_demande_participants` takes at most 10. */
+const MAX_PARTICIPANTS = 10
 
 interface Row {
   key: string
@@ -50,21 +54,19 @@ function rowsOf(participants: DemandeParticipant[]): Row[] {
  * person; each is a file of the clinic or a name. Saved as a set (`set_demande_participants`).
  */
 export function ParticipantsTab() {
-  const { bundle } = useDemandeRecord()
   return (
     <SectionSurface>
-      <ParticipantsForm key={JSON.stringify(bundle.participants)} />
+      <ParticipantsForm />
     </SectionSurface>
   )
 }
 
 function ParticipantsForm() {
   const { id, bundle, canEdit } = useDemandeRecord()
-  const initial = useMemo(() => rowsOf(bundle.participants), [bundle.participants])
-  const [rows, setRows] = useState<Row[]>(initial)
+  const draft = useServerDraft(useMemo(() => rowsOf(bundle.participants), [bundle.participants]))
+  const { values: rows, setValues: setRows, dirty } = draft
   const [error, setError] = useState<string | null>(null)
   const save = useSaveParticipants(id)
-  const dirty = JSON.stringify(rows.map(({ key: _k, ...r }) => r)) !== JSON.stringify(initial.map(({ key: _k, ...r }) => r))
   useUnsavedChanges(dirty)
   const client = bundle.client
   const clientListed = client !== null && rows.some((r) => r.client_id === client.id)
@@ -83,6 +85,10 @@ function ParticipantsForm() {
     setError(null)
     if (rows.some((r) => !r.client_id && !r.display_name.trim())) {
       setError(t(`${P}.nameNeeded`))
+      return
+    }
+    if (rows.length > MAX_PARTICIPANTS) {
+      setError(t(`${P}.tooMany`, { max: String(MAX_PARTICIPANTS) }))
       return
     }
     if (rows.length > 0 && rows.filter((r) => r.is_primary).length !== 1) {
@@ -106,6 +112,7 @@ function ParticipantsForm() {
   return (
     <form onSubmit={submit} noValidate className="contents">
       <SettingsCard as="section" layout="section" title={t(`${P}.title`)} description={t(`${P}.description`)}>
+        {draft.stale && <StaleNotice onReload={draft.reload} />}
         {rows.length === 0 && <p className="text-sm text-muted-foreground">{t(`${P}.empty`)}</p>}
         <ul className="space-y-3">
           {rows.map((row, index) => (
@@ -170,7 +177,7 @@ function ParticipantsForm() {
         </ul>
         {canEdit && (
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => add({})} className="max-sm:h-11">
+            <Button type="button" variant="outline" size="sm" disabled={rows.length >= MAX_PARTICIPANTS} onClick={() => add({})} className="max-sm:h-11">
               <Plus aria-hidden className="size-3.5" />
               {t(`${P}.add`)}
             </Button>
@@ -195,7 +202,7 @@ function ParticipantsForm() {
         )}
         {canEdit && (
           <div className="flex justify-end gap-2 empty:hidden">
-            <FormActions onCancel={() => setRows(initial)} dirty={dirty} pending={save.isPending} />
+            <FormActions onCancel={draft.reset} dirty={dirty} pending={save.isPending} />
           </div>
         )}
       </SettingsCard>

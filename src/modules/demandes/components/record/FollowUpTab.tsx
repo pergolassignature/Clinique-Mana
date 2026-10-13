@@ -18,7 +18,9 @@ import { TASK_KINDS, TASK_OUTCOMES, type DemandeTask, type TaskKind, type TaskOu
 import { useAddTask, useCancelTask, useCompleteTask, useSaveNote } from '../../hooks/use-demandes'
 import { optionLabel, personLabel } from '../../lib/display'
 import { LogContactDialog } from '../LogContactDialog'
+import { useServerDraft } from '../../lib/use-server-draft'
 import { useDemandeRecord } from './record-context'
+import { StaleNotice } from './StaleNotice'
 
 const F = 'modules.demandes.followUp'
 
@@ -34,7 +36,7 @@ export function FollowUpTab() {
     <SectionSurface>
       <ContactsCard />
       <TasksCard />
-      {bundle.can.notes && <NoteCard key={bundle.note?.updated_at ?? 'none'} />}
+      {bundle.can.notes && <NoteCard />}
     </SectionSurface>
   )
 }
@@ -221,11 +223,10 @@ function AddTaskForm() {
 
 function NoteCard() {
   const { id, bundle, canEdit } = useDemandeRecord()
-  const initial = bundle.note?.internal_note ?? ''
-  const [note, setNote] = useState(initial)
+  const draft = useServerDraft(bundle.note?.internal_note ?? '')
+  const { values: note, setValues: setNote, dirty } = draft
   const [error, setError] = useState<string | null>(null)
   const save = useSaveNote(id)
-  const dirty = note !== initial
   useUnsavedChanges(dirty)
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -236,6 +237,7 @@ function NoteCard() {
   return (
     <SettingsCard as="section" layout="section" title={t(`${F}.note.title`)} description={t(`${F}.note.description`)}>
       <form onSubmit={submit} noValidate className="space-y-2">
+        {draft.stale && <StaleNotice onReload={draft.reload} />}
         <FormField
           label={t(`${F}.note.label`)}
           help={bundle.note ? t(`${F}.note.updated`, { date: formatClinicDateTime(bundle.note.updated_at), name: bundle.note.updated_by_name ?? '' }) : undefined}
@@ -249,7 +251,7 @@ function NoteCard() {
         )}
         {canEdit && (
           <div className="flex justify-end gap-2 empty:hidden">
-            <FormActions onCancel={() => setNote(initial)} dirty={dirty} pending={save.isPending} />
+            <FormActions onCancel={draft.reset} dirty={dirty} pending={save.isPending} />
           </div>
         )}
       </form>

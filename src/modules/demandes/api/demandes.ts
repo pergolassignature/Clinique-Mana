@@ -27,7 +27,7 @@ export const GENDERS = ['female', 'male', 'any'] as const
 export const PAYER_KINDS = ['self', 'insurance', 'eap', 'ivac', 'other', 'unknown'] as const
 export const PERIODS = ['am', 'pm', 'end_of_day', 'evening', 'weekend'] as const
 export const RELATIONSHIPS = ['self', 'child', 'partner', 'parent', 'sibling', 'other'] as const
-export const PROMISES = ['ok', 'soon', 'late', 'met', 'met_late'] as const
+export const PROMISES = ['ok', 'soon', 'late', 'met', 'met_late', 'none'] as const
 export type Promise_ = (typeof PROMISES)[number]
 
 /** The inbox's views and filters. */
@@ -315,9 +315,9 @@ export async function saveParticipants(id: string, participants: ParticipantInpu
   if (error) throw error
 }
 
-/** « Je m'en occupe » (take) or « Je laisse ». */
-export async function setHandler(id: string, take: boolean): Promise<void> {
-  const { error } = await supabase.rpc('set_demande_handler', { p_id: id, p_take: take })
+/** « Je m'en occupe » (take; `expected`: the handler the person saw, for a take-over) or « Je laisse ». */
+export async function setHandler(id: string, take: boolean, expected: string | null = null): Promise<void> {
+  const { error } = await supabase.rpc('set_demande_handler', { p_id: id, p_take: take, ...(expected && { p_expected: expected }) })
   if (error) throw error
 }
 
