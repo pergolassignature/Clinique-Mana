@@ -1,4 +1,4 @@
-import { Video } from 'lucide-react'
+import { CalendarDays, Video } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -9,10 +9,10 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 const hasProfessionalFile = (access: Access) => access.has_professional_file
 
 /**
- * Module Rendez-vous (plan §7): the clinic's agenda. R1 is the schema and the booking RPCs: the
- * professionals' availability (weekly windows, exceptions), the appointments with their clients
- * and presence, the cancellation reasons, the business hours; no screen yet (the agenda is R2,
- * « Mon agenda » R5). RZ adds the video links: each professional's Zoom or fixed link
+ * Module Rendez-vous (plan §7): the clinic's agenda. R1: the schema and the booking rules in the
+ * database; R2: « Agenda » for the staff (Jour, Semaine, Prochains jours, Mois; all
+ * professionals, a service's or one; the availability mode). « Mon agenda » for a professional
+ * comes with R5. RZ adds the video links: each professional's Zoom or fixed link
  * (« Vidéoconférence » in her space) and the staff's view of who is ready (Paramètres →
  * Vidéoconférence). Depends on Clients (the files), Services et tarifs (durations, « pause
  * après », who offers what) and Professionnels.
@@ -22,6 +22,7 @@ export const appointmentsManifest: ModuleManifest = {
   labelKey: 'modules.appointments.name',
   dependsOn: ['clients', 'services', 'professionals'],
   nav: [
+    { path: '/agenda', labelKey: 'modules.appointments.agenda.title', icon: CalendarDays, permission: 'appointments.view', order: 12 },
     // The professional's video link (RZ), until « Mon agenda » (R5) holds it.
     {
       path: '/mon-agenda/videoconference',
@@ -33,6 +34,7 @@ export const appointmentsManifest: ModuleManifest = {
     },
   ],
   routes: [
+    { path: 'agenda', permission: 'appointments.view', component: lazyPage(() => import('./pages/AgendaPage'), 'AgendaPage') },
     // Also where Zoom sends the browser back after « Connecter mon Zoom »: fixed, the functions
     // build the same address from APP_URL (`_shared/zoom/env.ts` RETURN_PATH).
     {

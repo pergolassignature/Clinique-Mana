@@ -13,7 +13,7 @@
 --   adjointe@mana.test     role admin_assistant
 --   provider@mana.test     role provider
 --
--- Organization: « Clinique MANA (local) », modules `professionals`, `services` and `clients` enabled.
+-- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes` and `appointments` enabled.
 
 select set_config('app.audit_source', 'seed', false);
 
@@ -70,7 +70,8 @@ insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'professionals', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'services', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'clients', true, '11111111-1111-1111-1111-111111111111'),
-  ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111');
+  ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111'),
+  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111');
 
 -- Local discovery-call booking (Demandes D3c): open, every day 8 h – 20 h, 30-minute calls, two at
 -- once, an hour's notice, two weeks ahead, so /appel-decouverte?clinique=00000000-0000-0000-0000-000000000001
@@ -527,14 +528,42 @@ update public.document_template_versions v
    and t.org_id = '00000000-0000-0000-0000-000000000001'
    and t.key in ('clients.consent_general_fr', 'clients.consent_waitlist_fr');
 
--- Local video links (Rendez-vous RZ): the module on, and the fake Zoom's app and webhook secret token
+-- Rendez-vous (fictional, local only): Félix (professional n° 4, provider@mana.test) is available
+-- Monday to Friday 9:00–17:00; next week holds three appointments with the fictional clients, so
+-- « Agenda » shows something (e2e/appointments.spec.ts), written through the RPCs as the admin.
+do $appointments$
+declare
+  v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
+  v_monday date := (date_trunc('week', now() at time zone 'America/Toronto'))::date + 7;
+  v_service uuid;
+  v_alice uuid; v_lea uuid; v_marc uuid;
+  d int;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
+  for d in 1 .. 5 loop
+    perform public.set_availability_rule(null, v_pro, d, '09:00', '17:00', '{}', true, false, '2026-01-01', null);
+  end loop;
+  select s.id into v_service
+    from public.services_catalog s, private.professional_booking_facts('00000000-0000-0000-0000-000000000001', v_pro) f
+   where s.org_id = '00000000-0000-0000-0000-000000000001' and s.duration_minutes = 50
+     and (pg_catalog.cardinality(s.title_ids) = 0 or s.title_ids && f.title_ids)
+   order by s.code limit 1;
+  select id into v_alice from public.clients where last_name = 'Tremblay-Fictive';
+  select id into v_lea from public.clients where last_name = 'Gagnon-Fictive';
+  select id into v_marc from public.clients where last_name = 'Gagnon-Fictif';
+  perform public.book_appointment(v_pro, v_service, (v_monday + time '10:00') at time zone 'America/Toronto', array[v_alice]);
+  perform public.book_appointment(v_pro, v_service, (v_monday + 1 + time '14:00') at time zone 'America/Toronto', array[v_lea, v_marc],
+                                  'video', null, 'Léa vient avec son père.');
+  perform public.book_appointment(v_pro, v_service, (v_monday + 3 + time '09:00') at time zone 'America/Toronto', array[v_marc], 'phone');
+  perform set_config('request.jwt.claims', '', false);
+end;
+$appointments$;
+
+-- Local video links (Rendez-vous RZ): the fake Zoom's app and webhook secret token
 -- (`npm run fake:zoom`, port 55394; _shared/testing/fake-zoom.ts FAKE_ZOOM_CLIENT_ID / _SECRET; the
 -- functions reach it through ZOOM_OAUTH_BASE_URL / ZOOM_API_BASE_URL), stored as set_org_secret
 -- stores them. Félix Gauthier (provider@mana.test, professional n° 4) connects his Zoom in
 -- « Vidéoconférence ».
-insert into public.org_modules (org_id, module_key, enabled, updated_by) values
-  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111')
-on conflict (org_id, module_key) do update set enabled = true;
 insert into public.org_secrets (org_id, key, vault_secret_id)
 values
   ('00000000-0000-0000-0000-000000000001', 'zoom_client_id',

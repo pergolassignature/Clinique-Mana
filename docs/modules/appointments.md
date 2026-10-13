@@ -1,19 +1,19 @@
 # Module `appointments` (« Rendez-vous »)
 
-The clinic's agenda: each professional's availability (weekly windows in clinic time, exceptions), the appointments with their clients and presence, cancellations with a reason, the business hours. Plan: [coding plan §7](../plans/2026-10-11-modules-coding-plan.md#7-rendez-vous-appointments--batches); data: [GOrendezvous tour §1 and §18](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); legacy inventory [§E](../plans/2026-10-06-legacy-feature-inventory.md#e-rendez-vous--disponibilités); decisions R-11 … R-16, R-52, R-53, R-55, R-58, R-59, **AP-1 … AP-11** and **RZ-1 … RZ-8** in the [decisions log](../plans/2026-10-07-decisions-log.md).
+The clinic's agenda: each professional's availability (weekly windows in clinic time, exceptions), the appointments with their clients and presence, cancellations with a reason, the business hours. Plan: [coding plan §7](../plans/2026-10-11-modules-coding-plan.md#7-rendez-vous-appointments--batches); data: [GOrendezvous tour §1 and §18](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); legacy inventory [§E](../plans/2026-10-06-legacy-feature-inventory.md#e-rendez-vous--disponibilités); decisions R-11 … R-16, R-52, R-53, R-55, R-58, R-59, **AP-1 … AP-14** and **RZ-1 … RZ-8** in the [decisions log](../plans/2026-10-07-decisions-log.md).
 
 | Batch | What | Status |
 |---|---|---|
 | R1 | Schema, booking RPCs, business hours, open slots, the Clients merge and anonymisation handlers | built |
-| R2 | Agenda UI (Jour, Semaine, Prochains jours, Mois; all pros, a service's, one) and availability mode | planned |
+| R2 | Agenda UI (Jour, Semaine, Prochains jours, Mois; all pros, a service's, one), availability mode, the staff's « Hors disponibilités » (AP-12) | built |
 | R3 | Recurrence, the remaining states, personal appointments, the `mark_completed` job | planned |
 | R4 | Reminders (one business day before, never on a weekend) by email and SMS, confirmation link, fixed video link | planned |
 | R5 | « Mon agenda », the client's « Visites et paiements », publications for Demandes and Facturation | planned |
 | RZ | Video links: Zoom per professional, or a fixed personal link (lane C) | built |
 
 - **Registry:** `modules.key = 'appointments'`, depends on `clients`, `services`, `professionals`. It **starts disabled** in every clinic.
-- **Migrations:** `20261013055753_appointments_module` (registry, tables, RLS, audit, seeds), `20261013055754_professionals_booking_facts`, `20261013055755_clients_booking_facts` and `20261013055756_services_booking_facts` (the owning modules' published facts), `20261013055757_appointments_booking` (RPCs, handlers).
-- **Tests:** pgTAP `118_appointments` (97 tests: privileges, RLS per role, seeds, availability, a 50 min session blocking 60, overlap and « pause après », outside availability, the two 2027 daylight-saving Sundays, services and titles, couples, the professional's limits, archived files, the balance rule (HINT `balance_due`) and its override, a retired service, personal appointments, move, presence, cancellation and its late flag, open slots (also under a Montréal session), the consents read, the handlers); Vitest `src/modules/appointments/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`. No screen in R1.
+- **Migrations:** `20261013055753_appointments_module` (registry, tables, RLS, audit, seeds), `20261013055754_professionals_booking_facts`, `20261013055755_clients_booking_facts` and `20261013055756_services_booking_facts` (the owning modules' published facts), `20261013055757_appointments_booking` (RPCs, handlers); R2: `20261013064650_clients_display_names` (Clients' published names), `20261013064653_appointments_agenda` (AP-12, `set_appointment_details`, `list_agenda`).
+- **Tests:** pgTAP `118_appointments`, `122_appointments_agenda` (R2: the override, the details, the agenda read) (97 tests: privileges, RLS per role, seeds, availability, a 50 min session blocking 60, overlap and « pause après », outside availability, the two 2027 daylight-saving Sundays, services and titles, couples, the professional's limits, archived files, the balance rule (HINT `balance_due`) and its override, a retired service, personal appointments, move, presence, cancellation and its late flag, open slots (also under a Montréal session), the consents read, the handlers); Vitest `src/modules/appointments/**/*.test.ts(x)` (manifest; `lib/agenda.test.ts`: calendar days and placement at both 2027 change Sundays, 15-minute snapping, lanes; `AgendaPage.test.tsx`: the views, click to book, AP-12, drag to move, availability mode); Playwright `e2e/appointments.spec.ts` (book, drag, cancel; « Hors disponibilités »); the audit labels checked by `src/app/audit-labels.test.ts`. Local seed: Félix available Monday–Friday 9:00–17:00, three appointments next week.
 
 ## Permissions
 
@@ -55,6 +55,8 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 | `move_appointment(id, starts_at, professional = null)` | same (both professionals) | the same checks but the balance; clears the client's confirmation |
 | `set_appointment_presence(appointment, client, presence)` | same | not on a cancelled appointment |
 | `cancel_appointment(id, reason_key, details, kept_on_schedule = false)` | same | `cancel_late` from Services' `billing_policy_on(the session's date)` (`late_notice_hours`); the fee is Facturation's (R-59) |
+| `list_agenda(from, to, professional_ids)` (R2) | `appointments.view`, or `.self` for her own | the agenda, 45 days at most: each appointment with its state, flags (`outside_availability`, `balance_override`), video fields and clients (`{client_id, name, client_number, role, presence, confirmed_at}` through Clients' `clients_display_names`); another professional's personal appointment as busy time (no service, label or client) |
+| `set_appointment_details(id, mode, internal_note, client_message)` (R2) | as a booking | the editor's « Notes » |
 | `get_open_slots(professional, service, from, to)` → (starts_at, ends_at) | `appointments.view`, or `.self` for her own | the free slots, 62 days at most (below) |
 | `get_appointment_consents(appointment)` → (client_id, consent_key, frequency, state) | `appointments.view` (not a personal one), or her own | the consents Clients requires for each client (`private.required_consents_for` with the service code, the client's active payer for staff, the appointment as context): R2 shows « Consentement signé / manquant »; never blocks (R-47, AP-11) |
 
@@ -62,12 +64,25 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 
 1. The professional is **active** and **offers the service**: one of her titles is among the service's, or the service is the clinic's (no titles). The service has a duration (fees are not booked) and is active (an appointment of a service retired since still moves).
 2. The slot is **duration + « pause après »** (a 50 min session blocks 60, R-13), on a five-minute mark, at most two years ahead.
-3. It lies **in one of her windows** for that service, in clinic local time and on the same local day (9:00 stays 9:00 across a daylight-saving change), and **no exception** overlaps the session; else « Ce créneau est en dehors des disponibilités du professionnel pour ce service. »
+3. It lies **in one of her windows** for that service, in clinic local time and on the same local day (9:00 stays 9:00 across a daylight-saving change), and **no exception** overlaps the session; else « Ce créneau est en dehors des disponibilités du professionnel pour ce service. » (HINT `outside_availability`). **AP-12:** a holder of `appointments.manage` books or moves there anyway with `p_outside_availability_reason` (3–500 characters, kept with its author, redacted in the audit, shown on the appointment); never a professional on her own agenda; a move back inside clears it.
 4. **No overlap** with her other active appointments, the pause included (HINT `overlap`).
 5. **The clients:** one, or two (a couple service needs two; a second person otherwise); never the same twice; each the clinic's, not archived (« restaurez-le »), merged or anonymised. **Her limits** (Professionnels, P4-245) on the first client: « Femmes seulement » refuses a client known not to be a woman (unknown: allowed); a minimum age refuses a client known to be younger on the day.
 6. **The balance rule (R-58):** a client for whom `private.client_has_balance` is true is refused (HINT `balance_due`); `balance_override_reason` (3–500 characters) books anyway for a holder of `appointments.balance_override`, and the reason and its author are kept. **`private.client_has_balance` is a stub returning false until Facturation (F3) replaces it**; the notice to the conseillère and the professional comes with it.
 
 **Open slots:** for each date, each window allowing the service is cut in slots of the slot length from the window's start (9:00, 10:00, 11:00 for a 50 + 10 min service), whose session ends in the window (or starts in it, with overflow); the past, the exceptions and her active appointments (pause included) are taken out.
+
+## Screens (R2)
+
+- **« Agenda »** (`/agenda`, `appointments.view`, nav order 12). The view, the date, the professional, the service and the mode are URL parameters (`vue`, `date`, `professionnel`, `service`, `mode`).
+  - **Views:** Jour (a column per professional shown), Semaine (default), Prochains jours (14 days as a list), Mois (six weeks). They are real Radix tabs (decision #35); « Aujourd'hui », « ‹ › ».
+  - **Who:** all professionals, a service's (those offering it) or one.
+  - **Rendez-vous mode:** the grid runs 7:00–21:00. Items are placed by clinic date and clock time (`lib/time`), so 9:00 stays on the 9:00 line across a daylight-saving change. The professional's windows are shaded and exceptions hatched. A click on a free quarter hour opens « Nouveau rendez-vous » there. An appointment is a button: it opens the editor; dragging it (Pointer Events, 15-minute snapping) moves it, and the database decides. A move outside the availability is refused there; the editor offers the override.
+  - **Disponibilités mode** (one professional): the week's windows are buttons that open « Modifier la plage », and a click elsewhere adds one. The exceptions panel has « Vacances cette semaine » and « Ajouter une exception ».
+- **The editor** (a sheet):
+  - **« Nouveau rendez-vous »:** professional, service (the ones she offers), date, time, mode, the client then a second person (Clients' `ClientPicker`), internal note, message to the client.
+  - **An appointment:** in-sheet tabs, out of the tab order. « Rendez-vous » holds the presence of each client and « Déplacer ». « Notes » holds the mode, the note and the message. « Annulation » holds the reason, the details and « garder à l'horaire ».
+  - **Refusals:** a refusal is shown in the sheet. HINT `outside_availability` shows « Hors disponibilités » with a reason to the staff; `balance_due` shows the exception with a reason to who may override.
+  - **Lane C (RZ):** a professional's Zoom state warning and the picker dot come with lane C's `useProfessionalVideoStatus()` (R5).
 
 ## What the module publishes
 
