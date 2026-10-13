@@ -1,6 +1,7 @@
 import { t } from '@/i18n'
 import { formatPhone } from '@/shared/lib/format'
 import { getClinicDateString } from '@/shared/lib/timezone'
+import type { ClientReferrer } from '../api/parse'
 import type { ClientLanguage, ClientRateVariant, HolderRelation, PayerKind, RelationRight, RelationType, Sex } from './constants'
 
 /** The module's words for its stored codes (the same ones the Journal d'audit reads). */
@@ -62,3 +63,11 @@ const REASONS = {
   partial_phone: `${DR}.partial_phone`,
 } as const
 export const duplicateReasonLabel = (reason: string): string => (Object.hasOwn(REASONS, reason) ? t(REASONS[reason as keyof typeof REASONS]) : '')
+
+/** What is shown of a « Référé par » file: the record's `referrer`, or a search row just chosen (CL-30). */
+export type ReferrerShown = Pick<ClientReferrer, 'id' | 'clientNumber' | 'name' | 'anonymized'>
+
+/** « CLI-000042 · Rita Tremblay », or « CLI-000042 · Dossier anonymisé » (never the old name). */
+export function referrerLabel(referrer: ReferrerShown): string {
+  return `${clientNumberLabel(referrer.clientNumber)} · ${referrer.anonymized || !referrer.name ? t('modules.clients.referrer.anonymized') : referrer.name}`
+}

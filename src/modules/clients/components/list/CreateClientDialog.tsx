@@ -40,6 +40,7 @@ import type { ClientDuplicate } from '../../api/parse'
 import { useClientDuplicates, useClientsReference, useCreateClient } from '../../hooks/use-clients'
 import { LANGUAGES, SEXES, clientPath } from '../../lib/constants'
 import { choices, clientNumberLabel, duplicateReasonLabel as reasonLabel, languageLabel, phoneLabel, sexLabel } from '../../lib/display'
+import { ReferrerField } from '../picker/ReferrerField'
 import { ALL_CLIENT_FIELDS, clientCardSchema, emptyClientForm, fieldOfHint, toClientFields, type ClientFieldOutput, type ClientFormValues } from '../../schemas/client'
 
 const C = 'modules.clients.create'
@@ -115,6 +116,7 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
 
   // The duplicate panel follows the identity and the contacts, once a first and a last name are typed.
   const [first, last, email, mobile, home, birthday] = useWatch({ control: form.control, name: ['firstName', 'lastName', 'email', 'mobile', 'home', 'birthday'] })
+  const [referredBy, referredByClientId] = useWatch({ control: form.control, name: ['referredBy', 'referredByClientId'] })
   const probe = useDebouncedValue(
     useMemo(
       () =>
@@ -179,6 +181,8 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
         firstName.current?.focus()
       }}
       onEscapeKeyDown={(event) => {
+        // Already handled: Échap closed an open list (« Adresse », « Référé par »), not the sheet.
+        if (event.defaultPrevented) return
         event.preventDefault()
         requestClose()
       }}
@@ -400,9 +404,15 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
                 )}
               </FormField>
             </FormRow>
-            <FormField label={t('modules.clients.fields.referredBy')} width="full" error={errors.referredBy?.message}>
-              {(field) => <Input {...field} {...form.register('referredBy')} autoComplete="off" />}
-            </FormField>
+            <ReferrerField
+              label={t('modules.clients.fields.referredBy')}
+              value={{ clientId: referredByClientId, text: referredBy }}
+              onChange={(next) => {
+                form.setValue('referredByClientId', next.clientId, { shouldDirty: true })
+                form.setValue('referredBy', next.text, { shouldDirty: true, shouldValidate: errors.referredBy !== undefined })
+              }}
+              error={errors.referredBy?.message ?? errors.referredByClientId?.message}
+            />
             <FormField label={t('modules.clients.fields.adminNotes')} width="full" help={t('modules.clients.fields.adminNotesHelp')}>
               {(field) => <Textarea {...field} value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} rows={3} maxLength={5000} />}
             </FormField>
