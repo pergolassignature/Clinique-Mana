@@ -9837,6 +9837,78 @@ export type Database = {
           },
         ]
       }
+      qbo_organisation_links: {
+        Row: {
+          client_id: string | null
+          connection_id: string
+          created_at: string
+          id: string
+          kind: string
+          org_id: string
+          payer_organisation_id: string
+          qbo_customer_id: string
+          source: string
+        }
+        Insert: {
+          client_id?: string | null
+          connection_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          org_id: string
+          payer_organisation_id: string
+          qbo_customer_id: string
+          source: string
+        }
+        Update: {
+          client_id?: string | null
+          connection_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          payer_organisation_id?: string
+          qbo_customer_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_organisation_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_organisation_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_organisation_links_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_organisation_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qbo_organisation_links_organisation_fkey"
+            columns: ["org_id", "payer_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "payer_organisations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       qbo_pushes: {
         Row: {
           amount_mismatch: boolean
@@ -16089,6 +16161,17 @@ export type Database = {
           p_org_id: string
           p_payer: string
           p_qbo_customer_id: string
+        }
+        Returns: undefined
+      }
+      record_qbo_organisation_link_for_service: {
+        Args: {
+          p_client: string
+          p_kind: string
+          p_org_id: string
+          p_organisation: string
+          p_qbo_customer_id: string
+          p_source: string
         }
         Returns: undefined
       }
