@@ -35,6 +35,74 @@ export type Database = {
           },
         ]
       }
+      appointment_messages: {
+        Row: {
+          appointment_id: string
+          attempts: number
+          channel: string
+          client_id: string
+          created_at: string
+          id: string
+          kind: string
+          language: string
+          link_id: string | null
+          org_id: string
+          recipient_client_id: string
+          sent_at: string | null
+          skip_reason: string | null
+          sms_message_id: string | null
+          starts_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          attempts?: number
+          channel: string
+          client_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          language?: string
+          link_id?: string | null
+          org_id: string
+          recipient_client_id: string
+          sent_at?: string | null
+          skip_reason?: string | null
+          sms_message_id?: string | null
+          starts_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          attempts?: number
+          channel?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          language?: string
+          link_id?: string | null
+          org_id?: string
+          recipient_client_id?: string
+          sent_at?: string | null
+          skip_reason?: string | null
+          sms_message_id?: string | null
+          starts_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_messages_appointment_fkey"
+            columns: ["org_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       appointment_participants: {
         Row: {
           appointment_id: string
@@ -10172,6 +10240,10 @@ export type Database = {
         }
         Returns: string
       }
+      appointment_messages_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: Json
+      }
       archive_client: { Args: { p_id: string }; Returns: undefined }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
       assign_demande: {
@@ -10371,6 +10443,10 @@ export type Database = {
       complete_webhook_event: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
+      }
+      confirm_appointment_by_link_for_service: {
+        Args: { p_token_hash: string }
+        Returns: Json
       }
       confirm_stored_file: {
         Args: { p_file_id: string; p_sha256: string; p_size_bytes: number }
@@ -10639,6 +10715,10 @@ export type Database = {
           mobile_e164: string
           reasons: string[]
         }[]
+      }
+      finish_appointment_message_for_service: {
+        Args: { p_message_id: string; p_org_id: string; p_sent: boolean }
+        Returns: undefined
       }
       finish_job_run: {
         Args: { p_detail: string; p_id: string; p_status: string }
@@ -10955,6 +11035,15 @@ export type Database = {
           state: string
           video_status: string
           video_url: string
+        }[]
+      }
+      list_appointments_without_reminder: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          id: string
+          participants: Json
+          professional_id: string
+          starts_at: string
         }[]
       }
       list_audit_actors: {
@@ -11732,6 +11821,10 @@ export type Database = {
         Returns: Json
       }
       pii_health_check: { Args: never; Returns: boolean }
+      prepare_appointment_message_for_service: {
+        Args: { p_message_id: string; p_org_id: string; p_token_hash: string }
+        Returns: Json
+      }
       prepare_client_consent_request_for_service: {
         Args: {
           p_actor: string
@@ -11971,6 +12064,10 @@ export type Database = {
       reset_mail_history: {
         Args: { p_connection_id: string; p_org_id: string; p_token?: string }
         Returns: boolean
+      }
+      resolve_appointment_confirm_link: {
+        Args: { p_link_id: string }
+        Returns: Json
       }
       resolve_client_consent_link: {
         Args: { p_link_id: string }

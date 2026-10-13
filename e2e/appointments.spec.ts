@@ -121,3 +121,11 @@ test('a weekly series: the conflict with Alice listed, skipped, then the rest of
   await editor.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
   await expect(page.getByText('Rendez-vous de la série annulés.')).toBeVisible()
 })
+
+test('« Clients sans rappel » opens the coming appointments nobody can be reminded of (R4)', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto(`/agenda?professionnel=${FELIX}`)
+  await page.getByRole('button', { name: 'Clients sans rappel' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Clients sans rappel' })
+  await expect(sheet.getByText(/7 prochains jours/).first()).toBeVisible()
+})

@@ -36,7 +36,8 @@ import {
 } from '../hooks/use-agenda'
 import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVariant, stateLabel } from '../lib/display'
 import { isoWeekday } from '../lib/time'
-import { SeriesFields, emptySeries, seriesComplete, seriesCount, type SeriesDraft } from './SeriesFields'
+import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
+import { SeriesFields } from './SeriesFields'
 
 const E = 'modules.appointments.editor'
 

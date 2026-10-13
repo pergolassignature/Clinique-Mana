@@ -8,6 +8,9 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 /** « Vidéoconférence » in the professional's space: an account linked to a professional file. */
 const hasProfessionalFile = (access: Access) => access.has_professional_file
 
+/** `/rendez-vous/confirmer#t=…` (R4): « Confirmer ma présence », from a confirmation, reminder or change email. Public. */
+export const confirmAppointmentPublicPage = lazyPage(() => import('./pages/public/ConfirmAppointmentPage'), 'ConfirmAppointmentPage')
+
 /**
  * Module Rendez-vous (plan §7): the clinic's agenda. R1: the schema and the booking rules in the
  * database; R2: « Agenda » for the staff (Jour, Semaine, Prochains jours, Mois; all

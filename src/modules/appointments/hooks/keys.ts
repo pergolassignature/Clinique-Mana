@@ -9,4 +9,5 @@ export const appointmentsKeys = {
   reference: () => [...appointmentsKeys.all, 'reference'] as const,
   availability: (professionalIds: readonly string[], since: string) => [...appointmentsKeys.all, 'availability', professionalIds, since] as const,
   seriesPreview: (rule: object) => [...appointmentsKeys.all, 'series-preview', rule] as const,
+  withoutReminder: (from: string) => [...appointmentsKeys.all, 'without-reminder', from] as const,
 }
