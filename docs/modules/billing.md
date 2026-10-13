@@ -7,7 +7,7 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 | F1 | Invoices, lines, payer model (« Facturé à »), numbering `AAAA-N`, taxes per line with « Statut Indien », credit notes; « Factures », the invoice page, the client's panel, Paramètres → Facturation | built |
 | F2 | Morning queue, payments, receipts on payment, statements, PDFs, emails (schema, `billing-documents`); the screens | built |
 | F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | planned |
-| FQ | QuickBooks Online (lane B): the connection, the accounts map keyed on the payment modes, the customers read and matched (part 1); the invoices and payments pushed (part 2, after F2) | part 1 built |
+| FQ | QuickBooks Online (lane B): the connection, the accounts map keyed on the payment modes, the customers read and matched (part 1); the push of invoices, credit notes, payments and the professionals' bills (part 2) | built (paused until the go/no-go) |
 | FS | Online payments (lane C): Stripe card on file and the next-day charge, « Payer en ligne », the webhook, Interac « À rapprocher » ([below](#paiements-en-ligne-fs)) | built (refunds with F3, administration@ with CM1b) |
 | FPay | Payroll (lane C): periods, rules, the lock, « Paie », « Ma paie », her invoice, the QuickBooks export ([below](#paie-des-professionnels-fpay)) | built (fee wiring after F3) |
 
@@ -155,7 +155,23 @@ Decisions **FQ-1 … FQ-5**. PS Hub's connector is the source (roadmap §2.6), i
 - **Clients:** F1's `private.billing_reassign_client` / `billing_anonymize_client` are replaced with F1's body kept and the QuickBooks part added (matches and links follow a merge; an anonymisation blanks this app's copy of the matched customers).
 - **Locally:** `npm run fake:qbo` (port 55395, `_shared/testing/fake-qbo.ts`); the seed stores the fake's application.
 - **Tests:** pgTAP `150_billing_quickbooks`; Deno tests of the four functions and `_shared/qbo/`; Vitest `QuickBooksSettingsPage`, `QuickBooksCustomersPage`, `lib/qbo-status`.
-- **Part 2 (after F2):** the invoices and payments pushed at finalisation (the hook to agree with lane A), the sub-customers created.
+## QuickBooks: the push (FQ part 2, lane B)
+
+Migration `20261013132858_billing_qbo_push` (pgTAP `151`); decisions **FQ-6 … FQ-10**. The job **« Envoi à QuickBooks »** (`billing.qbo_push`, function `qbo-push`, every 10 minutes, off until enabled) reads F2's outbox `billing_sync_events` (agreed with lane A: `billing_sync_events_for_service`, `finish_billing_sync_event_for_service`, `private.billing_invoice_for_sync`, `private.billing_payment_for_sync`) oldest first, then FPay's professional invoices.
+
+- **The switch (FQ-6):** `qbo_push_paused` in the module's settings, **paused when absent**: nothing at all is sent until the cutover's go/no-go. Paramètres → QuickBooks → « Envoi à QuickBooks »: « Démarrer l'envoi » (asked first; `set_qbo_push_paused`, `billing.settings`, audited) / « Mettre en pause ».
+- **What goes (FQ-7):**
+  - `invoice_issued` → an **Invoice** for the (payer, dossier) sub-customer under the payer's parent (R-30; part 1's match, else made on first use: `customers.ts`), `DocNumber` the app's number, one line per invoice line on an **item**: the company's item for the service code (its SKU, else a name starting with the code: GOrendezvous's), else one made for it on the income account of its kind (`revenue.file_opening` « Ventes » for a file opening, `revenue.services` « Services » otherwise), the tax code `tax.taxable` or `tax.exempt` (two new rows of the map, suggested « TPS/TVQ QC » and « Exonéré »);
+  - `invoice_credited` → a **CreditMemo** with the invoice's lines, for the invoice's customer (after the invoice);
+  - `payment_recorded` → a **Payment** applied to the pushed invoice, deposited to the account of its mode (`deposit.<code>`), after its invoice;
+  - `payment_refunded` (F3) → not yet (`not_supported`, left in the outbox);
+  - a validated or paid payroll period with its invoice (FPay) → a **Bill** for her vendor (`qbo_vendor_links`, made on her first bill), on the expense account of her specialty (the period's title), `professional_invoices.qbo_bill_id` set.
+- **Never twice (FQ-8):** `qbo_pushes` keeps each document's push (`pending`, `pushed` with the QuickBooks id, `failed`), one per entity; a document pushed only closes its event. Every create carries Intuit's `requestid` derived from the entity, so an answer lost in transit returns the first document. A refusal is recorded with its code and tried again after 5 min, 10, 20 … 12 h; after 8 tries it is `failed` until « Réessayer ». A missing map line is named (`missing_map`) and nothing is sent. A token Intuit refuses stops the pass (`needs_reconnect`).
+- **Totals (FQ-9):** QuickBooks computes the taxes from the codes; when its total differs from the app's (rounding), the push is kept and marked « à vérifier ».
+- **Where it shows (FQ-10):** « Envoi à QuickBooks » lists the documents waiting or refused, why in plain words, and « Réessayer » (`list_qbo_pushes`, `retry_qbo_push`); an invoice's page shows « Dans QuickBooks depuis le … », « En attente d'envoi » or « refusé : … » (`qbo_invoice_push_status`, `billing.view`).
+- **The sync** also reads the company's items and tax codes (`qbo_items`, `qbo_tax_codes`: mirrors, not audited, like the accounts).
+- **Tests:** pgTAP `151_billing_qbo_push`; Deno `qbo-push/handler.test.ts` (paused, invoice then payment, a lost answer, a refusal, a missing map, a bill, a dead grant) against `fake-qbo.ts` (creates, `requestid`, items, tax codes); Vitest `QuickBooksSettingsPage` (the switch, the list, the tax rows).
+
 
 ## Paiements en ligne (FS)
 
