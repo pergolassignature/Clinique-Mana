@@ -7581,6 +7581,128 @@
         "landing": "Page d’arrivée",
         "none": "Non indiquée"
       }
+    },
+    "appointments": {
+      "name": "Rendez-vous",
+      "audit": {
+        "tables": {
+          "appointments": "Rendez-vous",
+          "appointment_participants": "Clients des rendez-vous",
+          "availability_rules": "Disponibilités",
+          "availability_exceptions": "Exceptions aux disponibilités",
+          "cancellation_reasons": "Raisons d'annulation",
+          "appointment_settings": "Heures d'ouverture et réglages de l'agenda"
+        },
+        "fields": {
+          "appointments": {
+            "professional_id": "Professionnel",
+            "service_id": "Service",
+            "starts_at": "Début",
+            "ends_at": "Fin de la séance",
+            "blocks_until": "Fin de la pause après",
+            "mode": "Mode",
+            "state": "État",
+            "is_personal": "Rendez-vous personnel",
+            "is_work": "Rendez-vous de travail",
+            "personal_label": "Libellé",
+            "internal_note": "Note interne",
+            "client_message": "Message au client",
+            "confirmed_at": "Confirmé par le client le",
+            "completed_at": "Terminé le",
+            "cancelled_at": "Annulé le",
+            "cancelled_by": "Annulé par",
+            "cancel_reason_id": "Raison d'annulation",
+            "cancel_details": "Détails de l'annulation",
+            "cancel_late": "Annulation tardive",
+            "kept_on_schedule": "Gardé à l'horaire",
+            "balance_override_reason": "Raison de la réservation malgré un solde",
+            "balance_override_by": "Réservé malgré un solde par",
+            "video_url": "Lien de la rencontre",
+            "video_external_id": "Référence de la rencontre",
+            "video_status": "État du lien de la rencontre",
+            "external_ref": "Référence GOrendezvous"
+          },
+          "appointment_participants": {
+            "appointment_id": "Rendez-vous",
+            "client_id": "Client",
+            "role": "Rôle",
+            "presence": "Présence",
+            "confirmed_at": "Confirmé le"
+          },
+          "availability_rules": {
+            "professional_id": "Professionnel",
+            "weekday": "Jour",
+            "start_time": "Début",
+            "end_time": "Fin",
+            "service_ids": "Services",
+            "visible_to_clients": "Visible aux clients",
+            "overflow_allowed": "Dépassement permis",
+            "valid_from": "Valide à partir du",
+            "valid_until": "Valide jusqu'au"
+          },
+          "availability_exceptions": {
+            "professional_id": "Professionnel",
+            "kind": "Type",
+            "starts_at": "Début",
+            "ends_at": "Fin",
+            "label": "Libellé"
+          },
+          "cancellation_reasons": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Raison de base",
+            "sort_order": "Ordre",
+            "is_active": "Active"
+          },
+          "appointment_settings": {
+            "business_days": "Jours ouvrables",
+            "business_start": "Ouverture",
+            "business_end": "Fermeture",
+            "reminder_business_days": "Rappel (jours ouvrables avant)",
+            "reminder_local_hour": "Heure d'envoi des rappels"
+          }
+        },
+        "values": {
+          "appointments": {
+            "mode": {
+              "video": "Vidéo",
+              "phone": "Téléphone"
+            },
+            "state": {
+              "booked": "Réservé",
+              "confirmed": "Confirmé par le client",
+              "completed": "Terminé",
+              "cancelled": "Annulé"
+            },
+            "video_status": {
+              "ready": "Prêt",
+              "pending": "En attente",
+              "failed": "Échec"
+            }
+          },
+          "appointment_participants": {
+            "role": {
+              "client": "Client",
+              "second": "Deuxième personne"
+            },
+            "presence": {
+              "expected": "Sera présent",
+              "present": "Présent",
+              "absent": "Absent"
+            }
+          },
+          "availability_exceptions": {
+            "kind": {
+              "holiday": "Jour férié",
+              "vacation": "Vacances",
+              "other": "Autre"
+            }
+          }
+        },
+        "sources": {
+          "seed:appointments_reference": "Réglages initiaux de l’agenda"
+        }
+      }
     }
   },
   "roles": {
