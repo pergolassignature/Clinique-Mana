@@ -21,6 +21,10 @@
  *    (idempotent: a connection already ended counts 0) → 200
  *    `{ outcome: 'ended', count }`. Any other event → 200 `skipped`.
  *
+ * No module gate (the one exception to CLAUDE.md §7's rule, on purpose): a
+ * deauthorization only deletes the clinic's copy of the tokens and ends the
+ * connection, which must happen even while Rendez-vous is disabled.
+ *
  * Nothing is claimed in `webhook_events`: the only write is idempotent.
  * Answers carry the outcome at most; reports carry the org id only.
  */

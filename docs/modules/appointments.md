@@ -113,7 +113,7 @@ Migrations `20261013071509_professionals_appointments_facts` (Professionnels' pu
 - **Functions:**
   - `zoom-connect` (user, `appointments.self`): `start` → Zoom's consent URL with a signed state; `disconnect` revokes the grant, then ends the connection.
   - `zoom-callback` (user, `appointments.self`): the code exchanged, `users/me`, the connection stored; her future video appointments are queued.
-  - `zoom-deauthorize` (webhook, `?org=`): `x-zm-signature` (HMAC of `v0:<timestamp>:<body>` with the app's Secret Token, 5 minutes), `endpoint.url_validation` answered, `app_deauthorized` ends the connection.
+  - `zoom-deauthorize` (webhook, `?org=`): `x-zm-signature` (HMAC of `v0:<timestamp>:<body>` with the app's Secret Token, 5 minutes), `endpoint.url_validation` answered, `app_deauthorized` ends the connection. No module gate, on purpose: it only deletes tokens.
   - `appointments-video-sync` (job `appointments.video_sync`, every 5 minutes, off by default).
   - Rate limits: `zoom.connect_user`, `zoom.callback_user`, `webhooks.zoom_ip`.
   - Local fake: `npm run fake:zoom` (port 55394).

@@ -711,6 +711,16 @@ begin
   perform pg_catalog.set_config('app.audit_source', 'rpc:store_zoom_connection', true);
   perform pg_catalog.set_config('app.audit_actor', p_actor::text, true);
 
+  -- Another Zoom account than the one connected before: the old account's meetings cannot be
+  -- managed with the new grant; they are forgotten (re-made on the new account below).
+  select c.id into v_id from public.video_connections c
+   where c.org_id = p_org_id and c.professional_id = v_professional and c.provider = 'zoom'
+     and c.external_user_id is distinct from p_external_user_id;
+  if v_id is not null then
+    perform private.appointment_video_forget_connection(p_org_id, v_id);
+  end if;
+
+  begin
   insert into public.video_connections as c
     (org_id, professional_id, provider, state, external_user_id, external_account_id, account_email, scopes,
      connected_at, connected_by, tokens_refreshed_at)
@@ -722,6 +732,10 @@ begin
         scopes = excluded.scopes, connected_at = pg_catalog.now(), connected_by = p_actor,
         disconnected_at = null, reconnect_reason = null, tokens_refreshed_at = pg_catalog.now()
   returning c.id into v_id;
+  exception when unique_violation then
+    -- The same Zoom account connected for another professional at the same moment.
+    raise exception 'Ce compte Zoom est déjà connecté pour un autre professionnel de la clinique.' using errcode = 'P0001';
+  end;
 
   v_version := private.pii_current_key_version();
   insert into public.video_connection_tokens as t (connection_id, org_id, access_token, refresh_token, access_token_expires_at, key_version)
@@ -864,13 +878,13 @@ grant execute on function public.zoom_deauthorized_for_service(uuid, text) to se
 -- A connection's tokens (the job's one reader). No row for a connection that is not p_org's or
 -- has no tokens (disconnected).
 create function public.get_zoom_credentials_for_service(p_org_id uuid, p_connection_id uuid)
-returns table (state text, access_token text, refresh_token text, access_token_expires_at timestamptz)
+returns table (state text, access_token text, refresh_token text, access_token_expires_at timestamptz, connected_at timestamptz)
 language sql
 security definer
 set search_path = ''
 as $$
   select c.state, private.decrypt_pii(t.access_token, t.key_version), private.decrypt_pii(t.refresh_token, t.key_version),
-         t.access_token_expires_at
+         t.access_token_expires_at, c.connected_at
     from public.video_connections c
     join public.video_connection_tokens t on t.org_id = c.org_id and t.connection_id = c.id
    where c.org_id = p_org_id and c.id = p_connection_id
@@ -879,9 +893,11 @@ revoke all on function public.get_zoom_credentials_for_service(uuid, uuid) from 
 grant execute on function public.get_zoom_credentials_for_service(uuid, uuid) to service_role;
 
 -- New tokens after a refresh (Zoom rotates the refresh token too): both re-encrypted under the
--- current version. False when the connection has no tokens any more.
+-- current version. False when the connection has no tokens any more, or was connected again since
+-- the job read it (`p_connected_at`: the new grant's tokens are kept).
 create function public.set_zoom_tokens_for_service(
-  p_org_id uuid, p_connection_id uuid, p_access_token text, p_refresh_token text, p_access_token_expires_at timestamptz)
+  p_org_id uuid, p_connection_id uuid, p_access_token text, p_refresh_token text, p_access_token_expires_at timestamptz,
+  p_connected_at timestamptz)
 returns boolean
 language plpgsql
 security definer
@@ -898,7 +914,10 @@ begin
      set access_token = private.encrypt_pii(p_access_token, v_version),
          refresh_token = private.encrypt_pii(p_refresh_token, v_version),
          access_token_expires_at = p_access_token_expires_at, key_version = v_version
-   where t.org_id = p_org_id and t.connection_id = p_connection_id;
+   where t.org_id = p_org_id and t.connection_id = p_connection_id
+     and exists (select 1 from public.video_connections c
+                  where c.org_id = p_org_id and c.id = p_connection_id and c.state = 'connected'
+                    and c.connected_at is not distinct from p_connected_at);
   if not found then
     return false;
   end if;
@@ -907,13 +926,15 @@ begin
   return true;
 end;
 $$;
-revoke all on function public.set_zoom_tokens_for_service(uuid, uuid, text, text, timestamptz) from public, anon, authenticated;
-grant execute on function public.set_zoom_tokens_for_service(uuid, uuid, text, text, timestamptz) to service_role;
+revoke all on function public.set_zoom_tokens_for_service(uuid, uuid, text, text, timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function public.set_zoom_tokens_for_service(uuid, uuid, text, text, timestamptz, timestamptz) to service_role;
 
 -- Zoom refused the grant (`invalid_grant`, or a 401 that a fresh token does not cure): the
 -- connection is `needs_reconnect` (its meetings stay: their links still work), the professional
--- and the staff are told once per connection. False when it was not connected.
-create function public.mark_zoom_needs_reconnect_for_service(p_org_id uuid, p_connection_id uuid, p_reason text)
+-- and the staff are told once per connection. False when it was not connected, or was connected
+-- again since the job read it (`p_connected_at`).
+create function public.mark_zoom_needs_reconnect_for_service(
+  p_org_id uuid, p_connection_id uuid, p_reason text, p_connected_at timestamptz)
 returns boolean
 language plpgsql
 security definer
@@ -926,7 +947,8 @@ begin
   perform pg_catalog.set_config('app.audit_source', 'job:appointments.video_sync', true);
   update public.video_connections c
      set state = 'needs_reconnect', reconnect_reason = p_reason
-   where c.org_id = p_org_id and c.id = p_connection_id and c.state = 'connected';
+   where c.org_id = p_org_id and c.id = p_connection_id and c.state = 'connected'
+     and c.connected_at is not distinct from p_connected_at;
   if not found then
     return false;
   end if;
@@ -934,8 +956,8 @@ begin
   return true;
 end;
 $$;
-revoke all on function public.mark_zoom_needs_reconnect_for_service(uuid, uuid, text) from public, anon, authenticated;
-grant execute on function public.mark_zoom_needs_reconnect_for_service(uuid, uuid, text) to service_role;
+revoke all on function public.mark_zoom_needs_reconnect_for_service(uuid, uuid, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.mark_zoom_needs_reconnect_for_service(uuid, uuid, text, timestamptz) to service_role;
 
 -- The connections whose tokens were last refreshed more than 20 hours ago: the job refreshes them
 -- (Zoom's refresh token lapses after 90 days unused; a revoked grant shows within a day).
@@ -956,13 +978,15 @@ grant execute on function public.list_zoom_connections_to_refresh_for_service(uu
 
 -- Claims up to p_limit due tasks (pending, their next attempt reached, not held), holding them 3
 -- minutes, with what the job needs to reconcile each: whether the appointment wants a video meeting
--- (`wants_video`: future, active, video, not personal) and on which connection it can be made
--- (`target_connection_id`: her connected Zoom, else null), the existing meeting and its
--- connection's state, the times.
+-- (`wants_video`: active, video, not personal), whether it has `started` (its meeting is then left
+-- as it is: never moved or deleted under a session), on which connection a meeting can be made or
+-- moved (`target_connection_id`: her connected Zoom, for a future appointment, else null), the
+-- existing meeting, its connection's state and professional, the times.
 create function public.claim_video_tasks_for_service(p_org_id uuid, p_limit int default 10)
-returns table (appointment_id uuid, generation int, attempts smallint, wants_video boolean, target_connection_id uuid,
-               starts_at timestamptz, ends_at timestamptz, timezone text,
-               meeting_connection_id uuid, meeting_connection_state text, meeting_external_id text, meeting_join_url text)
+returns table (appointment_id uuid, generation int, attempts smallint, wants_video boolean, started boolean,
+               target_connection_id uuid, professional_id uuid, starts_at timestamptz, ends_at timestamptz, timezone text,
+               meeting_connection_id uuid, meeting_connection_state text, meeting_professional_id uuid,
+               meeting_external_id text, meeting_join_url text)
 language plpgsql
 security definer
 set search_path = ''
@@ -982,10 +1006,11 @@ begin
       returning t.appointment_id, t.generation, t.attempts
     )
     select c.appointment_id, c.generation, c.attempts,
-           (a.mode = 'video' and a.state in ('booked', 'confirmed') and not a.is_personal and a.starts_at > pg_catalog.now()),
+           (a.mode = 'video' and a.state in ('booked', 'confirmed') and not a.is_personal),
+           a.starts_at <= pg_catalog.now(),
            private.appointment_video_target(a.org_id, a.professional_id, a.mode, a.state, a.is_personal, a.starts_at),
-           a.starts_at, a.ends_at, private.appointments_tz(a.org_id),
-           m.connection_id, vc.state, m.external_id, m.join_url
+           a.professional_id, a.starts_at, a.ends_at, private.appointments_tz(a.org_id),
+           m.connection_id, vc.state, vc.professional_id, m.external_id, m.join_url
       from claimed c
       join public.appointments a on a.id = c.appointment_id and a.org_id = p_org_id
       left join public.appointment_video_meetings m on m.appointment_id = c.appointment_id
@@ -1053,9 +1078,11 @@ begin
     on conflict (appointment_id) do update
       set connection_id = excluded.connection_id, external_id = excluded.external_id, join_url = excluded.join_url
       where (m.connection_id, m.external_id, m.join_url) is distinct from (excluded.connection_id, excluded.external_id, excluded.join_url);
+    -- Only an active video appointment shows a link (a meeting kept on a cancelled one, waiting
+    -- for its deletion, never gives the link back).
     update public.appointments a
        set video_url = p_join_url, video_external_id = p_external_id, video_status = 'ready'
-     where a.id = p_appointment_id
+     where a.id = p_appointment_id and a.mode = 'video' and a.state in ('booked', 'confirmed') and not a.is_personal
        and (a.video_url, a.video_external_id, a.video_status) is distinct from (p_join_url, p_external_id, 'ready');
   end if;
 

@@ -81,7 +81,7 @@ describe('VideoSettingsPage (RZ)', () => {
     expect(within(await row('Ana Zoom')).getByText(t(`${V}.readiness.zoom`))).toBeInTheDocument()
     expect(within(await row('Ana Zoom')).getByText(/^Compte ana@zoom\.test/)).toBeInTheDocument()
     expect(within(await row('Béa Lien')).getByText(t(`${V}.readiness.fixed`))).toBeInTheDocument()
-    expect(within(await row('Béa Lien')).getByText('Lien fixe : https://meet.google.com/abc-defg-hij')).toBeInTheDocument()
+    expect(within(await row('Béa Lien')).getByText('https://meet.google.com/abc-defg-hij')).toBeInTheDocument()
     expect(within(await row('Chloé Rien')).getByText(t(`${V}.readiness.none`))).toBeInTheDocument()
     expect(within(await row('Dina Reconnecte')).getByText(t(`${V}.readiness.reconnect`))).toBeInTheDocument()
     expect(screen.queryByText('Éve Inactive')).not.toBeInTheDocument()

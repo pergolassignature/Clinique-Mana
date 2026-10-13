@@ -6,9 +6,12 @@
  *
  * - OAuth calls authenticate the app with HTTP Basic (Zoom's rule); Zoom
  *   rotates the refresh token on every refresh, so the caller stores both.
- * - Only `invalid_grant` (a revoked or lapsed grant) means « reconnect »; a
- *   transient failure (timeout, 429, 5xx) is `provider_error` and the job
- *   tries again (PS Hub deactivated on any non-2xx, roadmap §2.4 bis).
+ * - A refresh Zoom refuses with a 400 or 401 (`invalid_grant`, or
+ *   `invalid_request` « Invalid Token! » for a revoked, lapsed or already used
+ *   refresh token) means « reconnect », unless it is `invalid_client` (the
+ *   clinic's app is wrong: its configuration, not the person's); a transient
+ *   failure (timeout, 429, 5xx) is `provider_error` and the job tries again
+ *   (PS Hub deactivated on any non-2xx, roadmap §2.4 bis).
  * - API errors are mapped to a few codes: `unauthorized` (401: the access
  *   token; the caller refreshes once), `not_found` (404: the meeting is gone),
  *   `bad_request` (another 4xx), `provider_error` (429, 5xx), `timeout`,
@@ -141,7 +144,7 @@ async function tokenCall(
   form: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<
-  { ok: true; token: TokenResponse } | { ok: false; invalidGrant: boolean }
+  { ok: true; token: TokenResponse } | { ok: false; invalidClient: boolean }
 > {
   const res = await send(fetchFn, `${origins.oauth}/oauth/token`, {
     method: 'POST',
@@ -164,14 +167,14 @@ async function tokenCall(
   const error = errorSchema.safeParse(json)
   return {
     ok: false,
-    invalidGrant: error.success && error.data.error === 'invalid_grant',
+    invalidClient: error.success && error.data.error === 'invalid_client',
   }
 }
 
 /**
- * The authorization code → tokens. A refused code (`invalid_grant`: expired,
- * used) throws `bad_request`; another refusal (`invalid_client`: the
- * clinic's app is wrong) is the clinic's configuration and throws
+ * The authorization code → tokens. A refused code (expired, already used:
+ * `invalid_grant` or `invalid_request`) throws `bad_request`; `invalid_client`
+ * (the clinic's app is wrong) is the clinic's configuration and throws
  * `provider_error`.
  */
 export async function exchangeCode(
@@ -188,9 +191,9 @@ export async function exchangeCode(
     redirect_uri: redirectUri,
   }, signal)
   if (!result.ok) {
-    throw result.invalidGrant
-      ? new ZoomError('bad_request', 400)
-      : new ZoomError('provider_error')
+    throw result.invalidClient
+      ? new ZoomError('provider_error')
+      : new ZoomError('bad_request', 400)
   }
   return result.token
 }
@@ -208,8 +211,8 @@ export async function refreshTokens(
     refresh_token: refreshToken,
   }, signal)
   if (!result.ok) {
-    if (result.invalidGrant) throw new ReconnectNeeded('invalid_grant')
-    throw new ZoomError('provider_error')
+    if (result.invalidClient) throw new ZoomError('provider_error')
+    throw new ReconnectNeeded('invalid_grant')
   }
   return result.token
 }
@@ -243,6 +246,18 @@ const userSchema = z.looseObject({
   account_id: z.string().max(64).optional(),
 })
 export type ZoomUser = z.infer<typeof userSchema>
+
+const listedSchema = z.looseObject({
+  meetings: z.array(z.looseObject({
+    id: z.union([
+      z.number().int().positive(),
+      z.string().regex(/^[0-9]{1,30}$/),
+    ]),
+    topic: z.string().optional(),
+    start_time: z.string().optional(),
+    join_url: z.string().max(1_000).optional(),
+  })).max(300),
+})
 
 const meetingSchema = z.looseObject({
   id: z.union([z.number().int().positive(), z.string().regex(/^[0-9]{1,30}$/)]),
@@ -336,6 +351,28 @@ export class ZoomApi {
     const parsed = meetingSchema.safeParse(json)
     if (!parsed.success) throw new ZoomError('unusable_answer')
     return { externalId: String(parsed.data.id), joinUrl: parsed.data.join_url }
+  }
+
+  /**
+   * A meeting of ours already made at this start (a creation retried after Zoom made it but its
+   * answer or our record was lost), or null. One professional has one appointment at a time, so
+   * the topic and the start time name it.
+   */
+  async findMeeting(times: MeetingTimes): Promise<Meeting | null> {
+    const { json } = await this.call(
+      'GET',
+      '/users/me/meetings?type=upcoming&page_size=300',
+    )
+    const parsed = listedSchema.safeParse(json)
+    if (!parsed.success) throw new ZoomError('unusable_answer')
+    const start = meetingFields(times).start_time
+    const found = parsed.data.meetings.find((m) =>
+      m.topic === MEETING_TOPIC && m.start_time === start &&
+      typeof m.join_url === 'string' && m.join_url.startsWith('https://')
+    )
+    return found
+      ? { externalId: String(found.id), joinUrl: found.join_url as string }
+      : null
   }
 
   /** Moves a meeting (its address stays). `not_found` when it is gone. */

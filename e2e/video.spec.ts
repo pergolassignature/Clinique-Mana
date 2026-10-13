@@ -37,7 +37,7 @@ test('the professional saves her fixed link; the staff see it', async ({ page, s
   await expect(page.getByRole('heading', { level: 1, name: 'Vidéoconférence' })).toBeVisible()
   const felix = page.getByRole('listitem').filter({ has: page.getByText('Félix Gauthier', { exact: true }) })
   await expect(felix.getByText('Lien fixe', { exact: true })).toBeVisible()
-  await expect(felix.getByText(new RegExp(`^Lien fixe\\s:\\s${LINK}$`))).toBeVisible()
+  await expect(felix.getByText(LINK, { exact: true })).toBeVisible()
 })
 
 test('« Connecter mon Zoom » through the fake Zoom, then « Déconnecter »', async ({ page, signIn, request }) => {

@@ -22,6 +22,7 @@ export const FAKE_JOIN_ORIGIN = 'https://fake-zoom.test'
 export interface FakeZoomMeeting {
   id: number
   owner: string
+  topic?: string
   start_time: string
   duration: number
   timezone: string
@@ -120,7 +121,11 @@ export function fakeZoom(
         const refresh = form.get('refresh_token') ?? ''
         const grant = grants.get(refresh)
         if (!grant || grant.revoked) {
-          return json(400, { error: 'invalid_grant' })
+          // What Zoom answers for a revoked, lapsed or already used refresh token.
+          return json(400, {
+            reason: 'Invalid Token!',
+            error: 'invalid_request',
+          })
         }
         grant.revoked = true // Rotated: the old refresh token is spent.
         return json(200, issue(grant.user))
@@ -155,6 +160,7 @@ export function fakeZoom(
         const meeting: FakeZoomMeeting = {
           id,
           owner: user,
+          topic: String(body.topic),
           start_time: String(body.start_time),
           duration: Number(body.duration),
           timezone: String(body.timezone),
@@ -166,6 +172,19 @@ export function fakeZoom(
           id,
           join_url: meeting.join_url,
           start_url: `${FAKE_JOIN_ORIGIN}/s/${id}`,
+        })
+      }
+      if (req.method === 'GET' && path === '/v2/users/me/meetings') {
+        return json(200, {
+          meetings: [...meetings.values()]
+            .filter((m) => m.owner === user && !m.deleted)
+            .map((m) => ({
+              id: m.id,
+              topic: m.topic,
+              start_time: m.start_time,
+              duration: m.duration,
+              join_url: m.join_url,
+            })),
         })
       }
       const match = /^\/v2\/meetings\/([0-9]+)$/.exec(path)

@@ -7880,7 +7880,7 @@
           "list": {
             "title": "Professionnels",
             "description": "Qui est prêt pour les rendez-vous en vidéo. Un professionnel sans lien peut connecter son Zoom dans « Vidéoconférence » ; vous pouvez entrer son lien fixe pour lui.",
-            "summary": "{ready} professionnels actifs sur {total} ont un lien vidéo.",
+            "summary": "Avec un lien vidéo : {ready} sur {total} professionnels actifs.",
             "filterLabel": "Filtrer par lien vidéo",
             "filter": "{label} ({count})",
             "filters": {
@@ -7890,7 +7890,6 @@
               "reconnect": "À reconnecter",
               "none": "Aucun lien"
             },
-            "fixedLink": "Lien fixe : {url}",
             "addFixed": "Ajouter un lien fixe",
             "editFixed": "Modifier le lien fixe",
             "addFixedFor": "Ajouter un lien fixe pour {name}",

@@ -10,7 +10,7 @@
 -- recipients of the link email; the published Professionnels helpers.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(95);
+select plan(110);
 
 -- =============================================================================
 -- Privileges
@@ -26,8 +26,8 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array[]::te
     ('disconnect_my_zoom_connection', array['uuid', 'uuid']),
     ('zoom_deauthorized_for_service', array['uuid', 'text']),
     ('get_zoom_credentials_for_service', array['uuid', 'uuid']),
-    ('set_zoom_tokens_for_service', array['uuid', 'uuid', 'text', 'text', 'timestamp with time zone']),
-    ('mark_zoom_needs_reconnect_for_service', array['uuid', 'uuid', 'text']),
+    ('set_zoom_tokens_for_service', array['uuid', 'uuid', 'text', 'text', 'timestamp with time zone', 'timestamp with time zone']),
+    ('mark_zoom_needs_reconnect_for_service', array['uuid', 'uuid', 'text', 'timestamp with time zone']),
     ('list_zoom_connections_to_refresh_for_service', array['uuid', 'integer']),
     ('claim_video_tasks_for_service', array['uuid', 'integer']),
     ('complete_video_task_for_service', array['uuid', 'uuid', 'integer', 'uuid', 'text', 'text', 'text']),
@@ -281,18 +281,57 @@ select results_eq($$ select a.video_url, a.video_status, t.state from public.app
                       where a.id = 'e0000000-0000-0000-0000-000000000006' $$,
   $$ values (null::text, null::text, 'pending') $$, 'another professional: the old meeting goes');
 
+-- A started appointment: its meeting is left as it is (never moved or deleted under a session).
+insert into public.appointments (id, org_id, professional_id, service_id, starts_at, ends_at, blocks_until, mode) values
+  ('e0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001',
+   current_setting('test.s50')::uuid, now() + interval '9 days', now() + interval '9 days 50 minutes', now() + interval '9 days 60 minutes', 'video');
+set local role service_role;
+select is(public.complete_video_task_for_service('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000007',
+  (select generation from public.video_tasks where appointment_id = 'e0000000-0000-0000-0000-000000000007'),
+  current_setting('test.conn')::uuid, '88007', 'https://zoom.test/j/88007', null), true, 'its meeting');
+reset role;
+update public.appointments set starts_at = now() - interval '5 minutes', ends_at = now() + interval '45 minutes',
+                               blocks_until = now() + interval '55 minutes'
+ where id = 'e0000000-0000-0000-0000-000000000007';
+select results_eq($$ select a.video_url, a.video_status from public.appointments a where a.id = 'e0000000-0000-0000-0000-000000000007' $$,
+  $$ values ('https://zoom.test/j/88007', 'ready') $$, 'under way: the link stays');
+set local role service_role;
+select results_eq($$ select wants_video, started, target_connection_id, meeting_external_id, meeting_professional_id
+                      from public.claim_video_tasks_for_service('b0000000-0000-0000-0000-00000000000a')
+                     where appointment_id = 'e0000000-0000-0000-0000-000000000007' $$,
+  $$ values (true, true, null::uuid, '88007', 'c0000000-0000-0000-0000-000000000001'::uuid) $$,
+  'claimed as started: the job keeps the meeting (no target to move it to)');
+reset role;
+-- A meeting reported for a cancelled appointment never gives it a link back.
+update public.appointments set state = 'cancelled', cancelled_at = now() where id = 'e0000000-0000-0000-0000-000000000003';
+set local role service_role;
+select is(public.complete_video_task_for_service('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000003', 1,
+  current_setting('test.conn')::uuid, '88003', 'https://zoom.test/j/88003', 'needs_reconnect'), false, 'a meeting kept on a cancelled one');
+reset role;
+select results_eq($$ select video_url, video_status from public.appointments where id = 'e0000000-0000-0000-0000-000000000003' $$,
+  $$ values (null::text, null::text) $$, 'no link on a cancelled appointment');
+
 -- =============================================================================
 -- Reconnect, disconnect, deauthorize
 -- =============================================================================
+select set_config('test.connected_at', (select connected_at::text from public.video_connections where id = current_setting('test.conn')::uuid), true);
 set local role service_role;
-select is(public.mark_zoom_needs_reconnect_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid, 'invalid_grant'),
-  true, 'needs reconnect');
+select is(public.mark_zoom_needs_reconnect_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid, 'invalid_grant',
+  current_setting('test.connected_at')::timestamptz - interval '1 hour'), false, 'not when it was connected again since the job read it');
+select is(public.set_zoom_tokens_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid, 'a-x', 'r-x',
+  now() + interval '1 hour', current_setting('test.connected_at')::timestamptz - interval '1 hour'), false, 'nor are stale tokens stored');
+select is(public.set_zoom_tokens_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid, 'access-2', 'refresh-2',
+  now() + interval '1 hour', current_setting('test.connected_at')::timestamptz), true, 'refreshed tokens stored');
+select results_eq($$ select access_token, refresh_token from public.get_zoom_credentials_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid) $$,
+  $$ values ('access-2', 'refresh-2') $$, 'both rotated');
+select is(public.mark_zoom_needs_reconnect_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid, 'invalid_grant',
+  current_setting('test.connected_at')::timestamptz), true, 'needs reconnect');
 reset role;
 select results_eq($$ select recipient_permission, importance from public.notifications where kind = 'appointments.zoom_reconnect' order by 1 $$,
   $$ values ('appointments.manage', 'normal'), ('appointments.self', 'important') $$, 'the professional and the staff are told');
 set local role service_role;
-select is(public.mark_zoom_needs_reconnect_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid, 'invalid_grant'),
-  false, 'once');
+select is(public.mark_zoom_needs_reconnect_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.conn')::uuid, 'invalid_grant',
+  current_setting('test.connected_at')::timestamptz), false, 'once');
 select lives_ok($$ select public.store_zoom_connection('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a',
   'zu1', 'za1', 'pro.un@zoom.test', 'access-3', 'refresh-3', now() + interval '1 hour', '{}') $$, 'reconnected');
 reset role;
@@ -311,6 +350,25 @@ select is(public.zoom_deauthorized_for_service('b0000000-0000-0000-0000-00000000
 reset role;
 select results_eq($$ select state, reconnect_reason from public.video_connections $$,
   $$ values ('disconnected', 'deauthorized') $$, 'ended by Zoom, said so');
+
+-- Another Zoom account: the old account's meetings are forgotten, the appointments re-queued.
+insert into public.appointments (id, org_id, professional_id, service_id, starts_at, ends_at, blocks_until, mode) values
+  ('e0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001',
+   current_setting('test.s50')::uuid, now() + interval '11 days', now() + interval '11 days 50 minutes', now() + interval '11 days 60 minutes', 'video');
+set local role service_role;
+select lives_ok($$ select public.store_zoom_connection('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a',
+  'zu1', 'za1', 'pro.un@zoom.test', 'access-5', 'refresh-5', now() + interval '1 hour', '{}') $$, 'connected again');
+select is(public.complete_video_task_for_service('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000008',
+  (select generation from public.video_tasks where appointment_id = 'e0000000-0000-0000-0000-000000000008'),
+  current_setting('test.conn')::uuid, '88008', 'https://zoom.test/j/88008', null), true, 'a meeting on the first account');
+select lives_ok($$ select public.store_zoom_connection('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a',
+  'zu2', 'za1', 'autre@zoom.test', 'access-6', 'refresh-6', now() + interval '1 hour', '{}') $$, 'another Zoom account');
+reset role;
+select results_eq($$ select a.video_url, a.video_status, t.state,
+                            (select count(*)::int from public.appointment_video_meetings m where m.appointment_id = a.id)
+                       from public.appointments a join public.video_tasks t on t.appointment_id = a.id
+                      where a.id = 'e0000000-0000-0000-0000-000000000008' $$,
+  $$ values (null::text, 'pending', 'pending', 0) $$, 'the old meeting forgotten, a new one queued');
 
 select * from finish();
 rollback;

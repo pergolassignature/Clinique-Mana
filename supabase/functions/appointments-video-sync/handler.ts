@@ -5,28 +5,35 @@
  * 1. **Tokens:** the Zoom connections whose tokens were refreshed more than
  *    20 hours ago are refreshed (Zoom's refresh token lapses after 90 days
  *    unused, and a revoked grant shows within a day). Zoom rotates the refresh
- *    token: both are stored again (`set_zoom_tokens_for_service`).
+ *    token: both are stored again (`set_zoom_tokens_for_service`, retried
+ *    twice: a rotated token never stored would end the grant), and only for the
+ *    connection as the job read it (a reconnection meanwhile wins).
  * 2. **Meetings:** due tasks are claimed (`claim_video_tasks_for_service`,
  *    10 at a time, held 3 minutes, within a 90 s budget) and each
  *    appointment's meeting is made to match what it should be:
+ *    - an appointment under way (`started`) keeps its meeting as it is: never
+ *      moved or deleted under a session;
  *    - it wants one and her Zoom is connected: created, or moved when it
- *      exists on her account (a meeting gone at Zoom is made again);
- *    - it wants one, she is not connected, and its meeting is on a
+ *      exists on her account (a meeting gone at Zoom is made again). A
+ *      creation retried after a failure first looks for the meeting Zoom may
+ *      have made (same topic and start), so a lost answer never makes two;
+ *    - it wants one, she is not connected, and its meeting is hers, on a
  *      connection waiting for a reconnection: kept (its link still works);
  *    - otherwise an existing meeting is deleted at Zoom (when its connection
  *      can still be used; else forgotten), and none is made.
  *    The result is recorded with `complete_video_task_for_service`, whatever
  *    happened: a failure keeps what was done and counts an attempt (three →
  *    `failed`, « Réessayer » in the agenda); `needs_reconnect` waits for the
- *    reconnection.
+ *    reconnection. A meeting made whose record fails is deleted again (best
+ *    effort) before the run stops.
  * 3. **The link email:** when the completion says so (a new link of a future
  *    appointment, never emailed), « Votre lien de rencontre »
  *    (`appointments.video_link` / `_en`, by the contact's language) goes to
- *    each of the clients' contacts for appointments with an address, then
- *    the link is marked emailed.
+ *    each of the clients' contacts for appointments with an address; the link
+ *    is marked emailed once one was sent (or there was nobody to send to).
  *
  * Access tokens are refreshed when they expire within 5 minutes, or once on a
- * 401. `invalid_grant`, or a 401 a fresh token does not cure, marks the
+ * 401. A refresh Zoom refuses, or a 401 a fresh token does not cure, marks the
  * connection `needs_reconnect` (the RPC tells the professional and the
  * staff). The run's detail counts only; reports carry ids only, never a
  * token, an address or a link.
@@ -59,10 +66,12 @@ const BATCH = 10
 const MAX_BATCHES = 10
 /** An access token expiring within this is refreshed first. */
 const REFRESH_AHEAD_MS = 5 * 60_000
+/** Storing a rotated refresh token: tries in all. */
+const STORE_TRIES = 3
 
 const failure = (code: string) => Object.assign(new Error(code), { code })
 
-/** The connection cannot be used any more (no tokens, ended). */
+/** The connection cannot be used any more (no tokens, ended, connected again meanwhile). */
 class ConnectionGone extends Error {
   constructor() {
     super('connection_gone')
@@ -74,6 +83,7 @@ const credentialsSchema = z.array(z.object({
   access_token: z.string(),
   refresh_token: z.string(),
   access_token_expires_at: z.string(),
+  connected_at: z.string().nullable(),
 })).max(1)
 
 const taskSchema = z.object({
@@ -81,12 +91,15 @@ const taskSchema = z.object({
   generation: z.number().int(),
   attempts: z.number().int(),
   wants_video: z.boolean(),
+  started: z.boolean(),
   target_connection_id: z.string().nullable(),
+  professional_id: z.string(),
   starts_at: z.string(),
   ends_at: z.string(),
   timezone: z.string(),
   meeting_connection_id: z.string().nullable(),
   meeting_connection_state: z.string().nullable(),
+  meeting_professional_id: z.string().nullable(),
   meeting_external_id: z.string().nullable(),
   meeting_join_url: z.string().nullable(),
 })
@@ -109,18 +122,18 @@ interface Context {
   app: OAuthApp | null
   origins: ZoomOrigins
   signal: AbortSignal
-  /** Access tokens read (or refreshed) during this run. */
-  tokens: Map<string, string>
+  /** Access tokens read (or refreshed) during this run, with the connection date they belong to. */
+  tokens: Map<string, { access: string; connectedAt: string | null }>
 }
 
-/** The connection's tokens; refreshed (and stored) when due or `force`d. */
+/** The connection's access token; refreshed (and stored) when due or `force`d. */
 async function accessToken(
   ctx: Context,
   connectionId: string,
   force = false,
 ): Promise<string> {
   const cached = ctx.tokens.get(connectionId)
-  if (cached && !force) return cached
+  if (cached && !force) return cached.access
   if (!ctx.app) throw failure('not_configured')
   const read = await ctx.client.rpc('get_zoom_credentials_for_service', {
     p_org_id: ctx.orgId,
@@ -136,25 +149,28 @@ async function accessToken(
     !force && Number.isFinite(expires) &&
     expires - ctx.deps.now().getTime() > REFRESH_AHEAD_MS
   ) {
-    ctx.tokens.set(connectionId, row.access_token)
+    ctx.tokens.set(connectionId, {
+      access: row.access_token,
+      connectedAt: row.connected_at,
+    })
     return row.access_token
   }
   let token
   try {
+    // Not the run's signal: once Zoom rotates the refresh token, the answer must be stored.
     token = await refreshTokens(
       ctx.deps.fetch,
       ctx.origins,
       ctx.app,
       row.refresh_token,
-      ctx.signal,
     )
   } catch (error) {
     if (error instanceof ReconnectNeeded) {
-      await markReconnect(ctx, connectionId, error.reason)
+      await markReconnect(ctx, connectionId, error.reason, row.connected_at)
     }
     throw error
   }
-  const stored = await ctx.client.rpc('set_zoom_tokens_for_service', {
+  const args = {
     p_org_id: ctx.orgId,
     p_connection_id: connectionId,
     p_access_token: token.access_token,
@@ -162,10 +178,18 @@ async function accessToken(
     p_access_token_expires_at: new Date(
       ctx.deps.now().getTime() + (token.expires_in ?? 3_600) * 1000,
     ).toISOString(),
-  })
+    p_connected_at: row.connected_at,
+  }
+  let stored = await ctx.client.rpc('set_zoom_tokens_for_service', args)
+  for (let tries = 1; stored.error && tries < STORE_TRIES; tries++) {
+    stored = await ctx.client.rpc('set_zoom_tokens_for_service', args)
+  }
   if (stored.error) throw failure('tokens_not_stored')
   if (stored.data !== true) throw new ConnectionGone()
-  ctx.tokens.set(connectionId, token.access_token)
+  ctx.tokens.set(connectionId, {
+    access: token.access_token,
+    connectedAt: row.connected_at,
+  })
   return token.access_token
 }
 
@@ -173,12 +197,14 @@ async function markReconnect(
   ctx: Context,
   connectionId: string,
   reason: ReconnectNeeded['reason'],
+  connectedAt: string | null,
 ): Promise<void> {
   ctx.tokens.delete(connectionId)
   const marked = await ctx.client.rpc('mark_zoom_needs_reconnect_for_service', {
     p_org_id: ctx.orgId,
     p_connection_id: connectionId,
     p_reason: reason,
+    p_connected_at: connectedAt,
   })
   if (marked.error) throw failure('reconnect_not_marked')
 }
@@ -207,7 +233,8 @@ async function withApi<T>(
     return await fn(api(await accessToken(ctx, connectionId, true)))
   } catch (error) {
     if (error instanceof ZoomError && error.code === 'unauthorized') {
-      await markReconnect(ctx, connectionId, 'unauthorized')
+      const connectedAt = ctx.tokens.get(connectionId)?.connectedAt ?? null
+      await markReconnect(ctx, connectionId, 'unauthorized', connectedAt)
       throw new ReconnectNeeded('unauthorized')
     }
     throw error
@@ -224,34 +251,43 @@ type Outcome =
   | 'waiting'
   | 'failed'
 
+type HeldMeeting = Meeting & { connectionId: string }
+
+interface Reconciled {
+  outcome: Outcome
+  meeting: HeldMeeting | null
+  error: string | null
+  /** The meeting this run made (deleted again if its record fails). */
+  created: HeldMeeting | null
+}
+
 /** Makes one appointment's meeting match what it should be; returns the outcome and the final meeting. */
-async function reconcile(
-  ctx: Context,
-  task: Task,
-): Promise<
-  {
-    outcome: Outcome
-    meeting: (Meeting & { connectionId: string }) | null
-    error: string | null
-  }
-> {
+async function reconcile(ctx: Context, task: Task): Promise<Reconciled> {
   const times = {
     startsAt: task.starts_at,
     endsAt: task.ends_at,
     timezone: task.timezone,
   }
-  let meeting = task.meeting_external_id && task.meeting_connection_id &&
+  let meeting: HeldMeeting | null =
+    task.meeting_external_id && task.meeting_connection_id &&
       task.meeting_join_url
-    ? {
-      connectionId: task.meeting_connection_id,
-      externalId: task.meeting_external_id,
-      joinUrl: task.meeting_join_url,
-    }
-    : null
+      ? {
+        connectionId: task.meeting_connection_id,
+        externalId: task.meeting_external_id,
+        joinUrl: task.meeting_join_url,
+      }
+      : null
   const target = task.target_connection_id
+  const hers = meeting !== null &&
+    task.meeting_professional_id === task.professional_id
   let outcome: Outcome = 'none'
+  let created: HeldMeeting | null = null
   try {
     if (meeting) {
+      if (task.wants_video && hers && task.started) {
+        // Under way: its link is the one the clients hold.
+        return { outcome: 'kept', meeting, error: null, created }
+      }
       if (task.wants_video && target === meeting.connectionId) {
         const current = meeting
         try {
@@ -260,7 +296,7 @@ async function reconcile(
             target,
             (api) => api.updateMeeting(current.externalId, times),
           )
-          return { outcome: 'moved', meeting, error: null }
+          return { outcome: 'moved', meeting, error: null, created }
         } catch (error) {
           if (!(error instanceof ZoomError) || error.code !== 'not_found') {
             throw error
@@ -268,10 +304,10 @@ async function reconcile(
           meeting = null // Gone at Zoom: made again below.
         }
       } else if (
-        task.wants_video && !target &&
+        task.wants_video && !target && hers &&
         task.meeting_connection_state === 'needs_reconnect'
       ) {
-        return { outcome: 'kept', meeting, error: null }
+        return { outcome: 'kept', meeting, error: null, created }
       } else {
         if (task.meeting_connection_state === 'connected') {
           const current = meeting
@@ -282,40 +318,45 @@ async function reconcile(
               (api) => api.deleteMeeting(current.externalId),
             )
           } catch (error) {
-            if (!(error instanceof ConnectionGone)) throw error
+            // Its connection ended or must be reconnected: the meeting can only be forgotten.
+            if (
+              !(error instanceof ConnectionGone) &&
+              !(error instanceof ReconnectNeeded)
+            ) throw error
           }
         }
         meeting = null
         outcome = 'deleted'
       }
     }
-    if (task.wants_video && target && !meeting) {
-      const created = await withApi(
-        ctx,
-        target,
-        (api) => api.createMeeting(times),
-      )
-      meeting = { ...created, connectionId: target }
+    if (task.wants_video && !task.started && target && !meeting) {
+      const found = task.attempts > 0
+        ? await withApi(ctx, target, (api) => api.findMeeting(times))
+        : null
+      const made = found ??
+        await withApi(ctx, target, (api) => api.createMeeting(times))
+      meeting = { ...made, connectionId: target }
+      if (!found) created = meeting
       outcome = 'created'
     }
-    return { outcome, meeting, error: null }
+    return { outcome, meeting, error: null, created }
   } catch (error) {
     if (error instanceof ReconnectNeeded) {
-      return { outcome: 'waiting', meeting, error: 'needs_reconnect' }
+      return { outcome: 'waiting', meeting, error: 'needs_reconnect', created }
     }
     if (error instanceof ConnectionGone) {
-      return { outcome: 'waiting', meeting, error: 'connection_gone' }
+      return { outcome: 'waiting', meeting, error: 'connection_gone', created }
     }
     const code = error instanceof ZoomError
       ? `zoom_${error.code}`
       : ((error as { code?: unknown }).code === 'not_configured'
         ? 'not_configured'
         : 'internal')
-    return { outcome: 'failed', meeting, error: code }
+    return { outcome: 'failed', meeting, error: code, created }
   }
 }
 
-/** « Votre lien de rencontre » to the appointment's contacts, then the link marked emailed. */
+/** « Votre lien de rencontre » to the appointment's contacts; the link marked emailed once one was sent. */
 async function emailLink(
   ctx: Context,
   appointmentId: string,
@@ -327,9 +368,9 @@ async function emailLink(
   })
   const parsed = recipientSchema.safeParse(read.data)
   if (read.error || !parsed.success) throw failure('recipients_unavailable')
+  const recipients = parsed.data.filter((r) => r.join_url === joinUrl)
   let sent = 0
-  for (const r of parsed.data) {
-    if (r.join_url !== joinUrl) continue
+  for (const r of recipients) {
     try {
       const result = await sendTemplatedEmail(
         {
@@ -363,6 +404,8 @@ async function emailLink(
       // sendTemplatedEmail reported it (ids only); the other contacts still get theirs.
     }
   }
+  // Every send failed: not marked, so the next completion with this link tries again.
+  if (recipients.length > 0 && sent === 0) return 0
   const marked = await ctx.client.rpc('mark_video_link_emailed_for_service', {
     p_org_id: ctx.orgId,
     p_appointment_id: appointmentId,
@@ -421,12 +464,17 @@ export function syncOrg(deps: Deps): PerOrg {
           counts.refreshed++
         } catch (error) {
           // A refused grant is marked; Zoom down: the next run tries again.
-          if (!(error instanceof ReconnectNeeded)) {
+          if (
+            !(error instanceof ReconnectNeeded) &&
+            !(error instanceof ConnectionGone)
+          ) {
             await reportError({
               fn: FN,
               code: error instanceof ZoomError
                 ? `refresh_${error.code}`
-                : 'refresh_failed',
+                : String(
+                  (error as { code?: unknown }).code ?? 'refresh_failed',
+                ),
               ids: { org_id: orgId, connection_id: id },
             }, deps.fetch)
           }
@@ -455,7 +503,18 @@ export function syncOrg(deps: Deps): PerOrg {
           p_join_url: result.meeting?.joinUrl ?? null,
           p_error_code: result.error,
         })
-        if (done.error) throw failure('complete_failed')
+        if (done.error) {
+          // A meeting made but not recorded would be made again: deleted (best effort) first.
+          const made = result.created
+          if (made) {
+            await withApi(
+              ctx,
+              made.connectionId,
+              (api) => api.deleteMeeting(made.externalId),
+            ).catch(() => {})
+          }
+          throw failure('complete_failed')
+        }
         if (result.error && result.outcome === 'failed') {
           await reportError({
             fn: FN,

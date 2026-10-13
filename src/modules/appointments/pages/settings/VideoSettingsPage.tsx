@@ -137,7 +137,7 @@ function ProfessionalsCard({ readOnly }: { readOnly: boolean }) {
                       </p>
                       {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
                       {row.setup?.fixed_url && (
-                        <p className="break-all text-xs text-muted-foreground">{t(`${S}.list.fixedLink`, { url: row.setup.fixed_url })}</p>
+                        <p className="break-all text-xs text-muted-foreground">{row.setup.fixed_url}</p>
                       )}
                     </div>
                     {!readOnly && (

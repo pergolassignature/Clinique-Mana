@@ -24,6 +24,8 @@ export const SECRET = 'local-dev-internal-function-secret'
 export const NOW = '2026-10-13T15:00:00.000Z'
 export const CONNECTION_ID = '00000000-0000-4000-8000-00000000d001'
 export const APPOINTMENT_ID = '00000000-0000-4000-8000-00000000e001'
+export const PROFESSIONAL_ID = '00000000-0000-4000-8000-00000000c001'
+export const CONNECTED_AT = '2026-10-01T15:00:00.000Z'
 export const ZOOM_ORIGIN = 'http://fake-zoom.test'
 export const MAILPIT = 'POST http://mailpit.test:8025/api/v1/send'
 
@@ -39,12 +41,15 @@ export interface ZoomTask {
   generation: number
   attempts: number
   wants_video: boolean
+  started: boolean
   target_connection_id: string | null
+  professional_id: string
   starts_at: string
   ends_at: string
   timezone: string
   meeting_connection_id: string | null
   meeting_connection_state: string | null
+  meeting_professional_id: string | null
   meeting_external_id: string | null
   meeting_join_url: string | null
 }
@@ -67,12 +72,15 @@ export const task = (over: Partial<ZoomTask> = {}): ZoomTask => ({
   generation: 1,
   attempts: 0,
   wants_video: true,
+  started: false,
   target_connection_id: CONNECTION_ID,
+  professional_id: PROFESSIONAL_ID,
   starts_at: '2026-10-15T18:30:00+00:00',
   ends_at: '2026-10-15T19:20:00+00:00',
   timezone: 'America/Toronto',
   meeting_connection_id: null,
   meeting_connection_state: null,
+  meeting_professional_id: null,
   meeting_external_id: null,
   meeting_join_url: null,
   ...over,
@@ -124,6 +132,7 @@ export function zoomHarness(opts: {
         access_token: state.connection.access,
         refresh_token: state.connection.refresh,
         access_token_expires_at: state.connection.expiresAt,
+        connected_at: CONNECTED_AT,
       }]
       : []
   const service = fakeSupabase({

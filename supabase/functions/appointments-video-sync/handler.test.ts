@@ -8,6 +8,7 @@ import {
   jobRequest,
   MAILPIT,
   ORG_ID,
+  PROFESSIONAL_ID,
   SECRET,
   task,
   zoomHarness,
@@ -107,6 +108,7 @@ Deno.test('appointments-video-sync: a move patches the meeting; a meeting gone a
       task({
         meeting_connection_id: CONNECTION_ID,
         meeting_connection_state: 'connected',
+        meeting_professional_id: PROFESSIONAL_ID,
         meeting_external_id: '77',
         meeting_join_url: `${FAKE_JOIN_ORIGIN}/j/77`,
         starts_at: '2026-10-16T18:30:00+00:00',
@@ -116,6 +118,7 @@ Deno.test('appointments-video-sync: a move patches the meeting; a meeting gone a
         appointment_id: '00000000-0000-4000-8000-00000000e002',
         meeting_connection_id: CONNECTION_ID,
         meeting_connection_state: 'connected',
+        meeting_professional_id: PROFESSIONAL_ID,
         meeting_external_id: '66',
         meeting_join_url: `${FAKE_JOIN_ORIGIN}/j/66`,
       }),
@@ -143,6 +146,7 @@ Deno.test('appointments-video-sync: a meeting no longer wanted is deleted at Zoo
         target_connection_id: null,
         meeting_connection_id: CONNECTION_ID,
         meeting_connection_state: 'connected',
+        meeting_professional_id: PROFESSIONAL_ID,
         meeting_external_id: '55',
         meeting_join_url: `${FAKE_JOIN_ORIGIN}/j/55`,
       }),
@@ -152,6 +156,7 @@ Deno.test('appointments-video-sync: a meeting no longer wanted is deleted at Zoo
         target_connection_id: null,
         meeting_connection_id: '00000000-0000-4000-8000-00000000d009',
         meeting_connection_state: 'disconnected',
+        meeting_professional_id: PROFESSIONAL_ID,
         meeting_external_id: '44',
         meeting_join_url: `${FAKE_JOIN_ORIGIN}/j/44`,
       }),
@@ -177,6 +182,7 @@ Deno.test('appointments-video-sync: a meeting on a connection waiting for a reco
           target_connection_id: null,
           meeting_connection_id: CONNECTION_ID,
           meeting_connection_state: 'needs_reconnect',
+          meeting_professional_id: PROFESSIONAL_ID,
           meeting_external_id: '33',
           meeting_join_url: `${FAKE_JOIN_ORIGIN}/j/33`,
         })],
@@ -278,4 +284,138 @@ Deno.test('appointments-video-sync: the module off → the run fails module_disa
     )
     assertEquals(APPOINTMENT_ID.length, 36)
     assertEquals(ORG_ID.length, 36)
+  }))
+
+const OTHER_PRO = '00000000-0000-4000-8000-00000000c002'
+const meetingAt = (
+  h: ReturnType<typeof zoomHarness>,
+  id: number,
+  start = '2026-10-15T18:30:00Z',
+) =>
+  h.zoom.meetings.set(String(id), {
+    id,
+    owner: 'fakeZoomUser01',
+    topic: 'Rendez-vous MANA',
+    start_time: start,
+    duration: 50,
+    timezone: 'America/Toronto',
+    join_url: `${FAKE_JOIN_ORIGIN}/j/${id}`,
+    deleted: false,
+  })
+
+Deno.test('appointments-video-sync: an appointment under way keeps its meeting: no Zoom call', () =>
+  run(async () => {
+    const h = zoomHarness({
+      state: {
+        connection: connected(),
+        tasks: [task({
+          started: true,
+          target_connection_id: null,
+          meeting_connection_id: CONNECTION_ID,
+          meeting_connection_state: 'connected',
+          meeting_professional_id: PROFESSIONAL_ID,
+          meeting_external_id: '22',
+          meeting_join_url: `${FAKE_JOIN_ORIGIN}/j/22`,
+        })],
+      },
+    })
+    await go(h)
+    assertEquals(h.zoom.calls, [])
+    assertEquals(completion(h)[0].external, '22')
+  }))
+
+Deno.test('appointments-video-sync: a meeting of the previous professional, waiting for a reconnection, is forgotten, never kept', () =>
+  run(async () => {
+    const h = zoomHarness({
+      state: {
+        connection: { ...connected(), state: 'needs_reconnect' },
+        tasks: [task({
+          target_connection_id: null,
+          meeting_connection_id: CONNECTION_ID,
+          meeting_connection_state: 'needs_reconnect',
+          meeting_professional_id: OTHER_PRO,
+          meeting_external_id: '21',
+          meeting_join_url: `${FAKE_JOIN_ORIGIN}/j/21`,
+        })],
+      },
+    })
+    await go(h)
+    assertEquals(completion(h), [{
+      connection: null,
+      external: null,
+      url: null,
+      error: null,
+    }])
+  }))
+
+Deno.test('appointments-video-sync: a retried creation adopts the meeting Zoom already made: never two', () =>
+  run(async () => {
+    const h = zoomHarness({
+      state: { connection: connected(), tasks: [task({ attempts: 1 })] },
+    })
+    meetingAt(h, 99)
+    await go(h)
+    assertEquals(h.zoom.calls.map((c) => [c.method, c.path]), [[
+      'GET',
+      '/v2/users/me/meetings',
+    ]])
+    assertEquals(completion(h)[0].external, '99')
+  }))
+
+Deno.test('appointments-video-sync: a refresh refused as « Invalid Token! » (invalid_request) is a reconnection, not an outage', () =>
+  run(async () => {
+    const h = zoomHarness({
+      state: {
+        connection: { ...connected(), expiresAt: '2026-10-13T15:02:00.000Z' },
+        tasks: [task()],
+      },
+    })
+    h.zoom.grants.delete('zoom-refresh-initial')
+    await go(h)
+    assertEquals(h.state.reconnects, ['invalid_grant'])
+    const marked = h.service.calls.find((c) =>
+      c.fn === 'mark_zoom_needs_reconnect_for_service'
+    )!
+    assertEquals(marked.args.p_connected_at, '2026-10-01T15:00:00.000Z')
+  }))
+
+Deno.test('appointments-video-sync: a meeting made but not recorded is deleted again before the run stops', () =>
+  run(async () => {
+    const h = zoomHarness({
+      state: { connection: connected(), tasks: [task()] },
+      rpc: {
+        complete_video_task_for_service: {
+          error: { code: '57014', message: 'x' },
+        },
+      },
+    })
+    const finish = await go(h)
+    assertEquals([finish.p_status, finish.p_detail], [
+      'error',
+      'complete_failed',
+    ])
+    assertEquals(h.zoom.meetings.get('88000000000')!.deleted, true)
+  }))
+
+Deno.test('appointments-video-sync: a link whose every email failed is not marked emailed', () =>
+  run(async () => {
+    const h = zoomHarness({
+      state: {
+        connection: connected(),
+        tasks: [task()],
+        emailOnCreate: true,
+        recipients: [{
+          email: 'alice@exemple.test',
+          first_name: 'Alice',
+          language: 'fr',
+          clinic_name: 'Clinique MANA',
+          professional_name: 'Pro Un',
+          starts_at: '2026-10-15T18:30:00+00:00',
+          join_url: `${FAKE_JOIN_ORIGIN}/j/88000000000?pwd=fake`,
+        }],
+      },
+      rpc: { get_email_context: { error: { code: '57014', message: 'x' } } },
+    })
+    await go(h)
+    assertEquals(h.state.emailed, [])
   }))
