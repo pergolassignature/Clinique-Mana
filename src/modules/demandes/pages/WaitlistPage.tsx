@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -14,6 +15,7 @@ import { Select } from '@/shared/ui/select'
 import { StatusDot } from '@/shared/ui/status-dot'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { ENTRY_STATES, type EntryState, type WaitlistEntry, type WaitlistList } from '../api/waitlist'
+import { CompatibleCard } from '../components/waitlist/CompatibleCard'
 import { EntrySheet } from '../components/waitlist/EntrySheet'
 import { useDemandesRealtime } from '../hooks/use-demandes'
 import { useWaitlist, useWaitlistLists } from '../hooks/use-waitlist'
@@ -55,6 +57,7 @@ export function WaitlistPage() {
   const lists = useWaitlistLists()
   const entries = useWaitlist(query)
   const selected = target ? lists.data?.find((l) => l.target_id === target.id) ?? null : null
+  const { can } = useAccess()
 
   const update = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params)
@@ -113,6 +116,8 @@ export function WaitlistPage() {
             </Button>
           ))}
         </div>
+        {/* D4 part 2: on a professional's list, who she could be offered, in list order. */}
+        {target?.kind === 'professional' && selected && can('professionals.view') && <CompatibleCard professionalId={target.id} name={selected.name} />}
         {entries.isError && !entries.data ? (
           <LoadError message={t(`${P}.loadError`)} onRetry={() => void entries.refetch()} retrying={entries.isFetching} />
         ) : entries.data && entries.data.length === 0 ? (

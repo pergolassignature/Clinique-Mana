@@ -21,7 +21,17 @@ import {
   type WaitlistQuery,
   type WaitlistSettings,
 } from '../api/waitlist'
+import { fetchWaitlistCompatible } from '../api/waitlist-offers'
 import { demandesKeys } from './keys'
+
+/** A professional's compatible registrants, in list order (D4 part 2); with professionals.view. */
+export function useWaitlistCompatible(professionalId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: demandesKeys.waitlistCompatible(professionalId ?? ''),
+    queryFn: () => fetchWaitlistCompatible(professionalId!),
+    enabled: enabled && professionalId !== null,
+  })
+}
 
 export function useWaitlistLists() {
   return useQuery({ queryKey: demandesKeys.waitlistLists(), queryFn: fetchWaitlistLists })
