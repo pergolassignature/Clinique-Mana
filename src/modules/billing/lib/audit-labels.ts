@@ -1,8 +1,9 @@
-import { i18nAuditLabels } from '@/core/audit/module-labels'
+import { i18nAuditLabels, lookupAuditText } from '@/core/audit/module-labels'
 
 /**
  * The module's audited tables, in the order of the Journal d'audit's « Section » filter: the
- * invoices and their lines, the credit notes, the payers, then the clinic's lists.
+ * invoices and their lines, the credit notes, the payers, then the clinic's lists (F1), then the
+ * QuickBooks connection, its tokens, the accounts map, the customers' matches and links (FQ).
  * `src/app/audit-labels.test.ts` checks it against the migrations' audit triggers.
  */
 export const BILLING_AUDITED_TABLES = [
@@ -19,6 +20,11 @@ export const BILLING_AUDITED_TABLES = [
   'invoice_sequences',
   'payment_modes',
   'billing_settings',
+  'qbo_connections',
+  'qbo_connection_tokens',
+  'qbo_account_map',
+  'qbo_customer_matches',
+  'qbo_links',
 ] as const
 
 /** The audit source of the per-clinic seed (`private.seed_billing_reference`). */
@@ -33,4 +39,10 @@ export const billingAuditLabels = i18nAuditLabels({
   prefix: 'modules.billing.audit',
   tables: BILLING_AUDITED_TABLES,
   sources: [BILLING_SEED_SOURCE],
+  // The map's keys hold a dot (`deposit.interac`), which a code lookup refuses: their labels are
+  // stored with « _ » (`values.qbo_account_map.map_key.deposit_interac`).
+  value: (table, column, stored) =>
+    table === 'qbo_account_map' && column === 'map_key' && typeof stored === 'string' && /^[a-z_]{1,30}(\.[a-z_]{1,40})?$/.test(stored)
+      ? lookupAuditText(`modules.billing.audit.values.qbo_account_map.map_key.${stored.replace('.', '_')}`)
+      : undefined,
 })

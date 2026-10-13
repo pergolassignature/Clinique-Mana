@@ -1,8 +1,9 @@
-import { ReceiptText } from 'lucide-react'
+import { BookUser, Landmark, ReceiptText } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
-// On the login page's entry path (ALL_MODULES): icons, lazyPage and types only.
+// On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
+// lazyPage; the API, hooks and schemas load with them.
 
 /**
  * Module Facturation (plan §8). F1: the invoices of a dossier billed to its payer (« Facturé à »),
@@ -21,6 +22,13 @@ export const billingManifest: ModuleManifest = {
   routes: [
     { path: 'facturation', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage') },
     { path: 'facturation/factures/:id', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicePage'), 'InvoicePage') },
+    // FQ: where Intuit sends the browser back after « Connecter QuickBooks »: fixed, the functions
+    // build the same address from APP_URL (`_shared/qbo/env.ts` RETURN_PATH).
+    {
+      path: 'facturation/retour-quickbooks',
+      permission: 'billing.settings',
+      component: lazyPage(() => import('./pages/QuickBooksReturnPage'), 'QuickBooksReturnPage'),
+    },
   ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.billingAuditLabels),
@@ -35,6 +43,27 @@ export const billingManifest: ModuleManifest = {
       editPermission: 'billing.settings',
       group: 'modules',
       component: lazyPage(() => import('./pages/settings/BillingSettingsPage'), 'BillingSettingsPage'),
+    },
+    // FQ: the QuickBooks connection and its accounts map; the customers' matching report.
+    {
+      id: 'quickbooks',
+      path: 'quickbooks',
+      labelKey: 'modules.billing.qbo.title',
+      icon: Landmark,
+      permission: 'billing.settings',
+      editPermission: 'billing.settings',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/QuickBooksSettingsPage'), 'QuickBooksSettingsPage'),
+    },
+    {
+      id: 'quickbooks_customers',
+      path: 'quickbooks-clients',
+      labelKey: 'modules.billing.qbo.customers.title',
+      icon: BookUser,
+      permission: 'billing.settings',
+      editPermission: 'billing.settings',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/QuickBooksCustomersPage'), 'QuickBooksCustomersPage'),
     },
   ],
   // Clients' « Visites et paiements »: the dossier's invoices and what is left to invoice.

@@ -364,6 +364,9 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     appointmentConfirmIp: ['appointments.confirm_ip', 20, 600],
     billingDeliverUser: ['billing.deliver_user', 120, 3_600],
     billingPreviewUser: ['billing.preview_user', 60, 3_600],
+    qboConnectUser: ['qbo.connect_user', 20, 3_600],
+    qboCallbackUser: ['qbo.callback_user', 20, 3_600],
+    qboSyncUser: ['qbo.sync_user', 30, 3_600],
   })
   for (const l of Object.values(LIMITS)) {
     assertMatch(l.bucket, /^[a-z][a-z0-9_.]{0,62}$/)

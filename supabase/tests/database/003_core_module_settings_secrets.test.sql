@@ -158,6 +158,7 @@ select functions_are('public', array[
   'release_invoice_draft', 'send_invoices', 'send_billing_document', 'record_payment', 'create_statement', 'get_billing_document',
   'billing_deliveries_for_service', 'billing_document_for_service', 'finish_billing_delivery_for_service',
   'discard_billing_file_for_service', 'set_professional_supervisor',
+  'billing_sync_events_for_service', 'finish_billing_sync_event_for_service',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',
@@ -165,6 +166,11 @@ select functions_are('public', array[
   'upsert_mail_labels', 'upsert_mail_messages', 'delete_mail_messages', 'apply_mail_label_changes',
   'list_mail_attachments_to_store', 'record_mail_attachment',
   'list_mail_threads', 'get_mail_thread', 'get_mail_threads_for_action',
+  -- Facturation, batch FQ (QuickBooks connection).
+  'store_qbo_connection', 'disconnect_qbo_connection', 'get_qbo_credentials', 'set_qbo_tokens',
+  'set_qbo_connection_status', 'finish_qbo_sync', 'replace_qbo_accounts', 'upsert_qbo_customers',
+  'prune_qbo_customers', 'match_qbo_customers', 'get_qbo_settings', 'set_qbo_account_map',
+  'qbo_customer_match_counts', 'list_qbo_customer_matches', 'decide_qbo_customer_match',
   'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
   'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices',
   -- Communications, batch SM (textos).
