@@ -149,6 +149,10 @@ select functions_are('public', array[
   'resolve_appointment_confirm_link', 'confirm_appointment_by_link_for_service', 'list_appointments_without_reminder',
   -- Rendez-vous, batch R5.
   'get_my_agenda_reference', 'list_client_visits',
+  -- Facturation, batch F1.
+  'create_invoice', 'create_manual_invoice', 'add_invoice_line', 'set_invoice_line_price', 'remove_invoice_line',
+  'set_invoice_payer', 'set_invoice_notes', 'delete_invoice_draft', 'finalize_invoice', 'issue_credit_note',
+  'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',
@@ -156,6 +160,11 @@ select functions_are('public', array[
   'upsert_mail_labels', 'upsert_mail_messages', 'delete_mail_messages', 'apply_mail_label_changes',
   'list_mail_attachments_to_store', 'record_mail_attachment',
   'list_mail_threads', 'get_mail_thread', 'get_mail_threads_for_action',
+  -- Facturation, batch FQ (QuickBooks connection).
+  'store_qbo_connection', 'disconnect_qbo_connection', 'get_qbo_credentials', 'set_qbo_tokens',
+  'set_qbo_connection_status', 'finish_qbo_sync', 'replace_qbo_accounts', 'upsert_qbo_customers',
+  'prune_qbo_customers', 'match_qbo_customers', 'get_qbo_settings', 'set_qbo_account_map',
+  'qbo_customer_match_counts', 'list_qbo_customer_matches', 'decide_qbo_customer_match',
   'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
   'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices',
   -- Communications, batch SM (textos).

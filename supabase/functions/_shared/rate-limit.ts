@@ -470,6 +470,16 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 600,
   },
+  /** `qbo-connect` (« Connecter QuickBooks », « Déconnecter »), per caller. */
+  qboConnectUser: { bucket: 'qbo.connect_user', max: 20, windowSeconds: 3_600 },
+  /** `qbo-callback` (the code exchange), per caller: each call reaches Intuit's token endpoint. */
+  qboCallbackUser: {
+    bucket: 'qbo.callback_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /** `qbo-sync` (« Synchroniser »), per caller: each pass reads the whole company. */
+  qboSyncUser: { bucket: 'qbo.sync_user', max: 30, windowSeconds: 3_600 },
 } as const satisfies Record<string, RateLimit>
 
 /**

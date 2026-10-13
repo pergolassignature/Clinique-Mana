@@ -13,7 +13,7 @@
 --   adjointe@mana.test     role admin_assistant
 --   provider@mana.test     role provider
 --
--- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes` and `appointments` enabled.
+-- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes`, `appointments` and `billing` enabled.
 
 select set_config('app.audit_source', 'seed', false);
 
@@ -71,7 +71,8 @@ insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'services', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'clients', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111'),
-  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111');
+  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111'),
+  ('00000000-0000-0000-0000-000000000001', 'billing', true, '11111111-1111-1111-1111-111111111111');
 
 -- Local discovery-call booking (Demandes D3c): open, every day 8 h – 20 h, 30-minute calls, two at
 -- once, an hour's notice, two weeks ahead, so /appel-decouverte?clinique=00000000-0000-0000-0000-000000000001
@@ -518,6 +519,26 @@ insert into public.clients (id, org_id, first_name, last_name, birthday, email, 
 values ('c11e0000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Camille', 'Exemple',
         date '1990-04-12', 'camille.exemple@mana.test', 'fr', '11111111-1111-1111-1111-111111111111');
 
+-- Local QuickBooks (Facturation, FQ; the module is on above, F1): the fake Intuit's application
+-- (`npm run fake:qbo`, port 55394; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
+-- as set_org_secret stores it, and three fictitious clients the fake company's customers match:
+-- Amélie Tremblay by email (rattachée), Marc-Antoine Côté by phone and name (rattaché), Paul
+-- Bélanger sharing Julie Bélanger's phone under another name (à décider). Only Admin holds
+-- billing.settings (the template).
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'qbo_client_id',
+   vault.create_secret('local-dev-qbo-client-id', 'org:00000000-0000-0000-0000-000000000001:qbo_client_id')),
+  ('00000000-0000-0000-0000-000000000001', 'qbo_client_secret',
+   vault.create_secret('local-dev-qbo-client-secret', 'org:00000000-0000-0000-0000-000000000001:qbo_client_secret'));
+insert into public.clients (id, org_id, first_name, last_name, email, mobile_e164, language, created_by) values
+  ('c11e0000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Amélie', 'Tremblay',
+   'amelie.tremblay@example.test', null, 'fr', '11111111-1111-1111-1111-111111111111'),
+  ('c11e0000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Marc-Antoine', 'Côté',
+   null, '+15145550142', 'fr', '11111111-1111-1111-1111-111111111111'),
+  ('c11e0000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Paul', 'Bélanger',
+   null, '+14385550199', 'fr', '11111111-1111-1111-1111-111111111111');
+
 -- Local consent texts (C5a): the French « Consentement général » and « Liste d'attente » drafts lose
 -- the « Texte provisoire » line (the app never offers to publish a placeholder), so e2e can publish
 -- and sign them locally. Fictitious wording; the clinic's texts come with « Mise en service ».
@@ -536,7 +557,7 @@ declare
   v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
   v_monday date := (date_trunc('week', now() at time zone 'America/Toronto'))::date + 7;
   v_service uuid;
-  v_alice uuid; v_lea uuid; v_marc uuid;
+  v_alice uuid; v_lea uuid; v_marc uuid; v_past uuid;
   d int;
 begin
   perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
@@ -555,6 +576,9 @@ begin
   perform public.book_appointment(v_pro, v_service, (v_monday + 1 + time '14:00') at time zone 'America/Toronto', array[v_lea, v_marc],
                                   'video', null, 'Léa vient avec son père.');
   perform public.book_appointment(v_pro, v_service, (v_monday + 3 + time '09:00') at time zone 'America/Toronto', array[v_marc], 'phone');
+  -- Last week's Wednesday: Alice's completed session, to invoice (Facturation F1).
+  v_past := public.book_appointment(v_pro, v_service, (v_monday - 12 + time '10:00') at time zone 'America/Toronto', array[v_alice]);
+  update public.appointments set state = 'completed', completed_at = ends_at where id = v_past;
   perform set_config('request.jwt.claims', '', false);
 end;
 $appointments$;

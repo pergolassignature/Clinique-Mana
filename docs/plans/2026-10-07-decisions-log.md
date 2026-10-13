@@ -730,3 +730,28 @@ Rendez-vous' video links ([coding plan §7, RZ](2026-10-11-modules-coding-plan.m
 | RZ-7 | The clinic's Zoom app | One OAuth app per clinic, its client id, secret and « Secret Token » entered in Paramètres → Vidéoconférence (`settings.integrations_manage`, Vault). The return path `/mon-agenda/videoconference` is fixed. The deauthorization endpoint is `zoom-deauthorize?org=<id>`. | Gmail's pattern (CM-1): no secret in code or function secrets; one app per clinic. |
 | RZ-8 | Where | « Vidéoconférence » is a page of the professional's space (`/mon-agenda/videoconference`, nav entry until R5's « Mon agenda » holds its cards). Paramètres → Vidéoconférence (`appointments.view`; fixed links changed with `appointments.manage`) lists every active professional's readiness with a filter. « Relancer » (an email to a professional with no link) waits for the T-14 report. | Professionnels stays untouched (plan RZ.6). |
 
+## Facturation (batch F1, lane A, 2026-10-13)
+
+The invoices ([coding plan §8](2026-10-11-modules-coding-plan.md), [module doc](../modules/billing.md)). Lane A creates the `billing` module (coordinator, 2026-10-13); lane B's FQ and lane C's FPay plug into it.
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| BI-1 | Permissions and defaults | `billing.view` (admin, adjointe, conseillère), `.manage` (admin, adjointe: the morning queue is hers, R-56), `.self` (admin, professionnel: receipts, payroll, fee decisions), `.settings` (admin: numbering, QuickBooks). Déléguée — révisable. | Who does the billing today. |
+| BI-2 | Statuses and corrections | An invoice is `draft` (unnumbered, editable), `issued` (numbered, never edited) or `credited`; a correction is a credit note for the whole invoice and a new invoice (its appointments free again); payment states come with F2. Déléguée — révisable. | Christine's answer 5 (« changements faits le lendemain et renvoyés avec les ajustements »); no cancelled invoices in the books. |
+| BI-3 | Numbering | `AAAA-N` per clinic and year, taken in the finalising transaction (gapless); credit notes `NC-AAAA-N`; the settings set where GOrendezvous's sequence stopped (never below a number this app gave). Déléguée — révisable. | Plan §8 and the cutover's continuity. |
+| BI-4 | Money | A line's subtotal is rounded to the cent, then its TPS and TVQ each rounded; invoice taxes are the sums (§F); rates from « Fiscalité » on the issue date, kept on the invoice; « Statut Indien » exempts every line, the file opening included (R-64). Déléguée — révisable. | GOrendezvous's arithmetic, comparable invoice by invoice at I3. |
+| BI-5 | Payer | « Facturé à » is the client or a relation holding « recevoir reçus et factures », chosen per invoice (never split, R-61), defaulting to the dossier's dated default; organisations (IVAC, PAE) come with FP. Déléguée — révisable. | Christine's answer 11. |
+| BI-6 | What may be invoiced | Booked, confirmed or completed appointments of one dossier, a session line each, once (a credited invoice frees it); the file-opening fee on the dossier's first invoice; cancellation fees wait for F3 (the professional's decision). Déléguée — révisable. | R-59, plan §8. |
+
+## Facturation — QuickBooks (batch FQ part 1, lane B, 2026-10-13)
+
+The QuickBooks Online connection ([module doc](../modules/billing.md#quickbooks-fq-part-1-lane-b)), on F1's module.
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| FQ-1 | Where it lives | In F1's `billing` module (`billing.settings`): the `qbo_*` tables, two Paramètres sections and the return route. The accounts map is keyed on F1's `payment_modes` codes (`deposit.<code>` for each mode with `is_deposit`; `credit_note` lands no money and has no account). F1's two Clients handlers are replaced with F1's body kept and the QuickBooks part added. | One billing module (coordinator, 2026-10-13); a mode the clinic adds gets its own account row. |
+| FQ-2 | The connection | One QuickBooks company per clinic, its realm fixed once connected (another company is refused until « Déconnecter »); tokens encrypted under the PII key version, read only by a service RPC; the OAuth state signed and single-use, the return path fixed; a daily keep-alive job (`runJob`). | PS Hub keyed the connection by user, kept tokens in plain text and trusted an unsigned state (roadmap §2.6 bis). |
+| FQ-3 | Mirrors | `qbo_accounts` and `qbo_customers` are QuickBooks' data as last read, replaced at each sync, not audited (000_invariants); what a person decides (the map, a match) is audited. | The customers are names, emails and phones QuickBooks holds (Loi 25): auditing the mirror would copy them forever. |
+| FQ-4 | Read before write | Part 1 writes nothing to QuickBooks: it reads the chart and the customers (those GOrendezvous made) and matches them with Clients' own duplicate rules (I-5): HIGH → linked, MEDIUM or several → « à décider », none → nothing. The push of invoices and payments comes with F2's invoices, after the mapping is checked. | No duplicate customers at the cutover; the accountant sees the mapping before anything is sent. |
+| FQ-5 | Account defaults | Each map row is suggested from the clinic's chart (numbers 1075 / 1070 first, then names: « Services », « Ventes », « Fonds non déposés », « Compte courant », the title's name for an expense), marked « Suggéré »; a person's choice is never replaced, a vanished account empties a suggestion only. | Christine's answer 17; the accountant's chart decides. |
+

@@ -6,7 +6,7 @@
 -- never sends a confirmation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(12);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'conseillere@a.test', '', now(), '{}', '{}', now(), now());
@@ -91,6 +91,15 @@ values ('b0000000-0000-0000-0000-00000000000a', current_setting('test.a2')::uuid
 select is(public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a',
             (select id from public.appointment_messages where appointment_id = current_setting('test.a2')::uuid), extensions.digest('t', 'sha256')),
   null, 'an email prepared while reserved: not sent');
+
+-- Core held an email (CC-14): set aside, never tried again.
+update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'appointments';
+insert into public.appointment_messages (id, org_id, appointment_id, client_id, recipient_client_id, channel, kind, starts_at)
+values ('e1000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', current_setting('test.a2')::uuid,
+        'd0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'email', 'reminder', current_setting('test.d')::timestamptz + interval '2 hours');
+select public.finish_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', 'e1000000-0000-0000-0000-000000000001', false, 'reserved');
+select results_eq($$ select status, skip_reason from public.appointment_messages where id = 'e1000000-0000-0000-0000-000000000001' $$,
+  $$ values ('skipped'::text, 'reserved'::text) $$, 'an email core held (module_reserved): set aside, not retried');
 
 -- Opened again, an imported appointment (the cutover) sends no confirmation.
 update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key in ('appointments', 'communications');
