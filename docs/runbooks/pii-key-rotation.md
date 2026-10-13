@@ -28,6 +28,7 @@ Les étapes ci-dessous passent de la version 1 à la version 2. Pour une rotatio
 | `public.professional_private` (Task 4a.17) | `sin`, `bank_account` | `professional_id` |
 | `public.professional_submission_private` (Task 4b.1, P4-38 : valeurs saisies dans le questionnaire, supprimées à l'approbation) | `sin`, `bank_account` | `submission_id` |
 | `public.mail_connection_tokens` (Communications CM1 : jetons OAuth des boîtes Gmail ; supprimés à la déconnexion) | `access_token`, `refresh_token` | `connection_id` |
+| `public.video_connection_tokens` (Rendez-vous RZ : jetons OAuth des comptes Zoom des professionnels ; supprimés à la déconnexion) | `access_token`, `refresh_token` | `connection_id` |
 
 ## Avant de commencer
 
@@ -116,6 +117,15 @@ begin
                               where x.key_version <> v_target order by x.connection_id limit 500);
   get diagnostics v_count = row_count;
   raise notice 'mail_connection_tokens : % ligne(s) re-chiffrée(s)', v_count;
+
+  update public.video_connection_tokens t
+     set access_token = private.encrypt_pii(private.decrypt_pii(t.access_token, t.key_version), v_target),
+         refresh_token = private.encrypt_pii(private.decrypt_pii(t.refresh_token, t.key_version), v_target),
+         key_version = v_target
+   where t.connection_id in (select x.connection_id from public.video_connection_tokens x
+                              where x.key_version <> v_target order by x.connection_id limit 500);
+  get diagnostics v_count = row_count;
+  raise notice 'video_connection_tokens : % ligne(s) re-chiffrée(s)', v_count;
 end;
 $$;
 

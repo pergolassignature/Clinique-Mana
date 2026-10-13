@@ -356,6 +356,9 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     bookingChallenge: ['demandes.booking_challenge', 1, 3_600],
     bookingCancelIp: ['demandes.booking_cancel_ip', 20, 600],
     waitlistAnswerIp: ['demandes.waitlist_answer_ip', 20, 600],
+    zoomConnectUser: ['zoom.connect_user', 20, 3600],
+    zoomCallbackUser: ['zoom.callback_user', 20, 3600],
+    zoomWebhookIp: ['webhooks.zoom_ip', 120, 60],
     appointmentConfirmIp: ['appointments.confirm_ip', 20, 600],
   })
   for (const l of Object.values(LIMITS)) {

@@ -81,6 +81,15 @@ begin
                               where x.key_version <> v_target order by x.connection_id limit 500);
   get diagnostics v_count = row_count;
   raise notice 'mail_connection_tokens : % ligne(s) re-chiffrée(s)', v_count;
+
+  update public.video_connection_tokens t
+     set access_token = private.encrypt_pii(private.decrypt_pii(t.access_token, t.key_version), v_target),
+         refresh_token = private.encrypt_pii(private.decrypt_pii(t.refresh_token, t.key_version), v_target),
+         key_version = v_target
+   where t.connection_id in (select x.connection_id from public.video_connection_tokens x
+                              where x.key_version <> v_target order by x.connection_id limit 500);
+  get diagnostics v_count = row_count;
+  raise notice 'video_connection_tokens : % ligne(s) re-chiffrée(s)', v_count;
 end;
 $$;$runbook$),
   ('retire', $runbook$do $$

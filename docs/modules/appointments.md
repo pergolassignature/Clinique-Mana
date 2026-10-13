@@ -1,6 +1,6 @@
 # Module `appointments` (« Rendez-vous »)
 
-The clinic's agenda: each professional's availability (weekly windows in clinic time, exceptions), the appointments with their clients and presence, cancellations with a reason, the business hours. Plan: [coding plan §7](../plans/2026-10-11-modules-coding-plan.md#7-rendez-vous-appointments--batches); data: [GOrendezvous tour §1 and §18](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); legacy inventory [§E](../plans/2026-10-06-legacy-feature-inventory.md#e-rendez-vous--disponibilités); decisions R-11 … R-16, R-52, R-53, R-55, R-58, R-59 and **AP-1 … AP-22** in the [decisions log](../plans/2026-10-07-decisions-log.md).
+The clinic's agenda: each professional's availability (weekly windows in clinic time, exceptions), the appointments with their clients and presence, cancellations with a reason, the business hours. Plan: [coding plan §7](../plans/2026-10-11-modules-coding-plan.md#7-rendez-vous-appointments--batches); data: [GOrendezvous tour §1 and §18](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); legacy inventory [§E](../plans/2026-10-06-legacy-feature-inventory.md#e-rendez-vous--disponibilités); decisions R-11 … R-16, R-52, R-53, R-55, R-58, R-59, **AP-1 … AP-22** and **RZ-1 … RZ-8** in the [decisions log](../plans/2026-10-07-decisions-log.md).
 
 | Batch | What | Status |
 |---|---|---|
@@ -10,10 +10,10 @@ The clinic's agenda: each professional's availability (weekly windows in clinic 
 | R3 | Series (every 1–12 weeks, conflicts listed then refused or skipped), cancel the rest of a series, personal appointments, the `mark_completed` job (AP-16 … AP-18) | built |
 | R4 | Confirmations, reminders (the business day before), changes and cancellations by email and text, the confirmation link and « OUI », « Clients sans rappel » (AP-19 … AP-22) | built |
 | R5 | « Mon agenda », the client's « Visites et paiements », publications for Demandes and Facturation | planned |
-| RZ | Zoom per professional (lane C) | planned |
+| RZ | Video links: Zoom per professional, or a fixed personal link (lane C) | built |
 
 - **Registry:** `modules.key = 'appointments'`, depends on `clients`, `services`, `professionals`. It **starts disabled** in every clinic.
-- **Migrations:** `20261013055753_appointments_module` (registry, tables, RLS, audit, seeds), `20261013055754_professionals_booking_facts`, `20261013055755_clients_booking_facts` and `20261013055756_services_booking_facts` (the owning modules' published facts), `20261013055757_appointments_booking` (RPCs, handlers); R2: `20261013064650_clients_display_names` (Clients' published names), `20261013064653_appointments_agenda` (AP-12, `set_appointment_details`, `list_agenda`); R1b: `20261013075644_appointments_holds` (the `held` state, the hold helpers, the job `appointments.holds_release`); R3: `20261013081107_appointments_series` (`appointment_series`, the series RPCs, `book_personal_appointment`, the job `appointments.mark_completed`, `list_agenda` with `series_id`); R4: `20261013084409_appointments_messages` (`appointment_messages`, the deferred trigger, the reminders, the job's and the link's RPCs, « OUI », « Clients sans rappel », eight email templates).
+- **Migrations:** `20261013055753_appointments_module` (registry, tables, RLS, audit, seeds), `20261013055754_professionals_booking_facts`, `20261013055755_clients_booking_facts` and `20261013055756_services_booking_facts` (the owning modules' published facts), `20261013055757_appointments_booking` (RPCs, handlers); R2: `20261013064650_clients_display_names` (Clients' published names), `20261013064653_appointments_agenda` (AP-12, `set_appointment_details`, `list_agenda`); R1b: `20261013075644_appointments_holds` (the `held` state, the hold helpers, the job `appointments.holds_release`); R3: `20261013081107_appointments_series` (`appointment_series`, the series RPCs, `book_personal_appointment`, the job `appointments.mark_completed`, `list_agenda` with `series_id`); R4: `20261013091533_appointments_messages` (`appointment_messages`, the deferred trigger, the reminders, the job's and the link's RPCs, « OUI », « Clients sans rappel », eight email templates).
 - **Tests:** pgTAP `118_appointments`, `122_appointments_agenda` (R2: the override, the details, the agenda read), `130_appointments_holds` (R1b: a hold takes its slot, the staff's RPCs refuse it, confirm checks again with the balance rule, release, expiry and the job, anonymisation), `131_appointments_series` (R3: the preview across the March change, conflicts refused then skipped, every date at the same local time, cancel the rest, personal appointments, completion and a no-show), `132_appointments_messages` (R4: each recipient by her own channel, the job's pass and an email with its link, the link's page and « Confirmer ma présence » once, a move, « OUI », a cancellation, the reminders once and not right after a confirmation, no consent, three tries, personal and held appointments) (97 tests: privileges, RLS per role, seeds, availability, a 50 min session blocking 60, overlap and « pause après », outside availability, the two 2027 daylight-saving Sundays, services and titles, couples, the professional's limits, archived files, the balance rule (HINT `balance_due`) and its override, a retired service, personal appointments, move, presence, cancellation and its late flag, open slots (also under a Montréal session), the consents read, the handlers); Vitest `src/modules/appointments/**/*.test.ts(x)` (manifest; `lib/agenda.test.ts`: calendar days and placement at both 2027 change Sundays, 15-minute snapping, lanes; `AgendaPage.test.tsx`: the views, click to book, AP-12, drag to move, availability mode, a held slot, a series with a conflict skipped, cancelling the rest of a series); Playwright `e2e/appointments.spec.ts` (book, drag, cancel; « Hors disponibilités »; a weekly series with a conflict skipped, then the rest cancelled); the audit labels checked by `src/app/audit-labels.test.ts`. Local seed: Félix available Monday–Friday 9:00–17:00, three appointments next week.
 
 ## Permissions
@@ -132,6 +132,51 @@ Service-side helpers, `security definer`, **granted to no role**: call them from
 - **Services et tarifs:** `private.service_booking_facts(org, service)` → active, code, duration, « pause après », `for_two`, title ids (a retired service too), `billing_policy_on(date)` (late notice).
 - **Clients (consents):** `private.required_consents_for`, the view `client_payers_active`.
 
+## Video links (batch RZ)
+
+Migrations `20261013085921_professionals_appointments_facts` (Professionnels' published names and accounts) and `20261013085924_appointments_video`; pgTAP `123_appointments_video`; functions `zoom-connect`, `zoom-callback`, `zoom-deauthorize`, `appointments-video-sync`; decisions R-55, RZ-1 … RZ-8.
+
+- **Tables:**
+  - `professional_video_links`: a professional's fixed link, https only, ≤ 500 characters, the link redacted in the journal.
+  - `video_connections`: her Zoom account (one per professional and clinic; one professional per Zoom account). It holds the state `connected` / `needs_reconnect` / `disconnected` and, for a reconnection, a reason (`invalid_grant`, `unauthorized`, `deauthorized`). The address is redacted.
+  - `video_connection_tokens`: the tokens, encrypted. No privilege for any role; listed in `pii_encrypted_values()` and the rotation runbook.
+  - `appointment_video_meetings`: which account holds an appointment's meeting, its link, and the link last emailed.
+  - `video_tasks`: one reconcile task per appointment.
+  - Staff (`appointments.view`) read every professional's setup, and a professional (`.self`) hers. Meetings and tasks follow their appointment's policy.
+- **The trigger:** `appointments_video_status` (BEFORE) and `appointments_video_queue` (AFTER) fire on inserts and on changes of `mode`, `state`, `starts_at`, `ends_at`, `professional_id`:
+  - a future, active, video, non-personal appointment of a professional whose Zoom is connected is `video_status = 'pending'` and queued;
+  - an appointment that loses its meeting (cancelled, phone, another professional) has its link cleared and is queued for the deletion;
+  - completed appointments are left alone.
+  - **The booking RPCs never call this batch**; they never write the three `video_*` columns.
+- **Client RPCs:**
+  - `set_professional_video_link(professional, url)`: `.manage`, or `.self` for her own; blank removes it; a refused address is a P0001 with HINT `url`.
+  - `list_professional_video_status()`: staff see every professional with a connection or a link, a professional her own row. It returns the Zoom state, address, connection date, reason and fixed link, never a token.
+  - `get_my_video_setup()`: the professional's own setup.
+  - `get_appointment_video(appointment)` → (url, source, status): the appointment's own visibility rule.
+  - `retry_appointment_video(appointment)`: « Réessayer » on a `failed` one.
+- **Published:** `private.appointment_video_link(org, appointment)` → (url, source `zoom` / `fixed` / null, status `ready` / `pending` / `failed` / `none`), for R4's confirmations and reminders and R5's « Démarrer ». Say « le lien vous sera envoyé » while `pending`: the job emails it.
+- **Service RPCs** (the functions; actor model for the person's own connection):
+  - the connection: `store_zoom_connection`, `get_my_zoom_credentials_for_service`, `disconnect_my_zoom_connection`, `zoom_deauthorized_for_service`;
+  - the tokens: `get_zoom_credentials_for_service`, `set_zoom_tokens_for_service`, `mark_zoom_needs_reconnect_for_service`, `list_zoom_connections_to_refresh_for_service`;
+  - the tasks: `claim_video_tasks_for_service`, `complete_video_task_for_service`;
+  - the link email: `video_link_email_for_service`, `mark_video_link_emailed_for_service`.
+- **Functions:**
+  - `zoom-connect` (user, `appointments.self`): `start` → Zoom's consent URL with a signed state; `disconnect` revokes the grant, then ends the connection.
+  - `zoom-callback` (user, `appointments.self`): the code exchanged, `users/me`, the connection stored; her future video appointments are queued.
+  - `zoom-deauthorize` (webhook, `?org=`): `x-zm-signature` (HMAC of `v0:<timestamp>:<body>` with the app's Secret Token, 5 minutes), `endpoint.url_validation` answered, `app_deauthorized` ends the connection. No module gate, on purpose: it only deletes tokens.
+  - `appointments-video-sync` (job `appointments.video_sync`, every 5 minutes, off by default).
+  - Rate limits: `zoom.connect_user`, `zoom.callback_user`, `webhooks.zoom_ip`.
+  - Local fake: `npm run fake:zoom` (port 55394).
+- **Email:** `appointments.video_link` / `_en` « Votre lien de rencontre » (button: the meeting link).
+- **Notice:** `appointments.zoom_reconnect` (important, to the professional) and its staff twin (`appointments.manage`), expired at the reconnection.
+- **Screens:**
+  - « Vidéoconférence » (`/mon-agenda/videoconference`, nav entry for an account with a professional file): the « Zoom » card (« Connecter mon Zoom », « Compte …, connecté le … », « Reconnecter mon Zoom », « Déconnecter » confirmed) and the « Lien fixe » form. The page is Zoom's return path.
+  - Paramètres → Vidéoconférence (`video` / `videoconference`):
+    - the active professionals with « Zoom connecté » / « Zoom à reconnecter » / « Lien fixe » / « Aucun lien vidéo », a summary and a filter, and « Ajouter / Modifier le lien fixe » (`appointments.manage`);
+    - the Zoom app: client id, secret and Secret Token (write-only), the return and webhook addresses to copy;
+    - the job's state.
+- **For R2 / R5 (lane A):** import `useProfessionalVideoStatus` (`hooks/use-video.ts`, keys under `['appointments', 'video']`) inside the module to warn « pas de Zoom ni de lien fixe » when booking a video appointment, and for the picker's dot. Use `useAppointmentVideo` / `useRetryAppointmentVideo` for « Démarrer » and « Réessayer ». Mount `components/video/{ZoomConnectionCard,FixedLinkForm}` in « Mon agenda » (R5) and drop the nav entry.
+
 ## Rules for the other lanes
 
 - Never book by inserting: `book_appointment` holds every rule; the import (I1) will get its own service-role entry that keeps `external_ref`.
@@ -156,7 +201,7 @@ From the plan's summary (§7) and the legacy inventory (§E). Drops have Jonatha
 | Recurrence weekly or every 2–12 weeks with a conflict check | Keep | R3 |
 | Personal and work appointments | Keep | R1 (columns), R3 (RPCs) |
 | `completed` by hand | Change | a job (R3) |
-| Zoom per professional, « Démarrer »; a fixed personal link | Keep | R4 (fixed link), RZ (Zoom) |
+| Zoom per professional, « Démarrer »; a fixed personal link | Keep | RZ (both; « Démarrer » in R5 reads `get_appointment_video`) |
 | Reminders two days before | Change | one business day before, never on a weekend (R-38, R-52) |
 | Client links confirm / modify / cancel | Change | confirmation only in v1 (R-39) |
 | One account per counselor | Change | core's accounts |
