@@ -106,6 +106,106 @@ async function createWithNames(
   throw new QboError('duplicate_name')
 }
 
+/** A third-party payer (FP: IVAC, a PAE) as the push names it. */
+export interface QboOrganisation {
+  id: string
+  name: string
+  /** The company's customer for it: linked, or of the same name in the mirror (`matched`). */
+  customerId: string | null
+  matched: boolean
+  /** The (organisation, dossier) sub-customer, when already made. */
+  dossierCustomerId: string | null
+}
+
+export interface OrganisationLinkStore {
+  record(
+    link: {
+      kind: 'organisation' | 'dossier'
+      organisationId: string
+      clientId?: string
+      qboCustomerId: string
+      source: 'matched' | 'created'
+    },
+  ): Promise<void>
+}
+
+/** « IVAC », then « IVAC (payeur) » when the name is taken by someone else. */
+export function organisationNames(org: QboOrganisation): string[] {
+  const name = cleanName(org.name)
+  return [name, cleanName(`${name} (payeur)`)]
+}
+
+/** « N° 1234 · Prénom N. · IVAC », then with « (dossier) » when taken. */
+export function organisationDossierNames(
+  org: QboOrganisation,
+  dossier: QboPerson,
+): string[] {
+  const [base] = dossierNames(dossier, dossier)
+  const name = cleanName(`${base} · ${org.name}`)
+  return [name, cleanName(`${name} (dossier)`)]
+}
+
+/**
+ * The customer an organisation's invoice goes to (FQ-13): the (organisation, dossier)
+ * sub-customer « facturé avec le parent » under the organisation's customer — the company's of
+ * the same name when it exists (linked once as `matched`), else made on first use.
+ */
+export async function ensureOrganisationCustomer(
+  qbo: QboClient,
+  store: OrganisationLinkStore,
+  org: QboOrganisation,
+  dossier: QboPerson,
+): Promise<{ customerId: string; parentId: string }> {
+  let parentId = org.customerId
+  if (parentId && org.matched) {
+    await store.record({
+      kind: 'organisation',
+      organisationId: org.id,
+      qboCustomerId: parentId,
+      source: 'matched',
+    })
+  }
+  if (!parentId) {
+    const created = await createWithNames(
+      qbo,
+      organisationNames(org),
+      (name) => ({ DisplayName: name, CompanyName: cleanName(org.name) }),
+      `organisation:${org.id}`,
+    )
+    await store.record({
+      kind: 'organisation',
+      organisationId: org.id,
+      qboCustomerId: created.Id,
+      source: 'created',
+    })
+    parentId = created.Id
+  }
+  if (org.dossierCustomerId) {
+    return { customerId: org.dossierCustomerId, parentId }
+  }
+  const created = await createWithNames(
+    qbo,
+    organisationDossierNames(org, dossier),
+    (name) => ({
+      DisplayName: name,
+      GivenName: cleanName(dossier.firstName).slice(0, 100),
+      FamilyName: cleanName(dossier.lastName).slice(0, 100),
+      Job: true,
+      ParentRef: { value: parentId },
+      BillWithParent: true,
+    }),
+    `organisation-dossier:${org.id}:${dossier.clientId}`,
+  )
+  await store.record({
+    kind: 'dossier',
+    organisationId: org.id,
+    clientId: dossier.clientId,
+    qboCustomerId: created.Id,
+    source: 'created',
+  })
+  return { customerId: created.Id, parentId }
+}
+
 /** The payer's parent customer id: the linked one, else created and linked. */
 export async function ensurePayer(
   qbo: QboClient,

@@ -9204,6 +9204,7 @@
           "qbo_account_map": "Comptes QuickBooks",
           "qbo_customer_matches": "Correspondance des clients QuickBooks",
           "qbo_links": "Clients QuickBooks facturés",
+          "qbo_organisation_links": "Payeurs tiers dans QuickBooks",
           "payout_periods": "Sommaires de paie",
           "payout_lines": "Lignes de paie",
           "professional_invoices": "Factures des professionnels",
@@ -9420,6 +9421,14 @@
             "connection_id": "Connexion",
             "kind": "Type",
             "payer_client_id": "Payeur",
+            "client_id": "Dossier client",
+            "qbo_customer_id": "Client QuickBooks",
+            "source": "Origine"
+          },
+          "qbo_organisation_links": {
+            "connection_id": "Connexion",
+            "kind": "Type",
+            "payer_organisation_id": "Payeur tiers",
             "client_id": "Dossier client",
             "qbo_customer_id": "Client QuickBooks",
             "source": "Origine"

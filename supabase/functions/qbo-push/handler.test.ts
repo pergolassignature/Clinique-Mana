@@ -28,6 +28,7 @@ function model(
     withBill?: boolean
     depositMapped?: boolean
     withRefund?: boolean
+    organisation?: boolean
   } = {},
 ) {
   const events = [
@@ -70,6 +71,7 @@ function model(
     }
   >()
   const links: Record<string, string> = {}
+  const orgLinks: { kind: string; source: string; customer: string }[] = []
   const vendors: Record<string, string> = {}
   const madeItems: string[] = []
   let billPushed: string | null = null
@@ -219,8 +221,35 @@ function model(
           tax_taxable: '4',
           tax_exempt: '8',
           deposit_account_id: kind === 'payment' ? '3' : null,
+          ...(over.organisation
+            ? {
+              organisation: {
+                id: 'o1',
+                kind: 'ivac',
+                name: 'IVAC',
+                reference: 'IV-123',
+              },
+              // The company's « IVAC » (GOrendezvous's), found by its name, not linked yet.
+              organisation_customer_id:
+                orgLinks.find((l) => l.kind === 'organisation')?.customer ??
+                  '199',
+              organisation_matched: !orgLinks.some((l) =>
+                l.kind === 'organisation'
+              ),
+              organisation_dossier_customer_id:
+                orgLinks.find((l) => l.kind === 'dossier')?.customer ?? null,
+            }
+            : {}),
         },
       }
+    },
+    record_qbo_organisation_link_for_service: (args) => {
+      orgLinks.push({
+        kind: args.p_kind as string,
+        source: args.p_source as string,
+        customer: args.p_qbo_customer_id as string,
+      })
+      return { data: null }
     },
     record_qbo_link_for_service: (args) => {
       links[args.p_kind as string] = args.p_qbo_customer_id as string
@@ -282,6 +311,7 @@ function model(
     events,
     pushes,
     links,
+    orgLinks,
     vendors,
     madeItems,
     bill: () => billPushed,
@@ -358,6 +388,33 @@ Deno.test('qbo-push: an invoice to the pair’s sub-customer, its lines by item 
       h.intuit.documents.filter((d) => d.entity === 'invoice').length,
       1,
     )
+  }))
+
+Deno.test('qbo-push: an IVAC invoice goes to the company\u2019s « IVAC » through the dossier\u2019s sub-customer; its reference in the memo', () =>
+  run(async () => {
+    const { h, m, pass } = setup({ organisation: true })
+    assertEquals(await pass(), '2 envoyé(s), 0 en attente, 0 en échec')
+    // No client payer customer: the organisation is the parent.
+    assertEquals(m.links, {})
+    assertEquals(m.orgLinks.map((l) => [l.kind, l.source]), [[
+      'organisation',
+      'matched',
+    ], ['dossier', 'created']])
+    const sub = h.intuit.customers.get(m.orgLinks[1]!.customer)!
+    assertEquals([sub.Job, sub.ParentRef?.value, sub.DisplayName], [
+      true,
+      '199',
+      'N° 42 · Léa E. · IVAC',
+    ])
+    const invoice = h.intuit.documents.find((d) => d.entity === 'invoice')!
+    assertEquals((invoice.body.CustomerRef as { value: string }).value, sub.Id)
+    assertEquals(
+      (invoice.body.CustomerMemo as { value: string }).value,
+      'Référence : IV-123',
+    )
+    // Its payment on the same customer.
+    const payment = h.intuit.documents.find((d) => d.entity === 'payment')!
+    assertEquals((payment.body.CustomerRef as { value: string }).value, sub.Id)
   }))
 
 Deno.test('qbo-push: a refund is a journal entry — the customer owes it again, the money leaves the deposit account', () =>
