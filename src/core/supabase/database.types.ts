@@ -6732,6 +6732,7 @@ export type Database = {
           id: string
           invoice_id: string
           mode_code: string
+          note: string | null
           org_id: string
           paid_on: string
           payer_client_id: string
@@ -6745,6 +6746,7 @@ export type Database = {
           id?: string
           invoice_id: string
           mode_code: string
+          note?: string | null
           org_id: string
           paid_on: string
           payer_client_id: string
@@ -6758,6 +6760,7 @@ export type Database = {
           id?: string
           invoice_id?: string
           mode_code?: string
+          note?: string | null
           org_id?: string
           paid_on?: string
           payer_client_id?: string
@@ -16173,6 +16176,7 @@ export type Database = {
           p_amount_cents: number
           p_invoice_id: string
           p_mode_code: string
+          p_note?: string
           p_paid_on?: string
           p_reference?: string
         }

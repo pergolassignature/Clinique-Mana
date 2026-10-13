@@ -677,6 +677,7 @@ function Payments({
                   {formatDateOnly(p.paidOn)} · {p.mode}
                   {p.reference ? ` · ${p.reference}` : ''}
                 </span>
+                {p.note && <span className="block text-xs text-muted-foreground">{t(`${P}.noteLine`, { note: p.note })}</span>}
                 {p.receiptNumber && (
                   <span className="block text-xs text-muted-foreground">
                     {t(`${P}.receipt`, { number: p.receiptNumber })}
@@ -861,6 +862,7 @@ function PaymentForm({
   )
   const [paidOn, setPaidOn] = useState(today)
   const [reference, setReference] = useState('')
+  const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const record = useRecordPayment({ onErrorMessage: setError })
   return (
@@ -881,6 +883,7 @@ function PaymentForm({
           amountCents: cents,
           paidOn,
           reference: reference.trim() || null,
+          note: note.trim() || null,
         })
       }}
     >
@@ -940,6 +943,17 @@ function PaymentForm({
             value={reference}
             onChange={(e) => setReference(e.target.value)}
             maxLength={100}
+          />
+        )}
+      </FormField>
+      <FormField label={t(`${P}.note`)} help={t(`${P}.noteHelp`)} width="full">
+        {(field) => (
+          <Textarea
+            {...field}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            maxLength={500}
           />
         )}
       </FormField>
