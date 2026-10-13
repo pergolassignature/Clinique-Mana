@@ -5811,11 +5811,14 @@
         "noMailboxTitle": "Aucune boîte connectée",
         "noMailboxBody": "Une personne qui gère les boîtes les connecte dans Paramètres → Courriels Gmail.",
         "search": "Rechercher dans les courriels",
-        "searchPlaceholder": "Rechercher (expéditeur, objet, texte)",
+        "searchPlaceholder": "Expéditeur, objet ou texte",
         "messageFrame": "Contenu du courriel",
         "nav": {
           "label": "Boîtes et dossiers",
           "mailbox": "Boîte",
+          "folder": "Dossier",
+          "inboxWithUnreadOne": "Boîte de réception (1 non lu)",
+          "inboxWithUnreadOther": "Boîte de réception ({count} non lus)",
           "labels": "Libellés",
           "views": {
             "inbox": "Boîte de réception",

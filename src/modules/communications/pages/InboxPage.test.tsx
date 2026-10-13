@@ -244,6 +244,28 @@ describe('InboxPage', () => {
     expect(mocks.inbox.getMailThread).toHaveBeenCalledWith(T1)
   })
 
+  it('on a phone, « Dossier » chooses a view or a label (the unread count in plain words)', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const folder = await screen.findByRole('combobox', { name: t(`${I}.nav.folder`) })
+    expect(within(folder).getByRole('option', { name: t(`${I}.nav.inboxWithUnreadOther`, { count: '2' }) })).toBeInTheDocument()
+    await screen.findByRole('option', { name: 'Factures' })
+    await user.selectOptions(folder, 'libelle:Label_1')
+    await waitFor(() =>
+      expect(mocks.inbox.listMailThreads).toHaveBeenLastCalledWith(
+        { connectionId: MAILBOX.id, view: 'label', labelId: 'Label_1', search: '' },
+        null,
+      ),
+    )
+    await user.selectOptions(folder, 'starred')
+    await waitFor(() =>
+      expect(mocks.inbox.listMailThreads).toHaveBeenLastCalledWith(
+        { connectionId: MAILBOX.id, view: 'starred', labelId: null, search: '' },
+        null,
+      ),
+    )
+  })
+
   it('says when the thread is gone', async () => {
     mocks.inbox.getMailThread.mockResolvedValue(null)
     renderPage(`/courriels?fil=${T2}`)

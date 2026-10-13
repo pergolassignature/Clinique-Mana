@@ -14,7 +14,8 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 | Skeleton | module row, the two first permissions, manifest | built |
 | CM1 | the Gmail connection and mirror: `mail_connections` (encrypted tokens), `gmail-connect` / `gmail-callback` (signed state), `gmail-webhook`, `gmail-sync`, `gmail-watch-renew`, the jobs, the 24-month purge, Paramètres → « Courriels Gmail » (the status screen) | built |
 | CM1b | the Interac notices of `administration@` parsed into `interac_notices` for Facturation (`private.interac_notices_since`) | waits for sample notices (status doc E11, CM-9) |
-| CM2 | « Courriels »: three panes, read / archive / labels, attachments, search, the thread → client link | planned |
+| CM2 | « Courriels »: three panes, read / archive / follow / labels (`gmail-modify`), attachments, search | built |
+| CM2b | the thread → client link: identity match in the sync, « À rattacher », manual link (CM-12) | waits for Clients C2 / C3 |
 | CM3 | composer, `gmail-send`, templates | planned |
 | CM4 | « Rédiger avec l'IA » | planned |
 | SM | « Textos »: SMS through the clinic's Yeastar PBX (as PS Hub, R-73), consents, « ARRÊT », the « OUI » hook, Paramètres → Textos | built (lane C) |
@@ -68,6 +69,37 @@ The upload purpose `mail_attachment` (bucket `documents`, read with `communicati
 
 `npm run fake:gmail` (port 55392, `scripts/fake-gmail.ts` over `_shared/testing/fake-gmail.ts`): the consent page, the token endpoint and the Gmail API over one mailbox of fictional French messages. `supabase/functions/.env` points the functions at it (`GMAIL_API_BASE_URL`, `GOOGLE_OAUTH_BASE_URL`, `GOOGLE_ACCOUNTS_BASE_URL`, `GOOGLE_ACCOUNTS_PUBLIC_URL`, `GOOGLE_CERTS_BASE_URL`, `.env.example`); the seed enables the module for the local clinic, stores the fake's OAuth client, and sets a topic and the service account the fake's signed pushes name (only Admin holds `communications.*`, as in the template). `curl -X POST http://127.0.0.1:55392/__fake/deliver` adds a message; once the mailbox is watched, the fake posts Pub/Sub's push, with a token signed by its own key (served at `/oauth2/v3/certs`), to the local `gmail-webhook`.
 
+## CM2: « Courriels »
+
+Migration `20261013021736_communications_inbox` (pgTAP `108`); decisions CM-11, CM-12.
+
+### RPCs
+
+- `list_mail_threads(p_connection_id, p_view, p_label_id, p_search, p_before, p_before_id, p_limit)` and `get_mail_thread(p_thread_id)`: **security invoker**, the mirror's RLS (`private.visible_mail_connection_ids`: the module gate and `communications.inbox`) is the whole check, so a mailbox the caller cannot read returns nothing. Views `inbox`, `unread`, `starred`, `sent`, `all` (not trash or spam), `label`; keyset pages on `(last_message_at, id)`, 50 by default, 100 at most; the search is `websearch_to_tsquery('french', …)` over the messages' `search_vector` (subject, sender, snippet: never the body), so « facture -interac » and "phrases" work as in Gmail. A thread returns its latest 100 messages, oldest first, with their attachments.
+- `get_mail_threads_for_action(p_actor, p_org_id, p_thread_ids)` (service role, for `gmail-modify`): the actor re-checked (an active member holding `communications.inbox`), only the clinic's connected mailboxes she may read, 1 to 50 threads, with the Gmail ids and labels the function needs.
+
+### Edge function
+
+| Function | Category | What |
+|---|---|---|
+| `gmail-modify` | user (`communications.inbox`) | `{ thread_ids (1–50), action }`: `read`, `unread`, `archive`, `inbox`, `star`, `unstar`, `label` / `unlabel` (a user label of the mailbox). 600 an hour per caller (`gmail.modify_user`: opening an unread thread marks it read). **Gmail first** (`threads.modify` / `messages.batchModify`), then the mirror (`apply_mail_label_changes`): the app never shows a state Gmail refused; a thread Gmail no longer has is skipped. `{ changed }`; a refused refresh marks the mailbox (409). It sends nothing to anyone: P3-40 does not apply |
+
+### Frontend
+
+- **`/courriels`** (`communications.inbox`, `InboxPage`): from `lg`, three panes: the mailbox (a choice when there are several) and its views with the inbox's unread count, then its own labels (`MailboxNav`); the threads of the view (`MailThreadList`: sender, time, subject, snippet, unread in bold, star, paperclip, « Afficher plus de courriels »); the open thread (`MailThreadView`). On a phone the list, then the thread with « Retour aux courriels ». The address keeps the state (`?boite=`, `?vue=` (`libelle:<id>` for a label), `?q=`, `?fil=`: ids only, never an address or a subject); the search runs over every view 300 ms after the last key. No timer: new mail comes with the sync, and the list is read again when the page is shown.
+- **The thread:** the subject takes the focus; unread messages and the latest are open, the others fold to one line. Opening an unread thread marks it read once, silently. Actions (« Archiver » / « Remettre dans la boîte de réception », « Marquer comme non lu », « Suivre », « Libellés », « Ouvrir dans Gmail ») are optimistic and roll back with a French toast when Gmail refuses (`useMailAction`, `mailKeys`).
+- **Received HTML** (`lib/email-html.ts`, DOMPurify 3.4.16): scripts, forms, frames, event handlers and `javascript:` dropped, styles filtered, links opened in a new tab without a referrer; **remote images held** until « Afficher les images » (they would tell the sender the mail was read); `cid:` images resolved through signed URLs. Shown in `SafeEmailHtml`, a sandboxed frame without `allow-scripts`, scaled to the pane when a layout is wider. A browser DOMPurify does not support gets the text, escaped.
+- **Attachments:** a stored copy opens through `useSignedFileUrl` (`storage-sign`, P3-33); one the app did not copy (type not accepted, too large, failed) says « dans Gmail seulement » with a link to the thread in Gmail; a purged body (24 months, CM-8) says so.
+
+### The thread → client link (CM2b, CM-12)
+
+Designed now, built when Clients publishes what it needs. The table is CM1's `mail_thread_links` (`unlinked`, `needs_review`, `linked`; the list and the thread already return `link_status`).
+
+- **Automatic, in the sync:** after `upsert_mail_messages`, each new inbound thread's sender address (lower case) goes to a Clients-published definer helper (asked of lane A: `private.clients_match_email(p_org, p_emails text[])` → client ids, archived, merged and anonymised files left out), called from a Communications definer helper `private.communications_link_threads(p_org, p_thread_ids)`: one match → `linked` (`source = 'auto'`), several → `needs_review` with the candidates (≤ 20), none → `unlinked`. A manual link is never overwritten.
+- **« À rattacher »:** a view of the left pane (`needs_review`, then the unlinked inbound threads), shown only while Clients is enabled and the person holds `clients.view`.
+- **Manual:** `link_mail_thread(p_thread_id, p_client_id)` / `unlink_mail_thread(p_thread_id)` (`communications.inbox` and `clients.view`, the client checked in `clients_directory` for the same clinic), audited; the picker uses C2's `search_clients`. The thread's header then shows the file's number and name (from `clients_directory`), linking to the record (C3).
+- A merge of clients re-points the links through the hook `private.communications_reassign_client(old, new)` that C2's `merge_clients` calls.
+
 ## Textos (batch SM)
 
 Texts go through the clinic's dedicated SMS channel and number on a **Yeastar P-Series PBX**, by its OpenAPI, the system PS Hub uses (R-73, SM-1). Migration `20261012203302_communications_sms`; decisions SM-1 … SM-13 in the [decisions log](../plans/2026-10-07-decisions-log.md#communications-decisions-2026-10-12). The live setup (the PBX application, the channel, the webhook entry) is in the [status doc](../plans/2026-10-07-status.md) (« Mise en service des textos »).
@@ -85,4 +117,4 @@ Texts go through the clinic's dedicated SMS channel and number on a **Yeastar P-
 
 ## What the module publishes
 
-SM publishes `private.send_sms` (the plug-in of « Textos » above). CM1b will publish `private.interac_notices_since(org, since)` to Facturation; CM2 links threads to clients through the Clients module's published lookup.
+SM publishes `private.send_sms` (the plug-in of « Textos » above). CM1b will publish `private.interac_notices_since(org, since)` to Facturation; CM2b links threads to clients through the Clients module's published lookup (CM-12).

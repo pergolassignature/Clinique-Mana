@@ -26,7 +26,11 @@ const run = (fn: () => Promise<void>) =>
 
 /** A harness whose mailbox holds one unread thread of two messages, as the RPC answers it. */
 function setup(perms = ['communications.inbox']) {
-  let h: ReturnType<typeof gmailHarness>
+  // `rows` reads the harness's fake mailbox when the RPC is called, after both exist.
+  const h = gmailHarness({
+    permissions: perms,
+    rpc: { get_mail_threads_for_action: () => ({ data: rows() }) },
+  })
   const rows = () => {
     const ms = [...h.google.messages.values()]
     return [{
@@ -39,10 +43,7 @@ function setup(perms = ['communications.inbox']) {
       })),
     }]
   }
-  h = gmailHarness({
-    permissions: perms,
-    rpc: { get_mail_threads_for_action: () => ({ data: rows() }) },
-  })
+
   const first = h.google.deliver({
     from: 'a@example.test',
     subject: 'A',

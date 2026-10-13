@@ -33,13 +33,18 @@ interface MailboxNavProps {
   labels: MailLabel[]
 }
 
+/** `?vue=`-style value of a choice in the phone's select: the view, or `libelle:<id>`. */
+const choiceValue = (choice: ViewChoice) => (choice.view === 'label' ? `libelle:${choice.labelId}` : choice.view)
+
 /**
  * The left pane: the mailbox (a choice when the person reads more than one), its views
  * (« Boîte de réception » with its unread count, « Non lus », « Suivis », « Envoyés », « Tous les
- * courriels ») and its own labels. Each entry is a button; the current one is `aria-current`.
+ * courriels ») and its own labels. Each entry is a button; the current one is `aria-current`. On a
+ * phone the views and labels fold into one « Dossier » choice, so the list starts at the top.
  */
 export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, labels }: MailboxNavProps) {
   const selectId = useId()
+  const folderId = useId()
   const mailbox = mailboxes.find((m) => m.id === mailboxId)
   const entry = (key: string, active: boolean, onClick: () => void, icon: LucideIcon, text: string, count?: number) => {
     const Icon = icon
@@ -79,7 +84,37 @@ export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, l
           {mailbox?.email_address}
         </p>
       )}
-      <ul className="space-y-0.5">
+      <div className="space-y-1 lg:hidden">
+        <Label htmlFor={folderId}>{t(`${N}.folder`)}</Label>
+        <Select
+          id={folderId}
+          value={choiceValue(current)}
+          onChange={(event) => {
+            const value = event.target.value
+            onView(value.startsWith('libelle:') ? { view: 'label', labelId: value.slice('libelle:'.length) } : { view: value as MailView, labelId: null })
+          }}
+        >
+          {VIEWS.map(({ view }) => (
+            <option key={view} value={view}>
+              {view !== 'inbox' || !mailbox?.unread_count
+                ? t(`${N}.views.${view}`)
+                : mailbox.unread_count === 1
+                  ? t(`${N}.inboxWithUnreadOne`)
+                  : t(`${N}.inboxWithUnreadOther`, { count: String(mailbox.unread_count) })}
+            </option>
+          ))}
+          {labels.length > 0 && (
+            <optgroup label={t(`${N}.labels`)}>
+              {labels.map((label) => (
+                <option key={label.gmail_label_id} value={`libelle:${label.gmail_label_id}`}>
+                  {label.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </Select>
+      </div>
+      <ul className="space-y-0.5 max-lg:hidden">
         {VIEWS.map(({ view, icon }) =>
           entry(
             view,
@@ -92,7 +127,7 @@ export function MailboxNav({ mailboxes, mailboxId, onMailbox, current, onView, l
         )}
       </ul>
       {labels.length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-1 max-lg:hidden">
           <p className="px-2 text-xs font-medium text-muted-foreground">{t(`${N}.labels`)}</p>
           <ul className="space-y-0.5">
             {labels.map((label) =>
