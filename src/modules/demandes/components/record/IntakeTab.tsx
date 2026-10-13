@@ -15,6 +15,7 @@ import { toast } from '@/shared/ui/sonner'
 import { BENEFICIARIES, GENDERS, MODALITIES, PAYER_KINDS, PERIODS, type DemandeBundle } from '../../api/demandes'
 import { useUpdateDemande } from '../../hooks/use-demandes'
 import { fileLabel, optionLabel } from '../../lib/display'
+import { DemandeSourceCard } from '../DemandeSourceCard'
 import { ClientLink } from './ClientLink'
 import { useServerDraft } from '../../lib/use-server-draft'
 import { useDemandeRecord } from './record-context'
@@ -103,7 +104,7 @@ function patchOf(initial: Values, values: Values): Record<string, unknown> | { e
 }
 
 /**
- * « Accueil »: the file the request belongs to (Clients' picker), the contact, and the
+ * « Accueil »: the file the request belongs to (Clients' picker), where it came from, the contact, and the
  * intake (GOrendezvous's « Requêtes de service » fields, roadmap §2.3), saved together: only the
  * changed keys reach `update_demande`. Read-only once closed or without demandes.manage.
  */
@@ -111,6 +112,7 @@ export function IntakeTab() {
   return (
     <SectionSurface>
       <FileCard />
+      <SourceSection />
       <IntakeForm />
     </SectionSurface>
   )
@@ -135,6 +137,18 @@ function FileCard() {
       )}
       {canEdit && <ClientLink label={client ? t(`${A}.file.change`) : t(`${A}.file.link`)} />}
     </SettingsCard>
+  )
+}
+
+/** Where the request came from (D3c's card, R-74): the channel, the answer, the campaign. */
+function SourceSection() {
+  const { bundle, reference } = useDemandeRecord()
+  const d = bundle.demande
+  const heard = d.referral_source_id ? (reference.referral_sources.find((s) => s.id === d.referral_source_id)?.name ?? null) : null
+  return (
+    <div className="p-5">
+      <DemandeSourceCard demande={d} referralSourceName={heard} />
+    </div>
   )
 }
 

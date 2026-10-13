@@ -57,6 +57,7 @@ export function useDemandesRealtime(enabled: boolean) {
   const queryClient = useQueryClient()
   useOrgRealtime(enabled ? 'demandes' : null, {
     onChange: (change) => {
+      void queryClient.invalidateQueries({ queryKey: demandesKeys.waitlist() })
       void queryClient.invalidateQueries({ queryKey: demandesKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: demandesKeys.counts() })
       void queryClient.invalidateQueries({ queryKey: demandesKeys.record(change.recordId) })
@@ -70,6 +71,7 @@ function useAfterWrite() {
   const queryClient = useQueryClient()
   return (id: string) =>
     Promise.all([
+      queryClient.invalidateQueries({ queryKey: demandesKeys.waitlist() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.lists() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.counts() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.record(id) }),
