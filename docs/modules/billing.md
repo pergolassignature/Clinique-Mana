@@ -190,7 +190,7 @@ Decisions **FQ-1 … FQ-5**. PS Hub's connector is the source (roadmap §2.6), i
 - **Tests:** pgTAP `150_billing_quickbooks`; Deno tests of the four functions and `_shared/qbo/`; Vitest `QuickBooksSettingsPage`, `QuickBooksCustomersPage`, `lib/qbo-status`.
 ## QuickBooks: the push (FQ part 2, lane B)
 
-Migrations `20261013132858_billing_qbo_push` (pgTAP `151`) and `20261013152358_billing_qbo_refunds` (pgTAP `157`, after F3); decisions **FQ-6 … FQ-12**. The job **« Envoi à QuickBooks »** (`billing.qbo_push`, function `qbo-push`, every 10 minutes, off until enabled) reads F2's outbox `billing_sync_events` (agreed with lane A: `billing_sync_events_for_service`, `finish_billing_sync_event_for_service`, `private.billing_invoice_for_sync`, `private.billing_payment_for_sync`) oldest first, then FPay's professional invoices.
+Migrations `20261013132858_billing_qbo_push` (pgTAP `151`) and `20261013163110_billing_qbo_refunds` (pgTAP `157`, after F3); decisions **FQ-6 … FQ-12**. The job **« Envoi à QuickBooks »** (`billing.qbo_push`, function `qbo-push`, every 10 minutes, off until enabled) reads F2's outbox `billing_sync_events` (agreed with lane A: `billing_sync_events_for_service`, `finish_billing_sync_event_for_service`, `private.billing_invoice_for_sync`, `private.billing_payment_for_sync`) oldest first, then FPay's professional invoices.
 
 - **The switch (FQ-6):** `qbo_push_paused` in the module's settings, **paused when absent**: nothing at all is sent until the cutover's go/no-go. Paramètres → QuickBooks → « Envoi à QuickBooks »: « Démarrer l'envoi » (asked first; `set_qbo_push_paused`, `billing.settings`, audited) / « Mettre en pause ».
 - **What goes (FQ-7):**
