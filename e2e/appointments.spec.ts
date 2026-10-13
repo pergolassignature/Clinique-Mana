@@ -122,6 +122,31 @@ test('a weekly series: the conflict with Alice listed, skipped, then the rest of
   await expect(page.getByText('Rendez-vous de la série annulés.')).toBeVisible()
 })
 
+test('« Mon agenda »: Félix sees his week and adds then removes a personal appointment (R5)', async ({ page, signIn }) => {
+  const monday = nextMonday()
+  const tuesday = new Date(`${monday}T12:00:00Z`)
+  tuesday.setUTCDate(tuesday.getUTCDate() + 1)
+  await signIn('provider')
+  await page.getByRole('link', { name: 'Mon agenda' }).first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Mon agenda' })).toBeVisible()
+  await page.goto(`/mon-agenda?date=${monday}`)
+  await expect(page.getByRole('button', { name: '10:00, Alice Tremblay-Fictive' })).toBeVisible()
+  await expect(page.getByLabel('Professionnel')).toHaveCount(0)
+
+  // Tuesday 12:00: 5 hours below 7:00 at 48 px an hour.
+  const column = page.getByTestId(`agenda-column-${tuesday.toISOString().slice(0, 10)}`)
+  await column.click({ position: { x: 20, y: 5 * 48 + 2 } })
+  const dialog = page.getByRole('dialog', { name: 'Rendez-vous personnel' })
+  await dialog.getByLabel(/^Libellé/).fill('Dentiste')
+  await dialog.getByRole('button', { name: 'Ajouter' }).click()
+  await expect(page.getByText('Rendez-vous personnel ajouté.')).toBeVisible()
+  const block = page.getByRole('button', { name: '12:00, Dentiste' })
+  await block.scrollIntoViewIfNeeded()
+  await block.click()
+  await page.getByRole('button', { name: 'Retirer ce rendez-vous personnel' }).click()
+  await expect(page.getByText('Rendez-vous annulé.')).toBeVisible()
+})
+
 test('« Clients sans rappel » opens the coming appointments nobody can be reminded of (R4)', async ({ page, signIn }) => {
   await signIn('admin')
   await page.goto(`/agenda?professionnel=${FELIX}`)

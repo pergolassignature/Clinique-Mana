@@ -111,7 +111,8 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const agenda = useAgenda(range.from, range.to, shownIds, mode === 'rendez-vous')
   const availabilityIds = mode === 'disponibilites' ? (pro ? [pro] : []) : effectiveView === 'jour' ? shown.map((p) => p.id) : pro ? [pro] : []
   const availability = useAvailability(availabilityIds, range.from)
-  const appointments = agenda.data ?? []
+  // A personal appointment taken off is gone from the agenda (a clients' cancellation stays, struck).
+  const appointments = useMemo(() => (agenda.data ?? []).filter((a) => !(a.isPersonal && a.state === 'cancelled')), [agenda.data])
 
   // A drag outside the availability: the staff get the editor with the dragged time and
   // « Hors disponibilités » (AP-12); any other refusal is a toast.
