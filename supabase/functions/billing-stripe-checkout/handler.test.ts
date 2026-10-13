@@ -148,3 +148,21 @@ Deno.test('billing-stripe-checkout: Stripe not set is 503; Stripe failing is 502
     assertEquals(b.status, 503)
     await b.body?.cancel()
   }))
+
+Deno.test('billing-stripe-checkout: an English payer comes back to the English page (&lang=en), Stripe in English', () =>
+  run(async () => {
+    const { handler, stripe } = setup(valid({ language: 'en' }))
+    const res = await handler(post({ token: generateToken() }))
+    assertEquals((await res.json()).state, 'valid')
+    const session = [...stripe.sessions.values()][0]!
+    assertEquals(
+      session.successUrl,
+      'http://localhost:5173/payer?etat=merci&lang=en',
+    )
+    assertEquals(
+      session.cancelUrl,
+      'http://localhost:5173/payer?etat=annule&lang=en',
+    )
+    const call = stripe.calls.find((c) => c.path === '/v1/checkout/sessions')!
+    assertEquals(call.params.get('locale'), 'en')
+  }))

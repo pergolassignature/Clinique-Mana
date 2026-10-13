@@ -3,7 +3,7 @@
 -- request's state following, the follow-up job and its « still waiting? » link, P3-40.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(77);
+select plan(78);
 
 -- =============================================================================
 -- Privileges
@@ -259,6 +259,8 @@ select is(public.waitlist_followup_for_service('b0000000-0000-0000-0000-00000000
   'sent and noted: not listed again');
 select is(public.resolve_waitlist_followup_link((select id from public.secure_links where token_hash = decode(repeat('ab', 32), 'hex'))) ->> 'clinic_name',
   'Org A', 'the link shows the clinic');
+select is(public.resolve_waitlist_followup_link((select id from public.secure_links where token_hash = decode(repeat('ab', 32), 'hex'))) ->> 'language',
+  'fr', '… in the demande''s language (EN-1)');
 
 select is(public.answer_waitlist_followup_for_service(decode(repeat('ab', 32), 'hex'), 'stay'), '{"state": "stay"}'::jsonb, '« Oui »');
 select results_eq($$ select state, last_contact_at is not null from public.waitlist_entries where id = current_setting('test.eb')::uuid $$,

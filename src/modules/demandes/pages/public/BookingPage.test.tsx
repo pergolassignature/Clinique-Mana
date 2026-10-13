@@ -112,3 +112,18 @@ describe('BookingPage', () => {
     expect(Sentry.captureException).not.toHaveBeenCalled()
   })
 })
+
+describe('BookingPage in English', () => {
+  it('&lang=en: the page, the times and the call language in English; « Français » switches back', async () => {
+    open(`?clinique=${ORG}&lang=en`)
+    expect(await screen.findByRole('radio', { name: /Wednesday, October 14 at 9:00 a\.m\./ })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: new RegExp(`^${t('modules.demandes.booking.pageEn.firstName')}`) })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: t('modules.demandes.booking.pageEn.language') })).toHaveValue('en')
+    expect(screen.getByRole('link', { name: 'Français' })).toHaveAttribute('href', `/appel-decouverte?clinique=${ORG}`)
+  })
+
+  it('in French, « English » opens the English page', async () => {
+    open(`?clinique=${ORG}`)
+    expect(await screen.findByRole('link', { name: 'English' })).toHaveAttribute('href', `/appel-decouverte?clinique=${ORG}&lang=en`)
+  })
+})
