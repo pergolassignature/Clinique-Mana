@@ -7693,12 +7693,20 @@
       "sources": {
         "title": "Provenance",
         "channel": "Canal",
-        "heard": "Comment la personne a entendu parler de MANA",
+        "heard": "Provenance déclarée",
         "campaign": "Campagne",
         "utm": "Paramètres de campagne",
         "referrer": "Page d’origine",
         "landing": "Page d’arrivée",
-        "none": "Non indiquée"
+        "heardQuestion": "Comment la personne a entendu parler de MANA",
+        "notSaid": "Non précisé",
+        "noCampaign": "Aucune donnée de campagne",
+        "edit": "Modifier",
+        "editTitle": "Modifier la provenance",
+        "capturedReadOnly": "La campagne et les pages notées par la page de réservation ne se modifient pas : le système les a enregistrées.",
+        "archivedSource": "Provenance retirée de la liste",
+        "saved": "Provenance enregistrée.",
+        "saveError": "La provenance n'a pas pu être enregistrée."
       },
       "waitlist": {
         "name": "Liste d'attente",

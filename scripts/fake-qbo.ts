@@ -11,15 +11,15 @@
 //
 // The functions reach it through supabase/functions/.env (honoured only while
 // APP_URL is local):
-//   QBO_APPCENTER_BASE_URL=http://host.docker.internal:55394
-//   QBO_APPCENTER_PUBLIC_URL=http://127.0.0.1:55394
-//   QBO_OAUTH_BASE_URL=http://host.docker.internal:55394
-//   QBO_REVOKE_BASE_URL=http://host.docker.internal:55394
-//   QBO_API_BASE_URL=http://host.docker.internal:55394
+//   QBO_APPCENTER_BASE_URL=http://host.docker.internal:55395
+//   QBO_APPCENTER_PUBLIC_URL=http://127.0.0.1:55395
+//   QBO_OAUTH_BASE_URL=http://host.docker.internal:55395
+//   QBO_REVOKE_BASE_URL=http://host.docker.internal:55395
+//   QBO_API_BASE_URL=http://host.docker.internal:55395
 // and the seed org's secrets (supabase/seed.sql) hold the fake's application.
 //
-// `curl -X POST http://127.0.0.1:55394/__fake/reset` empties the company and
-// fills it again. The server listens on 127.0.0.1:55394 (FAKE_QBO_HOST /
+// `curl -X POST http://127.0.0.1:55395/__fake/reset` empties the company and
+// fills it again. The server listens on 127.0.0.1:55395 (FAKE_QBO_HOST /
 // FAKE_QBO_PORT). Logs carry the method, the path's kind and the status only:
 // never a token or a customer.
 
@@ -30,7 +30,7 @@ import {
 
 const env = (name: string) => Deno.env.get(name) || undefined
 const hostname = env('FAKE_QBO_HOST') ?? '127.0.0.1'
-const port = Number(env('FAKE_QBO_PORT') ?? 55394)
+const port = Number(env('FAKE_QBO_PORT') ?? 55395)
 
 let fake = fakeQbo()
 seedCompany(fake)
