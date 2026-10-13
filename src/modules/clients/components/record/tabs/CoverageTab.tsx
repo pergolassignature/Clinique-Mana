@@ -332,6 +332,10 @@ function PayerDialog({ row, onClose }: { row: ClientPayer | null; onClose: () =>
               setRefusal(t(`${C}.invalidAmount`))
               return
             }
+            if (pae && (prior !== null || priorCount !== null) !== (priorOn !== '')) {
+              setRefusal(t(`${C}.invalidPrior`))
+              return
+            }
             const coverage = byPercent ? (percent.trim() === '' ? null : Number(percent)) : null
             if (coverage !== null && (!Number.isInteger(coverage) || coverage < 1 || coverage > 100)) {
               setRefusal(t(`${C}.invalidPercent`))

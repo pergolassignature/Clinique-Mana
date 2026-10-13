@@ -112,9 +112,11 @@ export function PayersPage() {
                   {t(`${P}.closeYear`)}
                 </Button>
               )}
-              <Button type="button" aria-disabled={prepare.isPending || due.length === 0 || undefined} onClick={ignoreWhenInactive(prepare.isPending || due.length === 0, () => runPrepare([null], false))}>
-                {t(`${P}.prepareAll`, { count: String(due.length) })}
-              </Button>
+              {due.length > 0 && (
+                <Button type="button" aria-disabled={prepare.isPending || undefined} onClick={ignoreWhenInactive(prepare.isPending, () => runPrepare([null], false))}>
+                  {t(`${P}.prepareAll`, { count: String(due.length) })}
+                </Button>
+              )}
             </div>
           ) : undefined
         }

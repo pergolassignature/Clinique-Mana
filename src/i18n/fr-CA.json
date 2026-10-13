@@ -6219,9 +6219,10 @@
           "renewalDay": "Jour",
           "noRenewal": "Aucun",
           "priorAmount": "Déjà utilisé avant l'application",
-          "priorHelp": "Ce que le PAE a déjà payé dans l'année de l'entente, avant l'application.",
+          "priorHelp": "Ce que le PAE a déjà payé dans l'année de l'entente, avant l'application, avec la date.",
           "priorSessionsLabel": "Séances déjà utilisées",
-          "priorOn": "En date du"
+          "priorOn": "En date du",
+          "invalidPrior": "Indiquez ce qui a déjà été utilisé (un montant ou des séances) et en date de quel jour, ou rien."
         },
         "visits": {
           "title": "Visites et paiements",

@@ -99,6 +99,17 @@ describe('CoverageTab (FP)', () => {
     )
   })
 
+  it('a use before the app needs its date', async () => {
+    const user = userEvent.setup()
+    renderTab()
+    await user.click(await screen.findByRole('button', { name: t(`${C}.edit`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${C}.editPayer`) })
+    await user.type(within(dialog).getByLabelText(/^Déjà utilisé avant/), '120')
+    await user.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    expect(await within(dialog).findByText(t(`${C}.invalidPrior`))).toBeInTheDocument()
+    expect(mocks.api.saveClientPayer).not.toHaveBeenCalled()
+  })
+
   it('a share outside 1–100 % is refused before saving', async () => {
     const user = userEvent.setup()
     renderTab()
