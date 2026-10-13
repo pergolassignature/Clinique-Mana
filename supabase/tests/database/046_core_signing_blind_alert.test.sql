@@ -27,6 +27,8 @@
 --   read before the send (of the draft) neither counts nor shows (greatest(synced_at, sent_at)).
 -- The whole file is one transaction, so now() is constant: an `ok` run « after » a notice is
 -- written with a finished_at in the future.
+-- The job's real hourly run (pg_cron, :55) is another transaction: it never sees this file's rows,
+-- and its own run row is told apart by its trigger (`cron`; this file runs the job `manual`).
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(35);
@@ -344,9 +346,14 @@ $$, $$ values
 -- =============================================================================
 -- The run log
 -- =============================================================================
-select lives_ok($$ select private.run_sql_job('core.signing_unsaved_alert') $$, 'run_sql_job runs it');
+-- Run by hand (`manual`) and read back by that trigger: the real hourly run (pg_cron, at :55) may
+-- commit its own row while this file runs (CI once failed on it at 21:55); it is always `cron`.
+-- The hourly run's row, as pg_cron would commit it at :55 (it must not change the answer below).
+insert into public.scheduled_job_runs (job_key, org_id, trigger, status, detail, finished_at)
+values ('core.signing_unsaved_alert', null, 'cron', 'ok', 'notified=3 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0', now());
+select lives_ok($$ select private.run_sql_job('core.signing_unsaved_alert', 'manual') $$, 'run_sql_job runs it');
 select results_eq($$
-  select status, detail from public.scheduled_job_runs where job_key = 'core.signing_unsaved_alert'
+  select status, detail from public.scheduled_job_runs where job_key = 'core.signing_unsaved_alert' and trigger = 'manual'
 $$, $$ values ('ok'::text,
   'notified=0 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0'::text) $$,
   'and logs an ok run with every count');
