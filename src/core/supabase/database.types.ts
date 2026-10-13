@@ -16041,6 +16041,19 @@ export type Database = {
         }
         Returns: string
       }
+      set_availability_window: {
+        Args: {
+          p_end_time: string
+          p_id: string
+          p_professional_id: string
+          p_start_time: string
+          p_valid_from: string
+          p_valid_until: string
+          p_week?: string
+          p_weekday: number
+        }
+        Returns: Json
+      }
       set_bank_details: {
         Args: {
           p_account_number: string

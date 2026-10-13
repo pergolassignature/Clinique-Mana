@@ -27,8 +27,6 @@ interface TimeGridProps {
   appointments: readonly AgendaAppointment[]
   rules: readonly AvailabilityRule[]
   exceptions: readonly AvailabilityException[]
-  /** `booking`: availability shaded, appointments to open, drag and create; `availability`: windows to edit. */
-  mode: 'booking' | 'availability'
   /** The professional whose availability is shaded when a column has none of its own. */
   shadeProfessionalId: string | null
   professionalName: (id: string) => string
@@ -37,7 +35,6 @@ interface TimeGridProps {
   onCreate: (day: string, minutes: number, professionalId: string | null) => void
   onOpen: (appointment: AgendaAppointment) => void
   onMove: (appointment: AgendaAppointment, startsAt: string) => void
-  onRule: (rule: AvailabilityRule) => void
 }
 
 interface Drag {
@@ -53,35 +50,59 @@ interface Drag {
  * daylight-saving change). Booking mode: availability windows shaded and exceptions hatched; a
  * click on an empty quarter hour creates an appointment there; an appointment opens on click and
  * moves by dragging (Pointer Events, 15-minute snapping), the move confirmed by the database.
- * Availability mode: the windows are buttons that open their editor; a click elsewhere adds one.
- * Blocks are buttons (keyboard: Tab then Entrée); creation also has the toolbar's button.
+ * « Disponibilités » is `AvailabilityGrid` (direct manipulation, AP-27). Blocks are buttons (keyboard: Tab then Entrée); creation also has the toolbar's button.
  */
 export function TimeGrid(props: TimeGridProps) {
-  const { columns, mode } = props
+  const { columns } = props
   const height = ((GRID_END - GRID_START) / 60) * HOUR_HEIGHT
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-card">
       <div className="flex min-w-max">
-        <div className="w-14 shrink-0 border-r border-border" aria-hidden>
-          <div className="h-12 border-b border-border" />
-          <div className="relative" style={{ height }}>
-            {HOURS.map((m) => (
-              <div key={m} className="absolute right-1.5 -translate-y-1/2 text-xs text-muted-foreground tabular" style={{ top: ((m - GRID_START) / 60) * HOUR_HEIGHT }}>
-                {m === GRID_START ? '' : hhmm(m)}
-              </div>
-            ))}
-          </div>
-        </div>
+        <HourRail />
         {columns.map((column) => (
-          <Column key={column.key} column={column} height={height} {...props} mode={mode} />
+          <Column key={column.key} column={column} height={height} {...props} />
         ))}
       </div>
     </div>
   )
 }
 
+/** The hours down the grid's left side. */
+export function HourRail() {
+  const height = ((GRID_END - GRID_START) / 60) * HOUR_HEIGHT
+  return (
+    <div className="w-14 shrink-0 border-r border-border" aria-hidden>
+      <div className="h-12 border-b border-border" />
+      <div className="relative" style={{ height }}>
+        {HOURS.map((m) => (
+          <div key={m} className="absolute right-1.5 -translate-y-1/2 text-xs text-muted-foreground tabular" style={{ top: ((m - GRID_START) / 60) * HOUR_HEIGHT }}>
+            {m === GRID_START ? '' : hhmm(m)}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** A column's header: the day (or the professional) and its sublabel. */
+export function ColumnHeader({ column }: { column: GridColumn }) {
+  return (
+    <div className="flex h-12 flex-col justify-center border-b border-border px-2 text-center">
+      <span className="truncate text-sm font-medium">{column.label}</span>
+      {column.sublabel && <span className="truncate text-xs text-muted-foreground">{column.sublabel}</span>}
+    </div>
+  )
+}
+
+/** The hour lines of a column. */
+export function HourLines() {
+  return HOURS.map((m) => (
+    <div key={m} aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-border/60" style={{ top: ((m - GRID_START) / 60) * HOUR_HEIGHT }} />
+  ))
+}
+
 function Column({ column, height, ...props }: TimeGridProps & { column: GridColumn; height: number }) {
-  const { appointments, rules, exceptions, mode, canWrite } = props
+  const { appointments, rules, exceptions, canWrite } = props
   const shadeFor = column.professionalId ?? props.shadeProfessionalId
   const own = appointments.filter((a) => (column.professionalId === null || a.professionalId === column.professionalId))
   const placed = placeAppointments(own, column.day)
@@ -103,7 +124,7 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
   }
 
   const startDrag = (event: ReactPointerEvent<HTMLButtonElement>, a: AgendaAppointment) => {
-    if (!canWrite || mode !== 'booking' || a.isPersonal || (a.state !== 'booked' && a.state !== 'confirmed')) return
+    if (!canWrite || a.isPersonal || (a.state !== 'booked' && a.state !== 'confirmed')) return
     event.currentTarget.setPointerCapture?.(event.pointerId)
     dragRef.current = { id: a.id, originY: event.clientY, offset: 0, moved: false }
     setDrag(dragRef.current)
@@ -131,49 +152,26 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
 
   return (
     <div className="w-44 shrink-0 border-r border-border last:border-r-0 sm:w-auto sm:min-w-40 sm:flex-1">
-      <div className="flex h-12 flex-col justify-center border-b border-border px-2 text-center">
-        <span className="truncate text-sm font-medium">{column.label}</span>
-        {column.sublabel && <span className="truncate text-xs text-muted-foreground">{column.sublabel}</span>}
-      </div>
+      <ColumnHeader column={column} />
       <div
         className={cn('relative', canWrite && 'cursor-copy')}
         style={{ height }}
         onClick={onBackground}
         data-testid={`agenda-column-${column.key}`}
       >
-        {HOURS.map((m) => (
-          <div key={m} aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-border/60" style={{ top: ((m - GRID_START) / 60) * HOUR_HEIGHT }} />
+        <HourLines />
+        {windows.map(({ rule, start, end }) => (
+          <div key={rule.id} aria-hidden className="pointer-events-none absolute inset-x-0 bg-primary/5" style={verticalBox(start, end, HOUR_HEIGHT)} />
         ))}
-        {windows.map(({ rule, start, end }) => {
-          const box = verticalBox(start, end, HOUR_HEIGHT)
-          return mode === 'availability' ? (
-            <button
-              key={rule.id}
-              type="button"
-              onClick={() => props.onRule(rule)}
-              className="absolute inset-x-1 rounded-md border border-primary/40 bg-primary/10 px-1.5 py-1 text-left text-xs"
-              style={box}
-              aria-label={t(`${A}.windowLabel`, { start: rule.startTime, end: rule.endTime })}
-            >
-              <span className="tabular">
-                {rule.startTime} – {rule.endTime}
-              </span>
-              {rule.serviceIds.length > 0 && <span className="block text-muted-foreground">{t(`${A}.windowServices`, { count: String(rule.serviceIds.length) })}</span>}
-            </button>
-          ) : (
-            <div key={rule.id} aria-hidden className="pointer-events-none absolute inset-x-0 bg-primary/5" style={box} />
-          )
-        })}
         {offs.map(({ exception, start, end }) => (
           <div
             key={exception.id}
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 bg-muted [background-image:repeating-linear-gradient(135deg,transparent_0_6px,var(--border)_6px_7px)]"
+            className="pointer-events-none absolute inset-x-0 bg-muted [background-image:repeating-linear-gradient(135deg,transparent_0_6px,rgb(var(--border-strong))_6px_7px)]"
             style={verticalBox(start, end, HOUR_HEIGHT)}
           />
         ))}
-        {mode === 'booking' &&
-          placed.map(({ item: a, start, end, lane, lanes }) => {
+        {placed.map(({ item: a, start, end, lane, lanes }) => {
             const offset = drag?.id === a.id ? drag.offset : 0
             const box = verticalBox(start + offset, end + offset, HOUR_HEIGHT)
             const width = 100 / lanes

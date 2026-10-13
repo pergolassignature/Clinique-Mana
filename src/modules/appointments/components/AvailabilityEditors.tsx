@@ -147,12 +147,26 @@ export function RuleDialog({ target, reference, onClose }: { target: RuleTarget;
 
 /**
  * The professional's exceptions (holiday, vacation, other) beside the grid in availability
- * mode: the coming ones with « Retirer », « Ajouter une exception », and « Vacances cette
- * semaine » for the week shown (Monday 0:00 to the next Monday 0:00, clinic time).
+ * mode: the coming ones with « Retirer », « Ajouter une exception », and « En vacances toute la
+ * semaine » (« Je suis en vacances… » in « Mon agenda ») for the week shown, with « Annuler »
+ * (`onVacationWeek`, AP-27).
  */
-export function ExceptionsPanel({ professionalId, weekStart, exceptions }: { professionalId: string; weekStart: string; exceptions: readonly AvailabilityException[] }) {
+export function ExceptionsPanel({
+  professionalId,
+  weekStart,
+  exceptions,
+  mine = false,
+  onVacationWeek,
+  busy = false,
+}: {
+  professionalId: string
+  weekStart: string
+  exceptions: readonly AvailabilityException[]
+  mine?: boolean
+  onVacationWeek: () => Promise<unknown>
+  busy?: boolean
+}) {
   const [adding, setAdding] = useState(false)
-  const add = useAddException()
   const remove = useRemoveException()
   const now = Date.now()
   const coming = exceptions.filter((e) => e.professionalId === professionalId && Date.parse(e.endsAt) > now)
@@ -163,15 +177,8 @@ export function ExceptionsPanel({ professionalId, weekStart, exceptions }: { pro
       description={t(`${D}.exceptionsHelp`)}
       footer={
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={add.isPending}
-            onClick={() =>
-              add.mutate({ professionalId, kind: 'vacation', startsAt: instantOf(weekStart, 0), endsAt: instantOf(addDays(weekStart, 7), 0), label: null })
-            }
-          >
-            {t(`${D}.vacationWeek`)}
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void onVacationWeek()}>
+            {t(mine ? `${D}.vacationWeekMine` : `${D}.vacationWeek`)}
           </Button>
           <Button type="button" onClick={() => setAdding(true)}>
             <Plus aria-hidden />

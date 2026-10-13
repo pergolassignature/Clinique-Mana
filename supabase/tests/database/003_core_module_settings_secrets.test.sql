@@ -142,6 +142,8 @@ select functions_are('public', array[
   'remove_availability_exception', 'book_appointment', 'move_appointment', 'set_appointment_presence', 'cancel_appointment', 'get_open_slots', 'get_appointment_consents',
   -- Rendez-vous, batch R2.
   'set_appointment_details', 'list_agenda',
+  -- Rendez-vous: availability by direct manipulation.
+  'set_availability_window',
   -- Rendez-vous, batch R3.
   'preview_series', 'create_series', 'cancel_series_from', 'book_personal_appointment',
   -- Rendez-vous, batch R4.
