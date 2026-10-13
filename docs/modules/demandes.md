@@ -8,7 +8,7 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 | D2 | Inbox, intake, record, core realtime hook | planned (gate: C3) |
 | D3 | Waiting list part 1 | planned |
 | D3b | Discovery-call tasks, proposals with acceptance link | planned |
-| D3c | Public discovery-call booking page with source tracking (lane C) | planned |
+| D3c | Public discovery-call booking page with source tracking (lane C) | built |
 | D4–D6 | Matching panel and waiting list part 2, places, KPIs (after the cutover) | planned |
 
 - **Registry:** `modules.key = 'demandes'` (migration `20261012223803_demandes_module`), depends on `clients` and `professionals`. It **starts disabled** in every clinic; the local seed enables it.
@@ -68,8 +68,39 @@ All `security definer`, permission first, the caller's clinic only, the request'
 
 ## What the module publishes
 
-For the professional: `my_demandes` and `my_waitlist_entries` (above). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the public booking function's write path (D3c).
+For the professional: `my_demandes` and `my_waitlist_entries` (above). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the view `demandes_sources` (D3c, below).
 
 ## Messages to people outside the clinic (P3-40)
 
 D1 sends nothing. Every send path the module adds (the proposal's acceptance link D3b, the waiting-list follow-ups D3, the booking page's confirmations D3c) checks `module_open_to_all_for_org(org, 'demandes')` first, in SQL at its choke point: while Demandes is « Réservé aux testeurs », a manual send is refused in French and an automatic one is not queued; the admin's test still goes. Its pgTAP covers the refusal ([core doc](core.md), « Modules reserved for testers »).
+
+## The discovery-call booking page (D3c)
+
+Migration `20261013045323_demandes_booking`; pgTAP `116_demandes_booking`; function `demandes-book-call`; decisions R-74, **D-7 … D-11**.
+
+- **Public pages:**
+  - `/appel-decouverte?clinique=<org>`: one screen. The person chooses a day, then a time (the clinic's time zone), and gives a name, an email and a phone, the call's language, « Comment avez-vous entendu parler de MANA ? » and optionally a few words.
+  - `/appel-decouverte/annuler#t=…`: the confirmation's cancel link.
+  - Both are never indexed.
+- **The function** (`demandes-book-call`, public):
+  - `page` returns the slots, the list and a signed proof-of-work ticket (D-7);
+  - `book` books the call: per-IP limit first, the ticket checked and spent once, the cancel token hashed, the confirmation email sent;
+  - `cancel` cancels by the link, once.
+- **Database:**
+  - the rule: `get_` / `set_demandes_booking_settings` (org_module_settings, `booking`);
+  - service RPCs `demandes_booking_page_for_service`, `book_discovery_call_for_service`, `cancel_discovery_call_for_service`;
+  - `resolve_discovery_call_link` (secure-link purpose `discovery_call`);
+  - the new column `demandes.source_landing_page` (redacted in the audit).
+  - The booking writes through D1's `private.demandes_insert`.
+- **Source (R-74):** captured by the page and stored on the request:
+  - `referral_source_id`, `source_campaign` (from `utm_campaign`), `source_utm` (utm_* only), `source_referrer` and `source_landing_page`;
+  - shown to the counselor by `components/DemandeSourceCard` (D2 mounts it on the record);
+  - reportable through the view **`demandes_sources`** (security invoker, staff with `demandes.view`; D6).
+- **Paramètres → Appels découverte** (`appels-decouverte`, seen with `demandes.view`, changed with `demandes.manage`): the page's address for the website's button, « Réservation en ligne ouverte », and the weekly ranges.
+- **Tests:**
+  - pgTAP 116;
+  - Deno `demandes-book-call/handler.test.ts`;
+  - Vitest: the pages, the card, `lib/booking`;
+  - `e2e/booking.spec.ts`: book, the email, cancel.
+  - The local seed opens booking every day from 8 h to 20 h.
+

@@ -210,6 +210,9 @@ verify_jwt = false
 # The public consent page: the link's token (hashed), per-IP and per-link limits first.
 [functions.clients-consent-sign]
 verify_jwt = false
+# Public: the discovery-call booking page (D3c); per-IP limits and a proof-of-work check.
+[functions.demandes-book-call]
+verify_jwt = false
 # Job clients.consent_reminders: X-Job-Signature (runJob).
 [functions.clients-consent-reminders]
 verify_jwt = false

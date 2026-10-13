@@ -6610,7 +6610,8 @@
             "last_contact_at": "Dernier contact",
             "next_contact_at": "Prochaine tentative",
             "contact_attempts": "Tentatives de contact",
-            "external_ref": "Référence externe"
+            "external_ref": "Référence externe",
+            "source_landing_page": "Page d’arrivée"
           },
           "demande_notes": {
             "demande_id": "Demande",
@@ -6942,6 +6943,111 @@
             }
           }
         }
+      },
+      "booking": {
+        "page": {
+          "title": "Réserver un appel découverte",
+          "intro": "Un appel gratuit de {minutes} minutes avec une conseillère de {clinic} : elle écoute votre besoin et vous oriente vers la bonne personne.",
+          "closed": "La réservation en ligne n’est pas ouverte pour le moment. Appelez la clinique : nous vous rappelons rapidement.",
+          "noSlot": "Aucune plage n’est libre pour le moment. Revenez bientôt ou appelez la clinique.",
+          "loadError": "La page n’a pas pu être chargée. Réessayez dans quelques minutes.",
+          "chooseSlot": "Choisissez un moment",
+          "slotsHelp": "Heures affichées : {timezone}. La conseillère vous appelle au numéro indiqué.",
+          "slotLabel": "{day} à {time}",
+          "more": "Voir d’autres jours",
+          "you": "Vos coordonnées",
+          "firstName": "Prénom",
+          "lastName": "Nom",
+          "email": "Courriel",
+          "emailHelp": "La confirmation et le lien d’annulation y sont envoyés.",
+          "phone": "Téléphone",
+          "phoneHelp": "Le numéro où la conseillère vous appelle.",
+          "language": "Langue de l’appel",
+          "french": "Français",
+          "english": "Anglais",
+          "heard": "Comment avez-vous entendu parler de MANA ?",
+          "heardNone": "Choisir (facultatif)",
+          "message": "Quelques mots sur votre besoin (facultatif)",
+          "messageHelp": "N’y écrivez aucun détail médical : la conseillère en parlera avec vous.",
+          "submit": "Réserver l’appel",
+          "checking": "Vérification…",
+          "booking": "Réservation…",
+          "required": "Ce champ est requis.",
+          "chooseSlotFirst": "Choisissez un moment.",
+          "invalidEmail": "Indiquez une adresse courriel valide.",
+          "invalidPhone": "Indiquez un numéro à 10 chiffres.",
+          "tooMany": "Trop de réservations depuis cet appareil.",
+          "error": "La réservation n’a pas pu être faite. Réessayez dans quelques minutes ou appelez la clinique.",
+          "doneTitle": "Votre appel est réservé",
+          "doneBody": "Une conseillère vous appellera le {when}. Un courriel de confirmation vous a été envoyé, avec un lien pour annuler au besoin.",
+          "doneNoEmail": "Une conseillère vous appellera le {when}. Le courriel de confirmation n’a pas pu partir : notez ce moment.",
+          "chooseDay": "Le jour"
+        },
+        "cancel": {
+          "title": "Annuler votre appel découverte",
+          "body": "Votre appel avec {clinic} est prévu le {when}.",
+          "confirm": "Annuler l’appel",
+          "cancelling": "Annulation…",
+          "doneTitle": "Appel annulé",
+          "doneBody": "Votre appel est annulé. Vous pouvez réserver un autre moment sur la page de la clinique.",
+          "invalid": "Ce lien n’est plus valide : l’appel est déjà annulé ou passé.",
+          "error": "L’annulation n’a pas pu être faite. Réessayez dans quelques minutes ou appelez la clinique."
+        },
+        "settings": {
+          "title": "Appels découverte",
+          "description": "La page publique qui remplace Calendly : les plages offertes et le lien à mettre sur le site.",
+          "loadError": "Impossible de charger les réglages des appels découverte.",
+          "saved": "Réglages enregistrés.",
+          "saveError": "Impossible d’enregistrer.",
+          "page": {
+            "title": "La page de réservation",
+            "description": "Le bouton « Réserver un appel découverte » du site pointe vers cette adresse. Ajoutez-y les paramètres utm_* d’une campagne pour la suivre.",
+            "enabled": "Réservation en ligne ouverte",
+            "enabledHelp": "Fermée, la page dit d’appeler la clinique. Elle reste fermée tant que Demandes est réservé aux testeurs.",
+            "link": "Adresse de la page",
+            "copy": "Copier l’adresse",
+            "copied": "Adresse copiée."
+          },
+          "slots": {
+            "title": "Plages offertes",
+            "description": "Les moments où les conseillères prennent des appels, chaque semaine, à l’heure de la clinique.",
+            "slotMinutes": "Durée d’un appel",
+            "minutes": "{n} minutes",
+            "noticeHours": "Délai minimal (heures)",
+            "noticeHelp": "Aucune plage plus proche que ce délai (0 à 72 heures).",
+            "horizonDays": "Réservable jusqu’à (jours)",
+            "horizonHelp": "1 à 30 jours à l’avance.",
+            "capacity": "Appels en même temps",
+            "capacityHelp": "Combien de conseillères prennent des appels à la même heure (1 à 5).",
+            "invalid": "Indiquez un nombre entier dans les limites.",
+            "days": {
+              "1": "Lundi",
+              "2": "Mardi",
+              "3": "Mercredi",
+              "4": "Jeudi",
+              "5": "Vendredi",
+              "6": "Samedi",
+              "7": "Dimanche"
+            },
+            "add": "Ajouter une plage",
+            "remove": "Retirer la plage du {day} de {start} à {end}",
+            "start": "Début",
+            "end": "Fin",
+            "none": "Aucune plage",
+            "badRange": "La fin doit suivre le début.",
+            "addFor": "Ajouter une plage le {day}"
+          }
+        }
+      },
+      "sources": {
+        "title": "Provenance",
+        "channel": "Canal",
+        "heard": "Comment la personne a entendu parler de MANA",
+        "campaign": "Campagne",
+        "utm": "Paramètres de campagne",
+        "referrer": "Page d’origine",
+        "landing": "Page d’arrivée",
+        "none": "Non indiquée"
       }
     }
   },

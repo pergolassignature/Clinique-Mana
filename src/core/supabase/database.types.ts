@@ -1673,6 +1673,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "demande_events_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "demande_events_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
@@ -1730,6 +1737,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "demande_motifs_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "demande_motifs_motif_fkey"
             columns: ["org_id", "motif_id"]
             isOneToOne: false
@@ -1773,6 +1787,13 @@ export type Database = {
             columns: ["org_id", "demande_id"]
             isOneToOne: false
             referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_notes_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -1843,6 +1864,13 @@ export type Database = {
             referencedRelation: "demandes"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "demande_participants_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       demande_propositions: {
@@ -1903,6 +1931,13 @@ export type Database = {
             columns: ["org_id", "demande_id"]
             isOneToOne: false
             referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_propositions_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -2011,6 +2046,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "demande_tasks_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "demande_tasks_done_by_fkey"
             columns: ["done_by"]
             isOneToOne: false
@@ -2060,6 +2102,7 @@ export type Database = {
           reference_year: number
           referral_source_id: string | null
           source_campaign: string | null
+          source_landing_page: string | null
           source_referrer: string | null
           source_utm: Json
           state: string
@@ -2105,6 +2148,7 @@ export type Database = {
           reference_year: number
           referral_source_id?: string | null
           source_campaign?: string | null
+          source_landing_page?: string | null
           source_referrer?: string | null
           source_utm?: Json
           state?: string
@@ -2150,6 +2194,7 @@ export type Database = {
           reference_year?: number
           referral_source_id?: string | null
           source_campaign?: string | null
+          source_landing_page?: string | null
           source_referrer?: string | null
           source_utm?: Json
           state?: string
@@ -8080,6 +8125,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "waitlist_entries_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "waitlist_entries_exited_by_fkey"
             columns: ["exited_by"]
             isOneToOne: false
@@ -8596,6 +8648,42 @@ export type Database = {
           },
           {
             foreignKeyName: "clients_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      demandes_sources: {
+        Row: {
+          channel: string | null
+          id: string | null
+          org_id: string | null
+          received_at: string | null
+          reference: string | null
+          referral_source_id: string | null
+          referral_source_name: string | null
+          source_campaign: string | null
+          source_landing_page: string | null
+          source_referrer: string | null
+          state: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_referral_source_fkey"
             columns: ["org_id", "referral_source_id"]
             isOneToOne: false
             referencedRelation: "referral_sources"
@@ -9133,6 +9221,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      book_discovery_call_for_service: {
+        Args: { p_org_id: string; p_payload: Json; p_token_hash: string }
+        Returns: Json
+      }
       cancel_client_consent_request: {
         Args: { p_id: string }
         Returns: undefined
@@ -9140,6 +9232,10 @@ export type Database = {
       cancel_demande_task: {
         Args: { p_demande_id: string; p_task_id: string }
         Returns: undefined
+      }
+      cancel_discovery_call_for_service: {
+        Args: { p_token_hash: string }
+        Returns: Json
       }
       cancel_professional_submission: {
         Args: { p_submission_id: string }
@@ -9385,6 +9481,10 @@ export type Database = {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
       }
+      demandes_booking_page_for_service: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       discard_consent_draft: { Args: { p_id: string }; Returns: undefined }
       discard_system_file: {
         Args: { p_file_id: string; p_org_id: string }
@@ -9466,6 +9566,7 @@ export type Database = {
         Returns: Json
       }
       get_consent_versions: { Args: { p_key?: string }; Returns: Json }
+      get_demandes_booking_settings: { Args: never; Returns: Json }
       get_email_context: {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
@@ -10479,6 +10580,10 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: Json
       }
+      resolve_discovery_call_link: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
       resolve_professional_invitation: {
         Args: { p_link_id: string }
         Returns: Json
@@ -10754,6 +10859,10 @@ export type Database = {
           p_state: string
         }
         Returns: undefined
+      }
+      set_demandes_booking_settings: {
+        Args: { p_settings: Json }
+        Returns: Json
       }
       set_document_template_active: {
         Args: { p_active: boolean; p_id: string }
