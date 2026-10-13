@@ -158,7 +158,9 @@ select functions_are('public', array[
   -- Clients, batch C5a (consents).
   'set_client_consent_rule', 'set_client_consent_settings', 'cancel_client_consent_request', 'publish_client_consent_version',
   'prepare_client_consent_request_for_service', 'open_client_consent_for_service', 'start_client_consent_signing_for_service',
-  'client_consent_reminders_for_service', 'import_client_consent_fact_for_service', 'resolve_client_consent_link'
+  'client_consent_reminders_for_service', 'import_client_consent_fact_for_service', 'resolve_client_consent_link',
+  -- Clients, batch I1 (the GOrendezvous import).
+  'import_client', 'import_client_relation'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

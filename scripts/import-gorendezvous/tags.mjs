@@ -1,22 +1,29 @@
 // GOrendezvous tags (étiquettes) → client fields (plan §6.1–6.2 and §9, decision R-7, roadmap
-// question 13). The useful tags become fields of `clients` or a payer of `client_payers`; the
-// satisfaction and obsolete ones are dropped; the others stay free tags (5 at most per client). The
-// mapping is a table so Christine can review it line by line (decision I-4).
+// question 13). The useful tags become fields of `clients` (C2's columns); the payer tags (IVAC,
+// PAE, external payer) stay free tags so the file still says it, and are counted as payers to
+// complete (a payer needs its file number or organisation: I3 reads them from the invoices' « Payé
+// par », decision I-8); the satisfaction and obsolete ones are dropped; the others stay free tags (5
+// at most per client). The mapping is a table so Christine can review it line by line (I-4).
 import { foldText } from './normalize.mjs'
 
-/** What a tag becomes. `field`: a `clients` column and its value; `payer`: a `client_payers.kind`; `free`: kept as a free tag; `drop`: not imported. */
+/**
+ * What a tag becomes. `field`: a `clients` column and its value (`note`: the words added to the
+ * agreement's note); `payer`: a payer to complete (the tag is kept free); `free`: kept as a free
+ * tag; `drop`: not imported.
+ */
 export const TAG_RULES = [
   { tag: 'Tarif étudiant', field: ['rate_variant', 'student'] },
   { tag: 'Tarif réduit', field: ['rate_variant', 'reduced'] },
   { tag: 'Client banni', field: ['is_banned', true] },
   { tag: 'Dossier incomplet', field: ['file_incomplete', true] },
-  { tag: 'Entente de paiement', field: ['payment_plan', true] },
-  { tag: 'Facturation personnalisée', field: ['custom_billing', true] },
-  // Christine, answer 16: « Statut Indien » means tax-exempt.
-  { tag: 'Statut Indien', field: ['tax_exempt_status', true] },
+  // « Entente particulière » (R-56): invoices wait for validation; the note names the tag.
+  { tag: 'Entente de paiement', field: ['special_agreement', true], note: 'Entente de paiement' },
+  { tag: 'Facturation personnalisée', field: ['special_agreement', true], note: 'Facturation personnalisée' },
+  // Christine, answer 16: « Statut Indien » means tax-exempt (R-64).
+  { tag: 'Statut Indien', field: ['tax_exempt', true] },
   { tag: 'IVAC', payer: 'ivac' },
   { tag: 'PAE externe', payer: 'pae' },
-  { tag: 'Payeur externe', payer: 'employer' },
+  { tag: 'Payeur externe', payer: 'external' },
   // Satisfaction tags disappear (question 13); « Visio » is every client (all sessions are online);
   // the old/new rate tags are the price grid's business now; « Nouveau client » is derived from the
   // visits.
@@ -61,13 +68,15 @@ export function splitTags(cell) {
 }
 
 /**
- * One client's tags → `{ fields, payers, freeTags, dropped, unknown, issues }`. `issues` holds
+ * One client's tags → `{ fields, notes, payers, freeTags, dropped, unknown, issues }` (`notes`: the
+ * agreement tags' words, for `special_agreement_note`). `issues` holds
  * codes for the report: `rate_conflict` (both student and reduced: neither is set, to decide by
  * hand), `free_tags_over_limit` (more than 5 free tags: the first 5 kept). An unknown tag is kept
  * as a free tag and listed in `unknown` (by name: a tag is the clinic's label, not personal data).
  */
 export function mapTags(tags) {
   const fields = {}
+  const notes = []
   const payers = []
   const freeTags = []
   const dropped = []
@@ -83,8 +92,11 @@ export function mapTags(tags) {
       const [column, value] = rule.field
       if (column === 'rate_variant') rates.add(value)
       else fields[column] = value
+      if (rule.note && !notes.includes(rule.note)) notes.push(rule.note)
     } else if (rule.payer) {
       if (!payers.includes(rule.payer)) payers.push(rule.payer)
+      // Kept on the file until the payer is entered (I3): the clinic still sees it.
+      freeTags.unshift(rule.tag)
     } else if (rule.drop) {
       dropped.push(rule.tag)
     } else {
@@ -94,5 +106,5 @@ export function mapTags(tags) {
   if (rates.size > 1) issues.push('rate_conflict')
   else if (rates.size === 1) fields.rate_variant = [...rates][0]
   if (freeTags.length > MAX_FREE_TAGS) issues.push('free_tags_over_limit')
-  return { fields, payers, freeTags: freeTags.slice(0, MAX_FREE_TAGS), dropped, unknown, issues }
+  return { fields, notes, payers, freeTags: freeTags.slice(0, MAX_FREE_TAGS), dropped, unknown, issues }
 }

@@ -1,0 +1,4 @@
+Client;Proche;Lien;Contact principal;Gère les rendez-vous;Reçoit les communications;Reçoit les factures
+1011;1001;parent;oui;oui;oui;non
+1003;1003;parent;non;non;non;non
+1004;1008;cousin;non;non;non;non
