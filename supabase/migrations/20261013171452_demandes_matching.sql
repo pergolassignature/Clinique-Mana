@@ -7,7 +7,8 @@
 -- Decisions: D-27 … D-30 (this batch), R-66 (exclusions warn), P4-551 / P4-552 (refused motifs,
 --            the priority), P4-382 / P4-387 (places left, computed here)
 -- Needs:     Professionnels' `private.professional_matching_facts` (*_professionals_matching_exclusions.sql);
---            Clients' `private.clients_booking_facts`; Rendez-vous' `private.first_appointments`.
+--            Clients' `private.clients_booking_facts`; Rendez-vous' `private.first_appointments` and
+--            `private.appointment_absence_facts` (*_appointments_report_facts.sql).
 --
 -- * `match_professionals_for_demande(demande)` (`demandes.view` and `professionals.view`, both
 --   first): every professional of the clinic for the request, eligible ones first, each with why.
@@ -17,16 +18,18 @@
 --     age and « Femmes seulement », the language, the professional's gender when one is asked.
 --   - Never a filter (warnings): a refused motif among the request's (R-66), the insurance
 --     (« expirée » asks before proposing, « bientôt échue », « manquante »), an age or a sex the
---     limits need but nobody gave (« à vérifier »), 0 place left.
+--     limits need but nobody gave, a clientèle that could not be checked (no age) (« à vérifier »),
+--     0 place left. An archived profession or clientèle on the request is not applied (`ignored`).
 --   - The fit (D-28): the request's motifs she holds, then a ★ clientèle, then the request's
 --     periods she has; the order is the fit, then places left (a number first, most first; then
 --     « non suivi »; 0 last), then the name, then the id: documented and shown, never sort_order.
 --   - « Bon à savoir », the priority (« À prioriser » and its reason: a badge, never the order,
 --     D-29) and the directory's `updated_at` come along.
 -- * `private.demandes_places_left(org, ids[] default null)` (D-30, rule 11): declared places −
---   the requests matched to her since she declared them whose client's first appointment is still
---   with her (a cancelled first appointment gives its place back); null when she tracks none.
---   Granted to no role (D5's snapshots and board read it too).
+--   the requests matched to her since she declared them (a match is the first appointment booked:
+--   the proposal accepted, or « Jumelée » by hand), except those whose appointment with her was
+--   cancelled since and who have no other one with her (the place comes back); null when she
+--   tracks none. A match not booked yet keeps its place. Granted to no role (D5 reads it too).
 -- Additive: functions only.
 -- =============================================================================
 
@@ -46,7 +49,7 @@ as $$
       from private.professional_matching_facts(p_org, p_ids) f
   ),
   matched as (
-    select d.matched_professional_id as professional_id, d.client_id
+    select d.matched_professional_id as professional_id, d.client_id, d.matched_at
       from public.demandes d
       join pros p on p.professional_id = d.matched_professional_id
      where d.org_id = p_org and p.new_client_places is not null
@@ -55,13 +58,20 @@ as $$
   firsts as (
     select a.client_id, a.professional_id
       from private.first_appointments(p_org, (select pg_catalog.array_agg(distinct m.client_id) from matched m where m.client_id is not null)) a
+     where public.module_enabled_for_org(p_org, 'appointments')
+  ),
+  cancelled as (
+    select distinct x.client_id, x.professional_id
+      from private.appointment_absence_facts(p_org,
+             coalesce((select pg_catalog.min(m.matched_at) from matched m), pg_catalog.now()), 'infinity'::timestamptz) x
+     where public.module_enabled_for_org(p_org, 'appointments') and x.kind = 'cancelled'
   ),
   used as (
     select m.professional_id, pg_catalog.count(*)::int as n
       from matched m
-     where not public.module_enabled_for_org(p_org, 'appointments')
-        or m.client_id is null
+     where m.client_id is null
         or exists (select 1 from firsts x where x.client_id = m.client_id and x.professional_id = m.professional_id)
+        or not exists (select 1 from cancelled c where c.client_id = m.client_id and c.professional_id = m.professional_id)
      group by m.professional_id
   )
   select p.professional_id, p.new_client_places,
@@ -92,8 +102,11 @@ as $$
      order by p.is_primary desc, p.created_at
      limit 1
   ),
+  -- The person seen: the main participant when the request has participants (her file, else the
+  -- birthday given), never the caller's file in her place; the request's file otherwise.
   who as (
-    select coalesce(pr.client_id, d.client_id) as client_id, pr.birthday as given_birthday
+    select case when exists (select 1 from principal) then pr.client_id else d.client_id end as client_id,
+           pr.birthday as given_birthday
       from d left join principal pr on true
   ),
   facts as (
@@ -106,12 +119,20 @@ as $$
            'client_id', w.client_id,
            'language', d.language,
            'beneficiary', d.beneficiary,
-           'profession_title_id', d.profession_title_id,
-           'clientele_id', d.clientele_id,
+           -- An archived profession or clientèle is not applied (it would leave everyone out): said so.
+           'profession_title_id', (select t.id from public.profession_titles_catalog t where t.org_id = p_org and t.id = d.profession_title_id),
+           'clientele_id', (select k.id from public.clienteles_catalog k where k.org_id = p_org and k.id = d.clientele_id),
+           'ignored', pg_catalog.to_jsonb(array_remove(array[
+             case when d.profession_title_id is not null
+                   and not exists (select 1 from public.profession_titles_catalog t where t.org_id = p_org and t.id = d.profession_title_id)
+                  then 'profession' end,
+             case when d.clientele_id is not null
+                   and not exists (select 1 from public.clienteles_catalog k where k.org_id = p_org and k.id = d.clientele_id)
+                  then 'clientele' end], null)),
            'preferred_pro_gender', d.preferred_pro_gender,
            'availability_periods', pg_catalog.to_jsonb(d.availability_periods),
            'motif_ids', coalesce((select pg_catalog.jsonb_agg(m.motif_id order by m.motif_id)
-                                    from public.demande_motifs m join public.motifs_catalog c on c.id = m.motif_id
+                                    from public.demande_motifs m join public.motifs_catalog c on c.org_id = p_org and c.id = m.motif_id
                                    where m.demande_id = d.id), '[]'),
            'sex', (select f.sex from facts f),
            'age', (select pg_catalog.date_part('year', pg_catalog.age(private.clinic_today_for_org(p_org),
@@ -148,7 +169,8 @@ as $$
            nullif(p_criteria ->> 'client_id', '')::uuid as client_id
   ),
   first_with as (
-    select a.professional_id from c, private.first_appointments(p_org, array[c.client_id]) a where c.client_id is not null
+    select a.professional_id from c, private.first_appointments(p_org, array[c.client_id]) a
+     where c.client_id is not null and public.module_enabled_for_org(p_org, 'appointments')
   ),
   f as (
     select x.*,
@@ -171,7 +193,7 @@ as $$
              case when not f.accepting_new_clients and not exists (select 1 from first_with w where w.professional_id = f.professional_id)
                   then 'not_accepting' end,
              case when c.title_id is not null and not (c.title_id = any (f.title_ids)) then 'title' end,
-             case when (c.clientele_id is not null or c.beneficiary in ('couple', 'family') or c.age is not null)
+             case when (c.clientele_id is not null or coalesce(c.beneficiary, '') in ('couple', 'family') or c.age is not null)
                        and f.fitting is null then 'clientele' end,
              case when f.min_client_age is not null and c.age is not null and c.age < f.min_client_age then 'min_age' end,
              case when f.women_only and c.sex is not null and c.sex <> 'female' then 'women_only' end,
@@ -181,7 +203,7 @@ as $$
            array(select m from pg_catalog.unnest(c.motifs) m where m = any (f.motif_ids) order by m) as hits,
            array(select m from pg_catalog.unnest(c.motifs) m where m = any (f.refused_motif_ids) order by m) as refused,
            coalesce((select bool_or((e ->> 'specialized')::boolean) from pg_catalog.unnest(f.fitting) e), false)
-             and (c.clientele_id is not null or c.beneficiary in ('couple', 'family') or c.age is not null) as star,
+             and (c.clientele_id is not null or coalesce(c.beneficiary, '') in ('couple', 'family') or c.age is not null) as star,
            array(select p from pg_catalog.unnest(array['am', 'pm', 'end_of_day', 'evening', 'weekend']) with ordinality as o(p, n)
                   where p = any (c.periods) and p = any (f.availability_periods) order by o.n) as periods_hit
       from f cross join c
@@ -194,6 +216,9 @@ as $$
            case s.insurance_status when 'expired' then 'insurance_expired' when 'expiring' then 'insurance_expiring'
                                    when 'missing' then 'insurance_missing' end,
            case when s.min_client_age is not null and s.age is null then 'age_unknown' end,
+           -- No age, no clientèle asked, neither a couple nor a family: the clientèle is not checked.
+           case when s.age is null and s.clientele_id is null and coalesce(s.beneficiary, '') not in ('couple', 'family')
+                then 'clientele_unknown' end,
            case when s.women_only and s.sex is null then 'sex_unknown' end,
            case when pl.places_left = 0 then 'no_places' end
          ], null),
@@ -235,16 +260,17 @@ begin
     'criteria', v_criteria || pg_catalog.jsonb_build_object(
       'motifs', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', m.id, 'name', m.name) order by m.category_sort_order, m.sort_order, m.name)
                             from public.motifs_catalog m
-                           where m.id in (select x::uuid from pg_catalog.jsonb_array_elements_text(v_criteria -> 'motif_ids') x)), '[]'),
-      'profession_title_name', (select t.name from public.profession_titles_catalog t where t.id = (v_criteria ->> 'profession_title_id')::uuid),
-      'clientele_name', (select k.name from public.clienteles_catalog k where k.id = (v_criteria ->> 'clientele_id')::uuid)),
+                           where m.org_id = v_org and m.id in (select x::uuid from pg_catalog.jsonb_array_elements_text(v_criteria -> 'motif_ids') x)), '[]'),
+      'profession_title_name', (select t.name from public.profession_titles_catalog t
+                                 where t.org_id = v_org and t.id = (v_criteria ->> 'profession_title_id')::uuid),
+      'clientele_name', (select k.name from public.clienteles_catalog k where k.org_id = v_org and k.id = (v_criteria ->> 'clientele_id')::uuid)),
     'professionals', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
         'professional_id', r.professional_id, 'display_name', r.display_name, 'title_label', r.title_label,
         'eligible', r.eligible, 'reasons', pg_catalog.to_jsonb(r.reasons), 'warnings', pg_catalog.to_jsonb(r.warnings),
         'motif_hits', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', m.id, 'name', m.name) order by m.category_sort_order, m.sort_order, m.name)
-                                  from public.motifs_catalog m where m.id = any (r.motif_hits)), '[]'),
+                                  from public.motifs_catalog m where m.org_id = v_org and m.id = any (r.motif_hits)), '[]'),
         'refused_hits', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', m.id, 'name', m.name) order by m.category_sort_order, m.sort_order, m.name)
-                                    from public.motifs_catalog m where m.id = any (r.refused_hits)), '[]'),
+                                    from public.motifs_catalog m where m.org_id = v_org and m.id = any (r.refused_hits)), '[]'),
         'specialized', r.specialized, 'period_hits', pg_catalog.to_jsonb(r.period_hits), 'fit', r.fit,
         'places_declared', r.places_declared, 'places_left', r.places_left, 'insurance_status', r.insurance_status,
         'matching_note', r.matching_note, 'priority_reason', r.priority_reason,

@@ -17,6 +17,7 @@ const criteria = (over: Partial<MatchCriteria> = {}): MatchCriteria => ({
   motifs: [],
   sex: null,
   age: null,
+  ignored: [],
   ...over,
 })
 
@@ -96,6 +97,7 @@ describe('matching in words', () => {
       t(`${M}.periods`, { periods: 'Après-midi et Soir' }),
       t(`${M}.preferredGender.female`),
     ])
+    expect(criteriaLines(criteria({ ignored: ['profession'] }))).toContain(t(`${M}.ignored.profession`))
     expect(criteriaLines(criteria())).toEqual([
       `Français · ${t(`${M}.ageUnknown`)} · ${t(`${M}.sexUnknown`)}`,
       t(`${M}.noMotifs`),

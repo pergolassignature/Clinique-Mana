@@ -582,7 +582,7 @@ function documentRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   return null
 }
 
-/** « a ajouté / modifié / retiré la note Bon à savoir »: that it changed, never what it says (P4-385). */
+/** « a marqué le dossier « À prioriser » : <raison> », « a changé la raison… », « a retiré « À prioriser » » (P4-552). */
 function matchingPriorityRow(entry: HistoryEntry): Described | null {
   const S = `${H}.sentences.matchingPriority`
   const reason = pairOf(fieldsOf(entry).reason)?.after ?? fieldsOf(entry).reason
@@ -593,6 +593,7 @@ function matchingPriorityRow(entry: HistoryEntry): Described | null {
   return null
 }
 
+/** « a ajouté / modifié / retiré la note Bon à savoir »: that it changed, never what it says (P4-385). */
 function matchingNoteRow(entry: HistoryEntry): Described | null {
   const S = `${H}.sentences.matchingNote`
   if (entry.action === 'insert') return { kind: 'change', sentence: t(`${S}.added`), lines: [] }

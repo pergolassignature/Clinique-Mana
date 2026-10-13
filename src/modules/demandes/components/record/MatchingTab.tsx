@@ -124,7 +124,12 @@ export function MatchingTab() {
         </AlertDialogContent>
       </AlertDialog>
       <Dialog open={proposing !== null} onOpenChange={(next) => !next && setProposing(null)}>
-        {proposing && <ProposeForm initial={{ id: proposing.professional_id, name: proposing.display_name }} onDone={() => setProposing(null)} />}
+        {proposing && (
+          <ProposeForm
+            initial={{ id: proposing.professional_id, name: proposing.display_name, insuranceConfirmed: proposing.warnings.includes('insurance_expired') }}
+            onDone={() => setProposing(null)}
+          />
+        )}
       </Dialog>
     </div>
   )

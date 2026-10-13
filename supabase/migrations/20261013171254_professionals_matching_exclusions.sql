@@ -10,8 +10,9 @@
 --   workbook's « Bon à savoir »), as motifs. Demandes shows a refused motif present in a request
 --   as a **warning**, never a filter (R-66: « ça dépend »). Staff only, like « Bon à savoir »:
 --   the provider never reads them. `set_professional_refused_motifs(id, motif_ids[])`
---   (`professionals.matching`): an archived motif may stay, never be added; a motif both held and
---   refused is refused (P0001). Audited.
+--   (`professionals.matching`): an archived motif may stay, never be added; a motif she holds is
+--   refused (P0001). A held motif wins: one that becomes held leaves the refused motifs (trigger
+--   on `professional_motifs`). Audited.
 -- * The matching priority (P4-552): the workbook's name colours were the counselors' priority
 --   hint, never written down. Here it is a plain « À prioriser » with its reason (a new
 --   professional to fill, a programme…), shown as a badge in Demandes' panel; it never changes the
@@ -68,6 +69,23 @@ create trigger professional_refused_motifs_audit after insert or update or delet
   for each row execute function private.audit_trigger();
 create trigger professional_matching_priorities_audit after insert or update or delete on public.professional_matching_priorities
   for each row execute function private.audit_trigger();
+
+-- A held motif wins (P4-551): when a motif becomes held, however (set_professional_motifs, the
+-- questionnaire's approval, an import), it leaves the refused motifs (audited there).
+create function private.professional_motif_held_unrefuse()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  delete from public.professional_refused_motifs r
+   where r.professional_id = new.professional_id and r.motif_id = new.motif_id;
+  return null;
+end;
+$$;
+revoke all on function private.professional_motif_held_unrefuse() from public, anon, authenticated, service_role;
+create trigger professional_motifs_unrefuse after insert on public.professional_motifs
+  for each row execute function private.professional_motif_held_unrefuse();
 
 -- -----------------------------------------------------------------------------
 -- RPCs (professionals.matching)

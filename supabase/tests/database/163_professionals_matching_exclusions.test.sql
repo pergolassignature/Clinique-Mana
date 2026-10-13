@@ -4,7 +4,7 @@
 -- (active reference rows only, another clinic's ids answer nothing), privileges, audit.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(23);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -103,12 +103,21 @@ select is((select f.refused_motif_ids from private.professional_matching_facts('
 select is_empty($$ select 1 from private.professional_matching_facts('b0000000-0000-0000-0000-00000000000b', array[current_setting('test.p1')::uuid]) $$,
   'another clinic''s ids answer nothing');
 
+-- A held motif wins: one that becomes held leaves the refused motifs.
+update public.motifs set is_active = true where id = current_setting('test.m2')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select public.set_professional_motifs(current_setting('test.p1')::uuid, array[current_setting('test.m1')::uuid, current_setting('test.m2')::uuid]);
+select is((select refused_motif_ids from public.professionals_directory where id = current_setting('test.p1')::uuid), '{}'::uuid[],
+  'a refused motif she comes to hold leaves the refused motifs');
+reset role;
+
 -- An empty reason removes the priority; both are audited.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select is(public.set_professional_matching_priority(current_setting('test.p1')::uuid, '   '), null, 'an empty reason removes it');
 select results_eq($$ select public.set_professional_refused_motifs(current_setting('test.p1')::uuid, '{}') $$,
-  $$ select null::uuid where false $$, '[] clears the refused motifs (an archived one included)');
+  $$ select null::uuid where false $$, '[] clears the refused motifs');
 reset role;
 select results_eq($$ select table_name, action from public.audit_log
                       where table_name in ('professional_refused_motifs', 'professional_matching_priorities')

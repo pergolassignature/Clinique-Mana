@@ -174,7 +174,12 @@ Migration `20261013064427_demandes_waitlist`; pgTAP `123_demandes_waitlist`; fun
 
 Migration `20261013171452_demandes_matching` (pgTAP `164`, with Professionnels' published facts as a fixture); Professionnels' `20261013171254_professionals_matching_exclusions` (pgTAP `163`); decisions D-27 … D-30, P4-551, P4-552, R-66.
 
-- **`match_professionals_for_demande(demande)`** (definer; `demandes.view` and `professionals.view`, both first): the request's criteria and every professional of the clinic, in the documented order, each with why. It reads Professionnels only through `private.professional_matching_facts` (active reference rows only, rule 7), Clients through `private.clients_booking_facts` (her age and sex from her file, else the principal participant's birthday) and Rendez-vous through `private.first_appointments`.
+- **`match_professionals_for_demande(demande)`** (definer; `demandes.view` and `professionals.view`, both first): the request's criteria and every professional of the clinic, in the documented order, each with why. It reads:
+  - Professionnels only through `private.professional_matching_facts` (active reference rows only, rule 7);
+  - Clients through `private.clients_booking_facts`. The person seen is the main participant when the request has participants: her file, else the birthday given, never the caller's file in her place. Otherwise it is the request's file;
+  - Rendez-vous through `private.first_appointments` and `private.appointment_absence_facts`.
+
+  An archived profession or clientèle on the request is not applied, and the criteria say so (`ignored`): it would leave everyone out.
 - **Hard filters (D-27)**, each one a reason when a professional is left out:
   - `inactive`, `not_ready`;
   - `not_accepting` (unless the client's first appointment is already with her);
@@ -184,8 +189,9 @@ Migration `20261013171452_demandes_matching` (pgTAP `164`, with Professionnels' 
   - `gender` (only when one is asked).
 - **Warnings, never filters:**
   - `refused_motif`: a motif she refuses is in the request (R-66: « ça dépend »);
-  - `insurance_expired`: « Proposer » asks first (rule 8). Also `insurance_expiring` and `insurance_missing`;
+  - `insurance_expired`: a proposal is always for a first appointment, so it asks first on both paths (rule 8). From the panel, « Proposer » asks in a dialog. From Suivi, « Proposer un professionnel » asks with a checkbox. Also `insurance_expiring` and `insurance_missing`;
   - `age_unknown` / `sex_unknown`: a limit nobody can check yet (« à vérifier », never assumed);
+  - `clientele_unknown`: no age, no clientèle asked, neither a couple nor a family. The clientèle is not checked and no ★ is scored;
   - `no_places`: 0 place left.
 - **The order (D-28):**
   1. eligible first;
@@ -195,7 +201,10 @@ Migration `20261013171452_demandes_matching` (pgTAP `164`, with Professionnels' 
 
   Never `sort_order`, never the priority. The panel says the order in words.
 - **« À prioriser » (D-29, P4-552):** the workbook's name colours, written down with a reason in Professionnels' Jumelage tab. A badge in the panel, never the order.
-- **Places left (D-30, rule 11):** `private.demandes_places_left(org, ids[])`. It counts `new_client_places` minus the requests matched to her since `new_client_places_set_at`, but only those whose client's first appointment is still with her: a cancelled first appointment gives its place back. Every matched request counts while Rendez-vous is off. It is null when she tracks none. D5's snapshots and board read it.
+- **Places left (D-30, rule 11):** `private.demandes_places_left(org, ids[])` is `new_client_places` minus the requests matched to her since `new_client_places_set_at`.
+  - A match is the first appointment booked: the proposal accepted, or « Jumelée » by hand. A match not booked yet keeps its place.
+  - The place comes back when her appointment with the client was cancelled since the match and the client has no other appointment with her.
+  - It is null when she tracks none. D5's snapshots and board read it.
 - **Screen: the record's tab « Jumelage »** (`/demandes/:id/jumelage`, shown with `professionals.view`):
   - « Ce que la demande indique »: the language, who the request is for, the age and sex, the profession, the clientèle, the motifs (every name), the periods, a preferred gender;
   - « Admissibles (N) »: rank, name and title, « À prioriser » and its reason, the places, the fit in words (« Motifs : Anxiété et Deuil (2 sur 3) », « ★ Clientèle spécialisée », « Disponibilités : Soir »), the warnings, « Bon à savoir », « Voir le dossier » and « Proposer » (the proposal of D3b with her preset, when the request can receive one);

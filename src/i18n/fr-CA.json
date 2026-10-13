@@ -8255,7 +8255,9 @@
           "noSlot": "Aucune plage libre pour ce service ces prochains jours.",
           "incomplete": "Choisissez le professionnel, le service et au moins une plage.",
           "send": "Envoyer la proposition ({count} plages)",
-          "sending": "Envoi…"
+          "sending": "Envoi…",
+          "insuranceConfirm": "L'assurance de ce professionnel est expirée : je confirme vouloir lui proposer ce nouveau client.",
+          "insuranceUnconfirmed": "Son assurance est expirée : cochez la confirmation avant d'envoyer."
         },
         "page": {
           "title": "Votre premier rendez-vous",
@@ -8347,7 +8349,8 @@
           "insurance_missing": "Assurance manquante",
           "age_unknown": "A un âge minimum : âge du client à vérifier",
           "sex_unknown": "Femmes seulement : à vérifier",
-          "no_places": "0 place restante"
+          "no_places": "0 place restante",
+          "clientele_unknown": "Âge inconnu : la clientèle n'a pas pu être vérifiée"
         },
         "confirmInsurance": {
           "title": "L'assurance de {name} est expirée",
@@ -8355,7 +8358,11 @@
           "action": "Proposer quand même"
         },
         "loadError": "Les suggestions n'ont pas pu être chargées.",
-        "warningsLabel": "À vérifier"
+        "warningsLabel": "À vérifier",
+        "ignored": {
+          "profession": "La profession demandée est archivée : elle n'est pas appliquée.",
+          "clientele": "La clientèle demandée est archivée : elle n'est pas appliquée."
+        }
       }
     },
     "appointments": {

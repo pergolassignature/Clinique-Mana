@@ -63,7 +63,9 @@ export function criteriaLines(c: MatchCriteria): string[] {
   who.push(c.sex === 'female' || c.sex === 'male' || c.sex === 'other' ? t(`${M}.sex.${c.sex}`) : t(`${M}.sexUnknown`))
   const lines = [[optionLabel('language', c.language), ...who].join(' · ')]
   if (c.profession_title_name) lines.push(t(`${M}.profession`, { name: c.profession_title_name }))
+  if (c.ignored.includes('profession')) lines.push(t(`${M}.ignored.profession`))
   if (c.clientele_name) lines.push(t(`${M}.clientele`, { name: c.clientele_name }))
+  if (c.ignored.includes('clientele')) lines.push(t(`${M}.ignored.clientele`))
   lines.push(c.motifs.length === 0 ? t(`${M}.noMotifs`) : t(`${M}.motifs`, { names: joinNames(c.motifs.map((m) => m.name)) }))
   lines.push(c.availability_periods.length === 0 ? t(`${M}.noPeriods`) : t(`${M}.periods`, { periods: periodsText(c.availability_periods) }))
   if (c.preferred_pro_gender === 'female' || c.preferred_pro_gender === 'male') lines.push(t(`${M}.preferredGender.${c.preferred_pro_gender}`))

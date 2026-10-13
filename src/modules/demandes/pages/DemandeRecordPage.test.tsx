@@ -62,6 +62,7 @@ const MATCH = {
     motifs: [{ id: 'm1', name: 'Anxiété' }, { id: 'm2', name: 'Deuil' }],
     sex: 'female',
     age: 34,
+    ignored: [],
   },
   professionals: [
     {
@@ -264,6 +265,29 @@ describe('DemandeRecordPage', () => {
     await user.click(within(confirm).getByRole('button', { name: t(`${M}.confirmInsurance.action`) }))
     const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
     expect(within(dialog).getByRole('combobox', { name: t('modules.demandes.propositions.form.professional') })).toHaveValue('pro2')
+    // Already confirmed in the panel: the form does not ask again.
+    expect(within(dialog).queryByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })).not.toBeInTheDocument()
+  })
+
+  it('Suivi: proposing a professional whose insurance is expired asks for a confirmation (rule 8)', async () => {
+    const user = userEvent.setup()
+    mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
+      { target_kind: 'professional', target_id: 'pro2', name: 'Pro Deux', open_count: 0, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: null },
+    ])
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    renderPage('suivi', ['demandes', 'clients', 'professionals', 'appointments'])
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.propositions.open') }))
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.professional') }), 'pro2')
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.service') }), 's50')
+    await user.click((await within(dialog).findAllByRole('checkbox'))[0]!)
+    const confirm = await within(dialog).findByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(t('modules.demandes.propositions.form.insuranceUnconfirmed'))
+    expect(mocks.propositions.propose).not.toHaveBeenCalled()
+    await user.click(confirm)
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    await waitFor(() => expect(mocks.propositions.propose).toHaveBeenCalledTimes(1))
   })
 
   it('Accueil: only what changed is saved', async () => {

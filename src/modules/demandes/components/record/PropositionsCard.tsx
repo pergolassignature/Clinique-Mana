@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { CheckboxField } from '@/shared/components/CheckboxField'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { formatClinicDateTime, formatClinicTime, formatInClinicTimezone, getClinicDateString, shiftCalendarDay } from '@/shared/lib/timezone'
@@ -21,6 +22,7 @@ import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import { StatusDot, type StatusTone } from '@/shared/ui/status-dot'
 import type { OpenSlot, Proposition } from '../../api/propositions'
+import { useDemandeMatch } from '../../hooks/use-matching'
 import { useOpenSlots, usePropose, usePropositions, usePropositionServices, useWithdrawProposition } from '../../hooks/use-propositions'
 import { useWaitlistLists } from '../../hooks/use-waitlist'
 import { demandesError, proposeErrorMessage } from '../../lib/errors'
@@ -154,8 +156,19 @@ export function PropositionsCard() {
  * « Proposer un professionnel »: the professional (preset from the matching panel, D4), the
  * service, the mode, 1 to 3 of her free slots. Inside a `Dialog`.
  */
-export function ProposeForm({ onDone, initial }: { onDone: () => void; initial?: { id: string; name: string } }) {
+export function ProposeForm({
+  onDone,
+  initial,
+}: {
+  onDone: () => void
+  /** From the matching panel: her id and name, and whether its question on an expired insurance was answered. */
+  initial?: { id: string; name: string; insuranceConfirmed?: boolean }
+}) {
   const { id, bundle } = useDemandeRecord()
+  const { can } = useAccess()
+  // Rule 8: an expired insurance asks before a new client is proposed (the panel's facts; staff only).
+  const match = useDemandeMatch(id, can('professionals.view'))
+  const [insuranceOk, setInsuranceOk] = useState(false)
   const lists = useWaitlistLists()
   const listed = (lists.data ?? []).filter((l) => l.target_kind === 'professional').sort((a, b) => a.name.localeCompare(b.name, 'fr'))
   // The matching panel's professional is offered even before the lists load.
@@ -166,6 +179,9 @@ export function ProposeForm({ onDone, initial }: { onDone: () => void; initial?:
   const [mode, setMode] = useState<'video' | 'phone'>(bundle.demande.modality === 'phone' ? 'phone' : 'video')
   const [chosen, setChosen] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const insuranceExpired =
+    !(initial?.insuranceConfirmed && initial.id === professionalId) &&
+    (match.data?.professionals.find((p) => p.professional_id === professionalId)?.warnings.includes('insurance_expired') ?? false)
   const services = usePropositionServices(professionalId || null)
   const [from] = useState(() => getClinicDateString(new Date()))
   const to = shiftCalendarDay(from, DAYS - 1)
@@ -193,6 +209,10 @@ export function ProposeForm({ onDone, initial }: { onDone: () => void; initial?:
     if (proposeMutation.isPending) return
     if (!professionalId || !serviceId || chosen.length === 0) {
       setError(t(`${P}.form.incomplete`))
+      return
+    }
+    if (insuranceExpired && !insuranceOk) {
+      setError(t(`${P}.form.insuranceUnconfirmed`))
       return
     }
     setError(null)
@@ -229,6 +249,7 @@ export function ProposeForm({ onDone, initial }: { onDone: () => void; initial?:
                 setProfessionalId(e.target.value)
                 setServiceId('')
                 setChosen([])
+                setInsuranceOk(false)
               }}
             >
               <option value="">{t(`${P}.form.choose`)}</option>
@@ -308,6 +329,13 @@ export function ProposeForm({ onDone, initial }: { onDone: () => void; initial?:
               </div>
             )}
           </fieldset>
+        )}
+        {insuranceExpired && (
+          <CheckboxField
+            label={t(`${P}.form.insuranceConfirm`)}
+            checked={insuranceOk}
+            onCheckedChange={(v) => setInsuranceOk(v === true)}
+          />
         )}
         {error && (
           <p role="alert" className="text-sm text-destructive">

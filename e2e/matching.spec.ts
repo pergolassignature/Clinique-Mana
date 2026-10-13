@@ -27,4 +27,6 @@ test('the counselor reads the matching panel of a request: criteria, suggestions
   const others = page.getByRole('button', { name: /^Non admissibles \(\d+\)$/ })
   if (await others.isVisible()) await others.click()
   await expect(page.getByText('Félix Gauthier').first()).toBeVisible()
+  // The seed's files are not complete yet (no account, no approved questionnaire): left out, and why.
+  await expect(page.getByText(/Dossier incomplet/).first()).toBeVisible()
 })

@@ -19,6 +19,7 @@ export const MATCH_WARNINGS = [
   'insurance_missing',
   'age_unknown',
   'sex_unknown',
+  'clientele_unknown',
   'no_places',
 ] as const
 export type MatchWarning = (typeof MATCH_WARNINGS)[number]
@@ -67,6 +68,8 @@ const criteriaSchema = z.object({
   motifs: z.array(named),
   sex: z.string().nullable(),
   age: z.number().nullable(),
+  /** An archived profession or clientèle on the request: not applied (it would leave everyone out). */
+  ignored: knownOf(['profession', 'clientele'] as const).default([]),
 })
 export type MatchCriteria = z.infer<typeof criteriaSchema>
 
