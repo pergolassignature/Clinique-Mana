@@ -153,6 +153,12 @@ select functions_are('public', array[
   'create_invoice', 'create_manual_invoice', 'add_invoice_line', 'set_invoice_line_price', 'remove_invoice_line',
   'set_invoice_payer', 'set_invoice_notes', 'delete_invoice_draft', 'finalize_invoice', 'issue_credit_note',
   'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing',
+  -- Facturation, batch FPay (payroll).
+  'list_payout_periods', 'build_payout_month', 'rebuild_payout_period', 'send_payout_periods', 'add_payout_adjustment',
+  'remove_payout_adjustment', 'reopen_payout_period', 'mark_period_paid', 'list_payout_export', 'list_my_payout_periods',
+  'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
+  'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
+  'discard_payout_drafts',
   -- Facturation, batch F2 (and Professionnels' supervisor, F2.0).
   'get_billing_settings', 'set_billing_queue_from', 'set_special_agreement', 'list_morning_queue', 'hold_invoice_draft',
   'release_invoice_draft', 'send_invoices', 'send_billing_document', 'record_payment', 'create_statement', 'get_billing_document',
