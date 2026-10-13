@@ -519,14 +519,12 @@ insert into public.clients (id, org_id, first_name, last_name, birthday, email, 
 values ('c11e0000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Camille', 'Exemple',
         date '1990-04-12', 'camille.exemple@mana.test', 'fr', '11111111-1111-1111-1111-111111111111');
 
--- Local QuickBooks (Facturation, FQ): the module on, the fake Intuit's application
+-- Local QuickBooks (Facturation, FQ; the module is on above, F1): the fake Intuit's application
 -- (`npm run fake:qbo`, port 55394; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
 -- as set_org_secret stores it, and three fictitious clients the fake company's customers match:
 -- Amélie Tremblay by email (rattachée), Marc-Antoine Côté by phone and name (rattaché), Paul
 -- Bélanger sharing Julie Bélanger's phone under another name (à décider). Only Admin holds
 -- billing.settings (the template).
-insert into public.org_modules (org_id, module_key, enabled, updated_by) values
-  ('00000000-0000-0000-0000-000000000001', 'billing', true, '11111111-1111-1111-1111-111111111111');
 insert into public.org_secrets (org_id, key, vault_secret_id)
 values
   ('00000000-0000-0000-0000-000000000001', 'qbo_client_id',
