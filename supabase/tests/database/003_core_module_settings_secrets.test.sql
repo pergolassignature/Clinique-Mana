@@ -159,6 +159,13 @@ select functions_are('public', array[
   'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
   'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
   'discard_payout_drafts',
+  -- Facturation, batch FS (Stripe, Interac).
+  'resolve_billing_card_link', 'resolve_billing_pay_link', 'stripe_card_link_context_for_service',
+  'save_stripe_customer_for_service', 'issue_billing_link_for_service', 'begin_billing_checkout_for_service',
+  'record_stripe_card_for_service', 'stripe_card_for_service', 'stripe_card_removed_for_service',
+  'record_stripe_payment_for_service', 'stripe_charges_due_for_service', 'begin_stripe_charge_for_service',
+  'finish_stripe_charge_for_service', 'stripe_payment_failed_for_service', 'record_interac_notice_for_service',
+  'get_client_stripe', 'list_interac_notices', 'add_interac_notice', 'match_interac_notice', 'ignore_interac_notice',
   -- Facturation, batch F2 (and Professionnels' supervisor, F2.0).
   'get_billing_settings', 'set_billing_queue_from', 'set_special_agreement', 'list_morning_queue', 'hold_invoice_draft',
   'release_invoice_draft', 'send_invoices', 'send_billing_document', 'record_payment', 'create_statement', 'get_billing_document',

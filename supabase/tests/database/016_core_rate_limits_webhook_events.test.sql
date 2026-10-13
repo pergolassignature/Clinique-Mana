@@ -229,7 +229,7 @@ set local role service_role;
 -- =============================================================================
 -- claim_webhook_event: argument checks
 -- =============================================================================
-select throws_ok($$ select * from public.claim_webhook_event('stripe', 'test-evt-3', 'b0000000-0000-0000-0000-00000000000a', 'x', '{}') $$,
+select throws_ok($$ select * from public.claim_webhook_event('paypal', 'test-evt-3', 'b0000000-0000-0000-0000-00000000000a', 'x', '{}') $$,
   '22023', null, 'an unknown provider is refused');
 select throws_ok($$ select * from public.claim_webhook_event('resend', '', 'b0000000-0000-0000-0000-00000000000a', 'x', '{}') $$,
   '22023', null, 'an empty event id is refused');
