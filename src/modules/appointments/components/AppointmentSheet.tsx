@@ -21,17 +21,22 @@ import { closeButtonClasses } from '@/shared/ui/overlay-classes'
 import { Select } from '@/shared/ui/select'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
 import { Textarea } from '@/shared/ui/textarea'
-import type { AgendaReference } from '../api/agenda'
+import type { AgendaReference, SeriesRule } from '../api/agenda'
 import { MODES, PRESENCES, type AgendaAppointment, type AppointmentMode, type Presence } from '../api/parse'
 import {
   useAppointmentDetail,
   useBookAppointment,
   useCancelAppointment,
+  useCancelSeriesFrom,
+  useCreateSeries,
   useMoveAppointment,
+  useSeriesPreview,
   useSetAppointmentDetails,
   useSetPresence,
 } from '../hooks/use-agenda'
 import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVariant, stateLabel } from '../lib/display'
+import { isoWeekday } from '../lib/time'
+import { SeriesFields, emptySeries, seriesComplete, seriesCount, type SeriesDraft } from './SeriesFields'
 
 const E = 'modules.appointments.editor'
 
@@ -143,38 +148,55 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   const [balance, setBalance] = useState(false)
   const [outsideReason, setOutsideReason] = useState('')
   const [balanceReason, setBalanceReason] = useState('')
-  const book = useBookAppointment({
-    onErrorMessage: (msg, error) => {
+  const [series, setSeries] = useState<SeriesDraft>(() => emptySeries(isoWeekday(target.day)))
+  const feedback = {
+    onErrorMessage: (msg: string, error: unknown) => {
       const hint = rpcErrorHint(error)
       if (hint === OUTSIDE && can('appointments.manage')) setOutside(true)
       if (hint === 'balance_due' && can('appointments.balance_override')) setBalance(true)
       setRefusal(msg)
     },
-  })
+  }
+  const book = useBookAppointment(feedback)
+  const createSeries = useCreateSeries(feedback)
   const service = services.find((s) => s.id === serviceId)
   const needed = service?.forTwo ? 2 : 1
-  useUnsavedChanges(Boolean(serviceId || clients.length > 0 || note.trim() || message.trim()))
-  const ready = Boolean(professionalId && serviceId && day && time && clients.length >= needed)
+  // The series' rule once complete: its dates and conflicts come from the database.
+  const rule: SeriesRule | null =
+    series.repeat && professionalId && serviceId && day && time && seriesComplete(series)
+      ? {
+          professionalId,
+          serviceId,
+          firstStartsAt: clinicTimeToUTC(day, time),
+          intervalWeeks: series.intervalWeeks,
+          weekdays: series.weekdays,
+          count: seriesCount(series),
+          until: series.endKind === 'until' ? series.until : null,
+        }
+      : null
+  const preview = useSeriesPreview(rule)
+  const conflicts = preview.data?.filter((d) => d.conflict !== null).length ?? 0
+  useUnsavedChanges(Boolean(serviceId || clients.length > 0 || note.trim() || message.trim() || series.repeat))
+  const ready =
+    Boolean(professionalId && serviceId && day && time && clients.length >= needed) &&
+    (!series.repeat || (rule !== null && preview.data !== undefined && (conflicts === 0 || series.skipConflicts)))
+  const pending = book.isPending || createSeries.isPending
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     event.stopPropagation()
-    if (!ready || book.isPending) return
+    if (!ready || pending) return
     setRefusal(null)
-    book.mutate(
-      {
-        professionalId,
-        serviceId,
-        startsAt: clinicTimeToUTC(day, time),
-        clientIds: clients.map((c) => c.id),
-        mode,
-        internalNote: note.trim() || null,
-        clientMessage: message.trim() || null,
-        balanceOverrideReason: balance ? balanceReason.trim() || null : null,
-        outsideAvailabilityReason: outside ? outsideReason.trim() || null : null,
-      },
-      { onSuccess: onClose },
-    )
+    const shared = {
+      clientIds: clients.map((c) => c.id),
+      mode,
+      internalNote: note.trim() || null,
+      clientMessage: message.trim() || null,
+      balanceOverrideReason: balance ? balanceReason.trim() || null : null,
+      outsideAvailabilityReason: outside ? outsideReason.trim() || null : null,
+    }
+    if (rule) createSeries.mutate({ ...rule, ...shared, skipConflicts: series.skipConflicts }, { onSuccess: onClose })
+    else book.mutate({ professionalId, serviceId, startsAt: clinicTimeToUTC(day, time), ...shared }, { onSuccess: onClose })
   }
 
   const addClient = (client: PickedClient) => setClients((list) => (list.some((c) => c.id === client.id) || list.length >= 2 ? list : [...list, client]))
@@ -232,6 +254,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
             )}
           </FormField>
         </FormRow>
+        <SeriesFields draft={series} onChange={setSeries} preview={rule ? preview.data : undefined} loading={preview.isFetching} />
         <section className="space-y-2" aria-label={t(service?.forTwo ? `${E}.clientsTwo` : `${E}.clients`)}>
           {clients.length > 0 && (
             <ul className="space-y-1">
@@ -278,7 +301,12 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
         <Button type="button" variant="outline" onClick={onClose}>
           {t('common.cancel')}
         </Button>
-        <SaveButton pending={book.isPending} disabled={!ready} label={t(`${E}.book`)} pendingLabel={t(`${E}.booking`)} />
+        <SaveButton
+          pending={pending}
+          disabled={!ready}
+          label={series.repeat ? t(`${E}.series.book`, { count: String(preview.data ? preview.data.length - (series.skipConflicts ? conflicts : 0) : 0) }) : t(`${E}.book`)}
+          pendingLabel={t(`${E}.booking`)}
+        />
       </SheetFooter>
     </form>
   )
@@ -506,8 +534,11 @@ function CancelTab({ appointment: a, reference, open, onDone }: { appointment: A
   const [reason, setReason] = useState('')
   const [details, setDetails] = useState('')
   const [kept, setKept] = useState(false)
+  const [rest, setRest] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
   const cancel = useCancelAppointment({ onErrorMessage: (msg) => setRefusal(msg) })
+  const cancelRest = useCancelSeriesFrom({ onErrorMessage: (msg) => setRefusal(msg) })
+  const cancelling = cancel.isPending || cancelRest.isPending
   const reasons = reference.reasons.filter((r) => r.active)
   useUnsavedChanges(open && (reason !== '' || details.trim() !== ''))
   if (!open) {
@@ -531,9 +562,11 @@ function CancelTab({ appointment: a, reference, open, onDone }: { appointment: A
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!reason || cancel.isPending) return
+        if (!reason || cancelling) return
         setRefusal(null)
-        cancel.mutate({ id: a.id, reasonKey: reason, details: details.trim() || null, keptOnSchedule: kept }, { onSuccess: onDone })
+        const input = { id: a.id, reasonKey: reason, details: details.trim() || null, keptOnSchedule: kept }
+        if (rest) cancelRest.mutate(input, { onSuccess: onDone })
+        else cancel.mutate(input, { onSuccess: onDone })
       }}
     >
       <FormField label={t(`${E}.reason`)} width="md" required>
@@ -551,14 +584,15 @@ function CancelTab({ appointment: a, reference, open, onDone }: { appointment: A
         {(field) => <Textarea {...field} value={details} onChange={(e) => setDetails(e.target.value)} rows={2} maxLength={1000} />}
       </FormField>
       <CheckboxField label={t(`${E}.keep`)} help={t(`${E}.keepHelp`)} checked={kept} onCheckedChange={(v) => setKept(v === true)} />
+      {a.seriesId && <CheckboxField label={t(`${E}.series.cancelRest`)} help={t(`${E}.series.cancelRestHelp`)} checked={rest} onCheckedChange={setRest} />}
       <Refusal message={refusal} />
       <Button
         type="submit"
         variant="destructive"
-        aria-disabled={!reason || cancel.isPending || undefined}
+        aria-disabled={!reason || cancelling || undefined}
         className={cn(softDisabledClasses, 'aria-disabled:hover:bg-destructive')}
       >
-        {t(cancel.isPending ? `${E}.cancelling` : `${E}.cancelSubmit`)}
+        {t(cancelling ? `${E}.cancelling` : `${E}.cancelSubmit`)}
       </Button>
     </form>
   )

@@ -7859,6 +7859,7 @@
         "tables": {
           "appointments": "Rendez-vous",
           "appointment_participants": "Clients des rendez-vous",
+          "appointment_series": "Séries de rendez-vous",
           "availability_rules": "Disponibilités",
           "availability_exceptions": "Exceptions aux disponibilités",
           "cancellation_reasons": "Raisons d'annulation",
@@ -7895,7 +7896,8 @@
             "outside_availability_reason": "Raison « Hors disponibilités »",
             "outside_availability_by": "Réservé hors disponibilités par",
             "held_until": "Proposé jusqu'au",
-            "hold_reference": "Proposition (demande)"
+            "hold_reference": "Proposition (demande)",
+            "series_id": "Série"
           },
           "appointment_participants": {
             "appointment_id": "Rendez-vous",
@@ -7935,6 +7937,16 @@
             "business_end": "Fermeture",
             "reminder_business_days": "Rappel (jours ouvrables avant)",
             "reminder_local_hour": "Heure d'envoi des rappels"
+          },
+          "appointment_series": {
+            "professional_id": "Professionnel",
+            "service_id": "Service",
+            "first_starts_at": "Premier rendez-vous",
+            "interval_weeks": "Toutes les (semaines)",
+            "weekdays": "Jours",
+            "occurrences": "Nombre de rendez-vous",
+            "until_on": "Jusqu'au",
+            "skipped_on": "Dates ignorées (conflits)"
           }
         },
         "values": {
@@ -7987,7 +7999,9 @@
         "rule": "Plage enregistrée.",
         "ruleDeleted": "Plage supprimée.",
         "exception": "Exception ajoutée.",
-        "exceptionRemoved": "Exception retirée."
+        "exceptionRemoved": "Exception retirée.",
+        "series": "Série réservée.",
+        "seriesCancelled": "Rendez-vous de la série annulés."
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
@@ -8085,7 +8099,34 @@
         "noReason": "sans raison",
         "notCancellable": "Ce rendez-vous est terminé : il ne s’annule plus.",
         "findSecondRequired": "Deuxième personne",
-        "heldNotice": "Ce créneau est proposé au client et attend son acceptation. Il se gère depuis la demande : il devient un rendez-vous quand le client l'accepte, et se libère sinon."
+        "heldNotice": "Ce créneau est proposé au client et attend son acceptation. Il se gère depuis la demande : il devient un rendez-vous quand le client l'accepte, et se libère sinon.",
+        "series": {
+          "title": "Répétition",
+          "repeat": "Répéter ce rendez-vous",
+          "interval": "Fréquence",
+          "everyWeek": "Chaque semaine",
+          "everyNWeeks": "Toutes les {n} semaines",
+          "end": "Fin",
+          "endCount": "Après un nombre de rendez-vous",
+          "endUntil": "Jusqu'à une date",
+          "count": "Rendez-vous",
+          "countHelp": "De 2 à 52.",
+          "until": "Dernière date",
+          "weekdays": "Jours",
+          "dates": "Dates de la série",
+          "summaryFree": "{count} dates, toutes libres.",
+          "summaryConflicts": "{count} dates, dont {conflicts} en conflit.",
+          "free": "Libre",
+          "conflict": {
+            "overlap": "Déjà un rendez-vous",
+            "outside_availability": "Hors disponibilités"
+          },
+          "skip": "Ignorer les dates en conflit ({conflicts})",
+          "skipHelp": "Les autres dates sont réservées ; les dates ignorées restent notées sur la série.",
+          "book": "Réserver {count} rendez-vous",
+          "cancelRest": "Annuler aussi les rendez-vous suivants de la série",
+          "cancelRestHelp": "Ce rendez-vous et ceux qui le suivent dans la série, avec la même raison."
+        }
       },
       "availability": {
         "newTitle": "Nouvelle plage",
