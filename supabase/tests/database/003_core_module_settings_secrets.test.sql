@@ -136,7 +136,17 @@ select functions_are('public', array[
   'find_client_duplicates', 'create_client', 'update_client', 'set_client_notes', 'archive_client', 'unarchive_client',
   'set_client_relation', 'remove_client_relation', 'upsert_client_insurance', 'delete_client_insurance',
   'save_client_payer', 'end_client_payer', 'set_client_tags', 'save_client_tag', 'set_client_tag_active',
-  'merge_clients', 'search_clients', 'get_client_summary', 'export_client_privacy', 'anonymize_client',
+  'merge_clients', 'search_clients', 'get_client_summary', 'export_client_privacy', 'anonymize_client', 'list_clients', 'list_client_history',
+  -- Rendez-vous, batch R1.
+  'set_appointment_settings', 'set_availability_rule', 'delete_availability_rule', 'add_availability_exception',
+  'remove_availability_exception', 'book_appointment', 'move_appointment', 'set_appointment_presence', 'cancel_appointment', 'get_open_slots', 'get_appointment_consents',
+  -- Rendez-vous, batch R2.
+  'set_appointment_details', 'list_agenda',
+  -- Rendez-vous, batch R3.
+  'preview_series', 'create_series', 'cancel_series_from', 'book_personal_appointment',
+  -- Rendez-vous, batch R4.
+  'appointment_messages_for_service', 'prepare_appointment_message_for_service', 'finish_appointment_message_for_service',
+  'resolve_appointment_confirm_link', 'confirm_appointment_by_link_for_service', 'list_appointments_without_reminder',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',
@@ -159,10 +169,36 @@ select functions_are('public', array[
   'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel',
   'create_demande', 'update_demande', 'set_demande_state', 'assign_demande', 'log_demande_contact',
   'add_demande_task', 'complete_demande_task', 'cancel_demande_task', 'set_demande_note', 'set_demande_participants',
+  'list_demandes', 'demandes_counts', 'get_demande', 'get_demandes_reference', 'set_demande_handler',
   -- Clients, batch C5a (consents).
   'set_client_consent_rule', 'set_client_consent_settings', 'cancel_client_consent_request', 'publish_client_consent_version',
   'prepare_client_consent_request_for_service', 'open_client_consent_for_service', 'start_client_consent_signing_for_service',
-  'client_consent_reminders_for_service', 'import_client_consent_fact_for_service', 'resolve_client_consent_link'
+  'client_consent_reminders_for_service', 'import_client_consent_fact_for_service', 'resolve_client_consent_link',
+  -- Clients, batch I1 (the GOrendezvous import).
+  'import_client', 'import_client_relation',
+  -- Demandes, batch D3c (the booking page).
+  'get_demandes_booking_settings', 'set_demandes_booking_settings', 'demandes_booking_page_for_service',
+  'book_discovery_call_for_service', 'cancel_discovery_call_for_service', 'resolve_discovery_call_link',
+  -- Demandes, batch D3 (the waiting list, part 1).
+  'get_demandes_waitlist_settings', 'set_demandes_waitlist_settings', 'register_waitlist', 'update_waitlist_entry',
+  'set_waitlist_fee', 'log_waitlist_contact', 'add_waitlist_offer', 'answer_waitlist_offer', 'exit_waitlist',
+  'list_waitlist', 'waitlist_lists', 'get_waitlist_entry', 'waitlist_followup_for_service',
+  'prepare_waitlist_followup_for_service', 'mark_waitlist_followup_sent_for_service', 'resolve_waitlist_followup_link',
+  'answer_waitlist_followup_for_service',
+  -- Demandes, batch D3b (the discovery calls).
+  'list_discovery_calls', 'reschedule_demande_task', 'assign_demande_task',
+  -- Demandes, batch D3b (the proposals).
+  'proposition_services', 'create_proposition_for_service', 'resolve_proposition_link', 'answer_proposition_for_service',
+  'withdraw_proposition', 'list_demande_propositions',
+  -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
+  'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
+  'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',
+  'disconnect_my_zoom_connection', 'zoom_deauthorized_for_service', 'get_zoom_credentials_for_service',
+  'set_zoom_tokens_for_service', 'mark_zoom_needs_reconnect_for_service', 'list_zoom_connections_to_refresh_for_service',
+  'claim_video_tasks_for_service', 'complete_video_task_for_service', 'video_link_email_for_service',
+  'mark_video_link_emailed_for_service',
+  -- Clients, CC-13 (each consent text version's clauses).
+  'get_client_consent_clauses', 'set_client_consent_clauses'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

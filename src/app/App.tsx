@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { ConfirmPage, ConsentPage, InvitationPage } from './public-pages'
+import { BookingCancelPage, BookingPage, ConfirmAppointmentPage, ConfirmPage, ConsentPage, InvitationPage, PropositionPage, WaitlistAnswerPage } from './public-pages'
 import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
@@ -112,6 +112,50 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <ConsentPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: the discovery-call booking page that replaces Calendly, and its cancel link (Demandes D3c). */}
+                <Route
+                  path="/appel-decouverte"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <BookingPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/appel-decouverte/annuler"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <BookingCancelPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: the waiting list's « still waiting? » link (Demandes D3); the token is in the fragment. */}
+                <Route
+                  path="/liste-attente/reponse"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <WaitlistAnswerPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: a proposal's link (Demandes D3b); the token is in the fragment. */}
+                <Route
+                  path="/proposition"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <PropositionPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: « Confirmer ma présence » from an appointment email (Rendez-vous R4); the token is in the fragment. */}
+                <Route
+                  path="/rendez-vous/confirmer"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <ConfirmAppointmentPage />
                     </Suspense>
                   }
                 />

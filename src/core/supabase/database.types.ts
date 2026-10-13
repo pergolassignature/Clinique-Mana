@@ -35,6 +35,522 @@ export type Database = {
           },
         ]
       }
+      appointment_messages: {
+        Row: {
+          appointment_id: string
+          attempts: number
+          channel: string
+          client_id: string
+          created_at: string
+          id: string
+          kind: string
+          language: string
+          link_id: string | null
+          org_id: string
+          recipient_client_id: string
+          sent_at: string | null
+          skip_reason: string | null
+          sms_message_id: string | null
+          starts_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          attempts?: number
+          channel: string
+          client_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          language?: string
+          link_id?: string | null
+          org_id: string
+          recipient_client_id: string
+          sent_at?: string | null
+          skip_reason?: string | null
+          sms_message_id?: string | null
+          starts_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          attempts?: number
+          channel?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          language?: string
+          link_id?: string | null
+          org_id?: string
+          recipient_client_id?: string
+          sent_at?: string | null
+          skip_reason?: string | null
+          sms_message_id?: string | null
+          starts_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_messages_appointment_fkey"
+            columns: ["org_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      appointment_participants: {
+        Row: {
+          appointment_id: string
+          client_id: string
+          confirmed_at: string | null
+          created_at: string
+          org_id: string
+          presence: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          client_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          org_id: string
+          presence?: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          client_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          org_id?: string
+          presence?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_participants_appointment_fkey"
+            columns: ["org_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_participants_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_participants_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      appointment_series: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          first_starts_at: string
+          id: string
+          interval_weeks: number
+          occurrences: number | null
+          org_id: string
+          professional_id: string
+          service_id: string
+          skipped_on: string[]
+          until_on: string | null
+          weekdays: number[]
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          first_starts_at: string
+          id?: string
+          interval_weeks: number
+          occurrences?: number | null
+          org_id: string
+          professional_id: string
+          service_id: string
+          skipped_on?: string[]
+          until_on?: string | null
+          weekdays: number[]
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          first_starts_at?: string
+          id?: string
+          interval_weeks?: number
+          occurrences?: number | null
+          org_id?: string
+          professional_id?: string
+          service_id?: string
+          skipped_on?: string[]
+          until_on?: string | null
+          weekdays?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_series_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "appointment_series_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      appointment_settings: {
+        Row: {
+          business_days: number[]
+          business_end: string
+          business_start: string
+          org_id: string
+          reminder_business_days: number
+          reminder_local_hour: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_days?: number[]
+          business_end?: string
+          business_start?: string
+          org_id: string
+          reminder_business_days?: number
+          reminder_local_hour?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_days?: number[]
+          business_end?: string
+          business_start?: string
+          org_id?: string
+          reminder_business_days?: number
+          reminder_local_hour?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      appointment_video_meetings: {
+        Row: {
+          appointment_id: string
+          connection_id: string
+          created_at: string
+          emailed_join_url: string | null
+          external_id: string
+          join_url: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          connection_id: string
+          created_at?: string
+          emailed_join_url?: string | null
+          external_id: string
+          join_url: string
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          connection_id?: string
+          created_at?: string
+          emailed_join_url?: string | null
+          external_id?: string
+          join_url?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_video_meetings_appointment_fkey"
+            columns: ["org_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_video_meetings_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "video_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          balance_override_by: string | null
+          balance_override_reason: string | null
+          blocks_until: string
+          cancel_details: string | null
+          cancel_late: boolean | null
+          cancel_reason_id: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_message: string | null
+          completed_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          external_ref: string | null
+          held_until: string | null
+          hold_reference: string | null
+          id: string
+          internal_note: string | null
+          is_personal: boolean
+          is_work: boolean
+          kept_on_schedule: boolean
+          mode: string
+          org_id: string
+          outside_availability_by: string | null
+          outside_availability_reason: string | null
+          personal_label: string | null
+          professional_id: string
+          series_id: string | null
+          service_id: string | null
+          starts_at: string
+          state: string
+          updated_at: string
+          video_external_id: string | null
+          video_status: string | null
+          video_url: string | null
+        }
+        Insert: {
+          balance_override_by?: string | null
+          balance_override_reason?: string | null
+          blocks_until: string
+          cancel_details?: string | null
+          cancel_late?: boolean | null
+          cancel_reason_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_message?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          external_ref?: string | null
+          held_until?: string | null
+          hold_reference?: string | null
+          id?: string
+          internal_note?: string | null
+          is_personal?: boolean
+          is_work?: boolean
+          kept_on_schedule?: boolean
+          mode?: string
+          org_id: string
+          outside_availability_by?: string | null
+          outside_availability_reason?: string | null
+          personal_label?: string | null
+          professional_id: string
+          series_id?: string | null
+          service_id?: string | null
+          starts_at: string
+          state?: string
+          updated_at?: string
+          video_external_id?: string | null
+          video_status?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          balance_override_by?: string | null
+          balance_override_reason?: string | null
+          blocks_until?: string
+          cancel_details?: string | null
+          cancel_late?: boolean | null
+          cancel_reason_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_message?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          external_ref?: string | null
+          held_until?: string | null
+          hold_reference?: string | null
+          id?: string
+          internal_note?: string | null
+          is_personal?: boolean
+          is_work?: boolean
+          kept_on_schedule?: boolean
+          mode?: string
+          org_id?: string
+          outside_availability_by?: string | null
+          outside_availability_reason?: string | null
+          personal_label?: string | null
+          professional_id?: string
+          series_id?: string | null
+          service_id?: string | null
+          starts_at?: string
+          state?: string
+          updated_at?: string
+          video_external_id?: string | null
+          video_status?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_balance_override_by_fkey"
+            columns: ["balance_override_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_cancel_reason_fkey"
+            columns: ["org_id", "cancel_reason_id"]
+            isOneToOne: false
+            referencedRelation: "cancellation_reasons"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_outside_availability_by_fkey"
+            columns: ["outside_availability_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "appointments_series_fkey"
+            columns: ["org_id", "series_id"]
+            isOneToOne: false
+            referencedRelation: "appointment_series"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -73,6 +589,168 @@ export type Database = {
           table_name?: string
         }
         Relationships: []
+      }
+      availability_exceptions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          kind: string
+          label: string | null
+          org_id: string
+          professional_id: string
+          starts_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          kind: string
+          label?: string | null
+          org_id: string
+          professional_id: string
+          starts_at: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          kind?: string
+          label?: string | null
+          org_id?: string
+          professional_id?: string
+          starts_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_exceptions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_exceptions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      availability_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          org_id: string
+          overflow_allowed: boolean
+          professional_id: string
+          service_ids: string[]
+          start_time: string
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+          visible_to_clients: boolean
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_time: string
+          id?: string
+          org_id: string
+          overflow_allowed?: boolean
+          professional_id: string
+          service_ids?: string[]
+          start_time: string
+          updated_at?: string
+          valid_from: string
+          valid_until?: string | null
+          visible_to_clients?: boolean
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          org_id?: string
+          overflow_allowed?: boolean
+          professional_id?: string
+          service_ids?: string[]
+          start_time?: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+          visible_to_clients?: boolean
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "availability_rules_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
       }
       billing_policies: {
         Row: {
@@ -138,6 +816,50 @@ export type Database = {
           },
           {
             foreignKeyName: "billing_policies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cancellation_reasons: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancellation_reasons_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -514,6 +1236,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_consent_version_clauses: {
+        Row: {
+          clauses: Json
+          created_at: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+          version_id: string
+        }
+        Insert: {
+          clauses: Json
+          created_at?: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version_id: string
+        }
+        Update: {
+          clauses?: Json
+          created_at?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_version_clauses_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_version_clauses_version_fkey"
+            columns: ["version_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_template_versions"
+            referencedColumns: ["id", "org_id"]
           },
         ]
       }
@@ -1425,6 +2189,13 @@ export type Database = {
             referencedRelation: "referral_sources"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "clients_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       compensation_kinds: {
@@ -1673,6 +2444,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "demande_events_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "demande_events_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
@@ -1730,6 +2508,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "demande_motifs_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "demande_motifs_motif_fkey"
             columns: ["org_id", "motif_id"]
             isOneToOne: false
@@ -1773,6 +2558,13 @@ export type Database = {
             columns: ["org_id", "demande_id"]
             isOneToOne: false
             referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_notes_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -1843,10 +2635,19 @@ export type Database = {
             referencedRelation: "demandes"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "demande_participants_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       demande_propositions: {
         Row: {
+          accepted_appointment_id: string | null
+          accepted_starts_at: string | null
           created_at: string
           decline_reason: string | null
           demande_id: string
@@ -1854,6 +2655,8 @@ export type Database = {
           directory_updated_at: string | null
           expires_at: string | null
           id: string
+          language: string | null
+          mode: string | null
           org_id: string
           professional_id: string
           proposed_at: string
@@ -1861,9 +2664,13 @@ export type Database = {
           responded_at: string | null
           response: string
           secure_link_id: string | null
+          service_id: string | null
+          slots: Json
           updated_at: string
         }
         Insert: {
+          accepted_appointment_id?: string | null
+          accepted_starts_at?: string | null
           created_at?: string
           decline_reason?: string | null
           demande_id: string
@@ -1871,6 +2678,8 @@ export type Database = {
           directory_updated_at?: string | null
           expires_at?: string | null
           id?: string
+          language?: string | null
+          mode?: string | null
           org_id: string
           professional_id: string
           proposed_at?: string
@@ -1878,9 +2687,13 @@ export type Database = {
           responded_at?: string | null
           response?: string
           secure_link_id?: string | null
+          service_id?: string | null
+          slots?: Json
           updated_at?: string
         }
         Update: {
+          accepted_appointment_id?: string | null
+          accepted_starts_at?: string | null
           created_at?: string
           decline_reason?: string | null
           demande_id?: string
@@ -1888,6 +2701,8 @@ export type Database = {
           directory_updated_at?: string | null
           expires_at?: string | null
           id?: string
+          language?: string | null
+          mode?: string | null
           org_id?: string
           professional_id?: string
           proposed_at?: string
@@ -1895,6 +2710,8 @@ export type Database = {
           responded_at?: string | null
           response?: string
           secure_link_id?: string | null
+          service_id?: string | null
+          slots?: Json
           updated_at?: string
         }
         Relationships: [
@@ -1903,6 +2720,13 @@ export type Database = {
             columns: ["org_id", "demande_id"]
             isOneToOne: false
             referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demande_propositions_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -2011,6 +2835,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "demande_tasks_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "demande_tasks_done_by_fkey"
             columns: ["done_by"]
             isOneToOne: false
@@ -2039,6 +2870,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           external_ref: string | null
+          handled_at: string | null
+          handled_by: string | null
           id: string
           insurer: string | null
           is_urgent: boolean
@@ -2060,6 +2893,7 @@ export type Database = {
           reference_year: number
           referral_source_id: string | null
           source_campaign: string | null
+          source_landing_page: string | null
           source_referrer: string | null
           source_utm: Json
           state: string
@@ -2084,6 +2918,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           external_ref?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
@@ -2105,6 +2941,7 @@ export type Database = {
           reference_year: number
           referral_source_id?: string | null
           source_campaign?: string | null
+          source_landing_page?: string | null
           source_referrer?: string | null
           source_utm?: Json
           state?: string
@@ -2129,6 +2966,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           external_ref?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
@@ -2150,6 +2989,7 @@ export type Database = {
           reference_year?: number
           referral_source_id?: string | null
           source_campaign?: string | null
+          source_landing_page?: string | null
           source_referrer?: string | null
           source_utm?: Json
           state?: string
@@ -2197,6 +3037,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "demandes_handled_by_fkey"
+            columns: ["handled_by", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
           },
           {
             foreignKeyName: "demandes_matched_professional_fkey"
@@ -2259,6 +3106,13 @@ export type Database = {
             columns: ["org_id", "referral_source_id"]
             isOneToOne: false
             referencedRelation: "referral_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
             referencedColumns: ["org_id", "id"]
           },
         ]
@@ -5920,6 +6774,69 @@ export type Database = {
           },
         ]
       }
+      professional_video_links: {
+        Row: {
+          created_at: string
+          org_id: string
+          professional_id: string
+          updated_at: string
+          updated_by: string | null
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          professional_id: string
+          updated_at?: string
+          updated_by?: string | null
+          url: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          professional_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_video_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_video_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_video_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_video_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_video_links_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       professionals: {
         Row: {
           activation_override_reason: string | null
@@ -7421,6 +8338,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          redacted_at: string | null
           rejected_at: string | null
           request_id: string
           role: string
@@ -7437,6 +8355,7 @@ export type Database = {
           id?: string
           name: string
           org_id: string
+          redacted_at?: string | null
           rejected_at?: string | null
           request_id: string
           role: string
@@ -7453,6 +8372,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          redacted_at?: string | null
           rejected_at?: string | null
           request_id?: string
           role?: string
@@ -8374,6 +9294,187 @@ export type Database = {
           },
         ]
       }
+      video_connection_tokens: {
+        Row: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at: string
+          key_version: number
+          org_id: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at?: string
+          key_version?: number
+          org_id: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          access_token_expires_at?: string
+          connection_id?: string
+          created_at?: string
+          key_version?: number
+          org_id?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_connection_tokens_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "video_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      video_connections: {
+        Row: {
+          account_email: string | null
+          connected_at: string | null
+          connected_by: string | null
+          created_at: string
+          disconnected_at: string | null
+          external_account_id: string | null
+          external_user_id: string | null
+          id: string
+          org_id: string
+          professional_id: string
+          provider: string
+          reconnect_reason: string | null
+          scopes: string[]
+          state: string
+          tokens_refreshed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_email?: string | null
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          external_account_id?: string | null
+          external_user_id?: string | null
+          id?: string
+          org_id: string
+          professional_id: string
+          provider?: string
+          reconnect_reason?: string | null
+          scopes?: string[]
+          state?: string
+          tokens_refreshed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_email?: string | null
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          external_account_id?: string | null
+          external_user_id?: string | null
+          id?: string
+          org_id?: string
+          professional_id?: string
+          provider?: string
+          reconnect_reason?: string | null
+          scopes?: string[]
+          state?: string
+          tokens_refreshed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_connections_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "video_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "video_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "video_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "video_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      video_tasks: {
+        Row: {
+          appointment_id: string
+          attempts: number
+          created_at: string
+          generation: number
+          last_error_code: string | null
+          locked_until: string | null
+          next_attempt_at: string
+          org_id: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          attempts?: number
+          created_at?: string
+          generation?: number
+          last_error_code?: string | null
+          locked_until?: string | null
+          next_attempt_at?: string
+          org_id: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          attempts?: number
+          created_at?: string
+          generation?: number
+          last_error_code?: string | null
+          locked_until?: string | null
+          next_attempt_at?: string
+          org_id?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_tasks_appointment_fkey"
+            columns: ["org_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       waitlist_contacts: {
         Row: {
           at: string
@@ -8584,6 +9685,13 @@ export type Database = {
             columns: ["org_id", "demande_id"]
             isOneToOne: false
             referencedRelation: "demandes"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_demande_fkey"
+            columns: ["org_id", "demande_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_sources"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -9108,6 +10216,56 @@ export type Database = {
             referencedRelation: "referral_sources"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "clients_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      demandes_sources: {
+        Row: {
+          channel: string | null
+          id: string | null
+          org_id: string | null
+          received_at: string | null
+          reference: string | null
+          referral_source_id: string | null
+          referral_source_name: string | null
+          source_campaign: string | null
+          source_landing_page: string | null
+          source_referrer: string | null
+          state: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       languages_catalog: {
@@ -9424,6 +10582,35 @@ export type Database = {
           },
         ]
       }
+      referral_sources_catalog: {
+        Row: {
+          id: string | null
+          name: string | null
+          org_id: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          id?: string | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          id?: string | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_sources_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services_catalog: {
         Row: {
           buffer_after_minutes: number | null
@@ -9513,6 +10700,16 @@ export type Database = {
           status: string
         }[]
       }
+      add_availability_exception: {
+        Args: {
+          p_ends_at: string
+          p_kind: string
+          p_label: string
+          p_professional_id: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
       add_billing_policy: {
         Args: {
           p_effective_from: string
@@ -9553,7 +10750,27 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      add_waitlist_offer: {
+        Args: { p_id: string; p_professional_id: string; p_slots?: Json }
+        Returns: string
+      }
       anonymize_client: { Args: { p_id: string }; Returns: undefined }
+      answer_proposition_for_service: {
+        Args: {
+          p_appointment_id: string
+          p_decline_reason?: string
+          p_token_hash: string
+        }
+        Returns: Json
+      }
+      answer_waitlist_followup_for_service: {
+        Args: { p_answer: string; p_token_hash: string }
+        Returns: Json
+      }
+      answer_waitlist_offer: {
+        Args: { p_id: string; p_offer_id: string; p_response: string }
+        Returns: undefined
+      }
       apply_email_event: {
         Args: {
           p_at: string
@@ -9598,10 +10815,18 @@ export type Database = {
         }
         Returns: string
       }
+      appointment_messages_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: Json
+      }
       archive_client: { Args: { p_id: string }; Returns: undefined }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
       assign_demande: {
         Args: { p_assignee: string; p_id: string }
+        Returns: undefined
+      }
+      assign_demande_task: {
+        Args: { p_assigned_to: string; p_demande_id: string; p_task_id: string }
         Returns: undefined
       }
       attach_professional_document: {
@@ -9640,6 +10865,42 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      book_appointment: {
+        Args: {
+          p_balance_override_reason?: string
+          p_client_ids: string[]
+          p_client_message?: string
+          p_internal_note?: string
+          p_mode?: string
+          p_outside_availability_reason?: string
+          p_professional_id: string
+          p_service_id: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
+      book_discovery_call_for_service: {
+        Args: { p_org_id: string; p_payload: Json; p_token_hash: string }
+        Returns: Json
+      }
+      book_personal_appointment: {
+        Args: {
+          p_ends_at: string
+          p_is_work?: boolean
+          p_label: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
+      cancel_appointment: {
+        Args: {
+          p_details?: string
+          p_id: string
+          p_kept_on_schedule?: boolean
+          p_reason_key: string
+        }
+        Returns: undefined
+      }
       cancel_client_consent_request: {
         Args: { p_id: string }
         Returns: undefined
@@ -9648,9 +10909,22 @@ export type Database = {
         Args: { p_demande_id: string; p_task_id: string }
         Returns: undefined
       }
+      cancel_discovery_call_for_service: {
+        Args: { p_token_hash: string }
+        Returns: Json
+      }
       cancel_professional_submission: {
         Args: { p_submission_id: string }
         Returns: undefined
+      }
+      cancel_series_from: {
+        Args: {
+          p_details?: string
+          p_id: string
+          p_kept_on_schedule?: boolean
+          p_reason_key: string
+        }
+        Returns: number
       }
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
@@ -9664,6 +10938,26 @@ export type Database = {
           kind: string
           request_id: string
           to_e164: string
+        }[]
+      }
+      claim_video_tasks_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          appointment_id: string
+          attempts: number
+          ends_at: string
+          generation: number
+          meeting_connection_id: string
+          meeting_connection_state: string
+          meeting_external_id: string
+          meeting_join_url: string
+          meeting_professional_id: string
+          professional_id: string
+          started: boolean
+          starts_at: string
+          target_connection_id: string
+          timezone: string
+          wants_video: boolean
         }[]
       }
       claim_webhook_event: {
@@ -9709,9 +11003,25 @@ export type Database = {
         }
         Returns: undefined
       }
+      complete_video_task_for_service: {
+        Args: {
+          p_appointment_id: string
+          p_connection_id: string
+          p_error_code: string
+          p_external_id: string
+          p_generation: number
+          p_join_url: string
+          p_org_id: string
+        }
+        Returns: boolean
+      }
       complete_webhook_event: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
+      }
+      confirm_appointment_by_link_for_service: {
+        Args: { p_token_hash: string }
+        Returns: Json
       }
       confirm_stored_file: {
         Args: { p_file_id: string; p_sha256: string; p_size_bytes: number }
@@ -9804,8 +11114,39 @@ export type Database = {
         Args: { p_actor: string; p_id: string; p_token_hash: string }
         Returns: Json
       }
+      create_proposition_for_service: {
+        Args: {
+          p_actor: string
+          p_demande_id: string
+          p_mode: string
+          p_professional_id: string
+          p_service_id: string
+          p_starts_at: string[]
+          p_token_hash: string
+        }
+        Returns: Json
+      }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
+        Returns: string
+      }
+      create_series: {
+        Args: {
+          p_balance_override_reason?: string
+          p_client_ids: string[]
+          p_client_message?: string
+          p_count: number
+          p_first_starts_at: string
+          p_internal_note?: string
+          p_interval_weeks: number
+          p_mode?: string
+          p_outside_availability_reason?: string
+          p_professional_id: string
+          p_service_id: string
+          p_skip_conflicts?: boolean
+          p_until: string
+          p_weekdays: number[]
+        }
         Returns: string
       }
       create_signature_request: {
@@ -9861,6 +11202,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_availability_rule: { Args: { p_id: string }; Returns: undefined }
       delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
       delete_client_insurance: {
         Args: { p_client_id: string; p_rank: number }
@@ -9896,6 +11238,22 @@ export type Database = {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
       }
+      demandes_booking_page_for_service: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
+      demandes_counts: {
+        Args: never
+        Returns: {
+          due: number
+          late: number
+          mine: number
+          no_answer: number
+          open: number
+          unassigned: number
+          waitlist: number
+        }[]
+      }
       discard_consent_draft: { Args: { p_id: string }; Returns: undefined }
       discard_system_file: {
         Args: { p_file_id: string; p_org_id: string }
@@ -9903,6 +11261,10 @@ export type Database = {
       }
       disconnect_mail_connection: {
         Args: { p_actor: string; p_connection_id: string; p_org_id: string }
+        Returns: boolean
+      }
+      disconnect_my_zoom_connection: {
+        Args: { p_actor: string; p_org_id: string }
         Returns: boolean
       }
       disconnect_qbo_connection: {
@@ -9916,6 +11278,10 @@ export type Database = {
       }
       end_service_rate_variant: {
         Args: { p_effective_to: string; p_id: string }
+        Returns: undefined
+      }
+      exit_waitlist: {
+        Args: { p_id: string; p_professional_id?: string; p_reason: string }
         Returns: undefined
       }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
@@ -9944,6 +11310,10 @@ export type Database = {
           mobile_e164: string
           reasons: string[]
         }[]
+      }
+      finish_appointment_message_for_service: {
+        Args: { p_message_id: string; p_org_id: string; p_sent: boolean }
+        Returns: undefined
       }
       finish_job_run: {
         Args: { p_detail: string; p_id: string; p_status: string }
@@ -9974,6 +11344,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_appointment_consents: {
+        Args: { p_appointment_id: string }
+        Returns: {
+          client_id: string
+          consent_key: string
+          frequency: string
+          state: string
+        }[]
+      }
+      get_appointment_video: {
+        Args: { p_appointment_id: string }
+        Returns: {
+          source: string
+          status: string
+          url: string
+        }[]
+      }
       get_bank_details: {
         Args: never
         Returns: {
@@ -9985,6 +11372,10 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_client_consent_clauses: {
+        Args: { p_version_id: string }
+        Returns: Json
+      }
       get_client_summary: { Args: { p_id: string }; Returns: Json }
       get_communications_settings: { Args: never; Returns: Json }
       get_communications_settings_for_org: {
@@ -9992,6 +11383,10 @@ export type Database = {
         Returns: Json
       }
       get_consent_versions: { Args: { p_key?: string }; Returns: Json }
+      get_demande: { Args: { p_id: string }; Returns: Json }
+      get_demandes_booking_settings: { Args: never; Returns: Json }
+      get_demandes_reference: { Args: never; Returns: Json }
+      get_demandes_waitlist_settings: { Args: never; Returns: Json }
       get_email_context: {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
@@ -10036,6 +11431,37 @@ export type Database = {
       }
       get_my_professional_record: { Args: never; Returns: Json }
       get_my_submission: { Args: never; Returns: Json }
+      get_my_video_setup: {
+        Args: never
+        Returns: {
+          fixed_url: string
+          professional_id: string
+          zoom_connected_at: string
+          zoom_email: string
+          zoom_reconnect_reason: string
+          zoom_state: string
+        }[]
+      }
+      get_my_zoom_credentials_for_service: {
+        Args: { p_actor: string; p_org_id: string }
+        Returns: {
+          access_token: string
+          connection_id: string
+          refresh_token: string
+        }[]
+      }
+      get_open_slots: {
+        Args: {
+          p_from: string
+          p_professional_id: string
+          p_service_id: string
+          p_to: string
+        }
+        Returns: {
+          ends_at: string
+          starts_at: string
+        }[]
+      }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
         Returns: string
@@ -10169,6 +11595,21 @@ export type Database = {
         Args: { p_submission_id: string }
         Returns: Json
       }
+      get_waitlist_entry: { Args: { p_id: string }; Returns: Json }
+      get_zoom_credentials_for_service: {
+        Args: { p_connection_id: string; p_org_id: string }
+        Returns: {
+          access_token: string
+          access_token_expires_at: string
+          connected_at: string
+          refresh_token: string
+          state: string
+        }[]
+      }
+      import_client: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_client_consent_fact_for_service: {
         Args: {
           p_client_id: string
@@ -10180,6 +11621,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_client_relation: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_professional: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
@@ -10189,6 +11634,40 @@ export type Database = {
       link_professional_account: {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
         Returns: Json
+      }
+      list_agenda: {
+        Args: { p_from: string; p_professional_ids?: string[]; p_to: string }
+        Returns: {
+          balance_override: boolean
+          blocks_until: string
+          cancel_late: boolean
+          cancel_reason_id: string
+          confirmed_at: string
+          ends_at: string
+          id: string
+          is_personal: boolean
+          kept_on_schedule: boolean
+          mode: string
+          outside_availability: boolean
+          participants: Json
+          personal_label: string
+          professional_id: string
+          series_id: string
+          service_id: string
+          starts_at: string
+          state: string
+          video_status: string
+          video_url: string
+        }[]
+      }
+      list_appointments_without_reminder: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          id: string
+          participants: Json
+          professional_id: string
+          starts_at: string
+        }[]
       }
       list_audit_actors: {
         Args: never
@@ -10217,6 +11696,129 @@ export type Database = {
           record_id: string
           source: string
           table_name: string
+        }[]
+      }
+      list_client_history: {
+        Args: { p_before_id?: number; p_id: string; p_limit?: number }
+        Returns: {
+          action: string
+          actor_id: string
+          actor_name: string
+          actor_role: string
+          changed_fields: Json
+          created_at: string
+          id: number
+          record_id: string
+          source: string
+          table_name: string
+        }[]
+      }
+      list_clients: {
+        Args: {
+          p_after_first?: string
+          p_after_id?: string
+          p_after_last?: string
+          p_limit?: number
+          p_professional_id?: string
+          p_query?: string
+          p_status?: string
+          p_tag_id?: string
+        }
+        Returns: {
+          birthday: string
+          client_number: number
+          email: string
+          file_incomplete: boolean
+          first_name: string
+          id: string
+          is_archived: boolean
+          is_banned: boolean
+          last_name: string
+          mobile_e164: string
+          primary_professional_id: string
+          rate_variant: string
+          sort_first: string
+          sort_last: string
+          special_agreement: boolean
+          tag_ids: string[]
+          tax_exempt: boolean
+        }[]
+      }
+      list_demande_propositions: {
+        Args: { p_demande_id: string }
+        Returns: {
+          accepted_starts_at: string
+          decline_reason: string
+          expires_at: string
+          id: string
+          mode: string
+          professional_id: string
+          professional_name: string
+          proposed_at: string
+          proposed_by_name: string
+          responded_at: string
+          response: string
+          service_name: string
+          slots: Json
+        }[]
+      }
+      list_demandes: {
+        Args: {
+          p_assigned?: string
+          p_flags?: string[]
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_view?: string
+        }
+        Returns: {
+          assigned_name: string
+          assigned_to: string
+          beneficiary: string
+          channel: string
+          client_id: string
+          client_number: number
+          contact_attempts: number
+          first_contact_at: string
+          handled_at: string
+          handled_by: string
+          handled_by_name: string
+          id: string
+          is_urgent: boolean
+          last_contact_at: string
+          last_outcome: string
+          motif_count: number
+          next_contact_at: string
+          next_task_due: string
+          no_answer: boolean
+          open_tasks: number
+          person_name: string
+          promise: string
+          received_at: string
+          reference: string
+          state: string
+          waiting_hours: number
+        }[]
+      }
+      list_discovery_calls: {
+        Args: { p_from: string; p_overdue?: boolean; p_to: string }
+        Returns: {
+          assigned_name: string
+          assigned_to: string
+          booked_online: boolean
+          demande_id: string
+          demande_state: string
+          done_at: string
+          done_by_name: string
+          due_at: string
+          is_urgent: boolean
+          language: string
+          outcome: string
+          person_name: string
+          phone_e164: string
+          reference: string
+          state: string
+          task_id: string
         }[]
       }
       list_document_template_versions: {
@@ -10482,6 +12084,17 @@ export type Database = {
         Returns: string[]
       }
       list_professional_submissions: { Args: { p_id: string }; Returns: Json }
+      list_professional_video_status: {
+        Args: never
+        Returns: {
+          fixed_url: string
+          professional_id: string
+          zoom_connected_at: string
+          zoom_email: string
+          zoom_reconnect_reason: string
+          zoom_state: string
+        }[]
+      }
       list_professionals: {
         Args: {
           p_accepting_new_clients?: boolean
@@ -10714,6 +12327,47 @@ export type Database = {
           title: string
         }[]
       }
+      list_waitlist: {
+        Args: {
+          p_demande_id?: string
+          p_professional_id?: string
+          p_states?: string[]
+          p_title_id?: string
+        }
+        Returns: {
+          bridge_name: string
+          bridge_professional_id: string
+          client_id: string
+          client_number: number
+          consent_state: string
+          demande_id: string
+          exit_reason: string
+          exited_at: string
+          fee_status: string
+          fee_waived_reason: string
+          followup_unanswered: boolean
+          id: string
+          last_contact_at: string
+          list_size: number
+          next_contact_at: string
+          pending_offer: boolean
+          person_name: string
+          priority: string
+          priority_reason: string
+          rank: number
+          reference: string
+          registered_at: string
+          state: string
+          target_id: string
+          target_kind: string
+          target_name: string
+          waited_days: number
+        }[]
+      }
+      list_zoom_connections_to_refresh_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: string[]
+      }
       log_demande_contact: {
         Args: {
           p_channel: string
@@ -10722,6 +12376,15 @@ export type Database = {
           p_outcome: string
         }
         Returns: number
+      }
+      log_waitlist_contact: {
+        Args: {
+          p_id: string
+          p_kind: string
+          p_next_contact_at?: string
+          p_outcome: string
+        }
+        Returns: undefined
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_email_failed: {
@@ -10769,12 +12432,29 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_video_link_emailed_for_service: {
+        Args: { p_appointment_id: string; p_join_url: string; p_org_id: string }
+        Returns: undefined
+      }
+      mark_waitlist_followup_sent_for_service: {
+        Args: { p_entry_id: string; p_org_id: string; p_sent: boolean }
+        Returns: undefined
+      }
+      mark_zoom_needs_reconnect_for_service: {
+        Args: {
+          p_connected_at: string
+          p_connection_id: string
+          p_org_id: string
+          p_reason: string
+        }
+        Returns: boolean
+      }
       match_qbo_customers: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: number
       }
       merge_clients: {
-        Args: { p_keep: string; p_merge: string }
+        Args: { p_keep: string; p_merge: string; p_take?: string[] }
         Returns: string
       }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
@@ -10785,6 +12465,15 @@ export type Database = {
       module_open_to_all_for_org: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
+      }
+      move_appointment: {
+        Args: {
+          p_id: string
+          p_outside_availability_reason?: string
+          p_professional_id?: string
+          p_starts_at: string
+        }
+        Returns: undefined
       }
       open_client_consent_for_service: {
         Args: {
@@ -10799,6 +12488,10 @@ export type Database = {
         Returns: Json
       }
       pii_health_check: { Args: never; Returns: boolean }
+      prepare_appointment_message_for_service: {
+        Args: { p_message_id: string; p_org_id: string; p_token_hash: string }
+        Returns: Json
+      }
       prepare_client_consent_request_for_service: {
         Args: {
           p_actor: string
@@ -10835,6 +12528,37 @@ export type Database = {
           p_idempotency_key: string
         }
         Returns: Json
+      }
+      prepare_waitlist_followup_for_service: {
+        Args: { p_entry_id: string; p_org_id: string; p_token_hash: string }
+        Returns: Json
+      }
+      preview_series: {
+        Args: {
+          p_count?: number
+          p_first_starts_at: string
+          p_interval_weeks: number
+          p_professional_id: string
+          p_service_id: string
+          p_until?: string
+          p_weekdays: number[]
+        }
+        Returns: {
+          conflict: string
+          ends_at: string
+          occurrence: number
+          starts_at: string
+        }[]
+      }
+      proposition_services: {
+        Args: { p_professional_id: string }
+        Returns: {
+          code: number
+          duration_minutes: number
+          for_two: boolean
+          id: string
+          name: string
+        }[]
       }
       prune_qbo_customers: {
         Args: { p_org_id: string; p_sync_started_at: string }
@@ -10954,6 +12678,15 @@ export type Database = {
           object_path: string
         }[]
       }
+      register_waitlist: {
+        Args: {
+          p_demande_id: string
+          p_priority?: string
+          p_priority_reason?: string
+          p_targets: Json
+        }
+        Returns: string[]
+      }
       reissue_professional_invitation_for_service: {
         Args: { p_id: string; p_org: string; p_token_hash: string }
         Returns: Json
@@ -10973,6 +12706,10 @@ export type Database = {
       }
       release_sms_provider_lock: {
         Args: { p_org_id: string; p_owner: string }
+        Returns: undefined
+      }
+      remove_availability_exception: {
+        Args: { p_id: string }
         Returns: undefined
       }
       remove_client_relation: {
@@ -11011,12 +12748,24 @@ export type Database = {
         Args: { p_id: string; p_sections: string[] }
         Returns: Json
       }
+      reschedule_demande_task: {
+        Args: { p_demande_id: string; p_due_at: string; p_task_id: string }
+        Returns: undefined
+      }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
       reset_mail_history: {
         Args: { p_connection_id: string; p_org_id: string; p_token?: string }
         Returns: boolean
       }
+      resolve_appointment_confirm_link: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
       resolve_client_consent_link: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
+      resolve_discovery_call_link: {
         Args: { p_link_id: string }
         Returns: Json
       }
@@ -11024,7 +12773,12 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: Json
       }
+      resolve_proposition_link: { Args: { p_link_id: string }; Returns: Json }
       resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
+      resolve_waitlist_followup_link: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
       restore_professional_invitation_for_service: {
         Args: {
           p_id: string
@@ -11033,6 +12787,10 @@ export type Database = {
           p_previous_link_id: string
         }
         Returns: boolean
+      }
+      retry_appointment_video: {
+        Args: { p_appointment_id: string }
+        Returns: undefined
       }
       reveal_bank_account_number: { Args: never; Returns: string }
       reveal_professional_private: {
@@ -11223,6 +12981,48 @@ export type Database = {
           title_label: string
         }[]
       }
+      set_appointment_details: {
+        Args: {
+          p_client_message: string
+          p_id: string
+          p_internal_note: string
+          p_mode: string
+        }
+        Returns: undefined
+      }
+      set_appointment_presence: {
+        Args: {
+          p_appointment_id: string
+          p_client_id: string
+          p_presence: string
+        }
+        Returns: undefined
+      }
+      set_appointment_settings: {
+        Args: {
+          p_business_days: number[]
+          p_business_end: string
+          p_business_start: string
+          p_reminder_business_days: number
+          p_reminder_local_hour: number
+        }
+        Returns: undefined
+      }
+      set_availability_rule: {
+        Args: {
+          p_end_time: string
+          p_id: string
+          p_overflow_allowed: boolean
+          p_professional_id: string
+          p_service_ids: string[]
+          p_start_time: string
+          p_valid_from: string
+          p_valid_until: string
+          p_visible_to_clients: boolean
+          p_weekday: number
+        }
+        Returns: string
+      }
       set_bank_details: {
         Args: {
           p_account_number: string
@@ -11231,6 +13031,10 @@ export type Database = {
           p_transit_number: string
         }
         Returns: undefined
+      }
+      set_client_consent_clauses: {
+        Args: { p_clauses: Json; p_version_id: string }
+        Returns: Json
       }
       set_client_consent_rule: {
         Args: {
@@ -11279,6 +13083,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_demande_handler: {
+        Args: { p_expected?: string; p_id: string; p_take: boolean }
+        Returns: undefined
+      }
       set_demande_note: {
         Args: { p_id: string; p_note: string }
         Returns: undefined
@@ -11295,6 +13103,14 @@ export type Database = {
           p_state: string
         }
         Returns: undefined
+      }
+      set_demandes_booking_settings: {
+        Args: { p_settings: Json }
+        Returns: Json
+      }
+      set_demandes_waitlist_settings: {
+        Args: { p_settings: Json }
+        Returns: Json
       }
       set_document_template_active: {
         Args: { p_active: boolean; p_id: string }
@@ -11439,6 +13255,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_professional_video_link: {
+        Args: { p_professional_id: string; p_url: string }
+        Returns: undefined
+      }
       set_professionals_reference_active: {
         Args: { p_active: boolean; p_id: string; p_kind: string }
         Returns: undefined
@@ -11522,6 +13342,21 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
       }
+      set_waitlist_fee: {
+        Args: { p_id: string; p_reason?: string; p_status: string }
+        Returns: undefined
+      }
+      set_zoom_tokens_for_service: {
+        Args: {
+          p_access_token: string
+          p_access_token_expires_at: string
+          p_connected_at: string
+          p_connection_id: string
+          p_org_id: string
+          p_refresh_token: string
+        }
+        Returns: boolean
+      }
       sms_event_known_for_service: {
         Args: {
           p_org_id: string
@@ -11586,6 +13421,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      store_zoom_connection: {
+        Args: {
+          p_access_token: string
+          p_access_token_expires_at: string
+          p_account_email: string
+          p_actor: string
+          p_external_account_id: string
+          p_external_user_id: string
+          p_org_id: string
+          p_refresh_token: string
+          p_scopes: string[]
+        }
+        Returns: string
+      }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
       unarchive_client: { Args: { p_id: string }; Returns: undefined }
@@ -11606,6 +13455,10 @@ export type Database = {
           p_signers: Json
           p_variables: Json
         }
+        Returns: undefined
+      }
+      update_waitlist_entry: {
+        Args: { p_id: string; p_patch: Json }
         Returns: undefined
       }
       upsert_client_insurance: {
@@ -11640,8 +13493,42 @@ export type Database = {
         Args: { p_doc_id: string; p_expires_on?: string }
         Returns: undefined
       }
+      video_link_email_for_service: {
+        Args: { p_appointment_id: string; p_org_id: string }
+        Returns: {
+          clinic_name: string
+          email: string
+          first_name: string
+          join_url: string
+          language: string
+          professional_name: string
+          starts_at: string
+        }[]
+      }
+      waitlist_followup_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: Json
+      }
+      waitlist_lists: {
+        Args: never
+        Returns: {
+          average_wait_days: number
+          incomplete_count: number
+          name: string
+          offered_count: number
+          open_count: number
+          target_id: string
+          target_kind: string
+          to_call_count: number
+        }[]
+      }
       withdraw_professional_image_consent: {
         Args: { p_id: string; p_note?: string; p_withdrawn_on: string }
+        Returns: number
+      }
+      withdraw_proposition: { Args: { p_id: string }; Returns: undefined }
+      zoom_deauthorized_for_service: {
+        Args: { p_external_user_id: string; p_org_id: string }
         Returns: number
       }
     }

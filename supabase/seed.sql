@@ -13,7 +13,7 @@
 --   adjointe@mana.test     role admin_assistant
 --   provider@mana.test     role provider
 --
--- Organization: « Clinique MANA (local) », modules `professionals`, `services` and `clients` enabled.
+-- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes` and `appointments` enabled.
 
 select set_config('app.audit_source', 'seed', false);
 
@@ -70,7 +70,19 @@ insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'professionals', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'services', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'clients', true, '11111111-1111-1111-1111-111111111111'),
-  ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111');
+  ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111'),
+  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111');
+
+-- Local discovery-call booking (Demandes D3c): open, every day 8 h – 20 h, 30-minute calls, two at
+-- once, an hour's notice, two weeks ahead, so /appel-decouverte?clinique=00000000-0000-0000-0000-000000000001
+-- always offers slots locally (e2e/booking.spec.ts).
+insert into public.org_module_settings (org_id, module_key, settings, updated_by)
+values ('00000000-0000-0000-0000-000000000001', 'demandes',
+        jsonb_build_object('booking', jsonb_build_object(
+          'enabled', true, 'slot_minutes', 30, 'notice_hours', 1, 'horizon_days', 14, 'capacity', 2,
+          'weekly', (select jsonb_agg(jsonb_build_object('day', d, 'start', '08:00', 'end', '20:00') order by d) from generate_series(1, 7) d))),
+        '11111111-1111-1111-1111-111111111111')
+on conflict (org_id, module_key) do update set settings = public.org_module_settings.settings || excluded.settings;
 
 -- Local Vault secrets for pg_net → edge functions (fake values; staging gets real ones, plan « Mise en service »).
 select vault.create_secret('http://supabase_kong_clinique-mana:8000', 'project_url', 'Local: Kong as seen from the DB container');
@@ -469,6 +481,37 @@ begin
 end;
 $seed$;
 
+-- Clients (fictional, local only): a few files to see the list, a record with relations and
+-- payers, and « Mes clients » for provider@mana.test (Félix, professional n° 4), written through the
+-- RPCs as the admin, as the app writes them.
+do $clients$
+declare
+  v_alice uuid; v_marc uuid; v_lea uuid; v_paul uuid; v_ines uuid;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
+  v_alice := public.create_client(jsonb_build_object('first_name', 'Alice', 'last_name', 'Tremblay-Fictive', 'email', 'alice.fictive@exemple.test',
+    'mobile_e164', '514 555-0201', 'birthday', '1990-03-04', 'sex', 'female', 'city', 'Montréal', 'province', 'QC', 'postal_code', 'H2X 1A1',
+    'primary_professional_id', '5eed0000-0000-0000-0000-000000000004', 'rate_variant', 'student'));
+  v_marc := public.create_client(jsonb_build_object('first_name', 'Marc', 'last_name', 'Gagnon-Fictif', 'email', 'marc.fictif@exemple.test',
+    'mobile_e164', '438 555-0202', 'birthday', '1978-11-20', 'sex', 'male', 'reminders_by_sms', false));
+  v_lea := public.create_client(jsonb_build_object('first_name', 'Léa', 'last_name', 'Gagnon-Fictive', 'birthday', '2012-06-01', 'sex', 'female',
+    'mobile_e164', '438 555-0203', 'reminders_by_email', false, 'shared_custody', true,
+    'primary_professional_id', '5eed0000-0000-0000-0000-000000000004'));
+  v_paul := public.create_client(jsonb_build_object('first_name', 'Paule', 'last_name', 'Roy-Fictive', 'email', 'paule.fictive@exemple.test',
+    'birthday', '1980-02-14', 'sex', 'female'));
+  v_ines := public.create_client(jsonb_build_object('first_name', 'Inès', 'last_name', 'Côté-Fictive', 'email', 'ines.fictive@exemple.test',
+    'mobile_e164', '819 555-0204', 'birthday', '1995-09-09', 'tax_exempt', true, 'special_agreement', true,
+    'admin_notes', 'Préfère les rendez-vous en soirée (note fictive).'));
+  perform public.set_client_relation(v_lea, v_marc, 'parent', '{"main_contact": true, "manages_appointments": true, "receives_communications": true, "receives_invoices": true}', '{}');
+  perform public.set_client_relation(v_lea, v_paul, 'parent', '{"manages_appointments": true, "receives_invoices": true}', '{}');
+  perform public.save_client_payer(v_ines, null, 'ivac', null, 'IVAC-FICTIF-001', 9450, 20, null, null, null, null);
+  perform public.upsert_client_insurance(v_alice, 1, 'Assurances Fictives inc.', 'POL-0001', 'CERT-0001', 'self', null);
+  perform public.save_client_tag(null, 'Atelier');
+  perform public.save_client_tag(null, 'Visio');
+  perform set_config('request.jwt.claims', '', false);
+end;
+$clients$;
+
 -- Local clients (C5a): one fictitious adult client with a Mailpit address, so the consents can be
 -- sent and signed locally (e2e/consents.spec.ts) before the client screens (C3) exist.
 insert into public.clients (id, org_id, first_name, last_name, birthday, email, language, created_by)
@@ -506,3 +549,48 @@ update public.document_template_versions v
  where t.id = v.template_id and v.status = 'draft'
    and t.org_id = '00000000-0000-0000-0000-000000000001'
    and t.key in ('clients.consent_general_fr', 'clients.consent_waitlist_fr');
+
+-- Rendez-vous (fictional, local only): Félix (professional n° 4, provider@mana.test) is available
+-- Monday to Friday 9:00–17:00; next week holds three appointments with the fictional clients, so
+-- « Agenda » shows something (e2e/appointments.spec.ts), written through the RPCs as the admin.
+do $appointments$
+declare
+  v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
+  v_monday date := (date_trunc('week', now() at time zone 'America/Toronto'))::date + 7;
+  v_service uuid;
+  v_alice uuid; v_lea uuid; v_marc uuid;
+  d int;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
+  for d in 1 .. 5 loop
+    perform public.set_availability_rule(null, v_pro, d, '09:00', '17:00', '{}', true, false, '2026-01-01', null);
+  end loop;
+  select s.id into v_service
+    from public.services_catalog s, private.professional_booking_facts('00000000-0000-0000-0000-000000000001', v_pro) f
+   where s.org_id = '00000000-0000-0000-0000-000000000001' and s.duration_minutes = 50
+     and (pg_catalog.cardinality(s.title_ids) = 0 or s.title_ids && f.title_ids)
+   order by s.code limit 1;
+  select id into v_alice from public.clients where last_name = 'Tremblay-Fictive';
+  select id into v_lea from public.clients where last_name = 'Gagnon-Fictive';
+  select id into v_marc from public.clients where last_name = 'Gagnon-Fictif';
+  perform public.book_appointment(v_pro, v_service, (v_monday + time '10:00') at time zone 'America/Toronto', array[v_alice]);
+  perform public.book_appointment(v_pro, v_service, (v_monday + 1 + time '14:00') at time zone 'America/Toronto', array[v_lea, v_marc],
+                                  'video', null, 'Léa vient avec son père.');
+  perform public.book_appointment(v_pro, v_service, (v_monday + 3 + time '09:00') at time zone 'America/Toronto', array[v_marc], 'phone');
+  perform set_config('request.jwt.claims', '', false);
+end;
+$appointments$;
+
+-- Local video links (Rendez-vous RZ): the fake Zoom's app and webhook secret token
+-- (`npm run fake:zoom`, port 55394; _shared/testing/fake-zoom.ts FAKE_ZOOM_CLIENT_ID / _SECRET; the
+-- functions reach it through ZOOM_OAUTH_BASE_URL / ZOOM_API_BASE_URL), stored as set_org_secret
+-- stores them. Félix Gauthier (provider@mana.test, professional n° 4) connects his Zoom in
+-- « Vidéoconférence ».
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'zoom_client_id',
+   vault.create_secret('local-dev-zoom-client-id', 'org:00000000-0000-0000-0000-000000000001:zoom_client_id')),
+  ('00000000-0000-0000-0000-000000000001', 'zoom_client_secret',
+   vault.create_secret('local-dev-zoom-client-secret', 'org:00000000-0000-0000-0000-000000000001:zoom_client_secret')),
+  ('00000000-0000-0000-0000-000000000001', 'zoom_webhook_secret',
+   vault.create_secret('local-dev-zoom-webhook-secret', 'org:00000000-0000-0000-0000-000000000001:zoom_webhook_secret'));

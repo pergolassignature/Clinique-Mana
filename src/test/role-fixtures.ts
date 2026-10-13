@@ -7,7 +7,7 @@ import { testAccess } from './contexts'
  * 20261008015825_core_editable_roles, 20261008033613_core_shared_permissions,
  * 20261008133511_professionals_reference_data, 20261008191219_professionals_onboarding,
  * 20261009000253_professionals_documents, 20261009030158_professionals_contracts, 20261012184103_services_module, 20261012184051_communications_module, 20261012203302_communications_sms, 20261012213428_clients_module,
- * 20261012223803_demandes_module, 20261013035955_billing_quickbooks), which
+ * 20261012223803_demandes_module, 20261013055753_appointments_module, 20261013101152_billing_quickbooks), which
  * every clinic starts from (org_role_permissions). Update it with the migrations.
  */
 export const ROLE_PERMISSIONS = {
@@ -51,6 +51,11 @@ export const ROLE_PERMISSIONS = {
     'demandes.notes',
     'demandes.waitlist',
     'demandes.self',
+    'appointments.view',
+    'appointments.manage',
+    'appointments.self',
+    'appointments.balance_override',
+    'appointments.settings',
     'billing.settings',
   ],
   admin_assistant: [
@@ -70,6 +75,9 @@ export const ROLE_PERMISSIONS = {
     'demandes.manage',
     'demandes.notes',
     'demandes.waitlist',
+    'appointments.view',
+    'appointments.manage',
+    'appointments.balance_override',
   ],
   counselor: [
     'professionals.view',
@@ -81,8 +89,10 @@ export const ROLE_PERMISSIONS = {
     'demandes.manage',
     'demandes.notes',
     'demandes.waitlist',
+    'appointments.view',
+    'appointments.manage',
   ],
-  provider: ['professionals.self', 'services.view', 'clients.self', 'demandes.self'],
+  provider: ['professionals.self', 'services.view', 'clients.self', 'demandes.self', 'appointments.self'],
 } as const satisfies Record<string, readonly string[]>
 
 export type FixtureRole = keyof typeof ROLE_PERMISSIONS

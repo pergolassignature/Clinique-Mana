@@ -19,7 +19,7 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array['EXEC
     ('upsert_client_insurance', array['uuid', 'integer', 'text', 'text', 'text', 'text', 'text']), ('delete_client_insurance', array['uuid', 'integer']),
     ('save_client_payer', array['uuid', 'uuid', 'text', 'text', 'text', 'integer', 'integer', 'integer', 'date', 'date', 'text']),
     ('end_client_payer', array['uuid']), ('set_client_tags', array['uuid', 'uuid[]']), ('save_client_tag', array['uuid', 'text']),
-    ('set_client_tag_active', array['uuid', 'boolean']), ('merge_clients', array['uuid', 'uuid']), ('search_clients', array['text', 'integer']),
+    ('set_client_tag_active', array['uuid', 'boolean']), ('merge_clients', array['uuid', 'uuid', 'text[]']), ('search_clients', array['text', 'integer']),
     ('get_client_summary', array['uuid']), ('export_client_privacy', array['uuid']), ('anonymize_client', array['uuid'])
   ) as f(name, args);
 select function_privs_are('public', 'create_client', array['jsonb', 'boolean'], 'anon', array[]::text[], 'anon cannot create a client');
@@ -36,7 +36,7 @@ select is_empty($$ select h.function_name from public.client_anonymize_handlers 
                     where to_regprocedure(h.function_name || '(uuid)') is null
                        or (select p.prorettype from pg_proc p where p.oid = to_regprocedure(h.function_name || '(uuid)')) <> 'integer'::regtype $$,
   'every anonymisation handler is a function (uuid) → int');
-select results_eq($$ select module_key from public.client_merge_handlers order by 1 $$, array['billing', 'clients', 'demandes', 'professionals'], 'merge handlers: Facturation (QuickBooks), the consents (Clients), Demandes and Professionnels');
+select results_eq($$ select module_key from public.client_merge_handlers order by 1 $$, array['appointments', 'billing', 'clients', 'demandes', 'professionals'], 'merge handlers: Rendez-vous, Facturation (QuickBooks), the consents (Clients), Demandes and Professionnels');
 
 -- Fixtures: clinic A (admin, adjointe, conseillère, provider linked to P1), clinic B (admin).
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -106,7 +106,7 @@ select lives_ok($$ select public.update_client(current_setting('test.alice')::uu
   'first_name', 'Alice', 'last_name', 'Tremblay', 'email', 'alice@exemple.test', 'mobile_e164', '+15145550101', 'birthday', '1990-03-04',
   'rate_variant', 'student', 'tax_exempt', true, 'primary_professional_id', 'c0000000-0000-0000-0000-000000000002')) $$, 'update');
 select results_eq($$ select rate_variant, tax_exempt, primary_professional_id, postal_code from public.clients where id = current_setting('test.alice')::uuid $$,
-  $$ values ('student', true, 'c0000000-0000-0000-0000-000000000002'::uuid, null::text) $$, '… every field replaced');
+  $$ values ('student', true, 'c0000000-0000-0000-0000-000000000002'::uuid, 'H2X 1A1') $$, '… the sent fields changed, the others kept (C3)');
 select is((select count(*)::int from public.client_notes where client_id = current_setting('test.alice')::uuid), 1, '… the notes kept when the form leaves them out');
 select is((select count(*)::int from public.client_professional_links where client_id = current_setting('test.alice')::uuid), 2, '… the new primary professional linked too');
 select lives_ok($$ select public.set_client_notes(current_setting('test.alice')::uuid, null, 'Paiement en deux fois.') $$, 'set_client_notes');

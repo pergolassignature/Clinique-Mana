@@ -1,9 +1,13 @@
-import { FileCheck } from 'lucide-react'
+import { Contact, FileCheck, UsersRound } from 'lucide-react'
+import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
+
+/** « Mes clients »: an account linked to a professional file (an admin holds clients.self without one). */
+const hasProfessionalFile = (access: Access) => access.has_professional_file
 
 /**
  * `/consentement#t=…` (C5a): where a consent request email lands. Public, outside RequireAuth;
@@ -14,20 +18,41 @@ export const consentPublicPage = lazyPage(() => import('./pages/public/ConsentPu
 /**
  * Module Clients (plan §6): the clinic's client files, their relations and rights, insurance,
  * payers (IVAC, PAE), tags, the professionals who may see them; duplicates, merge and Loi 25.
- * C1 is the schema; the list, the record and « Mes clients » come with C3; C5a the consents
- * (« Consentements à obtenir », Paramètres → Consentements, the public page). Depends on
- * Professionnels (primary professional, who may see a client).
+ * Screens: « Clients » (the list, « Nouveau client », the record, C3) for the staff, « Mes
+ * clients » for a professional; the consents (C5a: « Consentements à obtenir », Paramètres →
+ * Consentements, the public page). Depends on Professionnels (primary professional, who may see
+ * a client).
  */
 export const clientsManifest: ModuleManifest = {
   key: 'clients',
   labelKey: 'modules.clients.name',
   dependsOn: ['professionals'],
-  nav: [{ path: '/clients/consentements', labelKey: 'modules.clients.consents.nav', icon: FileCheck, permission: 'clients.view', order: 16 }],
+  nav: [
+    { path: '/clients', labelKey: 'modules.clients.name', icon: UsersRound, permission: 'clients.view', order: 15 },
+    { path: '/clients/consentements', labelKey: 'modules.clients.consents.nav', icon: FileCheck, permission: 'clients.view', order: 16 },
+    { path: '/mes-clients', labelKey: 'modules.clients.mine.title', icon: Contact, permission: 'clients.self', shownWhen: hasProfessionalFile, order: 7 },
+  ],
   routes: [
+    { path: 'clients', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientsListPage'), 'ClientsListPage') },
     {
       path: 'clients/consentements',
       permission: 'clients.view',
       component: lazyPage(() => import('./pages/ConsentsToObtainPage'), 'ConsentsToObtainPage'),
+    },
+    // The tab is a URL segment: apercu, informations… (RECORD_TABS)
+    { path: 'clients/:id/:onglet?', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientRecordPage'), 'ClientRecordPage') },
+    { path: 'mes-clients', permission: 'clients.self', component: lazyPage(() => import('./pages/MyClientsPage'), 'MyClientsPage') },
+  ],
+  // The global search (⌘K, C4): name, email, number, phone. Staff who read the files only: a
+  // professional (clients.self) has « Mes clients », never a record.
+  search: [
+    {
+      id: 'clients',
+      labelKey: 'modules.clients.name',
+      icon: UsersRound,
+      permission: 'clients.view',
+      minChars: 2,
+      load: () => import('./search').then((m) => m.searchClientFiles),
     },
   ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.

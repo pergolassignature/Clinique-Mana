@@ -397,6 +397,75 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 3_600,
   },
+  /** `demandes-book-call` « page »: the booking page's slots, per IP (a person reloads a few times). */
+  bookingPageIp: {
+    bucket: 'demandes.booking_page_ip',
+    max: 60,
+    windowSeconds: 600,
+  },
+  /** `demandes-book-call` « book », per IP, before any write: a family may book two calls, a bot is cut early. */
+  bookingIp: {
+    bucket: 'demandes.booking_ip',
+    max: 5,
+    windowSeconds: 3_600,
+  },
+  /** One booking per solved check (its nonce): a solved check is never replayed. */
+  bookingChallenge: {
+    bucket: 'demandes.booking_challenge',
+    max: 1,
+    windowSeconds: 3_600,
+  },
+  /** `demandes-book-call` « cancel », per IP, before any lookup. */
+  bookingCancelIp: {
+    bucket: 'demandes.booking_cancel_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
+  /** `demandes-waitlist-answer`, per IP, before any lookup (one answer per link; a few retries). */
+  waitlistAnswerIp: {
+    bucket: 'demandes.waitlist_answer_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
+  /** `demandes-propose`, per caller: a counselor proposes a few times a day, a loop is cut early. */
+  propositionUser: {
+    bucket: 'demandes.proposition_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /** `demandes-proposition-answer`, per IP, before any lookup (a person may try another slot). */
+  propositionAnswerIp: {
+    bucket: 'demandes.proposition_answer_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
+  /**
+   * `zoom-connect` (« Connecter mon Zoom », « Déconnecter »), per caller:
+   * each start issues a signed state; each disconnection revokes a grant.
+   */
+  zoomConnectUser: {
+    bucket: 'zoom.connect_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /** `zoom-callback` (the code exchange), per caller: each call reaches Zoom's token endpoint. */
+  zoomCallbackUser: {
+    bucket: 'zoom.callback_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /** `zoom-deauthorize`, per IP, before the org's secret is read (anyone can post there). */
+  zoomWebhookIp: {
+    bucket: 'webhooks.zoom_ip',
+    max: 120,
+    windowSeconds: 60,
+  },
+  /** `appointments-confirm` (« Confirmer ma présence »), per IP, before any lookup: one use per link, a few retries. */
+  appointmentConfirmIp: {
+    bucket: 'appointments.confirm_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
   /** `qbo-connect` (« Connecter QuickBooks », « Déconnecter »), per caller. */
   qboConnectUser: { bucket: 'qbo.connect_user', max: 20, windowSeconds: 3_600 },
   /** `qbo-callback` (the code exchange), per caller: each call reaches Intuit's token endpoint. */

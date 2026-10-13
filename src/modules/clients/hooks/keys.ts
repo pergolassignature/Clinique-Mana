@@ -1,5 +1,23 @@
+import type { ClientsPageQuery } from '../api/clients'
+
 /**
- * React Query keys of Clients. C5a (consents) first; C2 / C3 add the client lists and records.
+ * The module's query keys (files). Every write invalidates `all` (the list, the records, « Mes
+ * clients » and the reference lists are cheap to refetch at the clinic's size), except the live
+ * duplicate panel, which is never cached between keystrokes.
+ */
+export const clientsKeys = {
+  all: ['clients'] as const,
+  list: (query: ClientsPageQuery) => [...clientsKeys.all, 'list', query] as const,
+  record: (id: string) => [...clientsKeys.all, 'record', id] as const,
+  reference: () => [...clientsKeys.all, 'reference'] as const,
+  mine: () => [...clientsKeys.all, 'mine'] as const,
+  duplicates: (key: string) => [...clientsKeys.all, 'duplicates', key] as const,
+  search: (query: string) => [...clientsKeys.all, 'search', query] as const,
+  history: (id: string) => [...clientsKeys.all, 'history', id] as const,
+}
+
+/**
+ * React Query keys of the consents (C5a), under `clientsKeys.all` (a file's write refetches them too).
  *
  * | Change                                          | Invalidated                                  |
  * |-------------------------------------------------|----------------------------------------------|
@@ -16,4 +34,6 @@ export const consentKeys = {
   templates: () => [...consentKeys.all, 'templates'] as const,
   toObtain: () => [...consentKeys.all, 'to-obtain'] as const,
   client: (clientId: string) => [...consentKeys.all, 'client', clientId] as const,
+  /** A consent text version's clauses (CC-13). */
+  clauses: (versionId: string) => [...consentKeys.all, 'clauses', versionId] as const,
 }

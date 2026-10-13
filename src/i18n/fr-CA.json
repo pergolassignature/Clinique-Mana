@@ -440,6 +440,83 @@
         "openInPage": "Open it as a full page",
         "close": "Close the signing page"
       }
+    },
+    "templates": {
+      "editor": {
+        "loadError": "Les versions du modèle n'ont pas pu être chargées.",
+        "unreadable": "Cette version n'a pas la forme attendue : elle ne peut pas être affichée ici.",
+        "versions": {
+          "title": "Versions",
+          "description": "Une seule version est publiée à la fois; un brouillon se modifie jusqu'à sa publication.",
+          "draft": "Version {version} · brouillon, modifié le {date}",
+          "published": "Version {version} · publiée le {date}",
+          "archived": "Version {version} · retirée le {date}",
+          "inUse": "Utilisée pour les envois",
+          "editing": "En modification"
+        },
+        "newVersion": "Nouvelle version",
+        "newVersionFrom": "Nouvelle version (copie de la version {version})",
+        "discard": "Supprimer le brouillon {version}",
+        "save": "Enregistrer le brouillon",
+        "saving": "Enregistrement…",
+        "publish": "Publier la version {version}",
+        "publishBlocked": {
+          "unsaved": "Enregistrez le brouillon avant de le publier."
+        },
+        "unknownPlaceholders": "Ces variables n'existent pas : {names}. Utilisez celles de la liste « Variables ».",
+        "form": {
+          "titleDraft": "Brouillon de la version {version}",
+          "titlePublished": "Version {version} publiée (lecture seule)",
+          "titleArchived": "Version {version} retirée (lecture seule)",
+          "descriptionDraft": "Modifiez le texte, enregistrez, vérifiez l'aperçu, puis publiez.",
+          "descriptionReadOnly": "Une version publiée ou retirée ne change plus. Créez une nouvelle version pour modifier le texte.",
+          "title": "Titre du document",
+          "header": "En-tête des pages",
+          "headerHelp": "Affiché en haut de chaque page.",
+          "footer": "Pied de page",
+          "footerHelp": "Affiché au bas de chaque page, avant « Page x de y ».",
+          "initialsOn": "Oui",
+          "initialsOff": "Non (signature et date seulement)",
+          "body": "Texte du document",
+          "bodyHelp": "Une ligne vide sépare les paragraphes. # Titre, ## Sous-titre, ### Intertitre; - pour une liste, 1. pour une liste numérotée; | a | b | pour un tableau; --- pour un saut de page; **gras**. La page des signatures est ajoutée à la fin.",
+          "emailSubject": "Objet du courriel de signature",
+          "emailSubjectHelp": "Envoyé par Documenso, en français, avec le lien de signature.",
+          "emailMessage": "Message du courriel de signature"
+        },
+        "variables": {
+          "title": "Variables",
+          "description": "Copiez une variable telle quelle dans le texte : elle est remplacée par la valeur du dossier ou des paramètres au moment de l'envoi.",
+          "markup": "Une valeur requise vide empêche l'envoi, avec le nom de l'information à compléter."
+        },
+        "preview": {
+          "title": "Aperçu",
+          "description": "Avec des valeurs d'exemple. Le PDF envoyé suit la même structure, mis en page en format lettre.",
+          "frameTitle": "Aperçu du document",
+          "initials": "Initiales",
+          "signature": "Signature",
+          "date": "Date",
+          "page": "Page 1 de 7"
+        },
+        "confirm": {
+          "publish": {
+            "title": "Publier la version {version} ?",
+            "body": "Les prochains envois utiliseront cette version. Les documents déjà envoyés ne changent pas.",
+            "action": "Publier la version {version}"
+          },
+          "discard": {
+            "title": "Supprimer le brouillon {version} ?",
+            "body": "Les modifications de ce brouillon seront perdues. La version publiée ne change pas.",
+            "action": "Supprimer le brouillon"
+          }
+        },
+        "saveError": "Impossible d’enregistrer : réessayez."
+      },
+      "toasts": {
+        "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
+        "draftSaved": "Brouillon enregistré.",
+        "published": "Version publiée : les prochains envois l'utiliseront.",
+        "archived": "Version retirée."
+      }
     }
   },
   "address": {
@@ -3526,62 +3603,20 @@
             "link": "Modifier dans Paramètres → Signataire"
           },
           "editor": {
-            "loadError": "Les versions du modèle n'ont pas pu être chargées.",
-            "unreadable": "Cette version n'a pas la forme attendue : elle ne peut pas être affichée ici.",
-            "versions": {
-              "title": "Versions",
-              "description": "Une seule version est publiée à la fois; un brouillon se modifie jusqu'à sa publication.",
-              "draft": "Version {version} · brouillon, modifié le {date}",
-              "published": "Version {version} · publiée le {date}",
-              "archived": "Version {version} · retirée le {date}",
-              "inUse": "Utilisée pour les envois",
-              "editing": "En modification"
-            },
-            "newVersion": "Nouvelle version",
-            "newVersionFrom": "Nouvelle version (copie de la version {version})",
-            "discard": "Supprimer le brouillon {version}",
-            "save": "Enregistrer le brouillon",
-            "saving": "Enregistrement…",
-            "publish": "Publier la version {version}",
+            "annexeMissing": "Le tableau de l'Annexe A ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : il ne serait pas imprimé.",
+            "bannerNotice": "Ce brouillon commence par « {banner} ». Faites valider le texte par la direction, retirez cette ligne, enregistrez, puis publiez.",
             "publishBlocked": {
-              "unsaved": "Enregistrez le brouillon avant de le publier.",
               "banner": "Retirez la ligne de validation avant de publier : le texte doit d'abord être validé par la direction.",
               "annexe": "Ajoutez {placeholder} seul sur une ligne avant de publier : c'est là que s'imprime l'Annexe A."
             },
-            "bannerNotice": "Ce brouillon commence par « {banner} ». Faites valider le texte par la direction, retirez cette ligne, enregistrez, puis publiez.",
-            "unknownPlaceholders": "Ces variables n'existent pas : {names}. Utilisez celles de la liste « Variables ».",
-            "annexeMissing": "Le tableau de l'Annexe A ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : il ne serait pas imprimé.",
             "form": {
-              "titleDraft": "Brouillon de la version {version}",
-              "titlePublished": "Version {version} publiée (lecture seule)",
-              "titleArchived": "Version {version} retirée (lecture seule)",
-              "descriptionDraft": "Modifiez le texte, enregistrez, vérifiez l'aperçu, puis publiez.",
-              "descriptionReadOnly": "Une version publiée ou retirée ne change plus. Créez une nouvelle version pour modifier le texte.",
-              "title": "Titre du document",
-              "header": "En-tête des pages",
-              "headerHelp": "Affiché en haut de chaque page.",
-              "footer": "Pied de page",
-              "footerHelp": "Affiché au bas de chaque page, avant « Page x de y ».",
               "initials": "Initiales du professionnel sur chaque page",
-              "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page.",
-              "initialsOn": "Oui",
-              "initialsOff": "Non (signature et date seulement)",
-              "body": "Texte du document",
-              "bodyHelp": "Une ligne vide sépare les paragraphes. # Titre, ## Sous-titre, ### Intertitre; - pour une liste, 1. pour une liste numérotée; | a | b | pour un tableau; --- pour un saut de page; **gras**. La page des signatures est ajoutée à la fin.",
-              "emailSubject": "Objet du courriel de signature",
-              "emailSubjectHelp": "Envoyé par Documenso, en français, avec le lien de signature.",
-              "emailMessage": "Message du courriel de signature"
+              "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page."
             },
             "variables": {
-              "title": "Variables",
-              "description": "Copiez une variable telle quelle dans le texte : elle est remplacée par la valeur du dossier ou des paramètres au moment de l'envoi.",
-              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel.",
-              "markup": "Une valeur requise vide empêche l'envoi, avec le nom de l'information à compléter."
+              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel."
             },
             "preview": {
-              "title": "Aperçu",
-              "description": "Avec des valeurs d'exemple. Le PDF envoyé suit la même structure, mis en page en format lettre.",
-              "frameTitle": "Aperçu du document",
               "annexeCaption": "Exemple : les tableaux réels viennent de la grille de rémunération du professionnel.",
               "annexeColumns": {
                 "sessions": "Séances cumulées",
@@ -3593,22 +3628,6 @@
                 "first": "0 à 50 séances",
                 "second": "51 à 100 séances",
                 "last": "301 séances et plus"
-              },
-              "initials": "Initiales",
-              "signature": "Signature",
-              "date": "Date",
-              "page": "Page 1 de 7"
-            },
-            "confirm": {
-              "publish": {
-                "title": "Publier la version {version} ?",
-                "body": "Les prochains envois utiliseront cette version. Les documents déjà envoyés ne changent pas.",
-                "action": "Publier la version {version}"
-              },
-              "discard": {
-                "title": "Supprimer le brouillon {version} ?",
-                "body": "Les modifications de ce brouillon seront perdues. La version publiée ne change pas.",
-                "action": "Supprimer le brouillon"
               }
             }
           }
@@ -4292,11 +4311,7 @@
           "renew": "Nouveau contrat envoyé à {firstName}. Le contrat signé actuel reste en vigueur jusqu'à sa signature.",
           "resend": "Courriel de signature renvoyé à {firstName}.",
           "paperRecorded": "Contrat signé hors application ajouté au dossier.",
-          "paperReplaced": "Contrat remplacé : l'ancien est dans « Contrats précédents ».",
-          "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
-          "draftSaved": "Brouillon enregistré.",
-          "published": "Version publiée : les prochains envois l'utiliseront.",
-          "archived": "Version retirée."
+          "paperReplaced": "Contrat remplacé : l'ancien est dans « Contrats précédents »."
         },
         "errors": {
           "missingVariable": "Le contrat ne peut pas être préparé : « {label} » est vide. Complétez le dossier ou les paramètres, puis réessayez.",
@@ -5194,7 +5209,8 @@
           "client_consent_settings": "Réglages des consentements",
           "client_consent_requests": "Demandes de consentement",
           "client_consent_request_signers": "Signataires des demandes de consentement",
-          "client_consents": "Consentements signés"
+          "client_consents": "Consentements signés",
+          "client_consent_version_clauses": "Clauses des textes de consentement"
         },
         "fields": {
           "clients": {
@@ -5422,6 +5438,11 @@
             "withdrawn_at": "Retiré le",
             "withdrawn_by": "Retiré par",
             "withdrawal_note": "Note de retrait"
+          },
+          "client_consent_version_clauses": {
+            "version_id": "Version du texte",
+            "clauses": "Clauses",
+            "updated_by": "Modifié par"
           }
         },
         "values": {
@@ -5609,7 +5630,11 @@
             "english": "Anglais",
             "line": "{language} : {state}",
             "placeholder": "Texte provisoire : à remplacer par le texte validé avant de publier",
-            "editNote": "Les textes affichés sont provisoires. Ils se publient une fois remplacés par les textes validés par la direction."
+            "editNote": "Les textes affichés sont provisoires. Remplacez chacun par le texte validé par la direction (« Modifier le texte »), enregistrez, puis publiez-le.",
+            "edit": "Modifier le texte",
+            "view": "Voir le texte",
+            "editLabel": "Modifier le texte : {name}",
+            "viewLabel": "Voir le texte : {name}"
           },
           "rules": {
             "title": "Quand demander",
@@ -5645,6 +5670,45 @@
             "retentionHelp": "La politique décidée par la direction (texte libre). Rien n’est effacé automatiquement.",
             "invalid": "Indiquez un nombre entier dans les limites.",
             "retentionTooLong": "La politique tient en 500 caractères au plus."
+          },
+          "editor": {
+            "title": "Texte : {name}",
+            "help": "Modifiez le brouillon et enregistrez-le, puis publiez-le dans « Textes » : vous y choisissez qui doit signer de nouveau.",
+            "readOnlyHelp": "Lecture seule : seule une personne qui gère les clients peut modifier ce texte.",
+            "close": "Fermer le texte",
+            "loadError": "Impossible de charger ce texte.",
+            "bannerNotice": "Ce brouillon est encore le texte provisoire (« {banner} »). Remplacez-le par le texte validé par la direction et retirez cette ligne : « Publier » apparaîtra ensuite dans « Textes ».",
+            "clausesNote": "Seule sur une ligne, elle devient le tableau des clauses et des réponses du client (Oui / Non).",
+            "clausesMissing": "Le tableau des réponses ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : les réponses du client ne seraient pas imprimées.",
+            "sample": {
+              "caption": "Exemple : le tableau réel reprend les clauses de ce consentement et les réponses du client.",
+              "clause": "Clause",
+              "answer": "Réponse",
+              "first": "J'ai lu ce consentement et je l'accepte. (accord requis)",
+              "second": "J'accepte de recevoir les rappels par courriel.",
+              "yes": "Oui",
+              "no": "Non"
+            }
+          },
+          "clauses": {
+            "title": "Clauses « Oui / Non »",
+            "description": "Les questions auxquelles le client répond sur notre page avant de signer, dans la langue de ce texte. « Accord requis » : il doit répondre « Oui » pour signer. Elles sont publiées avec le texte et ne changent plus ensuite.",
+            "readOnlyDescription": "Les questions de cette version, publiées avec elle. Pour les modifier, créez une nouvelle version du texte.",
+            "text": "Clause {n}",
+            "kind": "Réponse",
+            "kinds": {
+              "agree": "Accord requis",
+              "yes_no": "Oui ou non"
+            },
+            "up": "Monter la clause {n}",
+            "down": "Descendre la clause {n}",
+            "remove": "Retirer la clause {n}",
+            "add": "Ajouter une clause",
+            "max": "Un consentement a au plus 20 clauses.",
+            "none": "Aucune clause : le client signe sans répondre à des questions.",
+            "emptyText": "Chaque clause a un texte.",
+            "saved": "Clauses enregistrées.",
+            "loadError": "Impossible de charger les clauses."
           }
         },
         "page": {
@@ -5746,6 +5810,476 @@
         "signedOnNoVersion": "Signé le {date}",
         "separator": " · ",
         "templatesError": "Impossible de charger les textes : l’envoi n’est pas offert pour le moment."
+      },
+      "saved": {
+        "created": "Dossier créé.",
+        "updated": "Dossier enregistré.",
+        "archived": "Dossier archivé.",
+        "restored": "Dossier restauré.",
+        "relation": "Proche enregistré.",
+        "relationRemoved": "Proche retiré.",
+        "insurance": "Assurance enregistrée.",
+        "insuranceRemoved": "Assurance retirée.",
+        "payer": "Payeur enregistré.",
+        "payerEnded": "Payeur terminé.",
+        "tags": "Étiquettes enregistrées.",
+        "merged": "Dossiers fusionnés.",
+        "anonymized": "Dossier anonymisé."
+      },
+      "errors": {
+        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
+      },
+      "validation": {
+        "firstName": "Indiquez le prénom.",
+        "lastName": "Indiquez le nom.",
+        "birthday": "Une date de naissance réelle, après 1900.",
+        "sex": "Choisissez Femme, Homme ou Autre.",
+        "workExt": "Le poste compte 10 chiffres au plus.",
+        "language": "Choisissez la langue.",
+        "rateVariant": "Choisissez le tarif.",
+        "provinceAbroad": "100 caractères au plus.",
+        "postalCodeAbroad": "20 caractères au plus."
+      },
+      "rights": {
+        "main_contact": "Contact principal",
+        "manages_appointments": "Gère les rendez-vous et formulaires",
+        "receives_communications": "Reçoit les communications",
+        "receives_invoices": "Reçoit les reçus et factures"
+      },
+      "fields": {
+        "number": "Numéro de dossier",
+        "firstName": "Prénom",
+        "lastName": "Nom",
+        "birthFirstName": "Prénom à la naissance",
+        "pronouns": "Pronoms",
+        "pronounsHelp": "Comme la personne les écrit (elle, il, iel…).",
+        "sex": "Sexe",
+        "birthday": "Date de naissance",
+        "language": "Langue",
+        "email": "Courriel",
+        "mobile": "Cellulaire",
+        "home": "Téléphone (maison)",
+        "work": "Téléphone (travail)",
+        "workExt": "Poste",
+        "remindersBySms": "Rappels par texto",
+        "remindersByEmail": "Rappels par courriel",
+        "addressLine1": "Adresse",
+        "addressLine2": "Appartement ou bureau",
+        "city": "Ville",
+        "province": "Province",
+        "provinceAbroad": "Province ou État",
+        "postalCode": "Code postal",
+        "referralSource": "Comment avez-vous entendu parler de MANA ?",
+        "referredBy": "Référé par",
+        "customField": "Champ personnalisé",
+        "primaryProfessional": "Professionnel principal",
+        "rateVariant": "Tarif",
+        "regularRate": "Tarif régulier",
+        "taxExempt": "Exemption de taxes (Statut Indien)",
+        "taxExemptHelp": "Les factures sont sans taxes.",
+        "specialAgreement": "Entente particulière",
+        "specialAgreementHelp": "Entente de paiement ou facturation personnalisée : les factures attendent une validation.",
+        "sharedCustody": "Garde partagée",
+        "sharedCustodyHelp": "Les deux parents signent les consentements.",
+        "fileIncomplete": "Dossier incomplet",
+        "isBanned": "Client banni",
+        "adminNotes": "Notes administratives",
+        "adminNotesHelp": "Vues par le personnel seulement, jamais par les professionnels.",
+        "specialAgreementNote": "Note de l'entente particulière",
+        "notSaid": "Non indiqué",
+        "none": "Aucun",
+        "inactive": "{name} (inactif)"
+      },
+      "list": {
+        "description": "Les dossiers des clients de la clinique.",
+        "label": "Liste des clients",
+        "searchLabel": "Rechercher un client",
+        "search": "Nom, courriel, numéro ou téléphone…",
+        "statusLabel": "État des dossiers",
+        "status": {
+          "active": "Actifs",
+          "archived": "Archivés",
+          "all": "Tous"
+        },
+        "professionalLabel": "Professionnel principal",
+        "allProfessionals": "Tous les professionnels",
+        "tagLabel": "Étiquette",
+        "allTags": "Toutes les étiquettes",
+        "loadError": "Impossible de charger les clients.",
+        "noMatch": {
+          "title": "Aucun client trouvé",
+          "body": "Modifiez la recherche ou les filtres."
+        },
+        "reset": "Réinitialiser",
+        "empty": {
+          "title": "Aucun client",
+          "body": "Créez le premier dossier avec « Nouveau client ».",
+          "bodyReadOnly": "Les dossiers des clients apparaîtront ici."
+        },
+        "table": "Clients",
+        "columns": {
+          "name": "Client",
+          "number": "Dossier",
+          "birthday": "Naissance",
+          "contact": "Coordonnées",
+          "professional": "Professionnel principal",
+          "flags": "Indications"
+        },
+        "archived": "Archivé",
+        "age": "{age} ans",
+        "noBirthday": "Non indiquée",
+        "flags": {
+          "banned": "Banni",
+          "incomplete": "Dossier incomplet",
+          "agreement": "Entente particulière",
+          "taxExempt": "Sans taxes"
+        },
+        "loadMore": "Afficher plus de clients",
+        "loadingMore": "Chargement…"
+      },
+      "create": {
+        "add": "Nouveau client",
+        "title": "Nouveau client",
+        "description": "Les dossiers semblables s'affichent pendant que vous écrivez le nom.",
+        "sections": {
+          "identity": "Identité",
+          "contact": "Coordonnées",
+          "address": "Adresse",
+          "file": "Dossier"
+        },
+        "confirmMedium": "C'est une autre personne",
+        "confirmMediumHelp": "Un dossier semblable existe : cochez seulement si vous avez vérifié que ce n'est pas la même personne.",
+        "submit": "Créer le dossier",
+        "submitting": "Création…",
+        "confirmClose": {
+          "title": "Fermer sans créer ?",
+          "body": "Ce qui a été saisi sera perdu.",
+          "stay": "Rester",
+          "leave": "Fermer sans créer"
+        },
+        "duplicates": {
+          "high": "Ce client a déjà un dossier : ouvrez-le plutôt que d'en créer un autre.",
+          "medium": "Dossiers semblables : vérifiez qu'il ne s'agit pas de la même personne.",
+          "open": "Ouvrir le dossier existant",
+          "checking": "Recherche de dossiers semblables…",
+          "announce": "Dossiers semblables trouvés : {count}.",
+          "pick": "Choisir ce dossier"
+        },
+        "reasons": {
+          "email": "même courriel",
+          "phone": "même téléphone",
+          "same_name": "même nom",
+          "similar_name": "nom semblable",
+          "birthday": "même date de naissance",
+          "birthday_differs": "autre date de naissance",
+          "shared_contact": "coordonnées partagées (un parent ?)",
+          "partial_email": "courriel semblable",
+          "partial_phone": "téléphone semblable"
+        }
+      },
+      "record": {
+        "loadError": "Impossible de charger le dossier.",
+        "notFound": {
+          "title": "Dossier introuvable",
+          "body": "Ce dossier n'existe pas ou n'est pas celui d'un client de la clinique.",
+          "back": "Retour aux clients"
+        },
+        "age": "{age} ans",
+        "merged": "Fusionné",
+        "anonymized": "Anonymisé",
+        "archived": "Archivé",
+        "active": "Actif",
+        "openKept": "Ouvrir le dossier conservé",
+        "archive": "Archiver",
+        "restore": "Restaurer",
+        "tabs": {
+          "label": "Sections du dossier",
+          "apercu": "Aperçu",
+          "informations": "Informations",
+          "proches": "Proches",
+          "assurance-et-payeurs": "Assurance et payeurs",
+          "consentements": "Consentements",
+          "visites-et-paiements": "Visites et paiements",
+          "historique": "Historique"
+        },
+        "overview": {
+          "person": "La personne",
+          "reach": "Pour la joindre",
+          "actsFor": "Qui agit pour elle",
+          "file": "Le dossier",
+          "bySms": "par texto",
+          "byEmail": "par courriel",
+          "reminders": "Rappels",
+          "noReminders": "Aucun rappel",
+          "address": "Adresse",
+          "ext": "poste {ext}",
+          "mainContact": "Contact principal",
+          "noMainContact": "Aucun",
+          "managesAppointments": "Gère les rendez-vous et formulaires",
+          "receivesInvoices": "Reçoit les reçus et factures",
+          "nobody": "Personne",
+          "onlyClient": "Le client seulement",
+          "seenBy": "Professionnels liés",
+          "openedOn": "Dossier ouvert le",
+          "noNotes": "Aucune note",
+          "formerProfessional": "Professionnel retiré"
+        },
+        "information": {
+          "readOnly": "Ce dossier ne se modifie pas (fusionné, anonymisé, ou sans la permission de gérer les dossiers).",
+          "identity": "Identité",
+          "contact": "Coordonnées",
+          "contactHelp": "Les rappels partent sur les canaux cochés, pour la personne elle-même et pour ses proches dont elle reçoit les communications.",
+          "address": "Adresse",
+          "file": "Dossier",
+          "billing": "Tarif et indications",
+          "billingHelp": "Le tarif étudiant ou réduit et l'exemption de taxes s'appliquent à ses factures.",
+          "notes": "Notes administratives",
+          "notesHelp": "Visibles par le personnel seulement.",
+          "tags": "Étiquettes",
+          "tagsHelp": "Au plus 5 étiquettes de la liste de la clinique.",
+          "tagsMax": "5 étiquettes au plus : retirez-en une pour en choisir une autre."
+        },
+        "relations": {
+          "title": "Proches",
+          "description": "Les personnes liées au client et ce qu'elles peuvent faire pour lui. Les deux parents d'un enfant sont deux proches, chacun avec ses droits.",
+          "add": "Ajouter un proche",
+          "empty": {
+            "title": "Aucun proche",
+            "body": "Ajoutez un parent, un tuteur ou un conjoint qui agit pour le client."
+          },
+          "table": "Proches du client",
+          "columns": {
+            "person": "Personne",
+            "type": "Lien",
+            "rights": "Pour le client",
+            "actions": "Actions"
+          },
+          "noRights": "Aucun droit",
+          "edit": "Modifier",
+          "editLabel": "Modifier le lien avec {name}",
+          "remove": "Retirer",
+          "removeLabel": "Retirer {name} des proches",
+          "removeTitle": "Retirer ce proche ?",
+          "removeBody": "{name} ne sera plus lié à {client}. Les deux dossiers restent.",
+          "dialog": {
+            "addTitle": "Ajouter un proche",
+            "editTitle": "Modifier le proche",
+            "description": "Le proche de {client} et ce que chacun peut faire pour l'autre.",
+            "person": "Proche",
+            "personHelp": "Le dossier de la personne, par son nom ou son numéro. Créez-le d'abord s'il n'existe pas.",
+            "results": "Dossiers trouvés",
+            "noResult": "Aucun dossier trouvé.",
+            "change": "Changer",
+            "type": "Ce proche est, pour {client}…",
+            "choose": "Choisir…",
+            "relatedRights": "Ce que {name} peut faire pour {client}",
+            "clientRights": "Ce que {client} peut faire pour {name}",
+            "thisPerson": "cette personne"
+          }
+        },
+        "coverage": {
+          "insurance": "Assurances",
+          "insuranceHelp": "Pour les reçus remis à l'assureur.",
+          "main": "Assurance principale",
+          "secondary": "Assurance secondaire",
+          "insurer": "Assureur",
+          "policy": "Numéro de police",
+          "certificate": "Numéro de certificat",
+          "holder": "Assuré",
+          "holderRelation": "Lien avec l'assuré",
+          "holderName": "Nom de l'assuré",
+          "noInsurance": "Aucune",
+          "edit": "Modifier",
+          "addInsurance": "Ajouter",
+          "remove": "Retirer",
+          "insuranceDialog": "L'assureur et les numéros qui figurent sur les reçus.",
+          "payers": "Payeurs",
+          "payersHelp": "L'IVAC ou un PAE qui paie les séances. Un payeur terminé reste au dossier : les factures passées le nomment.",
+          "addPayer": "Ajouter un payeur",
+          "editPayer": "Modifier le payeur",
+          "payerDialog": "Un seul payeur actif de chaque type par client.",
+          "noPayers": "Aucun payeur",
+          "noPayersBody": "Le client paie lui-même ses séances.",
+          "active": "Actif",
+          "ended": "Terminé",
+          "kind": "Type",
+          "organisation": "Organisme",
+          "provider": "Fournisseur du PAE",
+          "fileNumber": "Numéro de dossier",
+          "sessionAmount": "Montant par séance ($)",
+          "maxSessions": "Séances au plus",
+          "maxAmount": "Montant au plus ($)",
+          "period": "Période",
+          "startsOn": "Début",
+          "expiresOn": "Échéance",
+          "note": "Note",
+          "endPayer": "Terminer",
+          "invalidAmount": "Les montants sont en dollars (94,50) et le nombre de séances, un entier.",
+          "removeInsuranceTitle": "Retirer cette assurance ?",
+          "removeMainBody": "L'assurance principale sera retirée du dossier ; la secondaire, s'il y en a une, devient la principale.",
+          "removeSecondaryBody": "L'assurance secondaire sera retirée du dossier.",
+          "endPayerTitle": "Terminer ce payeur ?",
+          "endPayerBody": "{payer} ne paiera plus les prochaines séances. Il reste au dossier : les factures passées le nomment."
+        },
+        "visits": {
+          "title": "Visites et paiements",
+          "body": "Les rendez-vous et les paiements du client s'afficheront ici avec les modules Rendez-vous et Facturation. Pour l'instant, ils sont dans GOrendezvous."
+        },
+        "consents": {
+          "title": "Consentements",
+          "description": "Chaque consentement du client : signé, à signer de nouveau ou en attente. La demande part par courriel au client, ou à ses parents s'il a moins de 14 ans."
+        },
+        "menu": {
+          "label": "Autres actions sur le dossier",
+          "merge": "Fusionner avec un autre dossier…",
+          "privacy": "Confidentialité",
+          "export": "Exporter le dossier (PDF)",
+          "anonymize": "Anonymiser le dossier…"
+        },
+        "history": {
+          "title": "Historique",
+          "description": "Qui a changé quoi dans ce dossier, du plus récent au plus ancien. Les renseignements personnels n'y paraissent pas : on voit qu'ils ont changé, pas leur valeur.",
+          "empty": "Aucune modification pour le moment",
+          "system": "Le système",
+          "arrow": " → ",
+          "loadMore": "Charger plus",
+          "loadingMore": "Chargement…",
+          "loadMoreError": "Impossible de charger la suite. Réessayez.",
+          "loadError": "Impossible de charger l'historique."
+        },
+        "duplicates": {
+          "title": "Doublons possibles : ces dossiers semblent être la même personne.",
+          "open": "Ouvrir",
+          "merge": "Fusionner"
+        }
+      },
+      "mine": {
+        "title": "Mes clients",
+        "description": "Les clients que vous suivez ou allez rencontrer.",
+        "loadError": "Impossible de charger vos clients.",
+        "empty": {
+          "title": "Aucun client pour le moment",
+          "body": "Vos clients s'affichent ici dès qu'un dossier vous est confié."
+        },
+        "searchLabel": "Rechercher parmi mes clients",
+        "search": "Nom, courriel ou numéro…",
+        "table": "Mes clients",
+        "columns": {
+          "name": "Client",
+          "birthday": "Naissance",
+          "contact": "Coordonnées",
+          "language": "Langue"
+        },
+        "primary": "Professionnel principal",
+        "archived": "Archivé"
+      },
+      "merge": {
+        "title": "Fusionner deux dossiers",
+        "description": "Le dossier de {client} et un autre dossier de la même personne deviennent un seul dossier.",
+        "other": "Autre dossier de la personne",
+        "otherHelp": "Par son nom, son courriel, son numéro ou son téléphone.",
+        "results": "Dossiers trouvés",
+        "noResult": "Aucun dossier trouvé.",
+        "loadError": "Impossible de charger l'autre dossier.",
+        "notFound": "Ce dossier n'existe plus.",
+        "keepLegend": "Dossier conservé (son numéro reste)",
+        "thisFile": "(ce dossier)",
+        "changeOther": "Choisir un autre dossier",
+        "closed": "Ce dossier est déjà fusionné ou anonymisé : il ne peut pas être fusionné.",
+        "valuesTitle": "Valeurs à garder",
+        "valuesHelp": "Là où les deux dossiers diffèrent, choisissez la valeur à garder. Par défaut, celle du dossier conservé.",
+        "filledTitle": "Repris de l'autre dossier (vides dans le dossier conservé)",
+        "summary": "{merged} sera fusionné dans {kept}, puis archivé.",
+        "movesLead": "Passent au dossier conservé : {items}. Les notes sont ajoutées à la suite.",
+        "final": "Une fusion ne se défait pas.",
+        "submit": "Fusionner les dossiers",
+        "submitting": "Fusion…",
+        "unknownValue": "Valeur retirée de la liste",
+        "ext": "poste {ext}",
+        "address": "Adresse",
+        "moves": {
+          "relations": "proches : {count}",
+          "insurances": "assurances : {count}",
+          "payers": "payeurs : {count}",
+          "tags": "étiquettes : {count}",
+          "professionals": "professionnels liés : {count}"
+        },
+        "keptColumn": "Dossier conservé",
+        "mergedColumn": "Autre dossier"
+      },
+      "privacy": {
+        "exported": "Dossier exporté.",
+        "exportFailed": "L'export n'a pas fonctionné. Réessayez.",
+        "anonymize": {
+          "title": "Anonymiser ce dossier ?",
+          "body": "Le dossier de {client} ({number}) sera vidé de tout ce qui identifie la personne (Loi 25).",
+          "goes": "Effacés : le nom, la date de naissance, les coordonnées, l'adresse, les notes, les proches, les étiquettes et les assurances.",
+          "stays": "Gardés : le numéro de dossier, les liens avec les professionnels, les rendez-vous et les factures (sans le nom).",
+          "final": "Une anonymisation ne se défait pas. Les dossiers fusionnés dans celui-ci sont anonymisés aussi.",
+          "confirmLabel": "Pour confirmer, tapez le numéro du dossier : {number}",
+          "submit": "Anonymiser",
+          "submitting": "Anonymisation…"
+        },
+        "pdf": {
+          "title": "Dossier client : renseignements détenus",
+          "meta": "{clinic} · Export fait le {date} (Loi 25, accès aux renseignements personnels)",
+          "footer": "Exporté le {date} · Document confidentiel",
+          "page": "Page {page} de {pages}",
+          "yes": "Oui",
+          "no": "Non",
+          "notGiven": "Non indiqué",
+          "none": "Aucun",
+          "identity": "Identité",
+          "contact": "Coordonnées",
+          "address": "Adresse",
+          "file": "Dossier",
+          "openedOn": "Dossier ouvert le",
+          "archivedOn": "Archivé le",
+          "notes": "Notes administratives",
+          "relations": "Proches",
+          "person": "Personne",
+          "relation": "Lien",
+          "theirRights": "Ce que ce proche peut faire",
+          "ownRights": "Ce que le client peut faire pour ce proche",
+          "insurances": "Assurances",
+          "rank": "Rang",
+          "mainInsurance": "Assurance principale",
+          "secondaryInsurance": "Assurance secondaire",
+          "insurer": "Assureur",
+          "policy": "Numéro de police",
+          "certificate": "Numéro de certificat",
+          "holder": "Titulaire",
+          "payers": "Payeurs (IVAC, PAE)",
+          "payerKind": "Payeur",
+          "fileNumber": "Numéro de dossier du payeur",
+          "sessionAmount": "Montant par séance",
+          "period": "Période",
+          "state": "État",
+          "active": "Actif",
+          "ended": "Terminé",
+          "note": "Note",
+          "tags": "Étiquettes",
+          "professionals": "Professionnels liés",
+          "professional": "Professionnel",
+          "formerProfessional": "Professionnel retiré de la liste",
+          "since": "Depuis le",
+          "consents": "Consentements",
+          "consent": "Consentement",
+          "version": "Version",
+          "signedOn": "Signé le",
+          "signedBy": "Signé par",
+          "withdrawn": "Retiré le {date}",
+          "superseded": "Remplacé par une version plus récente",
+          "inForce": "En vigueur",
+          "mergedFile": "Dossier fusionné dans celui-ci : {client}"
+        }
+      },
+      "picker": {
+        "label": "Client",
+        "help": "Par son nom, son courriel, son numéro ou son téléphone. Créez le dossier s'il n'existe pas.",
+        "results": "Dossiers trouvés",
+        "noResult": "Aucun dossier trouvé.",
+        "searchError": "La recherche n'a pas fonctionné. Réessayez."
       }
     },
     "communications": {
@@ -6275,7 +6809,10 @@
             "last_contact_at": "Dernier contact",
             "next_contact_at": "Prochaine tentative",
             "contact_attempts": "Tentatives de contact",
-            "external_ref": "Référence externe"
+            "external_ref": "Référence externe",
+            "handled_by": "S'en occupe",
+            "handled_at": "Prise en charge le",
+            "source_landing_page": "Page d’arrivée"
           },
           "demande_notes": {
             "demande_id": "Demande",
@@ -6327,7 +6864,13 @@
             "expires_at": "Lien valide jusqu’au",
             "secure_link_id": "Lien d’acceptation",
             "directory_updated_at": "Profil mis à jour le",
-            "directory_snapshot": "Profil présenté"
+            "directory_snapshot": "Profil présenté",
+            "service_id": "Service",
+            "mode": "Mode",
+            "slots": "Plages réservées",
+            "accepted_appointment_id": "Rendez-vous choisi",
+            "accepted_starts_at": "Plage choisie",
+            "language": "Langue du courriel"
           },
           "waitlist_entries": {
             "demande_id": "Demande",
@@ -6607,6 +7150,1386 @@
             }
           }
         }
+      },
+      "states": {
+        "new": "Nouvelle",
+        "evaluating": "En évaluation",
+        "accepted": "Acceptée",
+        "proposed": "Proposée",
+        "matched": "Jumelée",
+        "waitlist": "Liste d’attente",
+        "closed": "Fermée"
+      },
+      "unnamed": "(sans nom)",
+      "file": "N° {number} · {name}",
+      "promise": {
+        "ok": "Reçue depuis {hours} h ouvrables",
+        "soon": "À rappeler bientôt : {hours} h ouvrables",
+        "late": "En retard : {hours} h ouvrables sans appel",
+        "met": "Rappelée dans les délais",
+        "metLate": "Rappelée après 48 h ouvrables",
+        "fresh": "Reçue depuis moins d’une heure ouvrable",
+        "none": "Jamais appelée"
+      },
+      "options": {
+        "channel": {
+          "phone": "Téléphone",
+          "email": "Courriel",
+          "web_form": "Formulaire du site",
+          "booking_page": "Page de réservation",
+          "sms": "Texto",
+          "referral": "Référence",
+          "walk_in": "En personne",
+          "other": "Autre"
+        },
+        "contactChannel": {
+          "phone": "Téléphone",
+          "email": "Courriel",
+          "sms": "Texto",
+          "other": "Autre"
+        },
+        "outcome": {
+          "reached": "Jointe",
+          "voicemail": "Message laissé",
+          "no_answer": "Pas de réponse",
+          "message_sent": "Message écrit envoyé",
+          "wrong_number": "Mauvais numéro"
+        },
+        "taskOutcome": {
+          "reached": "Jointe",
+          "voicemail": "Message laissé",
+          "no_answer": "Pas de réponse",
+          "message_sent": "Message écrit envoyé",
+          "wrong_number": "Mauvais numéro",
+          "not_needed": "Plus nécessaire"
+        },
+        "taskKind": {
+          "discovery_call": "Appel découverte",
+          "callback": "Rappel",
+          "follow_up": "Suivi",
+          "other": "Autre tâche"
+        },
+        "closedReason": {
+          "referred_out": "Orientée ailleurs",
+          "not_relevant": "Non pertinente",
+          "no_answer": "Sans réponse",
+          "withdrew": "Ne souhaite plus",
+          "duplicate": "En double",
+          "other": "Autre"
+        },
+        "beneficiary": {
+          "self": "Elle-même ou lui-même",
+          "child": "Un enfant",
+          "teen": "Un adolescent",
+          "couple": "Un couple",
+          "family": "Une famille",
+          "other": "Autre"
+        },
+        "modality": {
+          "video": "Vidéo",
+          "phone": "Téléphone",
+          "any": "Indifférent"
+        },
+        "gender": {
+          "female": "Une femme",
+          "male": "Un homme",
+          "any": "Indifférent"
+        },
+        "payer": {
+          "self": "La personne",
+          "insurance": "Assurance",
+          "eap": "PAE",
+          "ivac": "IVAC",
+          "other": "Autre",
+          "unknown": "À préciser"
+        },
+        "language": {
+          "fr": "Français",
+          "en": "Anglais"
+        },
+        "yesNo": {
+          "yes": "Oui",
+          "no": "Non"
+        },
+        "period": {
+          "am": "Matin",
+          "pm": "Après-midi",
+          "end_of_day": "Fin de journée",
+          "evening": "Soir",
+          "weekend": "Fin de semaine"
+        },
+        "day": {
+          "1": "Lundi",
+          "2": "Mardi",
+          "3": "Mercredi",
+          "4": "Jeudi",
+          "5": "Vendredi",
+          "6": "Samedi",
+          "7": "Dimanche"
+        },
+        "relationship": {
+          "self": "La personne elle-même",
+          "child": "Enfant",
+          "partner": "Conjoint ou conjointe",
+          "parent": "Parent",
+          "sibling": "Frère ou sœur",
+          "other": "Autre"
+        }
+      },
+      "inbox": {
+        "description": "Les demandes reçues et la promesse de rappel en 24 à 48 h ouvrables. Les changements des autres conseillères s'affichent seuls.",
+        "views": "Vues des demandes",
+        "view": {
+          "open": "Ouvertes",
+          "matched": "Jumelées",
+          "waitlist": "Liste d'attente",
+          "closed": "Fermées",
+          "all": "Toutes"
+        },
+        "label": "Demandes",
+        "searchLabel": "Rechercher une demande",
+        "search": "Numéro, nom, courriel ou téléphone",
+        "assignedLabel": "Conseillère",
+        "assigned": {
+          "any": "Toutes",
+          "me": "Les miennes",
+          "none": "Non assignées",
+          "meCount": "Les miennes ({count})",
+          "noneCount": "Non assignées ({count})"
+        },
+        "flagsLabel": "Filtres",
+        "flags": {
+          "late": "En retard",
+          "no_answer": "Sans réponse",
+          "urgent": "Urgentes",
+          "due": "À rappeler maintenant"
+        },
+        "loadError": "Les demandes n'ont pas pu être chargées.",
+        "noMatch": {
+          "title": "Aucune demande ne correspond",
+          "body": "Changez les filtres ou la recherche."
+        },
+        "reset": "Effacer les filtres",
+        "empty": {
+          "open": "Aucune demande ouverte",
+          "matched": "Aucune demande jumelée",
+          "waitlist": "Personne en liste d'attente",
+          "closed": "Aucune demande fermée",
+          "all": "Aucune demande"
+        },
+        "emptyBody": "Les nouvelles demandes apparaissent ici dès leur arrivée.",
+        "previous": "Précédentes",
+        "next": "Suivantes",
+        "table": "Demandes",
+        "columns": {
+          "person": "Personne",
+          "received": "Reçue",
+          "state": "État",
+          "assigned": "Conseillère",
+          "followUp": "Suivi",
+          "actions": "Actions"
+        },
+        "fileNumber": "Dossier N° {number}",
+        "urgent": "Urgente",
+        "handledBy": "{name} s’en occupe",
+        "unassigned": "Non assignée",
+        "noAnswer": "Sans réponse ({count} essais)",
+        "lastContact": "Dernier essai : {date} · {outcome}",
+        "nextContact": "Prochain essai : {date}",
+        "neverContacted": "Pas encore appelée"
+      },
+      "new": {
+        "open": "Nouvelle demande",
+        "title": "Nouvelle demande",
+        "description": "La saisie rapide : comment joindre la personne et d'où vient la demande. Le reste de l'accueil se remplit dans la demande.",
+        "name": "Nom",
+        "phone": "Téléphone",
+        "email": "Courriel",
+        "channel": "Reçue par",
+        "urgent": "Urgente",
+        "mine": "Je m'en occupe (assignée à moi)",
+        "note": "Note interne",
+        "noteHelp": "Visible seulement par les personnes autorisées. Jamais d'information clinique.",
+        "badPhone": "Ce numéro de téléphone n’est pas valide.",
+        "someone": "Indiquez au moins un nom, un téléphone ou un courriel.",
+        "create": "Créer la demande",
+        "creating": "Création…",
+        "created": "La demande est créée."
+      },
+      "contact": {
+        "open": "Noter un appel",
+        "openFor": "Noter un appel pour {person}",
+        "title": "Noter un appel : {person}",
+        "description": "Chaque essai compte pour la promesse de rappel et les statistiques.",
+        "channel": "Moyen",
+        "outcome": "Résultat",
+        "nextDate": "Prochain essai, le",
+        "nextTime": "à",
+        "nextHelp": "Laissez vide pour ne pas planifier de nouvel essai.",
+        "save": "Enregistrer l'essai",
+        "saving": "Enregistrement…",
+        "saved": "L'essai est noté."
+      },
+      "record": {
+        "notFound": {
+          "title": "Demande introuvable",
+          "body": "Cette demande n'existe pas ou n'est pas visible pour vous."
+        },
+        "back": "Retour aux demandes",
+        "loadError": "La demande n'a pas pu être chargée.",
+        "tabs": {
+          "label": "Sections de la demande",
+          "accueil": "Accueil",
+          "participants": "Participants",
+          "suivi": "Suivi",
+          "historique": "Historique"
+        },
+        "received": "Reçue le {date} · {channel}",
+        "urgent": "Urgente",
+        "openFile": "Ouvrir le dossier N° {number}",
+        "noFile": "Pas encore de dossier client.",
+        "closedBecause": "Fermée : {reason}",
+        "changeState": "Changer l'état",
+        "chooseState": "Choisir…",
+        "moveTo": "Passer à « {state} »",
+        "stateChanged": "La demande est maintenant « {state} ».",
+        "close": {
+          "title": "Fermer la demande ?",
+          "body": "Indiquez pourquoi. Une demande fermée peut être rouverte.",
+          "reason": "Raison",
+          "action": "Fermer la demande"
+        },
+        "assignee": "Conseillère",
+        "sharedInbox": "Boîte commune (personne)",
+        "assigned": "La conseillère est changée.",
+        "handledBy": "{name} s’en occupe depuis {time}",
+        "take": "Je m'en occupe",
+        "release": "Je laisse la demande",
+        "takeOver": {
+          "title": "Prendre la demande ?",
+          "body": "{name} s'en occupe déjà. Prévenez-la avant de reprendre la demande.",
+          "action": "Je la prends"
+        },
+        "stale": "Quelqu'un d'autre a modifié cette demande pendant que vous la changiez.",
+        "reload": "Recharger (vos changements seront perdus)",
+        "waitlistPermission": "Inscrire sur la liste d'attente demande la permission « Gérer la liste d'attente »."
+      },
+      "intake": {
+        "file": {
+          "title": "Dossier client",
+          "description": "Le dossier de la personne servie, quand il existe. Il sera lié au professionnel jumelé.",
+          "none": "Aucun dossier rattaché.",
+          "link": "Rattacher un dossier",
+          "change": "Changer de dossier"
+        },
+        "contact": {
+          "title": "Coordonnées",
+          "description": "Comment joindre la personne, tant qu'aucun dossier n'est rattaché.",
+          "name": "Nom",
+          "phone": "Téléphone",
+          "email": "Courriel"
+        },
+        "need": {
+          "title": "Besoin",
+          "description": "Ce qui oriente le jumelage. Les motifs sont des repères d'orientation, jamais des diagnostics.",
+          "beneficiary": "Pour qui",
+          "previousTherapy": "Déjà consulté",
+          "title_": "Profession recherchée",
+          "clientele": "Clientèle",
+          "motifs": "Motifs",
+          "motifsHelp": "Cochez les motifs nommés par la personne.",
+          "concerns": "Préoccupations",
+          "concernsHelp": "Dans les mots de la personne. Rien de clinique : la note interne n'est pas un dossier.",
+          "urgent": "Urgente"
+        },
+        "prefs": {
+          "title": "Préférences",
+          "description": "Langue, mode, disponibilités, payeur.",
+          "language": "Langue",
+          "modality": "Mode",
+          "gender": "Professionnel souhaité",
+          "periods": "Moments",
+          "days": "Jours",
+          "payer": "Payeur",
+          "insurer": "Assureur"
+        },
+        "unknown": "Non indiqué",
+        "any": "Toutes",
+        "otherMotifs": "Autres motifs",
+        "badPhone": "Ce numéro de téléphone n’est pas valide.",
+        "saved": "L'accueil est enregistré."
+      },
+      "participants": {
+        "title": "Participants",
+        "description": "Pour qui est la demande (un couple, une famille, un enfant et son parent). Une seule personne principale.",
+        "empty": "Personne encore : la demande vaut pour la personne qui a appelé.",
+        "person": "Personne {n}",
+        "primary": "(principale)",
+        "name": "Nom",
+        "relationship": "Lien",
+        "birthday": "Date de naissance",
+        "makePrimary": "En faire la personne principale",
+        "remove": "Retirer",
+        "removeLabel": "Retirer {who}",
+        "add": "Ajouter une personne",
+        "addFile": "Ajouter {file}",
+        "nameNeeded": "Chaque personne a un nom ou un dossier.",
+        "onePrimary": "Choisissez une seule personne principale.",
+        "saved": "Les participants sont enregistrés.",
+        "tooMany": "Au plus {max} personnes par demande."
+      },
+      "followUp": {
+        "contacts": {
+          "title": "Appels",
+          "description": "Les essais pour joindre la personne.",
+          "attempts": "Essais",
+          "last": "Dernier essai",
+          "never": "Aucun",
+          "next": "Prochain essai",
+          "noNext": "Aucun de prévu"
+        },
+        "tasks": {
+          "title": "Tâches",
+          "description": "L'appel découverte, un rappel, un suivi : chacun daté.",
+          "none": "Aucune tâche ouverte.",
+          "open": "Tâches ouvertes",
+          "overdue": "En retard",
+          "for": "pour {name}",
+          "outcome": "Résultat",
+          "done": "Fait",
+          "doneLabel": "{kind} : fait",
+          "cancel": "Annuler la tâche",
+          "cancelLabel": "Annuler : {kind}",
+          "doneCount": "Tâches terminées ou annulées ({count})",
+          "doneLine": "{kind} faite le {date} · {outcome} · {name}",
+          "cancelledLine": "{kind} annulée ({date})",
+          "addLabel": "Ajouter une tâche",
+          "kind": "Tâche",
+          "date": "Le",
+          "time": "À",
+          "assignee": "Pour",
+          "anyone": "Toute conseillère",
+          "whenNeeded": "Indiquez la date et l’heure.",
+          "add": "Ajouter la tâche",
+          "adding": "Ajout…",
+          "added": "La tâche est ajoutée."
+        },
+        "note": {
+          "title": "Note interne",
+          "description": "Visible seulement par les personnes autorisées ; jamais dans un journal, un avis ou un outil d'IA. Rien de clinique.",
+          "label": "Note",
+          "updated": "Modifiée le {date} par {name}",
+          "saved": "La note est enregistrée."
+        }
+      },
+      "history": {
+        "title": "Historique",
+        "description": "Ce qui est arrivé à la demande, du plus récent au plus ancien.",
+        "empty": "Rien encore.",
+        "created": "Demande reçue",
+        "stateChanged": "État : {from} → {to}",
+        "closed": "Fermée : {reason}",
+        "matched": "Jumelée avec {name}",
+        "assigned": "Assignée à {name}",
+        "unassigned": "Remise dans la boîte commune",
+        "contact": "Essai : {channel} · {outcome}",
+        "taskDone": "Tâche faite",
+        "urgentSet": "Marquée urgente",
+        "urgentCleared": "N'est plus urgente",
+        "other": "Changement",
+        "by": "{date} · {name}"
+      },
+      "clientLink": {
+        "title": "Rattacher un dossier",
+        "description": "Cherchez le dossier de la personne, ou créez-le à partir de ses coordonnées.",
+        "linked": "Le dossier est rattaché."
+      },
+      "errors": {
+        "failed": "L'action n'a pas pu être faite. Réessayez."
+      },
+      "booking": {
+        "page": {
+          "title": "Réserver un appel découverte",
+          "intro": "Un appel gratuit de {minutes} minutes avec une conseillère de {clinic} : elle écoute votre besoin et vous oriente vers la bonne personne.",
+          "closed": "La réservation en ligne n’est pas ouverte pour le moment. Appelez la clinique : nous vous rappelons rapidement.",
+          "noSlot": "Aucune plage n’est libre pour le moment. Revenez bientôt ou appelez la clinique.",
+          "loadError": "La page n’a pas pu être chargée. Réessayez dans quelques minutes.",
+          "chooseSlot": "Choisissez un moment",
+          "slotsHelp": "Heures affichées : {timezone}. La conseillère vous appelle au numéro indiqué.",
+          "slotLabel": "{day} à {time}",
+          "more": "Voir d’autres jours",
+          "you": "Vos coordonnées",
+          "firstName": "Prénom",
+          "lastName": "Nom",
+          "email": "Courriel",
+          "emailHelp": "La confirmation et le lien d’annulation y sont envoyés.",
+          "phone": "Téléphone",
+          "phoneHelp": "Le numéro où la conseillère vous appelle.",
+          "language": "Langue de l’appel",
+          "french": "Français",
+          "english": "Anglais",
+          "heard": "Comment avez-vous entendu parler de MANA ?",
+          "heardNone": "Choisir (facultatif)",
+          "message": "Quelques mots sur votre besoin (facultatif)",
+          "messageHelp": "N’y écrivez aucun détail médical : la conseillère en parlera avec vous.",
+          "submit": "Réserver l’appel",
+          "checking": "Vérification…",
+          "booking": "Réservation…",
+          "required": "Ce champ est requis.",
+          "chooseSlotFirst": "Choisissez un moment.",
+          "invalidEmail": "Indiquez une adresse courriel valide.",
+          "invalidPhone": "Indiquez un numéro à 10 chiffres.",
+          "tooMany": "Trop de réservations depuis cet appareil.",
+          "error": "La réservation n’a pas pu être faite. Réessayez dans quelques minutes ou appelez la clinique.",
+          "doneTitle": "Votre appel est réservé",
+          "doneBody": "Une conseillère vous appellera le {when}. Un courriel de confirmation vous a été envoyé, avec un lien pour annuler au besoin.",
+          "doneNoEmail": "Une conseillère vous appellera le {when}. Le courriel de confirmation n’a pas pu partir : notez ce moment.",
+          "chooseDay": "Le jour"
+        },
+        "cancel": {
+          "title": "Annuler votre appel découverte",
+          "body": "Votre appel avec {clinic} est prévu le {when}.",
+          "confirm": "Annuler l’appel",
+          "cancelling": "Annulation…",
+          "doneTitle": "Appel annulé",
+          "doneBody": "Votre appel est annulé. Vous pouvez réserver un autre moment sur la page de la clinique.",
+          "invalid": "Ce lien n’est plus valide : l’appel est déjà annulé ou passé.",
+          "error": "L’annulation n’a pas pu être faite. Réessayez dans quelques minutes ou appelez la clinique."
+        },
+        "settings": {
+          "title": "Appels découverte",
+          "description": "La page publique qui remplace Calendly : les plages offertes et le lien à mettre sur le site.",
+          "loadError": "Impossible de charger les réglages des appels découverte.",
+          "saved": "Réglages enregistrés.",
+          "saveError": "Impossible d’enregistrer.",
+          "page": {
+            "title": "La page de réservation",
+            "description": "Le bouton « Réserver un appel découverte » du site pointe vers cette adresse. Ajoutez-y les paramètres utm_* d’une campagne pour la suivre.",
+            "enabled": "Réservation en ligne ouverte",
+            "enabledHelp": "Fermée, la page dit d’appeler la clinique. Elle reste fermée tant que Demandes est réservé aux testeurs.",
+            "link": "Adresse de la page",
+            "copy": "Copier l’adresse",
+            "copied": "Adresse copiée."
+          },
+          "slots": {
+            "title": "Plages offertes",
+            "description": "Les moments où les conseillères prennent des appels, chaque semaine, à l’heure de la clinique.",
+            "slotMinutes": "Durée d’un appel",
+            "minutes": "{n} minutes",
+            "noticeHours": "Délai minimal (heures)",
+            "noticeHelp": "Aucune plage plus proche que ce délai (0 à 72 heures).",
+            "horizonDays": "Réservable jusqu’à (jours)",
+            "horizonHelp": "1 à 30 jours à l’avance.",
+            "capacity": "Appels en même temps",
+            "capacityHelp": "Combien de conseillères prennent des appels à la même heure (1 à 5).",
+            "invalid": "Indiquez un nombre entier dans les limites.",
+            "days": {
+              "1": "Lundi",
+              "2": "Mardi",
+              "3": "Mercredi",
+              "4": "Jeudi",
+              "5": "Vendredi",
+              "6": "Samedi",
+              "7": "Dimanche"
+            },
+            "add": "Ajouter une plage",
+            "remove": "Retirer la plage du {day} de {start} à {end}",
+            "start": "Début",
+            "end": "Fin",
+            "none": "Aucune plage",
+            "badRange": "La fin doit suivre le début.",
+            "addFor": "Ajouter une plage le {day}"
+          }
+        }
+      },
+      "sources": {
+        "title": "Provenance",
+        "channel": "Canal",
+        "heard": "Comment la personne a entendu parler de MANA",
+        "campaign": "Campagne",
+        "utm": "Paramètres de campagne",
+        "referrer": "Page d’origine",
+        "landing": "Page d’arrivée",
+        "none": "Non indiquée"
+      },
+      "waitlist": {
+        "name": "Liste d'attente",
+        "states": {
+          "incomplete": "Incomplète",
+          "active": "Active",
+          "to_call": "À rappeler",
+          "offered": "Offre en cours",
+          "closed": "Sortie de la liste"
+        },
+        "fee": {
+          "status": {
+            "to_invoice": "Frais à facturer",
+            "invoiced": "Frais facturés",
+            "paid": "Frais payés",
+            "waived": "Frais exonérés"
+          }
+        },
+        "consent": {
+          "signed": "Consentement signé",
+          "resign": "Consentement signé (nouvelle version à signer)",
+          "pending": "Consentement envoyé, en attente de signature",
+          "missing": "Consentement à envoyer",
+          "not_required": "Consentement non exigé",
+          "none": "Consentement : sans objet"
+        },
+        "exit": {
+          "reasons": {
+            "placed": "Placée à la clinique",
+            "referred_elsewhere": "Orientée ailleurs",
+            "withdrew": "Ne souhaite plus",
+            "no_answer": "Sans réponse",
+            "other": "Autre raison"
+          }
+        },
+        "priority": {
+          "normal": "Normale",
+          "priority": "Prioritaire"
+        },
+        "rank": "{rank}e sur {size}",
+        "rankFirst": "1re sur {size}",
+        "waited": {
+          "today": "Inscrite aujourd'hui",
+          "one": "En attente depuis 1 jour",
+          "many": "En attente depuis {days} jours"
+        },
+        "followupUnanswered": "Sans réponse au courriel de suivi",
+        "contactLine": "{kind} : {outcome}",
+        "contactKinds": {
+          "call": "Appel",
+          "email": "Courriel",
+          "sms": "Texto",
+          "followup_email": "Courriel de suivi"
+        },
+        "outcomes": {
+          "reached": "Personne jointe",
+          "voicemail": "Message laissé",
+          "no_answer": "Pas de réponse",
+          "message_sent": "Message envoyé",
+          "wants_to_stay": "Souhaite rester sur la liste",
+          "wants_to_leave": "Ne souhaite plus attendre"
+        },
+        "offerResponses": {
+          "accepted": "acceptée",
+          "declined": "refusée",
+          "expired": "expirée",
+          "withdrawn": "retirée"
+        },
+        "register": {
+          "open": "Inscrire sur la liste d'attente",
+          "title": "Inscrire sur la liste d'attente",
+          "description": "Choisissez une profession, un professionnel, ou les deux. Les critères (disponibilités, mode, langue, motifs) viennent de l'onglet Accueil.",
+          "fileNeeded": "Rattachez d'abord le dossier du client (onglet Accueil) : l'inscription s'y rattache.",
+          "profession": "Profession",
+          "titleHelp": "Par exemple Psychologie : la personne prend la première place qui se libère dans cette profession.",
+          "professional": "Professionnel",
+          "professionalHelp": "Si la personne attend un professionnel précis.",
+          "none": "Aucun",
+          "optionCount": "{name} ({count} en attente)",
+          "priority": "Priorité",
+          "reason": "Pourquoi est-ce prioritaire ?",
+          "reasonHelp": "Visible des conseillères et de l'adjointe. Pas de renseignement clinique.",
+          "targetNeeded": "Choisissez une profession, un professionnel, ou les deux.",
+          "reasonNeeded": "Indiquez pourquoi l'inscription est prioritaire.",
+          "save": "Inscrire",
+          "saving": "Inscription…",
+          "done": "La demande est sur la liste d'attente."
+        },
+        "sheet": {
+          "title": "Inscription",
+          "subtitle": "{list} · {reference}",
+          "loadError": "L'inscription n'a pas pu être chargée. Fermez et réessayez.",
+          "state": "État",
+          "rank": "Rang",
+          "registered": "Inscrite le",
+          "criteria": "Critères",
+          "file": "Dossiers",
+          "openDemande": "Ouvrir la demande",
+          "openFile": "Consentements du dossier n° {number}",
+          "priorityTitle": "Priorité et professionnel « pont »",
+          "bridgeIs": "Suivie en attendant par {name}",
+          "completeTitle": "Inscription complète ?",
+          "completeHelp": "Elle devient « Active » quand le consentement « liste d'attente » est signé (s'il est exigé) et que les frais sont payés ou exonérés.",
+          "consentHelp": "Le consentement s'envoie depuis le dossier du client, onglet Consentements.",
+          "followUpTitle": "Suivi",
+          "nextContact": "Rappel prévu le {date}",
+          "noContact": "Aucun suivi noté.",
+          "contacts": "Suivis notés",
+          "offersTitle": "Offres de plage",
+          "exitTitle": "Sortir de la liste",
+          "saved": "Inscription enregistrée.",
+          "bridge": "Professionnel « pont »",
+          "bridgeHelp": "Un professionnel qui voit la personne en attendant sa place.",
+          "noBridge": "Aucun",
+          "feeSaved": "{status}.",
+          "feePrice": "{name} : {price}",
+          "feePriceTaxes": "{name} : {price} plus taxes",
+          "markPaid": "Frais payés",
+          "waive": "Exonérer les frais…",
+          "backToInvoice": "Remettre « à facturer »",
+          "waiveReason": "Raison de l'exonération",
+          "waiveHelp": "Par exemple PAE, IVAC ou une entente.",
+          "waiveSave": "Exonérer",
+          "contactSaved": "Suivi noté.",
+          "logContact": "Noter le suivi",
+          "kind": "Comment",
+          "outcome": "Résultat",
+          "callAgain": "Prévoir un rappel",
+          "nextDate": "Rappeler le",
+          "nextTime": "À",
+          "offerProNeeded": "Choisissez le professionnel.",
+          "offerSaved": "Offre notée : la personne est « Offre en cours ».",
+          "pendingOffer": "Offre de {name} du {date}, en attente de réponse",
+          "placed": "La personne est placée : la demande est jumelée.",
+          "accepted": "Acceptée (placer)",
+          "declined": "Refusée",
+          "withdrawn": "Retirée",
+          "addOffer": "Noter une offre faite par téléphone",
+          "offerIncomplete": "Une offre se note une fois l'inscription complète.",
+          "offerPro": "Professionnel qui offre la plage",
+          "choosePro": "Choisir un professionnel",
+          "slot": "Plage {n}",
+          "slotDate": "Plage {n} : date",
+          "slotStart": "Plage {n} : début",
+          "slotEnd": "Plage {n} : fin",
+          "addSlot": "Ajouter une plage (3 au plus)",
+          "saveOffer": "Noter l'offre",
+          "pastOffers": "Offres passées",
+          "pastOffer": "{date} · {name} · {response}",
+          "noOffer": "Aucune offre.",
+          "exited": "Sortie de la liste : {reason}.",
+          "exitHelp": "La personne quitte cette liste. Si c'était sa dernière inscription, la demande se ferme avec la même raison (ou est jumelée si elle est placée).",
+          "exitReason": "Raison",
+          "placedWith": "Placée avec",
+          "exit": "Sortir de la liste"
+        },
+        "page": {
+          "description": "Les personnes qui attendent une place, par profession ou par professionnel, dans l'ordre : les prioritaires d'abord, puis les plus anciennes.",
+          "label": "Inscriptions",
+          "list": "Liste",
+          "allLists": "Toutes les listes",
+          "professions": "Professions",
+          "professionals": "Professionnels",
+          "listOption": "{name} ({count})",
+          "noAverage": "Pas encore d'attente moyenne (aucune personne placée depuis 12 mois).",
+          "average": "Attente moyenne avant une place : {days} jours (12 derniers mois). Une estimation, jamais une promesse.",
+          "statesLabel": "Filtrer par état",
+          "openOnly": "En attente",
+          "filters": {
+            "incomplete": "Incomplètes",
+            "active": "Actives",
+            "to_call": "À rappeler",
+            "offered": "Offres en cours",
+            "closed": "Sorties"
+          },
+          "loadError": "La liste d'attente n'a pas pu être chargée.",
+          "emptyFiltered": "Personne dans cet état.",
+          "empty": "Personne n'attend sur cette liste.",
+          "emptyBody": "On inscrit une demande depuis son dossier (onglet Suivi, ou l'état « Liste d'attente »).",
+          "table": "Liste d'attente",
+          "columns": {
+            "rank": "Rang",
+            "person": "Personne",
+            "list": "Liste",
+            "registered": "Inscrite le",
+            "state": "État",
+            "complete": "Consentement et frais",
+            "actions": "Actions"
+          },
+          "pendingOffer": "Offre en attente de réponse",
+          "openFor": "Ouvrir l'inscription de {person}",
+          "open": "Ouvrir"
+        },
+        "card": {
+          "title": "Liste d'attente",
+          "description": "Les listes où attend cette demande, son rang et ce qui manque pour que l'inscription soit complète.",
+          "loadError": "Les inscriptions n'ont pas pu être chargées.",
+          "none": "Cette demande n'est sur aucune liste d'attente.",
+          "openFor": "Ouvrir l'inscription : {list}",
+          "open": "Ouvrir"
+        },
+        "settings": {
+          "title": "Liste d'attente",
+          "description": "Le suivi des personnes inscrites : quand les rappeler, et le courriel qui leur demande si elles souhaitent rester sur la liste.",
+          "loadError": "Les réglages n'ont pas pu être chargés.",
+          "weeksInvalid": "De 1 à 26 semaines.",
+          "daysInvalid": "De 3 à 30 jours.",
+          "saved": "Réglages de la liste d'attente enregistrés.",
+          "followUp": {
+            "title": "Suivi",
+            "description": "Chaque matin (7 h), la tâche « Suivi de la liste d'attente » marque « À rappeler » les inscriptions sans nouvelles et l'annonce aux conseillères. Activez la tâche dans Paramètres → Tâches planifiées.",
+            "weeks": "Rappeler après (semaines sans nouvelles)",
+            "weeksHelp": "8 semaines par défaut. Un appel où la personne est jointe remet le compteur à zéro.",
+            "email": "Envoyer le courriel « Souhaitez-vous rester sur la liste d'attente ? »",
+            "emailHelp": "Avec un lien « Oui / Non ». « Oui » évite l'appel ; « Non » retire la personne de la liste. Rien n'est envoyé tant que le module est réservé aux testeurs.",
+            "days": "Délai de réponse (jours)",
+            "daysHelp": "Sans réponse dans ce délai, l'inscription est marquée « Sans réponse au courriel de suivi »."
+          }
+        },
+        "answer": {
+          "title": "Liste d'attente",
+          "stayTitle": "Merci !",
+          "stayBody": "Vous restez sur la liste d'attente. Nous vous appelons dès qu'une place se libère.",
+          "leaveTitle": "C'est noté",
+          "leaveBody": "Vous êtes retirée ou retiré de la liste d'attente. Vous pouvez nous rappeler en tout temps.",
+          "invalid": "Ce lien ne peut plus être utilisé : il a déjà servi ou il a expiré. Appelez la clinique au besoin.",
+          "error": "Votre réponse n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique.",
+          "body": "Vous êtes sur la liste d'attente de {clinic} ({list}). Souhaitez-vous y rester ?",
+          "bodyNoList": "Vous êtes sur la liste d'attente de {clinic}. Souhaitez-vous y rester ?",
+          "stay": "Oui, je reste sur la liste",
+          "leave": "Non, retirez-moi de la liste"
+        }
+      },
+      "calls": {
+        "nav": "Appels découverte",
+        "title": "Appels découverte",
+        "description": "Les appels découverte à faire, réservés en ligne ou par téléphone : l'heure, la personne et son numéro, qui appelle. Ils remplacent les faux rendez-vous de l'agenda « conseillère ».",
+        "views": "Période",
+        "view": {
+          "today": "Aujourd'hui",
+          "tomorrow": "Demain",
+          "week": "7 prochains jours"
+        },
+        "loadError": "Les appels n'ont pas pu être chargés.",
+        "empty": {
+          "today": "Aucun appel aujourd'hui.",
+          "tomorrow": "Aucun appel demain.",
+          "week": "Aucun appel ces 7 prochains jours."
+        },
+        "emptyBody": "Un appel découverte s'ajoute depuis la demande (onglet Suivi, « Appel découverte ») ou arrive par la page de réservation en ligne.",
+        "late": "En retard",
+        "urgent": "Urgente",
+        "bookedOnline": "Réservé en ligne",
+        "noPhone": "Pas de numéro",
+        "english": "En anglais",
+        "doneLine": "Fait : {outcome} · {name}",
+        "whoFor": "Qui appelle {person}",
+        "anyone": "La première disponible",
+        "assignedTo": "Appelle : {name}",
+        "reached": "Jointe",
+        "noAnswer": "Pas de réponse",
+        "done": "Appel noté pour {person}.",
+        "move": "Reporter…",
+        "moveFor": "Reporter l'appel de {person}",
+        "moveTitle": "Reporter l'appel de {person}",
+        "moveBody": "Choisissez le nouveau moment de l'appel.",
+        "moveBodyOnline": "Choisissez le nouveau moment de l'appel. Prévenez la personne : son lien d'annulation reste valide jusqu'à l'heure réservée au départ.",
+        "date": "Date",
+        "time": "Heure",
+        "moveSave": "Reporter",
+        "moved": "Appel reporté.",
+        "cancel": "Annuler",
+        "cancelFor": "Annuler l'appel de {person}",
+        "cancelTitle": "Annuler l'appel de {person} ?",
+        "cancelBody": "L'appel disparaît de la liste ; la demande reste ouverte.",
+        "cancelBodyOnline": "L'appel disparaît de la liste ; la demande reste ouverte. La personne a réservé en ligne : prévenez-la, aucun courriel ne part.",
+        "cancelAction": "Annuler l'appel",
+        "cancelled": "Appel annulé."
+      },
+      "propositions": {
+        "title": "Propositions",
+        "description": "Les professionnels proposés à la personne, les plages réservées pour elle 48 h et sa réponse.",
+        "loadError": "Les propositions n'ont pas pu être chargées.",
+        "none": "Aucune proposition pour cette demande.",
+        "needsAgenda": "Pour proposer des plages, Rendez-vous doit être activé et vous devez pouvoir lire l'agenda.",
+        "open": "Proposer un professionnel",
+        "mode": {
+          "video": "En vidéo",
+          "phone": "Par téléphone"
+        },
+        "response": {
+          "pending": "En attente de réponse (jusqu'au {date})",
+          "accepted": "Acceptée : premier rendez-vous le {date}",
+          "declined": "Refusée",
+          "declinedBecause": "Refusée : {reason}",
+          "expired": "Sans réponse en 48 h : plages libérées",
+          "withdrawn": "Retirée"
+        },
+        "reasons": {
+          "schedule": "Les plages ne conviennent pas",
+          "fee": "Le tarif",
+          "professional": "Le professionnel ne convient pas",
+          "changed_mind": "La personne a changé d'idée",
+          "other": "Autre raison"
+        },
+        "slots": "Plages réservées : {slots}",
+        "by": "Proposée le {date} par {name}",
+        "withdraw": "Retirer la proposition",
+        "withdrawTitle": "Retirer la proposition ?",
+        "withdrawBody": "Les plages réservées sont libérées et le lien envoyé ne fonctionne plus. Prévenez la personne si elle attend votre appel.",
+        "withdrawn": "Proposition retirée : les plages sont libérées.",
+        "sent": "Proposition envoyée : les plages sont réservées 48 h.",
+        "notEmailed": "La proposition est faite, mais le courriel n'est pas parti : appelez la personne ou retirez la proposition.",
+        "rateLimited": "Trop de propositions en peu de temps. Réessayez dans un moment.",
+        "form": {
+          "title": "Proposer un professionnel",
+          "description": "Choisissez le professionnel, le service et 1 à 3 de ses plages libres. Elles sont réservées 48 h pour la personne, qui reçoit un courriel pour choisir.",
+          "professional": "Professionnel",
+          "service": "Service",
+          "choose": "Choisir",
+          "mode": "Rendez-vous",
+          "slots": "Plages libres (jusqu'à {max}, sur {days} jours)",
+          "slotsError": "Les plages libres n'ont pas pu être chargées.",
+          "noSlot": "Aucune plage libre pour ce service ces prochains jours.",
+          "incomplete": "Choisissez le professionnel, le service et au moins une plage.",
+          "send": "Envoyer la proposition ({count} plages)",
+          "sending": "Envoi…"
+        },
+        "page": {
+          "title": "Votre premier rendez-vous",
+          "body": "{clinic} vous propose un premier rendez-vous avec {professional} ({service}, {mode}).",
+          "byVideo": "en vidéo",
+          "byPhone": "par téléphone",
+          "heldUntil": "Ces plages vous sont réservées jusqu'au {when}.",
+          "when": "{day} à {time}",
+          "choose": "Choisissez votre plage",
+          "accept": "Choisir cette plage",
+          "sending": "Réservation…",
+          "none": "Aucune ne me convient",
+          "reasonLabel": "Pourquoi ? (facultatif)",
+          "reasonNone": "Je préfère ne pas le dire",
+          "declineConfirm": "Confirmer : aucune ne me convient",
+          "noSlotLeft": "Aucune plage n'est encore réservée pour vous : appelez la clinique.",
+          "acceptedTitle": "C'est réservé !",
+          "acceptedBody": "Votre premier rendez-vous est le {when}. À bientôt !",
+          "acceptedPlain": "Votre premier rendez-vous est réservé. À bientôt !",
+          "declinedTitle": "C'est noté",
+          "declinedBody": "Une conseillère vous rappellera pour trouver autre chose.",
+          "invalid": "Ce lien ne peut plus être utilisé : il a déjà servi, il a été retiré ou les 48 h sont passées. Appelez la clinique au besoin.",
+          "error": "Votre réponse n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique.",
+          "unavailable": {
+            "hold_gone": "Cette plage n'est plus réservée pour vous. Choisissez-en une autre, ou appelez la clinique.",
+            "hold_expired": "Le délai de cette plage est passé. Choisissez-en une autre, ou appelez la clinique.",
+            "overlap": "Cette plage vient d'être prise. Choisissez-en une autre, ou appelez la clinique.",
+            "outside_availability": "Cette plage n'est plus offerte. Choisissez-en une autre, ou appelez la clinique.",
+            "balance_due": "Un solde reste à régler : appelez la clinique pour réserver.",
+            "starts_at": "Cette plage est déjà passée. Choisissez-en une autre.",
+            "other": "Cette plage n'est plus possible. Choisissez-en une autre, ou appelez la clinique."
+          }
+        }
+      }
+    },
+    "appointments": {
+      "name": "Rendez-vous",
+      "audit": {
+        "tables": {
+          "appointments": "Rendez-vous",
+          "appointment_participants": "Clients des rendez-vous",
+          "appointment_series": "Séries de rendez-vous",
+          "availability_rules": "Disponibilités",
+          "availability_exceptions": "Exceptions aux disponibilités",
+          "cancellation_reasons": "Raisons d'annulation",
+          "appointment_settings": "Heures d'ouverture et réglages de l'agenda",
+          "professional_video_links": "Liens vidéo fixes des professionnels",
+          "video_connections": "Comptes Zoom des professionnels",
+          "video_connection_tokens": "Jetons des comptes Zoom",
+          "appointment_video_meetings": "Réunions Zoom des rendez-vous",
+          "video_tasks": "Tâches des réunions Zoom"
+        },
+        "fields": {
+          "appointments": {
+            "professional_id": "Professionnel",
+            "service_id": "Service",
+            "starts_at": "Début",
+            "ends_at": "Fin de la séance",
+            "blocks_until": "Fin de la pause après",
+            "mode": "Mode",
+            "state": "État",
+            "is_personal": "Rendez-vous personnel",
+            "is_work": "Rendez-vous de travail",
+            "personal_label": "Libellé",
+            "internal_note": "Note interne",
+            "client_message": "Message au client",
+            "confirmed_at": "Confirmé par le client le",
+            "completed_at": "Terminé le",
+            "cancelled_at": "Annulé le",
+            "cancelled_by": "Annulé par",
+            "cancel_reason_id": "Raison d'annulation",
+            "cancel_details": "Détails de l'annulation",
+            "cancel_late": "Annulation tardive",
+            "kept_on_schedule": "Gardé à l'horaire",
+            "balance_override_reason": "Raison de la réservation malgré un solde",
+            "balance_override_by": "Réservé malgré un solde par",
+            "video_url": "Lien de la rencontre",
+            "video_external_id": "Référence de la rencontre",
+            "video_status": "État du lien de la rencontre",
+            "external_ref": "Référence GOrendezvous",
+            "outside_availability_reason": "Raison « Hors disponibilités »",
+            "outside_availability_by": "Réservé hors disponibilités par",
+            "held_until": "Proposé jusqu'au",
+            "hold_reference": "Proposition (demande)",
+            "series_id": "Série"
+          },
+          "appointment_participants": {
+            "appointment_id": "Rendez-vous",
+            "client_id": "Client",
+            "role": "Rôle",
+            "presence": "Présence",
+            "confirmed_at": "Confirmé le"
+          },
+          "availability_rules": {
+            "professional_id": "Professionnel",
+            "weekday": "Jour",
+            "start_time": "Début",
+            "end_time": "Fin",
+            "service_ids": "Services",
+            "visible_to_clients": "Visible aux clients",
+            "overflow_allowed": "Dépassement permis",
+            "valid_from": "Valide à partir du",
+            "valid_until": "Valide jusqu'au"
+          },
+          "availability_exceptions": {
+            "professional_id": "Professionnel",
+            "kind": "Type",
+            "starts_at": "Début",
+            "ends_at": "Fin",
+            "label": "Libellé"
+          },
+          "cancellation_reasons": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Raison de base",
+            "sort_order": "Ordre",
+            "is_active": "Active"
+          },
+          "appointment_settings": {
+            "business_days": "Jours ouvrables",
+            "business_start": "Ouverture",
+            "business_end": "Fermeture",
+            "reminder_business_days": "Rappel (jours ouvrables avant)",
+            "reminder_local_hour": "Heure d'envoi des rappels"
+          },
+          "professional_video_links": {
+            "professional_id": "Professionnel",
+            "url": "Lien fixe",
+            "updated_by": "Modifié par"
+          },
+          "video_connections": {
+            "professional_id": "Professionnel",
+            "provider": "Service",
+            "state": "État",
+            "external_user_id": "Identifiant Zoom",
+            "external_account_id": "Compte Zoom",
+            "account_email": "Adresse Zoom",
+            "scopes": "Accès accordés",
+            "connected_at": "Connecté le",
+            "connected_by": "Connecté par",
+            "disconnected_at": "Déconnecté le",
+            "reconnect_reason": "Raison de la reconnexion",
+            "tokens_refreshed_at": "Jetons renouvelés le"
+          },
+          "video_connection_tokens": {
+            "connection_id": "Compte Zoom",
+            "access_token": "Jeton d’accès",
+            "refresh_token": "Jeton de renouvellement",
+            "access_token_expires_at": "Expiration du jeton d’accès",
+            "key_version": "Version de la clé"
+          },
+          "appointment_video_meetings": {
+            "appointment_id": "Rendez-vous",
+            "connection_id": "Compte Zoom",
+            "external_id": "Référence de la réunion",
+            "join_url": "Lien de la réunion",
+            "emailed_join_url": "Lien envoyé aux clients"
+          },
+          "video_tasks": {
+            "appointment_id": "Rendez-vous",
+            "generation": "Version de la demande",
+            "state": "État",
+            "attempts": "Essais",
+            "next_attempt_at": "Prochain essai",
+            "locked_until": "Réservée jusqu’à",
+            "last_error_code": "Dernière erreur"
+          },
+          "appointment_series": {
+            "professional_id": "Professionnel",
+            "service_id": "Service",
+            "first_starts_at": "Premier rendez-vous",
+            "interval_weeks": "Toutes les (semaines)",
+            "weekdays": "Jours",
+            "occurrences": "Nombre de rendez-vous",
+            "until_on": "Jusqu'au",
+            "skipped_on": "Dates ignorées (conflits)"
+          }
+        },
+        "values": {
+          "appointments": {
+            "mode": {
+              "video": "Vidéo",
+              "phone": "Téléphone"
+            },
+            "state": {
+              "held": "En attente d'acceptation",
+              "booked": "Réservé",
+              "confirmed": "Confirmé par le client",
+              "completed": "Terminé",
+              "cancelled": "Annulé"
+            },
+            "video_status": {
+              "ready": "Prêt",
+              "pending": "En attente",
+              "failed": "Échec"
+            }
+          },
+          "appointment_participants": {
+            "role": {
+              "client": "Client",
+              "second": "Deuxième personne"
+            },
+            "presence": {
+              "expected": "Sera présent",
+              "present": "Présent",
+              "absent": "Absent"
+            }
+          },
+          "availability_exceptions": {
+            "kind": {
+              "holiday": "Jour férié",
+              "vacation": "Vacances",
+              "other": "Autre"
+            }
+          },
+          "video_connections": {
+            "state": {
+              "connected": "Connecté",
+              "needs_reconnect": "À reconnecter",
+              "disconnected": "Déconnecté"
+            },
+            "provider": {
+              "zoom": "Zoom"
+            },
+            "reconnect_reason": {
+              "invalid_grant": "Zoom a refusé l’accès",
+              "unauthorized": "Zoom a refusé l’accès",
+              "deauthorized": "Application retirée de Zoom"
+            }
+          },
+          "video_tasks": {
+            "state": {
+              "pending": "À faire",
+              "done": "Faite",
+              "failed": "Échec"
+            }
+          }
+        },
+        "sources": {
+          "seed:appointments_reference": "Réglages initiaux de l’agenda",
+          "job:appointments.video_sync": "Tâche « Liens Zoom des rendez-vous »",
+          "webhook:zoom": "Zoom"
+        }
+      },
+      "video": {
+        "nav": "Vidéoconférence",
+        "readiness": {
+          "zoom": "Zoom connecté",
+          "reconnect": "Zoom à reconnecter",
+          "fixed": "Lien fixe",
+          "none": "Aucun lien vidéo"
+        },
+        "page": {
+          "title": "Vidéoconférence",
+          "description": "Le lien de vos rendez-vous en vidéo : votre Zoom, connecté ici, ou votre lien fixe (Google Meet, Microsoft Teams…). Il est envoyé à vos clients et ouvert avec « Démarrer ».",
+          "loadError": "Impossible de charger votre vidéoconférence.",
+          "notProfessionalTitle": "Réservé aux professionnels",
+          "notProfessionalBody": "Votre compte n’est lié à aucun dossier de professionnel de la clinique."
+        },
+        "zoom": {
+          "title": "Zoom",
+          "description": "Connecté, chaque rendez-vous en vidéo a sa propre réunion dans votre Zoom, déplacée et supprimée avec lui. Le lien est envoyé à vos clients.",
+          "notConnected": "Zoom n’est pas connecté",
+          "connect": "Connecter mon Zoom",
+          "reconnect": "Reconnecter mon Zoom",
+          "leaving": "Ouverture de Zoom…",
+          "connectHelp": "Zoom vous demande d’autoriser l’application de la clinique, puis vous ramène ici.",
+          "connectedAs": "Compte {email}, connecté le {date}.",
+          "connectedSince": "Connecté le {date}.",
+          "reconnectWhy": "Zoom refuse l’accès de la clinique à votre compte.",
+          "deauthorized": "L’application de la clinique a été retirée de votre compte Zoom.",
+          "reconnectNotice": "Vos nouveaux rendez-vous en vidéo n’ont pas de lien Zoom tant que vous ne l’avez pas reconnecté. Les liens déjà envoyés fonctionnent toujours.",
+          "disconnect": "Déconnecter",
+          "disconnecting": "Déconnexion…",
+          "disconnected": "Zoom est déconnecté : vos rendez-vous en vidéo utiliseront votre lien fixe.",
+          "disconnectConfirm": {
+            "title": "Déconnecter votre Zoom ?",
+            "body": "La clinique ne créera plus de réunion dans votre Zoom. Vos prochains rendez-vous en vidéo utiliseront votre lien fixe, s’il y en a un. Les réunions déjà créées restent dans votre Zoom.",
+            "action": "Déconnecter"
+          },
+          "connectedToast": "Zoom est connecté ({email}). Vos prochains rendez-vous en vidéo auront chacun leur lien.",
+          "connectedToastPlain": "Zoom est connecté. Vos prochains rendez-vous en vidéo auront chacun leur lien.",
+          "declined": "La connexion à Zoom a été annulée : Zoom n’a pas été autorisé."
+        },
+        "fixed": {
+          "title": "Lien fixe",
+          "description": "Votre adresse de rencontre habituelle (Google Meet, Microsoft Teams, une salle Zoom personnelle…), utilisée quand Zoom n’est pas connecté.",
+          "label": "Adresse du lien",
+          "help": "L’adresse complète, qui commence par https://. Videz le champ et enregistrez pour la retirer.",
+          "invalid": "Entrez l’adresse complète du lien, qui commence par https:// (par exemple https://meet.google.com/abc-defg-hij).",
+          "tooLong": "Le lien est trop long (500 caractères au plus).",
+          "saved": "Lien fixe enregistré.",
+          "removed": "Lien fixe retiré."
+        },
+        "appointment": {
+          "retried": "Le lien sera créé de nouveau dans les prochaines minutes."
+        },
+        "errors": {
+          "notConfigured": "La clinique n’a pas encore configuré Zoom. Demandez-lui de le faire, ou entrez votre lien fixe.",
+          "providerError": "Zoom ne répond pas pour le moment. Réessayez dans quelques minutes.",
+          "linkInvalid": "Ce retour de Zoom n’est pas valide. Recommencez la connexion.",
+          "linkExpired": "La connexion a pris trop de temps. Recommencez-la.",
+          "linkUsed": "Cette connexion a déjà été traitée. Recommencez-la au besoin.",
+          "notFound": "Aucun compte Zoom n’est connecté.",
+          "forbidden": "Cette connexion a été commencée par une autre personne. Recommencez-la."
+        },
+        "settings": {
+          "title": "Vidéoconférence",
+          "description": "Le lien vidéo de chaque professionnel : son Zoom, connecté par lui, ou son lien fixe (Google Meet, Microsoft Teams…), et l’application Zoom de la clinique.",
+          "list": {
+            "title": "Professionnels",
+            "description": "Qui est prêt pour les rendez-vous en vidéo. Un professionnel sans lien peut connecter son Zoom dans « Vidéoconférence » ; vous pouvez entrer son lien fixe pour lui.",
+            "summary": "Avec un lien vidéo : {ready} sur {total} professionnels actifs.",
+            "filterLabel": "Filtrer par lien vidéo",
+            "filter": "{label} ({count})",
+            "filters": {
+              "all": "Tous",
+              "zoom": "Zoom connecté",
+              "fixed": "Lien fixe",
+              "reconnect": "À reconnecter",
+              "none": "Aucun lien"
+            },
+            "addFixed": "Ajouter un lien fixe",
+            "editFixed": "Modifier le lien fixe",
+            "addFixedFor": "Ajouter un lien fixe pour {name}",
+            "editFixedFor": "Modifier le lien fixe de {name}",
+            "close": "Fermer",
+            "fixedTitle": "Lien fixe de {name}",
+            "fixedDescription": "Utilisé pour ses rendez-vous en vidéo quand son Zoom n’est pas connecté.",
+            "empty": "Aucun professionnel actif.",
+            "emptyFilter": "Aucun professionnel dans ce filtre.",
+            "loadError": "Impossible de charger les professionnels.",
+            "noNames": "La liste des professionnels n’est visible qu’avec la permission de voir les professionnels."
+          },
+          "app": {
+            "title": "Application Zoom",
+            "description": "L’application OAuth de la clinique sur le Zoom App Marketplace, qui permet à chaque professionnel de connecter son propre Zoom.",
+            "clientId": "Client ID",
+            "clientIdHelp": "Dans Zoom App Marketplace → l’application de la clinique → App Credentials.",
+            "clientSecret": "Client Secret",
+            "clientSecretHelp": "Au même endroit. Il n’est jamais réaffiché ici.",
+            "webhookSecret": "Secret Token",
+            "webhookSecretHelp": "Dans Features → Access → Secret Token : il signe les avis de Zoom (application retirée par un professionnel).",
+            "redirect": "Adresse de retour (Redirect URL for OAuth)",
+            "redirectHelp": "À entrer dans l’application Zoom, ainsi que dans « OAuth allow list ».",
+            "webhook": "Adresse des avis de Zoom (Event notification endpoint URL)",
+            "webhookHelp": "À entrer dans Features → Event Subscriptions, avec l’événement « App deauthorized ».",
+            "readOnly": "Seule une personne qui gère les intégrations peut modifier ces valeurs.",
+            "secretsUnknown": "L’état de cette valeur n’est visible qu’avec la permission de voir les paramètres.",
+            "secretsLoadError": "Impossible de charger l’état des clés."
+          },
+          "job": {
+            "title": "Tâche planifiée",
+            "description": "Désactivée au départ, comme toutes les tâches de la clinique : activez-la une fois l’application Zoom configurée.",
+            "unknown": "L’état des tâches planifiées n’est visible qu’avec la permission de voir les paramètres.",
+            "sync": {
+              "on": "La tâche « Liens Zoom des rendez-vous » est activée.",
+              "onNoHour": "La tâche « Liens Zoom des rendez-vous » est activée.",
+              "off": "La tâche « Liens Zoom des rendez-vous » est désactivée : aucune réunion Zoom n’est créée, déplacée ni supprimée.",
+              "enable": "Activer la tâche planifiée",
+              "enabling": "Activation…",
+              "askAdmin": "Une personne qui gère les tâches planifiées peut l’activer :",
+              "openJobs": "Ouvrir Tâches planifiées",
+              "unknown": "La tâche « Liens Zoom des rendez-vous » n’est pas disponible pour la clinique.",
+              "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
+            }
+          }
+        }
+      },
+      "saved": {
+        "booked": "Rendez-vous réservé.",
+        "moved": "Rendez-vous déplacé.",
+        "details": "Rendez-vous enregistré.",
+        "cancelled": "Rendez-vous annulé.",
+        "rule": "Plage enregistrée.",
+        "ruleDeleted": "Plage supprimée.",
+        "exception": "Exception ajoutée.",
+        "exceptionRemoved": "Exception retirée.",
+        "series": "Série réservée.",
+        "seriesCancelled": "Rendez-vous de la série annulés."
+      },
+      "errors": {
+        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
+      },
+      "agenda": {
+        "title": "Agenda",
+        "description": "Les rendez-vous de la clinique : cliquez sur une plage libre pour réserver, glissez un rendez-vous pour le déplacer.",
+        "loadError": "Impossible de charger l'agenda.",
+        "new": "Nouveau rendez-vous",
+        "views": "Vues de l'agenda",
+        "view": {
+          "jour": "Jour",
+          "semaine": "Semaine",
+          "jours": "Prochains jours",
+          "mois": "Mois"
+        },
+        "todayButton": "Aujourd'hui",
+        "today": "aujourd'hui",
+        "previous": "Période précédente",
+        "next": "Période suivante",
+        "weekOf": "Semaine du {date}",
+        "from": "À partir du {date}",
+        "professional": "Professionnel",
+        "allProfessionals": "Tous les professionnels",
+        "service": "Service",
+        "allServices": "Tous les services",
+        "modeLabel": "Mode de l'agenda",
+        "mode": {
+          "booking": "Rendez-vous",
+          "availability": "Disponibilités"
+        },
+        "choosePro": "Choisissez un professionnel",
+        "chooseProBody": "Les disponibilités se modifient pour un professionnel à la fois.",
+        "noProfessional": "Aucun professionnel ne correspond.",
+        "busy": "Occupé",
+        "noClient": "Sans client",
+        "blockLabel": "{time}, {title}",
+        "windowLabel": "Plage de {start} à {end}",
+        "windowServices": "Services choisis : {count}",
+        "monthDay": "{day} : {count} rendez-vous",
+        "more": "et {count} autres",
+        "upcomingEmpty": "Aucun rendez-vous dans les prochains jours"
+      },
+      "editor": {
+        "newTitle": "Nouveau rendez-vous",
+        "newDescription": "La base vérifie les disponibilités, les chevauchements et les limites du professionnel.",
+        "professional": "Professionnel",
+        "service": "Service",
+        "choose": "Choisir…",
+        "date": "Date",
+        "time": "Heure",
+        "mode": "Mode",
+        "slotHelp": "{duration} min, puis {buffer} min de pause",
+        "clients": "Client",
+        "clientsTwo": "Les deux clients",
+        "personSeen": "personne reçue",
+        "secondPerson": "deuxième personne",
+        "removeClient": "Retirer",
+        "findClient": "Client",
+        "findSecond": "Deuxième personne (facultatif)",
+        "newClientName": "Nouveau dossier",
+        "internalNote": "Note interne",
+        "internalNoteHelp": "Pour l'équipe seulement ; jamais envoyée au client.",
+        "clientMessage": "Message au client",
+        "clientMessageHelp": "Inclus dans la confirmation et le rappel.",
+        "book": "Réserver",
+        "booking": "Réservation…",
+        "outsideTitle": "Hors disponibilités",
+        "outsideHelp": "Ce créneau est en dehors des disponibilités du professionnel. Vous pouvez le réserver quand même : la raison est notée et le rendez-vous le montre.",
+        "outsideReason": "Raison « Hors disponibilités »",
+        "outsideBadge": "Hors disponibilités",
+        "balanceTitle": "Ce client a un solde dû. Une exception demande une raison.",
+        "balanceReason": "Raison de l'exception",
+        "balanceBadge": "Réservé malgré un solde",
+        "keptOnSchedule": "Gardé à l'horaire",
+        "lateCancel": "Annulation tardive",
+        "tabs": {
+          "appointment": "Rendez-vous",
+          "notes": "Notes",
+          "cancel": "Annulation"
+        },
+        "presence": "Présence",
+        "presenceOf": "Présence de {name}",
+        "confirmed": "a confirmé",
+        "move": "Déplacer",
+        "moveSubmit": "Déplacer le rendez-vous",
+        "moving": "Déplacement…",
+        "reason": "Raison de l'annulation",
+        "details": "Détails",
+        "keep": "Garder à l'horaire",
+        "keepHelp": "La plage reste occupée (le professionnel ne la reprend pas).",
+        "cancelSubmit": "Annuler le rendez-vous",
+        "cancelling": "Annulation…",
+        "cancelledWith": "Annulé : {reason}.",
+        "noReason": "sans raison",
+        "notCancellable": "Ce rendez-vous est terminé : il ne s’annule plus.",
+        "findSecondRequired": "Deuxième personne",
+        "heldNotice": "Ce créneau est proposé au client et attend son acceptation. Il se gère depuis la demande : il devient un rendez-vous quand le client l'accepte, et se libère sinon.",
+        "series": {
+          "title": "Répétition",
+          "repeat": "Répéter ce rendez-vous",
+          "interval": "Fréquence",
+          "everyWeek": "Chaque semaine",
+          "everyNWeeks": "Toutes les {n} semaines",
+          "end": "Fin",
+          "endCount": "Après un nombre de rendez-vous",
+          "endUntil": "Jusqu'à une date",
+          "count": "Rendez-vous",
+          "countHelp": "De 2 à 52.",
+          "until": "Dernière date",
+          "weekdays": "Jours",
+          "dates": "Dates de la série",
+          "summaryFree": "{count} dates, toutes libres.",
+          "summaryConflicts": "{count} dates, dont {conflicts} en conflit.",
+          "free": "Libre",
+          "conflict": {
+            "overlap": "Déjà un rendez-vous",
+            "outside_availability": "Hors disponibilités"
+          },
+          "skip": "Ignorer les dates en conflit ({conflicts})",
+          "skipHelp": "Les autres dates sont réservées ; les dates ignorées restent notées sur la série.",
+          "book": "Réserver {count} rendez-vous",
+          "cancelRest": "Annuler aussi les rendez-vous suivants de la série",
+          "cancelRestHelp": "Ce rendez-vous et ceux qui le suivent dans la série, avec la même raison."
+        }
+      },
+      "availability": {
+        "newTitle": "Nouvelle plage",
+        "editTitle": "Modifier la plage",
+        "ruleDescription": "Une plage revient chaque semaine, en heure de la clinique. Les rendez-vous se réservent dans les plages.",
+        "weekday": "Jour",
+        "start": "Début",
+        "end": "Fin",
+        "services": "Services permis",
+        "servicesHelp": "Aucun coché : tous les services du professionnel.",
+        "visible": "Visible aux clients",
+        "overflow": "Dépassement permis",
+        "overflowHelp": "Un rendez-vous peut commencer dans la plage et finir après.",
+        "validFrom": "Valide à partir du",
+        "validFromHelp": "Vide : aujourd'hui.",
+        "validUntil": "Valide jusqu'au",
+        "delete": "Supprimer la plage",
+        "exceptions": "Exceptions",
+        "exceptionsHelp": "Jours fériés, vacances et autres absences : aucun rendez-vous ne s’y réserve.",
+        "vacationWeek": "Vacances cette semaine",
+        "addException": "Ajouter une exception",
+        "removeException": "Retirer",
+        "noException": "Aucune exception à venir.",
+        "exceptionDescription": "Du début à la fin, en heure de la clinique.",
+        "kind": "Type",
+        "from": "Du",
+        "fromTime": "Heure",
+        "to": "Au",
+        "toTime": "Heure",
+        "label": "Libellé"
+      },
+      "confirm": {
+        "title": "Confirmer votre rendez-vous",
+        "bodyVideo": "{clinic} : rendez-vous le {when} avec {professional}, par vidéo.",
+        "bodyPhone": "{clinic} : rendez-vous le {when} avec {professional}, par téléphone.",
+        "call": "Pour annuler ou changer ce rendez-vous, appelez la clinique.",
+        "button": "Confirmer ma présence",
+        "done": "Merci : votre présence est confirmée.",
+        "already": "Votre présence à ce rendez-vous est déjà confirmée.",
+        "invalid": "Ce lien ne peut plus être utilisé. Pour toute question, appelez la clinique.",
+        "error": "La confirmation n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique."
+      },
+      "withoutReminder": {
+        "title": "Clients sans rappel",
+        "description": "Les rendez-vous des 7 prochains jours dont personne ne peut recevoir de rappel (aucun courriel, aucun texto autorisé) : appelez ces clients.",
+        "empty": "Tous les clients des 7 prochains jours recevront un rappel.",
+        "loadError": "La liste des clients sans rappel ne se charge pas."
       }
     },
     "billing": {
@@ -7188,7 +9111,8 @@
         "documenso_recipient_id": "Destinataire Documenso",
         "viewed_at": "Consulté le",
         "signed_at": "Signé le",
-        "rejected_at": "Refusé le"
+        "rejected_at": "Refusé le",
+        "redacted_at": "Anonymisé le"
       },
       "stored_files": {
         "module_key": "Module",

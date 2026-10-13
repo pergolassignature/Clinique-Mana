@@ -71,13 +71,15 @@ select is_empty($$
      -- auditing it would keep them in audit_log forever (Loi 25), like email_log.
      -- sms_provider_sessions: the PBX session's Vault ids, expiries and refresh lease, rewritten
      -- at every token refresh; no business data.
+     -- appointment_messages: the delivery log of Rendez-vous' emails and texts (ids, statuses,
+     -- no text), one row per recipient and channel, rewritten at each try; like email_log.
      -- qbo_accounts, qbo_customers (FQ-3): the QuickBooks company's chart of accounts and
      -- customers as last read, replaced at each sync; the customers are names, emails and phones
      -- QuickBooks holds (Loi 25). What a person decides (the account map, a match) is audited.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
                            'scheduled_job_dispatches', 'notifications', 'notification_reads',
                            'user_preferences', 'signature_request_syncs', 'sms_messages',
-                           'sms_provider_sessions',
+                           'sms_provider_sessions', 'appointment_messages',
                            'mail_threads', 'mail_messages', 'mail_attachments', 'mail_labels', 'mail_sync_state',
                            'qbo_accounts', 'qbo_customers')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid

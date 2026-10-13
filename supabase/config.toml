@@ -210,8 +210,29 @@ verify_jwt = false
 # The public consent page: the link's token (hashed), per-IP and per-link limits first.
 [functions.clients-consent-sign]
 verify_jwt = false
+# Public: the discovery-call booking page (D3c); per-IP limits and a proof-of-work check.
+[functions.demandes-book-call]
+verify_jwt = false
+# Public token: the « still waiting? » answer (the single-use link is the credential).
+[functions.demandes-waitlist-answer]
+verify_jwt = false
+# Job demandes.waitlist_followup: X-Job-Signature (runJob).
+[functions.demandes-waitlist-followup]
+verify_jwt = false
+# User: a proposal (verifyAuth, demandes.manage).
+[functions.demandes-propose]
+verify_jwt = false
+# Public token: the answer to a proposal (the single-use link is the credential).
+[functions.demandes-proposition-answer]
+verify_jwt = false
 # Job clients.consent_reminders: X-Job-Signature (runJob).
 [functions.clients-consent-reminders]
+verify_jwt = false
+# Rendez-vous R4. Public token: « Confirmer ma présence » (the single-use link is the credential).
+[functions.appointments-confirm]
+verify_jwt = false
+# Job appointments.messages: X-Job-Signature (runJob).
+[functions.appointments-messages]
 verify_jwt = false
 [functions.sms-send]
 verify_jwt = false
@@ -231,4 +252,15 @@ verify_jwt = false
 verify_jwt = false
 # Job billing.qbo_token_refresh (runJob verifies X-Job-Signature).
 [functions.qbo-token-refresh]
+verify_jwt = false
+# Rendez-vous RZ: a professional connects or disconnects her Zoom (verifyAuth, appointments.self).
+[functions.zoom-connect]
+verify_jwt = false
+[functions.zoom-callback]
+verify_jwt = false
+# Zoom's event notifications (app deauthorized): the org's secret token (x-zm-signature, HMAC-SHA256).
+[functions.zoom-deauthorize]
+verify_jwt = false
+# Job appointments.video_sync: X-Job-Signature (runJob).
+[functions.appointments-video-sync]
 verify_jwt = false
