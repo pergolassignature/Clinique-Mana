@@ -428,17 +428,20 @@ function Lines({
               </td>
               {draft && (
                 <td className="px-3 py-2 text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t(`${I}.removeLine`, {
-                      description: l.description,
-                    })}
-                    onClick={() => remove.mutate(l.id)}
-                  >
-                    <Trash2 aria-hidden />
-                  </Button>
+                  {/* A payer's share is computed (FP-2): it follows its session, never removed by hand. */}
+                  {l.lineType !== 'payer_share' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t(`${I}.removeLine`, {
+                        description: l.description,
+                      })}
+                      onClick={() => remove.mutate(l.id)}
+                    >
+                      <Trash2 aria-hidden />
+                    </Button>
+                  )}
                 </td>
               )}
             </tr>

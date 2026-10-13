@@ -339,3 +339,36 @@ export async function fetchClientHistory(id: string, beforeId: number | null): P
   if (error) throw error
   return parseRpc(z.array(historyEntryPayload), data)
 }
+
+// --- « Payeurs à compléter » (FP-9) ----------------------------------------------------------------
+
+export const PAYER_MISSING = ['file_number', 'organisation_name', 'coverage'] as const
+export type PayerMissing = (typeof PAYER_MISSING)[number]
+
+const payerToCompletePayload = z
+  .object({
+    client_payer_id: z.string(),
+    client_id: z.string(),
+    client_name: z.string(),
+    client_number: z.number().int().nullable(),
+    kind: z.enum(['ivac', 'pae']),
+    is_stub: z.boolean(),
+    missing: z.array(z.enum(PAYER_MISSING)),
+  })
+  .transform((r) => ({
+    clientPayerId: r.client_payer_id,
+    clientId: r.client_id,
+    clientName: r.client_name,
+    clientNumber: r.client_number,
+    kind: r.kind,
+    isStub: r.is_stub,
+    missing: r.missing,
+  }))
+export type PayerToComplete = z.output<typeof payerToCompletePayload>
+
+/** The active payers the split cannot use yet: the import's stubs, a missing file number, provider or coverage. */
+export async function fetchPayersToComplete(): Promise<PayerToComplete[]> {
+  const { data, error } = await supabase.rpc('list_client_payers_to_complete')
+  if (error) throw error
+  return parseRpc(z.array(payerToCompletePayload), data)
+}

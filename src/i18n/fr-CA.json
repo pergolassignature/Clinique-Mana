@@ -6198,7 +6198,31 @@
           "removeMainBody": "L'assurance principale sera retirée du dossier ; la secondaire, s'il y en a une, devient la principale.",
           "removeSecondaryBody": "L'assurance secondaire sera retirée du dossier.",
           "endPayerTitle": "Terminer ce payeur ?",
-          "endPayerBody": "{payer} ne paiera plus les prochaines séances. Il reste au dossier : les factures passées le nomment."
+          "endPayerBody": "{payer} ne paiera plus les prochaines séances. Il reste au dossier : les factures passées le nomment.",
+          "stub": "À compléter",
+          "stubHelp": "Importé de GOrendezvous : ajoutez le numéro de dossier (pour un PAE, aussi le fournisseur et la couverture). D'ici là, ses séances attendent dans la file du matin.",
+          "coveragePercent": "Part couverte (%)",
+          "percent": "{value} %",
+          "renewal": "Renouvellement",
+          "renewalEvery": "Chaque année le {day}",
+          "priorUse": "Déjà utilisé avant l'application",
+          "priorSessions": "séances : {count}",
+          "priorAt": "{used}, en date du {date}",
+          "coverMode": "Ce que le PAE paie",
+          "coverAmount": "Un montant par séance",
+          "coverPercent": "Une part de chaque séance (%)",
+          "coveragePercentHelp": "De 1 à 100.",
+          "invalidPercent": "La part couverte va de 1 à 100 %.",
+          "invalidRenewal": "Indiquez le mois et le jour du renouvellement, ou aucun des deux.",
+          "renewalMonth": "Renouvellement (mois)",
+          "renewalHelp": "Le jour où l'entente recommence, le plus souvent le 31 mars.",
+          "renewalDay": "Jour",
+          "noRenewal": "Aucun",
+          "priorAmount": "Déjà utilisé avant l'application",
+          "priorHelp": "Ce que le PAE a déjà payé dans l'année de l'entente, avant l'application, avec la date.",
+          "priorSessionsLabel": "Séances déjà utilisées",
+          "priorOn": "En date du",
+          "invalidPrior": "Indiquez ce qui a déjà été utilisé (un montant ou des séances) et en date de quel jour, ou rien."
         },
         "visits": {
           "title": "Visites et paiements",
@@ -6373,6 +6397,25 @@
         "open": "Ouvrir le dossier dans un nouvel onglet",
         "anonymized": "Dossier anonymisé",
         "linked": "Un dossier de la clinique"
+      },
+      "payersToComplete": {
+        "title": "Payeurs à compléter",
+        "description": "Les payeurs IVAC et PAE auxquels il manque un renseignement pour partager les séances. Tant qu'ils ne sont pas complétés, les factures de ces clients attendent dans la file du matin.",
+        "loadError": "Impossible de charger les payeurs à compléter.",
+        "empty": "Aucun payeur à compléter.",
+        "columns": {
+          "client": "Client",
+          "payer": "Payeur",
+          "missing": "À compléter"
+        },
+        "number": "Client n° {number}",
+        "stub": "Importé",
+        "missing": {
+          "file_number": "Numéro de dossier",
+          "organisation_name": "Fournisseur du PAE",
+          "coverage": "Montant ou part couverte"
+        },
+        "checkTerms": "Vérifiez le payeur, puis enregistrez-le"
       }
     },
     "communications": {
@@ -10642,7 +10685,8 @@
           "price_missing": "Montant à indiquer",
           "payer_missing": "Payeur sans adresse courriel",
           "payer_incomplete": "Payeur tiers à compléter"
-        }
+        },
+        "completePayer": "Compléter le payeur"
       },
       "stripe": {
         "card": "Carte",
@@ -10871,6 +10915,141 @@
         "apply": "Appliquer les frais",
         "waive": "Ne pas facturer",
         "openInvoice": "Ouvrir la facture"
+      },
+      "payers": {
+        "nav": "Payeurs tiers",
+        "title": "Payeurs tiers",
+        "description": "L'IVAC et les PAE : les séances dont la part reste à leur facturer, les factures prêtes à envoyer et ce qui reste impayé.",
+        "loadError": "Impossible de charger les payeurs tiers.",
+        "empty": "Aucun organisme payeur.",
+        "prepareAll": "Préparer les factures ({count})",
+        "prepare": "Préparer ({count})",
+        "preparedNone": "Rien à facturer pour l'instant.",
+        "prepared": "Factures préparées : {count}. Vérifiez-les, puis envoyez-les.",
+        "closeYear": "Facturer les PAE",
+        "closeTitle": "Facturer les PAE pour fermer l'année ?",
+        "closeBody": "Toutes les séances pas encore facturées à {organisations} le sont maintenant, même sous le seuil habituel. À faire début avril, quand les ententes se renouvellent. Les factures restent en brouillon : vérifiez-les, puis envoyez-les.",
+        "closeConfirm": "Facturer les PAE",
+        "toComplete": "Voir les payeurs à compléter (numéro de dossier, fournisseur, couverture)",
+        "sent": "Factures envoyées : {count}.",
+        "refused": "{client} : {message}",
+        "cadence": "Facturation : {cadence}",
+        "billingEmail": "Factures à {email}",
+        "noBillingEmail": "Pas d'adresse de facturation",
+        "inactive": "Désactivé",
+        "nothing": "Rien à facturer pour l'instant.",
+        "pendingTitle": "À facturer",
+        "pendingLabel": "Séances à facturer à {organisation}",
+        "columns": {
+          "client": "Client",
+          "fileNumber": "Dossier n°",
+          "sessions": "Séances",
+          "amount": "Montant",
+          "since": "Depuis le",
+          "state": "État"
+        },
+        "noFileNumber": "Sans numéro",
+        "due": "À facturer maintenant",
+        "later": {
+          "monthly": "Le mois prochain",
+          "threshold": "Plus tard : sous le tiers du maximum",
+          "closing": "À la fin de l'année de l'entente"
+        },
+        "draftsTitle": "Factures prêtes à envoyer",
+        "draftsLabel": "Factures prêtes pour {organisation}",
+        "sendAll": "Tout envoyer ({count})",
+        "send": "Envoyer",
+        "fileNumber": "dossier n° {number}",
+        "lines": "lignes : {count}",
+        "unpaid": "Factures impayées : {count} ({amount}).",
+        "unpaidLink": "Voir les impayés",
+        "saved": {
+          "organisation": "Organisme enregistré.",
+          "rate": "Tarif de l'IVAC enregistré.",
+          "clientOrganisation": "Organisme facturé enregistré.",
+          "created": "Facture à l'organisme créée."
+        },
+        "client": {
+          "title": "Payeurs tiers",
+          "fileNumber": "dossier n° {number}",
+          "stub": "À compléter",
+          "expired": "Expiré",
+          "budgetLow": "Budget bas",
+          "usedOfAmount": "{used} utilisés sur {max}",
+          "usedOfSessions": "séances : {used} sur {max}",
+          "usedNoMax": "{used} cette année (séances : {sessions})",
+          "period": "Année de l'entente : du {from} au {to}",
+          "pending": "Reste à facturer à l'organisme : {amount}",
+          "stubHelp": "Ce payeur vient de l'importation : complétez-le dans le dossier. D'ici là, ses séances attendent dans la file du matin.",
+          "noOrganisationHelp": "Aucun organisme payeur ne correspond : choisissez-le ci-dessous, ou ajoutez le fournisseur dans Paramètres → Payeurs tiers.",
+          "openCoverage": "Ouvrir « Assurance et payeurs »",
+          "organisation": "Organisme facturé",
+          "organisationHelp": "Par défaut, celui trouvé : l'IVAC de la clinique, ou le fournisseur de PAE du même nom.",
+          "found": "{name} (trouvé)",
+          "notFound": "Aucun organisme trouvé",
+          "createInvoice": "Nouvelle facture à {organisation}"
+        },
+        "settings": {
+          "title": "Payeurs tiers",
+          "description": "Le tarif de l'IVAC et les organismes payeurs : l'IVAC de la clinique et les fournisseurs de PAE.",
+          "loadError": "Impossible de charger les payeurs tiers.",
+          "rate": {
+            "title": "Tarif de l'IVAC",
+            "description": "Ce que l'IVAC paie par séance ; l'écart est facturé au client. Un nouveau tarif ne change jamais une facture déjà émise.",
+            "current": "Tarif actuel : {amount} par séance",
+            "none": "Aucun tarif.",
+            "history": "Tarifs",
+            "from": "À partir du {date} : {amount}",
+            "newFrom": "Nouveau tarif à partir du",
+            "newFromHelp": "Au plus tôt il y a un mois.",
+            "newAmount": "Montant par séance",
+            "amountInvalid": "Indiquez un montant, par exemple 94,50."
+          },
+          "organisations": {
+            "title": "Organismes payeurs",
+            "description": "L'IVAC de la clinique et les fournisseurs de PAE : où envoyer leurs factures, et quand.",
+            "add": "Ajouter un fournisseur de PAE",
+            "inactive": "Désactivé",
+            "noEmail": "Pas d'adresse de facturation",
+            "days": "{count} jours",
+            "remindersOn": "Oui",
+            "remindersOff": "Non",
+            "edit": "Modifier",
+            "editLabel": "Modifier {name}"
+          },
+          "fields": {
+            "name": "Nom",
+            "billingEmail": "Courriel de facturation",
+            "billingEmailHelp": "Les factures et les reçus y sont envoyés.",
+            "contactName": "Contact",
+            "language": "Langue des factures",
+            "providerNumber": "Numéro de fournisseur de la clinique",
+            "providerNumberHelp": "Imprimé sur les factures à cet organisme.",
+            "cadence": "Facturation",
+            "dueDays": "Délai de paiement (jours)",
+            "reminders": "Relances des factures en retard",
+            "remindersHelp": "Désactivées par défaut : un organisme paie à ses propres conditions.",
+            "active": "Actif",
+            "activeHelp": "Un organisme désactivé ne reçoit plus de nouvelles factures.",
+            "note": "Note"
+          },
+          "languages": {
+            "fr": "Français",
+            "en": "Anglais"
+          },
+          "cadenceHelp": {
+            "monthly": "Une facture par client chaque mois, pour les séances des mois passés.",
+            "threshold": "Une facture dès que les séances atteignent le tiers du maximum de l'entente, ou à la fin de son année (environ 3 factures).",
+            "closing": "Une seule facture, à la fin de l'année de l'entente."
+          },
+          "dialog": {
+            "addTitle": "Ajouter un fournisseur de PAE",
+            "editTitle": "Modifier {name}",
+            "description": "Un fournisseur de PAE reçoit les factures des clients dont le PAE porte son nom.",
+            "ivacDescription": "L'IVAC de la clinique : il reste toujours actif.",
+            "dueDaysInvalid": "Le délai de paiement va de 0 à 120 jours."
+          }
+        }
       }
     },
     "reports": {

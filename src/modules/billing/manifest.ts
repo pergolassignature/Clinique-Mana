@@ -1,4 +1,4 @@
-import { ArrowLeftRight, BookUser, CreditCard, HandCoins, Landmark, ReceiptText, Wallet } from 'lucide-react'
+import { ArrowLeftRight, BookUser, Building2, CreditCard, HandCoins, Landmark, ReceiptText, Wallet } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -23,7 +23,9 @@ export const payPublicPage = lazyPage(() => import('./pages/public/StripeLinkPag
  * accounts map and the customers' matching. FS (online payments): Stripe cards on file and the
  * next-day charge, « Payer en ligne », « Virements Interac », Paramètres → Paiements en ligne, the
  * public pages `/carte` and `/payer`. FPay (payroll): « Paie » for the administration
- * (`billing.payroll`), « Ma paie » for the professional (`billing.self`), Paramètres → Paie.
+ * (`billing.payroll`), « Ma paie » for the professional (`billing.self`), Paramètres → Paie. FP
+ * (third-party payers): « Payeurs tiers » (the IVAC and PAE invoices, « Facturer les PAE »), a
+ * dossier's payers in its panel, Paramètres → Payeurs tiers.
  * Depends on Clients, Services et tarifs, Professionnels and Rendez-vous.
  */
 export const billingManifest: ModuleManifest = {
@@ -33,6 +35,8 @@ export const billingManifest: ModuleManifest = {
   nav: [
     { path: '/facturation', labelKey: 'modules.billing.name', icon: ReceiptText, permission: 'billing.view', group: 'billing', order: 13 },
     { path: '/facturation/virements', labelKey: 'modules.billing.interac.nav', icon: ArrowLeftRight, permission: 'billing.view', group: 'billing', order: 14 },
+    // FP: « Payeurs tiers », the IVAC and PAE invoices (the April closing notice links here).
+    { path: '/facturation/payeurs', labelKey: 'modules.billing.payers.nav', icon: Building2, permission: 'billing.view', group: 'billing', order: 15 },
     { path: '/facturation/paie', labelKey: 'modules.billing.payroll.nav.payroll', icon: HandCoins, permission: 'billing.payroll', group: 'billing', order: 30 },
     {
       path: '/ma-paie',
@@ -48,6 +52,7 @@ export const billingManifest: ModuleManifest = {
     { path: 'facturation', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage') },
     { path: 'facturation/factures/:id', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicePage'), 'InvoicePage') },
     { path: 'facturation/virements', permission: 'billing.view', component: lazyPage(() => import('./pages/InteracPage'), 'InteracPage') },
+    { path: 'facturation/payeurs', permission: 'billing.view', component: lazyPage(() => import('./pages/PayersPage'), 'PayersPage') },
     { path: 'facturation/paie', permission: 'billing.payroll', component: lazyPage(() => import('./pages/PayrollPage'), 'PayrollPage') },
     { path: 'ma-paie', permission: 'billing.self', component: lazyPage(() => import('./pages/MyPayPage'), 'MyPayPage') },
     { path: 'ma-paie/:periodId', permission: 'billing.self', component: lazyPage(() => import('./pages/MyPayPage'), 'MyPayPage') },
@@ -72,6 +77,17 @@ export const billingManifest: ModuleManifest = {
       editPermission: 'billing.settings',
       group: 'modules',
       component: lazyPage(() => import('./pages/settings/BillingSettingsPage'), 'BillingSettingsPage'),
+    },
+    {
+      // Paramètres → Payeurs tiers (FP): IVAC's rate (billing.settings), the organisations (billing.manage).
+      id: 'payers',
+      path: 'payeurs-tiers',
+      labelKey: 'modules.billing.payers.settings.title',
+      icon: Building2,
+      permission: ['billing.manage', 'billing.settings'],
+      editPermission: 'billing.manage',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/PayersSettingsPage'), 'PayersSettingsPage'),
     },
     {
       // Paramètres → Paie (FPay): each service's payroll rule, the job.
