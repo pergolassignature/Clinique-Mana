@@ -2,14 +2,14 @@
 -- Demandes: the proposals with their 48-h acceptance link (plan §10 D3b, second part)
 -- =============================================================================
 -- Plan:      docs/plans/2026-10-11-modules-coding-plan.md §10 (D3b); roadmap §2.3
--- Decisions: D-21 … D-23 (this batch), AP-15 (Rendez-vous R1b: held appointments), P3-40
+-- Decisions: D-22 … D-24 (this batch), AP-15 (Rendez-vous R1b: held appointments), P3-40
 -- Needs:     D1's `demande_propositions`; Professionnels' `professional_display_facts`; Rendez-vous R1b (`private.appointments_hold`,
 --            `appointments_confirm_hold`, `appointments_release_hold`); Clients' published
 --            contacts; core's links, email, notices, jobs.
 --
 -- A counselor proposes a professional and 1 to 3 of her free slots to the person: each slot is a
 -- **held** appointment (R1b: it takes its slot, it is no appointment yet), and an email carries a
--- one-use link valid 48 h to `/proposition` (D-21). The person accepts one slot (it is booked, the
+-- one-use link valid 48 h to `/proposition` (D-22). The person accepts one slot (it is booked, the
 -- others are freed, the request is matched) or none (all freed, a reason); 48 h without an answer
 -- → expired, all freed (the job `demandes.propositions_expire`). The counselor withdraws a pending
 -- proposal; closing or matching the request withdraws it too. Each outcome is a notice to the

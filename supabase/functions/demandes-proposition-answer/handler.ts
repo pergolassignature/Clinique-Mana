@@ -1,5 +1,5 @@
 /**
- * `demandes-proposition-answer` (Demandes D3b, D-21): the person's answer to a
+ * `demandes-proposition-answer` (Demandes D3b, D-22): the person's answer to a
  * proposal, from `/proposition#t=…`. A public token function (CLAUDE.md §7,
  * `verify_jwt = false`): no user; the hashed, single-use token is the
  * credential, and the org and modules come from the link row.

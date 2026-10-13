@@ -1,5 +1,5 @@
 /**
- * `demandes-propose` (Demandes D3b, D-21): a counselor proposes a professional
+ * `demandes-propose` (Demandes D3b, D-22): a counselor proposes a professional
  * and 1 to 3 of her free slots to the person. A user function (CLAUDE.md §7);
  * the actor model (ADR 0007): the link's token is made and hashed here and
  * travels only in the email, never to the caller.

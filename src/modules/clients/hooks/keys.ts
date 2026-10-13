@@ -34,4 +34,6 @@ export const consentKeys = {
   templates: () => [...consentKeys.all, 'templates'] as const,
   toObtain: () => [...consentKeys.all, 'to-obtain'] as const,
   client: (clientId: string) => [...consentKeys.all, 'client', clientId] as const,
+  /** A consent text version's clauses (CC-13). */
+  clauses: (versionId: string) => [...consentKeys.all, 'clauses', versionId] as const,
 }

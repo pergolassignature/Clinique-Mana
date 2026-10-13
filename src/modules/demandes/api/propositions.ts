@@ -3,7 +3,7 @@ import { supabase } from '@/core/supabase/client'
 import { FunctionCallError, invokeFunction } from '@/core/supabase/functions'
 
 /*
- * The proposals (Demandes D3b, D-21 … D-23): a professional and 1 to 3 of her free slots held for
+ * The proposals (Demandes D3b, D-22 … D-24): a professional and 1 to 3 of her free slots held for
  * 48 h (Rendez-vous R1b), sent with a one-use link. The staff read a request's proposals
  * (`list_demande_propositions`), the services a professional may be booked for
  * (`proposition_services`) and her free slots (Rendez-vous' `get_open_slots`, appointments.view);

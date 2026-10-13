@@ -50,7 +50,7 @@ function responseText(p: Proposition): { label: string; tone: StatusTone } {
 }
 
 /**
- * « Propositions » in Suivi (D3b, D-21): the professionals proposed to the person, their slots held
+ * « Propositions » in Suivi (D3b, D-22): the professionals proposed to the person, their slots held
  * 48 h (Rendez-vous R1b) and the answer — accepted (the first appointment booked, the request
  * matched), declined with its reason, unanswered, withdrawn. « Proposer un professionnel » while the
  * request is « Acceptée » or on the waiting list and nothing is pending (demandes.manage; the slots need Rendez-vous:

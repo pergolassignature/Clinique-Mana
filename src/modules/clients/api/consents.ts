@@ -307,3 +307,26 @@ export async function cancelConsentRequest(requestId: string): Promise<void> {
   const { error } = await supabase.rpc('cancel_client_consent_request', { p_id: requestId })
   if (error) throw error
 }
+
+const versionClauseSchema = z.object({ key: z.string(), kind: z.enum(['agree', 'yes_no']), text: z.string() })
+export type VersionClause = z.output<typeof versionClauseSchema>
+const versionClausesSchema = z.object({ clauses: z.array(versionClauseSchema), editable: z.boolean() })
+export type VersionClauses = z.output<typeof versionClausesSchema>
+
+/**
+ * A consent text version's « Oui / Non » clauses (CC-13), in its language: its own, else its
+ * published version's, else the consent's; and whether the caller may change them (a draft,
+ * clients.manage).
+ */
+export async function fetchConsentClauses(versionId: string): Promise<VersionClauses> {
+  const { data, error } = await supabase.rpc('get_client_consent_clauses', { p_version_id: versionId })
+  if (error) throw error
+  return parse(versionClausesSchema, data)
+}
+
+/** Saves a draft's clauses (at most 20; texts trimmed); a French P0001 for a published one, no text, too many. */
+export async function saveConsentClauses(versionId: string, clauses: VersionClause[]): Promise<VersionClause[]> {
+  const { data, error } = await supabase.rpc('set_client_consent_clauses', { p_version_id: versionId, p_clauses: clauses })
+  if (error) throw error
+  return parse(z.array(versionClauseSchema), data)
+}

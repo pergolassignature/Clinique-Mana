@@ -16,7 +16,7 @@ import { PublicFrame } from './PublicFrame'
 const A = 'modules.demandes.propositions.page'
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
 const GONE = ['link_invalid', 'link_expired', 'link_used']
-/** R1b's HINTs, in plain words (D-22). */
+/** R1b's HINTs, in plain words (D-23). */
 const REASONS = ['hold_gone', 'hold_expired', 'overlap', 'outside_availability', 'balance_due', 'starts_at'] as const
 
 /** Each opening is its own query: the key never holds the token. */
@@ -34,7 +34,7 @@ const when = (iso: string) =>
   t(`${A}.when`, { day: formatInClinicTimezone(iso, 'EEEE d MMMM'), time: formatInClinicTimezone(iso, "H 'h' mm") })
 
 /**
- * `/proposition#t=…` (Demandes D3b, D-21): the proposal's link. The token leaves the address bar
+ * `/proposition#t=…` (Demandes D3b, D-22): the proposal's link. The token leaves the address bar
  * before any request (never in a log, the history or a query key); `resolve-link` shows the clinic,
  * the professional, the service, the mode and the slots held for the person; « Choisir cette
  * plage » books it once (Rendez-vous checks every rule again: a slot no longer possible says why
