@@ -194,6 +194,8 @@ select functions_are('public', array[
   'list_waitlist_compatible',
   -- Demandes, the parity gaps (the consents of the request's files).
   'demande_consents',
+  -- Rapports « Demandes » (Demandes D6).
+  'report_demandes',
   -- Facturation: the GOrendezvous import (I3).
   'import_invoice',
   -- Communications: « Rédiger avec l'IA » (CM4).

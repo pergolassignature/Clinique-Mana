@@ -12,7 +12,7 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 | D4 | Matching panel; waiting list part 2 (« Place disponible », compatible registrants, « Offrir la plage ») | built |
 | D5 | Places and the availability board (nightly snapshots) | built |
 | Parity | The audit's gaps before the cutover: participants' files, intake follow-ups, « Jumelée » by hand, consents per file, the primary professional at the match | built |
-| D6 | KPIs feeding Rapports | planned |
+| D6 | KPIs feeding Rapports (« Indicateurs des demandes ») | built |
 
 - **Registry:** `modules.key = 'demandes'` (migration `20261012223803_demandes_module`), depends on `clients` and `professionals`. It **starts disabled** in every clinic; the local seed enables it.
 - **Migrations:** `20261012223803_demandes_module` (registry, tables, RLS, audit), `20261012223807_demandes_rpcs` (RPCs).
@@ -286,9 +286,31 @@ Migrations `20261013210942_clients_primary_from_match` (Clients) and `2026101321
 - **The primary professional (A-6, D-41):** at the match, and when a file is added to a matched request, the files without a primary professional get her. A request matched again moves to the new professional the files whose primary is the previous match (the last `matched` event): a mistaken « Jumeler » is undone by matching again. This goes through Clients' `private.clients_fill_primary_professional`; a file with another primary professional keeps it, merged and anonymised files are left alone. Clients' screens read again after the match and after any write on a matched request.
 - **Not yet in `my_demandes`:** the professional's read keeps its columns; whether she sees « Autre motif » and « Autres disponibilités » is asked of Christine.
 
+## D6: the intake indicators
+
+Migrations `20261013222122_demandes_report_facts` (Demandes), `20261013222131_appointments_first_after` (Rendez-vous), `20261013222139_reports_demandes` (Rapports); pgTAP `171_reports_demandes`; decisions **D-42 … D-45**; the workbook's KPIs ([intake workbook §8.3](../research/2026-10-08-intake-workbook.md)).
+
+- **Where (D-42):** Rapports « Indicateurs des demandes » (`/rapports/demandes`, `reports.view`, admin by default), listed only while Demandes is enabled; `report_demandes` refuses in French otherwise. Demandes publishes the facts and computes nothing for the screen ([Rapports doc](reports.md)).
+- **Published facts** (granted to no role, for definer code that checked its own permission):
+  - `private.demandes_report_requests(org, from, to)`: each request received in the period: channel, who took it, the declared source, campaign, utm_source / utm_medium, the referrer's host (lower case, no `www.`), state and closing reason, clientèle, first contact attempt and its business hours, first proposal, first match, ever on the waiting list. Never a name, a contact, the concerns or the note.
+  - `private.demandes_report_matches(org, from, to)`: each « Jumelée » event (by hand or an accepted proposal), with the request's file, the professional and the clientèle.
+  - `private.demandes_report_waitlist(org, from, to)`: entries open now, registered or exited in the period, with the list's name.
+  - `private.demandes_report_capacity(org, from, to)`: D5's photos between two clinic dates.
+- **Definitions (D-43):**
+  - activity rate = the matches of the period ÷ the requests received in the period (the workbook's figure);
+  - cohort rate = the share of the period's requests matched since;
+  - the promise is the first contact attempt within 48 business hours (D-12);
+  - delays are medians and averages over the requests that reached the step;
+  - weeks start on Monday, in the clinic's zone;
+  - « conseillère » is who took the request.
+- **First appointments cancelled (D-44):** the first appointment of the request's file with the matched professional, starting at or after the match (not one only held). It counts when cancelled in the period, whatever the match's date. The rate is ÷ the period's matches, and the notice is in hours.
+- **Waiting list and places (D-45):**
+  - the waiting list: who waits now per list, registered in the period, exits per reason, and the wait of those placed in the period;
+  - places: the period's last photo (places left across the tracked professionals who accept new clients) and the first photo of each week.
+
 ## What the module publishes
 
-For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the view `demandes_sources` (D3c, below).
+For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional); for Rapports, D6's `private.demandes_report_requests`, `_matches`, `_waitlist`, `_capacity` (above). The view `demandes_sources` (D3c, below).
 
 ## Messages to people outside the clinic (P3-40)
 

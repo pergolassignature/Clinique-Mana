@@ -5,10 +5,11 @@ The clinic's reports, read-only: what GOrendezvous's « Revenus », « Annulatio
 | Batch | What | Status |
 |---|---|---|
 | RP1 | « Revenus » (by invoice, by service, by payment; filters; CSV), « Annulations et absences » (by reason), « Clients à relancer » | built |
-| RP2 | Intake KPIs (D6), payouts, IVAC (FP), places, waitlist | planned (lane B, February) |
+| D6 (RP2's intake part) | « Indicateurs des demandes »: activity and cohort, the 24–48 h promise, sources, delays, first appointments cancelled, waiting list, places | built |
+| RP2 | Payouts, IVAC (FP) | planned (lane B, February) |
 
 - **Registry:** `modules.key = 'reports'`, depends on `billing` and `appointments`; starts disabled in every clinic (Paramètres → Modules).
-- **Migrations:** `20261013160528_billing_report_facts` (Facturation's published facts), `20261013160534_appointments_report_facts` (Rendez-vous'), `20261013160540_reports_module` (registry, permissions, the three RPCs).
+- **Migrations:** `20261013160528_billing_report_facts` (Facturation's published facts), `20261013160534_appointments_report_facts` (Rendez-vous'), `20261013160540_reports_module` (registry, permissions, the three RPCs); D6: `20261013222122_demandes_report_facts` (Demandes' published facts), `20261013222131_appointments_first_after` (Rendez-vous'), `20261013222139_reports_demandes` (`report_demandes`). pgTAP `171_reports_demandes`.
 - **Tests:** pgTAP `165_reports` (privileges, registry and roles, the three views and their filters, a credited invoice apart and a draft never, the period's rules, cancellations per reason with a couple's appointment once and never a personal one, the clinic's day bounds, the clients to call back, the permissions, the module off, another clinic); Vitest `src/shared/lib/csv.test.ts` (formula guard, quoting, numbers) and `src/modules/reports/**` (periods, labels, each report's CSV, the pages, the manifest); Playwright `e2e/reports.spec.ts`.
 
 ## Permissions (RP-1)
@@ -26,6 +27,7 @@ All definer, permission first, French `P0001` with a HINT (`period`, `view`, `ki
 |---|---|---|
 | `report_revenue(view, from, to, professional, service, mode)` → jsonb | `reports.finance` | `invoice`: one row per invoice issued in the period and not credited (dossier, payer, professionals, totals, paid, balance); `service`: one row per line, and `by_service`; `payment`: one row per payment made in the period (whatever the invoice's date), and `by_mode`. `credited`: the invoices issued in the period then credited, counted apart (RP-2). `options`: the period's professionals and services, the clinic's modes. |
 | `report_cancellations(from, to, professional, reason, kind)` → jsonb | `reports.view` | one row per client of the period's appointments cancelled (reason, late, kept on the schedule, the client's next appointment) or where the client was absent; `by_reason` and `totals` count appointments (a couple's once). Never a personal appointment nor a held one; never the cancellation's details (RP-3). |
+| `report_demandes(from, to)` → jsonb | `reports.view`, Demandes enabled (else « Activez d'abord Demandes … », HINT `module`) | the intake indicators (D6, D-42 … D-45, below) |
 | `report_clients_to_follow_up(from, to, professional)` → jsonb | `reports.view` | per client, the period's last cancellation or absence with nothing booked, confirmed or completed after it (whoever the professional), files neither archived nor closed; `events`: how many in the period (RP-4). |
 
 ## What this module reads (published only)
@@ -34,11 +36,19 @@ All definer, permission first, French `P0001` with a HINT (`period`, `view`, `ki
 - **Rendez-vous:** `private.appointment_absence_facts(org, from, to)` (instants: Rapports gives the clinic day's bounds), `private.cancellation_reason_names(org)`.
 - **Clients:** `private.clients_display_names`, `private.clients_billing_facts` (archived, closed).
 - **Professionnels:** `private.professional_display_names`. **Services et tarifs:** `private.service_payout_facts` (code, name).
+- **Demandes (D6):** `private.demandes_report_requests(org, from, to)`, `_matches`, `_waitlist`, `_capacity` ([Demandes doc](demandes.md#d6-the-intake-indicators)). **Rendez-vous (D6):** `private.appointments_first_after`.
 
 ## Screens
 
 - **« Revenus »** (`/rapports/revenus`, menu Facturation, `reports.finance`): real tabs « Par facture », « Par service », « Par paiement » (`?vue=`); the period (« Du », « Au », « Ce mois-ci », « Mois dernier », « Cette année », « Année dernière »; this month by default), « Professionnel », « Service », « Mode de paiement » (by payment); the totals, the credited invoices said apart, the rows (each invoice links to its page), « Exporter (CSV) ». Every filter is in the address.
 - **« Annulations et absences »** (`/rapports/annulations`, menu Suivi, `reports.view`): « Par raison » (the totals, per reason with the late ones, then each appointment with the client's next one or « Aucun rendez-vous après ») and « Clients à relancer » (`?onglet=relancer`: each client linked to the file, the last missed appointment, how many); filters: the period, the professional, the type and the reason; « Exporter (CSV) ».
+
+- **« Indicateurs des demandes »** (`/rapports/demandes`, menu Accueil des clients, `reports.view`, shown while Demandes is enabled; Demandes D6): the period and real tabs (`?onglet=`):
+  - « Activité »: received; the matches of the period and their rate ÷ received (« activité »); the period's requests matched since and their share (« cohorte »); called back within 48 business hours, later, never; per week (Monday), channel, conseillère (who took it; « Sans conseillère » for the website's form and the booking page), state, professional and clientèle;
+  - « Provenance » (`provenance`): « Comment avez-vous entendu parler de MANA ? », campaign, utm (source / support), the referrer's site, each with the requests matched since;
+  - « Délais et premiers rendez-vous » (`delais`): received → first call or message (business hours), → first proposal, → match (days): median, average, how many; the first appointments cancelled in the period, their rate ÷ the period's matches, per reason and professional, the notice;
+  - « Liste d'attente et places » (`liste-attente`): who waits now per list (with « Prioritaire »), registered, exits per reason, the wait of those placed; D5's last photo (places left across those who accept new clients) per professional, and the first photo of each week.
+  « Exporter (CSV) » saves the tab shown, one line per figure (« Section ; Indicateur ; Valeur »).
 
 ## CSV (RP-6)
 
