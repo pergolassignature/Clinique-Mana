@@ -32,6 +32,11 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(35);
+-- Deterministic whatever the minute: the other transactions that write these tables (pg_cron's
+-- hourly and quarter-hourly jobs, their run rows, their notices) wait until this file rolls back,
+-- so nothing committed meanwhile can change an answer below. Taken first, before any write here.
+lock table public.scheduled_job_runs, public.notifications, public.org_modules, public.signature_request_syncs
+  in share row exclusive mode;
 
 select ok((select description like '%aucun passage réussi, demande qui ne peut pas être vérifiée, ou module désactivé%'
                   and description like '%n''est pas sauvegardé%'
