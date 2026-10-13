@@ -343,5 +343,6 @@ export const myClientPayload = z
 export type MyClient = z.output<typeof myClientPayload>
 
 /** A row of a reference list read by the forms. */
-export const optionPayload = z.object({ id: z.string(), name: z.string() })
+/** A reference row (source, tag), inactive ones included: a file may still hold one. */
+export const optionPayload = z.object({ id: z.string(), name: z.string(), is_active: z.boolean() }).transform((r) => ({ id: r.id, name: r.name, active: r.is_active }))
 export type ClientOption = z.output<typeof optionPayload>

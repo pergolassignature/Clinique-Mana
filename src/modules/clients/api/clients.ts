@@ -248,22 +248,24 @@ const LIST_MAX = 500
 export interface ClientsReference {
   referralSources: ClientOption[]
   tags: ClientOption[]
-  /** The clinic's active professionals (Professionnels' published directory). */
+  /** The clinic's professionals (Professionnels' published directory); `active` false once she left. */
   professionals: ClientOption[]
 }
 
 export async function fetchClientsReference(): Promise<ClientsReference> {
   const [sources, tags, professionals] = await Promise.all([
-    supabase.from('referral_sources').select('id, name').eq('is_active', true).order('sort_order').order('name').limit(LIST_MAX),
-    supabase.from('client_tags').select('id, name').eq('is_active', true).order('sort_order').order('name').limit(LIST_MAX),
-    supabase.from('professionals_directory').select('id, display_name').eq('status', 'active').order('display_name').limit(LIST_MAX),
+    supabase.from('referral_sources').select('id, name, is_active').order('sort_order').order('name').limit(LIST_MAX),
+    supabase.from('client_tags').select('id, name, is_active').order('sort_order').order('name').limit(LIST_MAX),
+    supabase.from('professionals_directory').select('id, display_name, status').order('display_name').limit(LIST_MAX),
   ])
   for (const result of [sources, tags, professionals]) if (result.error) throw result.error
   return {
     referralSources: parseRpc(z.array(optionPayload), sources.data),
     tags: parseRpc(z.array(optionPayload), tags.data),
     professionals: parseRpc(
-      z.array(z.object({ id: z.string(), display_name: z.string().nullable() }).transform((r) => ({ id: r.id, name: r.display_name ?? '' }))),
+      z.array(
+        z.object({ id: z.string(), display_name: z.string().nullable(), status: z.string() }).transform((r) => ({ id: r.id, name: r.display_name ?? '', active: r.status === 'active' })),
+      ),
       professionals.data,
     ),
   }

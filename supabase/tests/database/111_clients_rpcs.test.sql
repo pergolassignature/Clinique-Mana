@@ -106,7 +106,7 @@ select lives_ok($$ select public.update_client(current_setting('test.alice')::uu
   'first_name', 'Alice', 'last_name', 'Tremblay', 'email', 'alice@exemple.test', 'mobile_e164', '+15145550101', 'birthday', '1990-03-04',
   'rate_variant', 'student', 'tax_exempt', true, 'primary_professional_id', 'c0000000-0000-0000-0000-000000000002')) $$, 'update');
 select results_eq($$ select rate_variant, tax_exempt, primary_professional_id, postal_code from public.clients where id = current_setting('test.alice')::uuid $$,
-  $$ values ('student', true, 'c0000000-0000-0000-0000-000000000002'::uuid, null::text) $$, '… every field replaced');
+  $$ values ('student', true, 'c0000000-0000-0000-0000-000000000002'::uuid, 'H2X 1A1') $$, '… the sent fields changed, the others kept (C3)');
 select is((select count(*)::int from public.client_notes where client_id = current_setting('test.alice')::uuid), 1, '… the notes kept when the form leaves them out');
 select is((select count(*)::int from public.client_professional_links where client_id = current_setting('test.alice')::uuid), 2, '… the new primary professional linked too');
 select lives_ok($$ select public.set_client_notes(current_setting('test.alice')::uuid, null, 'Paiement en deux fois.') $$, 'set_client_notes');

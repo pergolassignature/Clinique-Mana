@@ -14,6 +14,16 @@ export const payerKindLabel = (kind: PayerKind): string => t(`${A}.client_payers
 export const holderRelationLabel = (relation: HolderRelation): string => t(`${A}.client_insurances.holder_relation.${relation}`)
 export const rightLabel = (right: RelationRight): string => t(`modules.clients.rights.${right}`)
 
+/**
+ * The choices of a reference list: the active rows, plus the ones a file already holds (an inactive
+ * professional, source or tag stays shown, « (inactif) », so a save never hides or drops it).
+ */
+export function choices(options: readonly { id: string; name: string; active: boolean }[] | undefined, held: readonly (string | null)[] = []) {
+  return (options ?? [])
+    .filter((o) => o.active || held.includes(o.id))
+    .map((o) => ({ value: o.id, label: o.active ? o.name : t('modules.clients.fields.inactive', { name: o.name }) }))
+}
+
 /** « CLI-000123 »: the file number as the clinic quotes it. */
 export const clientNumberLabel = (number: number): string => `CLI-${String(number).padStart(6, '0')}`
 

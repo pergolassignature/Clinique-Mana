@@ -39,7 +39,7 @@ import { Textarea } from '@/shared/ui/textarea'
 import type { ClientDuplicate } from '../../api/parse'
 import { useClientDuplicates, useClientsReference, useCreateClient } from '../../hooks/use-clients'
 import { LANGUAGES, SEXES, clientPath } from '../../lib/constants'
-import { clientNumberLabel, languageLabel, phoneLabel, sexLabel } from '../../lib/display'
+import { choices, clientNumberLabel, languageLabel, phoneLabel, sexLabel } from '../../lib/display'
 import { ALL_CLIENT_FIELDS, clientCardSchema, emptyClientForm, fieldOfHint, toClientFields, type ClientFieldOutput, type ClientFormValues } from '../../schemas/client'
 
 const C = 'modules.clients.create'
@@ -74,7 +74,10 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
   const reference = useClientsReference()
   const [confirming, setConfirming] = useState(false)
-  const [confirmMedium, setConfirmMedium] = useState(false)
+  // « C'est une autre personne » answers for the similar files shown when it was ticked: another
+  // set (an edited email…) needs a new tick. `server` when the database found one the panel did not.
+  const [confirmedFor, setConfirmedFor] = useState<string | null>(null)
+  const [serverMediumFor, setServerMediumFor] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<string | null>(null)
   // The staff notes have their own table: kept beside the form, sent with the creation.
   const [adminNotes, setAdminNotes] = useState('')
@@ -88,6 +91,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
     onErrorMessage: (message, error) => {
       const hint = rpcErrorHint(error)
       const field = fieldOfHint(hint)
+      if (hint === 'duplicate_medium') setServerMediumFor(probeKeyRef.current)
       if (field) form.setError(field, { message }, { shouldFocus: true })
       else setRefusal(message)
     },
@@ -114,7 +118,17 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
   const duplicates = useClientDuplicates(probe)
   const found = probe ? (duplicates.data ?? []) : []
   const high = found.some((d) => d.level === 'high')
-  const medium = !high && found.some((d) => d.level === 'medium')
+  const probeKey = JSON.stringify(probe)
+  const probeKeyRef = useRef(probeKey)
+  probeKeyRef.current = probeKey
+  const mediumIds = found
+    .filter((d) => d.level === 'medium')
+    .map((d) => d.clientId)
+    .sort()
+    .join(',')
+  const mediumKey = high ? null : mediumIds !== '' ? mediumIds : serverMediumFor === probeKey ? 'server' : null
+  const medium = mediumKey !== null
+  const confirmMedium = medium && confirmedFor === mediumKey
 
   const requestClose = () => {
     if (create.isPending) return
@@ -320,9 +334,9 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
                     name="referralSourceId"
                     render={({ field: f }) => (
                       <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} placeholder={t('modules.clients.fields.notSaid')} clearable>
-                        {reference.data?.referralSources.map((source) => (
-                          <option key={source.id} value={source.id}>
-                            {source.name}
+                        {choices(reference.data?.referralSources).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
                           </option>
                         ))}
                       </Select>
@@ -337,9 +351,9 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
                     name="primaryProfessionalId"
                     render={({ field: f }) => (
                       <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} placeholder={t('modules.clients.fields.none')} clearable>
-                        {reference.data?.professionals.map((pro) => (
-                          <option key={pro.id} value={pro.id}>
-                            {pro.name}
+                        {choices(reference.data?.professionals).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
                           </option>
                         ))}
                       </Select>
@@ -357,7 +371,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
           </section>
 
           {medium && (
-            <CheckboxField label={t(`${C}.confirmMedium`)} help={t(`${C}.confirmMediumHelp`)} checked={confirmMedium} onCheckedChange={(value) => setConfirmMedium(value === true)} />
+            <CheckboxField label={t(`${C}.confirmMedium`)} help={t(`${C}.confirmMediumHelp`)} checked={confirmMedium} onCheckedChange={(value) => setConfirmedFor(value === true ? mediumKey : null)} />
           )}
           {refusal && (
             <Alert variant="destructive" role="alert">
@@ -412,12 +426,20 @@ const reasonLabel = (reason: string): string => (reason in REASONS ? t(REASONS[r
 /**
  * « Dossiers semblables »: the possible duplicates while the person is typed, HIGH first (« Ce
  * client a déjà un dossier »), each with its number, birthday and contact and « Ouvrir le dossier
- * existant ». A polite live region: a screen reader hears the count once it changes.
+ * existant ». Only a short line is a live region (how many were found), so a screen reader is not
+ * read the whole list at each keystroke.
  */
 function DuplicatePanel({ duplicates, loading }: { duplicates: readonly ClientDuplicate[]; loading: boolean }) {
   const high = duplicates.some((d) => d.level === 'high')
   return (
-    <div role="status" aria-live="polite" className="empty:hidden">
+    <div>
+      <p role="status" aria-live="polite" className="sr-only">
+        {duplicates.length > 0
+          ? t(`${C}.duplicates.announce`, { count: String(duplicates.length) })
+          : loading
+            ? t(`${C}.duplicates.checking`)
+            : ''}
+      </p>
       {duplicates.length > 0 && (
         <Alert variant={high ? 'destructive' : 'warning'}>
           {high ? <CircleAlert aria-hidden /> : <TriangleAlert aria-hidden />}
@@ -441,7 +463,6 @@ function DuplicatePanel({ duplicates, loading }: { duplicates: readonly ClientDu
           </AlertDescription>
         </Alert>
       )}
-      {loading && duplicates.length === 0 && <span className="sr-only">{t(`${C}.duplicates.checking`)}</span>}
     </div>
   )
 }

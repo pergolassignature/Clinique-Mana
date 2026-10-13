@@ -136,6 +136,7 @@ export const useSetClientArchived = (feedback?: MutationFeedback) => {
       toast.success(t(archived ? `${S}.archived` : `${S}.restored`))
     },
     onError: (error) => {
+      if (rpcErrorCode(error) === '42501') void queryClient.invalidateQueries({ queryKey: accessKeys.all })
       const message = moduleErrorMessage(error, t('modules.clients.errors.saveFailed'), 'clients')
       if (feedback?.onErrorMessage) feedback.onErrorMessage(message, error)
       else toast.error(message)

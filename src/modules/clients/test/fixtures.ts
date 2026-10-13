@@ -12,9 +12,9 @@ export const CIDS = {
 } as const
 
 export const REFERENCE: ClientsReference = {
-  referralSources: [{ id: CIDS.source, name: 'Google' }],
-  tags: [{ id: CIDS.tag, name: 'Atelier' }],
-  professionals: [{ id: CIDS.pro, name: 'Félix Gauthier' }],
+  referralSources: [{ id: CIDS.source, name: 'Google', active: true }],
+  tags: [{ id: CIDS.tag, name: 'Atelier', active: true }],
+  professionals: [{ id: CIDS.pro, name: 'Félix Gauthier', active: true }],
 }
 
 export function clientFixture(overrides: Partial<Client> = {}): Client {

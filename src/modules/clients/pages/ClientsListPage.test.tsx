@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { MemoryRouterProps } from 'react-router-dom'
 import { t } from '@/i18n'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { renderWithContexts } from '@/test/contexts'
@@ -24,6 +25,8 @@ vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 vi.mock('react-router-dom', async (importOriginal) => ({ ...(await importOriginal<typeof import('react-router-dom')>()), useNavigate: () => mocks.navigate }))
 
+type RouterEntry = NonNullable<MemoryRouterProps['initialEntries']>[number]
+
 const L = 'modules.clients.list'
 const C = 'modules.clients.create'
 
@@ -34,7 +37,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage({ role = 'counselor' as FixtureRole, path = '/clients' } = {}) {
+function renderPage({ role = 'counselor' as FixtureRole, path = '/clients' as RouterEntry } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -62,8 +65,8 @@ describe('ClientsListPage', () => {
     expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: '', status: 'active', professionalId: null, tagId: null }, null)
   })
 
-  it('reads its filters from the URL and sends them to the server', async () => {
-    renderPage({ path: `/clients?q=trem&statut=archives&professionnel=${CIDS.pro}` })
+  it('reads its filters from the URL, the search words from the history state (never the URL), and sends them', async () => {
+    renderPage({ path: { pathname: '/clients', search: `?statut=archives&professionnel=${CIDS.pro}`, state: { q: 'trem' } } })
     await screen.findByRole('table', { name: t(`${L}.table`) })
     await waitFor(() =>
       expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: 'trem', status: 'archived', professionalId: CIDS.pro, tagId: null }, null),
@@ -102,5 +105,31 @@ describe('ClientsListPage', () => {
     expect(mocks.api.createClient.mock.calls[0]?.[0]).toMatchObject({ first_name: 'Béatrice', last_name: 'Tremblay', language: 'fr', reminders_by_sms: true })
     expect(mocks.api.createClient.mock.calls[0]?.[1]).toBe(false)
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/clients/new-id/apercu'))
+  })
+
+  it('« C\'est une autre personne » answers for the similar files shown: another one needs a new tick', async () => {
+    const user = userEvent.setup()
+    const similar = (id: string, name: string) => ({ clientId: id, level: 'medium', reasons: ['shared_contact'], clientNumber: 3, displayName: name, birthday: null, email: null, mobile: null, isArchived: false })
+    mocks.api.findClientDuplicates.mockImplementation(async (query: { email: string | null }) =>
+      query.email === 'a@exemple.test' ? [similar(CIDS.marc, 'Marc Tremblay')] : query.email === 'b@exemple.test' ? [similar(CIDS.lea, 'Léa Tremblay')] : [],
+    )
+    mocks.api.createClient.mockResolvedValue('new-id')
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: t(`${C}.add`) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${C}.title`) })
+    await user.type(within(sheet).getByRole('textbox', { name: /^Prénom/ }), 'Zoé')
+    await user.type(within(sheet).getByRole('textbox', { name: /^Nom/ }), 'Tremblay')
+    await user.type(within(sheet).getByRole('textbox', { name: /^Courriel/ }), 'a@exemple.test')
+    const confirm = await within(sheet).findByRole('checkbox', { name: t(`${C}.confirmMedium`) })
+    await user.click(confirm)
+    expect(confirm).toBeChecked()
+
+    await user.clear(within(sheet).getByRole('textbox', { name: /^Courriel/ }))
+    await user.type(within(sheet).getByRole('textbox', { name: /^Courriel/ }), 'b@exemple.test')
+    await within(sheet).findByText('Léa Tremblay')
+    expect(within(sheet).getByRole('checkbox', { name: t(`${C}.confirmMedium`) })).not.toBeChecked()
+    await user.click(within(sheet).getByRole('button', { name: t(`${C}.submit`) }))
+    await waitFor(() => expect(mocks.api.createClient).toHaveBeenCalled())
+    expect(mocks.api.createClient.mock.calls[0]?.[1]).toBe(false)
   })
 })

@@ -11,8 +11,8 @@ import { LANGUAGES, RATE_VARIANTS, SEXES } from '../lib/constants'
  * The file's form (the creation dialog and the record's « Informations » cards), mirroring
  * `create_client` / `update_client`: strings in, normalised values out (trimmed, empty → null,
  * phones to E.164, postal code `A1A 1A1`). The database stays authoritative: its refusals carry
- * the field as HINT. Each card validates only its own fields (`clientCardSchema`) and saves them
- * over the stored file (`mergeClientFields`: `update_client` replaces every field).
+ * the field as HINT. Each card validates and sends only its own fields (`clientCardSchema`,
+ * `toClientFields`): `update_client` changes the keys it gets and keeps the others.
  */
 
 const V = 'modules.clients.validation'
@@ -273,44 +273,4 @@ export function toClientFields(output: ClientFieldOutput): ClientFields {
   const fields: ClientFields = {}
   for (const [key, value] of Object.entries(output) as [ClientFieldKey, string | boolean | null][]) fields[RPC_KEYS[key]] = value
   return fields
-}
-
-/**
- * A card's output over the stored file: `update_client` replaces every field, so the others go
- * as stored (the notes are left out: their own RPC).
- */
-export function mergeClientFields(client: Client, output: ClientFieldOutput): ClientFields {
-  const stored: ClientFieldOutput = {
-    firstName: client.firstName,
-    lastName: client.lastName,
-    birthFirstName: client.birthFirstName,
-    pronouns: client.pronouns,
-    sex: client.sex,
-    birthday: client.birthday,
-    email: client.email,
-    mobile: client.mobile,
-    home: client.home,
-    work: client.work,
-    workExt: client.workExt,
-    language: client.language,
-    remindersBySms: client.remindersBySms,
-    remindersByEmail: client.remindersByEmail,
-    addressLine1: client.addressLine1,
-    addressLine2: client.addressLine2,
-    city: client.city,
-    province: client.province,
-    postalCode: client.postalCode,
-    country: client.country,
-    referralSourceId: client.referralSourceId,
-    referredBy: client.referredBy,
-    customField: client.customField,
-    primaryProfessionalId: client.primaryProfessionalId,
-    rateVariant: client.rateVariant,
-    taxExempt: client.taxExempt,
-    isBanned: client.isBanned,
-    fileIncomplete: client.fileIncomplete,
-    specialAgreement: client.specialAgreement,
-    sharedCustody: client.sharedCustody,
-  }
-  return toClientFields({ ...stored, ...output })
 }

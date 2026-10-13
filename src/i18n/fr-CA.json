@@ -5821,7 +5821,8 @@
         "adminNotesHelp": "Vues par le personnel seulement, jamais par les professionnels.",
         "specialAgreementNote": "Note de l'entente particulière",
         "notSaid": "Non indiqué",
-        "none": "Aucun"
+        "none": "Aucun",
+        "inactive": "{name} (inactif)"
       },
       "list": {
         "description": "Les dossiers des clients de la clinique.",
@@ -5894,7 +5895,8 @@
           "high": "Ce client a déjà un dossier : ouvrez-le plutôt que d'en créer un autre.",
           "medium": "Dossiers semblables : vérifiez qu'il ne s'agit pas de la même personne.",
           "open": "Ouvrir le dossier existant",
-          "checking": "Recherche de dossiers semblables…"
+          "checking": "Recherche de dossiers semblables…",
+          "announce": "Dossiers semblables trouvés : {count}."
         },
         "reasons": {
           "email": "même courriel",
@@ -6044,7 +6046,12 @@
           "expiresOn": "Échéance",
           "note": "Note",
           "endPayer": "Terminer",
-          "invalidAmount": "Les montants sont en dollars (94,50) et le nombre de séances, un entier."
+          "invalidAmount": "Les montants sont en dollars (94,50) et le nombre de séances, un entier.",
+          "removeInsuranceTitle": "Retirer cette assurance ?",
+          "removeMainBody": "L'assurance principale sera retirée du dossier ; la secondaire, s'il y en a une, devient la principale.",
+          "removeSecondaryBody": "L'assurance secondaire sera retirée du dossier.",
+          "endPayerTitle": "Terminer ce payeur ?",
+          "endPayerBody": "{payer} ne paiera plus les prochaines séances. Il reste au dossier : les factures passées le nomment."
         },
         "visits": {
           "title": "Visites et paiements",

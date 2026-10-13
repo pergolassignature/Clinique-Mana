@@ -1,5 +1,5 @@
 import { useId, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -22,29 +22,38 @@ import type { ClientListRow } from '../api/parse'
 import { CreateClientDialog } from '../components/list/CreateClientDialog'
 import { useClientsList, useClientsReference } from '../hooks/use-clients'
 import { CLIENT_STATUSES, clientPath, type ClientStatusFilter } from '../lib/constants'
-import { ageOf, clientNumberLabel, phoneLabel, rateVariantLabel } from '../lib/display'
+import { ageOf, choices, clientNumberLabel, phoneLabel, rateVariantLabel } from '../lib/display'
 
 const L = 'modules.clients.list'
 
-/** The URL's filters: `q`, `statut` (actifs, archives, tous), `professionnel`, `etiquette`. */
+/**
+ * The URL's filters: `statut` (actifs, archives, tous), `professionnel`, `etiquette`. The search
+ * words are a person's name, email or phone (Loi 25): never in the URL, the browser history or an
+ * error report; they live in the history entry's state, so « Retour » from a record finds them.
+ */
 const STATUS_PARAM: Record<ClientStatusFilter, string> = { active: 'actifs', archived: 'archives', all: 'tous' }
 
-function readFilters(params: URLSearchParams): ClientsPageQuery {
+function searchOf(state: unknown): string {
+  return typeof state === 'object' && state !== null && typeof (state as { q?: unknown }).q === 'string' ? (state as { q: string }).q : ''
+}
+
+function readFilters(params: URLSearchParams, q: string): ClientsPageQuery {
   const status = (Object.entries(STATUS_PARAM).find(([, value]) => value === params.get('statut'))?.[0] ?? 'active') as ClientStatusFilter
-  return { query: params.get('q') ?? '', status, professionalId: params.get('professionnel'), tagId: params.get('etiquette') }
+  return { query: q, status, professionalId: params.get('professionnel'), tagId: params.get('etiquette') }
 }
 
 /**
  * « Clients » (plan C3.2): the clinic's files, paged on the server (~8 500, keyset by name), with a
  * search on the name, the email, the number and the phones (accents ignored), the state, the
- * primary professional and a tag, all in the URL (a link opens the same list). « Nouveau client »
+ * primary professional and a tag (in the URL, but never the search words). « Nouveau client »
  * for whoever manages files. Rows open the record.
  */
 export function ClientsListPage() {
   usePageTitle(t('modules.clients.name'))
   const { can } = useAccess()
   const [params, setParams] = useSearchParams()
-  const filters = readFilters(params)
+  const location = useLocation()
+  const filters = readFilters(params, searchOf(location.state))
   const searchId = useId()
   // The search reaches the server 250 ms after the last keystroke; the field shows what is typed.
   const debouncedQuery = useDebouncedValue(filters.query, 250)
@@ -54,13 +63,13 @@ export function ClientsListPage() {
   const rows = list.data?.pages.flat()
   const filtered = Boolean(filters.query || filters.professionalId || filters.tagId || filters.status !== 'active')
 
-  const update = (patch: Record<string, string | null>) => {
+  const update = (patch: Record<string, string | null>, q: string = filters.query) => {
     const next = new URLSearchParams(params)
     for (const [key, value] of Object.entries(patch)) {
       if (value === null || value === '') next.delete(key)
       else next.set(key, value)
     }
-    setParams(next, { replace: true })
+    setParams(next, { replace: true, state: q ? { q } : null })
   }
 
   return (
@@ -78,7 +87,7 @@ export function ClientsListPage() {
               type="search"
               role="searchbox"
               value={filters.query}
-              onChange={(event) => update({ q: event.target.value })}
+              onChange={(event) => update({}, event.target.value)}
               placeholder={t(`${L}.search`)}
               autoComplete="off"
               className="pl-8"
@@ -98,9 +107,9 @@ export function ClientsListPage() {
               placeholder={t(`${L}.allProfessionals`)}
               clearable
             >
-              {reference.data?.professionals.map((pro) => (
-                <option key={pro.id} value={pro.id}>
-                  {pro.name}
+              {choices(reference.data?.professionals, [filters.professionalId]).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </Select>
@@ -108,9 +117,9 @@ export function ClientsListPage() {
           {(reference.data?.tags.length ?? 0) > 0 && (
             <div className="w-field-md max-w-full">
               <Select aria-label={t(`${L}.tagLabel`)} value={filters.tagId ?? ''} onChange={(event) => update({ etiquette: event.target.value })} placeholder={t(`${L}.allTags`)} clearable>
-                {reference.data?.tags.map((tag) => (
-                  <option key={tag.id} value={tag.id}>
-                    {tag.name}
+                {choices(reference.data?.tags, [filters.tagId]).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>

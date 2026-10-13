@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import { clientFixture } from '../test/fixtures'
-import { ALL_CLIENT_FIELDS, clientCardSchema, clientFormValues, emptyClientForm, fieldOfHint, mergeClientFields, toClientFields } from './client'
+import { ALL_CLIENT_FIELDS, clientCardSchema, clientFormValues, emptyClientForm, fieldOfHint, toClientFields } from './client'
 
 describe('the client form', () => {
   it('normalises a new file: trimmed names, E.164 phones, postal code, empty → null', () => {
@@ -42,11 +42,9 @@ describe('the client form', () => {
     expect(output).toEqual({ province: 'Île-de-France', postalCode: '75001', country: 'FR' })
   })
 
-  it('saves a card over the stored file: the other fields as stored', () => {
-    const client = clientFixture()
-    const fields = mergeClientFields(client, { email: 'nouveau@exemple.test' })
-    expect(fields).toMatchObject({ email: 'nouveau@exemple.test', first_name: 'Alice', mobile_e164: '+15145550101', rate_variant: 'student', country: 'CA' })
-    expect(Object.keys(fields)).toHaveLength(ALL_CLIENT_FIELDS.length)
+  it('a card sends its own fields only (update_client keeps the others, the time zone included)', () => {
+    const output = clientCardSchema(['email', 'mobile']).parse(clientFormValues(clientFixture({ email: 'nouveau@exemple.test' })))
+    expect(toClientFields(output)).toEqual({ email: 'nouveau@exemple.test', mobile_e164: '+15145550101' })
   })
 
   it('reads a stored file as form values (phones regrouped) and maps a refusal HINT to its field', () => {

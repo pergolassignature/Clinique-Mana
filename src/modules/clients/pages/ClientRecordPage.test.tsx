@@ -84,7 +84,7 @@ describe('ClientRecordPage', () => {
     expect(await screen.findByRole('heading', { name: t(`${R}.notFound.title`) })).toBeInTheDocument()
   })
 
-  it('« Informations »: a card saves its own field over the stored file', async () => {
+  it('« Informations »: a card saves its own fields only', async () => {
     const user = userEvent.setup()
     renderPage({ path: `/clients/${CIDS.alice}/informations` })
     const email = await screen.findByRole('textbox', { name: /^Courriel/ })
@@ -94,7 +94,9 @@ describe('ClientRecordPage', () => {
     await user.click(within(card).getByRole('button', { name: t('common.save') }))
     await waitFor(() => expect(mocks.api.updateClient).toHaveBeenCalled())
     expect(mocks.api.updateClient.mock.calls[0]?.[0]).toBe(CIDS.alice)
-    expect(mocks.api.updateClient.mock.calls[0]?.[1]).toMatchObject({ email: 'nouveau@exemple.test', first_name: 'Alice', mobile_e164: '+15145550101' })
+    // The « Coordonnées » card sends its own fields only (update_client keeps the others).
+    expect(mocks.api.updateClient.mock.calls[0]?.[1]).toMatchObject({ email: 'nouveau@exemple.test', mobile_e164: '+15145550101', reminders_by_sms: true })
+    expect(mocks.api.updateClient.mock.calls[0]?.[1]).not.toHaveProperty('first_name')
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.clients.saved.updated')))
   })
 

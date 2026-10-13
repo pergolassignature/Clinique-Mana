@@ -5,8 +5,19 @@ import { DescriptionList } from '@/shared/components/DescriptionList'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { SaveButton } from '@/shared/components/SaveButton'
 import { SettingsCard } from '@/shared/components/SettingsCard'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { cn } from '@/shared/lib/utils'
 import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
@@ -42,6 +53,15 @@ export function CoverageTab() {
   const [payer, setPayer] = useState<ClientPayer | 'new' | null>(null)
   const removeInsurance = useDeleteClientInsurance()
   const endPayer = useEndClientPayer()
+  // « Retirer » and « Terminer » ask first (as « Retirer » a relation does).
+  const [confirm, setConfirm] = useState<{ kind: 'insurance'; rank: 1 | 2 } | { kind: 'payer'; id: string; label: string } | null>(null)
+  const confirmPending = removeInsurance.isPending || endPayer.isPending
+  const runConfirmed = () => {
+    if (!confirm) return
+    const done = { onSuccess: () => setConfirm(null) }
+    if (confirm.kind === 'insurance') removeInsurance.mutate({ clientId: summary.client.id, rank: confirm.rank }, done)
+    else endPayer.mutate(confirm.id, done)
+  }
   const byRank = (rank: 1 | 2) => summary.insurances.find((i) => i.rank === rank)
   return (
     <div className="space-y-5">
@@ -70,7 +90,7 @@ export function CoverageTab() {
                       {t(row ? `${C}.edit` : `${C}.addInsurance`)}
                     </Button>
                     {row && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => !removeInsurance.isPending && removeInsurance.mutate({ clientId: summary.client.id, rank })}>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setConfirm({ kind: 'insurance', rank })}>
                         {t(`${C}.remove`)}
                       </Button>
                     )}
@@ -124,7 +144,7 @@ export function CoverageTab() {
                     <Button type="button" variant="outline" size="sm" onClick={() => setPayer(row)}>
                       {t(`${C}.edit`)}
                     </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => !endPayer.isPending && endPayer.mutate(row.id)}>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setConfirm({ kind: 'payer', id: row.id, label: [payerKindLabel(row.kind), row.organisationName].filter(Boolean).join(' · ') })}>
                       {t(`${C}.endPayer`)}
                     </Button>
                   </div>
@@ -136,6 +156,30 @@ export function CoverageTab() {
       </SettingsCard>
       {insurance !== null && <InsuranceDialog rank={insurance} row={byRank(insurance) ?? null} onClose={() => setInsurance(null)} />}
       {payer !== null && <PayerDialog row={payer === 'new' ? null : payer} onClose={() => setPayer(null)} />}
+      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && !confirmPending && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t(confirm?.kind === 'payer' ? `${C}.endPayerTitle` : `${C}.removeInsuranceTitle`)}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm?.kind === 'payer'
+                ? t(`${C}.endPayerBody`, { payer: confirm.label })
+                : t(confirm?.rank === 1 ? `${C}.removeMainBody` : `${C}.removeSecondaryBody`)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              aria-disabled={confirmPending || undefined}
+              onClick={ignoreWhenInactive(confirmPending, runConfirmed)}
+              className={cn(softDisabledClasses, 'aria-disabled:hover:bg-destructive')}
+            >
+              {t(confirm?.kind === 'payer' ? `${C}.endPayer` : `${C}.remove`)}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -13,7 +13,7 @@ import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Textarea } from '@/shared/ui/textarea'
 import { useSetClientNotes, useSetClientTags } from '../../../hooks/use-clients'
 import { LANGUAGES, RATE_VARIANTS, SEXES } from '../../../lib/constants'
-import { languageLabel, rateVariantLabel, sexLabel } from '../../../lib/display'
+import { choices, languageLabel, rateVariantLabel, sexLabel } from '../../../lib/display'
 import type { ClientFieldKey } from '../../../schemas/client'
 import { ClientCard } from '../ClientCard'
 import { CheckField, CheckGroup, SelectField, TextField } from '../field-parts'
@@ -119,14 +119,14 @@ export function InformationTab() {
                   name="primaryProfessionalId"
                   label={t(`${F}.primaryProfessional`)}
                   placeholder={t(`${F}.none`)}
-                  options={reference.professionals.map((p) => ({ value: p.id, label: p.name }))}
+                  options={choices(reference.professionals, [summary.client.primaryProfessionalId])}
                 />
                 <SelectField
                   form={form}
                   name="referralSourceId"
                   label={t(`${F}.referralSource`)}
                   placeholder={t(`${F}.notSaid`)}
-                  options={reference.referralSources.map((s) => ({ value: s.id, label: s.name }))}
+                  options={choices(reference.referralSources, [summary.client.referralSourceId])}
                 />
               </FormRow>
               <TextField form={form} name="referredBy" label={t(`${F}.referredBy`)} width="full" />
@@ -169,6 +169,15 @@ function NotesCard() {
   const stored = { admin: summary.adminNotes ?? '', special: summary.specialAgreementNote ?? '' }
   const [admin, setAdmin] = useState(stored.admin)
   const [special, setSpecial] = useState(stored.special)
+  const [base, setBase] = useState(stored)
+  // Saved elsewhere (or by this card) while not being edited: follow the stored notes.
+  const untouched = admin === base.admin && special === base.special
+  const saved = admin.trim() === stored.admin && special.trim() === stored.special
+  if ((base.admin !== stored.admin || base.special !== stored.special) && (untouched || saved)) {
+    setBase(stored)
+    setAdmin(stored.admin)
+    setSpecial(stored.special)
+  }
   const dirty = admin !== stored.admin || special !== stored.special
   useUnsavedChanges(dirty && canEdit)
   const save = useSetClientNotes()
@@ -212,10 +221,17 @@ function TagsCard() {
   const { summary, reference, canEdit } = useClientRecordData()
   const stored = summary.tags.map((tag) => tag.id).sort()
   const [chosen, setChosen] = useState<string[]>(stored)
+  const [base, setBase] = useState(stored.join())
+  // Saved elsewhere (or by this card) while not being edited: follow the stored tags.
+  if (base !== stored.join() && ([...chosen].sort().join() === base || [...chosen].sort().join() === stored.join())) {
+    setBase(stored.join())
+    setChosen(stored)
+  }
   const dirty = [...chosen].sort().join() !== stored.join()
   useUnsavedChanges(dirty && canEdit)
   const save = useSetClientTags()
-  if (reference.tags.length === 0 && summary.tags.length === 0) return null
+  const options = choices(reference.tags, stored)
+  if (options.length === 0) return null
   return (
     <SettingsCard
       layout="section"
@@ -231,16 +247,16 @@ function TagsCard() {
       footer={canEdit ? <FormActions dirty={dirty} pending={save.isPending} onCancel={() => setChosen(stored)} /> : undefined}
     >
       <ul className="grid gap-2 sm:grid-cols-2">
-        {reference.tags.map((tag) => {
-          const checked = chosen.includes(tag.id)
+        {options.map((tag) => {
+          const checked = chosen.includes(tag.value)
           return (
-            <li key={tag.id}>
+            <li key={tag.value}>
               <CheckboxField
-                label={tag.name}
+                label={tag.label}
                 checked={checked}
                 onCheckedChange={(value) => {
-                  if (value === true && !checked && chosen.length < 5) setChosen([...chosen, tag.id])
-                  if (value !== true) setChosen(chosen.filter((id) => id !== tag.id))
+                  if (value === true && !checked && chosen.length < 5) setChosen([...chosen, tag.value])
+                  if (value !== true) setChosen(chosen.filter((id) => id !== tag.value))
                 }}
               />
             </li>

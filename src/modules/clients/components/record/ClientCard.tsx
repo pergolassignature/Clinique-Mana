@@ -6,13 +6,13 @@ import { SettingsCard } from '@/shared/components/SettingsCard'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { useUpdateClient } from '../../hooks/use-clients'
-import { clientCardSchema, clientFormValues, fieldOfHint, mergeClientFields, type ClientFieldKey, type ClientFieldOutput, type ClientFormValues } from '../../schemas/client'
+import { clientCardSchema, clientFormValues, fieldOfHint, toClientFields, type ClientFieldKey, type ClientFieldOutput, type ClientFormValues } from '../../schemas/client'
 import { useClientRecordData } from './record-context'
 
 interface ClientCardProps {
   title: string
   description?: string
-  /** The fields this card edits; the others are sent as stored (`update_client` replaces them all). */
+  /** The fields this card edits: only they are sent (`update_client` changes the keys it gets). */
   fields: readonly ClientFieldKey[]
   /** The card's first field: « Annuler » returns focus to it. */
   firstField: ClientFieldKey
@@ -22,7 +22,7 @@ interface ClientCardProps {
 /**
  * One card of « Informations » (as Professionnels' record cards): its own form following the
  * stored file without losing an edit (`useSettingsForm`), its own « Annuler / Enregistrer » shown
- * only while dirty (UI-2), saving its fields over the stored ones; a refusal shows under the field
+ * only while dirty (UI-2), sending only its own fields; a refusal shows under the field
  * its HINT names. Read-only (no clients.manage, or a merged or anonymised file): the fields stay
  * focusable, no buttons.
  */
@@ -43,7 +43,7 @@ export function ClientCard({ title, description, fields, firstField, children }:
   useUnsavedChanges(isDirty && canEdit)
 
   const onSubmit = handleSave((output, onSaved) =>
-    update.mutate({ id: client.id, fields: mergeClientFields(client, output) }, { onSuccess: () => onSaved(form.getValues()) }),
+    update.mutate({ id: client.id, fields: toClientFields(output) }, { onSuccess: () => onSaved(form.getValues()) }),
   )
 
   return (
