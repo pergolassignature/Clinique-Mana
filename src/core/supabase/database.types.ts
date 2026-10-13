@@ -90,6 +90,101 @@ export type Database = {
           },
         ]
       }
+      appointment_series: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          first_starts_at: string
+          id: string
+          interval_weeks: number
+          occurrences: number | null
+          org_id: string
+          professional_id: string
+          service_id: string
+          skipped_on: string[]
+          until_on: string | null
+          weekdays: number[]
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          first_starts_at: string
+          id?: string
+          interval_weeks: number
+          occurrences?: number | null
+          org_id: string
+          professional_id: string
+          service_id: string
+          skipped_on?: string[]
+          until_on?: string | null
+          weekdays: number[]
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          first_starts_at?: string
+          id?: string
+          interval_weeks?: number
+          occurrences?: number | null
+          org_id?: string
+          professional_id?: string
+          service_id?: string
+          skipped_on?: string[]
+          until_on?: string | null
+          weekdays?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_series_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "appointment_series_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "appointment_series_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       appointment_settings: {
         Row: {
           business_days: number[]
@@ -216,6 +311,7 @@ export type Database = {
           outside_availability_reason: string | null
           personal_label: string | null
           professional_id: string
+          series_id: string | null
           service_id: string | null
           starts_at: string
           state: string
@@ -253,6 +349,7 @@ export type Database = {
           outside_availability_reason?: string | null
           personal_label?: string | null
           professional_id: string
+          series_id?: string | null
           service_id?: string | null
           starts_at: string
           state?: string
@@ -290,6 +387,7 @@ export type Database = {
           outside_availability_reason?: string | null
           personal_label?: string | null
           professional_id?: string
+          series_id?: string | null
           service_id?: string | null
           starts_at?: string
           state?: string
@@ -361,6 +459,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "professionals_readiness"
             referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "appointments_series_fkey"
+            columns: ["org_id", "series_id"]
+            isOneToOne: false
+            referencedRelation: "appointment_series"
+            referencedColumns: ["org_id", "id"]
           },
           {
             foreignKeyName: "appointments_service_fkey"
@@ -10127,6 +10232,15 @@ export type Database = {
         Args: { p_org_id: string; p_payload: Json; p_token_hash: string }
         Returns: Json
       }
+      book_personal_appointment: {
+        Args: {
+          p_ends_at: string
+          p_is_work?: boolean
+          p_label: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
       cancel_appointment: {
         Args: {
           p_details?: string
@@ -10151,6 +10265,15 @@ export type Database = {
       cancel_professional_submission: {
         Args: { p_submission_id: string }
         Returns: undefined
+      }
+      cancel_series_from: {
+        Args: {
+          p_details?: string
+          p_id: string
+          p_kept_on_schedule?: boolean
+          p_reason_key: string
+        }
+        Returns: number
       }
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
@@ -10338,6 +10461,25 @@ export type Database = {
       }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
+        Returns: string
+      }
+      create_series: {
+        Args: {
+          p_balance_override_reason?: string
+          p_client_ids: string[]
+          p_client_message?: string
+          p_count: number
+          p_first_starts_at: string
+          p_internal_note?: string
+          p_interval_weeks: number
+          p_mode?: string
+          p_outside_availability_reason?: string
+          p_professional_id: string
+          p_service_id: string
+          p_skip_conflicts?: boolean
+          p_until: string
+          p_weekdays: number[]
+        }
         Returns: string
       }
       create_signature_request: {
@@ -10803,6 +10945,7 @@ export type Database = {
           participants: Json
           personal_label: string
           professional_id: string
+          series_id: string
           service_id: string
           starts_at: string
           state: string
@@ -11604,6 +11747,23 @@ export type Database = {
       prepare_waitlist_followup_for_service: {
         Args: { p_entry_id: string; p_org_id: string; p_token_hash: string }
         Returns: Json
+      }
+      preview_series: {
+        Args: {
+          p_count?: number
+          p_first_starts_at: string
+          p_interval_weeks: number
+          p_professional_id: string
+          p_service_id: string
+          p_until?: string
+          p_weekdays: number[]
+        }
+        Returns: {
+          conflict: string
+          ends_at: string
+          occurrence: number
+          starts_at: string
+        }[]
       }
       publish_client_consent_version: {
         Args: { p_population: string; p_version_id: string }

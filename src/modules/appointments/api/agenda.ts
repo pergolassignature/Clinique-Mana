@@ -19,7 +19,9 @@ import {
   type ExceptionKind,
   type Presence,
   type ProfessionalOption,
+  type SeriesDate,
   type ServiceOption,
+  seriesDatePayload,
 } from './parse'
 
 /**
@@ -138,6 +140,78 @@ export async function bookAppointment(input: BookInput): Promise<string> {
   )
   if (error) throw error
   return parseRpc(z.string(), data)
+}
+
+/** A series' rule (AP-16): every 1–12 weeks on these ISO weekdays, N appointments or until a date. */
+export interface SeriesRule {
+  professionalId: string
+  serviceId: string
+  firstStartsAt: string
+  intervalWeeks: number
+  weekdays: number[]
+  count: number | null
+  until: string | null
+}
+
+export async function previewSeries(rule: SeriesRule): Promise<SeriesDate[]> {
+  const { data, error } = await supabase.rpc(
+    'preview_series',
+    sqlArgs<'preview_series'>({
+      p_professional_id: rule.professionalId,
+      p_service_id: rule.serviceId,
+      p_first_starts_at: rule.firstStartsAt,
+      p_interval_weeks: rule.intervalWeeks,
+      p_weekdays: rule.weekdays,
+      p_count: rule.count,
+      p_until: rule.until,
+    }),
+  )
+  if (error) throw error
+  return parseRpc(z.array(seriesDatePayload), data)
+}
+
+export interface SeriesInput extends SeriesRule {
+  clientIds: string[]
+  mode: AppointmentMode
+  internalNote: string | null
+  clientMessage: string | null
+  skipConflicts: boolean
+  balanceOverrideReason: string | null
+  outsideAvailabilityReason: string | null
+}
+
+export async function createSeries(input: SeriesInput): Promise<string> {
+  const { data, error } = await supabase.rpc(
+    'create_series',
+    sqlArgs<'create_series'>({
+      p_professional_id: input.professionalId,
+      p_service_id: input.serviceId,
+      p_first_starts_at: input.firstStartsAt,
+      p_interval_weeks: input.intervalWeeks,
+      p_weekdays: input.weekdays,
+      p_count: input.count,
+      p_until: input.until,
+      p_client_ids: input.clientIds,
+      p_mode: input.mode,
+      p_internal_note: input.internalNote,
+      p_client_message: input.clientMessage,
+      p_skip_conflicts: input.skipConflicts,
+      p_balance_override_reason: input.balanceOverrideReason,
+      p_outside_availability_reason: input.outsideAvailabilityReason,
+    }),
+  )
+  if (error) throw error
+  return parseRpc(z.string(), data)
+}
+
+/** Cancels this appointment and the series' later active ones; returns how many. */
+export async function cancelSeriesFrom(id: string, reasonKey: string, details: string | null, keptOnSchedule: boolean): Promise<number> {
+  const { data, error } = await supabase.rpc(
+    'cancel_series_from',
+    sqlArgs<'cancel_series_from'>({ p_id: id, p_reason_key: reasonKey, p_details: details, p_kept_on_schedule: keptOnSchedule }),
+  )
+  if (error) throw error
+  return parseRpc(z.number().int(), data)
 }
 
 export interface MoveInput {

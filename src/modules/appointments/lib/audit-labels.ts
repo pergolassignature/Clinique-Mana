@@ -11,6 +11,7 @@ export const APPOINTMENTS_AUDITED_TABLES = [
   'appointment_participants',
   'appointment_video_meetings',
   'video_tasks',
+  'appointment_series',
   'availability_rules',
   'availability_exceptions',
   'cancellation_reasons',
@@ -28,6 +29,7 @@ const WEEKDAYS = ['', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi
 /** Weekdays and the business days in the module's words; stored codes are in the i18n `values`. */
 function appointmentsValue(_table: string, column: string, value: unknown): string | undefined {
   if (column === 'weekday' && typeof value === 'number') return WEEKDAYS[value]
+  if (column === 'weekdays' && Array.isArray(value)) return value.map((d) => WEEKDAYS[Number(d)] ?? String(d)).join(', ')
   if (column === 'business_days' && Array.isArray(value)) return value.map((d) => WEEKDAYS[Number(d)] ?? String(d)).join(', ')
   return undefined
 }

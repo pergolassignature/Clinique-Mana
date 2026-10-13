@@ -7,12 +7,15 @@ import {
   addAvailabilityException,
   bookAppointment,
   cancelAppointment,
+  cancelSeriesFrom,
+  createSeries,
   deleteAvailabilityRule,
   fetchAgenda,
   fetchAgendaReference,
   fetchAppointmentDetail,
   fetchAvailability,
   moveAppointment,
+  previewSeries,
   removeAvailabilityException,
   saveAvailabilityRule,
   setAppointmentDetails,
@@ -21,6 +24,8 @@ import {
   type ExceptionInput,
   type MoveInput,
   type RuleInput,
+  type SeriesInput,
+  type SeriesRule,
 } from '../api/agenda'
 import type { AppointmentMode, Presence } from '../api/parse'
 import { appointmentsKeys } from './keys'
@@ -51,6 +56,16 @@ export function useAvailability(professionalIds: readonly string[], sinceIso: st
   })
 }
 
+/** The dates of a series before booking it, with their conflicts (null rule: nothing to ask). */
+export function useSeriesPreview(rule: SeriesRule | null) {
+  return useQuery({
+    queryKey: appointmentsKeys.seriesPreview(rule ?? {}),
+    queryFn: () => (rule ? previewSeries(rule) : Promise.resolve([])),
+    enabled: rule !== null,
+    placeholderData: keepPreviousData,
+  })
+}
+
 /** Where a failure is shown: in the dialog (with the error, for its HINT), else a toast. */
 export interface MutationFeedback {
   onErrorMessage?: (message: string, error: unknown) => void
@@ -76,6 +91,14 @@ function useAgendaMutation<V, R>(mutationFn: (variables: V) => Promise<R>, succe
 }
 
 export const useBookAppointment = (feedback?: MutationFeedback) => useAgendaMutation((input: BookInput) => bookAppointment(input), `${S}.booked`, feedback)
+export const useCreateSeries = (feedback?: MutationFeedback) => useAgendaMutation((input: SeriesInput) => createSeries(input), `${S}.series`, feedback)
+export const useCancelSeriesFrom = (feedback?: MutationFeedback) =>
+  useAgendaMutation(
+    ({ id, reasonKey, details, keptOnSchedule }: { id: string; reasonKey: string; details: string | null; keptOnSchedule: boolean }) =>
+      cancelSeriesFrom(id, reasonKey, details, keptOnSchedule),
+    `${S}.seriesCancelled`,
+    feedback,
+  )
 export const useMoveAppointment = (feedback?: MutationFeedback) => useAgendaMutation((input: MoveInput) => moveAppointment(input), `${S}.moved`, feedback)
 export const useSetAppointmentDetails = (feedback?: MutationFeedback) =>
   useAgendaMutation(
