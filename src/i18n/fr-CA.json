@@ -7629,7 +7629,12 @@
           "availability_rules": "Disponibilités",
           "availability_exceptions": "Exceptions aux disponibilités",
           "cancellation_reasons": "Raisons d'annulation",
-          "appointment_settings": "Heures d'ouverture et réglages de l'agenda"
+          "appointment_settings": "Heures d'ouverture et réglages de l'agenda",
+          "professional_video_links": "Liens vidéo fixes des professionnels",
+          "video_connections": "Comptes Zoom des professionnels",
+          "video_connection_tokens": "Jetons des comptes Zoom",
+          "appointment_video_meetings": "Réunions Zoom des rendez-vous",
+          "video_tasks": "Tâches des réunions Zoom"
         },
         "fields": {
           "appointments": {
@@ -7698,6 +7703,48 @@
             "business_end": "Fermeture",
             "reminder_business_days": "Rappel (jours ouvrables avant)",
             "reminder_local_hour": "Heure d'envoi des rappels"
+          },
+          "professional_video_links": {
+            "professional_id": "Professionnel",
+            "url": "Lien fixe",
+            "updated_by": "Modifié par"
+          },
+          "video_connections": {
+            "professional_id": "Professionnel",
+            "provider": "Service",
+            "state": "État",
+            "external_user_id": "Identifiant Zoom",
+            "external_account_id": "Compte Zoom",
+            "account_email": "Adresse Zoom",
+            "scopes": "Accès accordés",
+            "connected_at": "Connecté le",
+            "connected_by": "Connecté par",
+            "disconnected_at": "Déconnecté le",
+            "reconnect_reason": "Raison de la reconnexion",
+            "tokens_refreshed_at": "Jetons renouvelés le"
+          },
+          "video_connection_tokens": {
+            "connection_id": "Compte Zoom",
+            "access_token": "Jeton d’accès",
+            "refresh_token": "Jeton de renouvellement",
+            "access_token_expires_at": "Expiration du jeton d’accès",
+            "key_version": "Version de la clé"
+          },
+          "appointment_video_meetings": {
+            "appointment_id": "Rendez-vous",
+            "connection_id": "Compte Zoom",
+            "external_id": "Référence de la réunion",
+            "join_url": "Lien de la réunion",
+            "emailed_join_url": "Lien envoyé aux clients"
+          },
+          "video_tasks": {
+            "appointment_id": "Rendez-vous",
+            "generation": "Version de la demande",
+            "state": "État",
+            "attempts": "Essais",
+            "next_attempt_at": "Prochain essai",
+            "locked_until": "Réservée jusqu’à",
+            "last_error_code": "Dernière erreur"
           }
         },
         "values": {
@@ -7735,10 +7782,160 @@
               "vacation": "Vacances",
               "other": "Autre"
             }
+          },
+          "video_connections": {
+            "state": {
+              "connected": "Connecté",
+              "needs_reconnect": "À reconnecter",
+              "disconnected": "Déconnecté"
+            },
+            "provider": {
+              "zoom": "Zoom"
+            },
+            "reconnect_reason": {
+              "invalid_grant": "Zoom a refusé l’accès",
+              "unauthorized": "Zoom a refusé l’accès",
+              "deauthorized": "Application retirée de Zoom"
+            }
+          },
+          "video_tasks": {
+            "state": {
+              "pending": "À faire",
+              "done": "Faite",
+              "failed": "Échec"
+            }
           }
         },
         "sources": {
-          "seed:appointments_reference": "Réglages initiaux de l’agenda"
+          "seed:appointments_reference": "Réglages initiaux de l’agenda",
+          "job:appointments.video_sync": "Tâche « Liens Zoom des rendez-vous »",
+          "webhook:zoom": "Zoom"
+        }
+      },
+      "video": {
+        "nav": "Vidéoconférence",
+        "readiness": {
+          "zoom": "Zoom connecté",
+          "reconnect": "Zoom à reconnecter",
+          "fixed": "Lien fixe",
+          "none": "Aucun lien vidéo"
+        },
+        "page": {
+          "title": "Vidéoconférence",
+          "description": "Le lien de vos rendez-vous en vidéo : votre Zoom, connecté ici, ou votre lien fixe (Google Meet, Microsoft Teams…). Il est envoyé à vos clients et ouvert avec « Démarrer ».",
+          "loadError": "Impossible de charger votre vidéoconférence.",
+          "notProfessionalTitle": "Réservé aux professionnels",
+          "notProfessionalBody": "Votre compte n’est lié à aucun dossier de professionnel de la clinique."
+        },
+        "zoom": {
+          "title": "Zoom",
+          "description": "Connecté, chaque rendez-vous en vidéo a sa propre réunion dans votre Zoom, déplacée et supprimée avec lui. Le lien est envoyé à vos clients.",
+          "notConnected": "Zoom n’est pas connecté",
+          "connect": "Connecter mon Zoom",
+          "reconnect": "Reconnecter mon Zoom",
+          "leaving": "Ouverture de Zoom…",
+          "connectHelp": "Zoom vous demande d’autoriser l’application de la clinique, puis vous ramène ici.",
+          "connectedAs": "Compte {email}, connecté le {date}.",
+          "connectedSince": "Connecté le {date}.",
+          "reconnectWhy": "Zoom refuse l’accès de la clinique à votre compte.",
+          "deauthorized": "L’application de la clinique a été retirée de votre compte Zoom.",
+          "reconnectNotice": "Vos nouveaux rendez-vous en vidéo n’ont pas de lien Zoom tant que vous ne l’avez pas reconnecté. Les liens déjà envoyés fonctionnent toujours.",
+          "disconnect": "Déconnecter",
+          "disconnecting": "Déconnexion…",
+          "disconnected": "Zoom est déconnecté : vos rendez-vous en vidéo utiliseront votre lien fixe.",
+          "disconnectConfirm": {
+            "title": "Déconnecter votre Zoom ?",
+            "body": "La clinique ne créera plus de réunion dans votre Zoom. Vos prochains rendez-vous en vidéo utiliseront votre lien fixe, s’il y en a un. Les réunions déjà créées restent dans votre Zoom.",
+            "action": "Déconnecter"
+          },
+          "connectedToast": "Zoom est connecté ({email}). Vos prochains rendez-vous en vidéo auront chacun leur lien.",
+          "connectedToastPlain": "Zoom est connecté. Vos prochains rendez-vous en vidéo auront chacun leur lien.",
+          "declined": "La connexion à Zoom a été annulée : Zoom n’a pas été autorisé."
+        },
+        "fixed": {
+          "title": "Lien fixe",
+          "description": "Votre adresse de rencontre habituelle (Google Meet, Microsoft Teams, une salle Zoom personnelle…), utilisée quand Zoom n’est pas connecté.",
+          "label": "Adresse du lien",
+          "help": "L’adresse complète, qui commence par https://. Videz le champ et enregistrez pour la retirer.",
+          "invalid": "Entrez l’adresse complète du lien, qui commence par https:// (par exemple https://meet.google.com/abc-defg-hij).",
+          "tooLong": "Le lien est trop long (500 caractères au plus).",
+          "saved": "Lien fixe enregistré.",
+          "removed": "Lien fixe retiré."
+        },
+        "appointment": {
+          "retried": "Le lien sera créé de nouveau dans les prochaines minutes."
+        },
+        "errors": {
+          "notConfigured": "La clinique n’a pas encore configuré Zoom. Demandez-lui de le faire, ou entrez votre lien fixe.",
+          "providerError": "Zoom ne répond pas pour le moment. Réessayez dans quelques minutes.",
+          "linkInvalid": "Ce retour de Zoom n’est pas valide. Recommencez la connexion.",
+          "linkExpired": "La connexion a pris trop de temps. Recommencez-la.",
+          "linkUsed": "Cette connexion a déjà été traitée. Recommencez-la au besoin.",
+          "notFound": "Aucun compte Zoom n’est connecté.",
+          "forbidden": "Cette connexion a été commencée par une autre personne. Recommencez-la."
+        },
+        "settings": {
+          "title": "Vidéoconférence",
+          "description": "Le lien vidéo de chaque professionnel : son Zoom, connecté par lui, ou son lien fixe (Google Meet, Microsoft Teams…), et l’application Zoom de la clinique.",
+          "list": {
+            "title": "Professionnels",
+            "description": "Qui est prêt pour les rendez-vous en vidéo. Un professionnel sans lien peut connecter son Zoom dans « Vidéoconférence » ; vous pouvez entrer son lien fixe pour lui.",
+            "summary": "{ready} professionnels actifs sur {total} ont un lien vidéo.",
+            "filterLabel": "Filtrer par lien vidéo",
+            "filter": "{label} ({count})",
+            "filters": {
+              "all": "Tous",
+              "zoom": "Zoom connecté",
+              "fixed": "Lien fixe",
+              "reconnect": "À reconnecter",
+              "none": "Aucun lien"
+            },
+            "fixedLink": "Lien fixe : {url}",
+            "addFixed": "Ajouter un lien fixe",
+            "editFixed": "Modifier le lien fixe",
+            "addFixedFor": "Ajouter un lien fixe pour {name}",
+            "editFixedFor": "Modifier le lien fixe de {name}",
+            "close": "Fermer",
+            "fixedTitle": "Lien fixe de {name}",
+            "fixedDescription": "Utilisé pour ses rendez-vous en vidéo quand son Zoom n’est pas connecté.",
+            "empty": "Aucun professionnel actif.",
+            "emptyFilter": "Aucun professionnel dans ce filtre.",
+            "loadError": "Impossible de charger les professionnels.",
+            "noNames": "La liste des professionnels n’est visible qu’avec la permission de voir les professionnels."
+          },
+          "app": {
+            "title": "Application Zoom",
+            "description": "L’application OAuth de la clinique sur le Zoom App Marketplace, qui permet à chaque professionnel de connecter son propre Zoom.",
+            "clientId": "Client ID",
+            "clientIdHelp": "Dans Zoom App Marketplace → l’application de la clinique → App Credentials.",
+            "clientSecret": "Client Secret",
+            "clientSecretHelp": "Au même endroit. Il n’est jamais réaffiché ici.",
+            "webhookSecret": "Secret Token",
+            "webhookSecretHelp": "Dans Features → Access → Secret Token : il signe les avis de Zoom (application retirée par un professionnel).",
+            "redirect": "Adresse de retour (Redirect URL for OAuth)",
+            "redirectHelp": "À entrer dans l’application Zoom, ainsi que dans « OAuth allow list ».",
+            "webhook": "Adresse des avis de Zoom (Event notification endpoint URL)",
+            "webhookHelp": "À entrer dans Features → Event Subscriptions, avec l’événement « App deauthorized ».",
+            "readOnly": "Seule une personne qui gère les intégrations peut modifier ces valeurs.",
+            "secretsUnknown": "L’état de cette valeur n’est visible qu’avec la permission de voir les paramètres.",
+            "secretsLoadError": "Impossible de charger l’état des clés."
+          },
+          "job": {
+            "title": "Tâche planifiée",
+            "description": "Désactivée au départ, comme toutes les tâches de la clinique : activez-la une fois l’application Zoom configurée.",
+            "unknown": "L’état des tâches planifiées n’est visible qu’avec la permission de voir les paramètres.",
+            "sync": {
+              "on": "La tâche « Liens Zoom des rendez-vous » est activée.",
+              "onNoHour": "La tâche « Liens Zoom des rendez-vous » est activée.",
+              "off": "La tâche « Liens Zoom des rendez-vous » est désactivée : aucune réunion Zoom n’est créée, déplacée ni supprimée.",
+              "enable": "Activer la tâche planifiée",
+              "enabling": "Activation…",
+              "askAdmin": "Une personne qui gère les tâches planifiées peut l’activer :",
+              "openJobs": "Ouvrir Tâches planifiées",
+              "unknown": "La tâche « Liens Zoom des rendez-vous » n’est pas disponible pour la clinique.",
+              "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
+            }
+          }
         }
       }
     }

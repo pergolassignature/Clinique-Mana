@@ -166,7 +166,14 @@ select functions_are('public', array[
   'import_client', 'import_client_relation',
   -- Demandes, batch D3c (the booking page).
   'get_demandes_booking_settings', 'set_demandes_booking_settings', 'demandes_booking_page_for_service',
-  'book_discovery_call_for_service', 'cancel_discovery_call_for_service', 'resolve_discovery_call_link'
+  'book_discovery_call_for_service', 'cancel_discovery_call_for_service', 'resolve_discovery_call_link',
+  -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
+  'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
+  'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',
+  'disconnect_my_zoom_connection', 'zoom_deauthorized_for_service', 'get_zoom_credentials_for_service',
+  'set_zoom_tokens_for_service', 'mark_zoom_needs_reconnect_for_service', 'list_zoom_connections_to_refresh_for_service',
+  'claim_video_tasks_for_service', 'complete_video_task_for_service', 'video_link_email_for_service',
+  'mark_video_link_emailed_for_service'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
