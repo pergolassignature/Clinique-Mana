@@ -199,6 +199,29 @@ export type Database = {
           },
         ]
       }
+      client_merge_handlers: {
+        Row: {
+          function_name: string
+          module_key: string
+        }
+        Insert: {
+          function_name: string
+          module_key: string
+        }
+        Update: {
+          function_name?: string
+          module_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_merge_handlers_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: true
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       client_merges: {
         Row: {
           id: string
@@ -6748,6 +6771,63 @@ export type Database = {
       }
     }
     Views: {
+      client_payers_active: {
+        Row: {
+          client_id: string | null
+          expires_on: string | null
+          file_number: string | null
+          id: string | null
+          kind: string | null
+          max_amount_cents: number | null
+          max_sessions: number | null
+          org_id: string | null
+          organisation_name: string | null
+          session_amount_cents: number | null
+          starts_on: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          expires_on?: string | null
+          file_number?: string | null
+          id?: string | null
+          kind?: string | null
+          max_amount_cents?: number | null
+          max_sessions?: number | null
+          org_id?: string | null
+          organisation_name?: string | null
+          session_amount_cents?: number | null
+          starts_on?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          expires_on?: string | null
+          file_number?: string | null
+          id?: string | null
+          kind?: string | null
+          max_amount_cents?: number | null
+          max_sessions?: number | null
+          org_id?: string | null
+          organisation_name?: string | null
+          session_amount_cents?: number | null
+          starts_on?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_payers_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_payers_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       clienteles_catalog: {
         Row: {
           id: string | null
@@ -7318,6 +7398,7 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      anonymize_client: { Args: { p_id: string }; Returns: undefined }
       apply_email_event: {
         Args: {
           p_at: string
@@ -7362,6 +7443,7 @@ export type Database = {
         }
         Returns: string
       }
+      archive_client: { Args: { p_id: string }; Returns: undefined }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
       attach_professional_document: {
         Args: {
@@ -7484,6 +7566,10 @@ export type Database = {
           total: number
         }[]
       }
+      create_client: {
+        Args: { p_client: Json; p_confirm_medium?: boolean }
+        Returns: string
+      }
       create_document_template: {
         Args: {
           p_description: string
@@ -7596,6 +7682,10 @@ export type Database = {
         Returns: Json
       }
       delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
+      delete_client_insurance: {
+        Args: { p_client_id: string; p_rank: number }
+        Returns: undefined
+      }
       delete_compensation_rate: { Args: { p_id: string }; Returns: undefined }
       delete_mail_messages: {
         Args: {
@@ -7635,6 +7725,7 @@ export type Database = {
         Args: { p_actor: string; p_connection_id: string; p_org_id: string }
         Returns: boolean
       }
+      end_client_payer: { Args: { p_id: string }; Returns: undefined }
       end_professional_client_agreement: {
         Args: { p_effective_to: string; p_row_id: string }
         Returns: undefined
@@ -7644,9 +7735,31 @@ export type Database = {
         Returns: undefined
       }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
+      export_client_privacy: { Args: { p_id: string }; Returns: Json }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
+      }
+      find_client_duplicates: {
+        Args: {
+          p_birthday: string
+          p_email: string
+          p_exclude?: string
+          p_first: string
+          p_last: string
+          p_phones: string[]
+        }
+        Returns: {
+          birthday: string
+          client_id: string
+          client_number: number
+          display_name: string
+          email: string
+          is_archived: boolean
+          level: string
+          mobile_e164: string
+          reasons: string[]
+        }[]
       }
       finish_job_run: {
         Args: { p_detail: string; p_id: string; p_status: string }
@@ -7677,6 +7790,7 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_client_summary: { Args: { p_id: string }; Returns: Json }
       get_communications_settings: { Args: never; Returns: Json }
       get_communications_settings_for_org: {
         Args: { p_org_id: string }
@@ -8369,6 +8483,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      merge_clients: {
+        Args: { p_keep: string; p_merge: string }
+        Returns: string
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
@@ -8529,6 +8647,10 @@ export type Database = {
         Args: { p_org_id: string; p_owner: string }
         Returns: undefined
       }
+      remove_client_relation: {
+        Args: { p_client_id: string; p_related_id: string }
+        Returns: undefined
+      }
       remove_module_tester: {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
@@ -8591,6 +8713,26 @@ export type Database = {
         Returns: Json
       }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
+      save_client_payer: {
+        Args: {
+          p_client_id: string
+          p_expires_on: string
+          p_file_number: string
+          p_id: string
+          p_kind: string
+          p_max_amount_cents: number
+          p_max_sessions: number
+          p_note: string
+          p_organisation_name: string
+          p_session_amount_cents: number
+          p_starts_on: string
+        }
+        Returns: string
+      }
+      save_client_tag: {
+        Args: { p_id: string; p_name: string }
+        Returns: string
+      }
       save_clientele: {
         Args: {
           p_id: string
@@ -8719,6 +8861,19 @@ export type Database = {
         }
         Returns: string
       }
+      search_clients: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          birthday: string
+          client_number: number
+          email: string
+          first_name: string
+          id: string
+          is_archived: boolean
+          last_name: string
+          mobile_e164: string
+        }[]
+      }
       search_professionals: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -8739,6 +8894,32 @@ export type Database = {
           p_institution_number: string
           p_transit_number: string
         }
+        Returns: undefined
+      }
+      set_client_notes: {
+        Args: {
+          p_admin_notes: string
+          p_id: string
+          p_special_agreement_note: string
+        }
+        Returns: undefined
+      }
+      set_client_relation: {
+        Args: {
+          p_client_id: string
+          p_client_rights?: Json
+          p_related_id: string
+          p_related_rights?: Json
+          p_type: string
+        }
+        Returns: undefined
+      }
+      set_client_tag_active: {
+        Args: { p_active: boolean; p_id: string }
+        Returns: undefined
+      }
+      set_client_tags: {
+        Args: { p_client_id: string; p_tag_ids: string[] }
         Returns: undefined
       }
       set_communications_settings: { Args: { p_patch: Json }; Returns: Json }
@@ -8994,6 +9175,11 @@ export type Database = {
       }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
+      unarchive_client: { Args: { p_id: string }; Returns: undefined }
+      update_client: {
+        Args: { p_client: Json; p_id: string }
+        Returns: undefined
+      }
       update_template_version: {
         Args: {
           p_body: Json
@@ -9002,6 +9188,18 @@ export type Database = {
           p_id: string
           p_signers: Json
           p_variables: Json
+        }
+        Returns: undefined
+      }
+      upsert_client_insurance: {
+        Args: {
+          p_certificate_number: string
+          p_client_id: string
+          p_holder_name: string
+          p_holder_relation: string
+          p_insurer: string
+          p_policy_number: string
+          p_rank: number
         }
         Returns: undefined
       }
