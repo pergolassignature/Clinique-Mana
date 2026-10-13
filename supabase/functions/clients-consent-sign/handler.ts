@@ -358,6 +358,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         signers: step.signers,
         idempotencyKey: step.idempotency_key,
         sentBy: step.sent_by,
+        parallel: true,
+        language: step.language,
         manual: {
           redirectUrl: `${appUrl.replace(/\/+$/, '')}/consentement?signe=1`,
         },

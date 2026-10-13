@@ -80,9 +80,14 @@ language sql
 stable
 set search_path = ''
 as $$
-  select pg_catalog.regexp_replace(
-           pg_catalog.lower(extensions.unaccent('extensions.unaccent'::regdictionary, pg_catalog.btrim(coalesce(p_text, '')))),
-           '[^a-z0-9]+', '', 'g')
+  -- Latin names: letters and digits only (« Marie-Ève » = « marie eve »); a name with no Latin
+  -- letter keeps its own, spaces removed (it would otherwise fold to nothing).
+  with f as (
+    select pg_catalog.lower(extensions.unaccent('extensions.unaccent'::regdictionary, pg_catalog.btrim(coalesce(p_text, '')))) as v
+  )
+  select coalesce(nullif(pg_catalog.regexp_replace(f.v, '[^a-z0-9]+', '', 'g'), ''),
+                  pg_catalog.regexp_replace(f.v, '[[:space:][:punct:]]+', '', 'g'))
+    from f
 $$;
 
 revoke all on function
@@ -287,6 +292,8 @@ create table public.client_consent_request_signers (
   link_id uuid,
   last_sent_at timestamptz,
   opened_at timestamptz,
+  -- Identity checks that failed on this signer's links: at IDENTITY_MAX the link is revoked (staff re-send).
+  identity_failures int not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint client_consent_request_signers_request_fkey foreign key (org_id, request_id)
@@ -298,6 +305,7 @@ create table public.client_consent_request_signers (
   constraint client_consent_request_signers_link_fkey foreign key (link_id)
     references public.secure_links (id) on delete set null,
   constraint client_consent_request_signers_role_check check (role in ('client', 'client_2')),
+  constraint client_consent_request_signers_failures_check check (identity_failures >= 0),
   constraint client_consent_request_signers_role_key unique (request_id, role)
 );
 create index client_consent_request_signers_org_request_idx on public.client_consent_request_signers (org_id, request_id);
@@ -351,7 +359,7 @@ create table public.client_consents (
   constraint client_consents_signed_by_check check (pg_catalog.jsonb_typeof(signed_by) = 'array' and pg_catalog.pg_column_size(signed_by) <= 4096),
   constraint client_consents_answers_check check (answers is null or pg_catalog.jsonb_typeof(answers) = 'object'),
   constraint client_consents_source_check check (source in ('app', 'import')),
-  constraint client_consents_app_check check (source = 'import' or (template_version_id is not null and request_id is not null)),
+  constraint client_consents_app_check check (source = 'import' or template_version_id is not null),
   constraint client_consents_withdrawal_check check (withdrawn_at is not null or (withdrawn_by is null and withdrawal_note is null)),
   constraint client_consents_note_check check (char_length(withdrawal_note) between 1 and 500)
 );
@@ -706,6 +714,13 @@ begin
     raise exception 'La cible ne convient pas à ce déclencheur : un code de service à 5 chiffres, un type de payeur (IVAC, PAE), un statut ou une situation.'
       using errcode = 'P0001', hint = 'target';
   end if;
+  if coalesce(p_is_active, false)
+     and not exists (select 1 from public.document_templates t
+                       join public.document_template_versions v on v.template_id = t.id and v.status = 'published'
+                      where t.org_id = v_org and t.key in ('clients.consent_' || p_consent_key || '_fr', 'clients.consent_' || p_consent_key || '_en')) then
+    raise exception 'Publiez d''abord le texte de ce consentement : une règle ne s''active qu''une fois son texte publié.'
+      using errcode = 'P0001', hint = 'template';
+  end if;
   begin
     if p_id is null then
       insert into public.client_consent_rules (org_id, consent_key, trigger_kind, target, frequency, is_active, created_by)
@@ -856,6 +871,15 @@ begin
   v_lang := pg_catalog.right(v_key, 2);
   v_consent := pg_catalog.regexp_replace(v_key, '^clients\.consent_(.+)_(fr|en)$', '\1');
   perform public.publish_template_version(p_version_id);
+  -- The requests out on the previous version and not yet in signing now print this one (the
+  -- previous version is archived: no signature request could be made from it).
+  update public.client_consent_requests r
+     set template_version_id = p_version_id
+   where r.org_id = v_org and r.consent_key = v_consent and r.language = v_lang and r.state = 'pending'
+     and r.template_version_id <> p_version_id
+     and not exists (select 1 from public.signature_requests s
+                      where s.org_id = r.org_id and s.purpose = 'clients.consent' and s.subject_type = 'client_consent_request'
+                        and s.subject_id = r.id and s.status in ('draft', 'sent', 'viewed'));
   if p_population = 'all_active' then
     update public.client_consents c
        set resign_requested_at = pg_catalog.now()
@@ -903,7 +927,10 @@ begin
                  case when r.client_a_id = p_client_id then r.b_main_contact else r.a_main_contact end as main,
                  r.created_at
             from public.client_relations r
+            join public.clients o on o.org_id = r.org_id
+                                 and o.id = case when r.client_a_id = p_client_id then r.client_b_id else r.client_a_id end
            where r.org_id = p_org and (r.client_a_id = p_client_id or r.client_b_id = p_client_id)
+             and o.archived_at is null and o.anonymized_at is null
              and case when r.client_a_id = p_client_id
                       then r.b_manages_appointments and r.type_b_to_a in ('parent', 'guardian')
                       else r.a_manages_appointments and r.type_a_to_b in ('parent', 'guardian') end) x;
@@ -983,6 +1010,11 @@ begin
   if not public.module_enabled_for_org(p_org_id, 'clients') then
     raise exception 'Module disabled' using errcode = '22023';
   end if;
+  -- P3-40: nothing leaves for a client while the module is reserved for its testers.
+  if not public.module_open_to_all_for_org(p_org_id, 'clients') then
+    raise exception 'Le module Clients est réservé aux testeurs : aucune demande de consentement ne part aux clients avant son ouverture à tous.'
+      using errcode = 'P0001', hint = 'module_reserved';
+  end if;
 
   if p_request_id is not null then
     select * into v_req from public.client_consent_requests r where r.org_id = p_org_id and r.id = p_request_id for update;
@@ -1036,6 +1068,27 @@ begin
     end loop;
   else
     v_resent := true;
+    -- Who signs may have changed since (a right removed, a relation deleted, a birthday, the
+    -- custody): without an envelope out, the signers are rebuilt and the former ones' links
+    -- revoked; with one out, the signature runs to its end with its signers.
+    if not exists (select 1 from public.signature_requests s
+                    where s.org_id = p_org_id and s.purpose = 'clients.consent' and s.subject_type = 'client_consent_request'
+                      and s.subject_id = v_req.id and s.status in ('draft', 'sent', 'viewed')) then
+      v_signers := private.clients_consent_signers(p_org_id, v_req.client_id);
+      if exists (select 1 from public.client_consent_request_signers x
+                  where x.request_id = v_req.id
+                    and not exists (select 1 from pg_catalog.jsonb_array_elements(v_signers) s
+                                     where s ->> 'role' = x.role and (s ->> 'signer_client_id')::uuid = x.signer_client_id))
+         or pg_catalog.jsonb_array_length(v_signers)
+            <> (select pg_catalog.count(*) from public.client_consent_request_signers x where x.request_id = v_req.id) then
+        perform private.clients_consent_close_links(p_org_id, v_req.id, p_actor);
+        delete from public.client_consent_request_signers x where x.request_id = v_req.id;
+        for v_signer in select s from pg_catalog.jsonb_array_elements(v_signers) s loop
+          insert into public.client_consent_request_signers (org_id, request_id, role, signer_client_id, relation_id)
+          values (p_org_id, v_req.id, v_signer ->> 'role', (v_signer ->> 'signer_client_id')::uuid, (v_signer ->> 'relation_id')::uuid);
+        end loop;
+      end if;
+    end if;
     update public.client_consent_requests r
        set last_sent_at = pg_catalog.now(),
            reminded_at = case when p_actor is null then pg_catalog.now() else r.reminded_at end,
@@ -1121,9 +1174,31 @@ as $$
 $$;
 revoke all on function private.clients_consent_identity_ok(uuid, uuid, text, int) from public, anon, authenticated, service_role;
 
+-- One more failed identity check on a signer's link: `identity_mismatch`, or, at the fifth,
+-- `invalid` with the link revoked (the clinic sends a new one): the client's birth year cannot be
+-- guessed through one link.
+create function private.clients_consent_identity_failed(p_org uuid, p_signer_id uuid)
+returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_failures int;
+begin
+  update public.client_consent_request_signers s set identity_failures = s.identity_failures + 1
+   where s.id = p_signer_id returning s.identity_failures into v_failures;
+  if v_failures >= 5 then
+    perform private.revoke_secure_links(p_org, 'client_consent', 'client_consent_signer', p_signer_id, null);
+    return '{"state": "invalid"}'::jsonb;
+  end if;
+  return pg_catalog.jsonb_build_object('state', 'identity_mismatch', 'org_id', p_org);
+end;
+$$;
+revoke all on function private.clients_consent_identity_failed(uuid, uuid) from public, anon, authenticated, service_role;
+
 -- What the page shows once the identity matches. One of:
 --   {"state": "invalid"}                     unknown, revoked, expired link, or request closed
---   {"state": "identity_mismatch", "org_id"} (the function counts the attempts)
+--   {"state": "identity_mismatch", "org_id"} (counted per signer: the fifth revokes the link)
 --   {"state": "ready", "org_id", "request_id", "role", "language", "clinic_name", "consent_name",
 --    "client_first_name", "signer_first_name", "clauses", "answers", "can_answer", "signing"}
 -- `signing`: the signature request's status when one exists (sent, viewed…), else null.
@@ -1147,10 +1222,10 @@ begin
     return '{"state": "invalid"}'::jsonb;
   end if;
   if not private.clients_consent_identity_ok(v_link.org_id, v_link.request_id, p_first_name, p_birth_year) then
-    return pg_catalog.jsonb_build_object('state', 'identity_mismatch', 'org_id', v_link.org_id);
+    return private.clients_consent_identity_failed(v_link.org_id, v_link.signer_id);
   end if;
   select * into v_req from public.client_consent_requests r where r.id = v_link.request_id;
-  update public.client_consent_request_signers s set opened_at = coalesce(s.opened_at, pg_catalog.now())
+  update public.client_consent_request_signers s set opened_at = coalesce(s.opened_at, pg_catalog.now()), identity_failures = 0
    where s.id = v_link.signer_id;
   select c.first_name into v_signer_first
     from public.client_consent_request_signers s join public.clients c on c.id = s.signer_client_id
@@ -1214,7 +1289,7 @@ begin
     return '{"state": "invalid"}'::jsonb;
   end if;
   if not private.clients_consent_identity_ok(v_link.org_id, v_link.request_id, p_first_name, p_birth_year) then
-    return pg_catalog.jsonb_build_object('state', 'identity_mismatch', 'org_id', v_link.org_id);
+    return private.clients_consent_identity_failed(v_link.org_id, v_link.signer_id);
   end if;
   select * into v_req from public.client_consent_requests r where r.id = v_link.request_id for update;
 
@@ -1241,6 +1316,37 @@ begin
   end if;
 
   -- An envelope already out: this signer resumes it.
+  if not exists (select 1 from public.signature_requests s
+                  where s.org_id = v_req.org_id and s.purpose = 'clients.consent' and s.subject_type = 'client_consent_request'
+                    and s.subject_id = v_req.id and s.status in ('draft', 'sent', 'viewed')) then
+    -- Before any envelope: the signers must still be the ones the rules name (R-48), else the
+    -- links are revoked and the clinic sends again; the text is the one published now.
+    begin
+      v_signers := private.clients_consent_signers(v_req.org_id, v_req.client_id);
+    exception when others then
+      v_signers := '[]'::jsonb;
+    end;
+    if pg_catalog.jsonb_array_length(v_signers)
+         <> (select pg_catalog.count(*) from public.client_consent_request_signers x where x.request_id = v_req.id)
+       or exists (select 1 from public.client_consent_request_signers x
+                   where x.request_id = v_req.id
+                     and not exists (select 1 from pg_catalog.jsonb_array_elements(v_signers) s
+                                      where s ->> 'role' = x.role and (s ->> 'signer_client_id')::uuid = x.signer_client_id)) then
+      perform private.clients_consent_close_links(v_req.org_id, v_req.id, null);
+      return '{"state": "invalid"}'::jsonb;
+    end if;
+    update public.client_consent_requests r
+       set template_version_id = v.id
+      from public.document_templates t
+      join public.document_template_versions v on v.template_id = t.id and v.status = 'published'
+     where r.id = v_req.id and t.org_id = r.org_id
+       and t.key = 'clients.consent_' || r.consent_key || '_' || r.language
+       and r.template_version_id <> v.id
+    returning r.* into v_req;
+    if v_req.id is null then
+      select * into v_req from public.client_consent_requests r where r.id = v_link.request_id;
+    end if;
+  end if;
   select s.id, s.envelope_id, x.documenso_recipient_id into v_sig
     from public.signature_requests s
     join public.signature_request_signers x on x.request_id = s.id and x.role = v_link.role
@@ -1535,15 +1641,38 @@ begin
   end if;
   select s.reminder_days into v_days from public.client_consent_settings s where s.org_id = p_org_id;
   v_days := coalesce(v_days, 7);
-  select coalesce(pg_catalog.array_agg(x.id), '{}') into v_ids
-    from (select r.id from public.client_consent_requests r
-           where r.org_id = p_org_id and r.state = 'pending' and r.reminded_at is null
-             and r.last_sent_at <= pg_catalog.now() - pg_catalog.make_interval(days => v_days)
-             and not exists (select 1 from public.signature_requests s
-                              where s.org_id = r.org_id and s.purpose = 'clients.consent'
-                                and s.subject_type = 'client_consent_request' and s.subject_id = r.id
-                                and s.status in ('sent', 'viewed'))
-           order by r.last_sent_at limit p_limit) x;
+  -- A file archived or anonymised since: its open requests end (cancelled, no actor), links revoked.
+  for v_overdue in
+    update public.client_consent_requests r
+       set state = 'cancelled', cancelled_at = pg_catalog.now()
+      from public.clients c
+     where r.org_id = p_org_id and r.state = 'pending' and c.org_id = r.org_id and c.id = r.client_id
+       and (c.archived_at is not null or c.anonymized_at is not null)
+    returning r.id
+  loop
+    perform private.clients_consent_close_links(p_org_id, v_overdue, null);
+  end loop;
+  -- P3-40: nothing is sent again while the module is reserved for its testers.
+  if not public.module_open_to_all_for_org(p_org_id, 'clients') then
+    return pg_catalog.jsonb_build_object('remind', '[]'::jsonb, 'overdue', 0);
+  end if;
+  -- Claimed here (reminded_at set): a re-send that fails is not tried again every day.
+  with due as (
+    select r.id from public.client_consent_requests r
+     where r.org_id = p_org_id and r.state = 'pending' and r.reminded_at is null
+       and r.last_sent_at <= pg_catalog.now() - pg_catalog.make_interval(days => v_days)
+       and not exists (select 1 from public.signature_requests s
+                        where s.org_id = r.org_id and s.purpose = 'clients.consent'
+                          and s.subject_type = 'client_consent_request' and s.subject_id = r.id
+                          and s.status in ('draft', 'sent', 'viewed'))
+     order by r.last_sent_at limit p_limit
+     for update skip locked
+  ), claimed as (
+    update public.client_consent_requests r set reminded_at = pg_catalog.now()
+      from due where r.id = due.id
+    returning r.id
+  )
+  select coalesce(pg_catalog.array_agg(claimed.id), '{}') into v_ids from claimed;
   for v_overdue in
     select q.id from public.client_consent_requests q
      where q.org_id = p_org_id and q.state = 'pending' and q.due_at is not null and q.due_at < pg_catalog.now()

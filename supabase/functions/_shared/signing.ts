@@ -157,6 +157,14 @@ export interface CreateSignatureRequestInput {
    * signers are emailed.
    */
   manual?: { redirectUrl: string }
+  /**
+   * Every signer may sign in any order (Documenso `PARALLEL`). Default: one
+   * after the other when there are several (`SEQUENTIAL`). A client consent's
+   * two parents open their own links whenever they want (Clients C5a).
+   */
+  parallel?: boolean
+  /** Documenso's signing page language; French by default. */
+  language?: 'fr' | 'en'
   /** Only the built-in test document: already filled, with its invitation. */
   document?: PdfDocument
   email?: { subject: string; message: string }
@@ -777,10 +785,12 @@ async function send(
       meta: {
         subject: plan.email.subject,
         message: plan.email.message,
-        language: 'fr',
+        language: input.language ?? 'fr',
         distributionMethod: input.manual ? 'NONE' : 'EMAIL',
         ...(input.manual && { redirectUrl: input.manual.redirectUrl }),
-        signingOrder: plan.signers.length > 1 ? 'SEQUENTIAL' : 'PARALLEL',
+        signingOrder: plan.signers.length > 1 && !input.parallel
+          ? 'SEQUENTIAL'
+          : 'PARALLEL',
         timezone: context.timezone,
         expiryDays: context.settings.expiry_days,
       },
