@@ -47,6 +47,10 @@ const clinicSchema = z.object({
   website: maybe,
   gst_number: maybe,
   qst_number: maybe,
+  /** BI-21: how to pay by Interac, and the standing note per language ('' = none). */
+  etransfer_email: maybe,
+  invoice_note_fr: maybe,
+  invoice_note_en: maybe,
 })
 
 const lineSchema = z.object({
@@ -243,6 +247,8 @@ const LABELS = {
     providerNumber: 'N° de fournisseur de la clinique',
     payerFile: 'N° de dossier',
     dueOn: 'Échéance',
+    paying: 'Paiement',
+    interac: 'Paiement par virement Interac à {email} (dépôt automatique).',
     paid: 'Montant payé',
     on: 'le',
     forInvoice: 'Pour la facture',
@@ -297,6 +303,8 @@ const LABELS = {
     providerNumber: 'Clinic provider no.',
     payerFile: 'File no.',
     dueOn: 'Due',
+    paying: 'Payment',
+    interac: 'Payment by Interac e-Transfer to {email} (autodeposit).',
     paid: 'Amount paid',
     on: 'on',
     forInvoice: 'For invoice',
@@ -520,6 +528,21 @@ function footer(doc: BillingDocument, l: Labels): PdfDocument['footer'] {
   return { text: cut(parts.join(' · '), 120) }
 }
 
+/**
+ * What an invoice says about paying (BI-21): the Interac line when the clinic has an Interac
+ * address, then its standing note in the document's language. Empty when neither is set.
+ */
+export function paymentNote(doc: BillingDocument, language: Language): string {
+  const l = LABELS[language]
+  const email = doc.clinic.etransfer_email?.trim()
+  const note =
+    (language === 'en'
+      ? doc.clinic.invoice_note_en
+      : doc.clinic.invoice_note_fr)?.trim()
+  return [email ? l.interac.replace('{email}', email) : null, note || null]
+    .filter(Boolean).join(' ')
+}
+
 /** The document's title: « Facture 2026-12 », « Reçu R-2026-3 », « Relevé 2026 ». */
 export function documentTitle(
   doc: BillingDocument,
@@ -654,6 +677,8 @@ function invoiceBlocks(
   if (doc.kind === 'invoice' && doc.invoice.notes_client) {
     blocks.push(para(label(l.note, language), plain(doc.invoice.notes_client)))
   }
+  const paying = doc.kind === 'invoice' ? paymentNote(doc, language) : ''
+  if (paying) blocks.push(para(label(l.paying, language), plain(paying)))
   if (doc.kind === 'receipt') blocks.push(para(plain(l.thanks)))
   return blocks
 }
@@ -771,6 +796,10 @@ export function billingEmail(
         number: doc.number ?? '',
         amount: money(amount, language),
         invoice_number: doc.invoice.number ?? '',
+        // BI-21: the invoice emails' « Paiement et reçu » (optional variable).
+        ...(doc.kind === 'invoice'
+          ? { payment_note: paymentNote(doc, language) }
+          : {}),
       },
     },
   }

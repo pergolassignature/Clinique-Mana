@@ -1237,6 +1237,8 @@ export type Database = {
           block_after_days: number
           dunning_days: number[]
           dunning_from: string | null
+          invoice_note_en: string | null
+          invoice_note_fr: string | null
           org_id: string
           queue_from: string | null
           updated_at: string
@@ -1246,6 +1248,8 @@ export type Database = {
           block_after_days?: number
           dunning_days?: number[]
           dunning_from?: string | null
+          invoice_note_en?: string | null
+          invoice_note_fr?: string | null
           org_id: string
           queue_from?: string | null
           updated_at?: string
@@ -1255,6 +1259,8 @@ export type Database = {
           block_after_days?: number
           dunning_days?: number[]
           dunning_from?: string | null
+          invoice_note_en?: string | null
+          invoice_note_fr?: string | null
           org_id?: string
           queue_from?: string | null
           updated_at?: string
@@ -16813,6 +16819,10 @@ export type Database = {
           p_days: number[]
           p_dunning_from: string
         }
+        Returns: undefined
+      }
+      set_billing_invoice_note: {
+        Args: { p_en: string; p_fr: string }
         Returns: undefined
       }
       set_billing_queue_from: {
