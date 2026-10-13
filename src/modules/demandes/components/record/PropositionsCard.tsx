@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
@@ -53,7 +53,7 @@ function responseText(p: Proposition): { label: string; tone: StatusTone } {
  * « Propositions » in Suivi (D3b, D-21): the professionals proposed to the person, their slots held
  * 48 h (Rendez-vous R1b) and the answer — accepted (the first appointment booked, the request
  * matched), declined with its reason, unanswered, withdrawn. « Proposer un professionnel » while the
- * request is open and nothing is pending (demandes.manage; the slots need Rendez-vous:
+ * request is « Acceptée » or on the waiting list and nothing is pending (demandes.manage; the slots need Rendez-vous:
  * appointments.view); « Retirer la proposition » frees the slots.
  */
 export function PropositionsCard() {
@@ -65,7 +65,8 @@ export function PropositionsCard() {
   const [withdrawing, setWithdrawing] = useState<Proposition | null>(null)
   const rows = propositions.data ?? []
   const pending = rows.some((p) => p.response === 'pending')
-  const open = !['matched', 'closed'].includes(bundle.demande.state)
+  // From « Acceptée », the waiting list, or « Proposée » once its proposal ended (the database says the same).
+  const open = ['accepted', 'waitlist', 'proposed'].includes(bundle.demande.state)
   const canPropose = canEdit && open && !pending && can('appointments.view')
 
   return (
@@ -163,14 +164,19 @@ function ProposeForm({ onDone }: { onDone: () => void }) {
   const to = shiftCalendarDay(from, DAYS - 1)
   const slots = useOpenSlots(professionalId || null, serviceId || null, from, to)
   const proposeMutation = usePropose()
+  // The previous professional's or service's slots while the new ones load: never offered.
+  const fresh = slots.isPlaceholderData ? undefined : slots.data
+  useEffect(() => {
+    if (fresh) setChosen((current) => current.filter((s) => fresh.some((slot) => slot.starts_at === s)))
+  }, [fresh])
   const byDay = useMemo(() => {
     const days = new Map<string, OpenSlot[]>()
-    for (const slot of slots.data ?? []) {
+    for (const slot of fresh ?? []) {
       const day = getClinicDateString(slot.starts_at)
       days.set(day, [...(days.get(day) ?? []), slot])
     }
     return [...days.entries()]
-  }, [slots.data])
+  }, [fresh])
 
   const toggle = (startsAt: string) =>
     setChosen((current) => (current.includes(startsAt) ? current.filter((s) => s !== startsAt) : current.length < MAX_SLOTS ? [...current, startsAt] : current))
@@ -191,7 +197,11 @@ function ProposeForm({ onDone }: { onDone: () => void }) {
           else toast.error(t(`${P}.notEmailed`))
           onDone()
         },
-        onError: (failure) => setError(proposeErrorMessage(failure)),
+        onError: (failure) => {
+          setError(proposeErrorMessage(failure))
+          // A slot taken meanwhile: the list is read again.
+          void slots.refetch()
+        },
       },
     )
   }
@@ -261,7 +271,7 @@ function ProposeForm({ onDone }: { onDone: () => void }) {
               <p role="alert" className="text-sm text-destructive">
                 {t(`${P}.form.slotsError`)}
               </p>
-            ) : !slots.data ? (
+            ) : !fresh ? (
               <p role="status" className="text-sm text-muted-foreground">
                 {t('common.loading')}
               </p>

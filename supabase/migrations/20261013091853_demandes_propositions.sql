@@ -133,7 +133,8 @@ revoke all on function private.demandes_end_proposition(uuid, uuid, text, text, 
 
 -- -----------------------------------------------------------------------------
 -- set_demande_state, now with the proposals: matched or closed withdraws a pending proposal
--- (its slots freed: `demande_closed`). Otherwise as D3 (the waiting list).
+-- (its slots freed: `demande_closed`); another move waits until it is withdrawn. Otherwise as D3
+-- (the waiting list).
 -- -----------------------------------------------------------------------------
 create or replace function public.set_demande_state(p_id uuid, p_state text, p_closed_reason text default null, p_professional_id uuid default null)
 returns void
@@ -155,6 +156,10 @@ begin
   if p_state = 'waitlist' and not exists (
        select 1 from public.waitlist_entries x where x.demande_id = v_row.id and x.org_id = v_row.org_id and x.state <> 'closed') then
     raise exception 'Pour la liste d''attente, inscrivez la demande : « Inscrire sur la liste d''attente ».' using errcode = 'P0001';
+  end if;
+  if p_state not in ('matched', 'closed') and exists (
+       select 1 from public.demande_propositions x where x.demande_id = v_row.id and x.org_id = v_row.org_id and x.response = 'pending') then
+    raise exception 'Une proposition attend sa réponse : retirez-la d''abord (onglet Suivi).' using errcode = 'P0001';
   end if;
   if p_state = 'closed' and p_closed_reason is null then
     raise exception 'Indiquez pourquoi la demande est fermée.' using errcode = 'P0001';
@@ -260,7 +265,7 @@ declare
   v_to record;
   v_clients uuid[];
   v_for_two boolean;
-  v_expires timestamptz := pg_catalog.now() + interval '48 hours';
+  v_expires timestamptz;
   v_prop uuid := gen_random_uuid();
   v_start timestamptz;
   v_appt uuid;
@@ -288,8 +293,9 @@ begin
     raise exception 'Activez d''abord Rendez-vous : une proposition réserve des plages dans l''agenda.' using errcode = 'P0001', hint = 'appointments';
   end if;
   select d.* into v_row from public.demandes d where d.id = p_demande_id for no key update;
-  if v_row.state in ('matched', 'closed') then
-    raise exception 'Une demande jumelée ou fermée ne reçoit pas de proposition.' using errcode = 'P0001';
+  if v_row.state not in ('accepted', 'waitlist', 'proposed') then
+    raise exception 'Une proposition se fait sur une demande « Acceptée » ou sur la liste d''attente : changez d''abord son état.'
+      using errcode = 'P0001', hint = 'state';
   end if;
   if v_row.client_id is null then
     raise exception 'Rattachez d''abord le dossier du client (onglet Accueil).' using errcode = 'P0001', hint = 'client_id';
@@ -304,6 +310,8 @@ begin
      or (select pg_catalog.count(distinct x) from pg_catalog.unnest(p_starts_at) x) <> pg_catalog.cardinality(p_starts_at) then
     raise exception 'Proposez de 1 à 3 plages différentes.' using errcode = 'P0001', hint = 'slots';
   end if;
+  -- 48 h, or until the last slot starts when they all start sooner (the job then frees the request on time).
+  v_expires := least(pg_catalog.now() + interval '48 hours', (select pg_catalog.max(x) from pg_catalog.unnest(p_starts_at) x));
   select r.* into v_to from private.demandes_recipient(v_org, v_row.id) r;
   if v_to.email is null then
     raise exception 'Aucune adresse courriel pour envoyer la proposition : ajoutez-la au dossier, ou proposez par téléphone.'
@@ -335,7 +343,8 @@ begin
       'appointment_id', v_appt, 'starts_at', v_start,
       'ends_at', (select a.ends_at from public.appointments a where a.id = v_appt)));
   end loop;
-  v_link := private.issue_secure_link(v_org, 'proposition', 'demande_proposition', v_prop, p_token_hash, p_actor, interval '48 hours', '{}');
+  v_link := private.issue_secure_link(v_org, 'proposition', 'demande_proposition', v_prop, p_token_hash, p_actor,
+                                      greatest(v_expires - pg_catalog.now(), interval '1 minute'), '{}');
   perform pg_catalog.set_config('app.audit_source', 'rpc:create_proposition', true);
   update public.demande_propositions x set slots = v_slots, secure_link_id = v_link where x.id = v_prop;
   if v_row.state <> 'proposed' and private.demande_state_allowed(v_row.state, 'proposed') then
@@ -382,6 +391,7 @@ as $$
    where l.id = p_link_id and l.purpose = 'proposition' and l.subject_type = 'demande_proposition'
      and l.revoked_at is null and l.expires_at > pg_catalog.now() and l.use_count < l.max_uses
      and x.response = 'pending' and x.expires_at > pg_catalog.now()
+     and public.module_enabled_for_org(l.org_id, 'appointments')
 $$;
 revoke all on function public.resolve_proposition_link(uuid) from public, anon, authenticated;
 grant execute on function public.resolve_proposition_link(uuid) to service_role;
@@ -414,10 +424,11 @@ begin
   if p_decline_reason is not null and p_decline_reason not in ('schedule', 'fee', 'professional', 'changed_mind', 'other') then
     raise exception 'Unknown reason' using errcode = '22023';
   end if;
+  -- The link read first without a lock; then the request, the proposal and the link locked in the
+  -- order every other writer takes (set_demande_state, withdraw, the job), and checked again.
   select l.* into v_link from public.secure_links l
-   where l.token_hash = p_token_hash and l.purpose = 'proposition' and l.subject_type = 'demande_proposition'
-   for update;
-  if v_link.id is null or v_link.revoked_at is not null or v_link.expires_at <= pg_catalog.now() or v_link.use_count >= v_link.max_uses
+   where l.token_hash = p_token_hash and l.purpose = 'proposition' and l.subject_type = 'demande_proposition';
+  if v_link.id is null
      or not public.module_enabled_for_org(v_link.org_id, 'demandes') or not public.module_enabled_for_org(v_link.org_id, 'appointments') then
     return pg_catalog.jsonb_build_object('state', 'invalid');
   end if;
@@ -425,10 +436,11 @@ begin
   if v.id is null then
     return pg_catalog.jsonb_build_object('state', 'invalid');
   end if;
-  -- The request, then its proposal (the order of set_demande_state).
   select d.state into v_state from public.demandes d where d.id = v.demande_id and d.org_id = v.org_id for no key update;
   select x.* into v from public.demande_propositions x where x.id = v.id for update;
-  if v.response <> 'pending' or v.expires_at <= pg_catalog.now() then
+  select l.* into v_link from public.secure_links l where l.id = v_link.id for update;
+  if v_link.revoked_at is not null or v_link.expires_at <= pg_catalog.now() or v_link.use_count >= v_link.max_uses
+     or v.response <> 'pending' or v.expires_at <= pg_catalog.now() then
     return pg_catalog.jsonb_build_object('state', 'invalid');
   end if;
   perform pg_catalog.set_config('app.audit_source', 'link:proposition', true);
@@ -616,7 +628,7 @@ values
      {"path": "professional.name", "label": "Nom du professionnel", "sample": "Marie Tremblay", "required": true, "kind": "text"},
      {"path": "proposal.service", "label": "Service", "sample": "Individual consultation 50 min", "required": true, "kind": "text"},
      {"path": "proposal.slots", "label": "Plages proposées", "sample": "Tuesday, October 14 at 10:00 AM", "required": true, "kind": "text"},
-     {"path": "proposal.expires_at", "label": "Réservées jusqu''au", "sample": "October 16, 2026 at 9:00 AM", "required": true, "kind": "datetime"}
+     {"path": "proposal.expires_at", "label": "Réservées jusqu''au", "sample": "Friday, October 16 at 9:00 AM", "required": true, "kind": "text"}
    ]',
    'demandes.view')
 on conflict do nothing;
@@ -647,6 +659,10 @@ begin
   end if;
   for e in select x.id from public.waitlist_entries x where x.demande_id = p_demande and x.org_id = p_org and x.state <> 'closed' loop
     perform private.waitlist_close(e.id, 'placed', p_actor);
+  end loop;
+  -- Matched: a proposal still pending is withdrawn (its slots freed); the one being accepted is not pending any more.
+  for e in select x.id from public.demande_propositions x where x.demande_id = p_demande and x.org_id = p_org and x.response = 'pending' loop
+    perform private.demandes_end_proposition(p_org, e.id, 'withdrawn', 'demande_closed', p_actor, null, true);
   end loop;
   if v_row.state = 'matched' then
     return;

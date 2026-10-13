@@ -68,6 +68,6 @@ test('a professional proposed, the slot chosen by the person through the link, t
 
   // The counselor sees it.
   await page.reload()
-  await expect(page.getByText(/Acceptée : premier rendez-vous le/)).toBeVisible()
+  await expect(page.getByText(/Acceptée.*premier rendez-vous le/)).toBeVisible()
   await expect(page.locator('header').getByText('Jumelée', { exact: true })).toBeVisible()
 })

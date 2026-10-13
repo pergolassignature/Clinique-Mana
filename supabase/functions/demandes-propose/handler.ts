@@ -63,28 +63,41 @@ const createdSchema = z.object({
   expires_at: z.string(),
 })
 
+/** One instant in the clinic's time: « lundi 15 mars 2027 à 9 h », or « Monday, March 15 at 9:00 a.m. ». */
+export function instantText(
+  iso: string,
+  timeZone: string,
+  language: 'fr' | 'en',
+): string {
+  const zone = isValidTimeZone(timeZone) ? timeZone : 'America/Toronto'
+  if (language === 'en') {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(iso))
+  }
+  const weekday = new Intl.DateTimeFormat('fr-CA', {
+    timeZone: zone,
+    weekday: 'long',
+  })
+    .format(new Date(iso))
+  return `${weekday} ${formatEmailDateTime(iso, zone)}`
+}
+
 /** The slots as lines of the email, in the clinic's time and the person's language. */
 export function slotLines(
   starts: string[],
   timeZone: string,
   language: 'fr' | 'en',
 ): string {
-  const zone = isValidTimeZone(timeZone) ? timeZone : 'America/Toronto'
-  const english = new Intl.DateTimeFormat('en-CA', {
-    timeZone: zone,
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
   return [...starts].sort().map((s) =>
-    `• ${
-      language === 'en'
-        ? english.format(new Date(s))
-        : formatEmailDateTime(s, zone)
-    }`
-  ).join('\n')
+    `• ${instantText(s, timeZone, language)}`
+  )
+    .join('\n')
 }
 
 /** The handler; see the module comment. */
@@ -164,7 +177,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
                 c.timezone,
                 c.language,
               ),
-              expires_at: c.expires_at,
+              // French: the template's datetime (« 16 octobre 2026 à 9 h »); English: written here.
+              expires_at: c.language === 'en'
+                ? instantText(c.expires_at, c.timezone, 'en')
+                : c.expires_at,
             },
           },
           actionUrl: linkUrl(deps.env('APP_URL') ?? '', '/proposition', token),

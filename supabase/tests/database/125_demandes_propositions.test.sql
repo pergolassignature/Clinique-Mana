@@ -4,7 +4,7 @@
 -- job), the request closed, a slot no longer possible, permissions, clinics.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(42);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -66,6 +66,8 @@ select set_config('test.d' || n, public.create_demande(jsonb_build_object('clien
   from (values (1, 'd0000000-0000-0000-0000-000000000001'), (2, 'd0000000-0000-0000-0000-000000000002'), (3, 'd0000000-0000-0000-0000-000000000003')) v(n, c);
 select public.set_demande_state(current_setting('test.d' || n)::uuid, 'accepted') from generate_series(1, 3) n;
 select set_config('test.nofile', public.create_demande('{"contact_name": "Sans Dossier", "contact_email": "x@pr.test"}')::text, true);
+select set_config('test.dnew', public.create_demande('{"client_id": "d0000000-0000-0000-0000-000000000002"}')::text, true);
+select public.set_demande_state(current_setting('test.nofile')::uuid, 'accepted');
 
 -- =============================================================================
 -- Proposing (as the function: the service role, the actor verified)
@@ -95,6 +97,9 @@ update public.org_modules set testers_only = false where org_id = 'b0000000-0000
 select throws_ok($$ select public.create_proposition_for_service('a0000000-0000-0000-0000-000000000002', current_setting('test.d1')::uuid,
   'c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, array['2027-03-15 13:00Z'::timestamptz], 'video', decode(repeat('a1', 32), 'hex')) $$,
   '42501', null, 'the actor must work the requests');
+select throws_ok($$ select public.create_proposition_for_service('a0000000-0000-0000-0000-000000000001', current_setting('test.dnew')::uuid,
+  'c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, array['2027-03-15 13:00Z'::timestamptz], 'video', decode(repeat('a1', 32), 'hex')) $$,
+  'P0001', 'Une proposition se fait sur une demande « Acceptée » ou sur la liste d''attente : changez d''abord son état.', 'a « Nouvelle » request: not yet');
 select throws_ok($$ select public.create_proposition_for_service('a0000000-0000-0000-0000-000000000001', current_setting('test.nofile')::uuid,
   'c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, array['2027-03-15 13:00Z'::timestamptz], 'video', decode(repeat('a1', 32), 'hex')) $$,
   'P0001', 'Rattachez d''abord le dossier du client (onglet Accueil).', 'a file first');
@@ -166,6 +171,24 @@ select results_eq($$ select x.response, d.state, (select count(*)::int from publ
   $$ values ('expired', 'accepted', 0) $$, 'expired: its slot freed, the request back');
 select is((select count(*)::int from public.notifications where kind = 'demandes.proposition_expired'), 1, '« Rappelez-la »');
 select is(public.answer_proposition_for_service(decode(repeat('b2', 32), 'hex'), null) ->> 'state', 'invalid', 'its link answers nothing');
+
+-- A proposal pending: the request does not move by hand; placed through the waiting list, it is withdrawn.
+select set_config('test.p6', (public.create_proposition_for_service('a0000000-0000-0000-0000-000000000001', current_setting('test.d2')::uuid,
+  'c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, array['2027-03-15 14:00Z'::timestamptz], 'video',
+  decode(repeat('b5', 32), 'hex')) ->> 'proposition_id'), true);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok(format($$ select public.set_demande_state(%L, 'accepted') $$, current_setting('test.d2')),
+  'P0001', 'Une proposition attend sa réponse : retirez-la d''abord (onglet Suivi).', 'no move by hand while a proposal is pending');
+select set_config('test.w6', (public.register_waitlist(current_setting('test.d2')::uuid,
+  (select format('[{"title_id": "%s"}]', id) from public.profession_titles where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'psychologue')::jsonb))[1]::text, true);
+select public.exit_waitlist(current_setting('test.w6')::uuid, 'placed', 'c0000000-0000-0000-0000-000000000001');
+select results_eq($$ select x.response, d.state, (select count(*)::int from public.appointments a where a.hold_reference = x.id)
+                      from public.demande_propositions x join public.demandes d on d.id = x.demande_id where x.id = current_setting('test.p6')::uuid $$,
+  $$ values ('withdrawn', 'matched', 0) $$, 'placed through the waiting list: the pending proposal withdrawn, its slot freed');
+select public.set_demande_state(current_setting('test.d2')::uuid, 'accepted');
+reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
 -- Withdrawn by the counselor; then the request closed with a pending proposal.
 select set_config('test.p4', (public.create_proposition_for_service('a0000000-0000-0000-0000-000000000001', current_setting('test.d2')::uuid,

@@ -156,7 +156,7 @@ Deno.test('demandes-propose: as the verified caller with a hashed token; the ema
     const mail = JSON.parse(s.http.calls[0].body)
     assertEquals(mail.To[0].Email, 'alice@exemple.test')
     assert(/\/proposition#t=[A-Za-z0-9_-]{43}/.test(mail.Text))
-    assert(mail.Text.includes('15 mars 2027 à 9 h'))
+    assert(mail.Text.includes('lundi 15 mars 2027 à 9 h'))
   })
 })
 
@@ -214,7 +214,7 @@ Deno.test('slotLines: the clinic time, in French or in English', () => {
       'America/Toronto',
       'fr',
     ),
-    '• 15 mars 2027 à 9 h\n• 16 mars 2027 à 9 h 30',
+    '• lundi 15 mars 2027 à 9 h\n• mardi 16 mars 2027 à 9 h 30',
   )
   assert(
     slotLines(['2027-03-15T13:00:00Z'], 'America/Toronto', 'en').includes(
