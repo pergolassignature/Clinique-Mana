@@ -221,3 +221,14 @@ verify_jwt = false
 # Job communications.sms_dispatch (runJob verifies X-Job-Signature).
 [functions.sms-dispatch]
 verify_jwt = false
+# Facturation, batch FQ (QuickBooks): « Connecter QuickBooks », « Déconnecter », Intuit's return
+# and « Synchroniser » (verifyAuth, module billing, billing.settings).
+[functions.qbo-connect]
+verify_jwt = false
+[functions.qbo-callback]
+verify_jwt = false
+[functions.qbo-sync]
+verify_jwt = false
+# Job billing.qbo_token_refresh (runJob verifies X-Job-Signature).
+[functions.qbo-token-refresh]
+verify_jwt = false
