@@ -7802,6 +7802,513 @@ export type Database = {
           },
         ]
       }
+      qbo_account_map: {
+        Row: {
+          created_at: string
+          id: string
+          map_key: string
+          org_id: string
+          profession_title_id: string | null
+          qbo_account_id: string | null
+          suggested: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          map_key: string
+          org_id: string
+          profession_title_id?: string | null
+          qbo_account_id?: string | null
+          suggested?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          map_key?: string
+          org_id?: string
+          profession_title_id?: string | null
+          qbo_account_id?: string | null
+          suggested?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_account_map_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qbo_account_map_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_account_map_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_account_map_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      qbo_accounts: {
+        Row: {
+          account_sub_type: string | null
+          account_type: string
+          acct_num: string | null
+          active: boolean
+          classification: string | null
+          connection_id: string
+          fully_qualified_name: string | null
+          name: string
+          org_id: string
+          qbo_id: string
+          synced_at: string
+        }
+        Insert: {
+          account_sub_type?: string | null
+          account_type: string
+          acct_num?: string | null
+          active?: boolean
+          classification?: string | null
+          connection_id: string
+          fully_qualified_name?: string | null
+          name: string
+          org_id: string
+          qbo_id: string
+          synced_at?: string
+        }
+        Update: {
+          account_sub_type?: string | null
+          account_type?: string
+          acct_num?: string | null
+          active?: boolean
+          classification?: string | null
+          connection_id?: string
+          fully_qualified_name?: string | null
+          name?: string
+          org_id?: string
+          qbo_id?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_accounts_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qbo_connection_tokens: {
+        Row: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at: string
+          key_version: number
+          org_id: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at?: string
+          key_version?: number
+          org_id: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          access_token_expires_at?: string
+          connection_id?: string
+          created_at?: string
+          key_version?: number
+          org_id?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_connection_tokens_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_connection_tokens_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: true
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qbo_connection_tokens_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qbo_connections: {
+        Row: {
+          accounts_synced_at: string | null
+          company_name: string | null
+          connected_at: string
+          connected_by: string | null
+          created_at: string
+          customers_synced_at: string | null
+          disconnected_at: string | null
+          disconnected_by: string | null
+          environment: string
+          id: string
+          last_error_at: string | null
+          last_error_code: string | null
+          last_sync_at: string | null
+          last_sync_status: string | null
+          org_id: string
+          realm_id: string
+          refresh_token_expires_at: string | null
+          status: string
+          status_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          accounts_synced_at?: string | null
+          company_name?: string | null
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          customers_synced_at?: string | null
+          disconnected_at?: string | null
+          disconnected_by?: string | null
+          environment?: string
+          id?: string
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          org_id: string
+          realm_id: string
+          refresh_token_expires_at?: string | null
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accounts_synced_at?: string | null
+          company_name?: string | null
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          customers_synced_at?: string | null
+          disconnected_at?: string | null
+          disconnected_by?: string | null
+          environment?: string
+          id?: string
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          org_id?: string
+          realm_id?: string
+          refresh_token_expires_at?: string | null
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_connections_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "qbo_connections_disconnected_by_fkey"
+            columns: ["disconnected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "qbo_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qbo_customer_matches: {
+        Row: {
+          candidate_client_ids: string[]
+          client_id: string | null
+          connection_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          level: string
+          match_input_hash: string
+          org_id: string
+          qbo_id: string
+          reasons: string[]
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          candidate_client_ids?: string[]
+          client_id?: string | null
+          connection_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          level: string
+          match_input_hash: string
+          org_id: string
+          qbo_id: string
+          reasons?: string[]
+          source?: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          candidate_client_ids?: string[]
+          client_id?: string | null
+          connection_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          level?: string
+          match_input_hash?: string
+          org_id?: string
+          qbo_id?: string
+          reasons?: string[]
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_customer_matches_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_customer_matches_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_customer_matches_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_customer_matches_customer_fkey"
+            columns: ["connection_id", "qbo_id"]
+            isOneToOne: true
+            referencedRelation: "qbo_customers"
+            referencedColumns: ["connection_id", "qbo_id"]
+          },
+          {
+            foreignKeyName: "qbo_customer_matches_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "qbo_customer_matches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qbo_customers: {
+        Row: {
+          active: boolean
+          company_name: string | null
+          connection_id: string
+          display_name: string
+          email: string | null
+          family_name: string | null
+          given_name: string | null
+          is_job: boolean
+          match_input_hash: string
+          org_id: string
+          parent_qbo_id: string | null
+          phones: string[]
+          qbo_id: string
+          synced_at: string
+        }
+        Insert: {
+          active?: boolean
+          company_name?: string | null
+          connection_id: string
+          display_name: string
+          email?: string | null
+          family_name?: string | null
+          given_name?: string | null
+          is_job?: boolean
+          match_input_hash: string
+          org_id: string
+          parent_qbo_id?: string | null
+          phones?: string[]
+          qbo_id: string
+          synced_at?: string
+        }
+        Update: {
+          active?: boolean
+          company_name?: string | null
+          connection_id?: string
+          display_name?: string
+          email?: string | null
+          family_name?: string | null
+          given_name?: string | null
+          is_job?: boolean
+          match_input_hash?: string
+          org_id?: string
+          parent_qbo_id?: string | null
+          phones?: string[]
+          qbo_id?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_customers_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_customers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qbo_links: {
+        Row: {
+          client_id: string | null
+          connection_id: string
+          created_at: string
+          id: string
+          kind: string
+          org_id: string
+          payer_client_id: string
+          qbo_customer_id: string
+          source: string
+        }
+        Insert: {
+          client_id?: string | null
+          connection_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          org_id: string
+          payer_client_id: string
+          qbo_customer_id: string
+          source: string
+        }
+        Update: {
+          client_id?: string | null
+          connection_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          payer_client_id?: string
+          qbo_customer_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_links_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_links_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qbo_links_payer_fkey"
+            columns: ["org_id", "payer_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_links_payer_fkey"
+            columns: ["org_id", "payer_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       rate_limits: {
         Row: {
           bucket: string
@@ -11738,6 +12245,10 @@ export type Database = {
           status: string
         }[]
       }
+      decide_qbo_customer_match: {
+        Args: { p_client_id?: string; p_decision: string; p_qbo_id: string }
+        Returns: string
+      }
       decide_retention: {
         Args: {
           p_count_month: string
@@ -11823,6 +12334,10 @@ export type Database = {
         Args: { p_actor: string; p_org_id: string }
         Returns: boolean
       }
+      disconnect_qbo_connection: {
+        Args: { p_actor: string; p_org_id: string }
+        Returns: boolean
+      }
       end_client_payer: { Args: { p_id: string }; Returns: undefined }
       end_professional_client_agreement: {
         Args: { p_effective_to: string; p_row_id: string }
@@ -11902,6 +12417,17 @@ export type Database = {
           p_token: string
         }
         Returns: boolean
+      }
+      finish_qbo_sync: {
+        Args: {
+          p_accounts_synced: boolean
+          p_company_name: string
+          p_customers_synced: boolean
+          p_error_code: string
+          p_org_id: string
+          p_status: string
+        }
+        Returns: undefined
       }
       get_appointment_consents: {
         Args: { p_appointment_id: string }
@@ -12095,6 +12621,19 @@ export type Database = {
       }
       get_professionals_catalog: { Args: never; Returns: Json }
       get_professionals_settings: { Args: never; Returns: Json }
+      get_qbo_credentials: {
+        Args: { p_org_id: string }
+        Returns: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          environment: string
+          realm_id: string
+          refresh_token: string
+          status: string
+        }[]
+      }
+      get_qbo_settings: { Args: never; Returns: Json }
       get_service_price: {
         Args: {
           p_on: string
@@ -12766,6 +13305,28 @@ export type Database = {
           usage: number
         }[]
       }
+      list_qbo_customer_matches: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status: string
+        }
+        Returns: {
+          active: boolean
+          candidates: Json
+          client: Json
+          decided_at: string
+          display_name: string
+          email: string
+          level: string
+          phones: string[]
+          qbo_id: string
+          reasons: string[]
+          source: string
+          status: string
+        }[]
+      }
       list_retention_review: { Args: { p_month: string }; Returns: Json }
       list_scheduled_job_runs: {
         Args: {
@@ -13039,6 +13600,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      match_qbo_customers: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: number
+      }
       merge_clients: {
         Args: { p_keep: string; p_merge: string; p_take?: string[] }
         Returns: string
@@ -13146,12 +13711,23 @@ export type Database = {
           name: string
         }[]
       }
+      prune_qbo_customers: {
+        Args: { p_org_id: string; p_sync_started_at: string }
+        Returns: number
+      }
       publish_client_consent_version: {
         Args: { p_population: string; p_version_id: string }
         Returns: number
       }
       publish_consent_version: { Args: { p_id: string }; Returns: undefined }
       publish_template_version: { Args: { p_id: string }; Returns: undefined }
+      qbo_customer_match_counts: {
+        Args: never
+        Returns: {
+          customers: number
+          status: string
+        }[]
+      }
       queue_email: {
         Args: {
           p_attachment_count: number
@@ -13325,6 +13901,10 @@ export type Database = {
       reorder_professionals_reference: {
         Args: { p_ids: string[]; p_kind: string }
         Returns: undefined
+      }
+      replace_qbo_accounts: {
+        Args: { p_accounts: Json; p_org_id: string }
+        Returns: number
       }
       request_mail_sync: {
         Args: { p_email_address: string; p_org_id: string }
@@ -13894,6 +14474,30 @@ export type Database = {
         Returns: undefined
       }
       set_professionals_settings: { Args: { p_patch: Json }; Returns: Json }
+      set_qbo_account_map: {
+        Args: {
+          p_account_id: string
+          p_key: string
+          p_profession_title_id: string
+        }
+        Returns: undefined
+      }
+      set_qbo_connection_status: {
+        Args: { p_org_id: string; p_reason: string; p_status: string }
+        Returns: undefined
+      }
+      set_qbo_tokens: {
+        Args: {
+          p_access_token: string
+          p_access_token_expires_at: string
+          p_connection_id: string
+          p_org_id: string
+          p_previous_refresh: string
+          p_refresh_token: string
+          p_refresh_token_expires_at: string
+        }
+        Returns: boolean
+      }
       set_retention_grid: {
         Args: {
           p_effective_from: string
@@ -14006,6 +14610,20 @@ export type Database = {
         }
         Returns: string
       }
+      store_qbo_connection: {
+        Args: {
+          p_access_token: string
+          p_access_token_expires_at: string
+          p_actor: string
+          p_company_name: string
+          p_environment: string
+          p_org_id: string
+          p_realm_id: string
+          p_refresh_token: string
+          p_refresh_token_expires_at: string
+        }
+        Returns: string
+      }
       store_sms_provider_session: {
         Args: {
           p_access_expires_at: string
@@ -14081,6 +14699,10 @@ export type Database = {
           inserted: boolean
           message_id: string
         }[]
+      }
+      upsert_qbo_customers: {
+        Args: { p_customers: Json; p_org_id: string; p_sync_started_at: string }
+        Returns: number
       }
       verify_professional_document: {
         Args: { p_doc_id: string; p_expires_on?: string }
