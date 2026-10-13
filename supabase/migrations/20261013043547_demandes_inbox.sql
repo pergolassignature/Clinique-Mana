@@ -334,8 +334,10 @@ revoke all on function public.get_demande(uuid) from public, anon, authenticated
 grant execute on function public.get_demande(uuid) to authenticated;
 
 -- What the intake and the filters choose from (`demandes.view`): the people who work requests
--- (demandes.manage), the « Comment avez-vous entendu parler de MANA ? » list (Clients' reference
--- list, active rows), and Professionnels' catalogues (motifs by category, titles, clientèles).
+-- (demandes.manage), the « Comment avez-vous entendu parler de MANA ? » list, and Professionnels'
+-- catalogues (motifs by category, titles, clientèles).
+-- TEMPORAIRE (D-9): the referral sources are read from Clients' table until Clients publishes
+-- `referral_sources_catalog` (lane A, C4); the first Demandes batch after C4 switches to it.
 create function public.get_demandes_reference()
 returns jsonb
 language plpgsql

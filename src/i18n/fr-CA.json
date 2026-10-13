@@ -6942,6 +6942,412 @@
             }
           }
         }
+      },
+      "states": {
+        "new": "Nouvelle",
+        "evaluating": "En évaluation",
+        "accepted": "Acceptée",
+        "proposed": "Proposée",
+        "matched": "Jumelée",
+        "waitlist": "Liste d’attente",
+        "closed": "Fermée"
+      },
+      "unnamed": "(sans nom)",
+      "file": "N° {number} · {name}",
+      "promise": {
+        "ok": "Reçue depuis {hours} h ouvrables",
+        "soon": "À rappeler bientôt : {hours} h ouvrables",
+        "late": "En retard : {hours} h ouvrables sans appel",
+        "met": "Rappelée dans les délais",
+        "metLate": "Rappelée après 48 h ouvrables"
+      },
+      "options": {
+        "channel": {
+          "phone": "Téléphone",
+          "email": "Courriel",
+          "web_form": "Formulaire du site",
+          "booking_page": "Page de réservation",
+          "sms": "Texto",
+          "referral": "Référence",
+          "walk_in": "En personne",
+          "other": "Autre"
+        },
+        "contactChannel": {
+          "phone": "Téléphone",
+          "email": "Courriel",
+          "sms": "Texto",
+          "other": "Autre"
+        },
+        "outcome": {
+          "reached": "Jointe",
+          "voicemail": "Message laissé",
+          "no_answer": "Pas de réponse",
+          "message_sent": "Message écrit envoyé",
+          "wrong_number": "Mauvais numéro"
+        },
+        "taskOutcome": {
+          "reached": "Jointe",
+          "voicemail": "Message laissé",
+          "no_answer": "Pas de réponse",
+          "message_sent": "Message écrit envoyé",
+          "wrong_number": "Mauvais numéro",
+          "not_needed": "Plus nécessaire"
+        },
+        "taskKind": {
+          "discovery_call": "Appel découverte",
+          "callback": "Rappel",
+          "follow_up": "Suivi",
+          "other": "Autre tâche"
+        },
+        "closedReason": {
+          "referred_out": "Orientée ailleurs",
+          "not_relevant": "Non pertinente",
+          "no_answer": "Sans réponse",
+          "withdrew": "Ne souhaite plus",
+          "duplicate": "En double",
+          "other": "Autre"
+        },
+        "beneficiary": {
+          "self": "Elle-même ou lui-même",
+          "child": "Un enfant",
+          "teen": "Un adolescent",
+          "couple": "Un couple",
+          "family": "Une famille",
+          "other": "Autre"
+        },
+        "modality": {
+          "video": "Vidéo",
+          "phone": "Téléphone",
+          "any": "Indifférent"
+        },
+        "gender": {
+          "female": "Une femme",
+          "male": "Un homme",
+          "any": "Indifférent"
+        },
+        "payer": {
+          "self": "La personne",
+          "insurance": "Assurance",
+          "eap": "PAE",
+          "ivac": "IVAC",
+          "other": "Autre",
+          "unknown": "À préciser"
+        },
+        "language": {
+          "fr": "Français",
+          "en": "Anglais"
+        },
+        "yesNo": {
+          "yes": "Oui",
+          "no": "Non"
+        },
+        "period": {
+          "am": "Matin",
+          "pm": "Après-midi",
+          "end_of_day": "Fin de journée",
+          "evening": "Soir",
+          "weekend": "Fin de semaine"
+        },
+        "day": {
+          "1": "Lundi",
+          "2": "Mardi",
+          "3": "Mercredi",
+          "4": "Jeudi",
+          "5": "Vendredi",
+          "6": "Samedi",
+          "7": "Dimanche"
+        },
+        "relationship": {
+          "self": "La personne elle-même",
+          "child": "Enfant",
+          "partner": "Conjoint ou conjointe",
+          "parent": "Parent",
+          "sibling": "Frère ou sœur",
+          "other": "Autre"
+        }
+      },
+      "inbox": {
+        "description": "Les demandes reçues et la promesse de rappel en 24 à 48 h ouvrables. Les changements des autres conseillères s'affichent seuls.",
+        "views": "Vues des demandes",
+        "view": {
+          "open": "Ouvertes",
+          "matched": "Jumelées",
+          "waitlist": "Liste d'attente",
+          "closed": "Fermées",
+          "all": "Toutes"
+        },
+        "label": "Demandes",
+        "searchLabel": "Rechercher une demande",
+        "search": "Numéro, nom, courriel ou téléphone",
+        "assignedLabel": "Conseillère",
+        "assigned": {
+          "any": "Toutes",
+          "me": "Les miennes",
+          "none": "Non assignées",
+          "meCount": "Les miennes ({count})",
+          "noneCount": "Non assignées ({count})"
+        },
+        "flagsLabel": "Filtres",
+        "flags": {
+          "late": "En retard",
+          "no_answer": "Sans réponse",
+          "urgent": "Urgentes",
+          "due": "À rappeler maintenant"
+        },
+        "loadError": "Les demandes n'ont pas pu être chargées.",
+        "noMatch": {
+          "title": "Aucune demande ne correspond",
+          "body": "Changez les filtres ou la recherche."
+        },
+        "reset": "Effacer les filtres",
+        "empty": {
+          "open": "Aucune demande ouverte",
+          "matched": "Aucune demande jumelée",
+          "waitlist": "Personne en liste d'attente",
+          "closed": "Aucune demande fermée",
+          "all": "Aucune demande"
+        },
+        "emptyBody": "Les nouvelles demandes apparaissent ici dès leur arrivée.",
+        "previous": "Précédentes",
+        "next": "Suivantes",
+        "table": "Demandes",
+        "columns": {
+          "person": "Personne",
+          "received": "Reçue",
+          "state": "État",
+          "assigned": "Conseillère",
+          "followUp": "Suivi",
+          "actions": "Actions"
+        },
+        "fileNumber": "Dossier N° {number}",
+        "urgent": "Urgente",
+        "handledBy": "{name} s’en occupe",
+        "unassigned": "Non assignée",
+        "noAnswer": "Sans réponse ({count} essais)",
+        "lastContact": "Dernier essai : {date} · {outcome}",
+        "nextContact": "Prochain essai : {date}",
+        "neverContacted": "Pas encore appelée"
+      },
+      "new": {
+        "open": "Nouvelle demande",
+        "title": "Nouvelle demande",
+        "description": "La saisie rapide : comment joindre la personne et d'où vient la demande. Le reste de l'accueil se remplit dans la demande.",
+        "name": "Nom",
+        "phone": "Téléphone",
+        "email": "Courriel",
+        "channel": "Reçue par",
+        "urgent": "Urgente",
+        "mine": "Je m'en occupe (assignée à moi)",
+        "note": "Note interne",
+        "noteHelp": "Visible seulement par les personnes autorisées. Jamais d'information clinique.",
+        "badPhone": "Ce numéro de téléphone n’est pas valide.",
+        "someone": "Indiquez au moins un nom, un téléphone ou un courriel.",
+        "create": "Créer la demande",
+        "creating": "Création…",
+        "created": "La demande est créée."
+      },
+      "contact": {
+        "open": "Noter un appel",
+        "openFor": "Noter un appel pour {person}",
+        "title": "Noter un appel : {person}",
+        "description": "Chaque essai compte pour la promesse de rappel et les statistiques.",
+        "channel": "Moyen",
+        "outcome": "Résultat",
+        "nextDate": "Prochain essai, le",
+        "nextTime": "à",
+        "nextHelp": "Laissez vide pour ne pas planifier de nouvel essai.",
+        "save": "Enregistrer l'essai",
+        "saving": "Enregistrement…",
+        "saved": "L'essai est noté."
+      },
+      "record": {
+        "notFound": {
+          "title": "Demande introuvable",
+          "body": "Cette demande n'existe pas ou n'est pas visible pour vous."
+        },
+        "back": "Retour aux demandes",
+        "loadError": "La demande n'a pas pu être chargée.",
+        "tabs": {
+          "label": "Sections de la demande",
+          "accueil": "Accueil",
+          "participants": "Participants",
+          "suivi": "Suivi",
+          "historique": "Historique"
+        },
+        "received": "Reçue le {date} · {channel}",
+        "urgent": "Urgente",
+        "openFile": "Ouvrir le dossier N° {number}",
+        "noFile": "Pas encore de dossier client.",
+        "closedBecause": "Fermée : {reason}",
+        "changeState": "Changer l'état",
+        "chooseState": "Choisir…",
+        "moveTo": "Passer à « {state} »",
+        "stateChanged": "La demande est maintenant « {state} ».",
+        "close": {
+          "title": "Fermer la demande ?",
+          "body": "Indiquez pourquoi. Une demande fermée peut être rouverte.",
+          "reason": "Raison",
+          "action": "Fermer la demande"
+        },
+        "assignee": "Conseillère",
+        "sharedInbox": "Boîte commune (personne)",
+        "assigned": "La conseillère est changée.",
+        "handledBy": "{name} s’en occupe depuis {time}",
+        "take": "Je m'en occupe",
+        "release": "Je laisse la demande",
+        "takeOver": {
+          "title": "Prendre la demande ?",
+          "body": "{name} s'en occupe déjà. Prévenez-la avant de reprendre la demande.",
+          "action": "Je la prends"
+        }
+      },
+      "intake": {
+        "file": {
+          "title": "Dossier client",
+          "description": "Le dossier de la personne servie, quand il existe. Il sera lié au professionnel jumelé.",
+          "none": "Aucun dossier rattaché.",
+          "link": "Rattacher un dossier",
+          "change": "Changer de dossier"
+        },
+        "contact": {
+          "title": "Coordonnées",
+          "description": "Comment joindre la personne, tant qu'aucun dossier n'est rattaché.",
+          "name": "Nom",
+          "phone": "Téléphone",
+          "email": "Courriel"
+        },
+        "need": {
+          "title": "Besoin",
+          "description": "Ce qui oriente le jumelage. Les motifs sont des repères d'orientation, jamais des diagnostics.",
+          "beneficiary": "Pour qui",
+          "previousTherapy": "Déjà consulté",
+          "title_": "Profession recherchée",
+          "clientele": "Clientèle",
+          "motifs": "Motifs",
+          "motifsHelp": "Cochez les motifs nommés par la personne.",
+          "concerns": "Préoccupations",
+          "concernsHelp": "Dans les mots de la personne. Rien de clinique : la note interne n'est pas un dossier.",
+          "urgent": "Urgente"
+        },
+        "prefs": {
+          "title": "Préférences",
+          "description": "Langue, mode, disponibilités, payeur.",
+          "language": "Langue",
+          "modality": "Mode",
+          "gender": "Professionnel souhaité",
+          "periods": "Moments",
+          "days": "Jours",
+          "payer": "Payeur",
+          "insurer": "Assureur"
+        },
+        "unknown": "Non indiqué",
+        "any": "Toutes",
+        "otherMotifs": "Autres motifs",
+        "badPhone": "Ce numéro de téléphone n’est pas valide.",
+        "saved": "L'accueil est enregistré."
+      },
+      "participants": {
+        "title": "Participants",
+        "description": "Pour qui est la demande (un couple, une famille, un enfant et son parent). Une seule personne principale.",
+        "empty": "Personne encore : la demande vaut pour la personne qui a appelé.",
+        "person": "Personne {n}",
+        "primary": "(principale)",
+        "name": "Nom",
+        "relationship": "Lien",
+        "birthday": "Date de naissance",
+        "makePrimary": "En faire la personne principale",
+        "remove": "Retirer",
+        "removeLabel": "Retirer {who}",
+        "add": "Ajouter une personne",
+        "addFile": "Ajouter {file}",
+        "nameNeeded": "Chaque personne a un nom ou un dossier.",
+        "onePrimary": "Choisissez une seule personne principale.",
+        "saved": "Les participants sont enregistrés."
+      },
+      "followUp": {
+        "contacts": {
+          "title": "Appels",
+          "description": "Les essais pour joindre la personne.",
+          "attempts": "Essais",
+          "last": "Dernier essai",
+          "never": "Aucun",
+          "next": "Prochain essai",
+          "noNext": "Aucun de prévu"
+        },
+        "tasks": {
+          "title": "Tâches",
+          "description": "L'appel découverte, un rappel, un suivi : chacun daté.",
+          "none": "Aucune tâche ouverte.",
+          "open": "Tâches ouvertes",
+          "overdue": "En retard",
+          "for": "pour {name}",
+          "outcome": "Résultat",
+          "done": "Fait",
+          "doneLabel": "{kind} : fait",
+          "cancel": "Annuler la tâche",
+          "cancelLabel": "Annuler : {kind}",
+          "doneCount": "Tâches terminées ou annulées ({count})",
+          "doneLine": "{kind} faite le {date} · {outcome} · {name}",
+          "cancelledLine": "{kind} annulée ({date})",
+          "addLabel": "Ajouter une tâche",
+          "kind": "Tâche",
+          "date": "Le",
+          "time": "À",
+          "assignee": "Pour",
+          "anyone": "Toute conseillère",
+          "whenNeeded": "Indiquez la date et l’heure.",
+          "add": "Ajouter la tâche",
+          "adding": "Ajout…",
+          "added": "La tâche est ajoutée."
+        },
+        "note": {
+          "title": "Note interne",
+          "description": "Visible seulement par les personnes autorisées ; jamais dans un journal, un avis ou un outil d'IA. Rien de clinique.",
+          "label": "Note",
+          "updated": "Modifiée le {date} par {name}",
+          "saved": "La note est enregistrée."
+        }
+      },
+      "history": {
+        "title": "Historique",
+        "description": "Ce qui est arrivé à la demande, du plus récent au plus ancien.",
+        "empty": "Rien encore.",
+        "created": "Demande reçue",
+        "stateChanged": "État : {from} → {to}",
+        "closed": "Fermée : {reason}",
+        "matched": "Jumelée avec {name}",
+        "assigned": "Assignée à {name}",
+        "unassigned": "Remise dans la boîte commune",
+        "contact": "Essai : {channel} · {outcome}",
+        "taskDone": "Tâche faite",
+        "urgentSet": "Marquée urgente",
+        "urgentCleared": "N'est plus urgente",
+        "other": "Changement",
+        "by": "{date} · {name}"
+      },
+      "clientLink": {
+        "title": "Rattacher un dossier",
+        "description": "Cherchez le dossier de la personne, ou créez-le à partir de ses coordonnées.",
+        "search": "Rechercher un dossier",
+        "none": "Aucun dossier ne correspond.",
+        "results": "Dossiers trouvés",
+        "link": "Rattacher",
+        "linkTo": "Rattacher le dossier {file}",
+        "linked": "Le dossier est rattaché.",
+        "createTitle": "Créer le dossier",
+        "first": "Prénom",
+        "last": "Nom",
+        "email": "Courriel",
+        "phone": "Cellulaire",
+        "nameNeeded": "Le prénom et le nom sont nécessaires.",
+        "same": "Ce dossier existe déjà : rattachez-le plutôt.",
+        "similar": "Des dossiers semblables existent. Rattachez le bon, ou créez quand même si c’est une autre personne.",
+        "createAnyway": "C'est une autre personne : créer le dossier",
+        "create": "Créer le dossier",
+        "creating": "Création…"
+      },
+      "errors": {
+        "failed": "L'action n'a pas pu être faite. Réessayez."
       }
     }
   },
