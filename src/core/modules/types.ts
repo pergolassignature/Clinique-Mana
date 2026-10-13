@@ -3,6 +3,7 @@ import type { Access } from '@/core/access/access'
 import type { TranslationKey } from '@/i18n'
 import type { LazyPage } from '@/shared/lib/lazy-page'
 import type { BadgeProps } from '@/shared/ui/badge'
+import type { NavGroupId } from './nav-groups'
 
 export interface ModuleRoute {
   /** RELATIVE to the app root (no leading slash): 'professionnels' or 'professionnels/:id'. */
@@ -27,7 +28,13 @@ export interface ModuleNavItem {
    * hold that key by default without one.
    */
   shownWhen?: (access: Access) => boolean
-  /** Lower comes first in the menu. */
+  /**
+   * The menu section it shows under (decision NAV-1, `NAV_GROUPS` in `./nav-groups`): « Accueil des
+   * clients », « Suivi »…; `main` for the professional's own pages, right after Accueil. Omitted:
+   * « Autres », before « Paramètres ».
+   */
+  group?: NavGroupId
+  /** Lower comes first within its section. */
   order: number
 }
 
