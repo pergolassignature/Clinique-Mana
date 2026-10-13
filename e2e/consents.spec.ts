@@ -67,6 +67,8 @@ test('« Modifier le texte » opens a consent text in the shared editor (CC-12):
   await expect(editor.getByRole('button', { name: /^Publier la version/ })).toHaveCount(0)
   await expect(editor.getByText(/accord requis/)).toHaveCount(0) // the sample lives in the preview's frame
   await expect(editor.frameLocator('iframe').getByText(/accord requis/)).toBeVisible()
+  // CC-13: the draft's « Oui / Non » clauses under the text, editable.
+  await expect(editor.getByRole('textbox', { name: /^Clause 1/ })).toHaveValue(/^Clause provisoire/)
   await editor.getByRole('button', { name: 'Fermer le texte' }).click()
   await expect(editor).toBeHidden()
 })
