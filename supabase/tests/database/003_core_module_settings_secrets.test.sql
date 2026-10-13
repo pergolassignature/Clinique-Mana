@@ -159,6 +159,8 @@ select functions_are('public', array[
   'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
   'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
   'discard_payout_drafts',
+  -- Rapports, batch RP1.
+  'report_revenue', 'report_cancellations', 'report_clients_to_follow_up',
   -- Facturation, batch FS (Stripe, Interac).
   'resolve_billing_card_link', 'resolve_billing_pay_link', 'stripe_card_link_context_for_service',
   'save_stripe_customer_for_service', 'issue_billing_link_for_service', 'begin_billing_checkout_for_service',
