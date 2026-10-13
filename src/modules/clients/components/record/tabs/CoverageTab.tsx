@@ -79,6 +79,8 @@ export function CoverageTab() {
     else endPayer.mutate(confirm.id, done)
   }
   const byRank = (rank: 1 | 2) => summary.insurances.find((i) => i.rank === rank)
+  // FP-12: one active payer per kind; a new one never replaces it (« Modifier » it, or « Terminer »).
+  const freeKinds = PAYER_KINDS.filter((k) => !summary.payers.some((p) => p.isActive && p.kind === k))
   return (
     <div className="space-y-5">
       <SettingsCard as="section" title={t(`${C}.insurance`)} description={t(`${C}.insuranceHelp`)}>
@@ -124,10 +126,14 @@ export function CoverageTab() {
         description={t(`${C}.payersHelp`)}
         footer={
           canEdit ? (
-            <Button type="button" onClick={() => setPayer('new')}>
-              <Plus aria-hidden />
-              {t(`${C}.addPayer`)}
-            </Button>
+            freeKinds.length > 0 ? (
+              <Button type="button" onClick={() => setPayer('new')}>
+                <Plus aria-hidden />
+                {t(`${C}.addPayer`)}
+              </Button>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t(`${C}.bothKinds`)}</p>
+            )
           ) : undefined
         }
       >
@@ -179,7 +185,7 @@ export function CoverageTab() {
         )}
       </SettingsCard>
       {insurance !== null && <InsuranceDialog rank={insurance} row={byRank(insurance) ?? null} onClose={() => setInsurance(null)} />}
-      {payer !== null && <PayerDialog row={payer === 'new' ? null : payer} onClose={() => setPayer(null)} />}
+      {payer !== null && <PayerDialog row={payer === 'new' ? null : payer} kinds={payer === 'new' ? freeKinds : PAYER_KINDS} onClose={() => setPayer(null)} />}
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && !confirmPending && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -281,9 +287,9 @@ function InsuranceDialog({ rank, row, onClose }: { rank: 1 | 2; row: ClientInsur
   )
 }
 
-function PayerDialog({ row, onClose }: { row: ClientPayer | null; onClose: () => void }) {
+function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: readonly PayerKind[]; onClose: () => void }) {
   const { summary } = useClientRecordData()
-  const [kind, setKind] = useState<PayerKind>(row?.kind ?? 'ivac')
+  const [kind, setKind] = useState<PayerKind>(row?.kind ?? kinds[0] ?? 'ivac')
   const [organisation, setOrganisation] = useState(row?.organisationName ?? '')
   const [fileNumber, setFileNumber] = useState(row?.fileNumber ?? '')
   const [sessionAmount, setSessionAmount] = useState(centsInput(row?.sessionAmountCents ?? null))
@@ -377,7 +383,7 @@ function PayerDialog({ row, onClose }: { row: ClientPayer | null; onClose: () =>
             <FormField label={t(`${C}.kind`)} width="sm" required readOnly={row !== null}>
               {(field) => (
                 <Select {...field} value={kind} onChange={(e) => setKind(e.target.value as PayerKind)}>
-                  {PAYER_KINDS.map((v) => (
+                  {(row ? PAYER_KINDS : kinds).map((v) => (
                     <option key={v} value={v}>
                       {payerKindLabel(v)}
                     </option>
@@ -389,7 +395,7 @@ function PayerDialog({ row, onClose }: { row: ClientPayer | null; onClose: () =>
               {(field) => <Input {...field} value={organisation} onChange={(e) => setOrganisation(e.target.value)} autoComplete="off" />}
             </FormField>
           </FormRow>
-          <FormField label={t(`${C}.fileNumber`)} width="md" required={kind === 'ivac'}>
+          <FormField label={t(`${C}.fileNumber`)} help={kind === 'pae' ? t(`${C}.paeFileHelp`) : undefined} width="md" required={kind === 'ivac'}>
             {(field) => <Input {...field} value={fileNumber} onChange={(e) => setFileNumber(e.target.value)} autoComplete="off" />}
           </FormField>
           {pae && (

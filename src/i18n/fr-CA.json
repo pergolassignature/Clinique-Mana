@@ -6262,7 +6262,9 @@
           "priorHelp": "Ce que le PAE a déjà payé dans l'année de l'entente, avant l'application, avec la date.",
           "priorSessionsLabel": "Séances déjà utilisées",
           "priorOn": "En date du",
-          "invalidPrior": "Indiquez ce qui a déjà été utilisé (un montant ou des séances) et en date de quel jour, ou rien."
+          "invalidPrior": "Indiquez ce qui a déjà été utilisé (un montant ou des séances) et en date de quel jour, ou rien.",
+          "bothKinds": "Ce client a déjà un payeur IVAC et un PAE actifs : modifiez-les, ou terminez-en un pour en ajouter un autre.",
+          "paeFileHelp": "Requis pour facturer le PAE : sans lui, les séances du client attendent dans la file du matin."
         },
         "visits": {
           "title": "Visites et paiements",
@@ -9533,7 +9535,8 @@
             "amount_cents": "Montant",
             "paid_on": "Payé le",
             "reference": "Référence",
-            "external_ref": "Référence externe"
+            "external_ref": "Référence externe",
+            "note": "Note"
           },
           "receipts": {
             "payment_id": "Paiement",
@@ -10225,7 +10228,10 @@
           "refundLine": "Remboursé : {amount} ({reason})",
           "refundPending": "Remboursement en attente de Stripe : {amount}",
           "refundFailed": "Remboursement refusé par Stripe : {amount}",
-          "reasonInvalid": "La raison compte de 3 à 500 caractères."
+          "reasonInvalid": "La raison compte de 3 à 500 caractères.",
+          "note": "Note",
+          "noteHelp": "Facultatif, pour l’équipe (par exemple « payé par le conjoint »). Jamais imprimée sur le reçu.",
+          "noteLine": "Note : {note}"
         },
         "reminders": {
           "title": "Relances",

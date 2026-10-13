@@ -253,13 +253,14 @@ describe('InvoicePage', () => {
       ],
       payments: [
         {
-          id: 'p1', modeCode: 'interac', mode: 'Virement Interac', amountCents: 5000, paidOn: '2026-10-13', reference: 'CA1234',
+          id: 'p1', modeCode: 'interac', mode: 'Virement Interac', amountCents: 5000, paidOn: '2026-10-13', reference: 'CA1234', note: 'Payé par le conjoint',
           receiptId: 'r1', receiptNumber: 'R-2026-1', receiptFileId: null, receiptDeliveries: [], refunds: [], refundableCents: 5000,
         },
       ],
     })
     open()
     expect(await screen.findByText(t('modules.billing.invoice.delivery.no_email'))).toBeInTheDocument()
+    expect(screen.getByText(t(`${I}.payments.noteLine`, { note: 'Payé par le conjoint' }))).toBeInTheDocument()
     expect(screen.getByText(t('modules.billing.payment.partial'))).toBeInTheDocument()
     const list = screen.getByRole('list', { name: t(`${I}.payments.list`) })
     expect(within(list).getByText(/R-2026-1/)).toBeInTheDocument()
@@ -267,9 +268,10 @@ describe('InvoicePage', () => {
     expect(within(form).getByLabelText(/^Montant/)).toHaveValue('123,49')
     await user.selectOptions(within(form).getByLabelText(/^Mode de paiement/), 'cheque')
     await user.type(within(form).getByLabelText(/^Référence/), '0042')
+    await user.type(within(form).getByLabelText(/^Note/), 'Chèque du conjoint')
     await user.click(within(form).getByRole('button', { name: t(`${I}.payments.submit`) }))
     await waitFor(() =>
-      expect(mocks.queue.recordPayment).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: 'i1', modeCode: 'cheque', amountCents: 12349, reference: '0042' })),
+      expect(mocks.queue.recordPayment).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: 'i1', modeCode: 'cheque', amountCents: 12349, reference: '0042', note: 'Chèque du conjoint' })),
     )
     // « Rembourser » (F3): what is left of the payment by default, a reason.
     await user.click(within(list).getByRole('button', { name: t(`${I}.payments.refund`) }))
@@ -290,7 +292,7 @@ describe('InvoicePage', () => {
       ...bundle({ status: 'issued', number: '2026-12', issuedOn: '2026-10-13', paidCents: 5000, paymentStatus: 'partial' }),
       payments: [
         {
-          id: 'p2', modeCode: 'stripe', mode: 'Carte (Stripe)', amountCents: 5000, paidOn: '2026-10-13', reference: null,
+          id: 'p2', modeCode: 'stripe', mode: 'Carte (Stripe)', amountCents: 5000, paidOn: '2026-10-13', reference: null, note: null,
           receiptId: 'r2', receiptNumber: 'R-2026-2', receiptFileId: null, receiptDeliveries: [], refunds: [], refundableCents: 5000,
         },
       ],

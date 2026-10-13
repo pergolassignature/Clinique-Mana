@@ -21,7 +21,7 @@ select function_privs_are('public', f, a, 'authenticated', array['EXECUTE'], f)
                ('release_invoice_draft', array['uuid']),
                ('send_invoices', array['uuid[]']),
                ('send_billing_document', array['text', 'uuid']),
-               ('record_payment', array['uuid', 'text', 'integer', 'date', 'text']),
+               ('record_payment', array['uuid', 'text', 'integer', 'date', 'text', 'text']),
                ('create_statement', array['uuid', 'integer', 'uuid', 'boolean']),
                ('get_billing_document', array['text', 'uuid'])) as x(f, a);
 select function_privs_are('public', f, a, 'authenticated', array[]::text[], f || ': service role only')
