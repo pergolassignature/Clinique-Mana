@@ -182,7 +182,7 @@ begin
                                  and s.signed_at is not null
                                order by s.signed_at desc limit 1)
     from ready r
-   where e.id = r.id;
+   where e.id = r.id and e.state = 'incomplete' and e.fee_status in ('paid', 'waived');
   get diagnostics v_count = row_count;
   return v_count;
 end;
@@ -257,8 +257,8 @@ $$;
 revoke all on function private.waitlist_after_exit(uuid, uuid, text, uuid) from public, anon, authenticated, service_role;
 
 -- Placed with p_professional: every open entry of the request closes « Placée » and the request
--- is matched with her (as `set_demande_state`: her link to the clients, the history), when it may
--- move there.
+-- is matched with her (as `set_demande_state`: her link to the clients, the history). A request
+-- that cannot move to « Jumelée » (« Nouvelle », « En évaluation ») is refused before anything closes.
 create function private.waitlist_place(p_org uuid, p_demande uuid, p_professional uuid, p_actor uuid)
 returns void
 language plpgsql
@@ -272,11 +272,15 @@ begin
        select 1 from public.professionals_directory p where p.id = p_professional and p.org_id = p_org and p.status = 'active') then
     raise exception 'Choisissez un professionnel actif de la clinique.' using errcode = 'P0001';
   end if;
+  select d.* into v_row from public.demandes d where d.id = p_demande and d.org_id = p_org for no key update;
+  if v_row.state <> 'matched' and not private.demande_state_allowed(v_row.state, 'matched') then
+    raise exception 'Cette demande ne peut pas être jumelée depuis « % » : changez d''abord son état.',
+      private.demande_state_label(v_row.state) using errcode = 'P0001';
+  end if;
   for e in select x.id from public.waitlist_entries x where x.demande_id = p_demande and x.org_id = p_org and x.state <> 'closed' loop
     perform private.waitlist_close(e.id, 'placed', p_actor);
   end loop;
-  select d.* into v_row from public.demandes d where d.id = p_demande and d.org_id = p_org for no key update;
-  if v_row.state = 'matched' or not private.demande_state_allowed(v_row.state, 'matched') then
+  if v_row.state = 'matched' then
     return;
   end if;
   update public.demandes d
@@ -361,8 +365,8 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Registration (D-15)
 -- -----------------------------------------------------------------------------
--- The entry p_id of the caller's clinic, locked; P0001 when there is none, or when it is closed
--- and p_open.
+-- The entry p_id of the caller's clinic, locked (its request first); P0001 when there is none, or
+-- when it is closed and p_open.
 create function private.waitlist_lock(p_id uuid, p_open boolean default true)
 returns public.waitlist_entries
 language plpgsql
@@ -370,7 +374,12 @@ set search_path = ''
 as $$
 declare
   v public.waitlist_entries;
+  v_demande uuid;
 begin
+  -- The request first, then the entry: the order `set_demande_state` locks them in.
+  select e.demande_id into v_demande from public.waitlist_entries e
+   where e.id = p_id and e.org_id = private.current_user_org_id();
+  perform 1 from public.demandes d where d.id = v_demande for no key update;
   select * into v from public.waitlist_entries e
    where e.id = p_id and e.org_id = private.current_user_org_id()
    for update;
@@ -625,7 +634,8 @@ grant execute on function public.set_waitlist_fee(uuid, text, text) to authentic
 
 -- A follow-up by a counselor: a call, an email or a text, with its outcome. Reaching the person is
 -- the « contact » the follow-up counts from (D-17): « À rappeler » becomes « Active » again. An
--- optional next call (« Rappeler le … ») is due like the follow-up.
+-- optional next call (« Rappeler le … ») is due like the follow-up; without one, a planned call
+-- stays, unless the person was reached.
 create function public.log_waitlist_contact(p_id uuid, p_kind text, p_outcome text, p_next_contact_at timestamptz default null)
 returns void
 language plpgsql
@@ -652,7 +662,9 @@ begin
   update public.waitlist_entries e
      set last_contact_at = case when p_outcome = 'reached' then pg_catalog.now() else e.last_contact_at end,
          state = case when p_outcome = 'reached' and e.state = 'to_call' then 'active' else e.state end,
-         next_contact_at = p_next_contact_at
+         next_contact_at = case when p_next_contact_at is not null then p_next_contact_at
+                                when p_outcome = 'reached' then null
+                                else e.next_contact_at end
    where e.id = v.id;
 end;
 $$;
@@ -778,9 +790,16 @@ grant execute on function public.exit_waitlist(uuid, text, uuid) to authenticate
 -- -----------------------------------------------------------------------------
 -- Reads (demandes.view)
 -- -----------------------------------------------------------------------------
--- Every entry of p_org with its rank in its list (open ones: priority, then the oldest), the size
--- of that list, the person, the target's name, the consent and the days waited.
-create function private.waitlist_rows(p_org uuid)
+-- The entries of p_org (or of one request, one entry, one list) with their rank in their list
+-- (open ones: priority, then the oldest; computed over the whole list), the size of that list, the
+-- person, the target's name, the consent and the days waited.
+create function private.waitlist_rows(
+  p_org uuid,
+  p_demande uuid default null,
+  p_entry uuid default null,
+  p_title uuid default null,
+  p_professional uuid default null
+)
 returns table (
   id uuid, demande_id uuid, reference text, client_id uuid, client_number int, person_name text,
   target_kind text, target_id uuid, target_name text, priority text, priority_reason text,
@@ -827,13 +846,17 @@ as $$
     left join public.professionals_directory p on p.id = e.target_professional_id and p.org_id = p_org
     left join public.profession_titles_catalog t on t.id = e.target_profession_title_id and t.org_id = p_org
     left join public.professionals_directory b on b.id = e.bridge_professional_id and b.org_id = p_org
+   where (p_demande is null or e.demande_id = p_demande)
+     and (p_entry is null or e.id = p_entry)
+     and (p_title is null or e.target_profession_title_id = p_title)
+     and (p_professional is null or e.target_professional_id = p_professional)
 $$;
-revoke all on function private.waitlist_rows(uuid) from public, anon, authenticated, service_role;
+revoke all on function private.waitlist_rows(uuid, uuid, uuid, uuid, uuid) from public, anon, authenticated, service_role;
 
 -- One list (a profession or a professional), a request's entries, or every open entry; p_states
 -- narrows (incomplete, active, to_call, offered, closed). Open entries in their list's order;
--- closed ones (p_states with `closed`) most recent first. Incomplete entries whose consent and fee
--- are now settled become active first (D-16).
+-- closed ones (p_states with `closed`) most recent first; 500 rows at most. Incomplete entries
+-- whose consent and fee are now settled become active first (D-16).
 create function public.list_waitlist(
   p_title_id uuid default null,
   p_professional_id uuid default null,
@@ -864,12 +887,10 @@ begin
     perform private.waitlist_promote(v_org);
   end if;
   return query
-    select r.* from private.waitlist_rows(v_org) r
-     where (p_title_id is null or (r.target_kind = 'title' and r.target_id = p_title_id))
-       and (p_professional_id is null or (r.target_kind = 'professional' and r.target_id = p_professional_id))
-       and (p_demande_id is null or r.demande_id = p_demande_id)
-       and (case when p_states is null then r.state <> 'closed' or p_demande_id is not null else r.state = any (p_states) end)
-     order by r.state = 'closed', r.exited_at desc nulls last, r.target_kind, r.target_name, r.rank;
+    select r.* from private.waitlist_rows(v_org, p_demande_id, null, p_title_id, p_professional_id) r
+     where (case when p_states is null then r.state <> 'closed' or p_demande_id is not null else r.state = any (p_states) end)
+     order by r.state = 'closed', r.exited_at desc nulls last, r.target_kind, r.target_name, r.rank
+     limit 500;
 end;
 $$;
 revoke all on function public.list_waitlist(uuid, uuid, text[], uuid) from public, anon, authenticated;
@@ -936,7 +957,7 @@ begin
   if v_raw.id is null then
     return null;
   end if;
-  select pg_catalog.to_jsonb(r) into v_entry from private.waitlist_rows(v_org) r where r.id = p_id;
+  select pg_catalog.to_jsonb(r) into v_entry from private.waitlist_rows(v_org, null, p_id) r;
   return pg_catalog.jsonb_build_object(
     'entry', v_entry || pg_catalog.jsonb_build_object(
       'availability_periods', v_raw.availability_periods, 'availability_days', v_raw.availability_days,
@@ -970,28 +991,55 @@ grant execute on function public.get_waitlist_entry(uuid) to authenticated;
 -- -----------------------------------------------------------------------------
 -- The follow-up (D-17): the job `demandes.waitlist_followup` and the « still waiting? » link
 -- -----------------------------------------------------------------------------
--- Where the email goes: the client's address, else the request's.
+-- Where the email goes (no user: the job): Clients' published contacts of the entry's client
+-- (`client_contacts_for`, right `communications`: never a merged or anonymised file) — the client
+-- herself first, then the main contact, then another related person who receives her
+-- communications; the request's address only when there is no file. A row with an address and a
+-- first name, or none.
 create function private.waitlist_email_of(p_entry uuid)
 returns table (email text, first_name text, language text)
 language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(c.email, d.contact_email), coalesce(c.first_name, pg_catalog.split_part(d.contact_name, ' ', 1)),
-         coalesce(c.language, e.language)
-    from public.waitlist_entries e
-    join public.demandes d on d.id = e.demande_id and d.org_id = e.org_id
-    left join public.clients_directory c on c.id = e.client_id and c.org_id = e.org_id
-   where e.id = p_entry
+  with e as (select x.* from public.waitlist_entries x where x.id = p_entry),
+  candidates as (
+    select c.email, c.first_name, coalesce(c.language, e.language) as language,
+           case when c.is_self then 0 when c.is_main_contact then 1 else 2 end as preference
+      from e cross join lateral private.client_contacts_for(e.org_id, e.client_id, 'communications') c
+     where e.client_id is not null
+    union all
+    select d.contact_email, nullif(pg_catalog.split_part(d.contact_name, ' ', 1), ''), e.language, 3
+      from e join public.demandes d on d.id = e.demande_id and d.org_id = e.org_id
+     where e.client_id is null
+  )
+  select x.email, x.first_name, x.language from candidates x
+   where x.email is not null and x.first_name is not null
+   order by x.preference
+   limit 1
 $$;
 revoke all on function private.waitlist_email_of(uuid) from public, anon, authenticated, service_role;
+
+-- A « still waiting? » email went to this request during the last p_weeks (any of its entries).
+create function private.waitlist_emailed_recently(p_org uuid, p_demande uuid, p_weeks int)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (select 1 from public.waitlist_contacts k
+                   join public.waitlist_entries e on e.id = k.entry_id and e.org_id = k.org_id
+                  where e.org_id = p_org and e.demande_id = p_demande and k.kind = 'followup_email'
+                    and k.at > pg_catalog.now() - pg_catalog.make_interval(weeks => p_weeks))
+$$;
+revoke all on function private.waitlist_emailed_recently(uuid, uuid, int) from public, anon, authenticated, service_role;
 
 -- One clinic's pass (service role, the job): incomplete entries settled → active; active entries
 -- without a conversation for `followup_weeks` (or whose next call is due) → « À rappeler », with one
 -- notice for the counselors; an emailed entry with no answer after `answer_days` → « Sans réponse »;
--- and, when the email is on and Demandes is open to everyone (P3-40), the « À rappeler » entries
--- with an address not emailed during the last `followup_weeks`, at most p_limit. Returns
--- {promoted, to_call, no_answer, email: [entry ids]}.
+-- and, when the email is on and Demandes is open to everyone (P3-40), one « À rappeler » entry per
+-- request with an address, the request not emailed during the last `followup_weeks`, at most
+-- p_limit. Returns {promoted, to_call, no_answer, email: [entry ids]}.
 create function public.waitlist_followup_for_service(p_org_id uuid, p_limit int default 50)
 returns jsonb
 language plpgsql
@@ -1016,7 +1064,8 @@ begin
   update public.waitlist_entries e
      set state = 'to_call', next_contact_at = null
    where e.org_id = p_org_id and e.state = 'active'
-     and (coalesce(e.last_contact_at, e.registered_at) <= pg_catalog.now() - pg_catalog.make_interval(weeks => v_weeks)
+     and ((e.next_contact_at is null
+           and coalesce(e.last_contact_at, e.registered_at) <= pg_catalog.now() - pg_catalog.make_interval(weeks => v_weeks))
           or e.next_contact_at <= pg_catalog.now());
   get diagnostics v_to_call = row_count;
   if v_to_call > 0 then
@@ -1025,8 +1074,9 @@ begin
       case when v_to_call = 1 then 'Liste d''attente : 1 personne à rappeler'
            else 'Liste d''attente : ' || v_to_call || ' personnes à rappeler' end,
       'Sans nouvelles depuis ' || v_weeks || ' semaines, ou un rappel prévu est arrivé.',
-      '/liste-attente?etat=to_call', null, null, 'demandes.waitlist', null,
-      'to_call:' || (pg_catalog.now() at time zone 'UTC')::date::text, pg_catalog.now() + interval '7 days');
+      '/liste-attente?etat=a-rappeler', null, null, 'demandes.waitlist', null,
+      'to_call:' || (select (pg_catalog.now() at time zone o.timezone)::date::text from public.organizations o where o.id = p_org_id),
+      pg_catalog.now() + interval '7 days');
   end if;
 
   -- The « still waiting? » emails nobody answered.
@@ -1042,15 +1092,16 @@ begin
   get diagnostics v_no_answer = row_count;
 
   if (v_settings ->> 'followup_email')::boolean and public.module_open_to_all_for_org(p_org_id, 'demandes') then
-    select coalesce(array_agg(x.id), '{}') into v_email
-      from (select e.id
-              from public.waitlist_entries e
-             where e.org_id = p_org_id and e.state = 'to_call'
-               and (select m.email from private.waitlist_email_of(e.id) m) is not null
-               and not exists (select 1 from public.waitlist_contacts k
-                                where k.entry_id = e.id and k.kind = 'followup_email'
-                                  and k.at > pg_catalog.now() - pg_catalog.make_interval(weeks => v_weeks))
-             order by e.registered_at
+    -- One email per request (its oldest « À rappeler » entry): the answer covers all its entries.
+    select coalesce(array_agg(x.id order by x.registered_at), '{}') into v_email
+      from (select y.id, y.registered_at
+              from (select distinct on (e.demande_id) e.id, e.demande_id, e.org_id, e.registered_at
+                      from public.waitlist_entries e
+                     where e.org_id = p_org_id and e.state = 'to_call'
+                     order by e.demande_id, e.registered_at) y
+             where not private.waitlist_emailed_recently(y.org_id, y.demande_id, v_weeks)
+               and exists (select 1 from private.waitlist_email_of(y.id))
+             order by y.registered_at
              limit greatest(coalesce(p_limit, 50), 0)) x;
   end if;
   return pg_catalog.jsonb_build_object('promoted', v_promoted, 'to_call', v_to_call, 'no_answer', v_no_answer, 'email', pg_catalog.to_jsonb(v_email));
@@ -1060,9 +1111,10 @@ revoke all on function public.waitlist_followup_for_service(uuid, int) from publ
 grant execute on function public.waitlist_followup_for_service(uuid, int) to service_role;
 
 -- Prepares one « still waiting? » email (service role, the job): checks again that it may go (the
--- email on, Demandes open to everyone: P3-40; the entry « À rappeler » with an address), issues the
--- link (purpose `waitlist_followup`, valid `answer_days`, the hash made by the function) and notes
--- the email in the follow-ups. Null when it may not go. Returns what the email needs.
+-- email on, Demandes open to everyone: P3-40; the entry « À rappeler » with an address, its request
+-- not emailed during the last `followup_weeks`) and issues the link (purpose `waitlist_followup`,
+-- valid `answer_days`, the hash made by the function); `mark_waitlist_followup_sent_for_service`
+-- notes the email once it left. Null when it may not go. Returns what the email needs.
 create function public.prepare_waitlist_followup_for_service(p_org_id uuid, p_entry_id uuid, p_token_hash bytea)
 returns jsonb
 language plpgsql
@@ -1087,27 +1139,51 @@ begin
     return null;
   end if;
   select m.* into v_to from private.waitlist_email_of(v.id) m;
-  if v_to.email is null or exists (
-       select 1 from public.waitlist_contacts k
-        where k.entry_id = v.id and k.kind = 'followup_email'
-          and k.at > pg_catalog.now() - pg_catalog.make_interval(weeks => (v_settings ->> 'followup_weeks')::int)) then
+  if v_to.email is null or private.waitlist_emailed_recently(p_org_id, v.demande_id, (v_settings ->> 'followup_weeks')::int) then
     return null;
   end if;
   perform pg_catalog.set_config('app.audit_source', 'job:demandes.waitlist_followup', true);
   v_link := private.issue_secure_link(p_org_id, 'waitlist_followup', 'waitlist_entry', v.id, p_token_hash, null,
                                       pg_catalog.make_interval(days => (v_settings ->> 'answer_days')::int), '{}');
   select l.expires_at into v_expires from public.secure_links l where l.id = v_link;
-  insert into public.waitlist_contacts (entry_id, org_id, kind, outcome) values (v.id, v.org_id, 'followup_email', 'message_sent');
   return pg_catalog.jsonb_build_object(
     'demande_id', v.demande_id, 'email', v_to.email, 'first_name', v_to.first_name,
     'language', case when v_to.language = 'en' then 'en' else 'fr' end,
     'clinic_name', (select o.name from public.organizations o where o.id = p_org_id),
-    'list_name', (select r.target_name from private.waitlist_rows(p_org_id) r where r.id = v.id),
+    'list_name', (select coalesce(p.display_name, t.name)
+                    from public.waitlist_entries x
+                    left join public.professionals_directory p on p.id = x.target_professional_id and p.org_id = x.org_id
+                    left join public.profession_titles_catalog t on t.id = x.target_profession_title_id and t.org_id = x.org_id
+                   where x.id = v.id),
     'link_expires_at', v_expires);
 end;
 $$;
 revoke all on function public.prepare_waitlist_followup_for_service(uuid, uuid, bytea) from public, anon, authenticated;
 grant execute on function public.prepare_waitlist_followup_for_service(uuid, uuid, bytea) to service_role;
+
+-- After the send (service role, the job): sent → noted in the follow-ups (the answer's clock
+-- starts); not sent → its link revoked, nothing noted (the next pass tries again).
+create function public.mark_waitlist_followup_sent_for_service(p_org_id uuid, p_entry_id uuid, p_sent boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_sent is null or not exists (select 1 from public.waitlist_entries e where e.id = p_entry_id and e.org_id = p_org_id) then
+    raise exception 'Unknown entry' using errcode = '22023';
+  end if;
+  perform pg_catalog.set_config('app.audit_source', 'job:demandes.waitlist_followup', true);
+  if p_sent then
+    insert into public.waitlist_contacts (entry_id, org_id, kind, outcome)
+    values (p_entry_id, p_org_id, 'followup_email', 'message_sent');
+  else
+    perform private.revoke_secure_links(p_org_id, 'waitlist_followup', 'waitlist_entry', p_entry_id, null);
+  end if;
+end;
+$$;
+revoke all on function public.mark_waitlist_followup_sent_for_service(uuid, uuid, boolean) from public, anon, authenticated;
+grant execute on function public.mark_waitlist_followup_sent_for_service(uuid, uuid, boolean) to service_role;
 
 -- What the page shows (resolve-link): the clinic and the list, while the entry is open.
 create function public.resolve_waitlist_followup_link(p_link_id uuid)
@@ -1136,9 +1212,10 @@ values ('waitlist_followup', 'demandes', interval '14 days', interval '30 days',
         'resolve_waitlist_followup_link', null, 'demandes.view')
 on conflict do nothing;
 
--- The person's answer through the link (once): `stay` notes it and the entry is « Active » again
--- (the counselors need not call); `leave` takes her off the list (« Ne souhaite plus »; a request
--- with no open entry left closes) and tells the counselors. Returns {state: stay | leave | invalid}.
+-- The person's answer through the link (once), for her whole request: `stay` notes it and its
+-- « À rappeler » entries are « Active » again (the counselors need not call); `leave` takes her off
+-- every list (« Ne souhaite plus »; the request, left with no open entry, closes) and tells the
+-- counselors. Demandes switched off: the link reads as invalid. Returns {state: stay | leave | invalid}.
 create function public.answer_waitlist_followup_for_service(p_token_hash bytea, p_answer text)
 returns jsonb
 language plpgsql
@@ -1148,6 +1225,7 @@ as $$
 declare
   v_link public.secure_links;
   v public.waitlist_entries;
+  e record;
 begin
   if p_answer is null or p_answer not in ('stay', 'leave') then
     raise exception 'Unknown answer' using errcode = '22023';
@@ -1155,23 +1233,33 @@ begin
   select l.* into v_link from public.secure_links l
    where l.token_hash = p_token_hash and l.purpose = 'waitlist_followup' and l.subject_type = 'waitlist_entry'
    for update;
-  if v_link.id is null or v_link.revoked_at is not null or v_link.expires_at <= pg_catalog.now() or v_link.use_count >= v_link.max_uses then
+  if v_link.id is null or v_link.revoked_at is not null or v_link.expires_at <= pg_catalog.now() or v_link.use_count >= v_link.max_uses
+     or not public.module_enabled_for_org(v_link.org_id, 'demandes') then
     return pg_catalog.jsonb_build_object('state', 'invalid');
   end if;
-  select e.* into v from public.waitlist_entries e where e.id = v_link.subject_id and e.org_id = v_link.org_id for update;
-  if v.id is null or v.state = 'closed' then
+  select x.* into v from public.waitlist_entries x where x.id = v_link.subject_id and x.org_id = v_link.org_id;
+  if v.id is null then
+    return pg_catalog.jsonb_build_object('state', 'invalid');
+  end if;
+  -- The request, then its entries (the order of set_demande_state).
+  perform 1 from public.demandes d where d.id = v.demande_id and d.org_id = v.org_id for no key update;
+  select x.* into v from public.waitlist_entries x where x.id = v.id for update;
+  if v.state = 'closed' then
     return pg_catalog.jsonb_build_object('state', 'invalid');
   end if;
   perform pg_catalog.set_config('app.audit_source', 'link:waitlist_followup', true);
   perform private.consume_secure_link(p_token_hash, 'waitlist_followup');
+  insert into public.waitlist_contacts (entry_id, org_id, kind, outcome)
+  values (v.id, v.org_id, 'followup_email', case when p_answer = 'stay' then 'wants_to_stay' else 'wants_to_leave' end);
   if p_answer = 'stay' then
-    insert into public.waitlist_contacts (entry_id, org_id, kind, outcome) values (v.id, v.org_id, 'followup_email', 'wants_to_stay');
-    update public.waitlist_entries e
-       set last_contact_at = pg_catalog.now(), state = case when e.state = 'to_call' then 'active' else e.state end
-     where e.id = v.id;
+    update public.waitlist_entries x
+       set last_contact_at = pg_catalog.now(), state = case when x.state = 'to_call' then 'active' else x.state end
+     where x.demande_id = v.demande_id and x.org_id = v.org_id and x.state <> 'closed';
   else
-    insert into public.waitlist_contacts (entry_id, org_id, kind, outcome) values (v.id, v.org_id, 'followup_email', 'wants_to_leave');
-    perform private.waitlist_close(v.id, 'withdrew', null);
+    for e in select x.id from public.waitlist_entries x
+              where x.demande_id = v.demande_id and x.org_id = v.org_id and x.state <> 'closed' loop
+      perform private.waitlist_close(e.id, 'withdrew', null);
+    end loop;
     perform private.waitlist_after_exit(v.org_id, v.demande_id, 'withdrew', null);
     perform private.notify(
       v.org_id, 'demandes', 'demandes.waitlist_left', 'normal',

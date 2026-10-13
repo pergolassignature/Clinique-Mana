@@ -7,7 +7,7 @@ import {
   type RpcRoute,
 } from '../_shared/testing/fake-supabase.ts'
 import { fixedClock } from '../_shared/testing/fixed-clock.ts'
-import { withEnv } from '../_shared/testing/env.ts'
+import { captureConsole, withEnv } from '../_shared/testing/env.ts'
 import {
   emailContextFixture,
   ORG_ID,
@@ -34,6 +34,7 @@ function harness(opts: {
   pass?: RpcRoute
   prepare?: RpcRoute
   moduleEnabled?: boolean
+  mailStatus?: number
 } = {}) {
   const service = fakeSupabase({
     rpc: {
@@ -52,6 +53,7 @@ function harness(opts: {
         },
       prepare_waitlist_followup_for_service: opts.prepare ??
         { data: prepared() },
+      mark_waitlist_followup_sent_for_service: { data: null },
       consume_rate_limit: {
         data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }],
       },
@@ -81,7 +83,10 @@ function harness(opts: {
     },
   })
   const http = fakeFetch({
-    [MAILPIT]: () => new Response(JSON.stringify({ ID: 'm' }), { status: 200 }),
+    [MAILPIT]: () =>
+      new Response(JSON.stringify({ ID: 'm' }), {
+        status: opts.mailStatus ?? 200,
+      }),
   })
   const env: Record<string, string> = {
     APP_URL: 'http://localhost:5173',
@@ -168,6 +173,12 @@ Deno.test('demandes-waitlist-followup: the pass, then each entry prepared with a
     )
     assert(prepares[0].p_token_hash !== prepares[1].p_token_hash)
     assertEquals(http.calls.length, 2)
+    assertEquals(
+      callsTo(service.calls, 'mark_waitlist_followup_sent_for_service').map((
+        a,
+      ) => [a.p_entry_id, a.p_sent]),
+      [[rid(1), true], [rid(2), true]],
+    )
     const sent = JSON.stringify(http.calls[0])
     assert(sent.includes('/liste-attente/reponse#t='))
     const detail = callsTo(service.calls, 'finish_job_run').map((a) =>
@@ -195,6 +206,25 @@ Deno.test('demandes-waitlist-followup: English, the English template; an entry t
     assertEquals(
       callsTo(service.calls, 'finish_job_run').map((a) => a.p_detail),
       ['promoted=1 to_call=3 no_answer=2 emailed=1 skipped=1 failed=0'],
+    )
+  })
+})
+
+Deno.test('demandes-waitlist-followup: a send that fails is marked not sent (its link revoked), counted failed', async () => {
+  await run(async () => {
+    const { handler, service } = harness({ mailStatus: 500 })
+    await captureConsole('error', async () => {
+      await handler(await jobRequest())
+    })
+    assertEquals(
+      callsTo(service.calls, 'mark_waitlist_followup_sent_for_service').map((
+        a,
+      ) => a.p_sent),
+      [false, false],
+    )
+    assertEquals(
+      callsTo(service.calls, 'finish_job_run').map((a) => a.p_detail),
+      ['promoted=1 to_call=3 no_answer=2 emailed=0 skipped=0 failed=2'],
     )
   })
 })

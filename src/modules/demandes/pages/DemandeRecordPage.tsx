@@ -219,7 +219,9 @@ function StateControl({ data }: { data: DemandeRecordData }) {
           const next = event.target.value as DemandeState
           if (!next) return
           if (next === 'closed') setClosing(true)
-          else if (next === 'waitlist' && !(entries.data ?? []).some((e) => e.state !== 'closed')) {
+          // The entries not read yet: wait (never register a request that is already on a list).
+          else if (next === 'waitlist' && !entries.data) toast.error(t('common.loading'))
+          else if (next === 'waitlist' && !entries.data!.some((e) => e.state !== 'closed')) {
             if (can('demandes.waitlist')) setRegistering(true)
             else toast.error(t(`${R}.waitlistPermission`))
           } else move(next, null)

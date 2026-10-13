@@ -11,11 +11,14 @@
  *    is due) become « À rappeler », with one notice; « still waiting? » emails
  *    unanswered in time are noted « Sans réponse »; and, when the email is on
  *    and Demandes is open to everyone (P3-40), the entries to email.
- * 3. Each one: a fresh token, `prepare_waitlist_followup_for_service` with its
- *    hash (null: it may no longer go, skipped), then the email
- *    `demandes.waitlist_still_waiting` (`_en` in English) with the link
- *    `/liste-attente/reponse#t=…`. One after the other; a failure is counted
- *    and the others go on.
+ * 3. Each one (one per request): a fresh token,
+ *    `prepare_waitlist_followup_for_service` with its hash (null: it may no
+ *    longer go, skipped), then the email `demandes.waitlist_still_waiting`
+ *    (`_en` in English) with the link `/liste-attente/reponse#t=…`, then
+ *    `mark_waitlist_followup_sent_for_service`: sent → noted (the answer's
+ *    clock starts), not sent → its link revoked and nothing noted, so the next
+ *    pass tries again. One after the other; a failure is counted and the
+ *    others go on.
  * 4. The detail: counts only
  *    (`promoted=… to_call=… no_answer=… emailed=… skipped=… failed=…`).
  *
@@ -120,6 +123,7 @@ export async function followUpOrg(
       continue
     }
     const p = prepared.data
+    let sent = false
     try {
       const result = await sendTemplatedEmail(
         { fn: FN, client, env: deps.env, fetch: deps.fetch },
@@ -143,12 +147,17 @@ export async function followUpOrg(
           sentBy: null,
         },
       )
-      if (result.ok) emailed++
-      else failed++
+      sent = result.ok
     } catch {
       // sendTemplatedEmail (or linkUrl's configuration check) reported it.
-      failed++
     }
+    const { error: markError } = await client.rpc(
+      'mark_waitlist_followup_sent_for_service',
+      { p_org_id: orgId, p_entry_id: entryId, p_sent: sent },
+    )
+    if (markError) await report('mark_failed')
+    if (sent) emailed++
+    else failed++
   }
   const d = pass.data
   return `promoted=${d.promoted} to_call=${d.to_call} no_answer=${d.no_answer} emailed=${emailed} skipped=${skipped} failed=${failed}`

@@ -3,7 +3,7 @@
 -- request's state following, the follow-up job and its « still waiting? » link, P3-40.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(72);
+select plan(77);
 
 -- =============================================================================
 -- Privileges
@@ -19,8 +19,8 @@ $$, 'the D3 user RPCs: SECURITY DEFINER, authenticated, not anon');
 select is_empty($$
   select p.proname from pg_proc p
    where p.pronamespace = 'public'::regnamespace
-     and p.proname in ('waitlist_followup_for_service', 'prepare_waitlist_followup_for_service', 'resolve_waitlist_followup_link',
-                       'answer_waitlist_followup_for_service')
+     and p.proname in ('waitlist_followup_for_service', 'prepare_waitlist_followup_for_service', 'mark_waitlist_followup_sent_for_service',
+                       'resolve_waitlist_followup_link', 'answer_waitlist_followup_for_service')
      and (not p.prosecdef or not has_function_privilege('service_role', p.oid, 'execute')
           or has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))
 $$, 'the follow-up RPCs: service role only');
@@ -222,14 +222,16 @@ select throws_ok(format($$ select public.log_waitlist_contact(%L, 'call', 'reach
 -- =============================================================================
 -- The follow-up job, the link, P3-40
 -- =============================================================================
--- (as the database: the service RPCs' grants are checked above)
+-- As the job: no user (the service RPCs' grants are checked above).
 reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 update public.waitlist_entries set registered_at = now() - interval '9 weeks', last_contact_at = null
  where id in (current_setting('test.eb')::uuid, current_setting('test.ec')::uuid);
 select is(public.waitlist_followup_for_service('b0000000-0000-0000-0000-00000000000a'),
   '{"promoted": 0, "to_call": 2, "no_answer": 0, "email": []}'::jsonb, 'two without news for 6 weeks: to call; the email is off');
-select is((select count(*)::int from public.notifications where org_id = 'b0000000-0000-0000-0000-00000000000a' and kind = 'demandes.waitlist_to_call'),
-  1, 'one notice for the counselors');
+select results_eq($$ select count(*)::int, min(link_path) from public.notifications
+                     where org_id = 'b0000000-0000-0000-0000-00000000000a' and kind = 'demandes.waitlist_to_call' $$,
+  $$ values (1, '/liste-attente?etat=a-rappeler') $$, 'one notice for the counselors, to the « À rappeler » list');
 select is(public.prepare_waitlist_followup_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.eb')::uuid,
   decode(repeat('ab', 32), 'hex')), null, 'the email off: nothing prepared');
 
@@ -248,9 +250,13 @@ select is(public.waitlist_followup_for_service('b0000000-0000-0000-0000-00000000
   jsonb_build_array(current_setting('test.eb')), 'open to everyone: B is emailed (C has no address)');
 select is(public.prepare_waitlist_followup_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.eb')::uuid,
   decode(repeat('ab', 32), 'hex')) - 'link_expires_at' - 'demande_id' - 'list_name',
-  '{"email": "bruno@wl.test", "first_name": "Bruno", "language": "fr", "clinic_name": "Org A"}'::jsonb, 'prepared: her address and name');
+  '{"email": "bruno@wl.test", "first_name": "Bruno", "language": "fr", "clinic_name": "Org A"}'::jsonb,
+  'prepared without a user: her own address and name (Clients'' contacts)');
+select is(public.waitlist_followup_for_service('b0000000-0000-0000-0000-00000000000a') -> 'email',
+  jsonb_build_array(current_setting('test.eb')), 'not noted until sent: still listed');
+select public.mark_waitlist_followup_sent_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.eb')::uuid, true);
 select is(public.waitlist_followup_for_service('b0000000-0000-0000-0000-00000000000a') -> 'email', '[]'::jsonb,
-  'emailed once: not listed again');
+  'sent and noted: not listed again');
 select is(public.resolve_waitlist_followup_link((select id from public.secure_links where token_hash = decode(repeat('ab', 32), 'hex'))) ->> 'clinic_name',
   'Org A', 'the link shows the clinic');
 
@@ -275,7 +281,18 @@ select ok(public.prepare_waitlist_followup_for_service('b0000000-0000-0000-0000-
 delete from public.waitlist_contacts where entry_id = current_setting('test.eb')::uuid and kind = 'followup_email';
 select isnt(public.prepare_waitlist_followup_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.eb')::uuid,
   decode(repeat('cd', 32), 'hex')), null, 'a new email');
-select is(public.answer_waitlist_followup_for_service(decode(repeat('cd', 32), 'hex'), 'leave'), '{"state": "leave"}'::jsonb, '« Non »');
+select public.mark_waitlist_followup_sent_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.eb')::uuid, false);
+select ok((select revoked_at is not null from public.secure_links where token_hash = decode(repeat('cd', 32), 'hex')),
+  'not sent: its link revoked, nothing noted');
+select is(public.answer_waitlist_followup_for_service(decode(repeat('cd', 32), 'hex'), 'leave'), '{"state": "invalid"}'::jsonb,
+  'a revoked link answers nothing');
+select isnt(public.prepare_waitlist_followup_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.eb')::uuid,
+  decode(repeat('ce', 32), 'hex')), null, 'tried again');
+update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'demandes';
+select is(public.answer_waitlist_followup_for_service(decode(repeat('ce', 32), 'hex'), 'leave'), '{"state": "invalid"}'::jsonb,
+  'Demandes switched off: the link answers nothing');
+update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'demandes';
+select is(public.answer_waitlist_followup_for_service(decode(repeat('ce', 32), 'hex'), 'leave'), '{"state": "leave"}'::jsonb, '« Non »');
 select results_eq($$ select e.state, e.exit_reason, d.state, d.closed_reason from public.waitlist_entries e join public.demandes d on d.id = e.demande_id
                      where e.id = current_setting('test.eb')::uuid $$,
   $$ values ('closed', 'withdrew', 'closed', 'withdrew') $$, 'off the list; the request closed');
@@ -285,6 +302,7 @@ select is((select count(*)::int from public.notifications where kind = 'demandes
 -- Exits and the request's state
 -- =============================================================================
 set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok(format($$ select public.exit_waitlist(%L, 'placed') $$, current_setting('test.ec')),
   'P0001', 'Choisissez un professionnel actif de la clinique.', 'placed needs the professional');

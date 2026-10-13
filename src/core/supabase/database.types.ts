@@ -11088,6 +11088,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_waitlist_followup_sent_for_service: {
+        Args: { p_entry_id: string; p_org_id: string; p_sent: boolean }
+        Returns: undefined
+      }
       merge_clients: {
         Args: { p_keep: string; p_merge: string; p_take?: string[] }
         Returns: string

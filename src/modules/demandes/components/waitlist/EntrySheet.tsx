@@ -9,6 +9,7 @@ import {
   getClinicDateString,
   shiftCalendarDay,
 } from '@/shared/lib/timezone'
+import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { Button } from '@/shared/ui/button'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
@@ -323,6 +324,7 @@ function PriorityForm({
     priority !== e.priority ||
     (priority === 'priority' && reason.trim() !== (e.priority_reason ?? '')) ||
     bridge !== (e.bridge_professional_id ?? '')
+  useUnsavedChanges(dirty)
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -414,7 +416,8 @@ function FeeBlock({
   const e = data.entry
   const [waiving, setWaiving] = useState(false)
   const [reason, setReason] = useState('')
-  const set = (status: 'to_invoice' | 'paid' | 'waived', why: string | null) =>
+  const set = (status: 'to_invoice' | 'paid' | 'waived', why: string | null) => {
+    if (actions.fee.isPending) return
     actions.fee.mutate(
       { status, reason: why },
       {
@@ -425,6 +428,9 @@ function FeeBlock({
         onError: (failure) => toast.error(demandesError(failure)),
       }
     )
+  }
+  // Invoiced: Facturation follows the fee (F1); nothing to mark here.
+  const editable = canEdit && e.fee_status !== 'invoiced'
   return (
     <div className="space-y-2 text-sm">
       <p className="inline-flex items-center gap-1.5">
@@ -444,7 +450,7 @@ function FeeBlock({
           )}
         </p>
       )}
-      {canEdit && !waiving && (
+      {editable && !waiving && (
         <div className="flex flex-wrap gap-2">
           {e.fee_status !== 'paid' && (
             <Button
@@ -481,7 +487,7 @@ function FeeBlock({
           )}
         </div>
       )}
-      {canEdit && waiving && (
+      {editable && waiving && (
         <form
           noValidate
           className="space-y-2"
@@ -715,6 +721,7 @@ function OffersBlock({
                 type="button"
                 size="sm"
                 onClick={() =>
+                  !actions.answer.isPending &&
                   actions.answer.mutate(
                     { offerId: pending.id, response: 'accepted' },
                     {
@@ -732,6 +739,7 @@ function OffersBlock({
                 variant="outline"
                 size="sm"
                 onClick={() =>
+                  !actions.answer.isPending &&
                   actions.answer.mutate(
                     { offerId: pending.id, response: 'declined' },
                     { onError: fail }
@@ -746,6 +754,7 @@ function OffersBlock({
                 variant="ghost"
                 size="sm"
                 onClick={() =>
+                  !actions.answer.isPending &&
                   actions.answer.mutate(
                     { offerId: pending.id, response: 'withdrawn' },
                     { onError: fail }
