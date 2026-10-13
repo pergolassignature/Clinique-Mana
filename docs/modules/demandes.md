@@ -211,6 +211,31 @@ Migration `20261013181604_demandes_matching` (pgTAP `164`, with Professionnels' 
   - « Non admissibles (N) », folded, each with its reasons.
   - The panel is its own query, a child of the record's key: every write on the request reads it again.
 
+## D5: places and the availability board
+
+Migrations `20261013184127_demandes_capacity` (pgTAP `166`) and Professionnels' `20261013184121_professionals_places_restart`; decisions D-31 … D-33, P4-553.
+
+- **`list_professional_capacity()`** (definer; `demandes.view` and `professionals.view`, both first). For every active professional of the clinic, by name:
+  - her places: declared, taken, left (D-30), since when;
+  - whether she accepts new clients;
+  - her periods, languages and clientèles;
+  - « À prioriser » and « Bon à savoir »;
+  - her matches of the last 30 days.
+
+  The totals come with it: places left across the tracked ones (the workbook's « TOTAL DES DISPONIBILITÉS »), how many are tracked, how many have places, and the day of the last snapshot. The order is the name (D-31): the board is never a ranking, because a request's panel ranks for it (D4).
+- **`capacity_snapshots`** (D-32): one row per active professional per clinic day, with declared, taken, left and accepting.
+  - It is written by the SQL job `demandes.capacity_snapshots` (maintenance, every night, « Photo des places des professionnels »). « Exécuter maintenant » replaces the day's row and never doubles it.
+  - Staff read it (`demandes.view`). It is not audited: these are figures computed from audited facts (000_invariants).
+  - D6's indicators and D4's « Place disponible » read it.
+- **Setting the places from the board (D-33, P4-553):** Professionnels' `set_professional_new_client_places(id, places, restart)` (`professionals.matching`, 0–99, null when not tracked).
+  - « Recommencer le décompte aujourd'hui » stamps today even when the number is the same. This is rule 11's action « recommencer le décompte », which belongs to Demandes' screen of places.
+  - Audited on the matching profile, with its source.
+- **Screen: `/demandes/places`** (« Places des professionnels », nav, `professionals.view`):
+  - the total and the snapshot's day;
+  - real tabs « Tous », « Avec des places », « Complets », « Non suivis » with their counts (`?vue=`);
+  - one row per professional: her name (to her file's Jumelage tab), title and « À prioriser »; « 2 sur 3 restantes » (0 is a warning) and « Depuis le … : N prises »; « Accepte » or « N'accepte pas »; the periods, the languages, her matches of 30 days, « Bon à savoir »;
+  - « Modifier » (`professionals.matching`): the number and « Recommencer le décompte ».
+
 ## What the module publishes
 
 For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the view `demandes_sources` (D3c, below).

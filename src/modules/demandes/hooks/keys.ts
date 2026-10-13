@@ -31,6 +31,8 @@ export const demandesKeys = {
   /** The matching panel (D4): under its request, so every write on the request reads it again. */
   matching: (id: string) => [...demandesKeys.record(id), 'matching'] as const,
   reference: () => [...demandesKeys.all, 'reference'] as const,
+  /** The availability board (D5): read again after a change of places; the matching panels too (`all`). */
+  capacity: () => [...demandesKeys.all, 'capacity'] as const,
   waitlist: () => [...demandesKeys.all, 'waitlist'] as const,
   waitlistLists: () => [...demandesKeys.waitlist(), 'lists'] as const,
   waitlistList: (query: WaitlistQuery) =>

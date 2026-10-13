@@ -1359,6 +1359,68 @@ export type Database = {
           },
         ]
       }
+      capacity_snapshots: {
+        Row: {
+          accepting_new_clients: boolean
+          created_at: string
+          org_id: string
+          places_declared: number | null
+          places_left: number | null
+          places_used: number | null
+          professional_id: string
+          snapshot_on: string
+        }
+        Insert: {
+          accepting_new_clients: boolean
+          created_at?: string
+          org_id: string
+          places_declared?: number | null
+          places_left?: number | null
+          places_used?: number | null
+          professional_id: string
+          snapshot_on: string
+        }
+        Update: {
+          accepting_new_clients?: boolean
+          created_at?: string
+          org_id?: string
+          places_declared?: number | null
+          places_left?: number | null
+          places_used?: number | null
+          professional_id?: string
+          snapshot_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capacity_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "capacity_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "capacity_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "capacity_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       client_anonymize_handlers: {
         Row: {
           function_name: string
@@ -14943,6 +15005,7 @@ export type Database = {
           service_id: string
         }[]
       }
+      list_professional_capacity: { Args: never; Returns: Json }
       list_professional_history: {
         Args: { p_before_id?: number; p_id: string; p_limit?: number }
         Returns: {
@@ -16433,6 +16496,10 @@ export type Database = {
       set_professional_motifs: {
         Args: { p_id: string; p_motif_ids: string[] }
         Returns: string[]
+      }
+      set_professional_new_client_places: {
+        Args: { p_id: string; p_places: number; p_restart?: boolean }
+        Returns: Json
       }
       set_professional_payer_number: {
         Args: { p_id: string; p_number: string; p_payer_type: string }
