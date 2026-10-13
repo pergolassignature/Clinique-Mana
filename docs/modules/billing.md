@@ -1,12 +1,12 @@
 # Module `billing` (« Facturation »)
 
-The clinic's invoices: a client's dossier billed to its payer, for sessions priced by Services et tarifs, numbered `AAAA-N`, taxed line by line, corrected by credit notes. Plan: [coding plan §8](../plans/2026-10-11-modules-coding-plan.md#8-facturation-billing--batches); [Christine's answers](../research/2026-10-12-christine-answers.md) (5, 6, 7, 9, 10, 11, 15, 16); legacy inventory [§F](../plans/2026-10-06-legacy-feature-inventory.md#f-facturation); decisions R-40, R-56 … R-65 and **BI-1 … BI-13** in the [decisions log](../plans/2026-10-07-decisions-log.md).
+The clinic's invoices: a client's dossier billed to its payer, for sessions priced by Services et tarifs, numbered `AAAA-N`, taxed line by line, corrected by credit notes. Plan: [coding plan §8](../plans/2026-10-11-modules-coding-plan.md#8-facturation-billing--batches); [Christine's answers](../research/2026-10-12-christine-answers.md) (5, 6, 7, 9, 10, 11, 15, 16); legacy inventory [§F](../plans/2026-10-06-legacy-feature-inventory.md#f-facturation); decisions R-40, R-56 … R-65 and **BI-1 … BI-18** in the [decisions log](../plans/2026-10-07-decisions-log.md).
 
 | Batch | What | Status |
 |---|---|---|
 | F1 | Invoices, lines, payer model (« Facturé à »), numbering `AAAA-N`, taxes per line with « Statut Indien », credit notes; « Factures », the invoice page, the client's panel, Paramètres → Facturation | built |
 | F2 | Morning queue, payments, receipts on payment, statements, PDFs, emails (schema, `billing-documents`); the screens | built |
-| F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | planned |
+| F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | built |
 | FQ | QuickBooks Online (lane B): the connection, the accounts map keyed on the payment modes, the customers read and matched (part 1); the push of invoices, credit notes, payments and the professionals' bills (part 2) | built (paused until the go/no-go) |
 | FS | Online payments (lane C): Stripe card on file and the next-day charge, « Payer en ligne », the webhook, Interac « À rapprocher » ([below](#paiements-en-ligne-fs)) | built (refunds with F3, administration@ with CM1b) |
 | FPay | Payroll (lane C): periods, rules, the lock, « Paie », « Ma paie », her invoice, the QuickBooks export ([below](#paie-des-professionnels-fpay)) | built (fee wiring after F3) |
@@ -14,7 +14,7 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 - **Registry:** `modules.key = 'billing'`, depends on `clients`, `services`, `professionals`, `appointments`; starts disabled in every clinic.
 - **Migrations:** `20261013105811_clients_billing_facts` (Clients' published facts), `20261013105814_appointments_billing_facts` (Rendez-vous' published facts), `20261013105817_billing_module` (registry, tables, RLS, audit, seeds, RPCs, handlers), `20261013111236_billing_quickbooks` (FQ part 1, below); F2: `20261013113141_professionals_supervisor` (Professionnels: the supervisor, the receipt facts), `20261013113521_billing_queue_payments` (the queue, payments, receipts, statements, deliveries, the job, the templates).
 - **Functions:** `billing-documents` (F2: renders and sends the PDFs; job `billing.documents` and user calls).
-- **Tests:** pgTAP `135_billing_invoices` (privileges, registry and roles, payment modes, an invoice from an appointment with the grid price and the file-opening fee, taxes per line, never twice, the payer rule, the default payer, « Statut Indien », an amount to type, gapless numbering continuing a set sequence and never backwards, credit notes, drafts only edited, reads, anonymisation); pgTAP `136_professionals_supervisor` and `137_billing_queue_payments` (the queue's drafts once, the holds, « Envoyer » with a refusal for one, the deliveries and P3-40, payments and receipts, credit notes, statements); Deno `billing-documents/*.test.ts` (the receipt's text with the supervisor, the invoice, the statement, English; render, store, email, set aside, retry; preview); Vitest `src/modules/billing/**/*.test.ts(x)` (manifest; `InvoicePage`: lines and totals, the payer, an amount to type, finalising, an adjustment, a credit note, read-only for the conseillère; `ClientBillingPanel`: invoices, default payer, « Créer la facture »); Playwright `e2e/billing.spec.ts` (invoice Alice's appointment, finalise, credit; send the morning queue, record a payment); the audit labels by `src/app/audit-labels.test.ts`.
+- **Tests:** pgTAP `135_billing_invoices` (privileges, registry and roles, payment modes, an invoice from an appointment with the grid price and the file-opening fee, taxes per line, never twice, the payer rule, the default payer, « Statut Indien », an amount to type, gapless numbering continuing a set sequence and never backwards, credit notes, drafts only edited, reads, anonymisation); pgTAP `136_professionals_supervisor` and `137_billing_queue_payments` (the queue's drafts once, the holds, « Envoyer » with a refusal for one, the deliveries and P3-40, payments and receipts, credit notes, statements); Deno `billing-documents/*.test.ts` (the receipt's text with the supervisor, the invoice, the statement, English; render, store, email, set aside, retry; preview); Vitest `src/modules/billing/**/*.test.ts(x)` (manifest; `InvoicePage`: lines and totals, the payer, an amount to type, finalising, an adjustment, a credit note, read-only for the conseillère; `ClientBillingPanel`: invoices, default payer, « Créer la facture »); Playwright `e2e/billing.spec.ts` (invoice Alice's appointment, finalise, credit; send the morning queue, record a payment; apply a late-cancellation fee); the audit labels by `src/app/audit-labels.test.ts`.
 
 ## Permissions
 
@@ -60,6 +60,15 @@ All per clinic, RLS on (`billing.view`; `payment_modes` also `billing.self`), `s
 
 `invoices` gains `queue_day`, `hold_reason` (`special_agreement`, `client_agreement`, `manual`), `hold_note`, `paid_cents`, `payment_status` (`unpaid`, `partial`, `paid`) and `pdf_file_id`; `credit_notes`, `receipts` and `statements` have their `pdf_file_id` (purpose `billing_document`, bucket `documents`, read with `billing.view`, kept).
 
+### F3 tables
+
+| Table | What | Rules |
+|---|---|---|
+| `billing_settings` (F3 columns) | `dunning_from` (« Relances à partir du »; null: no reminder, no block), `dunning_days` (3, 5, 7, 10), `block_after_days` (10) | `set_billing_dunning` (billing.settings) |
+| `billing_dunning_runs` | per invoice and step: the day, the delivery (null: a missed step recorded) | once per step |
+| `cancellation_fee_decisions` | per late cancellation or absence: the dossier, the professional, `pending` / `applied` / `waived`, the percent and amount, the draft, who decided (`professional`, `staff`, `automatic`) | the staff read all, a professional her own |
+| `refunds` | a payment's refund: amount, reason, `recorded` / `pending_provider` / `failed`, the provider's reference | at most what is left of the payment |
+
 ## RPCs (F1)
 
 All definer, permission first, French `P0001` with a HINT naming the field.
@@ -94,10 +103,24 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 
 F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_note` (refused with payments; emailed when the invoice was), `get_invoice` and `get_client_billing` (payments, receipts, deliveries, the agreement, the balance) are replaced with the same signatures; `list_invoices` gains `paid_cents` and `payment_status`.
 
+## RPCs (F3)
+
+| RPC | Permission | What |
+|---|---|---|
+| `set_billing_dunning(from, days[], block_after)` | `billing.settings` | the reminders' start, days and the blocking day |
+| `list_overdue_invoices()` | `billing.view` | « Impayés » |
+| `list_fee_decisions(status)` | `billing.view`, or `billing.self` (her own) | the fees to decide, with the fee now |
+| `decide_cancellation_fee(appointment, apply, note)` → draft or null | `billing.self` (her own) or `billing.manage` | « Appliquer les frais » / « Ne pas facturer » |
+| `refund_payment(payment, cents, reason)` → id | `billing.manage` | recorded, or waiting for Stripe |
+| `refunds_for_service`, `finish_refund_for_service` | service role | lane C's FS |
+
+**Replaced:** `private.client_has_balance` (Rendez-vous' stub), `private.billing_paid_fees` (FPay's stub), `billing_apply_payments` (refunds), `billing_invoice_appointments` (the policy of the clinic named: the queue's drafts get the file opening), the delivery RPCs (`reminder`), `get_invoice` (refunds, reminders, fee), `get_billing_settings`, the Clients handlers.
+
 ## Jobs, functions and emails (F2)
 
 - **`billing.build_drafts`** (SQL, hourly at :40): per clinic with a start date, the completed sessions of the days before today (at most 14 back) not queued nor invoiced become drafts, held for an agreement; detail `built=… held=… failed=…`.
 - **`billing-documents`** (job `billing.documents`, every 5 minutes; user `{ action: 'deliver' }` with `billing.manage` right after a send, `{ action: 'preview', kind, id }` with `billing.view`): claims up to 25 deliveries, renders each PDF once (pdfmake; the logo when it loads) and stores it, then emails it attached to the payer (templates `billing.invoice`, `billing.credit_note`, `billing.receipt`, `billing.statement`, each with `_en`; attachments allowed). Limits `billing.deliver_user` (120 an hour) and `billing.preview_user` (60 an hour).
+- **`billing.follow_up`** (SQL, hourly at :50, F3): the fees to decide (from the queue's start, 30 days back at most) and the reminders due (templates `billing.reminder` / `_en`, the invoice's PDF attached, delivered by `billing-documents` as kind `reminder`), the notice the day a balance blocks; detail `fees=… reminders=…`.
 - **P3-40:** while Facturation is reserved for its testers, the PDF is made and the email set aside (`reserved`); the send path holds it too (CC-14). pgTAP 137 checks both.
 
 ## Screens (F1)
@@ -114,6 +137,14 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 - **Clients → « Visites et paiements »:** the dossier's balance, « Entente particulière » (a note; « Terminer l'entente »), the invoices' payment state, « Paiements du dossier » with their receipts, and « Relevés » (a year and a payer: « Préparer le relevé » or « Préparer et envoyer au payeur »; each statement's PDF once ready).
 - **Paramètres → Facturation:** « File du matin »: « À partir du » (empty: off; at most 14 days back).
 - **Professionnels → « Identité et permis » → « Supervision »:** an intern's supervisor (`professionals.manage`).
+
+## Screens (F3)
+
+- **« Impayés »** (a tab of `/facturation`): the unpaid invoices past their due date, oldest first: the invoice, the dossier (« Rendez-vous refusés » when its balance blocks a booking), the payer (« Pas d'adresse courriel »), the due date, the delay, the balance, the last reminder.
+- **« Frais d'annulation »** (a tab): the late cancellations and absences, pending first, each with the fee now (« 50 % de la séance : 65,00 $ »), « Appliquer les frais » (its draft joins the morning queue) and « Ne pas facturer » (`billing.manage`), and who decided.
+- **« Mon agenda »** (slot `agenda.mine`, panel `billing.fees`, `billing.self`): the professional's own fees to decide, the same two buttons; nothing when there is none.
+- **The invoice:** each payment's « Rembourser » (an amount, what is left by default; a reason) and its refunds (« Remboursé », « En attente de Stripe », « Refusé »); « Relances » (the day each reminder went, or a step passed without one).
+- **Paramètres → Facturation → « Relances »:** « Relances à partir du » (empty: no reminder and no refusal), the days, and the day a balance refuses a booking.
 
 ## What the module publishes
 

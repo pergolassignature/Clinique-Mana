@@ -11,6 +11,7 @@ import {
   billingDocumentSchema,
   billingEmail,
   billingPdf,
+  billingReminderEmail,
   day,
   money,
 } from './document.ts'
@@ -191,4 +192,15 @@ Deno.test('the receipt renders: one page, a real PDF', async () => {
   )
   assertEquals(new TextDecoder().decode(pdf.bytes.subarray(0, 5)), '%PDF-')
   assertEquals(pdf.pageCount, 1)
+})
+
+Deno.test('the reminder\u2019s email: the days since the due date and the balance, the invoice\u2019s file', () => {
+  const email = billingReminderEmail(parse(invoiceDoc()), 'Camille', 12, 4349)
+  assertEquals(email.templateKey, 'billing.reminder')
+  assertEquals(email.filename, 'Facture 2026-412.pdf')
+  assertEquals(email.values.document, {
+    number: '2026-412',
+    amount: '43,49\u00A0$',
+    days: '12',
+  })
 })

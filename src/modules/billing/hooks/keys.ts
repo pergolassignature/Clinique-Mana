@@ -12,6 +12,8 @@ export const billingKeys = {
   names: () => [...billingKeys.all, 'names'] as const,
   sequence: (year: number) => [...billingKeys.all, 'sequence', year] as const,
   queue: () => [...billingKeys.all, 'queue'] as const,
+  overdue: () => [...billingKeys.all, 'overdue'] as const,
+  fees: (status: string | null) => [...billingKeys.all, 'fees', status] as const,
   settings: () => [...billingKeys.all, 'settings'] as const,
 }
 

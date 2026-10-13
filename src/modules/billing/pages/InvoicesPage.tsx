@@ -11,17 +11,18 @@ import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { InvoiceStatus } from '../api/invoices'
 import { useInvoices } from '../hooks/use-invoices'
 import { formatCents, paymentLabel, paymentVariant, statusLabel, statusVariant } from '../lib/money'
+import { FeeDecisions, OverdueInvoices } from './FollowUp'
 import { MorningQueue } from './MorningQueue'
 
 const L = 'modules.billing.list'
-const VIEWS = ['file', 'brouillons', 'emises', 'creditees', 'toutes'] as const
+const VIEWS = ['file', 'impayes', 'frais', 'brouillons', 'emises', 'creditees', 'toutes'] as const
 type View = (typeof VIEWS)[number]
-type ListView = Exclude<View, 'file'>
+type ListView = Exclude<View, 'file' | 'impayes' | 'frais'>
 const STATUS_OF: Record<ListView, InvoiceStatus | null> = { brouillons: 'draft', emises: 'issued', creditees: 'credited', toutes: null }
 
 /**
  * « Factures » (`/facturation`, `billing.view`): the morning queue first (F2, the default view),
- * then the invoices newest first by state (real Radix tabs, the view in the URL): drafts to
+ * « Impayés » and « Frais d'annulation » (F3), then the invoices newest first by state (real Radix tabs, the view in the URL): drafts to
  * finish, issued (with their payment state), credited, all. A row opens the invoice. New invoices
  * start from the client's « Visites et paiements ».
  */
@@ -41,7 +42,15 @@ export function InvoicesPage() {
           ))}
         </TabsList>
       </Tabs>
-      {view === 'file' ? <MorningQueue /> : <InvoiceList view={view} />}
+      {view === 'file' ? (
+        <MorningQueue />
+      ) : view === 'impayes' ? (
+        <OverdueInvoices />
+      ) : view === 'frais' ? (
+        <FeeDecisions />
+      ) : (
+        <InvoiceList view={view} />
+      )}
     </>
   )
 }

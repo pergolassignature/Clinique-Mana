@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { BellOff, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
+import { useModuleSlot } from '@/core/modules/slots'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { formatDateOnly, getClinicDateString } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
@@ -66,7 +68,29 @@ export function MyAgendaPage() {
     return <LoadError message={t('modules.appointments.mine.loadError')} onRetry={() => void reference.refetch()} retrying={reference.isFetching} />
   }
   if (!reference.data) return <Loading />
-  return <Agenda reference={reference.data} mine />
+  return (
+    <>
+      <Agenda reference={reference.data} mine />
+      <MineSlots />
+    </>
+  )
+}
+
+/** The panels other modules add to « Mon agenda » (slot `agenda.mine`; Facturation's fees to decide). */
+function MineSlots() {
+  const panels = useModuleSlot('agenda.mine')
+  if (panels.length === 0) return null
+  return (
+    <div className="mt-6 space-y-6">
+      {panels.map(({ id, component: Panel }) => (
+        <RouteBoundary key={id} scope={`agenda.mine:${id}`} compact>
+          <Suspense fallback={<Loading />}>
+            <Panel />
+          </Suspense>
+        </RouteBoundary>
+      ))}
+    </div>
+  )
 }
 
 function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?: boolean }) {
