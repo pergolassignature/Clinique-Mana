@@ -144,6 +144,9 @@ select functions_are('public', array[
   'set_appointment_details', 'list_agenda',
   -- Rendez-vous, batch R3.
   'preview_series', 'create_series', 'cancel_series_from', 'book_personal_appointment',
+  -- Rendez-vous, batch R4.
+  'appointment_messages_for_service', 'prepare_appointment_message_for_service', 'finish_appointment_message_for_service',
+  'resolve_appointment_confirm_link', 'confirm_appointment_by_link_for_service', 'list_appointments_without_reminder',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

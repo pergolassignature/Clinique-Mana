@@ -27,6 +27,7 @@ import {
   type SeriesInput,
   type SeriesRule,
 } from '../api/agenda'
+import { fetchWithoutReminder } from '../api/messages'
 import type { AppointmentMode, Presence } from '../api/parse'
 import { appointmentsKeys } from './keys'
 
@@ -64,6 +65,15 @@ export function useSeriesPreview(rule: SeriesRule | null) {
     enabled: rule !== null,
     placeholderData: keepPreviousData,
   })
+}
+
+/** « Clients sans rappel »: the next 7 days, from this hour on. */
+export function useWithoutReminder() {
+  const from = new Date()
+  from.setMinutes(0, 0, 0)
+  const fromIso = from.toISOString()
+  const toIso = new Date(from.getTime() + 7 * 86_400_000).toISOString()
+  return useQuery({ queryKey: appointmentsKeys.withoutReminder(fromIso), queryFn: () => fetchWithoutReminder(fromIso, toIso) })
 }
 
 /** Where a failure is shown: in the dialog (with the error, for its HINT), else a toast. */
