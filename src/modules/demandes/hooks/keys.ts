@@ -19,6 +19,7 @@ import type { CallsPeriod } from '../api/calls'
  * | the follow-up settings saved                              | `waitlistSettings()`               |
  * | a task done, cancelled, moved or given (D3b); realtime    | also `calls()`                     |
  * | a proposal made or withdrawn (D3b); realtime              | also `propositions()`, the record  |
+ * | the matching panel (D4) is `record(id)`'s child: any write on the request reads it again        |
  */
 export const demandesKeys = {
   all: ['demandes'] as const,
@@ -27,6 +28,8 @@ export const demandesKeys = {
     [...demandesKeys.lists(), query.view, query.assigned, [...query.flags].sort().join(','), query.search.trim(), page] as const,
   counts: () => [...demandesKeys.all, 'counts'] as const,
   record: (id: string) => [...demandesKeys.all, 'record', id] as const,
+  /** The matching panel (D4): under its request, so every write on the request reads it again. */
+  matching: (id: string) => [...demandesKeys.record(id), 'matching'] as const,
   reference: () => [...demandesKeys.all, 'reference'] as const,
   waitlist: () => [...demandesKeys.all, 'waitlist'] as const,
   waitlistLists: () => [...demandesKeys.waitlist(), 'lists'] as const,

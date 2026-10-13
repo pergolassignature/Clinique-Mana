@@ -3,7 +3,7 @@ import { t } from '@/i18n'
 import { AVAILABILITY_PERIODS, MAX_SET_SIZE, type AvailabilityPeriod } from '../lib/constants'
 import { titleOrder, type CatalogView } from '../lib/catalog-view'
 import type { MatchingProfile, ProfessionRow, SpecializedRef } from '../api/parse'
-import { longText } from './text'
+import { longText, tidyText } from './text'
 
 /**
  * « Jumelage » (`professionals.matching`), as the set RPCs and
@@ -90,6 +90,14 @@ type MatchingNoteValues = z.input<typeof matchingNoteSchema>
 
 export function toMatchingNoteFormValues(note: { note: string } | null): MatchingNoteValues {
   return { note: note?.note ?? '' }
+}
+
+/** « À prioriser » (P4-552): one tidy line of 200 characters at most; empty removes it. */
+export const matchingPrioritySchema = z.object({ reason: tidyText({ max: 200 }) })
+type MatchingPriorityValues = z.input<typeof matchingPrioritySchema>
+
+export function toMatchingPriorityFormValues(priority: { reason: string } | null): MatchingPriorityValues {
+  return { reason: priority?.reason ?? '' }
 }
 
 // --- Sets ----------------------------------------------------------------------------------------

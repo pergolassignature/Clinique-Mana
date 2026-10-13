@@ -18,7 +18,8 @@ async function openTab(page: Page, name: string) {
 
 /** Opens a Jumelage picker by its « Modifier les … » button; returns the sheet. */
 async function openPicker(page: Page, button: string): Promise<Locator> {
-  await page.getByRole('button', { name: button }).click()
+  // Exact: « Modifier les motifs » and « Modifier les motifs refusés » (D4) sit side by side.
+  await page.getByRole('button', { name: button, exact: true }).click()
   const sheet = page.getByRole('dialog')
   await expect(sheet).toBeVisible()
   return sheet

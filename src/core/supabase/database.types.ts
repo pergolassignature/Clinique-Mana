@@ -7569,6 +7569,59 @@ export type Database = {
           },
         ]
       }
+      professional_matching_priorities: {
+        Row: {
+          created_at: string
+          org_id: string
+          professional_id: string
+          reason: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          professional_id: string
+          reason: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          professional_id?: string
+          reason?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_matching_priorities_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_matching_priorities_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_matching_priorities_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_matching_priorities_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       professional_matching_profiles: {
         Row: {
           accepting_new_clients: boolean
@@ -8117,6 +8170,70 @@ export type Database = {
           },
           {
             foreignKeyName: "professional_public_profiles_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      professional_refused_motifs: {
+        Row: {
+          created_at: string
+          motif_id: string
+          org_id: string
+          professional_id: string
+        }
+        Insert: {
+          created_at?: string
+          motif_id: string
+          org_id: string
+          professional_id: string
+        }
+        Update: {
+          created_at?: string
+          motif_id?: string
+          org_id?: string
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_refused_motifs_motif_fkey"
+            columns: ["org_id", "motif_id"]
+            isOneToOne: false
+            referencedRelation: "motifs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_refused_motifs_motif_fkey"
+            columns: ["org_id", "motif_id"]
+            isOneToOne: false
+            referencedRelation: "motifs_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_refused_motifs_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_refused_motifs_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_refused_motifs_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_refused_motifs_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
             referencedRelation: "professionals_readiness"
@@ -12893,6 +13010,7 @@ export type Database = {
           language_codes: string[] | null
           licence_number: string | null
           matching_note: string | null
+          matching_priority_reason: string | null
           min_client_age: number | null
           motif_ids: string[] | null
           motif_keys: string[] | null
@@ -12906,6 +13024,7 @@ export type Database = {
           primary_title_name: string | null
           professions: Json | null
           ready: boolean | null
+          refused_motif_ids: string[] | null
           status: string | null
           updated_at: string | null
           women_only: boolean | null
@@ -15240,6 +15359,10 @@ export type Database = {
         Args: { p_invoice_id: string; p_notice_id: string }
         Returns: string
       }
+      match_professionals_for_demande: {
+        Args: { p_demande_id: string }
+        Returns: Json
+      }
       match_qbo_customers: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: number
@@ -16303,6 +16426,10 @@ export type Database = {
         Args: { p_id: string; p_note: string }
         Returns: Json
       }
+      set_professional_matching_priority: {
+        Args: { p_id: string; p_reason: string }
+        Returns: Json
+      }
       set_professional_motifs: {
         Args: { p_id: string; p_motif_ids: string[] }
         Returns: string[]
@@ -16319,6 +16446,10 @@ export type Database = {
           licence_number: string
           profession_title_id: string
         }[]
+      }
+      set_professional_refused_motifs: {
+        Args: { p_id: string; p_motif_ids: string[] }
+        Returns: string[]
       }
       set_professional_sin: {
         Args: { p_expected_updated_at: string; p_id: string; p_sin: string }

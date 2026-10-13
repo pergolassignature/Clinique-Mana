@@ -8,9 +8,10 @@ import { SettingsCard } from '@/shared/components/SettingsCard'
 import { Button } from '@/shared/ui/button'
 import type { SpecializedRef } from '../../../api/parse'
 import type { MutationFeedback } from '../../../hooks/mutation-feedback'
-import { useSetClienteles, useSetLanguages, useSetMotifs } from '../../../hooks/use-professional-mutations'
+import { useSetClienteles, useSetLanguages, useSetMotifs, useSetRefusedMotifs } from '../../../hooks/use-professional-mutations'
 import { fullName } from '../../../lib/display'
 import { matchingDigest } from '../../../lib/matching-digest'
+import { summarizeMotifs } from '../../../lib/motif-summary'
 import { clienteleGroups, languageGroups, motifGroups, recordSelections } from '../../../lib/matching-pickers'
 import { clienteleItemsSchema, holdsRegulatedTitle, languageIdsSchema, motifIdsSchema } from '../../../schemas/matching'
 import { SetPickerSheet, type PickerDraft, type SetPickerSheetProps } from '../../pickers/SetPickerSheet'
@@ -18,6 +19,7 @@ import { AvailabilityCard } from '../AvailabilityCard'
 import { HeldChips } from '../Chips'
 import { ClientLimitsCard } from '../ClientLimitsCard'
 import { MatchingNoteCard } from '../MatchingNoteCard'
+import { MatchingPriorityCard } from '../MatchingPriorityCard'
 import { MotifsSummary } from '../MotifsSummary'
 import { PlacesCard } from '../PlacesCard'
 import { useRecordData } from '../record-context'
@@ -40,6 +42,7 @@ export function MatchingTab() {
   const canEdit = useAccess().can('professionals.matching')
   const digest = useMemo(() => matchingDigest(record, catalog), [record, catalog])
   const pickers = useMatchingPickers(canEdit)
+  const refused = useMemo(() => summarizeMotifs(record.refusedMotifIds, catalog), [record.refusedMotifIds, catalog])
   return (
     <div className="container-inline space-y-5">
       {!canEdit && <ReadOnlyNotice body={t(`${M}.readOnly`)} />}
@@ -53,11 +56,20 @@ export function MatchingTab() {
           <ClientLimitsCard readOnly={!canEdit} />
           <PlacesCard readOnly={!canEdit} />
           <MatchingNoteCard readOnly={!canEdit} />
+          <MatchingPriorityCard readOnly={!canEdit} />
           <SetCard list="motifs" picker={pickers?.motifs}>
             {digest.motifs.groups.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t(`${M}.motifs.empty`)}</p>
             ) : (
               <MotifsSummary summary={digest.motifs} />
+            )}
+          </SetCard>
+          {/* R-66: a warning in Demandes' matching panel, never an exclusion. */}
+          <SetCard list="refusedMotifs" picker={pickers?.refusedMotifs}>
+            {refused.groups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t(`${M}.refusedMotifs.empty`)}</p>
+            ) : (
+              <MotifsSummary summary={refused} />
             )}
           </SetCard>
         </div>
@@ -72,7 +84,7 @@ export function MatchingTab() {
   )
 }
 
-type SetList = 'clienteles' | 'motifs' | 'languages'
+type SetList = 'clienteles' | 'motifs' | 'refusedMotifs' | 'languages'
 type PickerConfig = Omit<SetPickerSheetProps, 'trigger' | 'title'>
 
 /** One held set: what is held, and « Modifier » opening its picker (none when read-only). */
@@ -103,10 +115,10 @@ function SetCard({ list, picker, children }: { list: SetList; picker: PickerConf
 }
 
 /**
- * The three pickers' lists, selections and saves, or null without `professionals.matching`. Each
+ * The four pickers' lists, selections and saves, or null without `professionals.matching`. Each
  * save checks the draft with the module's schema (no new archived item, a restricted motif only
- * with a regulated title, at least one language), then calls its set RPC; a refusal stays in the
- * sheet. The mutation hooks write the returned set into the record and refetch it.
+ * with a regulated title, at least one language; a refused motif is never one she holds), then
+ * calls its set RPC; a refusal stays in the sheet. The mutation hooks write the returned set into the record and refetch it.
  */
 function useMatchingPickers(canEdit: boolean): Record<SetList, PickerConfig> | null {
   const { record, catalog } = useRecordData()
@@ -114,6 +126,7 @@ function useMatchingPickers(canEdit: boolean): Record<SetList, PickerConfig> | n
   const saveClienteles = useSetSave(useSetClienteles)
   const saveMotifs = useSetSave(useSetMotifs)
   const saveLanguages = useSetSave(useSetLanguages)
+  const saveRefused = useSetSave(useSetRefusedMotifs)
   const regulated = holdsRegulatedTitle(record.professions, catalog)
   const held = useMemo(() => recordSelections(record), [record])
   if (!canEdit) return null
@@ -137,6 +150,22 @@ function useMatchingPickers(canEdit: boolean): Record<SetList, PickerConfig> | n
       searchPlaceholder: t(`${M}.motifs.search`),
       onSave: (draft) =>
         checked(motifIdsSchema(catalog, { heldIds: record.motifIds, hasRegulatedTitle: regulated }), [...draft.keys()], (motifIds) => saveMotifs({ id, motifIds })),
+    },
+    refusedMotifs: {
+      subject,
+      // A motif she holds cannot be refused too: it reads why, and stays out of the draft.
+      groups: motifGroups(catalog, held.refusedMotifs, true).map((group) => ({
+        ...group,
+        items: group.items.map((item) =>
+          record.motifIds.includes(item.id) && !held.refusedMotifs.has(item.id) ? { ...item, blockedReason: t(`${M}.refusedMotifs.heldBlocked`) } : item,
+        ),
+      })),
+      selected: held.refusedMotifs,
+      searchPlaceholder: t(`${M}.refusedMotifs.search`),
+      onSave: (draft) =>
+        checked(motifIdsSchema(catalog, { heldIds: record.refusedMotifIds, hasRegulatedTitle: true }), [...draft.keys()], (motifIds) =>
+          saveRefused({ id, motifIds }),
+        ),
     },
     languages: {
       subject,

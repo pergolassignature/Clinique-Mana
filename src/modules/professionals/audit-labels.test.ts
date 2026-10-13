@@ -32,6 +32,8 @@ const COLUMNS = {
   ],
   // « Bon à savoir » (P4-384): the text is redacted in the log; the field is still named.
   professional_matching_notes: ['org_id', 'professional_id', 'note', 'created_at', 'updated_at'],
+  professional_matching_priorities: ['org_id', 'professional_id', 'reason', 'created_at', 'updated_at'],
+  professional_refused_motifs: ['org_id', 'professional_id', 'motif_id', 'created_at'],
   professional_professions: ['id', 'org_id', 'professional_id', 'profession_title_id', 'licence_number', 'is_primary', 'created_at', 'updated_at'],
   professional_clienteles: ['org_id', 'professional_id', 'clientele_id', 'is_specialized', 'created_at', 'updated_at'],
   professional_motifs: ['org_id', 'professional_id', 'motif_id', 'created_at'],

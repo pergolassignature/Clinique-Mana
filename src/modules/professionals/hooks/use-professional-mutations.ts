@@ -8,7 +8,9 @@ import {
   setClienteles,
   setLanguages,
   setMatchingNote,
+  setMatchingPriority,
   setMotifs,
+  setRefusedMotifs,
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
@@ -198,6 +200,30 @@ export function useSetMotifs(feedback?: MutationFeedback) {
       mutationFn: ({ id, motifIds }: { id: string; motifIds: string[] }) => setMotifs(id, motifIds),
       apply: (record, motifIds) => ({ ...record, motifIds }),
       touchesUsage: true,
+    },
+    feedback,
+  )
+}
+
+export function useSetRefusedMotifs(feedback?: MutationFeedback) {
+  return useRecordMutation(
+    {
+      mutationFn: ({ id, motifIds }: { id: string; motifIds: string[] }) => setRefusedMotifs(id, motifIds),
+      apply: (record, refusedMotifIds) => ({ ...record, refusedMotifIds }),
+      touchesUsage: false,
+      touchesList: never,
+    },
+    feedback,
+  )
+}
+
+export function useSetMatchingPriority(feedback?: MutationFeedback) {
+  return useRecordMutation(
+    {
+      mutationFn: ({ id, reason }: { id: string; reason: string | null }) => setMatchingPriority(id, reason),
+      apply: (record, matchingPriority) => ({ ...record, matchingPriority }),
+      touchesUsage: false,
+      touchesList: never,
     },
     feedback,
   )

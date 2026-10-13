@@ -26,11 +26,13 @@ const mocks = vi.hoisted(() => ({
   },
   waitlist: { listWaitlist: vi.fn(), fetchWaitlistLists: vi.fn(), registerWaitlist: vi.fn() },
   propositions: { listPropositions: vi.fn(), fetchPropositionServices: vi.fn(), fetchOpenSlots: vi.fn(), propose: vi.fn(), withdrawProposition: vi.fn() },
+  matching: { fetchDemandeMatch: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/demandes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/demandes')>()), ...mocks.api }))
 vi.mock('../api/waitlist', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/waitlist')>()), ...mocks.waitlist }))
 vi.mock('../api/propositions', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/propositions')>()), ...mocks.propositions }))
+vi.mock('../api/matching', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/matching')>()), ...mocks.matching }))
 vi.mock('@/core/realtime/use-org-realtime', () => ({ useOrgRealtime: () => undefined }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -44,6 +46,46 @@ vi.mock('@/modules/clients', () => ({
 }))
 
 const R = 'modules.demandes.record'
+
+const MATCH = {
+  criteria: {
+    demande_id: 'e0000000-0000-0000-0000-000000000001',
+    client_id: 'c1',
+    language: 'fr',
+    beneficiary: 'self',
+    profession_title_id: null,
+    profession_title_name: null,
+    clientele_id: null,
+    clientele_name: null,
+    preferred_pro_gender: 'any',
+    availability_periods: ['evening'],
+    motifs: [{ id: 'm1', name: 'Anxiété' }, { id: 'm2', name: 'Deuil' }],
+    sex: 'female',
+    age: 34,
+    ignored: [],
+  },
+  professionals: [
+    {
+      professional_id: 'pro1', display_name: 'Pro Un', title_label: 'Psychologue', eligible: true, reasons: [], warnings: [],
+      motif_hits: [{ id: 'm1', name: 'Anxiété' }, { id: 'm2', name: 'Deuil' }], refused_hits: [], specialized: true, period_hits: ['evening'], fit: 211,
+      places_declared: 3, places_left: 3, insurance_status: 'valid', matching_note: 'Préfère les soirs.', priority_reason: null,
+      availability_periods: ['evening'], updated_at: '2026-10-12T14:00:00Z', rank: 1,
+    },
+    {
+      professional_id: 'pro2', display_name: 'Pro Deux', title_label: 'Travailleuse sociale', eligible: true,
+      reasons: [], warnings: ['refused_motif', 'insurance_expired', 'no_places'],
+      motif_hits: [{ id: 'm1', name: 'Anxiété' }], refused_hits: [{ id: 'm2', name: 'Deuil' }], specialized: false, period_hits: [], fit: 100,
+      places_declared: 1, places_left: 0, insurance_status: 'expired', matching_note: null, priority_reason: 'Nouvelle : à remplir',
+      availability_periods: [], updated_at: '2026-10-12T14:00:00Z', rank: 2,
+    },
+    {
+      professional_id: 'pro3', display_name: 'Pro Trois', title_label: null, eligible: false, reasons: ['language', 'not_ready'], warnings: [],
+      motif_hits: [], refused_hits: [], specialized: false, period_hits: [], fit: 0,
+      places_declared: null, places_left: null, insurance_status: 'missing', matching_note: null, priority_reason: null,
+      availability_periods: [], updated_at: null, rank: 3,
+    },
+  ],
+}
 const ID = 'e0000000-0000-0000-0000-000000000001'
 
 function bundle(over: Partial<DemandeBundle> = {}, demande: Partial<DemandeBundle['demande']> = {}): DemandeBundle {
@@ -143,6 +185,7 @@ beforeEach(() => {
   ])
   mocks.waitlist.registerWaitlist.mockResolvedValue(['w1'])
   mocks.propositions.listPropositions.mockResolvedValue([])
+  mocks.matching.fetchDemandeMatch.mockResolvedValue(MATCH)
   mocks.propositions.fetchPropositionServices.mockResolvedValue([{ id: 's50', code: 10150, name: 'Consultation 50 min', duration_minutes: 50, for_two: false }])
   mocks.propositions.fetchOpenSlots.mockResolvedValue([
     { starts_at: '2026-10-20T13:00:00Z', ends_at: '2026-10-20T13:50:00Z' },
@@ -154,7 +197,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage(tab = 'accueil', modules = ['demandes', 'clients', 'professionals']): QueryClient {
+function renderPage(tab = 'accueil', modules = ['demandes', 'clients', 'professionals'], without: readonly string[] = []): QueryClient {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -162,7 +205,10 @@ function renderPage(tab = 'accueil', modules = ['demandes', 'clients', 'professi
         <Routes>
           <Route path="demandes/:id/:onglet?" element={<DemandeRecordPage />} />
         </Routes>,
-        { access: { access: accessForRole('counselor', { modules }) }, path: `/demandes/${ID}/${tab}` },
+        {
+          access: { access: { ...accessForRole('counselor', { modules }), permissions: accessForRole('counselor').permissions.filter((p) => !without.includes(p)) } },
+          path: `/demandes/${ID}/${tab}`,
+        },
       )}
     </QueryClientProvider>,
   )
@@ -176,7 +222,72 @@ describe('DemandeRecordPage', () => {
     expect(screen.getByText('DEM-2026-0007')).toBeInTheDocument()
     expect(screen.getByText(t('modules.demandes.promise.met'))).toBeInTheDocument()
     expect(screen.getByRole('link', { name: t(`${R}.openFile`, { number: '42' }) })).toHaveAttribute('href', '/clients/c1')
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Accueil', 'Participants', 'Suivi1', 'Historique'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Accueil', 'Participants', 'Suivi1', 'Jumelage', 'Historique'])
+  })
+
+  it('« Jumelage » only with professionals.view (the panel names « Bon à savoir »)', async () => {
+    renderPage('accueil', ['demandes', 'clients'], ['professionals.view'])
+    await screen.findByRole('heading', { level: 1, name: 'Alice Tremblay' })
+    expect(screen.queryByRole('tab', { name: 'Jumelage' })).not.toBeInTheDocument()
+  })
+
+  it('Jumelage: the criteria, the suggestions in order with their badges, warnings and note; the others folded with why', async () => {
+    const user = userEvent.setup()
+    renderPage('jumelage')
+    const M = 'modules.demandes.matching'
+    expect(await screen.findByText('Français · 34 ans · Une femme')).toBeInTheDocument()
+    expect(screen.getByText(t(`${M}.motifs`, { names: 'Anxiété et Deuil' }))).toBeInTheDocument()
+    const list = screen.getByRole('list', { name: t(`${M}.title`) })
+    const rows = within(list).getAllByRole('listitem').filter((li) => li.parentElement === list)
+    expect(rows.map((r) => within(r).getByText(/^Pro /).textContent)).toEqual(['Pro Un', 'Pro Deux'])
+    expect(within(rows[0]!).getByText(t(`${M}.motifHits`, { names: 'Anxiété et Deuil', count: '2', total: '2' }))).toBeInTheDocument()
+    expect(within(rows[0]!).getByText(t(`${M}.placesLeftOther`, { count: '3' }))).toBeInTheDocument()
+    expect(within(rows[0]!).getByText('Préfère les soirs.')).toBeInTheDocument()
+    expect(within(rows[1]!).getByText(t(`${M}.priority`))).toBeInTheDocument()
+    expect(within(rows[1]!).getByText(t(`${M}.placesNone`))).toBeInTheDocument()
+    expect(within(rows[1]!).getByText(t(`${M}.warnings.refused_motif`, { names: 'Deuil' }))).toBeInTheDocument()
+    expect(within(rows[1]!).getByText(t(`${M}.warnings.insurance_expired`))).toBeInTheDocument()
+    // Not a request one proposes to yet (« Nouvelle »): no « Proposer ».
+    expect(screen.queryByRole('button', { name: t(`${M}.proposeTo`, { name: 'Pro Un' }) })).not.toBeInTheDocument()
+    expect(screen.queryByText('Pro Trois')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${M}.others`, { count: '1' }) }))
+    expect(screen.getByText('Pro Trois')).toBeInTheDocument()
+    expect(screen.getByText(`${t(`${M}.reasons.language`)} · ${t(`${M}.reasons.not_ready`)}`)).toBeInTheDocument()
+  })
+
+  it('Jumelage: « Proposer » presets the professional; an expired insurance asks first', async () => {
+    const user = userEvent.setup()
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    renderPage('jumelage', ['demandes', 'clients', 'professionals', 'appointments'])
+    const M = 'modules.demandes.matching'
+    await user.click(await screen.findByRole('button', { name: t(`${M}.proposeTo`, { name: 'Pro Deux' }) }))
+    const confirm = await screen.findByRole('alertdialog', { name: t(`${M}.confirmInsurance.title`, { name: 'Pro Deux' }) })
+    await user.click(within(confirm).getByRole('button', { name: t(`${M}.confirmInsurance.action`) }))
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
+    expect(within(dialog).getByRole('combobox', { name: t('modules.demandes.propositions.form.professional') })).toHaveValue('pro2')
+    // Already confirmed in the panel: the form does not ask again.
+    expect(within(dialog).queryByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })).not.toBeInTheDocument()
+  })
+
+  it('Suivi: proposing a professional whose insurance is expired asks for a confirmation (rule 8)', async () => {
+    const user = userEvent.setup()
+    mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
+      { target_kind: 'professional', target_id: 'pro2', name: 'Pro Deux', open_count: 0, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: null },
+    ])
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    renderPage('suivi', ['demandes', 'clients', 'professionals', 'appointments'])
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.propositions.open') }))
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.professional') }), 'pro2')
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.service') }), 's50')
+    await user.click((await within(dialog).findAllByRole('checkbox'))[0]!)
+    const confirm = await within(dialog).findByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(t('modules.demandes.propositions.form.insuranceUnconfirmed'))
+    expect(mocks.propositions.propose).not.toHaveBeenCalled()
+    await user.click(confirm)
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    await waitFor(() => expect(mocks.propositions.propose).toHaveBeenCalledTimes(1))
   })
 
   it('Accueil: only what changed is saved', async () => {
