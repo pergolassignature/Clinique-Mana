@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { BookingCancelPage, BookingPage, ConfirmAppointmentPage, ConfirmPage, ConsentPage, InvitationPage, WaitlistAnswerPage } from './public-pages'
+import { BookingCancelPage, BookingPage, ConfirmAppointmentPage, ConfirmPage, ConsentPage, InvitationPage, PropositionPage, WaitlistAnswerPage } from './public-pages'
 import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
@@ -138,6 +138,15 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <WaitlistAnswerPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: a proposal's link (Demandes D3b); the token is in the fragment. */}
+                <Route
+                  path="/proposition"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <PropositionPage />
                     </Suspense>
                   }
                 />

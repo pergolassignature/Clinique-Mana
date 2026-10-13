@@ -1,7 +1,7 @@
 import { matchPath } from 'react-router-dom'
 import { confirmAppointmentPublicPage } from '@/modules/appointments'
 import { consentPublicPage } from '@/modules/clients'
-import { bookingCancelPublicPage, bookingPublicPage, waitlistAnswerPublicPage } from '@/modules/demandes'
+import { bookingCancelPublicPage, bookingPublicPage, propositionPublicPage, waitlistAnswerPublicPage } from '@/modules/demandes'
 import { lazyPage, type LazyPage } from '@/shared/lib/lazy-page'
 
 /** `/connexion/confirmer`: where the auth emails land (design §5). Public, code-split. */
@@ -22,6 +22,9 @@ export const BookingCancelPage = bookingCancelPublicPage
 /** `/liste-attente/reponse`: the waiting list's « still waiting? » link (Demandes D3). Public, code-split. */
 export const WaitlistAnswerPage = waitlistAnswerPublicPage
 
+/** `/proposition`: a proposal's link — a professional and the slots held for the person (Demandes D3b). Public, code-split. */
+export const PropositionPage = propositionPublicPage
+
 /** `/rendez-vous/confirmer`: « Confirmer ma présence » from an appointment email (Rendez-vous R4). Public, code-split. */
 export const ConfirmAppointmentPage = confirmAppointmentPublicPage
 
@@ -33,6 +36,7 @@ const PUBLIC_PAGES: { path: string; component: LazyPage }[] = [
   { path: '/appel-decouverte', component: BookingPage },
   { path: '/appel-decouverte/annuler', component: BookingCancelPage },
   { path: '/liste-attente/reponse', component: WaitlistAnswerPage },
+  { path: '/proposition', component: PropositionPage },
   { path: '/rendez-vous/confirmer', component: ConfirmAppointmentPage },
 ]
 

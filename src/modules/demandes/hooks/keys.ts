@@ -18,6 +18,7 @@ import type { CallsPeriod } from '../api/calls'
  * | realtime, a change of a request (its entries announce it) | also `waitlist()`                  |
  * | the follow-up settings saved                              | `waitlistSettings()`               |
  * | a task done, cancelled, moved or given (D3b); realtime    | also `calls()`                     |
+ * | a proposal made or withdrawn (D3b); realtime              | also `propositions()`, the record  |
  */
 export const demandesKeys = {
   all: ['demandes'] as const,
@@ -35,5 +36,10 @@ export const demandesKeys = {
   waitlistEntry: (id: string) => [...demandesKeys.waitlist(), 'entry', id] as const,
   waitlistSettings: () => [...demandesKeys.all, 'waitlist-settings'] as const,
   calls: () => [...demandesKeys.all, 'calls'] as const,
+  propositions: () => [...demandesKeys.all, 'propositions'] as const,
+  propositionsOf: (demandeId: string) => [...demandesKeys.propositions(), demandeId] as const,
+  propositionServices: (professionalId: string) => [...demandesKeys.all, 'proposition-services', professionalId] as const,
+  openSlots: (professionalId: string, serviceId: string, from: string, to: string) =>
+    [...demandesKeys.all, 'open-slots', professionalId, serviceId, from, to] as const,
   callsOf: (period: CallsPeriod) => [...demandesKeys.calls(), period.from, period.to, period.overdue] as const,
 }

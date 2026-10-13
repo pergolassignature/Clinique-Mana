@@ -59,6 +59,7 @@ export function useDemandesRealtime(enabled: boolean) {
     onChange: (change) => {
       void queryClient.invalidateQueries({ queryKey: demandesKeys.waitlist() })
       void queryClient.invalidateQueries({ queryKey: demandesKeys.calls() })
+      void queryClient.invalidateQueries({ queryKey: demandesKeys.propositions() })
       void queryClient.invalidateQueries({ queryKey: demandesKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: demandesKeys.counts() })
       void queryClient.invalidateQueries({ queryKey: demandesKeys.record(change.recordId) })
@@ -74,6 +75,7 @@ function useAfterWrite() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: demandesKeys.waitlist() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.calls() }),
+      queryClient.invalidateQueries({ queryKey: demandesKeys.propositions() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.lists() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.counts() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.record(id) }),

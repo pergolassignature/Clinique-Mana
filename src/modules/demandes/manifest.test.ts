@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { bookingCancelPublicPage, bookingPublicPage, demandesManifest, waitlistAnswerPublicPage } from './index'
+import { bookingCancelPublicPage, bookingPublicPage, demandesManifest, propositionPublicPage, waitlistAnswerPublicPage } from './index'
 
 describe('demandesManifest', () => {
   it('uses the English module key, depends on clients and professionals; « Demandes » and its record (D2)', () => {
@@ -28,6 +28,7 @@ describe('demandesManifest', () => {
     expect(typeof bookingPublicPage.preload).toBe('function')
     expect(typeof bookingCancelPublicPage.preload).toBe('function')
     expect(typeof waitlistAnswerPublicPage.preload).toBe('function')
+    expect(typeof propositionPublicPage.preload).toBe('function')
   })
 
   it('names its audited tables, columns and codes for the Journal d’audit, in its own chunk', async () => {
