@@ -43,6 +43,12 @@ export const communicationsManifest: ModuleManifest = {
         permissions: ['communications.inbox'],
         component: lazyPage(() => import('./pages/ClientMailPanel'), 'ClientMailPanel'),
       },
+      // SM-16: the file's texts (its numbers and the numbers linked to it), with the reply box.
+      {
+        id: 'communications.sms',
+        permissions: ['communications.sms'],
+        component: lazyPage(() => import('./pages/ClientSmsPanel'), 'ClientSmsPanel'),
+      },
     ],
   },
   settingsSections: [

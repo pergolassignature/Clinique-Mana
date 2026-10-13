@@ -19,6 +19,7 @@ The clinic's conversations with its clients: the Gmail mailboxes `info@cliniquem
 | CM3 | composer (drafts, templates, 5-s undo), `gmail-send`, the record's « Courriels », the CM2b backfill (CM-14 … CM-17) | built |
 | CM4 | « Rédiger avec l'IA »: PS Hub's bar « Utiliser / Annuler / Raffiner », `communications-draft` (OpenAI Chat Completions, names and numbers hidden), Paramètres → IA (key, model, monthly cap), usage log without text (CM-18 … CM-20) | built |
 | SM | « Textos »: SMS through the clinic's Yeastar PBX (as PS Hub, R-73), consents, « ARRÊT », the « OUI » hook, Paramètres → Textos | built (lane C) |
+| SM2 | Two-way conversations: each number's thread linked to its client, « À rattacher », the search, a file's « Textos » with the reply box (SM-14 … SM-17) | built (lane C) |
 
 ## CM1: Gmail
 
@@ -157,6 +158,23 @@ Texts go through the clinic's dedicated SMS channel and number on a **Yeastar P-
 - **Functions:** `sms-send` (user: `communications.sms` for a reply, `.sms_manage` for a test; `sms.send_user` 60/h per caller, `sms.test_user` 5/h, then `sms.org_day` 500/day per clinic), `sms-webhook` (webhook: `X-Signature`, base64 HMAC-SHA256 of the raw body, `?org=`, one `webhooks.yeastar_ip` hit first; events 30030, 30031, 30032), `sms-dispatch` (job). Shared code in `_shared/sms/` (`phone`, `yeastar`, `transport`, `send`, `webhook`). Nothing logs or reports a number or a body.
 - **« Textos »** (`/textos`, `communications.sms`; a thread is read through `list_sms_thread`, so the number travels in a request body, never in a URL): the threads newest first (number, last text, consent in force, a failed last text), the open thread (received on the left, the clinic's texts on the right with their kind, status and the reason of a failure), « Enregistrer / Retirer le consentement », « Nouveau numéro » (records a consent and opens the thread), and the reply box while the consent is in force. No timer: the page reloads when the bell's polled count changes.
 - **Locally:** `npm run fake:yeastar` (127.0.0.1:55393; `_shared/testing/fake-yeastar.ts`), `YEASTAR_BASE_URL` in `supabase/functions/.env` (honoured only while `APP_URL` is local); the seed enables the module and stores the fake's settings and secrets. `POST /__fake/inbound { from, body }` posts a signed client text to the local `sms-webhook`; `POST /__fake/deliver/<msg_id>?status=1|2` a delivery report.
+
+### Two-way conversations (SM2, SM-14 … SM-17)
+
+Migration `20261013231311_communications_sms_conversations` (pgTAP `171`).
+
+- **Clients publishes** `private.clients_match_phone(org, phones[])` (the files whose mobile, home or work number it is, else their related files; a number held by more than five files names none) and `private.clients_phones_of(org, client)`, granted to no role.
+- **`sms_thread_links`:** one row per clinic and number, `unlinked` / `needs_review` / `linked`, source `auto` or `manual`. Audited, the number redacted; it has a uuid key. The purge job drops a link with no text left after 24 months.
+- **Automatic:** `record_inbound_sms` and `set_sms_consent` call `private.communications_link_sms_threads(org, phones[])`; a person's link or unlink is never undone. Merges and anonymisations follow, through `communications_reassign_client` / `communications_anonymize_client`, now also covering texts.
+- **RPCs:**
+  - `link_sms_thread(phone, client)` and `unlink_sms_thread(phone)`: definer, `communications.sms` and `clients.view`. A number with no text yet can be linked.
+  - `get_sms_thread_link(phone)`: definer, `communications.sms`. The files come from `clients_directory`, so no name without `clients.view`.
+  - `list_sms_conversations(view, search)`: invoker, `all` / `to_link`, the search by a file's name or 3 digits.
+  - `list_client_sms(client)`: definer, the file's numbers and its linked numbers.
+- **Screens:**
+  - « Textos » shows the file over the number, the « Toutes » / « À rattacher » toggle (with `clients.view`), the search, and the thread's file box (`ClientLinkBox`, shared with « Courriels »).
+  - The client's « Courriels » tab gains « Textos » (`ClientSmsPanel`, slot `client.messages`): the file's numbers, a conversation and its reply box. A first text to an unlinked number links it to the file first.
+- **Sends:** unchanged. `sms-send` refuses while the module is reserved for its testers (P3-40), and the consent must be in force.
 
 ## What the module publishes
 

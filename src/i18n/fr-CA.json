@@ -6470,7 +6470,8 @@
           "mail_thread_links": "Rattachements des conversations",
           "mail_sends": "Courriels envoyés",
           "mail_templates": "Modèles de courriel personnels",
-          "ai_settings": "Réglages de l'IA"
+          "ai_settings": "Réglages de l'IA",
+          "sms_thread_links": "Rattachements des textos"
         },
         "fields": {
           "sms_consents": {
@@ -6541,6 +6542,19 @@
             "input_cents_per_mtok": "Prix du texte envoyé",
             "output_cents_per_mtok": "Prix du texte reçu",
             "updated_by": "Modifié par"
+          },
+          "sms_thread_links": {
+            "id": "Identifiant",
+            "org_id": "Clinique",
+            "peer_e164": "Numéro",
+            "status": "Statut",
+            "client_id": "Client",
+            "candidate_client_ids": "Clients possibles",
+            "source": "Origine",
+            "linked_by": "Rattaché par",
+            "linked_at": "Rattaché le",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le"
           }
         },
         "values": {
@@ -6595,6 +6609,17 @@
               "sent": "Envoyé",
               "failed": "Échoué"
             }
+          },
+          "sms_thread_links": {
+            "status": {
+              "unlinked": "Non rattaché",
+              "needs_review": "À rattacher",
+              "linked": "Rattaché"
+            },
+            "source": {
+              "auto": "Automatique",
+              "manual": "Manuelle"
+            }
           }
         }
       },
@@ -6617,7 +6642,10 @@
           "attachment": "Pièce jointe",
           "noText": "(sans texte)",
           "messagesOne": "1 texto",
-          "messagesOther": "{count} textos"
+          "messagesOther": "{count} textos",
+          "toReview": "À vérifier : plusieurs dossiers",
+          "emptyToLink": "Aucune conversation à rattacher.",
+          "emptySearch": "Aucune conversation ne correspond."
         },
         "consent": {
           "opted_in": "Consentement donné",
@@ -6765,6 +6793,18 @@
             "testSent": "Texto de test envoyé.",
             "testFailed": "Le texto de test n'est pas parti. {reason}"
           }
+        },
+        "views": {
+          "label": "Conversations",
+          "all": "Toutes",
+          "to_link": "À rattacher"
+        },
+        "search": {
+          "label": "Chercher un client ou un numéro",
+          "labelDigits": "Chercher un numéro (3 chiffres ou plus)"
+        },
+        "link": {
+          "auto": "(trouvé par le numéro)"
         }
       },
       "errors": {
@@ -7186,6 +7226,22 @@
           "saved": "Réglages de l'IA enregistrés.",
           "saveError": "Impossible d'enregistrer les réglages de l'IA."
         }
+      },
+      "clientSms": {
+        "title": "Textos",
+        "description": "Les textos échangés avec les numéros du dossier, et ceux rattachés au dossier. Un texto ne part qu’avec le consentement en vigueur.",
+        "loadError": "Impossible de charger les textos du dossier.",
+        "empty": "Aucun numéro au dossier : ajoutez un cellulaire dans « Informations », ou rattachez une conversation dans « Textos ».",
+        "numbers": "Numéros du dossier",
+        "kinds": {
+          "mobile": "Cellulaire",
+          "home": "Maison",
+          "work": "Travail",
+          "linked": "Rattaché au dossier"
+        },
+        "messagesNone": "Aucun texto",
+        "open": "Ouvrir la conversation avec le {phone}",
+        "close": "Fermer la conversation"
       }
     },
     "demandes": {

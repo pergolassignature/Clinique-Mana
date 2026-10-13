@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
     setSmsConsent: vi.fn(),
     sendSms: vi.fn(),
     sendSmsTest: vi.fn(),
+    getSmsThreadLink: vi.fn(),
+    setSmsThreadLink: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
@@ -40,6 +42,8 @@ const thread = (over: Partial<SmsThread> = {}): SmsThread => ({
   messageCount: 2,
   lastInboundAt: '2027-03-10T15:00:00Z',
   consent: 'opted_in',
+  linkStatus: 'unlinked',
+  client: null,
   ...over,
 })
 
@@ -70,6 +74,8 @@ beforeEach(() => {
     truncated: false,
   })
   mocks.api.findSmsMessagePhone.mockResolvedValue(PHONE)
+  mocks.api.getSmsThreadLink.mockResolvedValue({ status: 'unlinked', source: null, client: null, candidates: [] })
+  mocks.api.setSmsThreadLink.mockResolvedValue(undefined)
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -175,6 +181,30 @@ describe('SmsPage', () => {
     expect(mocks.api.listSmsThreads).toHaveBeenCalledTimes(1)
     queryClient.setQueryData(notificationKeys.count(), { total: 2, important: 0 })
     await waitFor(() => expect(mocks.api.listSmsThreads).toHaveBeenCalledTimes(2))
+  })
+
+  it('SM-15: a linked thread shows its file; « À rattacher » and the search ask the database', async () => {
+    mocks.api.listSmsThreads.mockResolvedValue([
+      thread({ linkStatus: 'linked', client: { id: 'c1', clientNumber: 12, name: 'Léa Essai' } }),
+      thread({ phone: OTHER, linkStatus: 'needs_review' }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+    const list = await screen.findByRole('list', { name: t(`${S}.threads.label`) })
+    expect(within(list).getByText('CLI-000012 · Léa Essai')).toBeInTheDocument()
+    expect(within(list).getByText(t(`${S}.threads.toReview`))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${S}.views.to_link`) }))
+    await waitFor(() => expect(mocks.api.listSmsThreads).toHaveBeenCalledWith('to_link', ''))
+    await user.type(screen.getByRole('searchbox'), 'léa')
+    await waitFor(() => expect(mocks.api.listSmsThreads).toHaveBeenCalledWith('to_link', 'léa'))
+  })
+
+  it('SM-15: a thread\u2019s file: « Rattacher à un dossier » for an unlinked number', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: /514 555-1234/ }))
+    expect(await screen.findByRole('group', { name: t('modules.communications.inbox.link.label') })).toBeInTheDocument()
+    expect(mocks.api.getSmsThreadLink).toHaveBeenCalledWith(PHONE)
   })
 
   it('an empty clinic: two plain lines', async () => {

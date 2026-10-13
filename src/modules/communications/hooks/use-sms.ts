@@ -1,13 +1,55 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { t } from '@/i18n'
 import type { UnreadCount } from '@/core/notifications/api'
 import { notificationKeys } from '@/core/notifications/hooks'
-import { findSmsMessagePhone, listSmsThread, listSmsThreads, sendSms, setSmsConsent, type SmsConsentInput } from '../api/sms'
+import { toast } from '@/shared/ui/sonner'
+import { communicationsErrorMessage } from '../api/errors'
+import {
+  findSmsMessagePhone,
+  getSmsThreadLink,
+  listClientSms,
+  listSmsThread,
+  listSmsThreads,
+  sendSms,
+  setSmsConsent,
+  setSmsThreadLink,
+  type SmsConsentInput,
+  type SmsView,
+} from '../api/sms'
 import { smsKeys } from './keys'
 
-/** The clinic's threads, newest first. */
-export function useSmsThreads() {
-  return useQuery({ queryKey: smsKeys.threads(), queryFn: listSmsThreads, staleTime: 0 })
+/** The clinic's threads, newest first, by view and search (SM-15); the previous rows stay while a search loads. */
+export function useSmsThreads(view: SmsView = 'all', search = '') {
+  return useQuery({
+    queryKey: smsKeys.threadList(view, search),
+    queryFn: () => listSmsThreads(view, search),
+    staleTime: 0,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** A number's file (SM-15), read only for whoever holds `clients.view`. */
+export function useSmsThreadLink(phone: string, enabled: boolean) {
+  return useQuery({ queryKey: smsKeys.threadLink(phone), queryFn: () => getSmsThreadLink(phone), enabled })
+}
+
+/** « Rattacher » / « Détacher » a number; then the lists, its link and the files' panels are read again. */
+export function useSetSmsThreadLink(phone: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (clientId: string | null) => setSmsThreadLink(phone, clientId),
+    onSuccess: (_data, clientId) => {
+      toast.success(clientId ? t('modules.communications.inbox.link.linkedToast') : t('modules.communications.inbox.link.unlinkedToast'))
+    },
+    onError: (error) => toast.error(communicationsErrorMessage(error)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: smsKeys.threads() }),
+  })
+}
+
+/** A file's numbers and threads (SM-16). */
+export function useClientSms(clientId: string) {
+  return useQuery({ queryKey: smsKeys.clientNumbers(clientId), queryFn: () => listClientSms(clientId), enabled: clientId !== '', staleTime: 0 })
 }
 
 /** One thread's latest texts (none asked for until a number is chosen). */

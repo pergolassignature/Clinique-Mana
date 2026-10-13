@@ -49,17 +49,21 @@ const message = (n: number) => ({
 })
 
 describe('listSmsThreads', () => {
-  it('reads the view newest first, without the org', async () => {
-    mocks.limit.mockResolvedValue({ data: [THREAD], error: null })
-    const [thread] = await listSmsThreads()
-    expect(mocks.from).toHaveBeenCalledWith('sms_threads')
-    expect(String((mocks.select.mock.calls[0] as unknown[])[0])).not.toContain('org_id')
-    expect(mocks.order).toHaveBeenCalledWith('last_message_at', { ascending: false })
-    expect(thread).toMatchObject({ phone: '+15145551234', consent: 'opted_in', messageCount: 3 })
+  it('reads list_sms_conversations (SM-15): the view and the search in the body, never a URL; the file with it', async () => {
+    const { peer_e164: phone, ...rest } = THREAD
+    mocks.rpc.mockResolvedValue({
+      data: [{ ...rest, phone, link_status: 'linked', link_source: 'auto', client_id: 'c1', client_number: 12, client_name: 'Léa Essai' }],
+      error: null,
+    })
+    const [thread] = await listSmsThreads('to_link', ' léa ')
+    expect(mocks.rpc).toHaveBeenCalledWith('list_sms_conversations', { p_view: 'to_link', p_search: 'léa' })
+    expect(mocks.from).not.toHaveBeenCalled()
+    expect(thread).toMatchObject({ phone: '+15145551234', consent: 'opted_in', messageCount: 3, linkStatus: 'linked', client: { id: 'c1', clientNumber: 12, name: 'Léa Essai' } })
   })
 
   it('throws the shape error (never Zod issues quoting a number) on an unexpected row', async () => {
-    mocks.limit.mockResolvedValue({ data: [{ ...THREAD, last_status: 'weird' }], error: null })
+    const { peer_e164: phone, ...rest } = THREAD
+    mocks.rpc.mockResolvedValue({ data: [{ ...rest, phone, last_status: 'weird' }], error: null })
     await expect(listSmsThreads()).rejects.toThrow(UNEXPECTED_SHAPE)
   })
 })
