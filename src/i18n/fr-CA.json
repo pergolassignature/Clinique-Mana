@@ -14,6 +14,14 @@
     "userMenu": "Menu de {name}",
     "collapse": "Réduire le menu",
     "expand": "Agrandir le menu",
+    "groups": {
+      "intake": "Accueil des clients",
+      "followUp": "Suivi",
+      "billing": "Facturation",
+      "communications": "Communications",
+      "team": "Équipe",
+      "other": "Autres"
+    },
     "breadcrumb": "Fil d'Ariane",
     "search": "Rechercher…",
     "searchLabel": "Rechercher",

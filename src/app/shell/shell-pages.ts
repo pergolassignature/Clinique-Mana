@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import type { TranslationKey } from '@/i18n'
+import type { NavGroupId } from '@/core/modules/nav-groups'
 import { isUnder } from '@/core/settings/paths'
 
 /** A page the shell can name in the topbar. */
@@ -11,6 +12,10 @@ export interface ShellPage {
 
 export interface ShellNavItem extends ShellPage {
   icon: LucideIcon
+  /** Its menu section (decision NAV-1); omitted: « Autres ». */
+  group?: NavGroupId
+  /** Lower comes first within its section. */
+  order?: number
   /** Pages under this item, named in the topbar as « Item / Sub-page » (e.g. the settings sections). */
   subPages?: ShellPage[]
 }

@@ -18,7 +18,7 @@ export const billingManifest: ModuleManifest = {
   key: 'billing',
   labelKey: 'modules.billing.name',
   dependsOn: ['clients', 'services', 'professionals', 'appointments'],
-  nav: [{ path: '/facturation', labelKey: 'modules.billing.name', icon: ReceiptText, permission: 'billing.view', order: 13 }],
+  nav: [{ path: '/facturation', labelKey: 'modules.billing.name', icon: ReceiptText, permission: 'billing.view', group: 'billing', order: 13 }],
   routes: [
     { path: 'facturation', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage') },
     { path: 'facturation/factures/:id', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicePage'), 'InvoicePage') },

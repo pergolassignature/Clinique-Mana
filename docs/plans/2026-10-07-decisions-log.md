@@ -408,6 +408,12 @@ Jonathan's answers to the five questions of the [desktop layout audit](../audit/
 | UI-4 | Paramètres heading | The « Paramètres » H1 is removed; the **section title is the page's H1** (the breadcrumb and the menu already say « Paramètres »). Decided by Jonathan, 2026-10-10. | Four heading levels in 7 px (finding 5). |
 | UI-5 | Small form sections | Small sections may be merged where the audit's mockups show it (record « Expérience » + « Numéros de payeurs » → « Expérience et payeurs »): one « Enregistrer » then saves both. Decided by Jonathan, 2026-10-10. | Two-field cards cost 164 px each (finding 3). |
 
+## Menu decisions (Jonathan, 2026-10-13)
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| NAV-1 | The menu by section | The sidebar groups its items under small uppercase headings, in this order: Accueil (no heading, with the professional's own pages: « Mon profil », « Mes documents », « Mon agenda », « Vidéoconférence », « Mes clients », in their own order), **Accueil des clients** (Demandes, Appels découverte, Liste d'attente), **Suivi** (Agenda, Clients, Consentements), **Facturation** (Facturation; later « Paie », « Revenus »), **Communications** (Courriels, Textos), **Équipe** (Professionnels), then Paramètres at the bottom (no heading). Core owns the sections (`src/core/modules/nav-groups.ts`); a module's nav item names its section (`group`), else « Autres » before Paramètres; a section with no item for the user shows no heading, so a professional sees her menu with no heading at all. A labelled section is a `role="group"` named by its heading (plain text, never a tab stop); collapsed, the headings are read out only and a rule separates the sections. The palette and Accueil's shortcuts follow the same order. Asked by Jonathan, 2026-10-13; revisable. | Twelve items in one list, once every module is on for the testers. |
+
 ## Performance decisions (2026-10-10)
 
 Page-load work after Jonathan's « the app should run with smaller photos… it takes long to load pages » and « it should all be automatic ». Measurements: the PR bodies (perf/photo-variants, perf/url-reuse, perf/chunks).
