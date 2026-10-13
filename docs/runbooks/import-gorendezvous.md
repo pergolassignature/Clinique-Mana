@@ -1,4 +1,4 @@
-# Runbook — Import the GOrendezvous clients (batch I1)
+# Runbook — Import from GOrendezvous: the clients (I1), the invoices (I3)
 
 **Status:** built and tested locally with synthetic files (2026-10-12). **Not run on the clinic's database.** · **Plan:** [§9 I1](../plans/2026-10-11-modules-coding-plan.md#9-importation-gorendezvous--batches) · **Decisions:** I-1 … I-12 · **Code:** `scripts/import-gorendezvous.mjs`, `scripts/import-gorendezvous/`, RPCs `import_client` / `import_client_relation` (`supabase/migrations/20261013043434_clients_import.sql`), pgTAP `115_clients_import`
 
@@ -49,6 +49,43 @@ node scripts/import-gorendezvous.mjs prix --lines ~/Clinique-MANA-import/revenus
 - **Anonymised files:** a file anonymised after its import is never re-created by a later run (I-13).
 - **Defaults:** reminders are on and the time zone is the clinic's for every imported file. GOrendezvous's notes are not imported (I-14).
 - **Errors before the report:** an argument or file error stops the run before the report is opened. The terminal says what to fix.
+
+## The invoices (I3)
+**Code:** the `factures` command, `scripts/import-gorendezvous/invoices.mjs`; RPC `import_invoice` (`supabase/migrations/20261013173039_billing_import.sql`, with `*_clients_import_match.sql` and `*_services_code_lookup.sql`); pgTAP `144_billing_import`; decision BI-20.
+
+**Before:**
+1. **The clients are imported first** (I1): an invoice finds its dossier among the imported files.
+2. **The three « Revenus » exports**, for the same period: Facturation → Revenus → « par facture », « par service-produit » and « par paiement », each saved as « CSV UTF-8 » in `~/Clinique-MANA-import/`.
+3. **Optional:**
+   - `employes.csv` (the lines get their professional);
+   - `services.csv` (the legacy services get their code);
+   - a `--clients-map` file `Facture;ClientId`, for the invoices whose name the dry run could not settle (homonyms, a name changed since).
+4. **Permission:** the operator holds `billing.manage`, and Facturation is enabled.
+
+**Run:**
+```bash
+node scripts/import-gorendezvous.mjs factures --invoices ~/Clinique-MANA-import/revenus-factures.csv \
+  --lines ~/Clinique-MANA-import/revenus-services.csv --payments ~/Clinique-MANA-import/revenus-paiements.csv \
+  --employees ~/Clinique-MANA-import/employes.csv --services ~/Clinique-MANA-import/services.csv \
+  --url https://<ref>.supabase.co --anon-key <clé anon> --report ~/Clinique-MANA-import/rapport-factures.txt
+```
+- **A dry run first:** every invoice goes through `import_invoice(row, true)`. Read the report:
+  - the counts;
+  - per month, the export's invoices and money beside what will be imported;
+  - the lines set aside in each file (a line without its invoice, a payment without an invoice number, an unknown payment mode…);
+  - the invoices without a dossier (none or several with that name): left out, then added by a re-run with `--clients-map`;
+  - the invoices the database refuses, with the reason (the lines do not make the total, an unknown mode, an overpayment…).
+- **Then `--commit`:** nothing is imported if one invoice is refused. Otherwise type `importer`.
+
+**What an imported invoice is** (history):
+- its GOrendezvous number without the zeros (« 2026-0001234 » → « 2026-1234 »), and the year's numbering continues after it;
+- issued on its GOrendezvous date, billed to the client;
+- its lines and taxes as exported;
+- its payments, with « Argent comptant » as the card through QuickBooks Payments, Accès D as a bank transfer, and a negative amount as a recorded refund.
+- **Nothing is sent:** no email, no receipt, no QuickBooks event.
+- **Nothing follows it up:** it is never reminded and never blocks a booking. Its balance is followed by hand in « Factures en retard ».
+
+**After:** the invoices « payées par un tiers » (IVAC, PAE…) are counted in the report. They are billed to the client; complete their payer by hand.
 
 ## After
 - **Duplicates:** merge them in the app (« Fusionner », `clients.merge`). The import never merges.
