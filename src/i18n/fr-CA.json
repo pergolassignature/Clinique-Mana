@@ -9777,6 +9777,7 @@
             "invoice": "Facture",
             "credit_memo": "Note de crédit",
             "payment": "Paiement",
+            "refund": "Remboursement",
             "bill": "Facture du professionnel"
           },
           "statuses": {

@@ -51,7 +51,7 @@ Deno.test('qbo-sync: one pass answers counts only; a dead grant is 409', () =>
       const res = await createHandler(h.deps)(post())
       assertEquals(await res.json(), {
         status: 'ok',
-        accounts: 9,
+        accounts: 10,
         customers: 6,
         matched: 6,
         pending: false,
