@@ -10,14 +10,16 @@
 -- * `list_professional_capacity()` (D-31; `demandes.view` and `professionals.view`, first): the
 --   board — every active professional of the clinic, by name (the workbook's order, never a
 --   ranking: the panel ranks for a request), with her places (declared, taken, left, since when),
---   whether she accepts new clients, her periods, languages and clientèles, « À prioriser » and
+--   whether she accepts new clients, her periods and languages, « À prioriser » and
 --   « Bon à savoir », and the requests matched to her in the last 30 days. Totals: places left
 --   across the tracked ones (the workbook's « TOTAL DES DISPONIBILITÉS (restantes) »).
 -- * `capacity_snapshots` (D-32): one row per active professional per clinic day — declared,
 --   taken, left, accepting — written by the SQL job `demandes.capacity_snapshots` (maintenance,
---   every night; « Exécuter maintenant » runs it again: the day's row is replaced). Read by D6's
---   indicators and D4's « Place disponible ». Computed figures, not audited (000_invariants).
---   Staff read them (`demandes.view`).
+--   every night at 8:45 UTC, about 4:45 in Montréal: each row is the state at the start of the
+--   clinic's day; « Exécuter maintenant » takes it again: the day's row is replaced). Read by D6's
+--   indicators and D4's « Place disponible ». Computed figures, not audited (000_invariants); kept
+--   (about 50 rows a day: no purge). One clinic's failure fails the run for all (one clinic
+--   today; `run_sql_job` reports the code). Staff read them (`demandes.view`).
 -- Additive: one table, functions, one job.
 -- =============================================================================
 
@@ -31,7 +33,8 @@ create table public.capacity_snapshots (
   places_used int,
   places_left int,
   accepting_new_clients boolean not null,
-  created_at timestamptz not null default now(),
+  -- When the photo was taken (a rerun the same day takes it again).
+  taken_at timestamptz not null default now(),
   constraint capacity_snapshots_pkey primary key (org_id, professional_id, snapshot_on),
   constraint capacity_snapshots_professional_fkey foreign key (org_id, professional_id)
     references public.professionals (org_id, id) on delete cascade,
@@ -40,7 +43,6 @@ create table public.capacity_snapshots (
     and coalesce(places_left, 0) >= 0 and coalesce(places_used, 0) >= 0)
 );
 create index capacity_snapshots_org_day_idx on public.capacity_snapshots (org_id, snapshot_on);
-create index capacity_snapshots_org_professional_idx on public.capacity_snapshots (org_id, professional_id);
 alter table public.capacity_snapshots enable row level security;
 revoke all on public.capacity_snapshots from anon, authenticated;
 grant select on public.capacity_snapshots to authenticated;
@@ -69,7 +71,7 @@ begin
   on conflict (org_id, professional_id, snapshot_on) do update
     set places_declared = excluded.places_declared, places_used = excluded.places_used,
         places_left = excluded.places_left, accepting_new_clients = excluded.accepting_new_clients,
-        created_at = pg_catalog.now();
+        taken_at = pg_catalog.now();
   get diagnostics v_n = row_count;
   return v_n;
 end;
@@ -108,7 +110,7 @@ values
    'sql', null, 'private.job_demandes_capacity_snapshots', 'demandes.capacity_snapshots', null, true)
 on conflict do nothing;
 
-select cron.schedule('demandes.capacity_snapshots', '40 8 * * *',
+select cron.schedule('demandes.capacity_snapshots', '45 8 * * *',
   $$select private.run_sql_job('demandes.capacity_snapshots')$$);
 
 -- -----------------------------------------------------------------------------
@@ -132,13 +134,10 @@ begin
     ),
     board as (
       select f.professional_id, f.display_name, f.primary_title_label, f.accepting_new_clients, f.availability_periods,
-             f.matching_note, f.matching_priority_reason, f.min_client_age, f.women_only, f.ready, f.insurance_status,
+             f.matching_note, f.matching_priority_reason,
              pl.places_declared, pl.places_used, pl.places_left, pl.places_set_at,
              coalesce((select pg_catalog.jsonb_agg(l.name order by l.sort_order, l.name)
                          from public.languages_catalog l where l.org_id = v_org and l.code = any (f.language_codes)), '[]') as languages,
-             coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('name', e ->> 'name', 'specialized', (e ->> 'specialized')::boolean)
-                                                    order by e ->> 'name')
-                         from pg_catalog.jsonb_array_elements(f.clienteles) e), '[]') as clienteles,
              (select pg_catalog.count(*)::int from public.demandes d
                where d.org_id = v_org and d.matched_professional_id = f.professional_id
                  and d.matched_at >= pg_catalog.now() - interval '30 days') as matched_30_days

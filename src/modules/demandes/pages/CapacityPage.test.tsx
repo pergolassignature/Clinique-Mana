@@ -31,7 +31,6 @@ const row = (over: Partial<CapacityRow>): CapacityRow => ({
   places_left: 2,
   places_set_at: '2026-10-03T14:00:00Z',
   languages: ['Français'],
-  clienteles: [],
   matched_30_days: 1,
   ...over,
 })
@@ -66,16 +65,23 @@ function renderPage(role: 'counselor' | 'admin' = 'counselor', path = '/demandes
 describe('CapacityPage', () => {
   it('the board: by name, places left of declared and since when, the total; « Complets » is a warning', async () => {
     renderPage()
-    expect(await screen.findByText(t(`${C}.total`, { count: '2', tracked: '2' }))).toBeInTheDocument()
+    expect(await screen.findByText(`${t(`${C}.totalPlacesOther`, { count: '2' })} ${t(`${C}.totalTrackedOther`, { count: '2' })}`)).toBeInTheDocument()
     const table = screen.getByRole('table', { name: t(`${C}.title`) })
     const names = within(table).getAllByRole('link').map((a) => a.textContent)
     expect(names).toEqual(['Anne Places', 'Bruno Complet', 'Chloé Libre'])
-    expect(within(table).getByText(t(`${C}.placesOf`, { left: '2', declared: '3' }))).toBeInTheDocument()
-    expect(within(table).getByText(t(`${C}.placesOf`, { left: '0', declared: '2' }))).toBeInTheDocument()
+    expect(within(table).getByText(t(`${C}.placesOfOther`, { left: '2', declared: '3' }))).toBeInTheDocument()
+    expect(within(table).getByText(t(`${C}.placesOfOne`, { left: '0', declared: '2' }))).toBeInTheDocument()
+    expect(within(table).getByText('0 place restante sur 2')).toBeInTheDocument()
     expect(within(table).getByText(t(`${C}.untracked`))).toBeInTheDocument()
     expect(within(table).getByText(t(`${C}.notAccepting`))).toBeInTheDocument()
     expect(within(table).getByText('Écrire avant de réserver.')).toBeInTheDocument()
     expect(within(table).getByText('Nouvelle')).toBeInTheDocument()
+  })
+
+  it('a load error is said, with « Réessayer »', async () => {
+    mocks.api.fetchCapacityBoard.mockRejectedValue(new Error('boom'))
+    renderPage()
+    expect(await screen.findByText(t(`${C}.loadError`))).toBeInTheDocument()
   })
 
   it('views are real tabs with their counts', async () => {

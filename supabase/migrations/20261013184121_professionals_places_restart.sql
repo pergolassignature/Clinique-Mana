@@ -47,18 +47,18 @@ begin
   if not private.has_permission('professionals.matching') then
     raise exception 'Permission refusée : professionals.matching' using errcode = '42501';
   end if;
-  perform private.lock_professional(p_id);
   if p_places is not null and p_places not between 0 and 99 then
     raise exception 'Le nombre de places va de 0 à 99.' using errcode = 'P0001', hint = 'places';
   end if;
   if coalesce(p_restart, false) and p_places is null then
     raise exception 'On recommence le décompte de places suivies : indiquez le nombre.' using errcode = 'P0001', hint = 'places';
   end if;
+  perform private.lock_professional(p_id);
   perform pg_catalog.set_config('app.audit_source', 'rpc:set_professional_new_client_places', true);
   perform pg_catalog.set_config('app.restart_places_count', case when coalesce(p_restart, false) then 'on' else 'off' end, true);
   update public.professional_matching_profiles mp
      set new_client_places = p_places::smallint
-   where mp.professional_id = p_id
+   where mp.professional_id = p_id and mp.org_id = private.current_user_org_id()
      and (mp.new_client_places is distinct from p_places::smallint or coalesce(p_restart, false))
   returning mp.* into v;
   perform pg_catalog.set_config('app.restart_places_count', 'off', true);
@@ -70,7 +70,7 @@ begin
   return pg_catalog.jsonb_build_object('new_client_places', v.new_client_places, 'new_client_places_set_at', v.new_client_places_set_at);
 end;
 $$;
-revoke all on function public.set_professional_new_client_places(uuid, int, boolean) from public, anon;
+revoke all on function public.set_professional_new_client_places(uuid, int, boolean) from public, anon, authenticated, service_role;
 grant execute on function public.set_professional_new_client_places(uuid, int, boolean) to authenticated;
 
 select pg_catalog.set_config('app.audit_source', '', true);

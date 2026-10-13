@@ -33,15 +33,25 @@ export const demandesManifest: ModuleManifest = {
   nav: [
     { path: '/demandes', labelKey: 'modules.demandes.name', icon: Inbox, permission: 'demandes.view', group: 'intake', order: 12 },
     { path: '/demandes/appels', labelKey: 'modules.demandes.calls.nav', icon: PhoneOutgoing, permission: 'demandes.view', group: 'intake', order: 12.5 },
-    { path: '/demandes/places', labelKey: 'modules.demandes.capacity.nav', icon: Gauge, permission: 'professionals.view', group: 'intake', order: 12.7 },
+    {
+      path: '/demandes/places',
+      labelKey: 'modules.demandes.capacity.nav',
+      icon: Gauge,
+      permission: 'demandes.view',
+      // The board reads the professionals' facts (« Bon à savoir »): professionals.view too. Its label
+      // never says « professionnels »: « Professionnels » stays the one menu entry of that name.
+      shownWhen: (access) => access.permissions.includes('professionals.view'),
+      group: 'intake',
+      order: 12.7,
+    },
     { path: '/liste-attente', labelKey: 'modules.demandes.waitlist.name', icon: ListOrdered, permission: 'demandes.view', group: 'intake', order: 13 },
   ],
   routes: [
     { path: 'demandes', permission: 'demandes.view', component: lazyPage(() => import('./pages/DemandesInboxPage'), 'DemandesInboxPage') },
     // Before the record's route: « appels » is not a request's id.
     { path: 'demandes/appels', permission: 'demandes.view', component: lazyPage(() => import('./pages/DiscoveryCallsPage'), 'DiscoveryCallsPage') },
-    // The board (D5) reads the professionals' facts: professionals.view (the RPC checks demandes.view too).
-    { path: 'demandes/places', permission: 'professionals.view', component: lazyPage(() => import('./pages/CapacityPage'), 'CapacityPage') },
+    // The board (D5) also needs professionals.view: the page asks for it (RequireAccess), as the RPC does.
+    { path: 'demandes/places', permission: 'demandes.view', component: lazyPage(() => import('./pages/CapacityPage'), 'CapacityPage') },
     // The tab is a URL segment: accueil, participants, suivi, historique (RECORD_TABS).
     {
       path: 'demandes/:id/:onglet?',

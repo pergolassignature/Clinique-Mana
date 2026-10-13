@@ -4,7 +4,7 @@
 -- professional per day, replaced when run again), permissions.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(27);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -64,6 +64,20 @@ select ok((public.set_professional_new_client_places(current_setting('test.p1'):
   'the same number again: the day stays (P4-382)');
 select ok((public.set_professional_new_client_places(current_setting('test.p1')::uuid, 3, true) ->> 'new_client_places_set_at')::timestamptz = now(),
   '« Recommencer le décompte »: today, the same number');
+reset role;
+-- The restart is the RPC's alone: after it, another write of the profile leaves the day alone.
+alter table public.professional_matching_profiles disable trigger professional_matching_profiles_stamp_places;
+update public.professional_matching_profiles set new_client_places_set_at = now() - interval '5 days'
+ where professional_id = current_setting('test.p1')::uuid;
+alter table public.professional_matching_profiles enable trigger professional_matching_profiles_stamp_places;
+update public.professional_matching_profiles set accepting_new_clients = true where professional_id = current_setting('test.p1')::uuid;
+select ok((select new_client_places_set_at from public.professional_matching_profiles where professional_id = current_setting('test.p1')::uuid)
+            < now() - interval '4 days', 'the restart setting does not outlive the RPC');
+alter table public.professional_matching_profiles disable trigger professional_matching_profiles_stamp_places;
+update public.professional_matching_profiles set new_client_places_set_at = now() where professional_id = current_setting('test.p1')::uuid;
+alter table public.professional_matching_profiles enable trigger professional_matching_profiles_stamp_places;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.set_professional_new_client_places(current_setting('test.p1')::uuid, 120) $$, 'P0001', null, '0 to 99 places');
 select throws_ok($$ select public.set_professional_new_client_places(current_setting('test.p1')::uuid, null, true) $$, 'P0001', null,
   'a restart needs a number');
@@ -114,6 +128,34 @@ select results_eq($$ select count(*)::int, max(places_left) from public.capacity
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is_empty($$ select 1 from public.capacity_snapshots $$, 'a provider reads no snapshot');
+reset role;
+
+-- Another clinic: never her places, never her board, never her photos.
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values ('a0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+        'u9@ca.test', '', now(), '{}', '{}', now(), now());
+insert into public.organizations (id, name) values ('b0000000-0000-0000-0000-00000000000b', 'Org B');
+insert into public.profiles (user_id, org_id, display_name, email, status) values
+  ('a0000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-00000000000b', 'Conseillère B', 'u9@ca.test', 'active');
+insert into public.user_roles (user_id, org_id, role) values ('a0000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-00000000000b', 'counselor');
+insert into public.org_modules (org_id, module_key, enabled)
+select 'b0000000-0000-0000-0000-00000000000b', m, true from (values ('clients'), ('professionals'), ('demandes')) y(m);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000009","role":"authenticated"}', true);
+select throws_ok($$ select public.set_professional_new_client_places(current_setting('test.p1')::uuid, 1) $$, 'P0001', null,
+  'another clinic''s professional: unknown');
+select is(jsonb_array_length(public.list_professional_capacity() -> 'professionals'), 0, 'another clinic''s board: empty');
+select is_empty($$ select 1 from public.capacity_snapshots $$, 'another clinic''s staff read none of her photos');
+reset role;
+-- Demandes off: no board; the job skips the clinic.
+update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'demandes';
+delete from public.capacity_snapshots where org_id = 'b0000000-0000-0000-0000-00000000000a';
+select private.job_demandes_capacity_snapshots();
+select is_empty($$ select 1 from public.capacity_snapshots where org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  'Demandes off: the job skips the clinic');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.list_professional_capacity() $$, '42501', null, 'Demandes off: no board');
 reset role;
 
 select * from finish();

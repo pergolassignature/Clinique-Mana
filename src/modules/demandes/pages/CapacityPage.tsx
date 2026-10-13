@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { RequireAccess } from '@/core/access/guards'
 import { CheckboxField } from '@/shared/components/CheckboxField'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError } from '@/shared/components/LoadState'
@@ -18,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { CapacityRow } from '../api/capacity'
 import { useCapacityBoard, useSetNewClientPlaces } from '../hooks/use-capacity'
-import { CAPACITY_VIEWS, CAPACITY_VIEW_PARAM, inView, placesText, type CapacityView } from '../lib/capacity'
+import { CAPACITY_VIEWS, CAPACITY_VIEW_PARAM, inView, placesText, totalText, type CapacityView } from '../lib/capacity'
 import { demandesError } from '../lib/errors'
 import { periodsText } from '../lib/matching'
 
@@ -34,6 +35,14 @@ const C = 'modules.demandes.capacity'
  * request ranks (D4).
  */
 export function CapacityPage() {
+  return (
+    <RequireAccess permission="professionals.view">
+      <CapacityBoardPage />
+    </RequireAccess>
+  )
+}
+
+function CapacityBoardPage() {
   usePageTitle(t(`${C}.title`))
   const { can } = useAccess()
   const board = useCapacityBoard()
@@ -47,7 +56,7 @@ export function CapacityPage() {
       <PageHeader level={1} title={t(`${C}.title`)} description={t(`${C}.description`)} />
       {board.data && (
         <p className="mb-4 text-sm">
-          <span className="font-medium">{t(`${C}.total`, { count: String(board.data.total_left), tracked: String(board.data.tracked) })}</span>
+          <span className="font-medium">{totalText(board.data.total_left, board.data.tracked)}</span>
           {board.data.last_snapshot_on && (
             <span className="text-muted-foreground"> · {t(`${C}.snapshot`, { date: formatDateOnlyShort(board.data.last_snapshot_on) })}</span>
           )}
@@ -155,8 +164,12 @@ function PlacesForm({ row, onDone }: { row: CapacityRow; onDone: () => void }) {
     event.preventDefault()
     if (save.isPending) return
     const trimmed = value.trim()
+    if (trimmed !== '' && !/^\d{1,2}$/.test(trimmed)) {
+      setError(t(`${C}.form.invalid`))
+      return
+    }
     const places = trimmed === '' ? null : Number(trimmed)
-    if (places !== null && (!Number.isInteger(places) || places < 0 || places > 99)) {
+    if (places !== null && places > 99) {
       setError(t(`${C}.form.invalid`))
       return
     }

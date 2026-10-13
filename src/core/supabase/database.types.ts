@@ -1362,33 +1362,33 @@ export type Database = {
       capacity_snapshots: {
         Row: {
           accepting_new_clients: boolean
-          created_at: string
           org_id: string
           places_declared: number | null
           places_left: number | null
           places_used: number | null
           professional_id: string
           snapshot_on: string
+          taken_at: string
         }
         Insert: {
           accepting_new_clients: boolean
-          created_at?: string
           org_id: string
           places_declared?: number | null
           places_left?: number | null
           places_used?: number | null
           professional_id: string
           snapshot_on: string
+          taken_at?: string
         }
         Update: {
           accepting_new_clients?: boolean
-          created_at?: string
           org_id?: string
           places_declared?: number | null
           places_left?: number | null
           places_used?: number | null
           professional_id?: string
           snapshot_on?: string
+          taken_at?: string
         }
         Relationships: [
           {
