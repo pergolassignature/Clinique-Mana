@@ -268,7 +268,7 @@ describe('QuestionnairePage — steps', () => {
     expect(frame).toHaveAttribute('data-token', 'tok_1')
     expect(mocks.consentSign.startConsentSigning).toHaveBeenCalledWith(expect.any(String), { returnTo: 'questionnaire', returnStep: 'consentement' })
     // The fallback link is always there, to the full signing page in this window.
-    expect(screen.getByRole('link', { name: t('modules.professionals.consentSign.openInPage') })).toHaveAttribute('href', 'http://127.0.0.1:55390/sign/tok_1')
+    expect(screen.getByRole('link', { name: t('signing.embedded.fr.openInPage') })).toHaveAttribute('href', 'http://127.0.0.1:55390/sign/tok_1')
     mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
       available: true,
       validUntil: '2100-12-31',

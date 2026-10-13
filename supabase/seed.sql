@@ -500,3 +500,18 @@ begin
 end;
 $clients$;
 
+-- Local clients (C5a): one fictitious adult client with a Mailpit address, so the consents can be
+-- sent and signed locally (e2e/consents.spec.ts) before the client screens (C3) exist.
+insert into public.clients (id, org_id, first_name, last_name, birthday, email, language, created_by)
+values ('c11e0000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Camille', 'Exemple',
+        date '1990-04-12', 'camille.exemple@mana.test', 'fr', '11111111-1111-1111-1111-111111111111');
+
+-- Local consent texts (C5a): the French « Consentement général » and « Liste d'attente » drafts lose
+-- the « Texte provisoire » line (the app never offers to publish a placeholder), so e2e can publish
+-- and sign them locally. Fictitious wording; the clinic's texts come with « Mise en service ».
+update public.document_template_versions v
+   set body = jsonb_set(v.body, '{blocks,0,runs,0,text}', '"Texte local fictif, pour les essais seulement."')
+  from public.document_templates t
+ where t.id = v.template_id and v.status = 'draft'
+   and t.org_id = '00000000-0000-0000-0000-000000000001'
+   and t.key in ('clients.consent_general_fr', 'clients.consent_waitlist_fr');

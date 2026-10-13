@@ -1,4 +1,4 @@
-import { Contact, UsersRound } from 'lucide-react'
+import { Contact, FileCheck, UsersRound } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -10,27 +10,51 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 const hasProfessionalFile = (access: Access) => access.has_professional_file
 
 /**
+ * `/consentement#t=…` (C5a): where a consent request email lands. Public, outside RequireAuth;
+ * the app registers it with the other public pages (`src/app/public-pages.ts`).
+ */
+export const consentPublicPage = lazyPage(() => import('./pages/public/ConsentPublicPage'), 'ConsentPublicPage')
+
+/**
  * Module Clients (plan §6): the clinic's client files, their relations and rights, insurance,
  * payers (IVAC, PAE), tags, the professionals who may see them; duplicates, merge and Loi 25.
- * Screens (C3): « Clients » (the list, « Nouveau client », the record) for the staff, « Mes
- * clients » for a professional. Depends on Professionnels (primary professional, who may see a
- * client).
+ * Screens: « Clients » (the list, « Nouveau client », the record, C3) for the staff, « Mes
+ * clients » for a professional; the consents (C5a: « Consentements à obtenir », Paramètres →
+ * Consentements, the public page). Depends on Professionnels (primary professional, who may see
+ * a client).
  */
 export const clientsManifest: ModuleManifest = {
   key: 'clients',
   labelKey: 'modules.clients.name',
   dependsOn: ['professionals'],
   nav: [
-    { path: '/clients', labelKey: 'modules.clients.name', icon: UsersRound, permission: 'clients.view', order: 20 },
+    { path: '/clients', labelKey: 'modules.clients.name', icon: UsersRound, permission: 'clients.view', order: 15 },
+    { path: '/clients/consentements', labelKey: 'modules.clients.consents.nav', icon: FileCheck, permission: 'clients.view', order: 16 },
     { path: '/mes-clients', labelKey: 'modules.clients.mine.title', icon: Contact, permission: 'clients.self', shownWhen: hasProfessionalFile, order: 7 },
   ],
   routes: [
     { path: 'clients', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientsListPage'), 'ClientsListPage') },
+    {
+      path: 'clients/consentements',
+      permission: 'clients.view',
+      component: lazyPage(() => import('./pages/ConsentsToObtainPage'), 'ConsentsToObtainPage'),
+    },
     // The tab is a URL segment: apercu, informations… (RECORD_TABS)
     { path: 'clients/:id/:onglet?', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientRecordPage'), 'ClientRecordPage') },
     { path: 'mes-clients', permission: 'clients.self', component: lazyPage(() => import('./pages/MyClientsPage'), 'MyClientsPage') },
   ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.clientsAuditLabels),
-  settingsSections: [],
+  settingsSections: [
+    {
+      id: 'consents',
+      path: 'consentements',
+      labelKey: 'modules.clients.consents.settings.title',
+      icon: FileCheck,
+      permission: 'clients.view',
+      editPermission: 'clients.manage',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/ConsentsSettingsPage'), 'ConsentsSettingsPage'),
+    },
+  ],
 }

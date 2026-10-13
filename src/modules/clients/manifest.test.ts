@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { clientsManifest } from './index'
+import { clientsManifest, consentPublicPage } from './index'
 
 describe('clientsManifest', () => {
   it('uses the English module key, depends on professionals; French routes, code-split pages', () => {
@@ -9,15 +9,29 @@ describe('clientsManifest', () => {
     expect(clientsManifest.dependsOn).toEqual(['professionals'])
     expect(clientsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['clients', 'clients.view'],
+      ['clients/consentements', 'clients.view'],
       ['clients/:id/:onglet?', 'clients.view'],
       ['mes-clients', 'clients.self'],
     ])
     for (const route of clientsManifest.routes) expect(typeof route.component.preload).toBe('function')
-    expect(clientsManifest.settingsSections).toEqual([])
+  })
+
+  it('« Consentements à obtenir » and Paramètres → Consentements (C5a): French paths, seen with clients.view, changed with clients.manage', () => {
+    expect([clientsManifest.nav ?? []].flat()).toContainEqual(
+      expect.objectContaining({ path: '/clients/consentements', permission: 'clients.view', labelKey: 'modules.clients.consents.nav' }),
+    )
+    expect(t('modules.clients.consents.nav')).toBe('Consentements')
+    expect(clientsManifest.settingsSections.map((s) => [s.id, s.path, s.permission, s.editPermission, s.group])).toEqual([
+      ['consents', 'consentements', 'clients.view', 'clients.manage', 'modules'],
+    ])
+  })
+
+  it('exports the public consent page as a lazy page (nothing of it loads with the manifest)', () => {
+    expect(typeof consentPublicPage.preload).toBe('function')
   })
 
   it('« Clients » for the staff, « Mes clients » for an account linked to a professional file', () => {
-    const [staff, mine] = [clientsManifest.nav ?? []].flat()
+    const [staff, , mine] = [clientsManifest.nav ?? []].flat()
     expect(staff).toMatchObject({ path: '/clients', permission: 'clients.view' })
     expect(mine).toMatchObject({ path: '/mes-clients', permission: 'clients.self' })
     expect(mine?.shownWhen?.({ has_professional_file: false } as never)).toBe(false)

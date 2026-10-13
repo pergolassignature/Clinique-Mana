@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { CircleCheck } from 'lucide-react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { EmbeddedSigning } from '@/core/signing/components/EmbeddedSigning'
 import { SignedDocumentDownloads } from '@/core/signing/components/SignedDocumentDownloads'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -11,7 +12,6 @@ import type { SigningReturn } from '../../api/consent-sign'
 import { useConsentSigning, useMyImageConsent } from '../../hooks/use-consent-sign'
 import { RefusalAlert } from '../compensation/DatedRowParts'
 import { consentInForceText, SIGNED_PARAM } from '../../lib/consent-sign'
-import { EmbeddedSigning } from './EmbeddedSigning'
 
 const S = 'modules.professionals.consentSign'
 /**
@@ -92,7 +92,7 @@ export function ConsentSigning({ back, variant, cardSaysInForce = false }: { bac
     return <p className="text-sm text-muted-foreground">{t(variant === 'step' ? `${S}.notPublished` : `${S}.notPublishedDocuments`)}</p>
   }
   if (signing.link) {
-    return <EmbeddedSigning link={signing.link} onCompleted={signing.completed} onClose={signing.close} />
+    return <EmbeddedSigning link={signing.link} title={t(`${S}.frameTitle`)} onCompleted={signing.completed} onClose={signing.close} />
   }
   const label = variant === 'step' ? t(`${S}.sign`) : t(`${S}.fill`)
   return (

@@ -65,6 +65,7 @@ describe('ClientRecordPage', () => {
       'Informations',
       'Proches',
       'Assurance et payeurs',
+      'Consentements',
       'Visites et paiements',
     ])
     expect(within(tabs).getByRole('tab', { name: 'Aperçu' })).toHaveAttribute('aria-selected', 'true')

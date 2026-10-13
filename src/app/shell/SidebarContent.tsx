@@ -50,6 +50,8 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
             <GuardedNavLink
               key={item.path}
               to={item.path}
+              // « Clients » is not also active on « /clients/consentements » (another item).
+              end={navItems.some((other) => other.path.startsWith(`${item.path}/`))}
               onClick={onLinkClick && ((event) => onLinkClick(event, item.path))}
               title={collapsed ? label : undefined}
               className={({ isActive }) =>
