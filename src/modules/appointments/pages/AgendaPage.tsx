@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { BellOff, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { rpcErrorHint } from '@/core/modules/errors'
@@ -21,6 +21,7 @@ import { ExceptionsPanel, RuleDialog, type RuleTarget } from '../components/Avai
 import { MonthView } from '../components/MonthView'
 import { TimeGrid, type GridColumn } from '../components/TimeGrid'
 import { UpcomingList } from '../components/UpcomingList'
+import { WithoutReminderSheet } from '../components/WithoutReminderSheet'
 import { useAgenda, useAgendaReference, useAvailability, useMoveAppointment } from '../hooks/use-agenda'
 import { servicesFor, weekdayLabel } from '../lib/display'
 import { addDays, daysFrom, hhmm, isoWeekday, monthGrid, rangeOf, startOfWeek } from '../lib/time'
@@ -52,6 +53,7 @@ function Agenda({ reference }: { reference: AgendaReference }) {
   const { can } = useAccess()
   const canWrite = can('appointments.manage')
   const [params, setParams] = useSearchParams()
+  const [unreachable, setUnreachable] = useState(false)
   const today = getClinicDateString(new Date())
   const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : 'semaine'
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : today
@@ -150,14 +152,26 @@ function Agenda({ reference }: { reference: AgendaReference }) {
         title={t(`${A}.title`)}
         description={t(`${A}.description`)}
         actions={
-          canWrite && mode === 'rendez-vous' ? (
-            <Button type="button" onClick={() => setSheet({ kind: 'create', professionalId: pro, day, time: '09:00' })}>
-              <Plus aria-hidden />
-              {t(`${A}.new`)}
+          <>
+            <Button type="button" variant="outline" onClick={() => setUnreachable(true)}>
+              <BellOff aria-hidden />
+              {t('modules.appointments.withoutReminder.title')}
             </Button>
-          ) : undefined
+            {canWrite && mode === 'rendez-vous' && (
+              <Button type="button" onClick={() => setSheet({ kind: 'create', professionalId: pro, day, time: '09:00' })}>
+                <Plus aria-hidden />
+                {t(`${A}.new`)}
+              </Button>
+            )}
+          </>
         }
       />
+      {unreachable && (
+        <WithoutReminderSheet
+          professionalName={(id) => reference.professionals.find((p) => p.id === id)?.name ?? ''}
+          onClose={() => setUnreachable(false)}
+        />
+      )}
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <Tabs value={effectiveView} onValueChange={(v) => update({ vue: v === 'semaine' ? null : v, mode: null })}>
           <TabsList aria-label={t(`${A}.views`)}>

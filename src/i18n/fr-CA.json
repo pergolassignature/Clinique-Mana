@@ -8157,6 +8157,23 @@
         "to": "Au",
         "toTime": "Heure",
         "label": "Libellé"
+      },
+      "confirm": {
+        "title": "Confirmer votre rendez-vous",
+        "bodyVideo": "{clinic} : rendez-vous le {when} avec {professional}, par vidéo.",
+        "bodyPhone": "{clinic} : rendez-vous le {when} avec {professional}, par téléphone.",
+        "call": "Pour annuler ou changer ce rendez-vous, appelez la clinique.",
+        "button": "Confirmer ma présence",
+        "done": "Merci : votre présence est confirmée.",
+        "already": "Votre présence à ce rendez-vous est déjà confirmée.",
+        "invalid": "Ce lien ne peut plus être utilisé. Pour toute question, appelez la clinique.",
+        "error": "La confirmation n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique."
+      },
+      "withoutReminder": {
+        "title": "Clients sans rappel",
+        "description": "Les rendez-vous des 7 prochains jours dont personne ne peut recevoir de rappel (aucun courriel, aucun texto autorisé) : appelez ces clients.",
+        "empty": "Tous les clients des 7 prochains jours recevront un rappel.",
+        "loadError": "La liste des clients sans rappel ne se charge pas."
       }
     }
   },

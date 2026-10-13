@@ -11,6 +11,9 @@ import { lazyPage } from '@/shared/lib/lazy-page'
  * comes with R5. Depends on Clients (the files), Services et tarifs (durations, « pause après »,
  * who offers what) and Professionnels.
  */
+/** `/rendez-vous/confirmer#t=…` (R4): « Confirmer ma présence », from a confirmation, reminder or change email. Public. */
+export const confirmAppointmentPublicPage = lazyPage(() => import('./pages/public/ConfirmAppointmentPage'), 'ConfirmAppointmentPage')
+
 export const appointmentsManifest: ModuleManifest = {
   key: 'appointments',
   labelKey: 'modules.appointments.name',
