@@ -70,11 +70,18 @@ export function useDemandesRealtime(enabled: boolean) {
   })
 }
 
-/** After a write on a request: its lists, counters and record are read again. */
+/**
+ * After a write on a request: its lists, counters and record are read again. On a matched request
+ * a file added is linked to her and may get her as primary professional (D-41): Clients' screens
+ * read again too (the state as the record last read it).
+ */
 function useAfterWrite() {
   const queryClient = useQueryClient()
   return (id: string) =>
     Promise.all([
+      queryClient.getQueryData<Awaited<ReturnType<typeof getDemande>>>(demandesKeys.record(id))?.demande.state === 'matched'
+        ? queryClient.invalidateQueries({ queryKey: ['clients'] })
+        : undefined,
       queryClient.invalidateQueries({ queryKey: demandesKeys.waitlist() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.calls() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.propositions() }),

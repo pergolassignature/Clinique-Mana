@@ -296,7 +296,8 @@ export type ConsentState = (typeof CONSENT_STATES)[number]
 const consentsSchema = z.array(
   z.object({
     client_id: z.string(),
-    consents: z.array(z.object({ key: z.string(), name: z.string(), state: z.enum(CONSENT_STATES) })),
+    // A state Clients adds later reads as « à faire signer », never an error for the whole tab.
+    consents: z.array(z.object({ key: z.string(), name: z.string(), state: z.enum(CONSENT_STATES).catch('missing') })),
   }),
 )
 export type DemandeFileConsents = z.infer<typeof consentsSchema>[number]

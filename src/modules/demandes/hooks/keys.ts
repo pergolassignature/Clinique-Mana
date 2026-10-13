@@ -21,7 +21,8 @@ import type { CallsPeriod } from '../api/calls'
  * | a proposal made or withdrawn (D3b); realtime              | also `propositions()`, the record  |
  * | the matching panel (D4) is `record(id)`'s child: any write on the request reads it again        |
  * | the files' consents (D-39) are `record(id)`'s child too                                         |
- * | « Jumelée » (D-38): also Clients' root `['clients']` (the files' links, primary professional)    |
+ * | « Jumelée » (D-38), or any write on a matched request: also Clients' root `['clients']`          |
+ * | (the files' links and primary professional, D-41)                                               |
  */
 export const demandesKeys = {
   all: ['demandes'] as const,

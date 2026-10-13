@@ -23,7 +23,8 @@
 --   `required_consents_for` and `client_consents_status` (pending past its due date → overdue).
 --   Nothing is copied onto the request.
 -- * A-6 (D-41) At the match (and when a file is added to a matched request), the files without a
---   primary professional get her: `private.demandes_link_clients` now calls Clients'
+--   primary professional get her, and so do those whose primary professional is the request's
+--   previous match (a request matched again): `private.demandes_link_clients` now calls Clients'
 --   `clients_fill_primary_professional`.
 -- * B-3 (D-38) « Jumelée » by hand needs no change here: `set_demande_state(…, 'matched', …,
 --   p_professional_id)` already exists (D-2); the screens offer it now.
@@ -337,8 +338,10 @@ $$;
 -- -----------------------------------------------------------------------------
 -- The matched professional sees the request's client and its participants' files (Clients'
 -- clients_link_professional, reason `demande`), and the files without a primary professional get
--- her (Clients' clients_fill_primary_professional, D-41): called at the match, and when a client
--- is added to a matched request.
+-- her (Clients' clients_fill_primary_professional, D-41), as do those whose primary professional
+-- is the request's previous match: the last `matched` event, written after this call by both
+-- matching paths (`set_demande_state`, an accepted proposal), so at a new match it names the one
+-- before. Called at the match, and when a client is added to a matched request.
 create or replace function private.demandes_link_clients(p_org uuid, p_demande uuid)
 returns void
 language plpgsql
@@ -346,6 +349,7 @@ set search_path = ''
 as $$
 declare
   v_pro uuid;
+  v_previous uuid;
   v_ids uuid[];
   v_client uuid;
 begin
@@ -362,7 +366,12 @@ begin
   foreach v_client in array v_ids loop
     perform private.clients_link_professional(p_org, v_client, v_pro, 'demande');
   end loop;
-  perform private.clients_fill_primary_professional(p_org, v_ids, v_pro);
+  select e.professional_id into v_previous from public.demande_events e
+   where e.demande_id = p_demande and e.org_id = p_org and e.kind = 'state_changed' and e.to_state = 'matched'
+     and e.professional_id is not null
+   order by e.at desc, e.id desc
+   limit 1;
+  perform private.clients_fill_primary_professional(p_org, v_ids, v_pro, v_previous);
 end;
 $$;
 
@@ -527,7 +536,9 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Null when the request is not the caller's clinic's. One element per file (the request's first,
 -- then the participants' in their order): { client_id, consents: [{ key, name, state }] }, the
--- consents the situation requires (Clients' rules: `general`, and the payer kind: IVAC, PAE) with
+-- consents the situation requires (Clients' rules: `general`, the payer kind: IVAC, PAE, and, once
+-- matched, the professional's status: an intern, i.e. one with a supervisor, from Professionnels'
+-- `professional_receipt_facts`) with
 -- their state: signed, resign (« À signer de nouveau »), pending, overdue (a request past its due
 -- date, from `client_consents_status`), missing. Read each time, never copied onto the request:
 -- it never blocks a match (R-47).
@@ -542,6 +553,7 @@ declare
   v_org uuid := private.current_user_org_id();
   v_row public.demandes;
   v_payer text;
+  v_status text;
 begin
   perform private.demandes_require('demandes.view');
   select * into v_row from public.demandes d where d.id = p_id and d.org_id = v_org;
@@ -549,6 +561,10 @@ begin
     return null;
   end if;
   v_payer := case v_row.payer_kind when 'eap' then 'pae' when 'ivac' then 'ivac' end;
+  if v_row.state = 'matched' and v_row.matched_professional_id is not null then
+    select case when f.supervisor_id is not null then 'intern' end into v_status
+      from private.professional_receipt_facts(v_org, array[v_row.matched_professional_id]) f;
+  end if;
   return coalesce((
     with files as (
       select v_row.client_id as client_id, 0 as primary_rank, '-infinity'::timestamptz as created_at
@@ -575,7 +591,7 @@ begin
                                            and s.consent_key = r.consent_key and s.state = 'overdue')
                                       then 'overdue' else r.state end)
                       order by t.sort_order, r.consent_key)
-                 from private.required_consents_for(v_org, o.client_id, null, v_payer, null, '{}') r
+                 from private.required_consents_for(v_org, o.client_id, null, v_payer, v_status, '{}') r
                  left join public.client_consent_types t on t.org_id = v_org and t.key = r.consent_key), '[]'::jsonb))
            order by o.primary_rank, o.created_at, o.client_id)
       from one o), '[]'::jsonb);

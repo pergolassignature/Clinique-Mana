@@ -18,27 +18,27 @@ test('the intake\'s follow-ups, the couple count, and a match by hand', async ({
   await dialog.getByRole('button', { name: 'Créer la demande' }).click()
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
 
-  // « Enjeux » Oui → Coparentalité with a comment; « Contexte légal » Oui → DPJ; saved, then read back.
+  // « Enjeux » Oui → Coparentalité (the issue, not the motif of the same name) with a comment; « Contexte légal » Oui → DPJ; saved, then read back.
   await page.getByRole('combobox', { name: 'Pour qui' }).selectOption('couple')
   await page.getByRole('combobox', { name: 'Enjeux' }).selectOption('yes')
-  await page.getByRole('checkbox', { name: 'Coparentalité' }).check()
+  await page.getByRole('group', { name: 'Enjeux nommés' }).getByRole('checkbox', { name: 'Coparentalité' }).check()
   await page.getByRole('textbox', { name: 'Précisions sur les enjeux' }).fill('Garde partagée')
   await page.getByRole('combobox', { name: 'Contexte légal' }).selectOption('yes')
-  await page.getByRole('checkbox', { name: 'DPJ' }).check()
+  await page.getByRole('group', { name: 'Contexte légal nommé' }).getByRole('checkbox', { name: 'DPJ' }).check()
   await page.getByRole('button', { name: 'Enregistrer' }).last().click()
   await expect(page.getByText("L'accueil est enregistré.")).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('checkbox', { name: 'Coparentalité' })).toBeChecked()
+  await expect(page.getByRole('group', { name: 'Enjeux nommés' }).getByRole('checkbox', { name: 'Coparentalité' })).toBeChecked()
   await expect(page.getByRole('textbox', { name: 'Précisions sur les enjeux' })).toHaveValue('Garde partagée')
 
   // « Non » clears what follows.
   await page.getByRole('combobox', { name: 'Contexte légal' }).selectOption('no')
-  await expect(page.getByRole('checkbox', { name: 'DPJ' })).toBeHidden()
+  await expect(page.getByRole('group', { name: 'Contexte légal nommé' }).getByRole('checkbox', { name: 'DPJ' })).toBeHidden()
   await page.getByRole('button', { name: 'Enregistrer' }).last().click()
   await expect(page.getByText("L'accueil est enregistré.").first()).toBeVisible()
   await page.reload()
   await page.getByRole('combobox', { name: 'Contexte légal' }).selectOption('yes')
-  await expect(page.getByRole('checkbox', { name: 'DPJ' })).not.toBeChecked()
+  await expect(page.getByRole('group', { name: 'Contexte légal nommé' }).getByRole('checkbox', { name: 'DPJ' })).not.toBeChecked()
   await page.getByRole('combobox', { name: 'Contexte légal' }).selectOption('no')
 
   // A couple with nobody listed yet: said, never blocked.

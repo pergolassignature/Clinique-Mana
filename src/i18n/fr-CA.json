@@ -7919,11 +7919,11 @@
           "previousComment": "Précisions sur les consultations",
           "issues": "Enjeux",
           "issuesHelp": "Par exemple une coparentalité.",
-          "issuesWhich": "Lesquels",
+          "issuesWhich": "Enjeux nommés",
           "issuesComment": "Précisions sur les enjeux",
           "legal": "Contexte légal",
           "legalHelp": "Un fait (une ordonnance, la DPJ), jamais un dossier clinique.",
-          "legalWhich": "Lequel",
+          "legalWhich": "Contexte légal nommé",
           "legalDetail": "Précisions sur le contexte légal",
           "motifOther": "Autre motif",
           "motifOtherHelp": "Un motif nommé par la personne qui n'est pas dans la liste."

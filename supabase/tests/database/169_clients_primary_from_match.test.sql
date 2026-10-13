@@ -3,7 +3,7 @@
 -- alone. Granted to no role.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(8);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -41,6 +41,17 @@ select is((select primary_professional_id from public.clients where id = 'd00000
   'a merged file is left alone');
 select is(private.clients_fill_primary_professional('b0000000-0000-0000-0000-00000000000a', '{}', 'c0000000-0000-0000-0000-000000000001'), 0,
   'no file: nothing');
+
+-- p_replace (a request matched again): her primary moves; another professional's stays.
+update public.clients set primary_professional_id = 'c0000000-0000-0000-0000-000000000002' where id = 'd0000000-0000-0000-0000-000000000003';
+select is(private.clients_fill_primary_professional('b0000000-0000-0000-0000-00000000000a',
+  array['d0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003']::uuid[],
+  'c0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001'), 1, 'the previous match''s file moves');
+select results_eq($$ select id, primary_professional_id from public.clients
+                      where id in ('d0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000002') order by id $$,
+  $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, 'c0000000-0000-0000-0000-000000000002'::uuid),
+            ('d0000000-0000-0000-0000-000000000002'::uuid, 'c0000000-0000-0000-0000-000000000002'::uuid) $$,
+  'Alice now with the new professional; nothing else touched');
 
 select * from finish();
 rollback;

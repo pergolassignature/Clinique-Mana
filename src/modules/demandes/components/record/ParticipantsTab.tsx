@@ -319,10 +319,14 @@ function ConsentsSummary({ files, failed, labelOf }: { files: DemandeFileConsent
       <AlertDescription>
         <ul className="space-y-0.5">
           {files
-            .filter((file) => !fileConsentStatus(file).valid)
-            .map((file) => (
+            .map((file, index) => ({ file, index }))
+            .filter(({ file }) => !fileConsentStatus(file).valid)
+            .map(({ file, index }) => (
               <li key={file.client_id}>
-                {t(`${P}.consents.fileLine`, { file: labelOf(file.client_id), status: fileConsentStatus(file).label })}
+                {t(`${P}.consents.fileLine`, {
+                  file: labelOf(file.client_id) || t(`${P}.person`, { n: String(index + 1) }),
+                  status: fileConsentStatus(file).label,
+                })}
               </li>
             ))}
         </ul>

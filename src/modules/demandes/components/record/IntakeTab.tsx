@@ -345,16 +345,15 @@ function IntakeForm() {
             {comment('previous_comment', t(`${A}.need.previousComment`))}
           </div>
         )}
-        <FormRow>
-          {yesNoField('has_issues', t(`${A}.need.issues`), t(`${A}.need.issuesHelp`))}
-          {yesNoField('has_legal_context', t(`${A}.need.legal`), t(`${A}.need.legalHelp`))}
-        </FormRow>
+        {/* Each question, then what follows it (the tab order keeps them together). */}
+        <FormRow>{yesNoField('has_issues', t(`${A}.need.issues`), t(`${A}.need.issuesHelp`))}</FormRow>
         {values.has_issues === 'yes' && (
           <div className="space-y-3 border-l-2 border-border-light pl-3">
             {codes('issues', 'issue', ISSUES, t(`${A}.need.issuesWhich`))}
             {comment('issues_comment', t(`${A}.need.issuesComment`))}
           </div>
         )}
+        <FormRow>{yesNoField('has_legal_context', t(`${A}.need.legal`), t(`${A}.need.legalHelp`))}</FormRow>
         {values.has_legal_context === 'yes' && (
           <div className="space-y-3 border-l-2 border-border-light pl-3">
             {codes('legal_context', 'legalContext', LEGAL_CONTEXTS, t(`${A}.need.legalWhich`))}

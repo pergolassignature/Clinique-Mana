@@ -4,7 +4,7 @@
 -- and the consents of the request's files read live.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(30);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -24,7 +24,9 @@ insert into auth.users (id, instance_id, aud, role, email, encrypted_password, e
 select ('a0000000-0000-0000-0000-00000000000' || n)::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
        'u' || n || '@pa.test', '', now(), '{}', '{}', now(), now()
   from generate_series(1, 2) n;
-insert into public.organizations (id, name) values ('b0000000-0000-0000-0000-00000000000a', 'Org A');
+insert into public.organizations (id, name) values ('b0000000-0000-0000-0000-00000000000a', 'Org A'), ('b0000000-0000-0000-0000-00000000000b', 'Org B');
+insert into public.demandes (id, org_id, reference, reference_year, reference_seq, contact_name)
+values ('e0000000-0000-0000-0000-0000000000bb', 'b0000000-0000-0000-0000-00000000000b', 'DEM-2026-9001', 2026, 9001, 'Ailleurs');
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'u1@pa.test', 'active'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Pro A', 'u2@pa.test', 'active');
@@ -127,6 +129,21 @@ select is((select count(*)::int from public.client_professional_links
               and client_id in ('d0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000002')), 2,
   'both files linked to her');
 
+-- Matched again, to another: the file the first match filled moves to her (D-41: p_replace).
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select public.set_demande_state(current_setting('test.d')::uuid, 'accepted');
+select public.set_demande_state(current_setting('test.d')::uuid, 'matched', null, 'c0000000-0000-0000-0000-000000000002');
+reset role;
+select is((select primary_professional_id from public.clients where id = 'd0000000-0000-0000-0000-000000000001'),
+  'c0000000-0000-0000-0000-000000000002'::uuid, 'matched again: the primary professional the first match set is replaced');
+
+-- The follow-ups' free text never reaches the journal.
+select is((select count(*)::int from public.audit_log a where a.table_name = 'demandes' and a.record_id = current_setting('test.d')
+             and (strpos(a::text, 'Garde partagée') > 0 or strpos(a::text, 'Il y a deux ans') > 0
+                  or strpos(a::text, 'Suivi en cours') > 0 or strpos(a::text, 'Deuil d''un animal') > 0)), 0,
+  'the comments and « Autre motif » are redacted in the audit');
+
 -- =============================================================================
 -- B-4: the consents, live
 -- =============================================================================
@@ -141,7 +158,30 @@ select results_eq($$ select (f ->> 'client_id')::uuid, c ->> 'key', c ->> 'state
   $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, 'general', 'signed'),
             ('d0000000-0000-0000-0000-000000000002'::uuid, 'general', 'missing') $$,
   'per file, in order: the general consent signed for one, missing for the other');
-select is(public.demande_consents(gen_random_uuid()), null, 'another clinic''s or an unknown request: null');
+select is(public.demande_consents(gen_random_uuid()), null, 'an unknown request: null');
+select is(public.demande_consents('e0000000-0000-0000-0000-0000000000bb'), null, 'another clinic''s request: null');
+reset role;
+-- The payer kind (PAE → Clients' `pae`), the matched professional's status (an intern: she has a
+-- supervisor), and a request sent but past its due date (« en retard »).
+update public.demandes set payer_kind = 'eap' where id = current_setting('test.d')::uuid;
+update public.professionals set supervisor_professional_id = 'c0000000-0000-0000-0000-000000000001' where id = 'c0000000-0000-0000-0000-000000000002';
+update public.client_consent_rules set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and consent_key in ('eap', 'intern');
+insert into public.client_consent_requests (org_id, client_id, consent_key, language, template_version_id, due_at)
+select 'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000002', 'general', 'en', v.id, now() - interval '1 day'
+  from public.document_template_versions v join public.document_templates t on t.id = v.template_id
+ where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'clients.consent_general_en' and v.version = 1;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select (f ->> 'client_id')::uuid, c ->> 'key', c ->> 'state'
+                       from jsonb_array_elements(public.demande_consents(current_setting('test.d')::uuid)) f
+                       cross join jsonb_array_elements(f -> 'consents') c $$,
+  $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, 'general', 'signed'),
+            ('d0000000-0000-0000-0000-000000000001'::uuid, 'intern', 'missing'),
+            ('d0000000-0000-0000-0000-000000000001'::uuid, 'eap', 'missing'),
+            ('d0000000-0000-0000-0000-000000000002'::uuid, 'general', 'overdue'),
+            ('d0000000-0000-0000-0000-000000000002'::uuid, 'intern', 'missing'),
+            ('d0000000-0000-0000-0000-000000000002'::uuid, 'eap', 'missing') $$,
+  'the PAE payer and the intern professional add their consents; a request past its date is late');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.demande_consents(current_setting('test.d')::uuid) $$, '42501', null, 'a provider reads none');
 reset role;

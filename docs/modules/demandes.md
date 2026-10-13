@@ -267,23 +267,24 @@ Migrations `20261013210942_clients_primary_from_match` (Clients) and `2026101321
 - **Participants' files (B-1, D-37):**
   - « Ajouter un dossier de la clinique » in « Participants » opens Clients' picker (search, or « Nouveau client » with its duplicate check). The file joins the list, as « Conjoint ou conjointe » on a couple request; it is saved with the set.
   - A couple request that does not count two people, or a family that counts fewer than two, is said in plain words. It is never blocked, as in legacy.
-  - A proposal books the request's file and the participants' other files, the main person first: all of them, two at most (an appointment counts two clients). A couple service with one file asks for the second person's; three files or more are refused in plain words (book in the agenda). The helper is `private.demandes_booking_clients`.
+  - A proposal books the request's file and the participants' other files, the main person first: all of them, two at most (an appointment counts two clients). A couple service with one file asks for the second person's; three files or more are refused in plain words (book in the agenda). Before, a family's proposal booked the main file alone; Christine is asked whether the refusal suits her (status doc, « À confirmer »). The helper is `private.demandes_booking_clients`.
 - **The intake's follow-ups (B-2, D-40)**, legacy's questions, labels « déléguée — révisable » until Christine confirms the wording:
   - « Enjeux » oui / non → Coparentalité, Autre, and « Précisions sur les enjeux »;
   - « Déjà consulté » (the existing `previous_therapy`) → « Professionnels consultés » (Psychologue, Travailleuse sociale ou travailleur social, Psychoéducatrice ou psychoéducateur, Médecin, Autre) and « Précisions sur les consultations »;
   - « Contexte légal » oui / non → Ordonnance du tribunal, DPJ, and « Précisions sur le contexte légal »;
   - « Autre motif » (a motif not in the list) and « Autres disponibilités ».
 
-  « Non », or no answer, clears what follows: the screen at once, and the database before every write (`private.demandes_clear_followups`, with a check). The comments and « Autre motif » are redacted in the journal like `concerns`. No diagnostic field (D8). `create_demande` and `update_demande` accept the new keys.
+  The issue « Coparentalité » sits beside the motif of the same name: the groups are « Enjeux nommés » and « Contexte légal nommé », and the wording is on Christine's list. « Non », or no answer, clears what follows: the screen at once, and the database before every write (`private.demandes_clear_followups`, with a check). The comments and « Autre motif » are redacted in the journal like `concerns`. No diagnostic field (D8). `create_demande` and `update_demande` accept the new keys.
 - **« Jumelée » by hand (B-3, D-38):** for a person matched and booked by phone.
   - « Passer à Jumelée » (from « Acceptée », « Proposée » or the waiting list) asks for the professional: any active one of the clinic. « Jumeler » on a row of « Jumelage » presets her.
   - It calls `set_demande_state(…, 'matched', …, p_professional_id)`. A pending proposal is withdrawn and the waiting list closes, as before.
 - **Consents per file (B-4, D-39):** `demande_consents(p_id)` (`demandes.view`) gives, for the request's file and each participant's, the consents its situation requires and their state.
-  - The requirements are Clients' rules: `general`, plus the payer kind (IVAC, PAE).
+  - The requirements are Clients' rules: `general`, the payer kind (IVAC, PAE), and once matched the professional's status (an intern, one with a supervisor: Professionnels' `professional_receipt_facts`).
   - The states are signed, « à signer de nouveau », sent, late (`client_consents_status`), and to be signed.
-  - It is read live each time; nothing is copied onto the request.
+  - It is read live each time; nothing is copied onto the request. A state Clients adds later reads as « à faire signer » on the screen.
   - « Participants » shows a badge per file, and one line for the request: « Tous les consentements requis … sont valides », or what to settle, file by file. It never blocks the match or the proposal.
-- **The primary professional (A-6, D-41):** at the match, and when a file is added to a matched request, the files without a primary professional get her. This goes through Clients' `private.clients_fill_primary_professional`; a file that has one keeps it, merged and anonymised files are left alone.
+- **The primary professional (A-6, D-41):** at the match, and when a file is added to a matched request, the files without a primary professional get her. A request matched again moves to the new professional the files whose primary is the previous match (the last `matched` event): a mistaken « Jumeler » is undone by matching again. This goes through Clients' `private.clients_fill_primary_professional`; a file with another primary professional keeps it, merged and anonymised files are left alone. Clients' screens read again after the match and after any write on a matched request.
+- **Not yet in `my_demandes`:** the professional's read keeps its columns; whether she sees « Autre motif » and « Autres disponibilités » is asked of Christine.
 
 ## What the module publishes
 
