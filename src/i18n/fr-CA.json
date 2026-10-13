@@ -7610,7 +7610,7 @@
         "soon": "À rappeler bientôt : {hours} h ouvrables",
         "late": "En retard : {hours} h ouvrables sans appel",
         "met": "Rappelée dans les délais",
-        "metLate": "Rappelée après 48 h ouvrables",
+        "metLate": "Rappelée après 2 jours ouvrables",
         "fresh": "Reçue depuis moins d’une heure ouvrable",
         "none": "Jamais appelée"
       },
@@ -7735,7 +7735,7 @@
         }
       },
       "inbox": {
-        "description": "Les demandes reçues et la promesse de rappel en 24 à 48 h ouvrables. Les changements des autres conseillères s'affichent seuls.",
+        "description": "Les demandes reçues et la promesse de rappel en 1 à 2 jours ouvrables (24 à 48 h). Les changements des autres conseillères s'affichent seuls.",
         "views": "Vues des demandes",
         "view": {
           "open": "Ouvertes",
@@ -11466,7 +11466,7 @@
       "demandes": {
         "nav": "Indicateurs des demandes",
         "title": "Indicateurs des demandes",
-        "description": "Les demandes reçues sur une période : jumelages, rappels dans les 24 à 48 h ouvrables, provenance, délais, premiers rendez-vous annulés, liste d'attente et places des professionnels.",
+        "description": "Les demandes reçues sur une période : jumelages, rappels dans les 2 jours ouvrables, provenance, délais, premiers rendez-vous annulés, liste d'attente et places des professionnels.",
         "views": "Vues des indicateurs",
         "tabs": {
           "activity": "Activité",
@@ -11479,7 +11479,6 @@
         "emptyReceived": "Aucune demande reçue dans cette période.",
         "emptySection": "Rien dans cette période.",
         "noData": "Aucune donnée",
-        "businessHours": "{value} h ouvrables",
         "hours": "{value} h",
         "days": "{value} jours",
         "weekOf": "Semaine du {date}",
@@ -11494,7 +11493,7 @@
         "noUtm": "Aucune demande avec des paramètres utm dans cette période.",
         "noReferrer": "Aucune demande arrivée d'un autre site dans cette période.",
         "sourcesHelp": "Pour chaque provenance : les demandes reçues dans la période, et combien ont été jumelées depuis.",
-        "rateHelp": "Taux d'activité : jumelages faits dans la période ÷ demandes reçues dans la période. Taux de cohorte : part des demandes reçues dans la période qui ont été jumelées depuis.",
+        "rateHelp": "Taux d'activité : jumelages faits dans la période ÷ demandes reçues dans la période. Taux de cohorte : part des demandes reçues dans la période qui ont été jumelées depuis. Une demande fermée « En double » ne compte pas comme une demande reçue.",
         "fileName": "indicateurs-demandes-{tab}-{from}-au-{to}.csv",
         "fileTabs": {
           "activity": "activite",
@@ -11509,11 +11508,14 @@
           "matchedCohort": "Demandes de la période jumelées depuis (cohorte)",
           "cohortRate": "Taux de cohorte (%)",
           "withRate": "{count} ({rate})",
-          "contactedOnTime": "Rappelées dans les 48 h ouvrables",
-          "contactedLate": "Rappelées après 48 h ouvrables",
-          "notContacted": "Jamais rappelées",
+          "contactedOnTime": "Contactées dans les 2 jours ouvrables",
+          "contactedLate": "Contactées après 2 jours ouvrables",
           "waitlisted": "Inscrites sur la liste d'attente",
-          "waitlistedLine": "Demandes de la période inscrites sur la liste d'attente : {count}."
+          "duplicates": "Fermées « En double » (non comptées)",
+          "duplicatesLine": "Fermées « En double » dans la période, non comptées : {count}.",
+          "pending": "Pas encore contactées (délai en cours)",
+          "overdue": "En retard, pas encore contactées",
+          "noAttempt": "Jumelées ou fermées sans appel ni message"
         },
         "sections": {
           "totals": "Totaux de la période",
@@ -11536,27 +11538,39 @@
           "exits": "Sorties de la liste dans la période",
           "places": "Places des professionnels",
           "placesByProfessional": "Places à la dernière photo, par professionnel",
-          "placesWeeks": "Places restantes au début de chaque semaine"
+          "placesWeeks": "Places restantes au début de chaque semaine",
+          "promise": "La promesse de contact en 2 jours ouvrables",
+          "months": "Par mois",
+          "professionalsWeeks": "Jumelages par professionnel et par semaine",
+          "firstRanges": "Préavis et délai des premiers rendez-vous annulés",
+          "firstWeeks": "Premiers rendez-vous annulés, par semaine d'annulation"
         },
         "delays": {
           "firstContact": "Premier appel ou message",
           "proposal": "Première proposition",
-          "match": "Jumelage"
+          "match": "Jumelage",
+          "firstContactHours": "Premier appel ou message (heures ouvrables)",
+          "proposalDays": "Première proposition (jours)",
+          "matchDays": "Jumelage (jours)"
         },
         "first": {
-          "help": "Le premier rendez-vous avec le professionnel jumelé, annulé dans la période (quelle que soit la date du jumelage). Le taux se compare aux jumelages de la période.",
+          "help": "Le premier rendez-vous avec le professionnel jumelé, annulé dans la période, quelle que soit la date du jumelage (une annulation compte une fois). Le taux se compare aux jumelages de la période : il peut dépasser 100 %.",
           "matched": "Jumelages de la période",
           "cancelled": "Premiers rendez-vous annulés",
           "rate": "Taux d'annulation (%)",
-          "noticeAverage": "Préavis moyen",
-          "noticeMin": "Préavis le plus court",
-          "noticeMax": "Préavis le plus long",
-          "none": "Aucun premier rendez-vous annulé dans cette période."
+          "noticeAverage": "Préavis moyen (heures)",
+          "noticeMin": "Préavis le plus court (heures)",
+          "noticeMax": "Préavis le plus long (heures)",
+          "none": "Aucun premier rendez-vous annulé dans cette période.",
+          "leadAverage": "Délai moyen du jumelage au rendez-vous (jours)",
+          "leadMin": "Délai le plus court du jumelage au rendez-vous (jours)",
+          "leadMax": "Délai le plus long du jumelage au rendez-vous (jours)",
+          "notice": "Préavis (de l'annulation au rendez-vous)",
+          "lead": "Délai (du jumelage au rendez-vous)"
         },
         "waitlist": {
-          "open": "Personnes en attente aujourd'hui",
-          "registered": "Inscriptions dans la période",
-          "placed": "Placées dans la période",
+          "registered": "Personnes inscrites dans la période",
+          "placed": "Personnes placées dans la période",
           "waitMedian": "Attente médiane des personnes placées",
           "waitAverage": "Attente moyenne des personnes placées",
           "wait": "Attente des personnes placées (jours)",
@@ -11565,7 +11579,9 @@
             "professional": "{name} (professionnel)"
           },
           "nobody": "Personne n'attend aujourd'hui.",
-          "noExit": "Aucune sortie de la liste dans cette période."
+          "noExit": "Aucune sortie de la liste dans cette période.",
+          "waiting": "Personnes en attente aujourd'hui",
+          "incomplete": "Inscriptions incomplètes (consentement ou frais)"
         },
         "places": {
           "none": "Aucune photo des places dans cette période : la photo de nuit tourne chaque soir.",
@@ -11573,7 +11589,9 @@
           "totalLeft": "Places restantes à la dernière photo",
           "accepts": "Accepte",
           "doesNotAccept": "N'accepte pas",
-          "summaryOne": "Photo du {date} : {left} place restante chez les professionnels qui acceptent de nouveaux clients ({tracked} professionnels suivis)."
+          "summaryOne": "Photo du {date} : {left} place restante chez les professionnels qui acceptent de nouveaux clients ({tracked} professionnels suivis).",
+          "snapshotOn": "Date de la dernière photo",
+          "tracked": "Professionnels suivis"
         },
         "columns": {
           "section": "Section",
@@ -11605,7 +11623,13 @@
           "declared": "Déclarées",
           "left": "Restantes",
           "accepting": "Nouveaux clients",
-          "snapshot": "Photo du"
+          "snapshot": "Photo du",
+          "month": "Mois",
+          "promise": "Situation",
+          "incomplete": "Incomplètes",
+          "measure": "Mesure",
+          "min": "Le plus court",
+          "max": "Le plus long"
         },
         "csv": {
           "received": "{label} : reçues",
@@ -11613,11 +11637,23 @@
           "median": "{label} : médiane",
           "average": "{label} : moyenne",
           "count": "{label} : nombre de demandes",
-          "open": "{label} : en attente",
           "priority": "{label} : prioritaires",
           "declared": "{label} : places déclarées",
-          "left": "{label} : places restantes"
-        }
+          "left": "{label} : places restantes",
+          "matchedInPeriod": "{label} : jumelages",
+          "firstCancelled": "{label} : premiers rendez-vous annulés",
+          "waiting": "{label} : en attente",
+          "incomplete": "{label} : incomplètes",
+          "snapshot": "{label} (photo du {date})"
+        },
+        "businessDays": "{value} jours ouvrables",
+        "businessDayOne": "{value} jour ouvrable",
+        "dayOne": "{value} jour",
+        "partial": "{label} (partielle)",
+        "partialMonth": "{label} (partiel)",
+        "noProfessional": "Professionnel non précisé",
+        "noName": "Nom non précisé",
+        "others": "Autres valeurs (au-delà des 50 plus fréquentes)"
       }
     }
   },

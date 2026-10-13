@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -15,16 +15,22 @@ import { useReportParams } from '../hooks/use-report-params'
 import { useDemandesReport } from '../hooks/use-reports'
 import {
   DEMANDES_TABS,
+  campaignLabel,
   channelLabel,
   clienteleLabel,
   counselorLabel,
   demandesCsv,
   exitReasonLabel,
-  formatBusinessHours,
+  formatBusinessDays,
   formatDays,
   formatHours,
   formatRate,
+  listLabel,
+  monthLabel,
   outcomeLabel,
+  professionalLabel,
+  reasonLabel,
+  referrerLabel,
   sourceLabel,
   utmLabel,
   weekLabel,
@@ -33,16 +39,17 @@ import {
 import { periodError, type Period } from '../lib/reports'
 
 const D = 'modules.reports.demandes'
+const C = `${D}.columns`
 /** The tab's French URL value (`?onglet=`); the first tab has none. */
 const TAB_PARAMS: Record<DemandesTab, string | null> = { activity: null, sources: 'provenance', delays: 'delais', waitlist: 'liste-attente' }
 
 /**
- * Rapports « Demandes » (`/rapports/demandes`, reports.view, Demandes enabled; Demandes D6): the
- * intake indicators of the counselors' workbook (§8.3) on a period. Real tabs (`?onglet=`):
- * « Activité » (received, the two match rates, the 24–48 h promise, per week, channel,
- * conseillère, outcome, professional, clientèle), « Provenance » (D3c's capture: the declared
- * source, the campaign, utm, the referrer), « Délais et premiers rendez-vous », « Liste d'attente
- * et places » (D5's photos). « Exporter (CSV) » saves the tab shown (RP-6).
+ * Rapports « Indicateurs des demandes » (`/rapports/demandes`, reports.view, Demandes enabled;
+ * Demandes D6): the intake indicators of the counselors' workbook (§8.3) on a period. Real tabs
+ * (`?onglet=`): « Activité » (received, the two match rates, the promise of 2 business days, per
+ * week and month, channel, conseillère, outcome, professional, clientèle), « Provenance » (D3c's
+ * capture), « Délais et premiers rendez-vous », « Liste d'attente et places » (D5's photos).
+ * « Exporter (CSV) » saves the tab shown (RP-6).
  */
 export function DemandesReportPage() {
   usePageTitle(t(`${D}.title`))
@@ -60,7 +67,12 @@ export function DemandesReportPage() {
       <LoadError message={moduleErrorMessage(query.error, t(`${D}.loadError`), 'reports')} retrying={query.isFetching} onRetry={() => void query.refetch()} />
     )
   } else if (report) {
-    body = tab === 'activity' ? <Activity report={report} /> : tab === 'sources' ? <Sources report={report} /> : tab === 'delays' ? <Delays report={report} /> : <Waitlist report={report} />
+    const p = { from: report.from, to: report.to }
+    body =
+      tab === 'activity' ? <Activity report={report} period={p} />
+      : tab === 'sources' ? <Sources report={report} />
+      : tab === 'delays' ? <Delays report={report} period={p} />
+      : <Waitlist report={report} period={p} />
   }
 
   const onExport = () => {
@@ -81,21 +93,29 @@ export function DemandesReportPage() {
           ))}
         </TabsList>
       </Tabs>
-      <ReportControls period={period} today={today} periodError={error} onPeriod={(p: Period) => set({ du: p.from, au: p.to })} onExport={report ? onExport : undefined} />
+      <ReportControls period={period} today={today} periodError={error} onPeriod={(next: Period) => set({ du: next.from, au: next.to })} onExport={report ? onExport : undefined} />
       {body}
     </div>
   )
 }
 
-/** A small table: a heading, its columns, its rows (an empty one says so). */
-function Section({ title, columns, rows, empty }: { title: string; columns: readonly { label: string; numeric?: boolean }[]; rows: readonly (readonly ReactNode[])[]; empty?: string }) {
+interface Column {
+  label: string
+  numeric?: boolean
+}
+
+/** A small table under its heading (the table is named by it); an empty one says so. */
+function Section({ title, columns, rows, empty }: { title: string; columns: readonly Column[]; rows: readonly (readonly ReactNode[])[]; empty?: string }) {
+  const headingId = useId()
   return (
-    <section aria-label={title} className="space-y-2">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <section aria-labelledby={headingId} className="space-y-2">
+      <h2 id={headingId} className="text-sm font-semibold text-foreground">
+        {title}
+      </h2>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{empty ?? t(`${D}.emptySection`)}</p>
       ) : (
-        <Table aria-label={title} scrollLabel={title}>
+        <Table aria-labelledby={headingId} scrollLabel={title}>
           <TableHeader>
             <TableRow className="[&>th]:whitespace-nowrap">
               {columns.map((c) => (
@@ -122,14 +142,19 @@ function Section({ title, columns, rows, empty }: { title: string; columns: read
   )
 }
 
-const C = `${D}.columns`
-const received = { label: t(`${C}.received`), numeric: true }
-const matchedSince = { label: t(`${C}.matchedSince`), numeric: true }
-const count = { label: t(`${C}.count`), numeric: true }
+const received = (): Column => ({ label: t(`${C}.received`), numeric: true })
+const matchedSince = (): Column => ({ label: t(`${C}.matchedSince`), numeric: true })
+const matches = (): Column => ({ label: t(`${C}.matches`), numeric: true })
+const count = (): Column => ({ label: t(`${C}.count`), numeric: true })
 
-function Activity({ report }: { report: DemandesReport }) {
+interface Bounds {
+  from: string
+  to: string
+}
+
+function Activity({ report, period }: { report: DemandesReport; period: Bounds }) {
   const x = report.totals
-  if (x.received === 0 && x.matched_activity === 0) return <EmptyState title={t(`${D}.empty`)} />
+  if (x.received === 0 && x.matched_activity === 0 && x.duplicates === 0) return <EmptyState title={t(`${D}.empty`)} />
   return (
     <div className="space-y-5">
       <Totals
@@ -138,23 +163,43 @@ function Activity({ report }: { report: DemandesReport }) {
           { label: t(`${D}.totals.received`), value: String(x.received) },
           { label: t(`${D}.totals.matchedActivity`), value: t(`${D}.totals.withRate`, { count: String(x.matched_activity), rate: formatRate(x.activity_rate) }) },
           { label: t(`${D}.totals.matchedCohort`), value: t(`${D}.totals.withRate`, { count: String(x.matched_cohort), rate: formatRate(x.cohort_rate) }) },
-          { label: t(`${D}.totals.contactedOnTime`), value: String(x.contacted_on_time) },
-          { label: t(`${D}.totals.contactedLate`), value: String(x.contacted_late) },
-          { label: t(`${D}.totals.notContacted`), value: String(x.not_contacted) },
+          { label: t(`${D}.totals.waitlisted`), value: String(x.waitlisted) },
         ]}
       />
-      <p className="text-sm text-muted-foreground">{t(`${D}.rateHelp`)}</p>
+      <p className="text-sm text-muted-foreground">
+        {t(`${D}.rateHelp`)} {x.duplicates > 0 && t(`${D}.totals.duplicatesLine`, { count: String(x.duplicates) })}
+      </p>
+      <Section
+        title={t(`${D}.sections.promise`)}
+        columns={[{ label: t(`${C}.promise`) }, { label: t(`${C}.requests`), numeric: true }]}
+        rows={[
+          [t(`${D}.totals.contactedOnTime`), x.contacted_on_time],
+          [t(`${D}.totals.contactedLate`), x.contacted_late],
+          [t(`${D}.totals.pending`), x.pending],
+          [t(`${D}.totals.overdue`), x.overdue],
+          [t(`${D}.totals.noAttempt`), x.no_attempt],
+        ]}
+      />
       <Section
         title={t(`${D}.sections.weeks`)}
-        columns={[{ label: t(`${C}.week`) }, received, { label: t(`${C}.matchedInWeek`), numeric: true }]}
-        rows={report.weeks.map((w) => [weekLabel(w.week_start), w.received, w.matched])}
+        columns={[{ label: t(`${C}.week`) }, received(), matches()]}
+        rows={report.weeks.map((w) => [weekLabel(w.week_start, period), w.received, w.matched])}
       />
-      <Section title={t(`${D}.sections.channels`)} columns={[{ label: t(`${C}.channel`) }, received, matchedSince]} rows={report.by_channel.map((r) => [channelLabel(r.channel), r.received, r.matched])} />
-      <Section title={t(`${D}.sections.counselors`)} columns={[{ label: t(`${C}.counselor`) }, received]} rows={report.by_counselor.map((r) => [counselorLabel(r.name), r.received])} />
-      <Section title={t(`${D}.sections.outcomes`)} columns={[{ label: t(`${C}.outcome`) }, count]} rows={report.outcomes.map((r) => [outcomeLabel(r), r.count])} />
-      <Section title={t(`${D}.sections.professionals`)} columns={[{ label: t(`${C}.professional`) }, { label: t(`${C}.matches`), numeric: true }]} rows={report.by_professional.map((r) => [r.name ?? '', r.matched])} />
-      <Section title={t(`${D}.sections.clienteles`)} columns={[{ label: t(`${C}.clientele`) }, { label: t(`${C}.matches`), numeric: true }]} rows={report.by_clientele.map((r) => [clienteleLabel(r.name), r.matched])} />
-      {x.waitlisted > 0 && <p className="text-sm text-muted-foreground">{t(`${D}.totals.waitlistedLine`, { count: String(x.waitlisted) })}</p>}
+      <Section
+        title={t(`${D}.sections.months`)}
+        columns={[{ label: t(`${C}.month`) }, received(), matches()]}
+        rows={report.months.map((m) => [monthLabel(m.month_start, period), m.received, m.matched])}
+      />
+      <Section title={t(`${D}.sections.channels`)} columns={[{ label: t(`${C}.channel`) }, received(), matchedSince()]} rows={report.by_channel.map((r) => [channelLabel(r.channel), r.received, r.matched])} />
+      <Section title={t(`${D}.sections.counselors`)} columns={[{ label: t(`${C}.counselor`) }, received()]} rows={report.by_counselor.map((r) => [counselorLabel(r.name), r.received])} />
+      <Section title={t(`${D}.sections.outcomes`)} columns={[{ label: t(`${C}.outcome`) }, count()]} rows={report.outcomes.map((r) => [outcomeLabel(r), r.count])} />
+      <Section title={t(`${D}.sections.professionals`)} columns={[{ label: t(`${C}.professional`) }, matches()]} rows={report.by_professional.map((r) => [professionalLabel(r.name), r.matched])} />
+      <Section
+        title={t(`${D}.sections.professionalsWeeks`)}
+        columns={[{ label: t(`${C}.week`) }, { label: t(`${C}.professional`) }, matches()]}
+        rows={report.by_professional_week.map((r) => [weekLabel(r.week_start, period), professionalLabel(r.name), r.matched])}
+      />
+      <Section title={t(`${D}.sections.clienteles`)} columns={[{ label: t(`${C}.clientele`) }, matches()]} rows={report.by_clientele.map((r) => [clienteleLabel(r.name), r.matched])} />
     </div>
   )
 }
@@ -164,25 +209,25 @@ function Sources({ report }: { report: DemandesReport }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">{t(`${D}.sourcesHelp`)}</p>
-      <Section title={t(`${D}.sections.sources`)} columns={[{ label: t(`${C}.source`) }, received, matchedSince]} rows={report.by_source.map((r) => [sourceLabel(r.name), r.received, r.matched])} />
+      <Section title={t(`${D}.sections.sources`)} columns={[{ label: t(`${C}.source`) }, received(), matchedSince()]} rows={report.by_source.map((r) => [sourceLabel(r.name), r.received, r.matched])} />
       <Section
         title={t(`${D}.sections.campaigns`)}
-        columns={[{ label: t(`${C}.campaign`) }, received, matchedSince]}
-        rows={report.by_campaign.map((r) => [r.name, r.received, r.matched])}
+        columns={[{ label: t(`${C}.campaign`) }, received(), matchedSince()]}
+        rows={report.by_campaign.map((r) => [campaignLabel(r), r.received, r.matched])}
         empty={t(`${D}.noCampaign`)}
       />
-      <Section title={t(`${D}.sections.utm`)} columns={[{ label: t(`${C}.utm`) }, received, matchedSince]} rows={report.by_utm.map((r) => [utmLabel(r), r.received, r.matched])} empty={t(`${D}.noUtm`)} />
+      <Section title={t(`${D}.sections.utm`)} columns={[{ label: t(`${C}.utm`) }, received(), matchedSince()]} rows={report.by_utm.map((r) => [utmLabel(r), r.received, r.matched])} empty={t(`${D}.noUtm`)} />
       <Section
         title={t(`${D}.sections.referrers`)}
-        columns={[{ label: t(`${C}.referrer`) }, received, matchedSince]}
-        rows={report.by_referrer.map((r) => [r.host, r.received, r.matched])}
+        columns={[{ label: t(`${C}.referrer`) }, received(), matchedSince()]}
+        rows={report.by_referrer.map((r) => [referrerLabel(r), r.received, r.matched])}
         empty={t(`${D}.noReferrer`)}
       />
     </div>
   )
 }
 
-function Delays({ report }: { report: DemandesReport }) {
+function Delays({ report, period }: { report: DemandesReport; period: Bounds }) {
   const d = report.delays
   const f = report.first_appointments
   return (
@@ -191,7 +236,7 @@ function Delays({ report }: { report: DemandesReport }) {
         title={t(`${D}.sections.delays`)}
         columns={[{ label: t(`${C}.step`) }, { label: t(`${C}.median`), numeric: true }, { label: t(`${C}.average`), numeric: true }, { label: t(`${C}.requests`), numeric: true }]}
         rows={[
-          [t(`${D}.delays.firstContact`), formatBusinessHours(d.first_contact_hours.median), formatBusinessHours(d.first_contact_hours.average), d.first_contact_hours.count],
+          [t(`${D}.delays.firstContact`), formatBusinessDays(d.first_contact_hours.median), formatBusinessDays(d.first_contact_hours.average), d.first_contact_hours.count],
           [t(`${D}.delays.proposal`), formatDays(d.proposal_days.median), formatDays(d.proposal_days.average), d.proposal_days.count],
           [t(`${D}.delays.match`), formatDays(d.match_days.median), formatDays(d.match_days.average), d.match_days.count],
         ]}
@@ -205,17 +250,40 @@ function Delays({ report }: { report: DemandesReport }) {
           { label: t(`${D}.first.cancelled`), value: String(f.cancelled) },
           { label: t(`${D}.first.rate`), value: formatRate(f.rate) },
           { label: t(`${D}.first.noticeAverage`), value: formatHours(f.notice_hours.average) },
-          { label: t(`${D}.first.noticeMin`), value: formatHours(f.notice_hours.min) },
-          { label: t(`${D}.first.noticeMax`), value: formatHours(f.notice_hours.max) },
+          { label: t(`${D}.first.leadAverage`), value: formatDays(f.lead_days.average) },
         ]}
       />
-      <Section title={t(`${D}.sections.firstReasons`)} columns={[{ label: t(`${C}.reason`) }, count]} rows={f.by_reason.map((r) => [r.name ?? t(`${D}.noReason`), r.count])} empty={t(`${D}.first.none`)} />
-      <Section title={t(`${D}.sections.firstProfessionals`)} columns={[{ label: t(`${C}.professional`) }, count]} rows={f.by_professional.map((r) => [r.name ?? '', r.count])} empty={t(`${D}.first.none`)} />
+      <Section
+        title={t(`${D}.sections.firstRanges`)}
+        columns={[{ label: t(`${C}.measure`) }, { label: t(`${C}.average`), numeric: true }, { label: t(`${C}.min`), numeric: true }, { label: t(`${C}.max`), numeric: true }]}
+        rows={
+          f.cancelled === 0
+            ? []
+            : [
+                [t(`${D}.first.notice`), formatHours(f.notice_hours.average), formatHours(f.notice_hours.min), formatHours(f.notice_hours.max)],
+                [t(`${D}.first.lead`), formatDays(f.lead_days.average), formatDays(f.lead_days.min), formatDays(f.lead_days.max)],
+              ]
+        }
+        empty={t(`${D}.first.none`)}
+      />
+      <Section
+        title={t(`${D}.sections.firstWeeks`)}
+        columns={[{ label: t(`${C}.week`) }, count()]}
+        rows={f.cancelled === 0 ? [] : report.weeks.map((w) => [weekLabel(w.week_start, period), w.first_cancelled])}
+        empty={t(`${D}.first.none`)}
+      />
+      <Section title={t(`${D}.sections.firstReasons`)} columns={[{ label: t(`${C}.reason`) }, count()]} rows={f.by_reason.map((r) => [reasonLabel(r.name), r.count])} empty={t(`${D}.first.none`)} />
+      <Section
+        title={t(`${D}.sections.firstProfessionals`)}
+        columns={[{ label: t(`${C}.professional`) }, count()]}
+        rows={f.by_professional.map((r) => [professionalLabel(r.name), r.count])}
+        empty={t(`${D}.first.none`)}
+      />
     </div>
   )
 }
 
-function Waitlist({ report }: { report: DemandesReport }) {
+function Waitlist({ report, period }: { report: DemandesReport; period: Bounds }) {
   const w = report.waitlist
   const p = report.places
   return (
@@ -223,7 +291,8 @@ function Waitlist({ report }: { report: DemandesReport }) {
       <Totals
         label={t(`${D}.sections.waitlist`)}
         items={[
-          { label: t(`${D}.waitlist.open`), value: String(w.open_total) },
+          { label: t(`${D}.waitlist.waiting`), value: String(w.waiting_total) },
+          { label: t(`${D}.waitlist.incomplete`), value: String(w.incomplete_total) },
           { label: t(`${D}.waitlist.registered`), value: String(w.registered) },
           { label: t(`${D}.waitlist.placed`), value: String(w.wait_days.count) },
           { label: t(`${D}.waitlist.waitMedian`), value: formatDays(w.wait_days.median) },
@@ -232,11 +301,11 @@ function Waitlist({ report }: { report: DemandesReport }) {
       />
       <Section
         title={t(`${D}.sections.lists`)}
-        columns={[{ label: t(`${C}.list`) }, { label: t(`${C}.waiting`), numeric: true }, { label: t(`${C}.priority`), numeric: true }]}
-        rows={w.open.map((r) => [t(`${D}.waitlist.listKind.${r.target_kind}`, { name: r.name ?? '' }), r.count, r.priority])}
+        columns={[{ label: t(`${C}.list`) }, { label: t(`${C}.waiting`), numeric: true }, { label: t(`${C}.incomplete`), numeric: true }, { label: t(`${C}.priority`), numeric: true }]}
+        rows={w.open.map((r) => [listLabel(r), r.waiting, r.incomplete, r.priority])}
         empty={t(`${D}.waitlist.nobody`)}
       />
-      <Section title={t(`${D}.sections.exits`)} columns={[{ label: t(`${C}.reason`) }, count]} rows={w.exits.map((r) => [exitReasonLabel(r.reason), r.count])} empty={t(`${D}.waitlist.noExit`)} />
+      <Section title={t(`${D}.sections.exits`)} columns={[{ label: t(`${C}.reason`) }, count()]} rows={w.exits.map((r) => [exitReasonLabel(r.reason), r.count])} empty={t(`${D}.waitlist.noExit`)} />
       <h2 className="text-sm font-semibold text-foreground">{t(`${D}.sections.places`)}</h2>
       {p.snapshot_on === null ? (
         <p className="text-sm text-muted-foreground">{t(`${D}.places.none`)}</p>
@@ -252,12 +321,12 @@ function Waitlist({ report }: { report: DemandesReport }) {
           <Section
             title={t(`${D}.sections.placesByProfessional`)}
             columns={[{ label: t(`${C}.professional`) }, { label: t(`${C}.declared`), numeric: true }, { label: t(`${C}.left`), numeric: true }, { label: t(`${C}.accepting`) }]}
-            rows={p.by_professional.map((r) => [r.name ?? '', r.declared, r.left, r.accepting ? t(`${D}.places.accepts`) : t(`${D}.places.doesNotAccept`)])}
+            rows={p.by_professional.map((r) => [professionalLabel(r.name), r.declared, r.left, r.accepting ? t(`${D}.places.accepts`) : t(`${D}.places.doesNotAccept`)])}
           />
           <Section
             title={t(`${D}.sections.placesWeeks`)}
             columns={[{ label: t(`${C}.week`) }, { label: t(`${C}.snapshot`) }, { label: t(`${C}.left`), numeric: true }]}
-            rows={p.weeks.map((r) => [weekLabel(r.week_start), formatDateOnlyShort(r.snapshot_on), r.total_left])}
+            rows={p.weeks.map((r) => [weekLabel(r.week_start, period), formatDateOnlyShort(r.snapshot_on), r.total_left])}
           />
         </>
       )}
