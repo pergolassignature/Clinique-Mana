@@ -93,7 +93,7 @@ Migrations `20261013062721_core_realtime` (core, see the [core doc](core.md#real
 
 ## D3b: the discovery calls
 
-Migration `20261013080947_demandes_discovery_calls`; pgTAP `124_demandes_discovery_calls`; decision D-20.
+Migration `20261013084345_demandes_discovery_calls`; pgTAP `124_demandes_discovery_calls`; decision D-20.
 
 A discovery call is a dated task of its request (D1, kind `discovery_call`), made by the public booking page (D3c) or by a counselor (Suivi, « Ajouter une tâche »). « Appels découverte » replaces the fake appointments of GOrendezvous's shared « conseillère » agenda.
 
