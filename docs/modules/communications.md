@@ -161,7 +161,7 @@ Texts go through the clinic's dedicated SMS channel and number on a **Yeastar P-
 
 ### Two-way conversations (SM2, SM-14 … SM-17)
 
-Migration `20261013220723_communications_sms_conversations` (pgTAP `171`).
+Migration `20261013231311_communications_sms_conversations` (pgTAP `171`).
 
 - **Clients publishes** `private.clients_match_phone(org, phones[])` (the files whose mobile, home or work number it is, else their related files; a number held by more than five files names none) and `private.clients_phones_of(org, client)`, granted to no role.
 - **`sms_thread_links`:** one row per clinic and number, `unlinked` / `needs_review` / `linked`, source `auto` or `manual`. Audited, the number redacted; it has a uuid key. The purge job drops a link with no text left after 24 months.
