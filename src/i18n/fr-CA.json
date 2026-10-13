@@ -422,6 +422,24 @@
         "splitFailed": "Le PDF signé n'a pas pu être séparé. Téléchargez le PDF complet scellé.",
         "appUpdated": "Une nouvelle version de l'application est disponible. Rechargez la page, puis réessayez."
       }
+    },
+    "embedded": {
+      "fr": {
+        "loading": "Chargement de la page de signature…",
+        "fallback": "La page de signature ne s’affiche pas ici. Ouvrez-la pour signer : vous reviendrez ici ensuite.",
+        "openPage": "Ouvrir la page de signature",
+        "notShowing": "La signature ne s’affiche pas ?",
+        "openInPage": "L’ouvrir en pleine page",
+        "close": "Fermer la page de signature"
+      },
+      "en": {
+        "loading": "Loading the signing page…",
+        "fallback": "The signing page does not show here. Open it to sign: you will come back here afterwards.",
+        "openPage": "Open the signing page",
+        "notShowing": "The signature does not show?",
+        "openInPage": "Open it as a full page",
+        "close": "Close the signing page"
+      }
     }
   },
   "address": {
@@ -4324,12 +4342,6 @@
         "notPublishedDocuments": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard.",
         "notPublishedShort": "À signer plus tard : la clinique vous enverra le formulaire.",
         "frameTitle": "Signature du consentement au droit à l'image",
-        "loading": "Chargement de la page de signature…",
-        "fallback": "La page de signature ne s'affiche pas ici. Ouvrez-la pour signer : vous reviendrez ici ensuite.",
-        "openPage": "Ouvrir la page de signature",
-        "notShowing": "La signature ne s'affiche pas ?",
-        "openInPage": "Ouvrir dans une nouvelle page",
-        "close": "Fermer la page de signature",
         "checking": "Vérification de la signature…",
         "signedToast": "Consentement signé. Merci !",
         "pendingCheck": "Signature reçue : elle sera confirmée dans quelques minutes.",
@@ -5525,6 +5537,215 @@
           "seed:clients_consents": "Consentements initiaux",
           "trigger:clients_consent_signature": "Signature électronique"
         }
+      },
+      "consents": {
+        "nav": "Consentements",
+        "title": "Consentements à obtenir",
+        "description": "Les demandes de consentement envoyées et pas encore signées.",
+        "loadError": "Impossible de charger les consentements.",
+        "empty": {
+          "title": "Aucun consentement à obtenir",
+          "body": "Les demandes envoyées et pas encore signées s’afficheront ici."
+        },
+        "columns": {
+          "client": "Client",
+          "consent": "Consentement",
+          "due": "Date limite",
+          "state": "État",
+          "sent": "Dernier envoi"
+        },
+        "noDue": "Aucune",
+        "reminded": "Rappel envoyé",
+        "open": "Voir les consentements de {client}",
+        "sheetTitle": "Consentements de {client}",
+        "state": {
+          "signed": "Signé",
+          "resign": "À signer de nouveau",
+          "pending": "En attente de signature",
+          "overdue": "En retard",
+          "withdrawn": "Retiré",
+          "none": "Pas demandé"
+        },
+        "signedOn": "Signé le {date} ({version})",
+        "imported": "Importé de GOrendezvous",
+        "sentOn": "Envoyé le {date}",
+        "dueOn": "À signer avant le {date}",
+        "notPublished": "Texte pas encore publié",
+        "send": "Envoyer",
+        "resend": "Renvoyer",
+        "cancel": "Annuler la demande",
+        "cancelConfirm": "Annuler cette demande ? Les liens envoyés ne fonctionneront plus.",
+        "openPdf": "Télécharger le consentement signé",
+        "sent": "Demande envoyée.",
+        "sentPartly": "Demande créée, mais un courriel n’est pas parti. Utilisez « Renvoyer ».",
+        "cancelled": "Demande annulée.",
+        "cancelError": "Impossible d’annuler la demande.",
+        "sendError": "Impossible d’envoyer la demande.",
+        "panelLoadError": "Impossible de charger les consentements de ce client.",
+        "settings": {
+          "title": "Consentements",
+          "description": "Les textes de consentement des clients, quand les demander et les rappels.",
+          "saved": "Réglages enregistrés.",
+          "saveError": "Impossible d’enregistrer.",
+          "loadError": "Impossible de charger les réglages des consentements.",
+          "texts": {
+            "title": "Textes",
+            "description": "Un texte par consentement et par langue. Rien ne peut être envoyé avant que le texte soit publié.",
+            "published": "Texte publié.",
+            "publishedFlagged": "Texte publié : {count} clients devront signer de nouveau.",
+            "version": "Version {version} publiée le {date}",
+            "draftOnly": "Brouillon (pas encore publié)",
+            "draftReady": "Brouillon de la version {version} prêt",
+            "publish": "Publier",
+            "publishTitle": "Publier « {name} »",
+            "publishHelp": "Qui doit signer cette nouvelle version ?",
+            "newClients": "Les nouveaux clients seulement",
+            "newClientsHelp": "Les consentements déjà signés restent valides.",
+            "allActive": "Tous les clients actifs",
+            "allActiveHelp": "Chaque consentement signé sur une autre version est marqué « À signer de nouveau ».",
+            "confirm": "Publier",
+            "publishing": "Publication…",
+            "french": "Français",
+            "english": "Anglais",
+            "line": "{language} : {state}",
+            "placeholder": "Texte provisoire : à remplacer par le texte validé avant de publier",
+            "editNote": "Les textes affichés sont provisoires. Ils se publient une fois remplacés par les textes validés par la direction."
+          },
+          "rules": {
+            "title": "Quand demander",
+            "description": "Une règle active rend le consentement requis ; le rendez-vous est signalé, jamais bloqué.",
+            "saved": "Règle enregistrée.",
+            "once": "Une fois",
+            "eachTime": "À chaque rendez-vous",
+            "frequency": "Fréquence",
+            "trigger": {
+              "general": "Tous les clients",
+              "service": "Le service {target}",
+              "payer_kind": "Payeur : {target}",
+              "professional_status": "Professionnel stagiaire",
+              "situation": "Situation : {target}"
+            },
+            "toggle": "Activer la règle « {name} »",
+            "situations": {
+              "waitlist": "liste d’attente",
+              "file_transfer": "transfert de dossier",
+              "coaching": "coaching"
+            }
+          },
+          "delays": {
+            "title": "Délais et rappels",
+            "description": "Les rappels partent le matin, à 8 h, quand la tâche « Rappels de consentement » est activée.",
+            "reminderDays": "Renvoyer après (jours)",
+            "reminderHelp": "Une demande non signée est renvoyée une fois après ce délai (1 à 30 jours).",
+            "dueDays": "Avant le premier rendez-vous (jours)",
+            "dueHelp": "Date limite d’une demande faite pour un premier rendez-vous (0 à 30 jours).",
+            "preHours": "Avis avant un rendez-vous (heures)",
+            "preHelp": "Avis et courriel quand un consentement requis manque (12 à 168 heures).",
+            "retention": "Conservation des consentements signés",
+            "retentionHelp": "La politique décidée par la direction (texte libre). Rien n’est effacé automatiquement.",
+            "invalid": "Indiquez un nombre entier dans les limites.",
+            "retentionTooLong": "La politique tient en 500 caractères au plus."
+          }
+        },
+        "page": {
+          "fr": {
+            "title": "Consentement",
+            "intro": "{clinic} vous demande de signer « {consent} ».",
+            "identity": {
+              "title": "Confirmez d’abord à qui ce formulaire s’adresse",
+              "help": "Indiquez le prénom et l’année de naissance du client (la personne suivie), tels que la clinique les a au dossier.",
+              "firstName": "Prénom du client",
+              "birthYear": "Année de naissance du client",
+              "birthYearInvalid": "Indiquez une année à quatre chiffres.",
+              "firstNameRequired": "Indiquez le prénom.",
+              "submit": "Continuer",
+              "checking": "Vérification…",
+              "birthYearUnknown": "Je ne connais pas l’année de naissance",
+              "birthYearRequired": "Indiquez l’année de naissance, ou cochez « Je ne connais pas l’année de naissance ».",
+              "mismatch": "Le prénom ou l’année de naissance ne correspond pas au dossier de la clinique. Vérifiez-les, puis réessayez.",
+              "attempts": "Après cinq essais qui ne correspondent pas, le lien ne fonctionne plus : demandez alors un nouveau lien à la clinique.",
+              "birthYearHelp": "Quatre chiffres, par exemple 2012."
+            },
+            "clauses": {
+              "title": "Vos réponses",
+              "help": "Répondez à chaque question. Les questions marquées « Accord requis » demandent un « Oui » pour signer.",
+              "required": "Accord requis",
+              "yes": "Oui",
+              "no": "Non",
+              "missing": "Répondez à chaque question.",
+              "mustAgree": "Pour signer, répondez « Oui » aux questions marquées « Accord requis ».",
+              "answeredBy": "Les réponses ont été données par la première personne qui a répondu :"
+            },
+            "sign": "Lire et signer",
+            "preparing": "Préparation du document…",
+            "frameTitle": "Signature du consentement",
+            "signerFor": "Vous signez pour {client}.",
+            "done": {
+              "title": "Merci !",
+              "body": "Votre signature est enregistrée. La clinique en reçoit une copie scellée ; vous pouvez fermer cette page."
+            },
+            "states": {
+              "link_invalid": "Ce lien n’est plus valide. Demandez à la clinique de vous en envoyer un nouveau.",
+              "link_expired": "Ce lien a expiré. Demandez à la clinique de vous en envoyer un nouveau.",
+              "link_used": "Ce consentement est déjà signé. Merci !",
+              "rate_limited": "Trop de tentatives.",
+              "error": "La page n’a pas pu être chargée. Réessayez dans quelques minutes.",
+              "signingError": "Le document n’a pas pu être préparé. Réessayez dans quelques minutes ou communiquez avec la clinique."
+            }
+          },
+          "en": {
+            "title": "Consent",
+            "intro": "{clinic} asks you to sign \"{consent}\".",
+            "identity": {
+              "title": "First, confirm who this form is for",
+              "help": "Enter the first name and the year of birth of the client (the person receiving services), as the clinic has them on file.",
+              "firstName": "Client’s first name",
+              "birthYear": "Client’s year of birth",
+              "birthYearInvalid": "Enter a four-digit year.",
+              "firstNameRequired": "Enter the first name.",
+              "submit": "Continue",
+              "checking": "Checking…",
+              "birthYearUnknown": "I do not know the year of birth",
+              "birthYearRequired": "Enter the year of birth, or tick \"I do not know the year of birth\".",
+              "mismatch": "The first name or the year of birth does not match the clinic’s file. Check them, then try again.",
+              "attempts": "After five attempts that do not match, the link stops working: ask the clinic for a new one.",
+              "birthYearHelp": "Four digits, for example 2012."
+            },
+            "clauses": {
+              "title": "Your answers",
+              "help": "Answer each question. Questions marked \"Agreement required\" need a \"Yes\" to sign.",
+              "required": "Agreement required",
+              "yes": "Yes",
+              "no": "No",
+              "missing": "Answer each question.",
+              "mustAgree": "To sign, answer \"Yes\" to the questions marked \"Agreement required\".",
+              "answeredBy": "The answers were given by the first person who answered:"
+            },
+            "sign": "Read and sign",
+            "preparing": "Preparing the document…",
+            "frameTitle": "Consent signature",
+            "signerFor": "You are signing for {client}.",
+            "done": {
+              "title": "Thank you!",
+              "body": "Your signature is recorded. The clinic receives a sealed copy; you may close this page."
+            },
+            "states": {
+              "link_invalid": "This link is no longer valid. Ask the clinic to send you a new one.",
+              "link_expired": "This link has expired. Ask the clinic to send you a new one.",
+              "link_used": "This consent is already signed. Thank you!",
+              "rate_limited": "Too many attempts.",
+              "error": "The page could not be loaded. Try again in a few minutes.",
+              "signingError": "The document could not be prepared. Try again in a few minutes or contact the clinic."
+            }
+          }
+        },
+        "progress": {
+          "answered": "Réponses données",
+          "signing": "Signature commencée"
+        },
+        "signedOnNoVersion": "Signé le {date}",
+        "separator": " · ",
+        "templatesError": "Impossible de charger les textes : l’envoi n’est pas offert pour le moment."
       }
     },
     "communications": {
