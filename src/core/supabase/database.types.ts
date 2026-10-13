@@ -1130,6 +1130,32 @@ export type Database = {
           },
         ]
       }
+      billing_source_hooks: {
+        Row: {
+          function_name: string
+          module_key: string
+          source_type: string
+        }
+        Insert: {
+          function_name: string
+          module_key: string
+          source_type: string
+        }
+        Update: {
+          function_name?: string
+          module_key?: string
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_source_hooks_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       billing_sync_events: {
         Row: {
           attempts: number
@@ -14206,6 +14232,7 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
+      invoice_waitlist_fee: { Args: { p_entry_id: string }; Returns: string }
       issue_billing_link_for_service: {
         Args: {
           p_actor: string
