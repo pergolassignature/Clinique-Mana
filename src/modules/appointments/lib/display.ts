@@ -35,3 +35,6 @@ export function servicesFor(reference: AgendaReference, professionalId: string) 
   const titles = reference.professionals.find((p) => p.id === professionalId)?.titleIds ?? []
   return reference.services.filter((s) => s.titleIds.length === 0 || s.titleIds.some((id) => titles.includes(id)))
 }
+
+/** Another professional's personal appointment, as `list_agenda` gives it to the staff: busy time only. */
+export const isBusyOnly = (a: AgendaAppointment) => a.isPersonal && a.serviceId === null && a.personalLabel === null && a.participants.length === 0

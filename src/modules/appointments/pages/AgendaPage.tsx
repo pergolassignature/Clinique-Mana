@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { rpcErrorHint } from '@/core/modules/errors'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -11,6 +12,7 @@ import { formatDateOnly, getClinicDateString } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Button } from '@/shared/ui/button'
 import { Select } from '@/shared/ui/select'
+import { toast } from '@/shared/ui/sonner'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { AgendaReference } from '../api/agenda'
 import type { AgendaAppointment, AvailabilityRule } from '../api/parse'
@@ -27,6 +29,7 @@ const A = 'modules.appointments.agenda'
 const VIEWS = ['jour', 'semaine', 'jours', 'mois'] as const
 type View = (typeof VIEWS)[number]
 type Mode = 'rendez-vous' | 'disponibilites'
+type SheetState = Extract<SheetTarget, { kind: 'create' }> | { kind: 'edit'; id: string; move?: { startsAt: string } }
 const UPCOMING_DAYS = 14
 
 /**
@@ -56,7 +59,8 @@ function Agenda({ reference }: { reference: AgendaReference }) {
   const pro = reference.professionals.some((p) => p.id === proParam) ? proParam : null
   const service = reference.services.find((s) => s.id === params.get('service')) ?? null
   const mode: Mode = params.get('mode') === 'disponibilites' ? 'disponibilites' : 'rendez-vous'
-  const [sheet, setSheet] = useState<SheetTarget | null>(null)
+  // The editor holds an id: it always shows the agenda's current row (never a stale snapshot).
+  const [sheet, setSheet] = useState<SheetState | null>(null)
   const [rule, setRule] = useState<RuleTarget | null>(null)
 
   const update = (patch: Record<string, string | null>) => {
@@ -83,11 +87,25 @@ function Agenda({ reference }: { reference: AgendaReference }) {
   const range = rangeOf(first, length)
   const agenda = useAgenda(range.from, range.to, shownIds, mode === 'rendez-vous')
   const availabilityIds = mode === 'disponibilites' ? (pro ? [pro] : []) : effectiveView === 'jour' ? shown.map((p) => p.id) : pro ? [pro] : []
-  const availability = useAvailability(availabilityIds)
+  const availability = useAvailability(availabilityIds, range.from)
   const appointments = agenda.data ?? []
 
-  const move = useMoveAppointment()
-  const onMove = (a: AgendaAppointment, startsAt: string) => move.mutate({ id: a.id, startsAt, professionalId: null, outsideAvailabilityReason: null })
+  // A drag outside the availability: the staff get the editor with the dragged time and
+  // « Hors disponibilités » (AP-12); any other refusal is a toast.
+  const [dragged, setDragged] = useState<{ id: string; startsAt: string } | null>(null)
+  const move = useMoveAppointment({
+    onErrorMessage: (message, error) => {
+      if (rpcErrorHint(error) === 'outside_availability' && canWrite && dragged) setSheet({ kind: 'edit', id: dragged.id, move: { startsAt: dragged.startsAt } })
+      else toast.error(message)
+    },
+  })
+  const onMove = (a: AgendaAppointment, startsAt: string) => {
+    setDragged({ id: a.id, startsAt })
+    move.mutate({ id: a.id, startsAt, professionalId: null, outsideAvailabilityReason: null })
+  }
+  const editing = sheet?.kind === 'edit' ? appointments.find((a) => a.id === sheet.id) : undefined
+  const sheetTarget: SheetTarget | null =
+    sheet === null ? null : sheet.kind === 'create' ? sheet : editing ? { kind: 'edit', appointment: editing, move: sheet.move } : null
 
   const step = effectiveView === 'jour' ? 1 : effectiveView === 'mois' ? 0 : 7
   const go = (direction: -1 | 1) => {
@@ -200,7 +218,7 @@ function Agenda({ reference }: { reference: AgendaReference }) {
       ) : effectiveView === 'mois' ? (
         <MonthView day={day} today={today} appointments={appointments} onDay={(d) => update({ vue: 'jour', date: d })} />
       ) : effectiveView === 'jours' ? (
-        <UpcomingList appointments={appointments} services={reference.services} professionalName={professionalName} onOpen={(a) => setSheet({ kind: 'edit', appointment: a })} />
+        <UpcomingList appointments={appointments} services={reference.services} professionalName={professionalName} onOpen={(a) => setSheet({ kind: 'edit', id: a.id })} />
       ) : (
         <div className="space-y-4">
           {columns.length === 0 ? (
@@ -217,7 +235,7 @@ function Agenda({ reference }: { reference: AgendaReference }) {
               showProfessional={effectiveView === 'semaine' && !pro}
               canWrite={canWrite}
               onCreate={onCreate}
-              onOpen={(a) => setSheet({ kind: 'edit', appointment: a })}
+              onOpen={(a) => setSheet({ kind: 'edit', id: a.id })}
               onMove={onMove}
               onRule={(r: AvailabilityRule) => setRule({ rule: r })}
             />
@@ -226,7 +244,7 @@ function Agenda({ reference }: { reference: AgendaReference }) {
         </div>
       )}
 
-      {sheet && <AppointmentSheet target={sheet} reference={reference} onClose={() => setSheet(null)} />}
+      {sheetTarget && <AppointmentSheet target={sheetTarget} reference={reference} onClose={() => setSheet(null)} />}
       {rule && <RuleDialog target={rule} reference={reference} onClose={() => setRule(null)} />}
     </>
   )

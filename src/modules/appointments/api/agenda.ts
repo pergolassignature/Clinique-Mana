@@ -84,7 +84,8 @@ export async function fetchAgendaReference(): Promise<AgendaReference> {
   }
 }
 
-export async function fetchAvailability(professionalIds: readonly string[]): Promise<{ rules: AvailabilityRule[]; exceptions: AvailabilityException[] }> {
+/** The windows of these professionals, and their exceptions ending after `sinceIso` (the shown range's start). */
+export async function fetchAvailability(professionalIds: readonly string[], sinceIso: string): Promise<{ rules: AvailabilityRule[]; exceptions: AvailabilityException[] }> {
   const [rules, exceptions] = await Promise.all([
     supabase
       .from('availability_rules')
@@ -97,6 +98,7 @@ export async function fetchAvailability(professionalIds: readonly string[]): Pro
       .from('availability_exceptions')
       .select('id, professional_id, kind, starts_at, ends_at, label')
       .in('professional_id', [...professionalIds])
+      .gt('ends_at', sinceIso)
       .order('starts_at')
       .limit(LIST_MAX),
   ])

@@ -154,8 +154,8 @@ export function ExceptionsPanel({ professionalId, weekStart, exceptions }: { pro
   const [adding, setAdding] = useState(false)
   const add = useAddException()
   const remove = useRemoveException()
-  const now = new Date().toISOString()
-  const coming = exceptions.filter((e) => e.professionalId === professionalId && e.endsAt > now)
+  const now = Date.now()
+  const coming = exceptions.filter((e) => e.professionalId === professionalId && Date.parse(e.endsAt) > now)
   return (
     <SettingsCard
       as="section"

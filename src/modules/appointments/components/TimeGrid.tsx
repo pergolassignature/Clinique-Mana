@@ -6,7 +6,7 @@ import { cn } from '@/shared/lib/utils'
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
 import { exceptionsOn, placeAppointments, verticalBox, windowsOn } from '../lib/layout'
 import { GRID_END, GRID_START, SNAP, hhmm, instantOf, minutesOnDay, snap } from '../lib/time'
-import { appointmentTitle, blockClasses } from '../lib/display'
+import { appointmentTitle, blockClasses, isBusyOnly } from '../lib/display'
 
 /** Pixels per hour of the grid (14 hours: 7:00 to 21:00). */
 export const HOUR_HEIGHT = 48
@@ -89,6 +89,8 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
   const offs = shadeFor ? exceptionsOn(exceptions, shadeFor, column.day) : []
   const [drag, setDrag] = useState<Drag | null>(null)
   const dragRef = useRef<Drag | null>(null)
+  // A drag ends with a click on the block: that click must not open it.
+  const justDragged = useRef(false)
 
   const minutesAt = (event: { clientY: number; currentTarget: HTMLElement }) => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -106,10 +108,13 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
     dragRef.current = { id: a.id, originY: event.clientY, offset: 0, moved: false }
     setDrag(dragRef.current)
   }
-  const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>, a: AgendaAppointment) => {
     const d = dragRef.current
     if (!d) return
-    const offset = snap(((event.clientY - d.originY) / HOUR_HEIGHT) * 60)
+    // Kept on the grid: 7:00 at the earliest, its end at 21:00 at the latest.
+    const start = minutesOnDay(a.startsAt, column.day)
+    const length = minutesOnDay(a.endsAt, column.day) - start
+    const offset = Math.min(Math.max(snap(((event.clientY - d.originY) / HOUR_HEIGHT) * 60), GRID_START - start), GRID_END - length - start)
     if (offset === d.offset) return
     dragRef.current = { ...d, offset, moved: d.moved || offset !== 0 }
     setDrag(dragRef.current)
@@ -118,12 +123,10 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
     const d = dragRef.current
     dragRef.current = null
     setDrag(null)
-    if (d && d.moved && d.offset !== 0) {
-      const start = minutesOnDay(a.startsAt, column.day) + d.offset
-      props.onMove(a, instantOf(column.day, start))
-      return true
+    if (d && d.moved) {
+      justDragged.current = true
+      if (d.offset !== 0) props.onMove(a, instantOf(column.day, minutesOnDay(a.startsAt, column.day) + d.offset))
     }
-    return false
   }
 
   return (
@@ -174,31 +177,39 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
             const offset = drag?.id === a.id ? drag.offset : 0
             const box = verticalBox(start + offset, end + offset, HOUR_HEIGHT)
             const width = 100 / lanes
+            const position = { top: box.top, height: Math.max(box.height, 18), left: `calc(${lane * width}% + 2px)`, width: `calc(${width}% - 4px)` }
+            // Another professional's personal appointment: busy time, nothing to open (AP-13).
+            if (isBusyOnly(a)) {
+              return (
+                <div key={a.id} className={cn('absolute overflow-hidden rounded-md border px-1.5 py-0.5 text-xs', blockClasses(a))} style={position}>
+                  {appointmentTitle(a)}
+                </div>
+              )
+            }
             return (
               <button
                 key={a.id}
                 type="button"
                 onPointerDown={(event) => startDrag(event, a)}
-                onPointerMove={moveDrag}
-                onPointerUp={() => {
-                  if (!endDrag(a)) props.onOpen(a)
-                }}
+                onPointerMove={(event) => moveDrag(event, a)}
+                onPointerUp={() => endDrag(a)}
                 onPointerCancel={() => {
                   dragRef.current = null
                   setDrag(null)
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    props.onOpen(a)
+                onClick={() => {
+                  if (justDragged.current) {
+                    justDragged.current = false
+                    return
                   }
+                  props.onOpen(a)
                 }}
                 className={cn(
                   'absolute touch-none overflow-hidden rounded-md border px-1.5 py-0.5 text-left text-xs shadow-sm',
                   blockClasses(a),
                   drag?.id === a.id && 'z-10 opacity-80 ring-2 ring-primary',
                 )}
-                style={{ top: box.top, height: Math.max(box.height, 18), left: `calc(${lane * width}% + 2px)`, width: `calc(${width}% - 4px)` }}
+                style={position}
                 aria-label={t(`${A}.blockLabel`, { time: formatClinicTime(a.startsAt), title: appointmentTitle(a) })}
               >
                 <span className="flex items-center gap-1 font-medium">

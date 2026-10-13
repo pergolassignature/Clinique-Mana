@@ -5,7 +5,8 @@
 --      admin) may book or move an appointment outside the professional's availability with an
 --      explicit reason (3–500 characters), kept with its author and shown on the appointment;
 --      never a professional on her own agenda (appointments.self alone); overlaps stay
---      impossible (the exclusion constraint is untouched). The reason is redacted in the audit.
+--      impossible (the exclusion constraint is untouched). The reason is redacted in the audit:
+--      the trigger is created again with it in its list, and an anonymisation blanks it.
 --      book_appointment and move_appointment gain the trailing `p_outside_availability_reason`.
 --   2. set_appointment_details(id, mode, internal_note, client_message): the editor's « Notes ».
 --   3. list_agenda(from, to, professional_ids): the agenda's appointments with their clients'
@@ -21,6 +22,12 @@ alter table public.appointments
   add constraint appointments_outside_availability_check
     check (outside_availability_reason is null or char_length(outside_availability_reason) between 3 and 500);
 create index appointments_outside_availability_by_idx on public.appointments (outside_availability_by);
+
+-- The audit trigger, with the new free text among the redacted columns.
+drop trigger appointments_audit on public.appointments;
+create trigger appointments_audit after insert or update or delete on public.appointments
+  for each row execute function private.audit_trigger('personal_label', 'internal_note', 'client_message', 'cancel_details',
+                                                      'balance_override_reason', 'video_url', 'outside_availability_reason');
 
 -- The reason given to book outside the availability: required there, staff only (AP-12).
 create function private.appointments_outside_reason(p_in_availability boolean, p_reason text)
@@ -45,8 +52,6 @@ begin
   if pg_catalog.char_length(v_reason) not between 3 and 500 or not private.is_tidy_text(v_reason) then
     raise exception 'La raison « Hors disponibilités » compte de 3 à 500 caractères.' using errcode = 'P0001', hint = 'outside_availability_reason';
   end if;
-  -- Redacted in the audit, as the notes are (the trigger's own list is fixed at its creation).
-  perform pg_catalog.set_config('app.audit_redact', 'outside_availability_reason', true);
   return v_reason;
 end;
 $$;
@@ -229,7 +234,10 @@ begin
   if not private.appointments_can_act_on(v_appt) then
     raise exception 'Permission refusée : appointments.manage' using errcode = '42501';
   end if;
-  if coalesce(p_mode, 'video') not in ('video', 'phone') then
+  if v_appt.state = 'cancelled' then
+    raise exception 'Ce rendez-vous est annulé : il ne se modifie plus.' using errcode = 'P0001', hint = 'state';
+  end if;
+  if coalesce(p_mode, v_appt.mode) not in ('video', 'phone') then
     raise exception 'Le rendez-vous se fait en vidéo ou par téléphone.' using errcode = 'P0001', hint = 'mode';
   end if;
   if (v_note is not null and pg_catalog.char_length(v_note) > 5000) then
@@ -239,7 +247,7 @@ begin
     raise exception 'Le message au client compte 2 000 caractères au plus.' using errcode = 'P0001', hint = 'client_message';
   end if;
   update public.appointments a
-     set mode = coalesce(p_mode, 'video'), internal_note = v_note, client_message = v_message
+     set mode = coalesce(p_mode, a.mode), internal_note = v_note, client_message = v_message
    where a.id = p_id;
 end;
 $$;
@@ -277,6 +285,7 @@ begin
         from public.appointments x
        where x.org_id = v_org
          and x.starts_at < p_to and x.blocks_until > p_from
+         and x.starts_at > p_from - interval '12 hours'
          and (p_professional_ids is null or x.professional_id = any (p_professional_ids))
          and (v_staff or x.professional_id = v_me)
     ),
@@ -317,3 +326,45 @@ grant execute on function
   public.set_appointment_details(uuid, text, text, text),
   public.list_agenda(timestamptz, timestamptz, uuid[])
 to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- 4. Anonymisation: the override's reason is a free text too (it may name the client)
+-- -----------------------------------------------------------------------------
+create or replace function private.appointments_anonymize_client(p_id uuid)
+returns int
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_texts int;
+  v_cancelled int;
+  v_left int;
+begin
+  update public.appointments a
+     set internal_note = null, client_message = null, cancel_details = null, outside_availability_reason = null
+   where exists (select 1 from public.appointment_participants p where p.appointment_id = a.id and p.client_id = p_id)
+     and (a.internal_note is not null or a.client_message is not null or a.cancel_details is not null
+          or a.outside_availability_reason is not null);
+  get diagnostics v_texts = row_count;
+
+  update public.appointments a
+     set state = 'cancelled', cancelled_at = now(), cancel_late = null,
+         cancel_reason_id = (select r.id from public.cancellation_reasons r where r.org_id = a.org_id and r.key = 'not_specified')
+   where a.starts_at > now() and a.state in ('booked', 'confirmed')
+     and exists (select 1 from public.appointment_participants p where p.appointment_id = a.id and p.client_id = p_id)
+     and not exists (select 1 from public.appointment_participants p where p.appointment_id = a.id and p.client_id <> p_id);
+  get diagnostics v_cancelled = row_count;
+
+  update public.appointment_participants q set role = 'client'
+   where q.client_id <> p_id and q.role = 'second'
+     and exists (select 1 from public.appointments a where a.id = q.appointment_id and a.starts_at > now() and a.state in ('booked', 'confirmed'))
+     and exists (select 1 from public.appointment_participants p where p.appointment_id = q.appointment_id and p.client_id = p_id and p.role = 'client');
+  delete from public.appointment_participants p
+   where p.client_id = p_id
+     and exists (select 1 from public.appointments a where a.id = p.appointment_id and a.starts_at > now() and a.state in ('booked', 'confirmed'))
+     and exists (select 1 from public.appointment_participants q where q.appointment_id = p.appointment_id and q.client_id <> p_id);
+  get diagnostics v_left = row_count;
+  return v_texts + v_cancelled + v_left;
+end;
+$$;
+

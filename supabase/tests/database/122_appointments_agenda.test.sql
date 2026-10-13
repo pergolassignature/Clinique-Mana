@@ -6,7 +6,7 @@
 -- a professional's own only, the bounded period.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(26);
 
 select function_privs_are('public', 'book_appointment',
   array['uuid', 'uuid', 'timestamp with time zone', 'uuid[]', 'text', 'text', 'text', 'text', 'text'], 'authenticated', array['EXECUTE'], 'book_appointment (with the override)');
@@ -77,6 +77,11 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select lives_ok($$ select public.move_appointment(current_setting('test.out')::uuid, '2027-03-15 13:00Z') $$, 'moved inside the availability');
 reset role;
 select is((select outside_availability_reason from public.appointments where id = current_setting('test.out')::uuid), null, '… the reason cleared');
+select is((select changed_fields ->> 'outside_availability_reason' from public.audit_log
+            where table_name = 'appointments' and record_id = current_setting('test.out') and action = 'update'
+              and changed_fields ? 'outside_availability_reason' order by id desc limit 1),
+  '[redacted]', '… and its clearing is redacted too (the trigger''s own list, not a session setting)');
+select is(coalesce(current_setting('app.audit_redact', true), ''), '', 'no session setting left behind');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.move_appointment(current_setting('test.out')::uuid, '2027-03-15 23:00Z') $$,

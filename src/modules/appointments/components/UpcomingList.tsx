@@ -3,7 +3,7 @@ import { EmptyState } from '@/shared/components/EmptyState'
 import { formatClinicDateFull, formatClinicTime, getClinicDateString } from '@/shared/lib/timezone'
 import { Badge } from '@/shared/ui/badge'
 import type { AgendaAppointment, ServiceOption } from '../api/parse'
-import { appointmentTitle, stateLabel } from '../lib/display'
+import { appointmentTitle, isBusyOnly, stateLabel } from '../lib/display'
 
 const A = 'modules.appointments.agenda'
 
@@ -22,15 +22,16 @@ export function UpcomingList({
   professionalName: (id: string) => string
   onOpen: (a: AgendaAppointment) => void
 }) {
-  if (appointments.length === 0) return <EmptyState title={t(`${A}.upcomingEmpty`)} />
+  const visible = appointments.filter((a) => !isBusyOnly(a))
+  if (visible.length === 0) return <EmptyState title={t(`${A}.upcomingEmpty`)} />
+  const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name ?? ''
   const days: { day: string; items: AgendaAppointment[] }[] = []
-  for (const a of appointments) {
+  for (const a of visible) {
     const day = getClinicDateString(a.startsAt)
     const last = days.at(-1)
     if (last?.day === day) last.items.push(a)
     else days.push({ day, items: [a] })
   }
-  const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name ?? ''
   return (
     <div className="space-y-4">
       {days.map(({ day, items }) => (

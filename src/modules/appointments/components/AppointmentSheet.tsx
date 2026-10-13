@@ -3,6 +3,7 @@ import { CircleAlert, TriangleAlert, X } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { rpcErrorHint } from '@/core/modules/errors'
+import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { ClientPicker, type PickedClient } from '@/modules/clients'
 import { CheckboxField } from '@/shared/components/CheckboxField'
 import { Loading } from '@/shared/components/LoadState'
@@ -34,7 +35,10 @@ import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateLabel } f
 
 const E = 'modules.appointments.editor'
 
-export type SheetTarget = { kind: 'create'; professionalId: string | null; day: string; time: string } | { kind: 'edit'; appointment: AgendaAppointment }
+export type SheetTarget =
+  | { kind: 'create'; professionalId: string | null; day: string; time: string }
+  /** `move`: a drag refused outside the availability, offered here with « Hors disponibilités » (AP-12). */
+  | { kind: 'edit'; appointment: AgendaAppointment; move?: { startsAt: string } }
 
 const OUTSIDE = 'outside_availability'
 
@@ -48,17 +52,20 @@ const OUTSIDE = 'outside_availability'
  * client with a balance the override to who holds it (R-58); every other refusal shows here.
  */
 export function AppointmentSheet({ target, reference, onClose }: { target: SheetTarget; reference: AgendaReference; onClose: () => void }) {
+  // A form with changes asks before the sheet closes (CLAUDE.md §8).
+  const confirmLeave = useConfirmLeave()
+  const close = () => confirmLeave(onClose)
   return (
-    <Sheet open onOpenChange={(open) => !open && onClose()}>
+    <Sheet open onOpenChange={(open) => !open && close()}>
       <SheetContent hideClose className="max-w-[560px]">
-        <button type="button" tabIndex={-1} onClick={onClose} className={closeButtonClasses}>
+        <button type="button" tabIndex={-1} onClick={close} className={closeButtonClasses}>
           <X aria-hidden className="h-4 w-4" />
           <span className="sr-only">{t('common.close')}</span>
         </button>
         {target.kind === 'create' ? (
           <CreateForm target={target} reference={reference} onClose={onClose} />
         ) : (
-          <EditPanel appointment={target.appointment} reference={reference} onClose={onClose} />
+          <EditPanel appointment={target.appointment} move={target.move} reference={reference} onClose={onClose} />
         )}
       </SheetContent>
     </Sheet>
@@ -121,7 +128,8 @@ function Refusal({ message }: { message: string | null }) {
 
 function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarget, { kind: 'create' }>; reference: AgendaReference; onClose: () => void }) {
   const { can } = useAccess()
-  const [professionalId, setProfessionalId] = useState(target.professionalId ?? reference.professionals[0]?.id ?? '')
+  // From the all-professionals grid nobody is chosen for the person: she picks.
+  const [professionalId, setProfessionalId] = useState(target.professionalId ?? '')
   const services = useMemo(() => (professionalId ? servicesFor(reference, professionalId) : []), [reference, professionalId])
   const [serviceId, setServiceId] = useState('')
   const [day, setDay] = useState(target.day)
@@ -145,6 +153,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   })
   const service = services.find((s) => s.id === serviceId)
   const needed = service?.forTwo ? 2 : 1
+  useUnsavedChanges(Boolean(serviceId || clients.length > 0 || note.trim() || message.trim()))
   const ready = Boolean(professionalId && serviceId && day && time && clients.length >= needed)
 
   const submit = (event: FormEvent) => {
@@ -277,8 +286,19 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
 
 type EditTab = 'appointment' | 'notes' | 'cancel'
 
-function EditPanel({ appointment: a, reference, onClose }: { appointment: AgendaAppointment; reference: AgendaReference; onClose: () => void }) {
+function EditPanel({
+  appointment: a,
+  move,
+  reference,
+  onClose,
+}: {
+  appointment: AgendaAppointment
+  move?: { startsAt: string }
+  reference: AgendaReference
+  onClose: () => void
+}) {
   const [tab, setTab] = useState<EditTab>('appointment')
+  const confirmLeave = useConfirmLeave()
   const service = reference.services.find((s) => s.id === a.serviceId)
   const pro = reference.professionals.find((p) => p.id === a.professionalId)
   const open = a.state === 'booked' || a.state === 'confirmed'
@@ -303,14 +323,14 @@ function EditPanel({ appointment: a, reference, onClose }: { appointment: Agenda
       {!a.isPersonal && (
         <NavTabs className="px-6">
           {(['appointment', 'notes', 'cancel'] as const).map((key) => (
-            <NavTab key={key} active={tab === key} onClick={() => setTab(key)}>
+            <NavTab key={key} active={tab === key} onClick={() => key !== tab && confirmLeave(() => setTab(key))}>
               {t(`${E}.tabs.${key}`)}
             </NavTab>
           ))}
         </NavTabs>
       )}
       <SheetBody className="space-y-4">
-        {tab === 'appointment' && <AppointmentTab appointment={a} reference={reference} open={open} />}
+        {tab === 'appointment' && <AppointmentTab key={a.startsAt} appointment={a} move={move} reference={reference} open={open} />}
         {tab === 'notes' && <NotesTab appointment={a} />}
         {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
       </SheetBody>
@@ -318,13 +338,23 @@ function EditPanel({ appointment: a, reference, onClose }: { appointment: Agenda
   )
 }
 
-function AppointmentTab({ appointment: a, reference, open }: { appointment: AgendaAppointment; reference: AgendaReference; open: boolean }) {
+function AppointmentTab({
+  appointment: a,
+  move: dragged,
+  reference,
+  open,
+}: {
+  appointment: AgendaAppointment
+  move?: { startsAt: string }
+  reference: AgendaReference
+  open: boolean
+}) {
   const { can } = useAccess()
   const detail = useAppointmentDetail(a.id)
-  const [day, setDay] = useState(getClinicDateString(a.startsAt))
-  const [time, setTime] = useState(getClinicTimeString(a.startsAt))
+  const [day, setDay] = useState(getClinicDateString(dragged?.startsAt ?? a.startsAt))
+  const [time, setTime] = useState(getClinicTimeString(dragged?.startsAt ?? a.startsAt))
   const [professionalId, setProfessionalId] = useState(a.professionalId)
-  const [outside, setOutside] = useState(false)
+  const [outside, setOutside] = useState(Boolean(dragged) && can('appointments.manage'))
   const [outsideReason, setOutsideReason] = useState('')
   const [refusal, setRefusal] = useState<string | null>(null)
   const move = useMoveAppointment({
@@ -335,6 +365,7 @@ function AppointmentTab({ appointment: a, reference, open }: { appointment: Agen
   })
   const presence = useSetPresence({ onErrorMessage: (msg) => setRefusal(msg) })
   const changed = day !== getClinicDateString(a.startsAt) || time !== getClinicTimeString(a.startsAt) || professionalId !== a.professionalId
+  useUnsavedChanges(open && (changed || outsideReason.trim() !== ''))
   const eligible = a.serviceId ? reference.professionals.filter((p) => servicesFor(reference, p.id).some((s) => s.id === a.serviceId)) : reference.professionals
 
   return (
@@ -435,6 +466,7 @@ function NotesForm({ appointment: a, note: storedNote, message: storedMessage }:
   const [refusal, setRefusal] = useState<string | null>(null)
   const save = useSetAppointmentDetails({ onErrorMessage: (msg) => setRefusal(msg) })
   const dirty = mode !== a.mode || note !== storedNote || message !== storedMessage
+  useUnsavedChanges(dirty)
   return (
     <form
       noValidate
@@ -476,6 +508,7 @@ function CancelTab({ appointment: a, reference, open, onDone }: { appointment: A
   const [refusal, setRefusal] = useState<string | null>(null)
   const cancel = useCancelAppointment({ onErrorMessage: (msg) => setRefusal(msg) })
   const reasons = reference.reasons.filter((r) => r.active)
+  useUnsavedChanges(open && (reason !== '' || details.trim() !== ''))
   if (!open) {
     const name = reference.reasons.find((r) => r.id === a.cancelReasonId)?.name
     return (

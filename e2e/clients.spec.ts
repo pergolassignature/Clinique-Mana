@@ -74,7 +74,8 @@ test('a professional sees « Mes clients », never the clinic list', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: 'Mes clients' })).toBeVisible()
   await expect(page.getByText('Alice Tremblay-Fictive')).toBeVisible()
   await expect(page.getByText('Léa Gagnon-Fictive')).toBeVisible()
-  await expect(page.getByText('Marc Gagnon-Fictif')).toBeHidden()
+  // Paule has no appointment with Félix (the seed books Alice, Léa and Marc with him).
+  await expect(page.getByText('Paule Roy-Fictive')).toBeHidden()
   await expect(page.getByRole('navigation').getByRole('link', { name: 'Clients', exact: true })).toBeHidden()
 })
 

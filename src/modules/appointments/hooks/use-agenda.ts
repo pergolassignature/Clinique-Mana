@@ -42,10 +42,10 @@ export function useAgendaReference() {
   return useQuery({ queryKey: appointmentsKeys.reference(), queryFn: fetchAgendaReference, staleTime: 5 * 60_000 })
 }
 
-export function useAvailability(professionalIds: readonly string[]) {
+export function useAvailability(professionalIds: readonly string[], sinceIso: string) {
   return useQuery({
-    queryKey: appointmentsKeys.availability(professionalIds),
-    queryFn: () => fetchAvailability(professionalIds),
+    queryKey: appointmentsKeys.availability(professionalIds, sinceIso),
+    queryFn: () => fetchAvailability(professionalIds, sinceIso),
     enabled: professionalIds.length > 0,
     placeholderData: keepPreviousData,
   })
