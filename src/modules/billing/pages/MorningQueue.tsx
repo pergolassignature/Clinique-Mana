@@ -128,6 +128,12 @@ function QueueItem({ row, manage, sending, onSend }: { row: QueueRow; manage: bo
             <Link to={`/facturation/factures/${row.id}`}>{t(`${Q}.open`)}</Link>
           </Button>
         )}
+        {row.holdReason === 'payer_incomplete' && (
+          // FP-9: the payer is completed in the dossier; the draft is sent once it is.
+          <Button asChild size="sm" variant="outline">
+            <Link to={`/clients/${row.clientId}/assurance-et-payeurs`}>{t(`${Q}.completePayer`)}</Link>
+          </Button>
+        )}
       </div>
     </li>
   )

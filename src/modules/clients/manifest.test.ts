@@ -10,6 +10,7 @@ describe('clientsManifest', () => {
     expect(clientsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['clients', 'clients.view'],
       ['clients/consentements', 'clients.view'],
+      ['clients/payeurs-a-completer', 'clients.view'],
       ['clients/:id/:onglet?', 'clients.view'],
       ['mes-clients', 'clients.self'],
     ])

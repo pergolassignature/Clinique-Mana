@@ -15,6 +15,11 @@ export const billingKeys = {
   overdue: () => [...billingKeys.all, 'overdue'] as const,
   fees: (status: string | null) => [...billingKeys.all, 'fees', status] as const,
   settings: () => [...billingKeys.all, 'settings'] as const,
+  /** FP: « Payeurs », the organisations, IVAC's rate, a client's payers. */
+  payerQueue: () => [...billingKeys.all, 'payers', 'queue'] as const,
+  payerOrganisations: () => [...billingKeys.all, 'payers', 'organisations'] as const,
+  payerSettings: () => [...billingKeys.all, 'payers', 'settings'] as const,
+  clientPayers: (clientId: string) => [...billingKeys.all, 'payers', 'client', clientId] as const,
 }
 
 /**
