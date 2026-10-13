@@ -3,7 +3,7 @@ import { supabase } from '@/core/supabase/client'
 import type { Database } from '@/core/supabase/database.types'
 
 /**
- * Facturation F1: every write is an RPC (the database computes every amount and number); reads are
+ * Facturation F1 and F2: every write is an RPC (the database computes every amount and number); reads are
  * `list_invoices`, `get_invoice`, `get_client_billing`, and the other modules' published views for
  * names (`professionals_directory`, `services_catalog`). A payload that does not match throws
  * UNEXPECTED_SHAPE, never Zod's issues (they could quote a name).
@@ -19,7 +19,7 @@ function parse<S extends z.ZodType>(schema: S, data: unknown): z.output<S> {
 type Functions = Database['public']['Functions']
 type RpcArgs<F extends keyof Functions> = Functions[F]['Args']
 /** The generator types optional parameters as non-null; the RPCs take null where SQL allows it. */
-function sqlArgs<F extends keyof Functions>(args: { [K in keyof RpcArgs<F>]-?: RpcArgs<F>[K] | null }): RpcArgs<F> {
+export function sqlArgs<F extends keyof Functions>(args: { [K in keyof RpcArgs<F>]-?: RpcArgs<F>[K] | null }): RpcArgs<F> {
   return args as RpcArgs<F>
 }
 
@@ -30,6 +30,33 @@ export type LineType = (typeof LINE_TYPES)[number]
 
 const person = z.object({ id: z.string(), name: z.string(), client_number: z.number().int().nullable() })
 const option = z.object({ id: z.string(), name: z.string(), is_self: z.boolean(), relation: z.string().nullable() })
+
+export const HOLD_REASONS = ['special_agreement', 'client_agreement', 'manual', 'price_missing', 'payer_missing'] as const
+export type HoldReason = (typeof HOLD_REASONS)[number]
+export const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'] as const
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
+
+/** A document's deliveries, newest first (`billing_deliveries`): what the screens say of its PDF and email. */
+const deliveryPayload = z
+  .object({
+    id: z.string(),
+    status: z.enum(['pending', 'sending', 'done', 'failed']),
+    send_email: z.boolean(),
+    email_status: z.enum(['sent', 'skipped', 'failed']).nullable(),
+    skip_reason: z.enum(['not_requested', 'no_email', 'reserved', 'module_disabled']).nullable(),
+    created_at: z.string(),
+    finished_at: z.string().nullable(),
+  })
+  .transform((d) => ({
+    id: d.id,
+    status: d.status,
+    sendEmail: d.send_email,
+    emailStatus: d.email_status,
+    skipReason: d.skip_reason,
+    createdAt: d.created_at,
+    finishedAt: d.finished_at,
+  }))
+export type Delivery = z.output<typeof deliveryPayload>
 
 const invoicePayload = z.object({
   id: z.string(),
@@ -49,6 +76,14 @@ const invoicePayload = z.object({
   notes_client: z.string().nullable(),
   notes_internal: z.string().nullable(),
   created_at: z.string(),
+  queue_day: z.string().nullable().default(null),
+  hold_reason: z.enum(HOLD_REASONS).nullable().default(null),
+  hold_now: z.enum(HOLD_REASONS).nullable().default(null),
+  hold_note: z.string().nullable().default(null),
+  paid_cents: z.number().int().default(0),
+  payment_status: z.enum(PAYMENT_STATUSES).default('unpaid'),
+  pdf_file_id: z.string().nullable().default(null),
+  payer_has_email: z.boolean().default(true),
 })
 
 const linePayload = z.object({
@@ -70,7 +105,42 @@ const linePayload = z.object({
   total_cents: z.number().int(),
 })
 
-const creditNotePayload = z.object({ id: z.string(), number: z.string(), reason: z.string(), issued_on: z.string(), total_cents: z.number().int() })
+const creditNotePayload = z.object({
+  id: z.string(),
+  number: z.string(),
+  reason: z.string(),
+  issued_on: z.string(),
+  total_cents: z.number().int(),
+  pdf_file_id: z.string().nullable().default(null),
+  deliveries: z.array(deliveryPayload).default([]),
+})
+
+const paymentPayload = z
+  .object({
+    id: z.string(),
+    mode_code: z.string(),
+    mode: z.string(),
+    amount_cents: z.number().int(),
+    paid_on: z.string(),
+    reference: z.string().nullable(),
+    receipt_id: z.string().nullable(),
+    receipt_number: z.string().nullable(),
+    receipt_file_id: z.string().nullable(),
+    receipt_deliveries: z.array(deliveryPayload),
+  })
+  .transform((p) => ({
+    id: p.id,
+    modeCode: p.mode_code,
+    mode: p.mode,
+    amountCents: p.amount_cents,
+    paidOn: p.paid_on,
+    reference: p.reference,
+    receiptId: p.receipt_id,
+    receiptNumber: p.receipt_number,
+    receiptFileId: p.receipt_file_id,
+    receiptDeliveries: p.receipt_deliveries,
+  }))
+export type Payment = z.output<typeof paymentPayload>
 
 const invoiceBundle = z
   .object({
@@ -80,6 +150,9 @@ const invoiceBundle = z
     payer_options: z.array(option),
     lines: z.array(linePayload),
     credit_note: creditNotePayload.nullable(),
+    payments: z.array(paymentPayload).default([]),
+    deliveries: z.array(deliveryPayload).default([]),
+    payment_modes: z.array(z.object({ code: z.string(), name: z.string() })).default([]),
   })
   .transform((r) => ({
     invoice: {
@@ -98,6 +171,14 @@ const invoiceBundle = z
       totalCents: r.invoice.total_cents,
       notesClient: r.invoice.notes_client,
       notesInternal: r.invoice.notes_internal,
+      queueDay: r.invoice.queue_day,
+      holdReason: r.invoice.hold_reason,
+      holdNow: r.invoice.hold_now,
+      holdNote: r.invoice.hold_note,
+      paidCents: r.invoice.paid_cents,
+      paymentStatus: r.invoice.payment_status,
+      pdfFileId: r.invoice.pdf_file_id,
+      payerHasEmail: r.invoice.payer_has_email,
     },
     client: { id: r.client.id, name: r.client.name, clientNumber: r.client.client_number },
     payer: { id: r.payer.id, name: r.payer.name },
@@ -118,7 +199,20 @@ const invoiceBundle = z
       qstCents: l.qst_cents,
       totalCents: l.total_cents,
     })),
-    creditNote: r.credit_note ? { number: r.credit_note.number, reason: r.credit_note.reason, issuedOn: r.credit_note.issued_on, totalCents: r.credit_note.total_cents } : null,
+    creditNote: r.credit_note
+      ? {
+          id: r.credit_note.id,
+          number: r.credit_note.number,
+          reason: r.credit_note.reason,
+          issuedOn: r.credit_note.issued_on,
+          totalCents: r.credit_note.total_cents,
+          pdfFileId: r.credit_note.pdf_file_id,
+          deliveries: r.credit_note.deliveries,
+        }
+      : null,
+    payments: r.payments,
+    deliveries: r.deliveries,
+    paymentModes: r.payment_modes,
   }))
 export type InvoiceBundle = z.output<typeof invoiceBundle>
 export type InvoiceLine = InvoiceBundle['lines'][number]
@@ -136,12 +230,16 @@ const listRow = z
     payer_name: z.string().nullable(),
     issued_on: z.string().nullable(),
     total_cents: z.number().int(),
+    paid_cents: z.number().int().default(0),
+    payment_status: z.enum(PAYMENT_STATUSES).default('unpaid'),
     created_at: z.string(),
   })
   .transform((r) => ({
     id: r.id,
     number: r.number,
     status: r.status,
+    paidCents: r.paid_cents,
+    paymentStatus: r.payment_status,
     clientId: r.client_id,
     clientName: r.client_name ?? '',
     clientNumber: r.client_number,
@@ -174,6 +272,8 @@ const clientBilling = z
   .object({
     default_payer_id: z.string(),
     payer_options: z.array(option),
+    special_agreement: z.object({ note: z.string(), created_at: z.string() }).nullable().default(null),
+    balance_cents: z.number().int().default(0),
     invoices: z.array(
       z.object({
         id: z.string(),
@@ -181,10 +281,39 @@ const clientBilling = z
         status: z.enum(INVOICE_STATUSES),
         issued_on: z.string().nullable(),
         total_cents: z.number().int(),
+        paid_cents: z.number().int().default(0),
+        payment_status: z.enum(PAYMENT_STATUSES).default('unpaid'),
         payer_client_id: z.string(),
         created_at: z.string(),
       }),
     ),
+    payments: z
+      .array(
+        z.object({
+          id: z.string(),
+          invoice_id: z.string(),
+          invoice_number: z.string().nullable(),
+          mode: z.string(),
+          amount_cents: z.number().int(),
+          paid_on: z.string(),
+          payer_client_id: z.string(),
+          receipt_number: z.string().nullable(),
+          receipt_file_id: z.string().nullable(),
+        }),
+      )
+      .default([]),
+    statements: z
+      .array(
+        z.object({
+          id: z.string(),
+          year: z.number().int(),
+          payer_client_id: z.string(),
+          pdf_file_id: z.string().nullable(),
+          created_at: z.string(),
+          deliveries: z.array(deliveryPayload),
+        }),
+      )
+      .default([]),
     to_invoice: z.array(
       z.object({
         appointment_id: z.string(),
@@ -199,12 +328,35 @@ const clientBilling = z
   .transform((r) => ({
     defaultPayerId: r.default_payer_id,
     payerOptions: r.payer_options.map((o) => ({ id: o.id, name: o.name, isSelf: o.is_self, relation: o.relation })),
+    specialAgreement: r.special_agreement ? { note: r.special_agreement.note, createdAt: r.special_agreement.created_at } : null,
+    balanceCents: r.balance_cents,
+    payments: r.payments.map((p) => ({
+      id: p.id,
+      invoiceId: p.invoice_id,
+      invoiceNumber: p.invoice_number,
+      mode: p.mode,
+      amountCents: p.amount_cents,
+      paidOn: p.paid_on,
+      payerId: p.payer_client_id,
+      receiptNumber: p.receipt_number,
+      receiptFileId: p.receipt_file_id,
+    })),
+    statements: r.statements.map((st) => ({
+      id: st.id,
+      year: st.year,
+      payerId: st.payer_client_id,
+      pdfFileId: st.pdf_file_id,
+      createdAt: st.created_at,
+      deliveries: st.deliveries,
+    })),
     invoices: r.invoices.map((i) => ({
       id: i.id,
       number: i.number,
       status: i.status,
       issuedOn: i.issued_on,
       totalCents: i.total_cents,
+      paidCents: i.paid_cents,
+      paymentStatus: i.payment_status,
       payerId: i.payer_client_id,
       createdAt: i.created_at,
     })),

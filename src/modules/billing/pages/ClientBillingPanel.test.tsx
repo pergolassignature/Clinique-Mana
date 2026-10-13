@@ -11,9 +11,11 @@ import { ClientBillingPanel } from './ClientBillingPanel'
 
 const mocks = vi.hoisted(() => ({
   api: { fetchClientBilling: vi.fn(), fetchBillingNames: vi.fn(), createInvoice: vi.fn(), setDefaultPayer: vi.fn(), createManualInvoice: vi.fn() },
+  queue: { setSpecialAgreement: vi.fn(), createStatement: vi.fn(), deliverNow: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/invoices', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
+vi.mock('../api/queue', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.queue }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -25,7 +27,13 @@ const BILLING: ClientBilling = {
     { id: 'c1', name: 'Léa Essai', isSelf: true, relation: null },
     { id: 'c3', name: 'Camille Essai', isSelf: false, relation: 'parent' },
   ],
-  invoices: [{ id: 'i1', number: '2026-12', status: 'issued', issuedOn: '2026-10-06', totalCents: 17349, payerId: 'c3', createdAt: '2026-10-06T12:00:00Z' }],
+  specialAgreement: null,
+  balanceCents: 17349,
+  payments: [],
+  statements: [],
+  invoices: [
+    { id: 'i1', number: '2026-12', status: 'issued', issuedOn: '2026-10-06', totalCents: 17349, paidCents: 0, paymentStatus: 'unpaid', payerId: 'c3', createdAt: '2026-10-06T12:00:00Z' },
+  ],
   toInvoice: [{ appointmentId: 'a2', startsAt: '2026-10-07T14:00:00Z', state: 'completed', serviceId: 's50', professionalId: 'p1', firstClient: true }],
 }
 
@@ -49,6 +57,9 @@ beforeEach(() => {
   mocks.api.fetchBillingNames.mockResolvedValue({ professionals: new Map([['p1', 'Félix Gauthier']]), services: new Map([['s50', 'Consultation individuelle 50 min']]) })
   mocks.api.createInvoice.mockResolvedValue('i9')
   mocks.api.setDefaultPayer.mockResolvedValue(undefined)
+  mocks.queue.setSpecialAgreement.mockResolvedValue(undefined)
+  mocks.queue.createStatement.mockResolvedValue('s1')
+  mocks.queue.deliverNow.mockResolvedValue({ done: 1, failed: 0 })
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -66,6 +77,20 @@ describe('ClientBillingPanel', () => {
     await user.click(within(left).getByRole('button', { name: t(`${C}.create`) }))
     await waitFor(() => expect(mocks.api.createInvoice).toHaveBeenCalledWith(['a2']))
     expect(await screen.findByText('Page de la facture')).toBeInTheDocument()
+  })
+
+  it('the balance, the « entente particulière » saved, a statement prepared and sent to the chosen payer', async () => {
+    const user = userEvent.setup()
+    open()
+    expect(await screen.findByText(t(`${C}.balance`, { amount: '173,49 $' }))).toBeInTheDocument()
+    const agreement = screen.getByRole('form', { name: t(`${C}.agreement.title`) })
+    await user.type(within(agreement).getByLabelText(/^Entente particulière/), 'Tarif convenu')
+    await user.click(within(agreement).getByRole('button', { name: t(`${C}.agreement.save`) }))
+    await waitFor(() => expect(mocks.queue.setSpecialAgreement).toHaveBeenCalledWith('c1', 'Tarif convenu'))
+    await user.selectOptions(screen.getByLabelText(/^Payeur/), 'c3')
+    await user.click(screen.getByRole('button', { name: t(`${C}.statement.send`) }))
+    await waitFor(() => expect(mocks.queue.createStatement).toHaveBeenCalledWith({ clientId: 'c1', year: expect.any(Number), payerId: 'c3', send: true }))
+    await waitFor(() => expect(mocks.queue.deliverNow).toHaveBeenCalled())
   })
 
   it('the conseillère reads: no creation, the payer read-only', async () => {

@@ -12,6 +12,7 @@ import {
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
+  setSupervisor,
   syncProfessionalSignin,
   updateMatchingProfile,
   updateProfessional,
@@ -222,6 +223,19 @@ export function useSetPayerNumber(feedback?: MutationFeedback) {
         ...record,
         payerNumbers: [...record.payerNumbers.filter((p) => p.type !== type), ...(number ? [{ type, number }] : [])],
       }),
+      touchesUsage: false,
+      touchesList: never,
+    },
+    feedback,
+  )
+}
+
+/** The intern's supervisor (F2.0): not shown in the list. */
+export function useSetSupervisor(feedback?: MutationFeedback) {
+  return useRecordMutation(
+    {
+      mutationFn: ({ id, supervisorId }: { id: string; supervisorId: string | null }) => setSupervisor(id, supervisorId),
+      apply: (record, _, { supervisorId }) => ({ ...record, professional: { ...record.professional, supervisorId } }),
       touchesUsage: false,
       touchesList: never,
     },
