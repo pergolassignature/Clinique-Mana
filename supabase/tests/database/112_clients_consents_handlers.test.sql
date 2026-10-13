@@ -13,8 +13,9 @@ select plan(25);
 select function_privs_are('private', f.name, f.args, 'authenticated', array[]::text[], f.name || ': no role')
   from (values ('clients_consents_reassign_client', array['uuid', 'uuid']), ('clients_consents_anonymize_client', array['uuid']),
                ('clients_consent_in_signing', array['uuid', 'uuid']), ('clients_consent_cancel', array['uuid', 'uuid'])) as f(name, args);
-select is((select function_name from public.client_merge_handlers where module_key = 'clients'), 'private.clients_consents_reassign_client',
-  'the consents'' merge handler is registered');
+-- Since CL-30 Clients' row names private.clients_reassign_client, which runs the consents' handler first.
+select is((select function_name from public.client_merge_handlers where module_key = 'clients'), 'private.clients_reassign_client',
+  'the consents'' merge handler is registered (through Clients'' handler, CL-30)');
 select is((select function_name from public.client_anonymize_handlers where module_key = 'clients'), 'private.clients_consents_anonymize_client',
   'the consents'' anonymisation handler is registered');
 

@@ -66,7 +66,7 @@ const FIELDS: readonly Field[] = [
       c.addressLine1 || c.city || c.postalCode ? [c.addressLine1, c.addressLine2, c.city, c.province, c.postalCode].filter(Boolean).join(', ') : null,
   },
   { key: 'referralSourceId', labelKey: `${F}.referralSource`, take: 'referral_source_id', show: (c, r) => nameOf(r?.referralSources, c.referralSourceId), raw: (c) => c.referralSourceId },
-  { key: 'referredBy', labelKey: `${F}.referredBy`, take: 'referred_by', show: (c) => c.referredBy },
+  { key: 'referredBy', labelKey: `${F}.referredBy`, take: 'referred_by', show: (c) => c.referredBy ?? (c.referredByClientId ? t('modules.clients.referrer.linked') : null) },
   {
     key: 'primaryProfessionalId',
     labelKey: `${F}.primaryProfessional`,

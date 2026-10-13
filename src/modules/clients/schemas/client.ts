@@ -40,6 +40,8 @@ export type ClientFormValues = {
   country: string
   referralSourceId: string
   referredBy: string
+  /** « Référé par » a file of the clinic (its id; '' none): never with `referredBy` (CL-30). */
+  referredByClientId: string
   customField: string
   primaryProfessionalId: string
   rateVariant: string
@@ -96,6 +98,7 @@ const FIELDS = {
   country: z.string().trim(),
   referralSourceId: z.string().transform(emptyToNull),
   referredBy: optionalText(200),
+  referredByClientId: z.string().transform(emptyToNull),
   customField: optionalText(200),
   primaryProfessionalId: z.string().transform(emptyToNull),
   rateVariant: optionalCode(RATE_VARIANTS, t(`${V}.rateVariant`)),
@@ -180,6 +183,7 @@ export function emptyClientForm(): ClientFormValues {
     country: 'CA',
     referralSourceId: '',
     referredBy: '',
+    referredByClientId: '',
     customField: '',
     primaryProfessionalId: '',
     rateVariant: '',
@@ -216,6 +220,7 @@ export function clientFormValues(client: Client): ClientFormValues {
     country: client.country,
     referralSourceId: client.referralSourceId ?? '',
     referredBy: client.referredBy ?? '',
+    referredByClientId: client.referredByClientId ?? '',
     customField: client.customField ?? '',
     primaryProfessionalId: client.primaryProfessionalId ?? '',
     rateVariant: client.rateVariant ?? '',
@@ -251,6 +256,7 @@ const RPC_KEYS: Record<ClientFieldKey, string> = {
   country: 'country',
   referralSourceId: 'referral_source_id',
   referredBy: 'referred_by',
+  referredByClientId: 'referred_by_client_id',
   customField: 'custom_field',
   primaryProfessionalId: 'primary_professional_id',
   rateVariant: 'rate_variant',

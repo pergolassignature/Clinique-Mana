@@ -5261,6 +5261,7 @@
             "country": "Pays",
             "referral_source_id": "Provenance",
             "referred_by": "Référé par",
+            "referred_by_client_id": "Référé par (dossier)",
             "custom_field": "Champ personnalisé",
             "primary_professional_id": "Professionnel principal",
             "rate_variant": "Tarif",
@@ -6303,6 +6304,16 @@
         "results": "Dossiers trouvés",
         "noResult": "Aucun dossier trouvé.",
         "searchError": "La recherche n'a pas fonctionné. Réessayez."
+      },
+      "referrer": {
+        "help": "Cherchez un dossier de la clinique (nom, courriel, numéro), ou écrivez un nom.",
+        "results": "Dossiers trouvés",
+        "noResult": "Aucun dossier trouvé.",
+        "useText": "Utiliser « {text} » comme texte",
+        "clear": "Retirer le dossier",
+        "open": "Ouvrir le dossier dans un nouvel onglet",
+        "anonymized": "Dossier anonymisé",
+        "linked": "Un dossier de la clinique"
       }
     },
     "communications": {
