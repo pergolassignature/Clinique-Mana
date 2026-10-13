@@ -1,4 +1,5 @@
 import { t } from '@/i18n'
+import { csvField } from '@/shared/lib/csv'
 import { formatDateOnly, getClinicDateString, shiftCalendarDay } from '@/shared/lib/timezone'
 import type { StatusTone } from '@/shared/ui/status-dot'
 import type { LineKind, PayoutExportRow, PayoutLine, PayoutPeriodRow, PayoutRule, PayoutState, Pricing } from '../api/payroll'
@@ -117,15 +118,8 @@ export function monthSummary(rows: readonly PayoutPeriodRow[]): { periods: numbe
   }
 }
 
-/**
- * A field of the CSV: a leading `= + - @`, tab or carriage return gets a `'` (a spreadsheet never
- * reads a typed invoice number as a formula); quoted when it holds a separator, a quote or a line
- * break.
- */
-export function csvField(raw: string): string {
-  const value = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
-  return /[;"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
+// The CSV's text fields: guarded against formulas (`@/shared/lib/csv`).
+export { csvField }
 
 /**
  * The QuickBooks export (« Factures des professionnels »): one row per invoice, classed by
