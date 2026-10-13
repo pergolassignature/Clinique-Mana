@@ -587,9 +587,13 @@ begin
   end loop;
   v_past := public.book_appointment(v_pro, v_service, (v_day + time '11:00') at time zone 'America/Toronto', array[v_marc]);
   update public.appointments set state = 'completed', completed_at = ends_at where id = v_past;
+  -- Léa's late cancellation that day: a cancellation fee for Félix to decide (Facturation F3).
+  v_past := public.book_appointment(v_pro, v_service, (v_day + time '14:00') at time zone 'America/Toronto', array[v_lea]);
+  update public.appointments set state = 'cancelled', cancel_late = true, cancelled_at = starts_at - interval '2 hours' where id = v_past;
   perform public.set_billing_queue_from(v_day);
   perform set_config('request.jwt.claims', '', false);
   perform private.job_billing_build_drafts();
+  perform private.job_billing_follow_up();
 end;
 $appointments$;
 

@@ -54,3 +54,20 @@ test('the adjointe sends the morning queue, then records a payment', async ({ pa
   await expect(page.getByRole('list', { name: 'Paiements de la facture' }).getByText(/Reçu R-\d{4}-\d+/)).toBeVisible()
   await expect(page.getByText('Payée', { exact: true })).toBeVisible()
 })
+
+/**
+ * Facturation F3 (local only, after `npm run db:reset`: the seed cancels Léa's session late on the
+ * last weekday, and the follow-up job lists its fee for Félix to decide). The adjointe applies the
+ * fee for him: its draft joins the morning queue.
+ */
+test('the adjointe applies a late-cancellation fee for the professional', async ({ page, signIn }) => {
+  await signIn('adminAssistant')
+  await page.goto('/facturation?vue=frais')
+  const fees = page.getByRole('list', { name: "Frais d'annulation à décider" })
+  const lea = fees.getByRole('listitem').filter({ hasText: 'Léa Gagnon-Fictive' }).first()
+  await expect(lea.getByText('Annulation tardive')).toBeVisible()
+  await lea.getByRole('button', { name: 'Appliquer les frais' }).click()
+  await expect(page.getByText(/^Frais appliqués\s:\sle brouillon est dans la file du matin\.$/)).toBeVisible()
+  await page.getByRole('tab', { name: 'File du matin' }).click()
+  await expect(page.getByRole('list', { name: 'Brouillons de la file du matin' }).getByRole('link', { name: /Léa Gagnon-Fictive/ })).toBeVisible()
+})

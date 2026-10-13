@@ -6,14 +6,14 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 |---|---|---|
 | F1 | Invoices, lines, payer model (« Facturé à »), numbering `AAAA-N`, taxes per line with « Statut Indien », credit notes; « Factures », the invoice page, the client's panel, Paramètres → Facturation | built |
 | F2 | Morning queue, payments, receipts on payment, statements, PDFs, emails (schema, `billing-documents`); the screens | built |
-| F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | schema built; screens next |
+| F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | built |
 | FQ | QuickBooks Online (lane B): the connection, the accounts map keyed on the payment modes, the customers read and matched (part 1); the invoices and payments pushed (part 2, after F2) | part 1 built |
 | FPay | Payroll (lane C): periods, rules, the lock, « Paie », « Ma paie », her invoice, the QuickBooks export ([below](#paie-des-professionnels-fpay)) | built (fee wiring after F3) |
 
 - **Registry:** `modules.key = 'billing'`, depends on `clients`, `services`, `professionals`, `appointments`; starts disabled in every clinic.
 - **Migrations:** `20261013105811_clients_billing_facts` (Clients' published facts), `20261013105814_appointments_billing_facts` (Rendez-vous' published facts), `20261013105817_billing_module` (registry, tables, RLS, audit, seeds, RPCs, handlers), `20261013111236_billing_quickbooks` (FQ part 1, below); F2: `20261013113141_professionals_supervisor` (Professionnels: the supervisor, the receipt facts), `20261013113521_billing_queue_payments` (the queue, payments, receipts, statements, deliveries, the job, the templates).
 - **Functions:** `billing-documents` (F2: renders and sends the PDFs; job `billing.documents` and user calls).
-- **Tests:** pgTAP `135_billing_invoices` (privileges, registry and roles, payment modes, an invoice from an appointment with the grid price and the file-opening fee, taxes per line, never twice, the payer rule, the default payer, « Statut Indien », an amount to type, gapless numbering continuing a set sequence and never backwards, credit notes, drafts only edited, reads, anonymisation); pgTAP `136_professionals_supervisor` and `137_billing_queue_payments` (the queue's drafts once, the holds, « Envoyer » with a refusal for one, the deliveries and P3-40, payments and receipts, credit notes, statements); Deno `billing-documents/*.test.ts` (the receipt's text with the supervisor, the invoice, the statement, English; render, store, email, set aside, retry; preview); Vitest `src/modules/billing/**/*.test.ts(x)` (manifest; `InvoicePage`: lines and totals, the payer, an amount to type, finalising, an adjustment, a credit note, read-only for the conseillère; `ClientBillingPanel`: invoices, default payer, « Créer la facture »); Playwright `e2e/billing.spec.ts` (invoice Alice's appointment, finalise, credit; send the morning queue, record a payment); the audit labels by `src/app/audit-labels.test.ts`.
+- **Tests:** pgTAP `135_billing_invoices` (privileges, registry and roles, payment modes, an invoice from an appointment with the grid price and the file-opening fee, taxes per line, never twice, the payer rule, the default payer, « Statut Indien », an amount to type, gapless numbering continuing a set sequence and never backwards, credit notes, drafts only edited, reads, anonymisation); pgTAP `136_professionals_supervisor` and `137_billing_queue_payments` (the queue's drafts once, the holds, « Envoyer » with a refusal for one, the deliveries and P3-40, payments and receipts, credit notes, statements); Deno `billing-documents/*.test.ts` (the receipt's text with the supervisor, the invoice, the statement, English; render, store, email, set aside, retry; preview); Vitest `src/modules/billing/**/*.test.ts(x)` (manifest; `InvoicePage`: lines and totals, the payer, an amount to type, finalising, an adjustment, a credit note, read-only for the conseillère; `ClientBillingPanel`: invoices, default payer, « Créer la facture »); Playwright `e2e/billing.spec.ts` (invoice Alice's appointment, finalise, credit; send the morning queue, record a payment; apply a late-cancellation fee); the audit labels by `src/app/audit-labels.test.ts`.
 
 ## Permissions
 
@@ -136,6 +136,14 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 - **Clients → « Visites et paiements »:** the dossier's balance, « Entente particulière » (a note; « Terminer l'entente »), the invoices' payment state, « Paiements du dossier » with their receipts, and « Relevés » (a year and a payer: « Préparer le relevé » or « Préparer et envoyer au payeur »; each statement's PDF once ready).
 - **Paramètres → Facturation:** « File du matin »: « À partir du » (empty: off; at most 14 days back).
 - **Professionnels → « Identité et permis » → « Supervision »:** an intern's supervisor (`professionals.manage`).
+
+## Screens (F3)
+
+- **« Impayés »** (a tab of `/facturation`): the unpaid invoices past their due date, oldest first: the invoice, the dossier (« Rendez-vous refusés » when its balance blocks a booking), the payer (« Pas d'adresse courriel »), the due date, the delay, the balance, the last reminder.
+- **« Frais d'annulation »** (a tab): the late cancellations and absences, pending first, each with the fee now (« 50 % de la séance : 65,00 $ »), « Appliquer les frais » (its draft joins the morning queue) and « Ne pas facturer » (`billing.manage`), and who decided.
+- **« Mon agenda »** (slot `agenda.mine`, panel `billing.fees`, `billing.self`): the professional's own fees to decide, the same two buttons; nothing when there is none.
+- **The invoice:** each payment's « Rembourser » (an amount, what is left by default; a reason) and its refunds (« Remboursé », « En attente de Stripe », « Refusé »); « Relances » (the day each reminder went, or a step passed without one).
+- **Paramètres → Facturation → « Relances »:** « Relances à partir du » (empty: no reminder and no refusal), the days, and the day a balance refuses a booking.
 
 ## What the module publishes
 

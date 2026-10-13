@@ -127,6 +127,18 @@ const paymentPayload = z
     receipt_number: z.string().nullable(),
     receipt_file_id: z.string().nullable(),
     receipt_deliveries: z.array(deliveryPayload),
+    refunds: z
+      .array(
+        z.object({
+          id: z.string(),
+          amount_cents: z.number().int(),
+          reason: z.string(),
+          status: z.enum(['recorded', 'pending_provider', 'failed']),
+          created_at: z.string(),
+        }),
+      )
+      .default([]),
+    refundable_cents: z.number().int().optional(),
   })
   .transform((p) => ({
     id: p.id,
@@ -139,6 +151,8 @@ const paymentPayload = z
     receiptNumber: p.receipt_number,
     receiptFileId: p.receipt_file_id,
     receiptDeliveries: p.receipt_deliveries,
+    refunds: p.refunds.map((r) => ({ id: r.id, amountCents: r.amount_cents, reason: r.reason, status: r.status, createdAt: r.created_at })),
+    refundableCents: p.refundable_cents ?? p.amount_cents,
   }))
 export type Payment = z.output<typeof paymentPayload>
 
@@ -153,6 +167,9 @@ const invoiceBundle = z
     payments: z.array(paymentPayload).default([]),
     deliveries: z.array(deliveryPayload).default([]),
     payment_modes: z.array(z.object({ code: z.string(), name: z.string() })).default([]),
+    reminders: z
+      .array(z.object({ step: z.number().int(), run_on: z.string(), sent: z.boolean(), email_status: z.string().nullable() }))
+      .default([]),
   })
   .transform((r) => ({
     invoice: {
@@ -213,6 +230,7 @@ const invoiceBundle = z
     payments: r.payments,
     deliveries: r.deliveries,
     paymentModes: r.payment_modes,
+    reminders: r.reminders.map((m) => ({ step: m.step, runOn: m.run_on, sent: m.sent, emailStatus: m.email_status })),
   }))
 export type InvoiceBundle = z.output<typeof invoiceBundle>
 export type InvoiceLine = InvoiceBundle['lines'][number]
