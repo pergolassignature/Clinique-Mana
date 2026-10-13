@@ -19,7 +19,9 @@ const mocks = vi.hoisted(() => ({
   },
   toast: { success: vi.fn(), error: vi.fn() },
   navigate: vi.fn(),
+  preferences: { fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn() },
 }))
+vi.mock('@/core/preferences/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/preferences/api')>()), ...mocks.preferences }))
 vi.mock('../api/clients', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/clients')>()), ...mocks.api }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -34,6 +36,9 @@ beforeEach(() => {
   mocks.api.fetchClientsPage.mockResolvedValue([listRowFixture(), listRowFixture({ id: CIDS.lea, clientNumber: 2, firstName: 'Léa', lastName: 'Gagnon', isBanned: true, tagIds: [] })])
   mocks.api.fetchClientsReference.mockResolvedValue(REFERENCE)
   mocks.api.findClientDuplicates.mockResolvedValue([])
+  mocks.preferences.fetchUserPreference.mockResolvedValue(null)
+  mocks.preferences.saveUserPreference.mockResolvedValue(undefined)
+  mocks.preferences.deleteUserPreference.mockResolvedValue(undefined)
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -72,6 +77,20 @@ describe('ClientsListPage', () => {
       expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: 'trem', status: 'archived', professionalId: CIDS.pro, tagId: null }, null),
     )
     expect(screen.getByRole('searchbox', { name: t(`${L}.searchLabel`) })).toHaveValue('trem')
+  })
+
+  it('remembered filters: the saved ones apply on arrival without filters; a link with filters wins; never the search words', async () => {
+    mocks.preferences.fetchUserPreference.mockResolvedValue({ query: 'statut=archives' })
+    renderPage()
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: '', status: 'archived', professionalId: null, tagId: null }, null))
+    expect(mocks.api.fetchClientsPage).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }), null)
+  })
+
+  it('… a link that carries filters is left alone', async () => {
+    mocks.preferences.fetchUserPreference.mockResolvedValue({ query: 'statut=archives' })
+    renderPage({ path: '/clients?statut=tous' })
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ status: 'all' }), null))
+    expect(mocks.api.fetchClientsPage).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'archived' }), null)
   })
 
   it('« Nouveau client » for whoever manages files only', async () => {
