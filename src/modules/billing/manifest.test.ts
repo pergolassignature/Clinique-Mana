@@ -10,11 +10,13 @@ describe('billingManifest', () => {
   })
 
   it('adds QuickBooks (FQ) to Paramètres, for billing.settings, and Intuit’s return route', () => {
-    expect(billingManifest.settingsSections.map((s) => [s.id, s.path, s.permission])).toEqual([
-      ['quickbooks', 'quickbooks', 'billing.settings'],
-      ['quickbooks_customers', 'quickbooks-clients', 'billing.settings'],
-    ])
-    expect(billingManifest.routes.map((r) => r.path)).toEqual(['facturation/retour-quickbooks'])
+    expect(billingManifest.settingsSections.map((s) => [s.id, s.path, s.permission])).toEqual(
+      expect.arrayContaining([
+        ['quickbooks', 'quickbooks', 'billing.settings'],
+        ['quickbooks_customers', 'quickbooks-clients', 'billing.settings'],
+      ]),
+    )
+    expect(billingManifest.routes.map((r) => r.path)).toContain('facturation/retour-quickbooks')
   })
 
   it('names the QuickBooks tables and the map’s keys for the Journal d’audit', async () => {

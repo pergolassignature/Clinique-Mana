@@ -5,14 +5,14 @@ import { E2E_ORIGIN } from './fixtures/origin'
 
 /**
  * Modules reserved for testers (R-72; local only, after `npm run db:reset`: the seed enables
- * Rendez-vous, which no enabled module needs: Services et tarifs could not be reserved while
- * Rendez-vous, open, depends on it). The admin reserves the module and lists the adjointe: she
- * keeps « Agenda », while the admin, not listed, loses it; then the admin removes her and opens
- * the module to everyone again. The opening runs in `finally`, so a failed
+ * Facturation, which no enabled module needs: a module another open one depends on cannot be
+ * reserved first). The admin reserves the module and lists the adjointe: she keeps
+ * « Facturation », while the admin, not listed, loses it; then the admin removes her and opens the
+ * module to everyone again. The opening runs in `finally`, so a failed
  * step never leaves the module reserved for the next specs.
  */
 
-const RESERVED = 'Rendez-vous : réservé aux testeurs'
+const RESERVED = 'Facturation : réservé aux testeurs'
 
 /** Back to the seed's state: no tester, open to everyone. */
 async function reopen(page: Page) {
@@ -29,7 +29,7 @@ async function reopen(page: Page) {
   }
 }
 
-test('the admin reserves Rendez-vous for the adjointe, then opens it again', async ({ page, signIn, browser }) => {
+test('the admin reserves Facturation for the adjointe, then opens it again', async ({ page, signIn, browser }) => {
   await signIn('admin')
   try {
     await page.goto('/parametres/modules')
@@ -37,18 +37,18 @@ test('the admin reserves Rendez-vous for the adjointe, then opens it again', asy
     await expect(reserved).not.toBeChecked()
     await reserved.click()
     // An enabled module: everyone else loses it at once, so it asks first.
-    const confirm = page.getByRole('alertdialog', { name: 'Réserver Rendez-vous aux testeurs ?' })
+    const confirm = page.getByRole('alertdialog', { name: 'Réserver Facturation aux testeurs ?' })
     await confirm.getByRole('button', { name: 'Réserver aux testeurs' }).click()
     await expect(page.getByText('Accès au module mis à jour.')).toBeVisible()
     await expect(reserved).toBeChecked()
     await expect(page.getByText('Personne ne voit ce module : ajoutez au moins un testeur.')).toBeVisible()
     await page.getByLabel('Ajouter un testeur…').selectOption({ label: 'Adjointe Locale (Adjointe administrative)' })
     await expect(page.getByText('Testeur ajouté.')).toBeVisible()
-    await expect(page.getByRole('list', { name: 'Testeurs de Rendez-vous' }).getByText('Adjointe Locale')).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Testeurs de Facturation' }).getByText('Adjointe Locale')).toBeVisible()
 
-    // The admin is not listed: the agenda is gone for her.
+    // The admin is not listed: Facturation is gone for her.
     await page.goto('/accueil')
-    await expect(page.getByRole('link', { name: 'Agenda' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Facturation' })).toHaveCount(0)
 
     // The adjointe, a tester, still has it.
     const other = await browser.newContext({ baseURL: E2E_ORIGIN, locale: 'fr-CA' })
@@ -59,8 +59,8 @@ test('the admin reserves Rendez-vous for the adjointe, then opens it again', asy
       await adjointe.getByLabel('Mot de passe').fill(SEED_PASSWORD)
       await adjointe.getByRole('button', { name: 'Se connecter' }).click()
       await expect(adjointe).toHaveURL(/\/accueil$/)
-      await adjointe.goto('/agenda')
-      await expect(adjointe.getByRole('heading', { level: 1, name: 'Agenda' })).toBeVisible()
+      await adjointe.goto('/facturation')
+      await expect(adjointe.getByRole('heading', { level: 1, name: 'Factures' })).toBeVisible()
     } finally {
       await other.close()
     }
@@ -68,5 +68,5 @@ test('the admin reserves Rendez-vous for the adjointe, then opens it again', asy
     await reopen(page)
   }
   await page.goto('/accueil')
-  await expect(page.getByRole('link', { name: 'Agenda' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Facturation' }).first()).toBeVisible()
 })
