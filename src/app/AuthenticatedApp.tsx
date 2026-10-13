@@ -8,7 +8,8 @@ import { Forbidden, NotFound, RequireAccess } from '@/core/access/guards'
 import { AccountPage } from '@/core/account/pages/AccountPage'
 import { ModuleAuditContext, type ModuleAuditSource } from '@/core/audit/module-labels'
 import { resolveEnabledModules } from '@/core/modules/resolve'
-import type { SettingsSection } from '@/core/modules/types'
+import { ModuleSlotsContext } from '@/core/modules/slots'
+import type { ModuleSlotItem, ModuleSlotName, SettingsSection } from '@/core/modules/types'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
 import { isUnder, SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
 import { coreSettingsSections } from '@/core/settings/sections'
@@ -78,6 +79,18 @@ export function AuthenticatedApp() {
     [modules],
   )
 
+  // The panels modules add to other modules' screens, by slot, that this user may see.
+  const slots = useMemo(() => {
+    const bySlot: Partial<Record<ModuleSlotName, ModuleSlotItem[]>> = {}
+    for (const m of modules) {
+      for (const [name, items] of Object.entries(m.slots ?? {}) as [ModuleSlotName, readonly ModuleSlotItem[]][]) {
+        const visible = items.filter((item) => item.permissions.some((p) => can(p)))
+        if (visible.length > 0) bySlot[name] = [...(bySlot[name] ?? []), ...visible]
+      }
+    }
+    return bySlot
+  }, [modules, can])
+
   // Accueil's module cards this user may see (each loads its own chunk when it renders).
   const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter(shown)), [modules, shown])
 
@@ -110,51 +123,53 @@ export function AuthenticatedApp() {
           useMemo, a query key built from the clinic's date) are computed again. AccessProvider sets
           the zone before this renders; the save writes it into the cached access at once
           (useUpdateOrganization), so a failed refetch does not keep the old one. */}
-      <AppShell key={org_timezone} navItems={navItems} searchProviders={searchProviders}>
-        <Routes>
-          <Route index element={<Navigate to="/accueil" replace />} />
-          <Route path="accueil" element={<HomePage cards={homeCards} shortcuts={navItems.filter((item) => item.path !== '/accueil')} />} />
-          {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}
-          <Route
-            path="mon-compte"
-            element={
-              <RouteBoundary scope="account">
-                <AccountPage />
-              </RouteBoundary>
-            }
-          />
-          {/* SettingsLayout wraps each section in its own RouteBoundary. */}
-          <Route
-            path="parametres/*"
-            element={
-              <RequireAnySettings allowed={canOpenSettings} sections={settingsSections}>
-                <ModuleAuditContext.Provider value={auditSources}>
-                  <SettingsLayout sections={settingsSections} />
-                </ModuleAuditContext.Provider>
-              </RequireAnySettings>
-            }
-          />
-          {modules.flatMap((m) =>
-            m.routes.map((r) => (
-              <Route
-                key={`${m.key}:${r.path}`}
-                path={r.path}
-                element={
-                  <RequireAccess permission={r.permission}>
-                    {/* Design §6.2: a crash or failed chunk stays inside its module. */}
-                    <RouteBoundary scope={m.key}>
-                      <Suspense fallback={<FullPageMessage role="status" title={t('common.loading')} />}>
-                        {createElement(r.component)}
-                      </Suspense>
-                    </RouteBoundary>
-                  </RequireAccess>
-                }
-              />
-            )),
-          )}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </AppShell>
+      <ModuleSlotsContext.Provider value={slots}>
+        <AppShell key={org_timezone} navItems={navItems} searchProviders={searchProviders}>
+          <Routes>
+            <Route index element={<Navigate to="/accueil" replace />} />
+            <Route path="accueil" element={<HomePage cards={homeCards} shortcuts={navItems.filter((item) => item.path !== '/accueil')} />} />
+            {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}
+            <Route
+              path="mon-compte"
+              element={
+                <RouteBoundary scope="account">
+                  <AccountPage />
+                </RouteBoundary>
+              }
+            />
+            {/* SettingsLayout wraps each section in its own RouteBoundary. */}
+            <Route
+              path="parametres/*"
+              element={
+                <RequireAnySettings allowed={canOpenSettings} sections={settingsSections}>
+                  <ModuleAuditContext.Provider value={auditSources}>
+                    <SettingsLayout sections={settingsSections} />
+                  </ModuleAuditContext.Provider>
+                </RequireAnySettings>
+              }
+            />
+            {modules.flatMap((m) =>
+              m.routes.map((r) => (
+                <Route
+                  key={`${m.key}:${r.path}`}
+                  path={r.path}
+                  element={
+                    <RequireAccess permission={r.permission}>
+                      {/* Design §6.2: a crash or failed chunk stays inside its module. */}
+                      <RouteBoundary scope={m.key}>
+                        <Suspense fallback={<FullPageMessage role="status" title={t('common.loading')} />}>
+                          {createElement(r.component)}
+                        </Suspense>
+                      </RouteBoundary>
+                    </RequireAccess>
+                  }
+                />
+              )),
+            )}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AppShell>
+      </ModuleSlotsContext.Provider>
     </UnsavedChangesProvider>
   )
 }

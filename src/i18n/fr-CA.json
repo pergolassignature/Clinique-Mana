@@ -8357,7 +8357,8 @@
         "exception": "Exception ajoutée.",
         "exceptionRemoved": "Exception retirée.",
         "series": "Série réservée.",
-        "seriesCancelled": "Rendez-vous de la série annulés."
+        "seriesCancelled": "Rendez-vous de la série annulés.",
+        "personal": "Rendez-vous personnel ajouté."
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
@@ -8482,6 +8483,16 @@
           "book": "Réserver {count} rendez-vous",
           "cancelRest": "Annuler aussi les rendez-vous suivants de la série",
           "cancelRestHelp": "Ce rendez-vous et ceux qui le suivent dans la série, avec la même raison."
+        },
+        "video": {
+          "title": "Vidéo",
+          "start": "Démarrer",
+          "zoom": "Réunion Zoom du rendez-vous",
+          "fixed": "Lien fixe du professionnel",
+          "pending": "Le lien Zoom se prépare : il sera envoyé au client dès qu'il est prêt.",
+          "failed": "La création de la réunion Zoom a échoué.",
+          "retry": "Réessayer",
+          "none": "Aucun lien vidéo : ce professionnel n'a ni Zoom connecté ni lien fixe."
         }
       },
       "availability": {
@@ -8530,6 +8541,39 @@
         "description": "Les rendez-vous des 7 prochains jours dont personne ne peut recevoir de rappel (aucun courriel, aucun texto autorisé) : appelez ces clients.",
         "empty": "Tous les clients des 7 prochains jours recevront un rappel.",
         "loadError": "La liste des clients sans rappel ne se charge pas."
+      },
+      "visits": {
+        "title": "Rendez-vous",
+        "empty": "Ce client n'a encore aucun rendez-vous.",
+        "coming": "À venir ({count})",
+        "past": "Passés",
+        "noneComing": "Aucun rendez-vous à venir.",
+        "nonePast": "Aucun rendez-vous passé.",
+        "more": "Afficher plus",
+        "cancelled": "Annulé : {reason}",
+        "cancelledLate": "Annulé tard : {reason}",
+        "loadError": "Les rendez-vous du client ne se chargent pas."
+      },
+      "personal": {
+        "title": "Rendez-vous personnel",
+        "description": "Bloquez du temps à votre agenda : l'équipe le voit comme « Occupé », sans le libellé.",
+        "label": "Libellé",
+        "labelHelp": "Vous seul le voyez (par exemple « Dentiste »).",
+        "day": "Date",
+        "start": "Début",
+        "end": "Fin",
+        "work": "Rendez-vous de travail",
+        "workHelp": "Une rencontre liée à votre travail (réunion, formation).",
+        "save": "Ajouter",
+        "new": "Rendez-vous personnel",
+        "cancel": "Retirer ce rendez-vous personnel"
+      },
+      "mine": {
+        "title": "Mon agenda",
+        "description": "Vos rendez-vous et vos disponibilités. Les réservations des clients passent par la clinique.",
+        "loadError": "Votre agenda ne se charge pas.",
+        "notProfessionalTitle": "Aucun dossier professionnel",
+        "notProfessionalBody": "Votre compte n'est lié à aucun dossier professionnel : il n'a pas d'agenda."
       }
     }
   },

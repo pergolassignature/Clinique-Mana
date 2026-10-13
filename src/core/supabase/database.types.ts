@@ -10889,6 +10889,7 @@ export type Database = {
         }[]
       }
       get_my_access: { Args: never; Returns: Json }
+      get_my_agenda_reference: { Args: never; Returns: Json }
       get_my_image_consent: { Args: never; Returns: Json }
       get_my_professional_private: {
         Args: never
@@ -11172,6 +11173,27 @@ export type Database = {
           record_id: string
           source: string
           table_name: string
+        }[]
+      }
+      list_client_visits: {
+        Args: { p_before?: string; p_client_id: string; p_limit?: number }
+        Returns: {
+          cancel_late: boolean
+          cancel_reason: string
+          confirmed_at: string
+          ends_at: string
+          id: string
+          kept_on_schedule: boolean
+          mode: string
+          presence: string
+          professional_id: string
+          professional_name: string
+          role: string
+          service_code: number
+          service_id: string
+          service_name: string
+          starts_at: string
+          state: string
         }[]
       }
       list_clients: {
