@@ -14,12 +14,20 @@ export const CLIENTS_AUDITED_TABLES = [
   'client_tag_links',
   'client_professional_links',
   'client_merges',
+  'client_consents',
+  'client_consent_requests',
+  'client_consent_request_signers',
   'client_tags',
   'referral_sources',
+  'client_consent_types',
+  'client_consent_rules',
+  'client_consent_settings',
 ] as const
 
 /** The audit source of the referral sources seed (`private.seed_clients_reference`). */
 export const CLIENTS_SEED_SOURCE = 'seed:clients_reference'
+/** The consents' seed and the signature's trigger (C5a). */
+export const CLIENTS_CONSENT_SOURCES = ['seed:clients_consents', 'trigger:clients_consent_signature'] as const
 
 const MONEY_COLUMNS = new Set(['session_amount_cents', 'max_amount_cents'])
 const money = new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -39,5 +47,5 @@ export const clientsAuditLabels = i18nAuditLabels({
   prefix: 'modules.clients.audit',
   tables: CLIENTS_AUDITED_TABLES,
   value: clientsValue,
-  sources: [CLIENTS_SEED_SOURCE],
+  sources: [CLIENTS_SEED_SOURCE, ...CLIENTS_CONSENT_SOURCES],
 })
