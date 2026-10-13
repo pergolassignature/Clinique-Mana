@@ -62,6 +62,7 @@ Deno.test('pdfmake: the signing functions that do not render never reach it', as
       'billing-stripe',
       'billing-stripe-checkout',
       'billing-stripe-charges',
+      'billing-stripe-refunds',
       'stripe-webhook',
       'signing-sync',
       'signing-test-connection',

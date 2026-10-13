@@ -340,3 +340,110 @@ Deno.test('stripe-webhook: a new card detaches the one it replaces at Stripe', (
     assertEquals((await res.json()).outcome, 'card_saved')
     assertEquals(stripe.paymentMethods.get('pm_old1')?.detached, true)
   }))
+
+const REFUND_ID = '00000000-0000-4000-8000-0000000000d1'
+
+Deno.test("stripe-webhook: charge.refunded reads back the PaymentIntent's refunds and settles this clinic's (FS-9)", () =>
+  run(async () => {
+    const { handler, service, stripe } = setup({
+      rpc: { settle_stripe_refund_for_service: { data: true } },
+    })
+    stripe.paymentIntents.set('pi_paid1', {
+      amount: 20000,
+      status: 'succeeded',
+      metadata: {},
+    })
+    stripe.refunds.set('re_mine1', {
+      payment_intent: 'pi_paid1',
+      amount: 5000,
+      status: 'succeeded',
+      metadata: { org_id: ORG_ID, refund_id: REFUND_ID },
+    })
+    // Another clinic's refund on the same PaymentIntent is never touched.
+    stripe.refunds.set('re_other1', {
+      payment_intent: 'pi_paid1',
+      amount: 1000,
+      status: 'succeeded',
+      metadata: {
+        org_id: '00000000-0000-4000-8000-0000000000ff',
+        refund_id: REFUND_ID,
+      },
+    })
+    const res = await handler(
+      await signed(
+        event('charge.refunded', { id: 'ch_1', payment_intent: 'pi_paid1' }),
+      ),
+    )
+    assertEquals((await res.json()).outcome, 'refund_settled')
+    const settled = service.calls.filter((c) =>
+      c.fn === 'settle_stripe_refund_for_service'
+    )
+    assertEquals(settled.length, 1)
+    assertEquals([settled[0]!.args.p_refund_id, settled[0]!.args.p_ok], [
+      REFUND_ID,
+      true,
+    ])
+  }))
+
+Deno.test("stripe-webhook: refund.failed settles the refund as failed with Stripe's reason; settled already is fine", () =>
+  run(async () => {
+    const { handler, service } = setup({
+      rpc: { settle_stripe_refund_for_service: { data: true } },
+    })
+    const res = await handler(
+      await signed(event('refund.failed', {
+        id: 're_bad1',
+        status: 'failed',
+        amount: 5000,
+        failure_reason: 'expired_or_canceled_card',
+        metadata: { org_id: ORG_ID, refund_id: REFUND_ID },
+      })),
+    )
+    assertEquals((await res.json()).outcome, 'refund_settled')
+    const settled = service.calls.find((c) =>
+      c.fn === 'settle_stripe_refund_for_service'
+    )!
+    assertEquals([
+      settled.args.p_ok,
+      settled.args.p_error_code,
+      settled.args.p_provider_ref,
+    ], [
+      false,
+      'expired_or_canceled_card',
+      're_bad1',
+    ])
+
+    const again = setup({
+      rpc: { settle_stripe_refund_for_service: { data: false } },
+    })
+    const a = await again.handler(
+      await signed(event('refund.updated', {
+        id: 're_ok1',
+        status: 'succeeded',
+        amount: 5000,
+        metadata: { org_id: ORG_ID, refund_id: REFUND_ID },
+      })),
+    )
+    assertEquals(a.status, 200)
+    assertEquals((await a.json()).outcome, 'skipped')
+  }))
+
+Deno.test('stripe-webhook: module off, a refund event is kept for a retry (503)', () =>
+  run(async () => {
+    const { handler, service } = setup({
+      rpc: { module_enabled_for_org: { data: false } },
+    })
+    const res = await handler(
+      await signed(
+        event('refund.updated', {
+          id: 're_1',
+          status: 'succeeded',
+          metadata: { org_id: ORG_ID, refund_id: REFUND_ID },
+        }),
+      ),
+    )
+    assertEquals(res.status, 503)
+    assert(
+      !service.calls.some((c) => c.fn === 'settle_stripe_refund_for_service'),
+    )
+  }))
