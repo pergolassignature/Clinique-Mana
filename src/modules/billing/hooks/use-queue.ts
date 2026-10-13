@@ -13,6 +13,7 @@ import {
   releaseDraft,
   resendDocument,
   sendInvoices,
+  setInvoiceNote,
   setQueueFrom,
   setSpecialAgreement,
   type DocumentKind,
@@ -78,5 +79,7 @@ export const useSetSpecialAgreement = (feedback?: MutationFeedback) =>
     successKey: `${S}.agreement`,
     feedback,
   })
+export const useSetInvoiceNote = (feedback?: MutationFeedback) =>
+  useQueueMutation(({ fr, en }: { fr: string | null; en: string | null }) => setInvoiceNote(fr, en), { successKey: `${S}.invoiceNote`, feedback })
 export const useSetQueueFrom = (feedback?: MutationFeedback) =>
   useQueueMutation((day: string | null) => setQueueFrom(day), { successKey: `${S}.queueFrom`, feedback })

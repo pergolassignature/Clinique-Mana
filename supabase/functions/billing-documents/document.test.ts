@@ -2,6 +2,7 @@ import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { checkDocument, type PdfDocument } from '../_shared/pdf/model.ts'
 import { renderPdf } from '../_shared/pdf/render.ts'
 import {
+  CLINIC,
   invoiceDoc,
   PROFESSIONALS,
   receiptDoc,
@@ -155,6 +156,39 @@ Deno.test('an IVAC invoice (FP-11): billed to IVAC with the clinic’s provider 
   const own = texts(billingPdf(parse(invoiceDoc()), { logo: false }))
   assertStringIncludes(own, 'Échéance : sur réception')
   assert(!own.includes('N° IVAC') && !own.includes('fournisseur'))
+})
+
+Deno.test('BI-21: an invoice says how to pay by Interac and when the receipt follows; in its email too; never on a receipt', () => {
+  const clinic = {
+    ...CLINIC,
+    etransfer_email: 'paiements@exemple.test',
+    invoice_note_fr:
+      'Votre reçu vous est envoyé dans les 24 h ouvrables suivant votre paiement.',
+    invoice_note_en: 'Your receipt is sent within 24 business hours.',
+  }
+  const doc = parse(invoiceDoc({ clinic }))
+  const all = texts(billingPdf(doc, { logo: false }))
+  assertStringIncludes(
+    all,
+    'Paiement\u00A0: Paiement par virement Interac à paiements@exemple.test (dépôt automatique). Votre reçu vous est envoyé dans les 24 h ouvrables suivant votre paiement.',
+  )
+  const email = billingEmail(doc, 'Camille')
+  assertStringIncludes(
+    String((email.values.document as Record<string, unknown>).payment_note),
+    'paiements@exemple.test',
+  )
+  const receipt = texts(
+    billingPdf(parse(receiptDoc({ clinic })), { logo: false }),
+  )
+  assert(!receipt.includes('dépôt automatique'))
+  // Neither an address nor a note: nothing printed.
+  const bare = texts(
+    billingPdf(
+      parse(invoiceDoc({ clinic: { ...CLINIC, invoice_note_fr: '' } })),
+      { logo: false },
+    ),
+  )
+  assert(!bare.includes('Paiement\u00A0:'))
 })
 
 Deno.test('in the payer’s language: English', () => {

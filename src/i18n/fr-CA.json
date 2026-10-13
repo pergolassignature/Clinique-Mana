@@ -9465,7 +9465,9 @@
             "queue_from": "File du matin à partir du",
             "dunning_from": "Relances à partir du",
             "dunning_days": "Jours de relance",
-            "block_after_days": "Rendez-vous refusés après (jours)"
+            "block_after_days": "Rendez-vous refusés après (jours)",
+            "invoice_note_fr": "Note des factures (français)",
+            "invoice_note_en": "Note des factures (anglais)"
           },
           "qbo_connections": {
             "realm_id": "Numéro de l'entreprise",
@@ -9961,7 +9963,8 @@
           "recorded": "Remboursement fait par Stripe : la carte du payeur est remboursée.",
           "pending": "Remboursement demandé à Stripe : il est confirmé dès sa réponse.",
           "failed": "Stripe n’a pas fait le remboursement : rien n’est remboursé. La facturation en est avisée."
-        }
+        },
+        "invoiceNote": "Note des factures enregistrée."
       },
       "list": {
         "title": "Factures",
@@ -10184,6 +10187,16 @@
           "block": "Refus des rendez-vous après (jours)",
           "blockHelp": "Un client dont une facture est impayée depuis ce nombre de jours ne peut plus réserver sans exception.",
           "blockInvalid": "Indiquez un nombre de jours entre 1 et 90."
+        },
+        "invoiceNote": {
+          "title": "Note des factures",
+          "description": "Ce que chaque facture et son courriel disent du paiement, en français et en anglais (selon la langue du payeur). Le bouton « Payer en ligne » du courriel reste là quand les paiements en ligne sont actifs.",
+          "interac": "La facture indique aussi : « Paiement par virement Interac à {email} (dépôt automatique). » L’adresse se change dans Paramètres → Coordonnées bancaires.",
+          "noInterac": "Aucune adresse Interac : ajoutez-la dans Paramètres → Coordonnées bancaires pour qu’elle paraisse sur les factures.",
+          "fr": "Note en français",
+          "en": "Note en anglais",
+          "isDefault": "Texte par défaut de l’application.",
+          "restore": "Rétablir le texte par défaut"
         }
       },
       "qbo": {
