@@ -369,7 +369,11 @@ export const LIMITS = {
   /** `gmail-send` (CM3), per caller: a counselor's day of replies, never a mass mailing. */
   gmailSendUser: { bucket: 'gmail.send_user', max: 60, windowSeconds: 3_600 },
   /** Every message `gmail-send` sends, per org: a runaway brake under Gmail's own daily cap. */
-  gmailSendOrgDay: { bucket: 'gmail.send_org_day', max: 500, windowSeconds: 86_400 },
+  gmailSendOrgDay: {
+    bucket: 'gmail.send_org_day',
+    max: 500,
+    windowSeconds: 86_400,
+  },
   /**
    * `sms-send` (a staff reply), per caller: each call texts a client through
    * the PBX. A conversation is a handful of texts; 60 an hour is far above a

@@ -163,11 +163,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const send = parsed.data
     ids.send_id = send.send_id
     if (send.already_sent) {
-      return jsonResponse({
-        status: 'sent',
-        thread_id: null,
-        gmail_message_id: send.gmail_message_id,
-      }, 200, req)
+      return jsonResponse(
+        {
+          status: 'sent',
+          thread_id: null,
+          gmail_message_id: send.gmail_message_id,
+        },
+        200,
+        req,
+      )
     }
 
     /** Marks the send failed (the same key may try again), then answers. */
@@ -324,10 +328,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       p_gmail_thread_id: sent.threadId,
     })
     if (closed.error) await report('close_failed')
-    return jsonResponse({
-      status: 'sent',
-      thread_id: typeof closed.data === 'string' ? closed.data : null,
-      gmail_message_id: sent.id,
-    }, 200, req)
+    return jsonResponse(
+      {
+        status: 'sent',
+        thread_id: typeof closed.data === 'string' ? closed.data : null,
+        gmail_message_id: sent.id,
+      },
+      200,
+      req,
+    )
   }
 }

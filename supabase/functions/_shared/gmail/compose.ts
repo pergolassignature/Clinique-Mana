@@ -92,7 +92,7 @@ export function htmlToText(html: string): string {
     )
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<li\b[^>]*>/gi, '\n- ')
-    .replace(/<\/(p|div|h[1-6]|blockquote|ul|ol|li|tr)>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|blockquote|ul|ol|tr)>/gi, '\n')
     .replace(/<[^>]*>/g, '')
     .replace(
       /&(#\d+|#x[0-9a-f]+|[a-z]+);/gi,
@@ -140,7 +140,8 @@ export interface OutgoingMessage {
   date: Date
 }
 
-const ADDRESS = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}$/
+const ADDRESS =
+  /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}$/
 const MESSAGE_ID = /^<[^<>\s]{1,250}>$/
 
 const encoder = new TextEncoder()
@@ -206,7 +207,9 @@ function fileNameParams(name: string): string {
 /** The message as RFC 5322 bytes (CRLF line ends). */
 export function buildMime(message: OutgoingMessage): Uint8Array {
   if (message.to.length === 0) throw new Error('no_recipient')
-  for (const id of [message.inReplyTo, ...(message.references?.split(/\s+/) ?? [])]) {
+  for (
+    const id of [message.inReplyTo, ...(message.references?.split(/\s+/) ?? [])]
+  ) {
     if (id && !MESSAGE_ID.test(id)) throw new Error('invalid_message_id')
   }
   const domain = message.from.address.split('@')[1]
