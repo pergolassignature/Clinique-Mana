@@ -19,7 +19,7 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array['EXEC
     ('upsert_client_insurance', array['uuid', 'integer', 'text', 'text', 'text', 'text', 'text']), ('delete_client_insurance', array['uuid', 'integer']),
     ('save_client_payer', array['uuid', 'uuid', 'text', 'text', 'text', 'integer', 'integer', 'integer', 'date', 'date', 'text']),
     ('end_client_payer', array['uuid']), ('set_client_tags', array['uuid', 'uuid[]']), ('save_client_tag', array['uuid', 'text']),
-    ('set_client_tag_active', array['uuid', 'boolean']), ('merge_clients', array['uuid', 'uuid']), ('search_clients', array['text', 'integer']),
+    ('set_client_tag_active', array['uuid', 'boolean']), ('merge_clients', array['uuid', 'uuid', 'text[]']), ('search_clients', array['text', 'integer']),
     ('get_client_summary', array['uuid']), ('export_client_privacy', array['uuid']), ('anonymize_client', array['uuid'])
   ) as f(name, args);
 select function_privs_are('public', 'create_client', array['jsonb', 'boolean'], 'anon', array[]::text[], 'anon cannot create a client');

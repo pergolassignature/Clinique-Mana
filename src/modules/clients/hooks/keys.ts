@@ -13,6 +13,7 @@ export const clientsKeys = {
   mine: () => [...clientsKeys.all, 'mine'] as const,
   duplicates: (key: string) => [...clientsKeys.all, 'duplicates', key] as const,
   search: (query: string) => [...clientsKeys.all, 'search', query] as const,
+  history: (id: string) => [...clientsKeys.all, 'history', id] as const,
 }
 
 /**
