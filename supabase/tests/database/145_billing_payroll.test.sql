@@ -10,7 +10,7 @@
 -- and the export by specialty; the job; another clinic's period and the other roles refused.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(68);
+select plan(69);
 
 -- Privileges.
 select table_privs_are('public', t, 'authenticated', array['SELECT'], t || ': select only')

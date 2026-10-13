@@ -11630,6 +11630,7 @@ export type Database = {
         }[]
       }
       discard_consent_draft: { Args: { p_id: string }; Returns: undefined }
+      discard_payout_drafts: { Args: { p_month: string }; Returns: number }
       discard_system_file: {
         Args: { p_file_id: string; p_org_id: string }
         Returns: boolean
