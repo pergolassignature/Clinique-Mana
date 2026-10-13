@@ -44,7 +44,9 @@ import {
 import { communicationsErrorMessage } from '../../api/errors'
 import type { MailConnection } from '../../api/mailboxes'
 import { useDeleteDraft, useDeleteTemplate, useSaveDraft, useSaveTemplate, useSendMail, useTemplates } from '../../hooks/use-composer'
-import { hasText, parseAddresses, sendProblem, textToHtml } from '../../lib/compose'
+import { useAiDraftStatus } from '../../hooks/use-ai'
+import { hasText, htmlToText, parseAddresses, sendProblem, textToHtml } from '../../lib/compose'
+import { AiBar } from './AiBar'
 import { RichEmailEditor } from './RichEmailEditor'
 
 const C = 'modules.communications.composer'
@@ -132,6 +134,7 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const onSentRef = useRef(onSent)
   onSentRef.current = onSent
   const templates = useTemplates()
+  const ai = useAiDraftStatus()
 
   const content: DraftContent = useMemo(
     () => ({
@@ -341,6 +344,30 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
             <Input id={`${ids}-subject`} value={subject} maxLength={250} autoComplete="off" disabled={busy} onChange={(e) => setSubject(e.target.value.replace(/[\r\n]+/g, ' '))} />
           </div>
 
+          {ai.data?.available && (
+            <AiBar
+              replying={initial.mode === 'reply'}
+              draftText={htmlToText(body.replace(quote.current, ''))}
+              originalText={initial.mode === 'reply' ? htmlToText(quote.current) : ''}
+              subjectEmpty={!subject.trim()}
+              clientId={initial.clientId}
+              threadId={initial.threadId}
+              capReached={ai.data.cap_reached}
+              disabled={busy}
+              onUse={(proposal) => {
+                const previous = body
+                setReplaceWith((prev) => ({ html: textToHtml(proposal.text) + quote.current, version: (prev?.version ?? 0) + 1 }))
+                if (proposal.subject && !subject.trim()) setSubject(proposal.subject)
+                toast.success(t('modules.communications.ai.used'), {
+                  action: {
+                    label: t('modules.communications.ai.restore'),
+                    onClick: () => setReplaceWith((prev) => ({ html: previous, version: (prev?.version ?? 0) + 1 })),
+                  },
+                  duration: 10_000,
+                })
+              }}
+            />
+          )}
           <RichEmailEditor
             initialHtml={initial.bodyHtml}
             replaceWith={replaceWith}

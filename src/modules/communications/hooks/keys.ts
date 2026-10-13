@@ -72,3 +72,18 @@ export const smsKeys = {
   settings: () => [...smsKeys.all, 'settings'] as const,
   lastEvent: () => [...smsKeys.all, 'last-event'] as const,
 }
+
+/**
+ * React Query keys of « Rédiger avec l'IA » (CM4):
+ *
+ * | Change                                  | Invalidated                                          |
+ * |-----------------------------------------|------------------------------------------------------|
+ * | a draft written (a call, its cost)      | `all` (the composer's status: the cap may be         |
+ * |                                         | reached; the settings' month)                        |
+ * | the settings saved, the key replaced    | `all`                                                |
+ */
+export const aiKeys = {
+  all: ['communications', 'ai'] as const,
+  status: () => [...aiKeys.all, 'status'] as const,
+  settings: () => [...aiKeys.all, 'settings'] as const,
+}

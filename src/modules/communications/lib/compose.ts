@@ -105,6 +105,14 @@ export function quoteHtml(message: MailMessage, mode: ComposeMode): string {
   return `<p></p><p>${escapeHtml(t('modules.communications.composer.replyHeader', { date, from }))}</p><blockquote>${body}</blockquote>`
 }
 
+/** The composer's HTML as plain text (« Rédiger avec l'IA » sends text, never HTML): paragraphs, lines. */
+export function htmlToText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  doc.querySelectorAll('br').forEach((br) => br.replaceWith('\n'))
+  doc.querySelectorAll('p, div, li, blockquote, h1, h2, h3').forEach((el) => el.append('\n\n'))
+  return (doc.body.textContent ?? '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 /** Whether the body says something (not only empty paragraphs). */
 export function hasText(html: string): boolean {
   return html.replace(/<[^>]*>|&nbsp;/g, '').trim() !== ''

@@ -1,4 +1,4 @@
-import { Mail, MessageSquareText } from 'lucide-react'
+import { Mail, MessageSquareText, Sparkles } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -65,6 +65,17 @@ export const communicationsManifest: ModuleManifest = {
       editPermission: 'communications.sms_manage',
       group: 'modules',
       component: lazyPage(() => import('./pages/settings/SmsSettingsPage'), 'SmsSettingsPage'),
+    },
+    {
+      // Paramètres → IA (CM4): the OpenAI key, « Rédiger avec l'IA » switched on, the model, the cap.
+      id: 'ai',
+      path: 'ia',
+      labelKey: 'modules.communications.ai.settings.title',
+      icon: Sparkles,
+      permission: 'communications.ai_manage',
+      editPermission: 'communications.ai_manage',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/AiSettingsPage'), 'AiSettingsPage'),
     },
   ],
 }
