@@ -350,6 +350,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     smsSendUser: ['sms.send_user', 60, 3_600],
     smsTestUser: ['sms.test_user', 5, 3_600],
     smsOrgDay: ['sms.org_day', 500, 86_400],
+    aiDraftUser: ['communications.ai_draft_user', 40, 3_600],
     clientConsentSendUser: ['clients.consent_send_user', 60, 3_600],
     clientConsentSignIp: ['clients.consent_sign_ip', 60, 600],
     clientConsentLink: ['clients.consent_link', 20, 3_600],

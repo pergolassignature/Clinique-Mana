@@ -241,6 +241,9 @@ verify_jwt = false
 verify_jwt = false
 [functions.sms-send]
 verify_jwt = false
+# « Rédiger avec l'IA » (CM4): the caller's JWT (verifyAuth, communications.ai_draft).
+[functions.communications-draft]
+verify_jwt = false
 # The PBX's message events: the org's webhook secret (X-Signature, HMAC-SHA256, timingSafeEqual).
 [functions.sms-webhook]
 verify_jwt = false

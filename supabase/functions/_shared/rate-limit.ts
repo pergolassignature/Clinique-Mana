@@ -384,6 +384,12 @@ export const LIMITS = {
   smsTestUser: { bucket: 'sms.test_user', max: 5, windowSeconds: 3_600 },
   /** Every text `sms-send` sends, per org: a runaway-loop brake (the dispatch has the queue's own pace). */
   smsOrgDay: { bucket: 'sms.org_day', max: 500, windowSeconds: 86_400 },
+  /** `communications-draft` (« Rédiger avec l'IA », CM4), per caller: the monthly cap is the clinic's money brake. */
+  aiDraftUser: {
+    bucket: 'communications.ai_draft_user',
+    max: 40,
+    windowSeconds: 3_600,
+  },
   /** `clients-consent-send` (« Envoyer », « Renvoyer » a consent request), per caller. */
   clientConsentSendUser: {
     bucket: 'clients.consent_send_user',
