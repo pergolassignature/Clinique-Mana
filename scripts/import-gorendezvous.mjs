@@ -526,7 +526,8 @@ async function factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedP
   say('', '== Essai dans la base (chaque facture est vérifiée puis annulée)')
   const dry = await pass(ctx, rows, async (r) => invoiceEntry(r, await rpc(ctx.client, 'import_invoice', { p_row: r.row, p_dry_run: true })), 'essai')
   say(...invoicePassReport(dry, true))
-  say('Par mois :', ...monthTable(exportedMonths(parsedInvoices), dry.filter((e) => e.status === 'ok'), 'à importer'))
+  // Per month, what the app will hold once imported: the invoices to import and those already in.
+  say('Par mois :', ...monthTable(exportedMonths(parsedInvoices), dry.filter((e) => e.status === 'ok' || e.status === 'skipped'), 'dans l’app après l’import'))
   if (dry.error) throw dry.error
   if (dry.length < rows.length) {
     say(`Essai interrompu après ${fmt(dry.length)} facture(s) sur ${fmt(rows.length)} : rien n’a été écrit.`)
@@ -556,7 +557,7 @@ async function factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedP
   const real = await pass(ctx, rows, async (r) => invoiceEntry(r, await rpc(ctx.client, 'import_invoice', { p_row: r.row, p_dry_run: false })), 'import')
   say(...invoicePassReport(real, false))
   const done = real.filter((e) => e.status === 'ok')
-  say('Par mois :', ...monthTable(exportedMonths(parsedInvoices), done, 'importées'))
+  say('Par mois :', ...monthTable(exportedMonths(parsedInvoices), real.filter((e) => e.status === 'ok' || e.status === 'skipped'), 'dans l’app'))
   const numbers = lastNumbers(done.map((e) => e.number).filter(Boolean))
   if (numbers.length > 0) say(`Numérotation : la prochaine facture de l’app suit ${numbers.map((n) => `${n.year}-${n.last}`).join(', ')}.`)
   if (real.error || real.length < rows.length) {
