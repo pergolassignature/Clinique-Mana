@@ -15,6 +15,7 @@ const PAYMENT = '00000000-0000-4000-8000-0000000000b1'
 const CLIENT = '00000000-0000-4000-8000-0000000000d1'
 const PRO = '00000000-0000-4000-8000-0000000000e1'
 const PRO_INVOICE = '00000000-0000-4000-8000-0000000000f1'
+const REFUND = '00000000-0000-4000-8000-0000000000c1'
 
 /**
  * The database side of a pass, in memory: F2's outbox, the pushes (pushed or
@@ -22,7 +23,12 @@ const PRO_INVOICE = '00000000-0000-4000-8000-0000000000f1'
  * and the professional's invoice to bill.
  */
 function model(
-  over: { paused?: boolean; withBill?: boolean; depositMapped?: boolean } = {},
+  over: {
+    paused?: boolean
+    withBill?: boolean
+    depositMapped?: boolean
+    withRefund?: boolean
+  } = {},
 ) {
   const events = [
     {
@@ -41,6 +47,16 @@ function model(
       processed: false,
       code: null as string | null,
     },
+    ...(over.withRefund
+      ? [{
+        id: 3,
+        kind: 'payment_refunded',
+        invoice_id: INVOICE,
+        entity_id: REFUND,
+        processed: false,
+        code: null as string | null,
+      }]
+      : []),
   ]
   const pushes = new Map<
     string,
@@ -84,12 +100,59 @@ function model(
       return { data: null }
     },
     prepare_qbo_push_for_service: (args) => {
-      const kind = args.p_kind === 'invoice_issued' ? 'invoice' : 'payment'
+      const kind = args.p_kind === 'invoice_issued'
+        ? 'invoice'
+        : args.p_kind === 'payment_refunded'
+        ? 'refund'
+        : 'payment'
       const done = pushes.get(`${kind}:${args.p_entity}`)
       if (done?.status === 'pushed') {
         return { data: { action: 'done', qbo_id: done.qboId } }
       }
       const invoicePush = pushes.get(`invoice:${INVOICE}`)
+      if (kind === 'refund') {
+        const paymentPush = pushes.get(`payment:${PAYMENT}`)
+        if (paymentPush?.status !== 'pushed') {
+          return { data: { action: 'wait', reason: 'payment_not_pushed' } }
+        }
+        return {
+          data: {
+            action: 'push',
+            push_kind: 'refund',
+            invoice: {
+              id: INVOICE,
+              number: '2026-12',
+              issued_on: '2026-10-13',
+              due_on: '2026-10-13',
+              total_cents: 9198,
+            },
+            lines: [],
+            payment: {
+              id: PAYMENT,
+              amount_cents: 9198,
+              paid_on: '2026-10-14',
+              mode_code: 'interac',
+            },
+            refund: {
+              id: REFUND,
+              payment_id: PAYMENT,
+              invoice_number: '2026-12',
+              amount_cents: 2500,
+              refunded_on: '2026-10-15',
+            },
+            invoice_qbo_id: null,
+            invoice_customer_id: paymentPush.customer,
+            payer: null,
+            dossier: null,
+            payer_customer_id: null,
+            dossier_customer_id: null,
+            tax_taxable: null,
+            tax_exempt: null,
+            receivable_account_id: '10',
+            deposit_account_id: '3',
+          },
+        }
+      }
       if (kind === 'payment' && invoicePush?.status !== 'pushed') {
         return { data: { action: 'wait', reason: 'invoice_not_pushed' } }
       }
@@ -293,6 +356,45 @@ Deno.test('qbo-push: an invoice to the pair’s sub-customer, its lines by item 
     assertEquals(await pass(), 'Rien à envoyer')
     assertEquals(
       h.intuit.documents.filter((d) => d.entity === 'invoice').length,
+      1,
+    )
+  }))
+
+Deno.test('qbo-push: a refund is a journal entry — the customer owes it again, the money leaves the deposit account', () =>
+  run(async () => {
+    const { h, m, pass } = setup({ withRefund: true })
+    // The invoice, its payment, then the refund once the payment is in.
+    assertEquals(await pass(), '3 envoyé(s), 0 en attente, 0 en échec')
+    const payment = h.intuit.documents.find((d) => d.entity === 'payment')!
+    const entry = h.intuit.documents.find((d) => d.entity === 'journalentry')!
+    assertEquals(entry.body.TxnDate, '2026-10-15')
+    assertEquals(entry.body.DocNumber, 'R-2026-12')
+    const lines = entry.body.Line as {
+      Amount: number
+      JournalEntryLineDetail: {
+        PostingType: string
+        AccountRef: { value: string }
+        Entity?: { Type: string; EntityRef: { value: string } }
+      }
+    }[]
+    assertEquals(
+      lines.map((l) => [
+        l.JournalEntryLineDetail.PostingType,
+        l.JournalEntryLineDetail.AccountRef.value,
+        l.Amount,
+      ]),
+      [['Debit', '10', 25], ['Credit', '3', 25]],
+    )
+    // On the customer the payment was on.
+    assertEquals(
+      lines[0].JournalEntryLineDetail.Entity?.EntityRef.value,
+      (payment.body.CustomerRef as { value: string }).value,
+    )
+    assertEquals(m.pushes.get(`refund:${REFUND}`)?.status, 'pushed')
+    assertEquals(m.events.map((e) => e.processed), [true, true, true])
+    assertEquals(await pass(), 'Rien à envoyer')
+    assertEquals(
+      h.intuit.documents.filter((d) => d.entity === 'journalentry').length,
       1,
     )
   }))
