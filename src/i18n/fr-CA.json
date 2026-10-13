@@ -8575,6 +8575,136 @@
         "notProfessionalTitle": "Aucun dossier professionnel",
         "notProfessionalBody": "Votre compte n'est lié à aucun dossier professionnel : il n'a pas d'agenda."
       }
+    },
+    "billing": {
+      "name": "Facturation",
+      "audit": {
+        "tables": {
+          "invoices": "Factures",
+          "invoice_lines": "Lignes de facture",
+          "credit_notes": "Notes de crédit",
+          "billing_payer_defaults": "Payeurs par défaut",
+          "invoice_sequences": "Numérotation des factures",
+          "payment_modes": "Modes de paiement"
+        },
+        "fields": {
+          "invoices": {
+            "number": "Numéro",
+            "year": "Année",
+            "seq": "Rang",
+            "status": "État",
+            "client_id": "Dossier",
+            "payer_kind": "Type de payeur",
+            "payer_client_id": "Facturé à",
+            "issued_on": "Émise le",
+            "due_on": "Due le",
+            "gst_rate": "Taux TPS",
+            "qst_rate": "Taux TVQ",
+            "tax_exempt": "Exempté de taxes (Statut Indien)",
+            "subtotal_cents": "Sous-total",
+            "gst_cents": "TPS",
+            "qst_cents": "TVQ",
+            "total_cents": "Total",
+            "source_type": "Origine",
+            "source_id": "Origine (référence)",
+            "external_ref": "Référence externe",
+            "notes_client": "Note au client",
+            "notes_internal": "Note interne",
+            "finalized_at": "Finalisée le",
+            "finalized_by": "Finalisée par",
+            "credited_at": "Créditée le"
+          },
+          "invoice_lines": {
+            "invoice_id": "Facture",
+            "position": "Rang",
+            "line_type": "Type de ligne",
+            "appointment_id": "Rendez-vous",
+            "service_id": "Service",
+            "service_code": "Code du service",
+            "description": "Description",
+            "quantity": "Quantité",
+            "unit_price_cents": "Prix unitaire",
+            "price_source": "Source du prix",
+            "tax_rule": "Taxes",
+            "subtotal_cents": "Sous-total",
+            "gst_cents": "TPS",
+            "qst_cents": "TVQ",
+            "total_cents": "Total",
+            "credited": "Créditée",
+            "professional_id": "Professionnel"
+          },
+          "credit_notes": {
+            "invoice_id": "Facture",
+            "number": "Numéro",
+            "year": "Année",
+            "seq": "Rang",
+            "reason": "Raison",
+            "issued_on": "Émise le",
+            "subtotal_cents": "Sous-total",
+            "gst_cents": "TPS",
+            "qst_cents": "TVQ",
+            "total_cents": "Total"
+          },
+          "billing_payer_defaults": {
+            "client_id": "Dossier",
+            "payer_client_id": "Facturé à",
+            "effective_from": "À partir du"
+          },
+          "invoice_sequences": {
+            "kind": "Type",
+            "year": "Année",
+            "last_number": "Dernier numéro"
+          },
+          "payment_modes": {
+            "code": "Code",
+            "name": "Nom",
+            "is_deposit": "Dépôt",
+            "is_active": "Actif",
+            "sort_order": "Ordre"
+          }
+        },
+        "values": {
+          "invoices": {
+            "status": {
+              "draft": "Brouillon",
+              "issued": "Émise",
+              "credited": "Créditée"
+            },
+            "payer_kind": {
+              "client": "Le client",
+              "relation": "Un proche"
+            },
+            "source_type": {
+              "appointment": "Rendez-vous",
+              "manual": "Saisie",
+              "service": "Service",
+              "import": "Importation"
+            }
+          },
+          "invoice_lines": {
+            "line_type": {
+              "service": "Séance",
+              "cancellation_fee": "Frais d'annulation",
+              "file_opening": "Ouverture de dossier",
+              "adjustment": "Ajustement",
+              "ivac_gap": "Écart IVAC"
+            },
+            "tax_rule": {
+              "exempt": "Non taxable",
+              "taxable": "Taxable"
+            }
+          },
+          "invoice_sequences": {
+            "kind": {
+              "invoice": "Facture",
+              "credit_note": "Note de crédit"
+            }
+          }
+        },
+        "sources": {
+          "seed:billing_reference": "Listes initiales"
+        }
+      }
     }
   },
   "roles": {
