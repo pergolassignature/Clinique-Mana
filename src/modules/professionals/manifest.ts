@@ -28,7 +28,7 @@ export const professionalsManifest: ModuleManifest = {
   labelKey: 'modules.professionals.name',
   dependsOn: [],
   nav: [
-    { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', order: 10 },
+    { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', group: 'team', order: 10 },
     // The professional's own file (Task 4b.5), right after Accueil, for an account linked to a file
     // (P4-376): admins hold professionals.self by default without one; an admin who practises keeps it.
     {
@@ -37,6 +37,7 @@ export const professionalsManifest: ModuleManifest = {
       icon: CircleUser,
       permission: 'professionals.self',
       shownWhen: hasProfessionalFile,
+      group: 'main',
       order: 5,
     },
     // « Mes documents » (Task 4c.6): the professional's own documents, right after « Mon profil ».
@@ -46,6 +47,7 @@ export const professionalsManifest: ModuleManifest = {
       icon: FolderOpen,
       permission: 'professionals.self',
       shownWhen: hasProfessionalFile,
+      group: 'main',
       order: 6,
     },
   ],

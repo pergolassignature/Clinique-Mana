@@ -24,14 +24,15 @@ export const billingManifest: ModuleManifest = {
   labelKey: 'modules.billing.name',
   dependsOn: ['clients', 'services', 'professionals', 'appointments'],
   nav: [
-    { path: '/facturation', labelKey: 'modules.billing.name', icon: ReceiptText, permission: 'billing.view', order: 13 },
-    { path: '/facturation/paie', labelKey: 'modules.billing.payroll.nav.payroll', icon: HandCoins, permission: 'billing.payroll', order: 30 },
+    { path: '/facturation', labelKey: 'modules.billing.name', icon: ReceiptText, permission: 'billing.view', group: 'billing', order: 13 },
+    { path: '/facturation/paie', labelKey: 'modules.billing.payroll.nav.payroll', icon: HandCoins, permission: 'billing.payroll', group: 'billing', order: 30 },
     {
       path: '/ma-paie',
       labelKey: 'modules.billing.payroll.nav.myPay',
       icon: Wallet,
       permission: 'billing.self',
       shownWhen: hasProfessionalFile,
+      group: 'main',
       order: 8,
     },
   ],

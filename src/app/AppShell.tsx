@@ -250,8 +250,13 @@ export function AppShell({
             menuButtonRef={menuButtonRef}
             searchButtonRef={searchButtonRef}
           />
-          {/* The content column fills the window's height, so a page may grow to its bottom (`flex-1`). */}
-          <main id={MAIN_ID} tabIndex={-1} className="flex min-w-0 flex-1 flex-col p-4 outline-none md:p-6">
+          {/* The content column fills the window's height, so a page may grow to its bottom (`flex-1`).
+              `relative overflow-clip`: an absolutely positioned element of a page is clipped to the
+              content, never lengthens the document past the shell. Radix's hidden checkbox and select
+              inputs inside a scrolling list without `relative` (Demandes' motifs) did: the page then
+              scrolled on past the shell, and the sidebar and top bar went with it. `clip` is no
+              scroll container: the window still scrolls and the sticky headers still stick. */}
+          <main id={MAIN_ID} tabIndex={-1} className="relative flex min-w-0 flex-1 flex-col overflow-clip p-4 outline-none md:p-6">
             <div className="mx-auto flex w-full max-w-content flex-1 flex-col gap-5">{children}</div>
           </main>
         </div>

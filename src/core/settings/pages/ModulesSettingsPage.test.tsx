@@ -181,6 +181,34 @@ describe('ModulesSettingsPage', () => {
     await waitFor(() => expect(mocks.testers.setModuleTestersOnly).toHaveBeenCalledWith('professionals', true))
   })
 
+  it('flags a requirement still off: « Clients (désactivé) »', async () => {
+    mocks.fetchModules.mockResolvedValue([
+      { key: 'professionals', name: 'Professionnels', depends_on: [], enabled: true },
+      { key: 'clients', name: 'Clients', depends_on: [], enabled: false },
+      { key: 'billing', name: 'Facturation', depends_on: ['professionals', 'clients'], enabled: false },
+    ])
+    renderPage()
+    const billing = await screen.findByRole('switch', { name: 'Facturation' })
+    expect(billing).toHaveAccessibleDescription(`${t('settings.modules.dependsOn')} Professionnels, ${t('settings.modules.dependencyOff', { name: 'Clients' })}`)
+    expect(t('settings.modules.dependencyOff', { name: 'Clients' })).toBe('Clients (désactivé)')
+  })
+
+  it('a module that is off: its testers block muted, saying the testers see nothing until it is on', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.fetchModuleTesters.mockResolvedValue([{ key: 'billing', testersOnly: true, testerIds: ['u-admin'] }])
+    renderPage()
+    expect(await screen.findByText(t('settings.modules.testers.moduleOff'))).toBeInTheDocument()
+    expect(screen.queryByText(t('settings.modules.testers.visibleTo', { names: 'Jonathan' }))).not.toBeInTheDocument()
+  })
+
+  it('on and reserved: « Visible seulement par » names the testers', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.testers.fetchModuleTesters.mockResolvedValue([{ key: 'professionals', testersOnly: true, testerIds: ['u-admin', 'u-cons'] }])
+    renderPage()
+    expect(await screen.findByText(t('settings.modules.testers.visibleTo', { names: 'Jonathan, Rachel' }).replace(/\s+/g, ' '))).toBeInTheDocument()
+    expect(screen.queryByText(t('settings.modules.testers.moduleOff'))).not.toBeInTheDocument()
+  })
+
   it('never shows « not reserved » when the testers cannot be loaded', async () => {
     mocks.fetchModules.mockResolvedValue(rows)
     mocks.testers.fetchModuleTesters.mockRejectedValue(new Error('boom'))
