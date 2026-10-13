@@ -86,7 +86,12 @@ const runSchema = z.object({
 type DueEmail = z.output<typeof runSchema>['emails'][number]
 
 /** A failure of the clinic's email setup: always ends the run. */
-const SETUP_FAILURES = new Set(['not_configured', 'module_disabled'])
+// `module_reserved`: the module is reserved for its testers (P3-40, CC-14): nothing is sent.
+const SETUP_FAILURES = new Set([
+  'not_configured',
+  'module_disabled',
+  'module_reserved',
+])
 /** These end the run after their batch: the rest would fail the same way. */
 const BATCH_STOP_FAILURES = new Set(['provider_error', 'rate_limited'])
 

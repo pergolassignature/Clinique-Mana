@@ -361,6 +361,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         case 'invalid_recipient':
           return createdError('invalid_request', 400, ids, 'email')
         case 'module_disabled':
+        // Reserved for its testers (P3-40, CC-14): nothing leaves, said like a disabled module.
+        case 'module_reserved':
           return createdError('module_disabled', 403, ids)
         default:
           await report(`email_${result.code}`, created)

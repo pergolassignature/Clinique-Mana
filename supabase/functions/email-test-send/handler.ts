@@ -102,6 +102,8 @@ function outcomeResponse(result: SendResult, req: Request): Response {
     case 'invalid_recipient':
       return errorResponse('invalid_request', 'Invalid recipient', 400, req)
     case 'module_disabled':
+    // A test send is never held back for a reserved module (P3-40, CC-14): this is only for completeness.
+    case 'module_reserved':
       return errorResponse('module_disabled', 'Module disabled', 403, req)
     case 'recipient_not_allowed':
     case 'attachment_not_allowed':

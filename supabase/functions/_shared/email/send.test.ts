@@ -382,6 +382,43 @@ Deno.test('send: the module is disabled → module_disabled, no limit, no queue'
   assertEquals(h.http.calls.length, 0)
 })
 
+Deno.test('send: a module reserved for its testers (P3-40, CC-14) → module_reserved, nothing queued; an automatic send is logged', async () => {
+  const typed = harness({ context: context({ module_open: false }) })
+  const { result } = await run(() => sendTemplatedEmail(typed.deps, input()))
+  assertEquals(result, { ok: false, emailLogId: null, code: 'module_reserved' })
+  assertEquals(typed.rpcNames(), ['get_email_context', 'get_org_secret'])
+  assertEquals(typed.http.calls.length, 0)
+
+  const automatic = harness({ context: context({ module_open: false }) })
+  const logs = await captureConsole('log', async () => {
+    const { result } = await run(() =>
+      sendTemplatedEmail(automatic.deps, input({ sentBy: null }))
+    )
+    assertEquals(result, {
+      ok: false,
+      emailLogId: null,
+      code: 'module_reserved',
+    })
+  })
+  assertEquals(logs.length, 1)
+  assertEquals(
+    JSON.parse(String(logs[0][0])).code,
+    'email_module_reserved_skipped',
+  )
+  assertFalse(automatic.rpcNames().includes('queue_email'))
+})
+
+Deno.test("send: the template's test send still goes while the module is reserved", async () => {
+  const h = harness({ context: context({ module_open: false }) })
+  const { result } = await run(() =>
+    sendTemplatedEmail(
+      h.deps,
+      input({ values: {}, test: { callerId: CALLER } }),
+    )
+  )
+  assertEquals(result.ok, true)
+})
+
 Deno.test('send: a free recipient on a `subject` template → recipient_not_allowed', async () => {
   const h = harness()
   const { result } = await run(() =>
