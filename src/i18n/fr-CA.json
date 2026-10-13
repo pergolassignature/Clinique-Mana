@@ -10293,6 +10293,170 @@
         "waive": "Ne pas facturer",
         "openInvoice": "Ouvrir la facture"
       }
+    },
+    "reports": {
+      "name": "Rapports",
+      "filters": "Filtres du rapport",
+      "export": "Exporter (CSV)",
+      "otherValue": "Choix précédent",
+      "truncated": "Seules les 5 000 premières lignes sont affichées et exportées : choisissez une période plus courte. Les totaux comptent tout.",
+      "period": {
+        "from": "Du",
+        "to": "Au",
+        "presets": "Périodes rapides",
+        "thisMonth": "Ce mois-ci",
+        "lastMonth": "Mois dernier",
+        "thisYear": "Cette année",
+        "lastYear": "Année dernière",
+        "invalid": "Choisissez une période : du … au …, la fin après le début.",
+        "tooLong": "La période va jusqu’à un an : choisissez-en une plus courte."
+      },
+      "lineTypes": {
+        "service": "Séance",
+        "cancellation_fee": "Frais d’annulation",
+        "file_opening": "Ouverture de dossier",
+        "adjustment": "Ajustement",
+        "ivac_gap": "Écart IVAC"
+      },
+      "revenue": {
+        "nav": "Revenus",
+        "title": "Revenus",
+        "description": "Les factures émises, leurs services et les paiements reçus sur une période, par professionnel, service et mode de paiement.",
+        "views": "Vues des revenus",
+        "viewLabels": {
+          "invoice": "Par facture",
+          "service": "Par service",
+          "payment": "Par paiement"
+        },
+        "fileViews": {
+          "invoice": "par-facture",
+          "service": "par-service",
+          "payment": "par-paiement"
+        },
+        "fileName": "revenus-{view}-{from}-au-{to}.csv",
+        "filters": {
+          "professional": "Professionnel",
+          "allProfessionals": "Tous les professionnels",
+          "service": "Service",
+          "allServices": "Tous les services",
+          "mode": "Mode de paiement",
+          "allModes": "Tous les modes"
+        },
+        "totals": "Totaux de la période",
+        "totalLabels": {
+          "invoices": "Factures",
+          "lines": "Lignes",
+          "quantity": "Quantité",
+          "subtotal": "Sous-total",
+          "taxes": "Taxes (TPS et TVQ)",
+          "total": "Total",
+          "paid": "Payé",
+          "balance": "Solde",
+          "payments": "Paiements",
+          "received": "Reçu"
+        },
+        "credited": "Factures émises dans la période puis créditées, non comptées : {count} ({amount}).",
+        "empty": "Aucune facture émise dans cette période.",
+        "emptyPayments": "Aucun paiement reçu dans cette période.",
+        "byService": "Total par service",
+        "lines": "Lignes des factures",
+        "billedTo": "Facturé à {name}",
+        "paidBy": "Payé par {name}",
+        "loadError": "Le rapport des revenus ne se charge pas.",
+        "columns": {
+          "date": "Date",
+          "number": "Facture",
+          "fileNumber": "N° de dossier",
+          "client": "Client",
+          "payer": "Payeur",
+          "professional": "Professionnel",
+          "subtotal": "Sous-total",
+          "gst": "TPS",
+          "qst": "TVQ",
+          "total": "Total",
+          "paid": "Payé",
+          "balance": "Solde",
+          "code": "Code",
+          "service": "Service",
+          "description": "Description",
+          "quantity": "Quantité",
+          "unitPrice": "Prix unitaire",
+          "mode": "Mode",
+          "amount": "Montant",
+          "reference": "Référence"
+        }
+      },
+      "cancellations": {
+        "nav": "Annulations",
+        "title": "Annulations et absences",
+        "description": "Les rendez-vous annulés d’une période, par raison, et les absences ; les clients à relancer.",
+        "views": "Vues des annulations",
+        "tabs": {
+          "reasons": "Par raison",
+          "followUp": "Clients à relancer"
+        },
+        "filters": {
+          "professional": "Professionnel",
+          "allProfessionals": "Tous les professionnels",
+          "kind": "Type",
+          "allKinds": "Annulations et absences",
+          "kinds": {
+            "cancelled": "Annulations",
+            "absent": "Absences"
+          },
+          "reason": "Raison",
+          "allReasons": "Toutes les raisons"
+        },
+        "totals": "Totaux de la période",
+        "totalLabels": {
+          "cancelled": "Annulations",
+          "late": "Annulations à moins de 24 h",
+          "absent": "Absences"
+        },
+        "absent": "Absence",
+        "noReason": "Raison non indiquée",
+        "kinds": {
+          "cancelled": "Annulé",
+          "late": "Annulé à moins de 24 h",
+          "absent": "Absent"
+        },
+        "nothingAfter": "Aucun rendez-vous après",
+        "byReason": "Par raison",
+        "list": "Rendez-vous annulés et absences",
+        "empty": "Aucune annulation ni absence dans cette période.",
+        "unnamed": "Client",
+        "loadError": "Le rapport des annulations ne se charge pas.",
+        "fileName": "annulations-{from}-au-{to}.csv",
+        "columns": {
+          "date": "Rendez-vous",
+          "fileNumber": "N° de dossier",
+          "client": "Client",
+          "professional": "Professionnel",
+          "service": "Service",
+          "kind": "Type",
+          "reason": "Raison",
+          "cancelledAt": "Annulé le",
+          "next": "Rendez-vous suivant",
+          "count": "Nombre",
+          "late": "À moins de 24 h"
+        }
+      },
+      "followUp": {
+        "title": "Clients à relancer",
+        "count": "Clients à relancer : {count}. Leur dernière annulation ou absence de la période n’a été suivie d’aucun rendez-vous.",
+        "empty": "Aucun client à relancer pour cette période.",
+        "fileName": "clients-a-relancer-{from}-au-{to}.csv",
+        "columns": {
+          "client": "Client",
+          "fileNumber": "N° de dossier",
+          "date": "Dernier rendez-vous manqué",
+          "kind": "Type",
+          "reason": "Raison",
+          "professional": "Professionnel",
+          "service": "Service",
+          "events": "Annulations et absences"
+        }
+      }
     }
   },
   "roles": {

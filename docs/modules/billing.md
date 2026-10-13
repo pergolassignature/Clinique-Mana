@@ -150,6 +150,7 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 
 - **`private.billing_create_service_invoice(org, client, service, source_id, actor)`** → draft id: a service outside the agenda (Demandes' waiting-list fee, a report), priced today. Granted to no role.
 - **For Clients:** `private.billing_reassign_client(old, new)` and `private.billing_anonymize_client(id)` in the handler catalogues (a merge moves invoices and default payers; an anonymisation keeps the invoices and their amounts, blanks their notes, drops the default payers). Lane B's FQ adds its QuickBooks part to these two functions (`create or replace`).
+- **For Rapports (RP1):** `private.billing_revenue_lines(org, from, to)` (the lines of the invoices issued between two clinic dates, issued or credited, with the invoice's totals and what is paid), `private.billing_revenue_payments(org, from, to)` (the payments of the period with their mode's name and the professionals and services of the invoice's lines not credited), `private.billing_payment_mode_names(org)`. Granted to no role; signatures stable.
 - **Coming:** `client_balance(client)`, `private.client_has_balance` (F3, replacing Rendez-vous' stub).
 
 ### What this module reads from the others (published only)
