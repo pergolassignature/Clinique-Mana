@@ -9,10 +9,12 @@ describe('demandesManifest', () => {
     expect(demandesManifest.dependsOn).toEqual(['clients', 'professionals'])
     expect([demandesManifest.nav ?? []].flat().map((n) => [n.path, n.permission, t(n.labelKey)])).toEqual([
       ['/demandes', 'demandes.view', 'Demandes'],
+      ['/demandes/appels', 'demandes.view', 'Appels découverte'],
       ['/liste-attente', 'demandes.view', "Liste d'attente"],
     ])
     expect(demandesManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['demandes', 'demandes.view'],
+      ['demandes/appels', 'demandes.view'],
       ['demandes/:id/:onglet?', 'demandes.view'],
       ['liste-attente', 'demandes.view'],
     ])
