@@ -154,6 +154,7 @@ select functions_are('public', array[
   'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel',
   'create_demande', 'update_demande', 'set_demande_state', 'assign_demande', 'log_demande_contact',
   'add_demande_task', 'complete_demande_task', 'cancel_demande_task', 'set_demande_note', 'set_demande_participants',
+  'list_demandes', 'demandes_counts', 'get_demande', 'get_demandes_reference', 'set_demande_handler',
   -- Clients, batch C5a (consents).
   'set_client_consent_rule', 'set_client_consent_settings', 'cancel_client_consent_request', 'publish_client_consent_version',
   'prepare_client_consent_request_for_service', 'open_client_consent_for_service', 'start_client_consent_signing_for_service',
