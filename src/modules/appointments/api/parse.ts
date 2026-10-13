@@ -13,7 +13,7 @@ export function parseRpc<S extends z.ZodType>(schema: S, data: unknown): z.outpu
   return result.data
 }
 
-export const APPOINTMENT_STATES = ['booked', 'confirmed', 'completed', 'cancelled'] as const
+export const APPOINTMENT_STATES = ['held', 'booked', 'confirmed', 'completed', 'cancelled'] as const
 export type AppointmentState = (typeof APPOINTMENT_STATES)[number]
 export const PRESENCES = ['expected', 'present', 'absent'] as const
 export type Presence = (typeof PRESENCES)[number]

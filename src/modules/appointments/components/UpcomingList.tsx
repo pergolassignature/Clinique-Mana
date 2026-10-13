@@ -3,7 +3,7 @@ import { EmptyState } from '@/shared/components/EmptyState'
 import { formatClinicDateFull, formatClinicTime, getClinicDateString } from '@/shared/lib/timezone'
 import { Badge } from '@/shared/ui/badge'
 import type { AgendaAppointment, ServiceOption } from '../api/parse'
-import { appointmentTitle, isBusyOnly, stateLabel } from '../lib/display'
+import { appointmentTitle, isBusyOnly, stateBadgeVariant, stateLabel } from '../lib/display'
 
 const A = 'modules.appointments.agenda'
 
@@ -47,7 +47,7 @@ export function UpcomingList({
                   <span className={a.state === 'cancelled' ? 'line-through' : 'font-medium'}>{appointmentTitle(a)}</span>
                   <span className="text-muted-foreground">{serviceName(a.serviceId)}</span>
                   <span className="text-muted-foreground">{professionalName(a.professionalId)}</span>
-                  {a.state !== 'booked' && <Badge variant={a.state === 'cancelled' ? 'secondary' : 'success'}>{stateLabel(a.state)}</Badge>}
+                  {a.state !== 'booked' && <Badge variant={stateBadgeVariant(a.state)}>{stateLabel(a.state)}</Badge>}
                 </button>
               </li>
             ))}

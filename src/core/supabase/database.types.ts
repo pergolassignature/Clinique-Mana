@@ -203,6 +203,8 @@ export type Database = {
           created_by: string | null
           ends_at: string
           external_ref: string | null
+          held_until: string | null
+          hold_reference: string | null
           id: string
           internal_note: string | null
           is_personal: boolean
@@ -238,6 +240,8 @@ export type Database = {
           created_by?: string | null
           ends_at: string
           external_ref?: string | null
+          held_until?: string | null
+          hold_reference?: string | null
           id?: string
           internal_note?: string | null
           is_personal?: boolean
@@ -273,6 +277,8 @@ export type Database = {
           created_by?: string | null
           ends_at?: string
           external_ref?: string | null
+          held_until?: string | null
+          hold_reference?: string | null
           id?: string
           internal_note?: string | null
           is_personal?: boolean
