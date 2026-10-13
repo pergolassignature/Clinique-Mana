@@ -11299,7 +11299,12 @@ export type Database = {
         }[]
       }
       finish_appointment_message_for_service: {
-        Args: { p_message_id: string; p_org_id: string; p_sent: boolean }
+        Args: {
+          p_message_id: string
+          p_org_id: string
+          p_sent: boolean
+          p_skip_reason?: string
+        }
         Returns: undefined
       }
       finish_job_run: {

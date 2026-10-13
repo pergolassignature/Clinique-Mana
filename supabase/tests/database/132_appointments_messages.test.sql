@@ -13,7 +13,7 @@ select plan(44);
 select function_privs_are('public', f, a, 'authenticated', array[]::text[], f || ': not the app')
   from (values ('appointment_messages_for_service', array['uuid', 'integer']),
                ('prepare_appointment_message_for_service', array['uuid', 'uuid', 'bytea']),
-               ('finish_appointment_message_for_service', array['uuid', 'uuid', 'boolean']),
+               ('finish_appointment_message_for_service', array['uuid', 'uuid', 'boolean', 'text']),
                ('resolve_appointment_confirm_link', array['uuid']),
                ('confirm_appointment_by_link_for_service', array['bytea'])) as x(f, a);
 select function_privs_are('public', 'confirm_appointment_by_link_for_service', array['bytea'], 'service_role', array['EXECUTE'], 'the confirmation: service role');
