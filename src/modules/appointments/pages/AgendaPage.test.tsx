@@ -27,9 +27,19 @@ const mocks = vi.hoisted(() => ({
     restoreAvailabilityRule: vi.fn(),
     addAvailabilityException: vi.fn(),
   },
+  changes: {
+    changeAppointmentService: vi.fn(),
+    restoreAppointment: vi.fn(),
+    confirmAppointment: vi.fn(),
+    fetchAppointmentConsents: vi.fn(),
+    fetchBookingConsents: vi.fn(),
+  },
+  messages: { fetchWithoutReminder: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../api/agenda', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/agenda')>()), ...mocks.api }))
+vi.mock('../api/changes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/changes')>()), ...mocks.changes }))
+vi.mock('../api/messages', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/messages')>()), ...mocks.messages }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 vi.mock('@/modules/clients', () => ({
@@ -47,7 +57,10 @@ const AVAILABILITY = '/agenda?date=2027-03-15&mode=disponibilites&professionnel=
 
 const REFERENCE: AgendaReference = {
   professionals: [{ id: 'p1', name: 'Félix Gauthier', active: true, titleIds: ['t1'] }],
-  services: [{ id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'] }],
+  services: [
+    { id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'] },
+    { id: 's30', code: 10130, name: 'Consultation individuelle 30 min', durationMinutes: 30, bufferAfterMinutes: 0, forTwo: false, colour: null, titleIds: ['t1'] },
+  ],
   reasons: [{ id: 'r1', key: 'not_specified', name: 'Non spécifiée', active: true }],
 }
 
@@ -108,6 +121,12 @@ beforeEach(() => {
   mocks.api.deleteAvailabilityRule.mockResolvedValue(undefined)
   mocks.api.restoreAvailabilityRule.mockResolvedValue('w1b')
   mocks.api.addAvailabilityException.mockResolvedValue('x1')
+  mocks.changes.changeAppointmentService.mockResolvedValue(undefined)
+  mocks.changes.restoreAppointment.mockResolvedValue(undefined)
+  mocks.changes.confirmAppointment.mockResolvedValue(undefined)
+  mocks.changes.fetchAppointmentConsents.mockResolvedValue([])
+  mocks.changes.fetchBookingConsents.mockResolvedValue([])
+  mocks.messages.fetchWithoutReminder.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -343,6 +362,112 @@ describe('AgendaPage', () => {
     renderPage({ path: AVAILABILITY })
     await user.click(await screen.findByRole('button', { name: t(`${D}.addWindow`) }))
     expect(await screen.findByRole('dialog', { name: t(`${D}.newTitle`) })).toBeInTheDocument()
+  })
+
+  describe('the parity audit (AP-28 … AP-32)', () => {
+    it('« Changer le service »: the same moment, the new service; an overlap is shown as written', async () => {
+      const user = userEvent.setup()
+      mocks.changes.changeAppointmentService.mockRejectedValueOnce({ code: 'P0001', hint: 'overlap', message: 'Ce professionnel a déjà un rendez-vous sur ce créneau (pause après comprise).' })
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      const service = within(sheet).getByRole('combobox', { name: /^Service/ })
+      expect(service).toHaveValue('s50')
+      const submit = within(sheet).getByRole('button', { name: t(`${E}.changeService`) })
+      expect(submit).toHaveAttribute('aria-disabled', 'true')
+      await user.selectOptions(service, 's30')
+      expect(within(sheet).getByText(t(`${E}.serviceHelp`, { duration: '30', buffer: '0' }))).toBeInTheDocument()
+      await user.click(submit)
+      expect(await within(sheet).findByText('Ce professionnel a déjà un rendez-vous sur ce créneau (pause après comprise).')).toBeInTheDocument()
+      await user.click(submit)
+      await waitFor(() => expect(mocks.changes.changeAppointmentService).toHaveBeenLastCalledWith('a1', 's30', null))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.appointments.saved.serviceChanged')))
+    })
+
+    it('« Marquer confirmé » on a booked appointment (the staff)', async () => {
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('button', { name: t(`${E}.markConfirmed`) }))
+      await waitFor(() => expect(mocks.changes.confirmAppointment).toHaveBeenCalledWith('a1'))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.appointments.saved.confirmed')))
+    })
+
+    it('a confirmed appointment offers no « Marquer confirmé »', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'confirmed' })])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      expect(within(sheet).queryByRole('button', { name: t(`${E}.markConfirmed`) })).not.toBeInTheDocument()
+    })
+
+    it('« Rétablir » a cancelled appointment still to come; a taken slot is shown as written', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'cancelled', cancelReasonId: 'r1', startsAt: '2099-03-16T14:00:00Z', endsAt: '2099-03-16T14:50:00Z' })])
+      mocks.changes.restoreAppointment.mockRejectedValueOnce({ code: 'P0001', hint: 'overlap', message: 'Le créneau est maintenant pris : ce rendez-vous ne peut pas être rétabli.' })
+      renderPage({ path: '/agenda?date=2099-03-16&professionnel=p1' })
+      await user.click(await screen.findByRole('button', { name: /Alice Essai/ }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('tab', { name: t(`${E}.tabs.cancel`) }))
+      const restore = within(sheet).getByRole('button', { name: t(`${E}.restore`) })
+      await user.click(restore)
+      expect(await within(sheet).findByText('Le créneau est maintenant pris : ce rendez-vous ne peut pas être rétabli.')).toBeInTheDocument()
+      await user.click(restore)
+      await waitFor(() => expect(mocks.changes.restoreAppointment).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.appointments.saved.restored')))
+    })
+
+    it('a past cancelled appointment: no « Rétablir », the reason said', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'cancelled', cancelReasonId: 'r1', startsAt: '2026-01-05T15:00:00Z', endsAt: '2026-01-05T15:50:00Z' })])
+      renderPage({ path: '/agenda?date=2026-01-05&professionnel=p1' })
+      await user.click(await screen.findByRole('button', { name: /Alice Essai/ }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('tab', { name: t(`${E}.tabs.cancel`) }))
+      expect(within(sheet).getByText(t(`${E}.restorePast`))).toBeInTheDocument()
+      expect(within(sheet).queryByRole('button', { name: t(`${E}.restore`) })).not.toBeInTheDocument()
+    })
+
+    it('the consents still to sign: on the appointment and at booking, by name; never blocking', async () => {
+      const user = userEvent.setup()
+      mocks.changes.fetchAppointmentConsents.mockResolvedValue([
+        { clientId: 'c1', consentKey: 'general', consentName: 'Consentement général', state: 'missing' },
+        { clientId: 'c1', consentKey: 'waitlist', consentName: 'Liste d’attente', state: 'signed' },
+      ])
+      mocks.changes.fetchBookingConsents.mockResolvedValue([{ clientId: 'c1', consentKey: 'general', consentName: 'Consentement général', state: 'pending' }])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      let sheet = await screen.findByRole('dialog')
+      const C = `${E}.consents`
+      expect(await within(sheet).findByText(t(`${C}.line`, { name: 'Consentement général', state: t(`${C}.state.missing`) }))).toBeInTheDocument()
+      expect(within(sheet).queryByText(/Liste d’attente/)).not.toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await user.click(screen.getByRole('button', { name: t(`${A}.new`) }))
+      sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
+      await user.selectOptions(within(sheet).getByLabelText(/^Service/), 's50')
+      await user.click(within(sheet).getByRole('button', { name: 'Choisir Alice' }))
+      expect(await within(sheet).findByText(t(`${C}.line`, { name: 'Consentement général', state: t(`${C}.state.pending`) }))).toBeInTheDocument()
+      expect(mocks.changes.fetchBookingConsents).toHaveBeenLastCalledWith('s50', ['c1'])
+      await user.click(within(sheet).getByRole('button', { name: t(`${E}.book`) }))
+      await waitFor(() => expect(mocks.api.bookAppointment).toHaveBeenCalled())
+    })
+
+    it('« Clients sans rappel »: « Marquer confirmé » after the call; a confirmed one says so', async () => {
+      const user = userEvent.setup()
+      mocks.messages.fetchWithoutReminder.mockResolvedValue([
+        { id: 'a1', professionalId: 'p1', startsAt: '2027-03-15T14:00:00Z', participants: [{ clientId: 'c1', name: 'Alice Essai', clientNumber: 1 }], confirmed: false },
+        { id: 'a2', professionalId: 'p1', startsAt: '2027-03-16T14:00:00Z', participants: [{ clientId: 'c2', name: 'Marc Essai', clientNumber: 2 }], confirmed: true },
+      ])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: t('modules.appointments.withoutReminder.title') }))
+      const sheet = await screen.findByRole('dialog', { name: t('modules.appointments.withoutReminder.title') })
+      expect(within(sheet).getByText(t('modules.appointments.withoutReminder.confirmedBadge'))).toBeInTheDocument()
+      await user.click(within(sheet).getByRole('button', { name: t('modules.appointments.withoutReminder.markConfirmedLabel', { name: 'Alice Essai' }) }))
+      await waitFor(() => expect(mocks.changes.confirmAppointment).toHaveBeenCalledWith('a1'))
+    })
   })
 
   it('the adjointe books too', async () => {
