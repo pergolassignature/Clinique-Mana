@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Archive, Check, ChevronLeft, ExternalLink, Inbox, Mail, Paperclip, Star, Tag } from 'lucide-react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { useSignedFileUrl, useSignedFileUrls } from '@/core/storage/hooks'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
@@ -18,6 +19,7 @@ import { useMailAction, useMailLabels, useMailThread } from '../../hooks/use-inb
 import { htmlHasContent, prepareEmailHtml } from '../../lib/email-html'
 import { SafeEmailHtml } from '../SafeEmailHtml'
 import { gmailThreadUrl, senderLabel } from '../../lib/inbox-format'
+import { ThreadClientLink } from './ThreadClientLink'
 
 const V = 'modules.communications.inbox.thread'
 
@@ -37,12 +39,14 @@ interface MailThreadViewProps {
 /**
  * One thread: its subject and actions (archive or back to the inbox, unread, follow, labels, open
  * in Gmail), then its messages oldest first. The unread ones and the latest are open, the others
- * folded to one line (a click opens them). Opening an unread thread marks it read, once, silently
+ * folded to one line (a click opens them). With `clients.view`, the thread's file (CM2b). Opening an unread thread marks it read, once, silently
  * (as Gmail). Received HTML is sanitized and shown in a sandboxed frame; remote images wait for
  * « Afficher les images ».
  */
 export function MailThreadView({ threadId, onBack }: MailThreadViewProps) {
   const thread = useMailThread(threadId)
+  // The file the thread belongs to (CM2b): only for whoever may see files (Clients enabled).
+  const canSeeFiles = useAccess().can('clients.view')
   // The labels of the thread's own mailbox (a link may open a thread of another one).
   const labels = useMailLabels(thread.data?.connection_id ?? null).data ?? []
   const action = useMailAction()
@@ -119,6 +123,7 @@ export function MailThreadView({ threadId, onBack }: MailThreadViewProps) {
             {t(`${V}.openInGmail`)}
           </a>
         </div>
+        {canSeeFiles && <ThreadClientLink threadId={threadId} />}
       </header>
       <ol className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {data.messages.map((message, index) => (

@@ -6707,7 +6707,8 @@
             "unread": "Non lus",
             "starred": "Suivis",
             "sent": "Envoyés",
-            "all": "Tous les courriels"
+            "all": "Tous les courriels",
+            "to_link": "À rattacher"
           }
         },
         "list": {
@@ -6720,7 +6721,8 @@
           "noSubject": "(sans objet)",
           "unread": "Non lu :",
           "starred": "Suivi",
-          "attachments": "Pièces jointes"
+          "attachments": "Pièces jointes",
+          "emptyToLink": "Aucun courriel à rattacher."
         },
         "thread": {
           "select": "Choisissez un courriel pour le lire.",
@@ -6752,6 +6754,30 @@
           "attachmentInGmail": "dans Gmail seulement",
           "sizeKb": "{size} ko",
           "sizeMb": "{size} Mo"
+        },
+        "link": {
+          "label": "Dossier client",
+          "loadError": "Le dossier client du courriel n'a pas pu être lu.",
+          "linkedTo": "Rattaché au dossier",
+          "auto": "(trouvé par l'adresse de l'expéditeur)",
+          "unlink": "Détacher",
+          "change": "Changer de dossier",
+          "candidates": "Plusieurs dossiers correspondent à l'adresse de l'expéditeur. Choisissez le bon :",
+          "linkTo": "Rattacher",
+          "linkToLabel": "Rattacher au dossier {file}",
+          "other": "Un autre dossier",
+          "none": "Aucun dossier client rattaché.",
+          "link": "Rattacher à un dossier",
+          "searchLabel": "Chercher un dossier",
+          "searchPlaceholder": "Nom, courriel, numéro ou téléphone",
+          "searchHint": "Tapez au moins 2 caractères.",
+          "searching": "Recherche en cours…",
+          "noResult": "Aucun dossier ne correspond.",
+          "searchError": "La recherche n'a pas abouti. Réessayez.",
+          "results": "Dossiers trouvés",
+          "archived": "Archivé",
+          "linkedToast": "Courriel rattaché au dossier.",
+          "unlinkedToast": "Courriel détaché du dossier."
         }
       }
     },

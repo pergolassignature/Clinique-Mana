@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -19,9 +20,13 @@ const I = 'modules.communications.inbox'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SEARCH_DELAY_MS = 300
 
-/** `?vue=` → the view: one of MAIL_VIEWS, or `libelle:<id>`; anything else is the inbox. */
-function parseView(raw: string | null): ViewChoice {
+/**
+ * `?vue=` → the view: one of MAIL_VIEWS, or `libelle:<id>`; anything else is the inbox, and so is
+ * « À rattacher » for whoever may not see files.
+ */
+function parseView(raw: string | null, canSeeFiles: boolean): ViewChoice {
   if (raw?.startsWith('libelle:')) return { view: 'label', labelId: raw.slice('libelle:'.length) || null }
+  if (raw === 'to_link' && !canSeeFiles) return { view: 'inbox', labelId: null }
   return (MAIL_VIEWS as readonly string[]).includes(raw ?? '') ? { view: raw as MailView, labelId: null } : { view: 'inbox', labelId: null }
 }
 const viewParam = (choice: ViewChoice) => (choice.view === 'label' ? `libelle:${choice.labelId}` : choice.view)
@@ -41,7 +46,8 @@ export function InboxPage() {
   const mailboxes = useMemo(() => (connections.data ?? []).filter((m) => m.status !== 'disconnected'), [connections.data])
   const wanted = params.get('boite')
   const mailboxId = mailboxes.find((m) => m.id === wanted)?.id ?? mailboxes[0]?.id ?? null
-  const choice = parseView(params.get('vue'))
+  const canSeeFiles = useAccess().can('clients.view')
+  const choice = parseView(params.get('vue'), canSeeFiles)
   const threadParam = params.get('fil')
   const threadId = threadParam && UUID.test(threadParam) ? threadParam : null
   const search = params.get('q') ?? ''
@@ -89,7 +95,11 @@ export function InboxPage() {
     list = <LoadError className="p-3" message={t(`${I}.list.loadError`)} retrying={threads.isFetching} onRetry={() => void threads.refetch()} />
   } else if (!threads.data) list = <Loading className="p-3" />
   else if (rows.length === 0) {
-    list = <p className="p-4 text-sm text-muted-foreground">{search ? t(`${I}.list.noResult`) : t(`${I}.list.empty`)}</p>
+    list = (
+      <p className="p-4 text-sm text-muted-foreground">
+        {search ? t(`${I}.list.noResult`) : choice.view === 'to_link' ? t(`${I}.list.emptyToLink`) : t(`${I}.list.empty`)}
+      </p>
+    )
   } else {
     list = (
       <MailThreadList
@@ -128,6 +138,7 @@ export function InboxPage() {
                 update({ vue: next.view === 'inbox' ? null : viewParam(next), fil: null, q: null })
               }}
               labels={labels.data ?? []}
+              showToLink={canSeeFiles}
             />
           </div>
           <div className={cn('flex min-h-0 flex-col lg:border-r lg:border-border', threadId !== null && 'max-lg:hidden')}>

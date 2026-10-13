@@ -11388,6 +11388,7 @@ export type Database = {
         }[]
       }
       get_mail_thread: { Args: { p_thread_id: string }; Returns: Json }
+      get_mail_thread_link: { Args: { p_thread_id: string }; Returns: Json }
       get_mail_threads_for_action: {
         Args: { p_actor: string; p_org_id: string; p_thread_ids: string[] }
         Returns: {
@@ -11606,6 +11607,10 @@ export type Database = {
       }
       jobs_health_report: { Args: never; Returns: Json }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
+      link_mail_thread: {
+        Args: { p_client_id: string; p_thread_id: string }
+        Returns: undefined
+      }
       link_professional_account: {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
         Returns: Json
@@ -13401,6 +13406,7 @@ export type Database = {
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
       unarchive_client: { Args: { p_id: string }; Returns: undefined }
+      unlink_mail_thread: { Args: { p_thread_id: string }; Returns: undefined }
       update_client: {
         Args: { p_client: Json; p_id: string }
         Returns: undefined

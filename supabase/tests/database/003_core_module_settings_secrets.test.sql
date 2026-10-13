@@ -191,6 +191,8 @@ select functions_are('public', array[
   -- Demandes, batch D3b (the proposals).
   'proposition_services', 'create_proposition_for_service', 'resolve_proposition_link', 'answer_proposition_for_service',
   'withdraw_proposition', 'list_demande_propositions',
+  -- Communications, batch CM2b (threads linked to clients).
+  'link_mail_thread', 'unlink_mail_thread', 'get_mail_thread_link',
   -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
   'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
   'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',
