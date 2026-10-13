@@ -122,7 +122,7 @@ Migration `20261013165711_communications_composer` (pgTAP `156`); decisions CM-1
 - **Tests:** pgTAP `156_communications_composer` (70); Deno `gmail-send/handler.test.ts`, `_shared/gmail/compose.test.ts`; Vitest `Composer`, `lib/compose`, `InboxPage` (reply, new message, drafts), `ClientMailPanel`; e2e `communications-inbox.spec.ts` (reply and send through the fake Gmail).
 
 ## CM4: « Rédiger avec l'IA » (CM-18 … CM-20)
-- **Migration** `20261013190110_communications_ai_draft` (pgTAP `148`):
+- **Migration** `20261013193134_communications_ai_draft` (pgTAP `148`):
   - **Permissions:** `communications.ai_draft` for Conseillère, Adjointe and admin (A C J, given since CC-15) and `communications.ai_manage` for the admin.
   - **`ai_settings`** (audited), one row per clinic: on or off, the model (`gpt-5.4`), the monthly cap (50 $) and the prices per million tokens the cost is counted with. **Off until the clinic enters its OpenAI key** (org secret `openai_api_key`, SecretField, `settings.integrations_manage`) and switches it on.
   - **`ai_requests`:** one row per call, **never the text**: who, when, the model, the kind (`write` / `reply` / `refine`), `ok` / `failed` with a code, the tokens and the cost. A usage log, not audited (000_invariants); read with `communications.ai_manage`.

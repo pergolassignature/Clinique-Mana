@@ -304,6 +304,13 @@ function PayerDialog({ row, onClose }: { row: ClientPayer | null; onClose: () =>
                 startsOn: startsOn || null,
                 expiresOn: expiresOn || null,
                 note: textOrNull(note),
+                // FP: the terms this dialog does not edit yet are kept as they are.
+                coveragePercent: row?.coveragePercent ?? null,
+                renewalMonth: row?.renewalMonth ?? null,
+                renewalDay: row?.renewalDay ?? null,
+                priorUsedCents: row?.priorUsedCents ?? null,
+                priorUsedSessions: row?.priorUsedSessions ?? null,
+                priorUsedOn: row?.priorUsedOn ?? null,
               },
               { onSuccess: onClose },
             )

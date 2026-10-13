@@ -68,7 +68,7 @@ export function periodError(p: Period): string | null {
 // -----------------------------------------------------------------------------
 // Labels
 // -----------------------------------------------------------------------------
-const LINE_TYPES = ['service', 'cancellation_fee', 'file_opening', 'adjustment', 'ivac_gap'] as const
+const LINE_TYPES = ['service', 'cancellation_fee', 'file_opening', 'adjustment', 'ivac_gap', 'payer_share', 'payer_claim'] as const
 
 /** A line's type in plain French (« Ajustement »), the key itself when unknown. */
 export function lineTypeLabel(type: string | null): string {

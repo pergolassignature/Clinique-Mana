@@ -90,7 +90,7 @@ function InvoiceList({ view }: { view: ListView }) {
                       </Link>
                     </td>
                     <td className="px-3 py-2">{r.clientName}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.payerId === r.clientId ? t(`${L}.payerSelf`) : r.payerName}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{r.payerKind !== 'organisation' && r.payerId === r.clientId ? t(`${L}.payerSelf`) : r.payerName}</td>
                     <td className="tabular px-3 py-2">{r.issuedOn ? formatDateOnly(r.issuedOn) : '—'}</td>
                     <td className="tabular px-3 py-2 text-right">{formatCents(r.totalCents)}</td>
                     <td className="px-3 py-2">

@@ -85,6 +85,8 @@ select is_empty($$
      -- mail_drafts (CM-14): each person's unsent drafts, autosaved every few seconds and deleted
      -- once sent; auditing them would keep every version of a text that may never leave (and a
      -- client's words quoted in a reply) in audit_log forever. The send itself is audited (mail_sends).
+     -- capacity_snapshots (Demandes D5): figures the nightly job computes from audited facts (the
+     -- places declared, the matches); the day's row is rewritten when the job runs again.
      -- ai_requests (CM-19): one row per « Rédiger avec l'IA » call, ids, tokens and cost only, never
      -- the text; a usage log like email_log. The settings a person changes (ai_settings) are audited.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
@@ -93,7 +95,8 @@ select is_empty($$
                            'sms_provider_sessions', 'appointment_messages',
                            'mail_threads', 'mail_messages', 'mail_attachments', 'mail_labels', 'mail_sync_state',
                            'qbo_accounts', 'qbo_customers', 'billing_sync_events',
-                           'qbo_items', 'qbo_tax_codes', 'qbo_pushes', 'mail_drafts', 'ai_requests')
+                           'qbo_items', 'qbo_tax_codes', 'qbo_pushes', 'mail_drafts', 'capacity_snapshots',
+                           'ai_requests')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');
