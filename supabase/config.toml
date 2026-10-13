@@ -199,6 +199,9 @@ verify_jwt = false
 # Job communications.gmail_watch_renew (runJob verifies X-Job-Signature).
 [functions.gmail-watch-renew]
 verify_jwt = false
+# The inbox's actions: read, archive, star, a label (verifyAuth, module communications, communications.inbox).
+[functions.gmail-modify]
+verify_jwt = false
 # Textos (batch SM, module communications): a staff reply or an admin's test through the clinic's
 # Yeastar PBX (verifyAuth, communications.sms / .sms_manage).
 # Clients C5a: staff send a consent request (verifyAuth, clients.manage).

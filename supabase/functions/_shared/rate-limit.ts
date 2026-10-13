@@ -357,6 +357,16 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `gmail-modify` (the inbox's actions), per caller: opening an unread
+   * thread marks it read, so a busy morning makes many calls; each reaches
+   * Gmail once per thread.
+   */
+  gmailModifyUser: {
+    bucket: 'gmail.modify_user',
+    max: 600,
+    windowSeconds: 3_600,
+  },
+  /**
    * `sms-send` (a staff reply), per caller: each call texts a client through
    * the PBX. A conversation is a handful of texts; 60 an hour is far above a
    * day of replies.
