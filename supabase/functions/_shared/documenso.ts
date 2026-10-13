@@ -134,7 +134,8 @@ export interface CreateEnvelopeInput {
     /** The invitation email's subject (≤ 254) and text (≤ 5000), from the template version. */
     subject: string
     message: string
-    language: 'fr'
+    /** Documenso's interface and emails: the signers' language. */
+    language: 'fr' | 'en'
     /**
      * `EMAIL`: Documenso emails each signer; `NONE`: no email, the caller
      * hands the signer the signing link (`distributeForSigning`, P4-488).

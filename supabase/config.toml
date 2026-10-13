@@ -201,6 +201,15 @@ verify_jwt = false
 verify_jwt = false
 # Textos (batch SM, module communications): a staff reply or an admin's test through the clinic's
 # Yeastar PBX (verifyAuth, communications.sms / .sms_manage).
+# Clients C5a: staff send a consent request (verifyAuth, clients.manage).
+[functions.clients-consent-send]
+verify_jwt = false
+# The public consent page: the link's token (hashed), per-IP and per-link limits first.
+[functions.clients-consent-sign]
+verify_jwt = false
+# Job clients.consent_reminders: X-Job-Signature (runJob).
+[functions.clients-consent-reminders]
+verify_jwt = false
 [functions.sms-send]
 verify_jwt = false
 # The PBX's message events: the org's webhook secret (X-Signature, HMAC-SHA256, timingSafeEqual).

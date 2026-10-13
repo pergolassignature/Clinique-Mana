@@ -145,26 +145,478 @@ export type Database = {
           },
         ]
       }
-      client_anonymize_handlers: {
+      client_consent_request_signers: {
         Row: {
-          function_name: string
-          module_key: string
+          created_at: string
+          id: string
+          identity_failures: number
+          last_sent_at: string | null
+          link_id: string | null
+          opened_at: string | null
+          org_id: string
+          relation_id: string | null
+          request_id: string
+          role: string
+          signer_client_id: string
+          updated_at: string
         }
         Insert: {
-          function_name: string
-          module_key: string
+          created_at?: string
+          id?: string
+          identity_failures?: number
+          last_sent_at?: string | null
+          link_id?: string | null
+          opened_at?: string | null
+          org_id: string
+          relation_id?: string | null
+          request_id: string
+          role: string
+          signer_client_id: string
+          updated_at?: string
         }
         Update: {
-          function_name?: string
-          module_key?: string
+          created_at?: string
+          id?: string
+          identity_failures?: number
+          last_sent_at?: string | null
+          link_id?: string | null
+          opened_at?: string | null
+          org_id?: string
+          relation_id?: string | null
+          request_id?: string
+          role?: string
+          signer_client_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "client_anonymize_handlers_module_key_fkey"
-            columns: ["module_key"]
+            foreignKeyName: "client_consent_request_signers_link_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "secure_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_relation_fkey"
+            columns: ["relation_id"]
+            isOneToOne: false
+            referencedRelation: "client_relations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_request_fkey"
+            columns: ["org_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "client_consent_requests"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_request_fkey"
+            columns: ["org_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "client_consents_to_obtain"
+            referencedColumns: ["org_id", "request_id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_signer_fkey"
+            columns: ["org_id", "signer_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_signer_fkey"
+            columns: ["org_id", "signer_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      client_consent_requests: {
+        Row: {
+          answered_at: string | null
+          answers: Json | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          clauses: Json
+          client_id: string
+          consent_key: string
+          context_id: string | null
+          context_type: string | null
+          created_at: string
+          due_at: string | null
+          id: string
+          language: string
+          last_sent_at: string
+          org_id: string
+          reminded_at: string | null
+          requested_by: string | null
+          signed_at: string | null
+          state: string
+          template_version_id: string
+          updated_at: string
+        }
+        Insert: {
+          answered_at?: string | null
+          answers?: Json | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          clauses?: Json
+          client_id: string
+          consent_key: string
+          context_id?: string | null
+          context_type?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          language: string
+          last_sent_at?: string
+          org_id: string
+          reminded_at?: string | null
+          requested_by?: string | null
+          signed_at?: string | null
+          state?: string
+          template_version_id: string
+          updated_at?: string
+        }
+        Update: {
+          answered_at?: string | null
+          answers?: Json | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          clauses?: Json
+          client_id?: string
+          consent_key?: string
+          context_id?: string | null
+          context_type?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          language?: string
+          last_sent_at?: string
+          org_id?: string
+          reminded_at?: string | null
+          requested_by?: string | null
+          signed_at?: string | null
+          state?: string
+          template_version_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_requests_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_requests_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_requests_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_requests_type_fkey"
+            columns: ["org_id", "consent_key"]
+            isOneToOne: false
+            referencedRelation: "client_consent_types"
+            referencedColumns: ["org_id", "key"]
+          },
+          {
+            foreignKeyName: "client_consent_requests_version_fkey"
+            columns: ["template_version_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_template_versions"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      client_consent_rules: {
+        Row: {
+          consent_key: string
+          created_at: string
+          created_by: string | null
+          frequency: string
+          id: string
+          is_active: boolean
+          org_id: string
+          target: string | null
+          trigger_kind: string
+          updated_at: string
+        }
+        Insert: {
+          consent_key: string
+          created_at?: string
+          created_by?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          org_id: string
+          target?: string | null
+          trigger_kind: string
+          updated_at?: string
+        }
+        Update: {
+          consent_key?: string
+          created_at?: string
+          created_by?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          org_id?: string
+          target?: string | null
+          trigger_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_rules_type_fkey"
+            columns: ["org_id", "consent_key"]
+            isOneToOne: false
+            referencedRelation: "client_consent_types"
+            referencedColumns: ["org_id", "key"]
+          },
+        ]
+      }
+      client_consent_settings: {
+        Row: {
+          due_days_before_first_appointment: number
+          org_id: string
+          pre_appointment_reminder_hours: number
+          reminder_days: number
+          retention_policy: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          due_days_before_first_appointment?: number
+          org_id: string
+          pre_appointment_reminder_hours?: number
+          reminder_days?: number
+          retention_policy?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          due_days_before_first_appointment?: number
+          org_id?: string
+          pre_appointment_reminder_hours?: number
+          reminder_days?: number
+          retention_policy?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_settings_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: true
-            referencedRelation: "modules"
-            referencedColumns: ["key"]
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consent_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      client_consent_types: {
+        Row: {
+          clauses: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          key: string
+          name_en: string
+          name_fr: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          clauses?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key: string
+          name_en: string
+          name_fr: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          clauses?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          name_en?: string
+          name_fr?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_types_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_consents: {
+        Row: {
+          answers: Json | null
+          client_id: string
+          consent_key: string
+          created_at: string
+          id: string
+          language: string
+          org_id: string
+          request_id: string | null
+          resign_requested_at: string | null
+          signed_at: string
+          signed_by: Json
+          signed_file_id: string | null
+          source: string
+          superseded_at: string | null
+          template_version_id: string | null
+          updated_at: string
+          version_label: string
+          withdrawal_note: string | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        Insert: {
+          answers?: Json | null
+          client_id: string
+          consent_key: string
+          created_at?: string
+          id?: string
+          language: string
+          org_id: string
+          request_id?: string | null
+          resign_requested_at?: string | null
+          signed_at: string
+          signed_by?: Json
+          signed_file_id?: string | null
+          source?: string
+          superseded_at?: string | null
+          template_version_id?: string | null
+          updated_at?: string
+          version_label: string
+          withdrawal_note?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Update: {
+          answers?: Json | null
+          client_id?: string
+          consent_key?: string
+          created_at?: string
+          id?: string
+          language?: string
+          org_id?: string
+          request_id?: string | null
+          resign_requested_at?: string | null
+          signed_at?: string
+          signed_by?: Json
+          signed_file_id?: string | null
+          source?: string
+          superseded_at?: string | null
+          template_version_id?: string | null
+          updated_at?: string
+          version_label?: string
+          withdrawal_note?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consents_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consents_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consents_request_fkey"
+            columns: ["org_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "client_consent_requests"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consents_request_fkey"
+            columns: ["org_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "client_consents_to_obtain"
+            referencedColumns: ["org_id", "request_id"]
+          },
+          {
+            foreignKeyName: "client_consents_signed_file_id_fkey"
+            columns: ["signed_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consents_type_fkey"
+            columns: ["org_id", "consent_key"]
+            isOneToOne: false
+            referencedRelation: "client_consent_types"
+            referencedColumns: ["org_id", "key"]
+          },
+          {
+            foreignKeyName: "client_consents_version_fkey"
+            columns: ["template_version_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_template_versions"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "client_consents_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -219,29 +671,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients_directory"
             referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
-      client_merge_handlers: {
-        Row: {
-          function_name: string
-          module_key: string
-        }
-        Insert: {
-          function_name: string
-          module_key: string
-        }
-        Update: {
-          function_name?: string
-          module_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_merge_handlers_module_key_fkey"
-            columns: ["module_key"]
-            isOneToOne: true
-            referencedRelation: "modules"
-            referencedColumns: ["key"]
           },
         ]
       }
@@ -7824,60 +8253,59 @@ export type Database = {
       }
     }
     Views: {
-      client_payers_active: {
+      client_consents_status: {
         Row: {
           client_id: string | null
-          expires_on: string | null
-          file_number: string | null
-          id: string | null
-          kind: string | null
-          max_amount_cents: number | null
-          max_sessions: number | null
+          consent_key: string | null
+          due_at: string | null
+          last_sent_at: string | null
           org_id: string | null
-          organisation_name: string | null
-          session_amount_cents: number | null
-          starts_on: string | null
+          request_id: string | null
+          signed_at: string | null
+          state: string | null
+          version_label: string | null
         }
-        Insert: {
-          client_id?: string | null
-          expires_on?: string | null
-          file_number?: string | null
-          id?: string | null
-          kind?: string | null
-          max_amount_cents?: number | null
-          max_sessions?: number | null
-          org_id?: string | null
-          organisation_name?: string | null
-          session_amount_cents?: number | null
-          starts_on?: string | null
-        }
-        Update: {
-          client_id?: string | null
-          expires_on?: string | null
-          file_number?: string | null
-          id?: string | null
-          kind?: string | null
-          max_amount_cents?: number | null
-          max_sessions?: number | null
-          org_id?: string | null
-          organisation_name?: string | null
-          session_amount_cents?: number | null
-          starts_on?: string | null
+        Relationships: []
+      }
+      client_consents_to_obtain: {
+        Row: {
+          answered: boolean | null
+          client_id: string | null
+          client_name: string | null
+          consent_key: string | null
+          consent_name: string | null
+          created_at: string | null
+          due_at: string | null
+          is_overdue: boolean | null
+          language: string | null
+          last_sent_at: string | null
+          org_id: string | null
+          primary_professional_id: string | null
+          reminded_at: string | null
+          request_id: string | null
+          signing_status: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "client_payers_client_fkey"
+            foreignKeyName: "client_consent_requests_client_fkey"
             columns: ["org_id", "client_id"]
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "client_payers_client_fkey"
+            foreignKeyName: "client_consent_requests_client_fkey"
             columns: ["org_id", "client_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_requests_type_fkey"
+            columns: ["org_id", "consent_key"]
+            isOneToOne: false
+            referencedRelation: "client_consent_types"
+            referencedColumns: ["org_id", "key"]
           },
         ]
       }
@@ -8127,6 +8555,16 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      my_client_consents: {
+        Row: {
+          client_id: string | null
+          consent_key: string | null
+          due_at: string | null
+          signed_at: string | null
+          state: string | null
+        }
+        Relationships: []
       }
       my_clients: {
         Row: {
@@ -8505,7 +8943,6 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
-      anonymize_client: { Args: { p_id: string }; Returns: undefined }
       apply_email_event: {
         Args: {
           p_at: string
@@ -8550,7 +8987,6 @@ export type Database = {
         }
         Returns: string
       }
-      archive_client: { Args: { p_id: string }; Returns: undefined }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
       assign_demande: {
         Args: { p_assignee: string; p_id: string }
@@ -8591,6 +9027,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      cancel_client_consent_request: {
+        Args: { p_id: string }
+        Returns: undefined
       }
       cancel_demande_task: {
         Args: { p_demande_id: string; p_task_id: string }
@@ -8641,6 +9081,10 @@ export type Database = {
         Args: { p_field: string; p_id: string }
         Returns: undefined
       }
+      client_consent_reminders_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: Json
+      }
       complete_demande_task: {
         Args: { p_demande_id: string; p_outcome: string; p_task_id: string }
         Returns: undefined
@@ -8684,10 +9128,6 @@ export type Database = {
           important: number
           total: number
         }[]
-      }
-      create_client: {
-        Args: { p_client: Json; p_confirm_medium?: boolean }
-        Returns: string
       }
       create_demande: { Args: { p_data: Json }; Returns: string }
       create_document_template: {
@@ -8802,10 +9242,6 @@ export type Database = {
         Returns: Json
       }
       delete_billing_policy: { Args: { p_id: string }; Returns: undefined }
-      delete_client_insurance: {
-        Args: { p_client_id: string; p_rank: number }
-        Returns: undefined
-      }
       delete_compensation_rate: { Args: { p_id: string }; Returns: undefined }
       delete_mail_messages: {
         Args: {
@@ -8845,7 +9281,6 @@ export type Database = {
         Args: { p_actor: string; p_connection_id: string; p_org_id: string }
         Returns: boolean
       }
-      end_client_payer: { Args: { p_id: string }; Returns: undefined }
       end_professional_client_agreement: {
         Args: { p_effective_to: string; p_row_id: string }
         Returns: undefined
@@ -8855,31 +9290,9 @@ export type Database = {
         Returns: undefined
       }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
-      export_client_privacy: { Args: { p_id: string }; Returns: Json }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
-      }
-      find_client_duplicates: {
-        Args: {
-          p_birthday: string
-          p_email: string
-          p_exclude?: string
-          p_first: string
-          p_last: string
-          p_phones: string[]
-        }
-        Returns: {
-          birthday: string
-          client_id: string
-          client_number: number
-          display_name: string
-          email: string
-          is_archived: boolean
-          level: string
-          mobile_e164: string
-          reasons: string[]
-        }[]
       }
       finish_job_run: {
         Args: { p_detail: string; p_id: string; p_status: string }
@@ -8910,7 +9323,6 @@ export type Database = {
           updated_by_name: string
         }[]
       }
-      get_client_summary: { Args: { p_id: string }; Returns: Json }
       get_communications_settings: { Args: never; Returns: Json }
       get_communications_settings_for_org: {
         Args: { p_org_id: string }
@@ -9070,6 +9482,17 @@ export type Database = {
       get_submission_review: {
         Args: { p_submission_id: string }
         Returns: Json
+      }
+      import_client_consent_fact_for_service: {
+        Args: {
+          p_client_id: string
+          p_consent_key: string
+          p_org_id: string
+          p_signed_at: string
+          p_signer_name: string
+          p_version_label: string
+        }
+        Returns: boolean
       }
       import_professional: {
         Args: { p_dry_run?: boolean; p_row: Json }
@@ -9612,10 +10035,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      merge_clients: {
-        Args: { p_keep: string; p_merge: string }
-        Returns: string
-      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
@@ -9625,11 +10044,34 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      open_client_consent_for_service: {
+        Args: {
+          p_birth_year: number
+          p_first_name: string
+          p_token_hash: string
+        }
+        Returns: Json
+      }
       peek_secure_link: {
         Args: { p_mark_opened: boolean; p_token_hash: string }
         Returns: Json
       }
       pii_health_check: { Args: never; Returns: boolean }
+      prepare_client_consent_request_for_service: {
+        Args: {
+          p_actor: string
+          p_client_id: string
+          p_consent_key: string
+          p_context_id: string
+          p_context_type: string
+          p_due_at: string
+          p_org_id: string
+          p_request_id?: string
+          p_token_hash_1: string
+          p_token_hash_2: string
+        }
+        Returns: Json
+      }
       prepare_my_image_consent: {
         Args: { p_action: string; p_actor: string; p_idempotency_key: string }
         Returns: Json
@@ -9651,6 +10093,10 @@ export type Database = {
           p_idempotency_key: string
         }
         Returns: Json
+      }
+      publish_client_consent_version: {
+        Args: { p_population: string; p_version_id: string }
+        Returns: number
       }
       publish_consent_version: { Args: { p_id: string }; Returns: undefined }
       publish_template_version: { Args: { p_id: string }; Returns: undefined }
@@ -9776,10 +10222,6 @@ export type Database = {
         Args: { p_org_id: string; p_owner: string }
         Returns: undefined
       }
-      remove_client_relation: {
-        Args: { p_client_id: string; p_related_id: string }
-        Returns: undefined
-      }
       remove_module_tester: {
         Args: { p_key: string; p_user_id: string }
         Returns: undefined
@@ -9813,6 +10255,10 @@ export type Database = {
         Args: { p_connection_id: string; p_org_id: string; p_token?: string }
         Returns: boolean
       }
+      resolve_client_consent_link: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
       resolve_professional_invitation: {
         Args: { p_link_id: string }
         Returns: Json
@@ -9842,26 +10288,6 @@ export type Database = {
         Returns: Json
       }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
-      save_client_payer: {
-        Args: {
-          p_client_id: string
-          p_expires_on: string
-          p_file_number: string
-          p_id: string
-          p_kind: string
-          p_max_amount_cents: number
-          p_max_sessions: number
-          p_note: string
-          p_organisation_name: string
-          p_session_amount_cents: number
-          p_starts_on: string
-        }
-        Returns: string
-      }
-      save_client_tag: {
-        Args: { p_id: string; p_name: string }
-        Returns: string
-      }
       save_clientele: {
         Args: {
           p_id: string
@@ -9990,19 +10416,6 @@ export type Database = {
         }
         Returns: string
       }
-      search_clients: {
-        Args: { p_limit?: number; p_query: string }
-        Returns: {
-          birthday: string
-          client_number: number
-          email: string
-          first_name: string
-          id: string
-          is_archived: boolean
-          last_name: string
-          mobile_e164: string
-        }[]
-      }
       search_professionals: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -10025,32 +10438,18 @@ export type Database = {
         }
         Returns: undefined
       }
-      set_client_notes: {
+      set_client_consent_rule: {
         Args: {
-          p_admin_notes: string
+          p_consent_key: string
+          p_frequency: string
           p_id: string
-          p_special_agreement_note: string
+          p_is_active: boolean
+          p_target: string
+          p_trigger_kind: string
         }
-        Returns: undefined
+        Returns: string
       }
-      set_client_relation: {
-        Args: {
-          p_client_id: string
-          p_client_rights?: Json
-          p_related_id: string
-          p_related_rights?: Json
-          p_type: string
-        }
-        Returns: undefined
-      }
-      set_client_tag_active: {
-        Args: { p_active: boolean; p_id: string }
-        Returns: undefined
-      }
-      set_client_tags: {
-        Args: { p_client_id: string; p_tag_ids: string[] }
-        Returns: undefined
-      }
+      set_client_consent_settings: { Args: { p_patch: Json }; Returns: Json }
       set_communications_settings: { Args: { p_patch: Json }; Returns: Json }
       set_compensation_rate: {
         Args: {
@@ -10287,6 +10686,16 @@ export type Database = {
         }
         Returns: string
       }
+      start_client_consent_signing_for_service: {
+        Args: {
+          p_answers: Json
+          p_birth_year: number
+          p_first_name: string
+          p_idempotency_key: string
+          p_token_hash: string
+        }
+        Returns: Json
+      }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }
         Returns: string
@@ -10321,11 +10730,6 @@ export type Database = {
       }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
-      unarchive_client: { Args: { p_id: string }; Returns: undefined }
-      update_client: {
-        Args: { p_client: Json; p_id: string }
-        Returns: undefined
-      }
       update_demande: {
         Args: { p_id: string; p_patch: Json }
         Returns: undefined
@@ -10338,18 +10742,6 @@ export type Database = {
           p_id: string
           p_signers: Json
           p_variables: Json
-        }
-        Returns: undefined
-      }
-      upsert_client_insurance: {
-        Args: {
-          p_certificate_number: string
-          p_client_id: string
-          p_holder_name: string
-          p_holder_relation: string
-          p_insurer: string
-          p_policy_number: string
-          p_rank: number
         }
         Returns: undefined
       }

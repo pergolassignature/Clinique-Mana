@@ -28,8 +28,13 @@ export const MAX_DOCUMENT_TABLE_ROWS = 400
 /** Characters (UTF-16 code units) of text across the whole document. */
 export const MAX_DOCUMENT_TEXT = 200_000
 
-/** Roles that sign a document (`document_template_versions.signers`). */
-const SIGNER_ROLES = ['professional', 'clinic', 'client'] as const
+/**
+ * Roles that sign a document (`document_template_versions.signers`): `client_2` is a second
+ * signer on the client's side (a child's two parents, Clients C5a).
+ */
+const SIGNER_ROLES = ['professional', 'clinic', 'client', 'client_2'] as const
+/** The signature page holds three signers' boxes (`SIGNER` in render.ts). */
+const MAX_SIGNERS = 3
 
 /** Who signs: one role per signer of a document. */
 export type SignerRole = (typeof SIGNER_ROLES)[number]
@@ -80,7 +85,7 @@ const blockSchema = z.discriminatedUnion('type', [
     type: z.literal('signaturePage'),
     signers: z.array(
       z.strictObject({ role, label: text(120) }),
-    ).min(1).max(SIGNER_ROLES.length),
+    ).min(1).max(MAX_SIGNERS),
   }),
 ])
 
@@ -91,7 +96,7 @@ const pdfDocumentSchema = z.strictObject({
   /** Top of every page; `initialsFor` = the signer roles that initial each page. */
   header: z.strictObject({
     text: text(120),
-    initialsFor: z.array(role).max(SIGNER_ROLES.length).optional(),
+    initialsFor: z.array(role).max(MAX_SIGNERS).optional(),
   }).optional(),
   /** Bottom of every page, followed by « Page x de y ». */
   footer: z.strictObject({ text: text(120) }),

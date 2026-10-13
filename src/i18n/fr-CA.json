@@ -5176,7 +5176,13 @@
           "client_professional_links": "Professionnels liés aux clients",
           "client_merges": "Fusions de dossiers",
           "client_tags": "Liste des étiquettes",
-          "referral_sources": "Provenances"
+          "referral_sources": "Provenances",
+          "client_consent_types": "Consentements (types)",
+          "client_consent_rules": "Règles de consentement",
+          "client_consent_settings": "Réglages des consentements",
+          "client_consent_requests": "Demandes de consentement",
+          "client_consent_request_signers": "Signataires des demandes de consentement",
+          "client_consents": "Consentements signés"
         },
         "fields": {
           "clients": {
@@ -5336,6 +5342,74 @@
             "created_at": "Créé le",
             "updated_at": "Modifié le",
             "created_by": "Créé par"
+          },
+          "client_consent_types": {
+            "key": "Clé",
+            "name_fr": "Nom (français)",
+            "name_en": "Nom (anglais)",
+            "clauses": "Clauses",
+            "sort_order": "Ordre",
+            "is_active": "Actif"
+          },
+          "client_consent_rules": {
+            "consent_key": "Consentement",
+            "trigger_kind": "Déclencheur",
+            "target": "Cible",
+            "frequency": "Fréquence",
+            "is_active": "Active"
+          },
+          "client_consent_settings": {
+            "due_days_before_first_appointment": "Délai avant le premier rendez-vous (jours)",
+            "reminder_days": "Rappel après (jours)",
+            "pre_appointment_reminder_hours": "Avis avant le rendez-vous (heures)",
+            "retention_policy": "Conservation"
+          },
+          "client_consent_requests": {
+            "client_id": "Client",
+            "consent_key": "Consentement",
+            "language": "Langue",
+            "template_version_id": "Version du texte",
+            "clauses": "Clauses",
+            "context_type": "Contexte",
+            "context_id": "Élément du contexte",
+            "due_at": "Date limite",
+            "state": "État",
+            "answers": "Réponses",
+            "answered_at": "Répondu le",
+            "signed_at": "Signé le",
+            "last_sent_at": "Dernier envoi",
+            "reminded_at": "Rappel envoyé le",
+            "requested_by": "Demandé par",
+            "cancelled_at": "Annulé le",
+            "cancelled_by": "Annulé par"
+          },
+          "client_consent_request_signers": {
+            "request_id": "Demande",
+            "role": "Rôle",
+            "signer_client_id": "Signataire",
+            "relation_id": "Lien avec le client",
+            "link_id": "Lien sécurisé",
+            "last_sent_at": "Dernier envoi",
+            "opened_at": "Ouvert le",
+            "identity_failures": "Vérifications d'identité échouées"
+          },
+          "client_consents": {
+            "client_id": "Client",
+            "consent_key": "Consentement",
+            "language": "Langue",
+            "template_version_id": "Version du texte",
+            "version_label": "Version",
+            "signed_at": "Signé le",
+            "signed_by": "Signé par",
+            "answers": "Réponses",
+            "signed_file_id": "Document signé",
+            "request_id": "Demande",
+            "source": "Provenance",
+            "resign_requested_at": "À signer de nouveau depuis",
+            "superseded_at": "Remplacé le",
+            "withdrawn_at": "Retiré le",
+            "withdrawn_by": "Retiré par",
+            "withdrawal_note": "Note de retrait"
           }
         },
         "values": {
@@ -5396,10 +5470,60 @@
               "demande": "Demande",
               "import": "Importation"
             }
+          },
+          "client_consent_rules": {
+            "trigger_kind": {
+              "general": "Tous les clients",
+              "service": "Un service",
+              "payer_kind": "Un type de payeur",
+              "professional_status": "Un statut du professionnel",
+              "situation": "Une situation"
+            },
+            "frequency": {
+              "once": "Une fois",
+              "each_time": "À chaque rendez-vous"
+            }
+          },
+          "client_consent_requests": {
+            "state": {
+              "pending": "En attente",
+              "signed": "Signé",
+              "declined": "Refusé",
+              "expired": "Expiré",
+              "cancelled": "Annulé"
+            },
+            "language": {
+              "fr": "Français",
+              "en": "Anglais"
+            },
+            "context_type": {
+              "appointment": "Rendez-vous",
+              "demande": "Demande",
+              "waitlist_entry": "Liste d'attente",
+              "record": "Dossier"
+            }
+          },
+          "client_consent_request_signers": {
+            "role": {
+              "client": "Client, parent ou tuteur",
+              "client_2": "Deuxième parent"
+            }
+          },
+          "client_consents": {
+            "source": {
+              "app": "Signé dans l'application",
+              "import": "Importé de GOrendezvous"
+            },
+            "language": {
+              "fr": "Français",
+              "en": "Anglais"
+            }
           }
         },
         "sources": {
-          "seed:clients_reference": "Listes initiales"
+          "seed:clients_reference": "Listes initiales",
+          "seed:clients_consents": "Consentements initiaux",
+          "trigger:clients_consent_signature": "Signature électronique"
         }
       }
     },
