@@ -18,7 +18,18 @@ const mocks = vi.hoisted(() => ({
   fetchOrganization: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
 }))
-vi.mock('../../api/contracts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/contracts')>()), ...mocks.contracts }))
+vi.mock('../../api/contracts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/contracts')>()),
+  listContractTemplates: mocks.contracts.listContractTemplates,
+}))
+vi.mock('@/core/signing/templates/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/signing/templates/api')>()),
+  fetchTemplateVersions: mocks.contracts.fetchTemplateVersions,
+  createTemplateVersion: mocks.contracts.createTemplateVersion,
+  updateTemplateVersion: mocks.contracts.updateTemplateVersion,
+  publishTemplateVersion: mocks.contracts.publishTemplateVersion,
+  archiveTemplateVersion: mocks.contracts.archiveTemplateVersion,
+}))
 vi.mock('@/core/settings/organization/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/settings/organization/api')>()),
   fetchOrganization: mocks.fetchOrganization,
@@ -28,6 +39,8 @@ vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const N = 'modules.professionals.settings.contracts'
 const E = `${N}.editor`
+/** The shared editor's own words (core, CC-12). */
+const G = 'signing.templates.editor'
 
 beforeEach(() => {
   mocks.contracts.listContractTemplates.mockResolvedValue([parsedTemplate()])
@@ -39,8 +52,8 @@ beforeEach(() => {
 afterEach(() => vi.resetAllMocks())
 
 const render = (readOnly = false) => renderProfessionalsSettingsPage(<ContractsSettingsPage />, { sectionId: 'contracts', readOnly })
-const bodyField = () => screen.findByRole('textbox', { name: new RegExp(`^${t(`${E}.form.body`)}`) })
-const publishButton = () => screen.getByRole('button', { name: t(`${E}.publish`, { version: '1' }) })
+const bodyField = () => screen.findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })
+const publishButton = () => screen.getByRole('button', { name: t(`${G}.publish`, { version: '1' }) })
 
 describe('ContractsSettingsPage (Task 4d.3)', () => {
   it('lists « Contrat de service » unpublished, with its draft, and opens it by itself', async () => {
@@ -95,8 +108,8 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     const field = await bodyField()
     // The direction validated the text: the line goes.
     fireEvent.change(field, { target: { value: (field as HTMLTextAreaElement).value.replace(/^\*\*Texte à faire valider[^\n]*\n\n/, '') } })
-    expect(publishButton()).toHaveAccessibleDescription(t(`${E}.publishBlocked.unsaved`))
-    await userEvent.click(screen.getByRole('button', { name: t(`${E}.save`) }))
+    expect(publishButton()).toHaveAccessibleDescription(t(`${G}.publishBlocked.unsaved`))
+    await userEvent.click(screen.getByRole('button', { name: t(`${G}.save`) }))
     await waitFor(() => expect(mocks.contracts.updateTemplateVersion).toHaveBeenCalledOnce())
     const [versionId, content] = mocks.contracts.updateTemplateVersion.mock.calls[0] as [string, { body: { blocks: { type: string }[]; header: unknown } }]
     expect(versionId).toBe(DRAFT_ID)
@@ -104,9 +117,9 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
 
     await waitFor(() => expect(publishButton()).not.toHaveAttribute('aria-disabled'))
     await userEvent.click(publishButton())
-    const dialog = await screen.findByRole('alertdialog', { name: t(`${E}.confirm.publish.title`, { version: '1' }) })
+    const dialog = await screen.findByRole('alertdialog', { name: t(`${G}.confirm.publish.title`, { version: '1' }) })
     expect(dialog).toHaveTextContent('Les prochains envois utiliseront cette version.')
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${E}.confirm.publish.action`, { version: '1' }) }))
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${G}.confirm.publish.action`, { version: '1' }) }))
     await waitFor(() => expect(mocks.contracts.publishTemplateVersion).toHaveBeenCalledOnce())
     expect(mocks.contracts.publishTemplateVersion.mock.calls[0]?.[0]).toBe(DRAFT_ID)
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
@@ -116,8 +129,8 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     render()
     const field = await bodyField()
     fireEvent.change(field, { target: { value: `${(field as HTMLTextAreaElement).value}\n\n{{professional.sin}}` } })
-    await userEvent.click(screen.getByRole('button', { name: t(`${E}.save`) }))
-    expect(await screen.findByText(t(`${E}.unknownPlaceholders`, { names: '{{professional.sin}}' }))).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t(`${G}.save`) }))
+    expect(await screen.findByText(t(`${G}.unknownPlaceholders`, { names: '{{professional.sin}}' }))).toBeInTheDocument()
     expect(mocks.contracts.updateTemplateVersion).not.toHaveBeenCalled()
   })
 
@@ -132,7 +145,7 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     render()
     await bodyField()
     await userEvent.click(screen.getByRole('switch', { name: t(`${E}.form.initials`) }))
-    await userEvent.click(screen.getByRole('button', { name: t(`${E}.save`) }))
+    await userEvent.click(screen.getByRole('button', { name: t(`${G}.save`) }))
     await waitFor(() => expect(mocks.contracts.updateTemplateVersion).toHaveBeenCalledOnce())
     const [, content] = mocks.contracts.updateTemplateVersion.mock.calls[0] as [string, { body: { header: unknown } }]
     expect(content.body.header).toEqual({ text: 'Contrat de service' })
@@ -141,7 +154,7 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
   it('previews in a sandboxed frame, with the samples and no script', async () => {
     render()
     await bodyField()
-    const frame = screen.getByTitle(t(`${E}.preview.frameTitle`))
+    const frame = screen.getByTitle(t(`${G}.preview.frameTitle`))
     expect(frame.tagName).toBe('IFRAME')
     expect(frame).toHaveAttribute('sandbox', '')
     const html = frame.getAttribute('srcdoc') ?? ''
@@ -156,10 +169,10 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     ])
     mocks.contracts.createTemplateVersion.mockResolvedValue(DRAFT_ID)
     render()
-    expect(await screen.findByText(t(`${E}.form.titlePublished`, { version: '1' }))).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: t(`${E}.save`) })).toBeNull()
+    expect(await screen.findByText(t(`${G}.form.titlePublished`, { version: '1' }))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t(`${G}.save`) })).toBeNull()
     expect(await bodyField()).toHaveAttribute('readonly')
-    await userEvent.click(screen.getByRole('button', { name: t(`${E}.newVersionFrom`, { version: '1' }) }))
+    await userEvent.click(screen.getByRole('button', { name: t(`${G}.newVersionFrom`, { version: '1' }) }))
     await waitFor(() => expect(mocks.contracts.createTemplateVersion).toHaveBeenCalledOnce())
     expect(mocks.contracts.createTemplateVersion.mock.calls[0]?.[0]).toBe(TEMPLATE_ID)
   })
@@ -168,16 +181,16 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     render(true)
     expect(await bodyField()).toHaveAttribute('readonly')
     expect(screen.getByText(t('common.readOnlyNotice.body'))).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: t(`${E}.save`) })).toBeNull()
-    expect(screen.queryByRole('button', { name: t(`${E}.publish`, { version: '1' }) })).toBeNull()
+    expect(screen.queryByRole('button', { name: t(`${G}.save`) })).toBeNull()
+    expect(screen.queryByRole('button', { name: t(`${G}.publish`, { version: '1' }) })).toBeNull()
     expect(screen.queryByRole('switch', { name: t(`${E}.form.initials`) })).toBeNull()
-    expect(screen.getByTitle(t(`${E}.preview.frameTitle`))).toHaveAttribute('sandbox', '')
+    expect(screen.getByTitle(t(`${G}.preview.frameTitle`))).toHaveAttribute('sandbox', '')
   })
 
   it('one who may see but not edit the template (can_edit false) reads it only', async () => {
     mocks.contracts.listContractTemplates.mockResolvedValue([parsedTemplate(templateJson({ can_edit: false }))])
     render()
     expect(await bodyField()).toHaveAttribute('readonly')
-    expect(screen.queryByRole('button', { name: t(`${E}.save`) })).toBeNull()
+    expect(screen.queryByRole('button', { name: t(`${G}.save`) })).toBeNull()
   })
 })

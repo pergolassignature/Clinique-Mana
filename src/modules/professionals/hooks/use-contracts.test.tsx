@@ -6,7 +6,8 @@ import { IDS } from '../test/fixtures'
 import { DRAFT_ID, REQUEST_ID } from '../test/fixtures-contract'
 import { setupQueryClient } from '../test/query-client'
 import { contractTemplateKeys, professionalKeys } from './keys'
-import { contractErrorMessage, useSendContract, useSyncContract, useTemplateMutations } from './use-contracts'
+import { useTemplateMutations } from '@/core/signing/templates/hooks'
+import { contractErrorMessage, useContractEditorHandlers, useSendContract, useSyncContract } from './use-contracts'
 
 const mocks = vi.hoisted(() => ({
   api: {
@@ -18,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/contracts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/contracts')>()), ...mocks.api }))
+vi.mock('@/core/signing/templates/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/signing/templates/api')>()),
+  publishTemplateVersion: mocks.api.publishTemplateVersion,
+  updateTemplateVersion: mocks.api.updateTemplateVersion,
+}))
 vi.mock('@/core/signing/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/signing/api')>()), syncSignatureRequest: mocks.sync }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -125,7 +131,7 @@ describe('useSyncContract', () => {
   })
 })
 
-describe('useTemplateMutations', () => {
+describe('useContractEditorHandlers (the shared editor in Professionnels, CC-12)', () => {
   it('a save refreshes the templates only; a publication every contract card too, never the records around them', async () => {
     const { queryClient, wrapper, invalidated } = setupQueryClient()
     queryClient.setQueryData(professionalKeys.record(IDS.professional), { id: IDS.professional })
@@ -133,7 +139,7 @@ describe('useTemplateMutations', () => {
     queryClient.setQueryData(professionalKeys.submissions(IDS.professional), [])
     mocks.api.updateTemplateVersion.mockResolvedValue(undefined)
     mocks.api.publishTemplateVersion.mockResolvedValue(undefined)
-    const { result } = renderHook(() => useTemplateMutations(), { wrapper })
+    const { result } = renderHook(() => useTemplateMutations(useContractEditorHandlers()), { wrapper })
     await act(() => result.current.save.mutateAsync({ versionId: DRAFT_ID, content: { body: {}, variables: [], signers: [], emailSubject: 'a', emailMessage: '' } }))
     await waitFor(() => expect(invalidated()).toEqual([contractTemplateKeys.all]))
     await act(() => result.current.publish.mutateAsync(DRAFT_ID))
@@ -141,6 +147,6 @@ describe('useTemplateMutations', () => {
     expect(invalidated()).toEqual([contractTemplateKeys.all, contractTemplateKeys.all, professionalKeys.all])
     expect(queryClient.getQueryState(professionalKeys.record(IDS.professional))?.isInvalidated).toBe(false)
     expect(queryClient.getQueryState(professionalKeys.submissions(IDS.professional))?.isInvalidated).toBe(false)
-    expect(mocks.toast.success).toHaveBeenLastCalledWith(t('modules.professionals.contract.toasts.published'))
+    expect(mocks.toast.success).toHaveBeenLastCalledWith(t('signing.templates.toasts.published'))
   })
 })

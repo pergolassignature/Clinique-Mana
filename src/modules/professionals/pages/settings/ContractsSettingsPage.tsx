@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { useOrganization } from '@/core/settings/organization/hooks'
 import { SETTINGS_BASE_PATH } from '@/core/settings/paths'
 import { useSettingsSection } from '@/core/settings/section-context'
+import { DocumentTemplateEditor, type TemplateEditorOptions } from '@/core/signing/templates/DocumentTemplateEditor'
+import { VALIDATION_BANNER } from '@/core/signing/templates/markup'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { Loading, LoadError } from '@/shared/components/LoadState'
@@ -16,10 +18,42 @@ import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import type { ContractTemplate } from '../../api/contracts'
-import { TemplateEditor } from '../../components/settings/TemplateEditor'
-import { useContractTemplates } from '../../hooks/use-contracts'
+import { useContractEditorHandlers, useContractTemplates } from '../../hooks/use-contracts'
 
 const N = 'modules.professionals.settings.contracts'
+const E = `${N}.editor`
+
+/** Where the service contract prints Annexe A (`pricing.annexe_a`, filled by `professionals-contract-send`). */
+const ANNEXE_PLACEHOLDER = '{{pricing.annexe_a}}'
+
+/**
+ * Professionnels' words for the shared editor (CC-12): the professional's initials on every page,
+ * Annexe A (required wherever the template declares it, with a sample grid in the preview), the
+ * « à faire valider » line, and « Publier » here.
+ */
+function contractEditorOptions(): Omit<TemplateEditorOptions, 'handlers'> {
+  return {
+    initials: { role: 'professional', label: t(`${E}.form.initials`), help: t(`${E}.form.initialsHelp`) },
+    block: {
+      placeholder: ANNEXE_PLACEHOLDER,
+      required: true,
+      note: t(`${E}.variables.annexe`),
+      missing: t(`${E}.annexeMissing`, { placeholder: ANNEXE_PLACEHOLDER }),
+      blocked: t(`${E}.publishBlocked.annexe`, { placeholder: ANNEXE_PLACEHOLDER }),
+      sample: {
+        caption: t(`${E}.preview.annexeCaption`),
+        columns: [t(`${E}.preview.annexeColumns.sessions`), t(`${E}.preview.annexeColumns.d60`), t(`${E}.preview.annexeColumns.d50`), t(`${E}.preview.annexeColumns.d30`)],
+        rows: [
+          [t(`${E}.preview.annexeRows.first`), '144 $', '126 $', '93,60 $'],
+          [t(`${E}.preview.annexeRows.second`), '145 $', '126,88 $', '94,25 $'],
+          [t(`${E}.preview.annexeRows.last`), '150 $', '131,25 $', '97,50 $'],
+        ],
+      },
+    },
+    banner: { text: VALIDATION_BANNER, notice: t(`${E}.bannerNotice`, { banner: VALIDATION_BANNER }), blocked: t(`${E}.publishBlocked.banner`) },
+    canPublish: true,
+  }
+}
 
 const FILTERS = ['all', 'published', 'draft', 'unpublished', 'retired'] as const
 type Filter = (typeof FILTERS)[number]
@@ -56,13 +90,15 @@ function publicationLabel(template: ContractTemplate): string {
 /**
  * Paramètres → Contrats et formulaires (Task 4d.3, A5.7; P4-482): the module's document templates
  * (« Contrat de service », « Consentement au droit à l'image »), with a status filter and a search once
- * they are `FILTERS_FROM` or more, the selected one's editor (`TemplateEditor`), and the
+ * they are `FILTERS_FROM` or more, the selected one's editor (core's `DocumentTemplateEditor`), and the
  * clinic's signer from « Signataire ». Seen with `professionals.manage` or `.settings`, changed
  * with `professionals.settings` (the template's edit permission; read-only otherwise, one notice).
  */
 export function ContractsSettingsPage() {
   const { readOnly } = useSettingsSection()
   const templates = useContractTemplates()
+  const handlers = useContractEditorHandlers()
+  const editorOptions = useMemo(contractEditorOptions, [])
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
@@ -152,7 +188,7 @@ export function ContractsSettingsPage() {
       </div>
       {open && (
         <section aria-label={t(`${N}.editorLabel`, { title: open.title })} className="max-w-form">
-          <TemplateEditor template={open} readOnly={readOnly || !open.canEdit} />
+          <DocumentTemplateEditor template={open} readOnly={readOnly || !open.canEdit} options={{ ...editorOptions, handlers }} />
         </section>
       )}
     </div>

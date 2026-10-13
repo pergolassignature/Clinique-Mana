@@ -1,5 +1,6 @@
 /**
- * The contract template's body in « Paramètres → Contrats » (Task 4d.3): the renderer's block model
+ * A document template's body in the shared editor (Professionnels' « Contrats et formulaires », Task
+ * 4d.3; Clients' consents; CC-12): the renderer's block model
  * (`supabase/functions/_shared/pdf/model.ts`, never HTML) read and written as a plain markup an
  * administrator can type, and its preview. Pure.
  *
@@ -13,8 +14,9 @@
  * The title, the header (with its initials), the footer and the signature page are not in the
  * markup: the editor has a field for each, and they are kept as they are.
  *
- * `{{pricing.annexe_a}}` alone in a paragraph is Annexe A's block placeholder (P4-433): the
- * function puts the professional's tables there; the preview shows a sample.
+ * A block placeholder alone in a paragraph (`{{pricing.annexe_a}}`, Annexe A, P4-433;
+ * `{{consent.clauses}}`) is filled by the sending function with tables; the preview shows a sample
+ * given by the module.
  */
 
 export type Run = { text: string; bold?: boolean }
@@ -33,10 +35,8 @@ export interface PdfBody {
   blocks: Block[]
 }
 
-/** The draft's first line until the text is validated (the migration's seed). */
+/** Professionnels' seeded first line until the text is validated (the migration's seed). */
 export const VALIDATION_BANNER = 'Texte à faire valider par la direction avant publication'
-/** Annexe A's block placeholder (P4-433). */
-export const ANNEXE_PLACEHOLDER = '{{pricing.annexe_a}}'
 
 /** A stored body as the model, or null when it is not one (the editor then shows it read-only). */
 export function asBody(value: Record<string, unknown>): PdfBody | null {
@@ -172,11 +172,12 @@ export function markupToBody(markup: string, base: PdfBody): PdfBody {
 
 // --- Checks the editor shows before the database refuses -------------------------------------------
 
-/** The draft still carries the « à faire valider » line: publishing is not offered (Mise en service 11). */
-export const hasValidationBanner = (markup: string) => markup.includes(VALIDATION_BANNER)
+/** The draft still carries a line to remove before publishing (« à faire valider », « Texte provisoire »). */
+export const hasBanner = (markup: string, banner: string) => markup.includes(banner)
 
-/** Annexe A's placeholder is alone in a paragraph somewhere (otherwise no table is printed). */
-export const hasAnnexePlaceholder = (markup: string) => chunks(markup).some((lines) => lines.length === 1 && lines[0]?.trim() === ANNEXE_PLACEHOLDER)
+/** A block placeholder is alone in a paragraph somewhere (otherwise no table is printed). */
+export const hasBlockPlaceholder = (markup: string, placeholder: string) =>
+  chunks(markup).some((lines) => lines.length === 1 && lines[0]?.trim() === placeholder)
 
 const PLACEHOLDER = /\{\{([^{}\r\n]*)\}\}/g
 
@@ -195,9 +196,9 @@ export function unknownPlaceholders(texts: string[], declared: readonly string[]
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
-/** The French labels the preview's sample Annexe A uses (a real one comes from the professional's grid). */
+/** The preview's fixed words, and the sample a block placeholder stands for (a real one comes from the sending function). */
 export interface PreviewText {
-  annexeSample: { caption: string; columns: string[]; rows: string[][] }
+  blockSample?: { placeholder: string; caption: string; columns: string[]; rows: string[][] }
   initials: string
   signature: string
   date: string
@@ -226,8 +227,8 @@ export function previewHtml(body: PdfBody, samples: Readonly<Record<string, stri
         case 'heading':
           return `<h${block.level}>${fill(block.text)}</h${block.level}>`
         case 'paragraph':
-          if (block.runs.length === 1 && block.runs[0]?.text.trim() === ANNEXE_PLACEHOLDER) {
-            return `<p class="note">${escapeHtml(text.annexeSample.caption)}</p>${table(text.annexeSample.columns, text.annexeSample.rows)}`
+          if (text.blockSample && block.runs.length === 1 && block.runs[0]?.text.trim() === text.blockSample.placeholder) {
+            return `<p class="note">${escapeHtml(text.blockSample.caption)}</p>${table(text.blockSample.columns, text.blockSample.rows)}`
           }
           return `<p>${runs(block.runs)}</p>`
         case 'list': {
