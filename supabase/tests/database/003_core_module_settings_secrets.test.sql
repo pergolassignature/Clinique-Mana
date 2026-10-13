@@ -161,6 +161,10 @@ select functions_are('public', array[
   'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
   'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
   'discard_payout_drafts',
+  -- Facturation, batch FP (third-party payers) and Clients' payer terms.
+  'list_payer_organisations', 'save_payer_organisation', 'set_client_payer_organisation', 'get_payer_settings', 'set_ivac_rate',
+  'get_client_payers_billing', 'list_payer_queue', 'prepare_payer_invoices', 'create_payer_invoice',
+  'list_client_payers_to_complete', 'import_client_payers',
   -- Rapports, batch RP1.
   'report_revenue', 'report_cancellations', 'report_clients_to_follow_up',
   -- Facturation, batch FS (Stripe, Interac).

@@ -173,6 +173,15 @@ export interface PayerInput {
   startsOn: string | null
   expiresOn: string | null
   note: string | null
+  /** FP: a PAE's covered percentage (exclusive with the amount per session). */
+  coveragePercent: number | null
+  /** FP: the agreement's yearly renewal day (most often March 31). */
+  renewalMonth: number | null
+  renewalDay: number | null
+  /** FP: what was used before the app, at a date. */
+  priorUsedCents: number | null
+  priorUsedSessions: number | null
+  priorUsedOn: string | null
 }
 
 export async function saveClientPayer(input: PayerInput): Promise<string> {
@@ -190,6 +199,12 @@ export async function saveClientPayer(input: PayerInput): Promise<string> {
       p_starts_on: input.startsOn,
       p_expires_on: input.expiresOn,
       p_note: input.note,
+      p_coverage_percent: input.coveragePercent,
+      p_renewal_month: input.renewalMonth,
+      p_renewal_day: input.renewalDay,
+      p_prior_used_cents: input.priorUsedCents,
+      p_prior_used_sessions: input.priorUsedSessions,
+      p_prior_used_on: input.priorUsedOn,
     }),
   )
   if (error) throw error

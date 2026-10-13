@@ -58,6 +58,8 @@ const bundle = (overrides: Partial<InvoiceBundle['invoice']> = {}): InvoiceBundl
     paymentStatus: 'unpaid',
     pdfFileId: null,
     payerHasEmail: true,
+    payerKind: 'client',
+    payerReference: null,
     ...overrides,
   },
   client: { id: 'c1', name: 'Léa Essai', clientNumber: 12 },
@@ -171,6 +173,18 @@ describe('InvoicePage', () => {
     await user.type(within(dialog).getByLabelText(/^Raison/), 'Erreur de payeur')
     await user.click(within(dialog).getByRole('button', { name: t(`${I}.creditSubmit`) }))
     await waitFor(() => expect(mocks.api.issueCreditNote).toHaveBeenCalledWith('i1', 'Erreur de payeur'))
+  })
+
+  it('a payer organisation’s draft (FP-4): the organisation and the file number, never another payer', async () => {
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...bundle({ payerKind: 'organisation', payerReference: 'IV-1' }),
+      payer: { id: 'o1', name: 'IVAC' },
+      payerOptions: [],
+    })
+    open()
+    expect(await screen.findByText('IVAC')).toBeInTheDocument()
+    expect(screen.getByText(t(`${I}.payerReference`, { number: 'IV-1' }))).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Facturé à/)).not.toBeInTheDocument()
   })
 
   it('the conseillère reads, never edits', async () => {

@@ -5386,7 +5386,14 @@
             "org_id": "Clinique",
             "created_at": "Créé le",
             "updated_at": "Modifié le",
-            "created_by": "Créé par"
+            "created_by": "Créé par",
+            "coverage_percent": "Part couverte (%)",
+            "renewal_month": "Renouvellement (mois)",
+            "renewal_day": "Renouvellement (jour)",
+            "is_stub": "À compléter",
+            "prior_used_cents": "Déjà utilisé avant l’application",
+            "prior_used_sessions": "Séances déjà utilisées",
+            "prior_used_on": "Déjà utilisé au"
           },
           "client_tag_links": {
             "client_id": "Client",
@@ -9164,7 +9171,10 @@
           "interac_notices": "Avis de virement Interac",
           "billing_dunning_runs": "Relances",
           "cancellation_fee_decisions": "Frais d'annulation",
-          "refunds": "Remboursements"
+          "refunds": "Remboursements",
+          "payer_organisations": "Organismes payeurs",
+          "billing_payer_rates": "Tarif de l’IVAC",
+          "client_payer_organisations": "Organisme d’un payeur"
         },
         "fields": {
           "invoices": {
@@ -9197,7 +9207,9 @@
             "hold_note": "Note de mise en attente",
             "paid_cents": "Payé",
             "payment_status": "Paiement",
-            "pdf_file_id": "PDF"
+            "pdf_file_id": "PDF",
+            "payer_organisation_id": "Organisme payeur",
+            "payer_reference": "Numéro de dossier du payeur"
           },
           "invoice_lines": {
             "invoice_id": "Facture",
@@ -9216,7 +9228,11 @@
             "qst_cents": "TVQ",
             "total_cents": "Total",
             "credited": "Créditée",
-            "professional_id": "Professionnel"
+            "professional_id": "Professionnel",
+            "client_payer_id": "Payeur du client",
+            "payer_organisation_id": "Organisme payeur",
+            "source_line_id": "Part facturée",
+            "service_on": "Date de la séance"
           },
           "credit_notes": {
             "invoice_id": "Facture",
@@ -9491,6 +9507,28 @@
             "provider_ref": "Référence du fournisseur",
             "error_code": "Erreur",
             "processed_at": "Traité le"
+          },
+          "payer_organisations": {
+            "kind": "Type",
+            "name": "Nom",
+            "billing_email": "Courriel de facturation",
+            "contact_name": "Contact",
+            "language": "Langue",
+            "provider_number": "Numéro de fournisseur",
+            "cadence": "Facturation",
+            "due_days": "Délai de paiement (jours)",
+            "reminders_enabled": "Relances",
+            "is_active": "Actif",
+            "note": "Note"
+          },
+          "billing_payer_rates": {
+            "kind": "Payeur",
+            "effective_from": "À partir du",
+            "session_cents": "Montant par séance"
+          },
+          "client_payer_organisations": {
+            "client_payer_id": "Payeur du client",
+            "organisation_id": "Organisme payeur"
           }
         },
         "values": {
@@ -9502,13 +9540,15 @@
             },
             "payer_kind": {
               "client": "Le client",
-              "relation": "Un proche"
+              "relation": "Un proche",
+              "organisation": "Un organisme payeur"
             },
             "source_type": {
               "appointment": "Rendez-vous",
               "manual": "Saisie",
               "service": "Service",
-              "import": "Importation"
+              "import": "Importation",
+              "payer": "Payeur tiers"
             },
             "hold_reason": {
               "special_agreement": "Entente particulière",
@@ -9527,7 +9567,9 @@
               "cancellation_fee": "Frais d'annulation",
               "file_opening": "Ouverture de dossier",
               "adjustment": "Ajustement",
-              "ivac_gap": "Écart IVAC"
+              "ivac_gap": "Écart IVAC",
+              "payer_share": "Part du payeur tiers",
+              "payer_claim": "Séance facturée au payeur"
             },
             "tax_rule": {
               "exempt": "Non taxable",
@@ -9715,6 +9757,21 @@
               "pending_provider": "En attente de Stripe",
               "failed": "Échec"
             }
+          },
+          "payer_organisations": {
+            "kind": {
+              "ivac": "IVAC",
+              "pae": "PAE"
+            },
+            "cadence": {
+              "monthly": "Chaque mois",
+              "threshold": "Par tranches",
+              "closing": "À la fin de l’année de l’entente"
+            },
+            "language": {
+              "fr": "Français",
+              "en": "Anglais"
+            }
           }
         },
         "sources": {
@@ -9807,6 +9864,7 @@
         "payer": "Facturé à",
         "payerHelp": "Le client, ou un proche qui a le droit « recevoir reçus et factures ». Une facture ne se partage jamais.",
         "payerSelf": "{name} (le client)",
+        "payerReference": "Dossier n° {number}",
         "lines": "Lignes de la facture",
         "noLines": "Aucune ligne : ajoutez un ajustement.",
         "description": "Description",
@@ -10582,7 +10640,8 @@
           "client_agreement": "Entente avec le professionnel : à valider",
           "manual": "En attente",
           "price_missing": "Montant à indiquer",
-          "payer_missing": "Payeur sans adresse courriel"
+          "payer_missing": "Payeur sans adresse courriel",
+          "payer_incomplete": "Payeur tiers à compléter"
         }
       },
       "stripe": {
@@ -10836,7 +10895,9 @@
         "cancellation_fee": "Frais d’annulation",
         "file_opening": "Ouverture de dossier",
         "adjustment": "Ajustement",
-        "ivac_gap": "Écart IVAC"
+        "ivac_gap": "Écart IVAC",
+        "payer_share": "Part du payeur tiers",
+        "payer_claim": "Séance facturée au payeur"
       },
       "revenue": {
         "nav": "Revenus",

@@ -634,9 +634,9 @@ insert into public.org_role_permissions (org_id, role, permission_key) values
 update public.org_modules set enabled = false
  where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 set local role service_role;
-select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000002', 'pv@mana.test', 'PV', 'custom_0000000e', (select hash from t where name = 'refused')) $$,
-  'P0001', 'Vous ne pouvez pas inviter à un rôle qui donne des permissions que vous n''avez pas.',
-  'hold rule with the Professionnels module off: its permissions count as lacking, so D cannot invite to the role');
+-- CC-15: D holds professionals.view by her role; the module being off no longer blocks the invitation.
+select lives_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000002', 'pv-d@mana.test', 'PV', 'custom_0000000e', (select hash from t where name = 'refused')) $$,
+  'hold rule with the Professionnels module off: D holds the permission by her role (latent), so she may invite to the role');
 select lives_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'pv@mana.test', 'PV', 'custom_0000000e', (select hash from t where name = 'pv')) $$,
   'an admin is not bound by the hold rule');
 reset role;

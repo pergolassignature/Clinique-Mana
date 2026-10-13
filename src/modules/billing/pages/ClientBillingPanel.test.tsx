@@ -32,7 +32,7 @@ const BILLING: ClientBilling = {
   payments: [],
   statements: [],
   invoices: [
-    { id: 'i1', number: '2026-12', status: 'issued', issuedOn: '2026-10-06', totalCents: 17349, paidCents: 0, paymentStatus: 'unpaid', payerId: 'c3', createdAt: '2026-10-06T12:00:00Z' },
+    { id: 'i1', number: '2026-12', status: 'issued', issuedOn: '2026-10-06', totalCents: 17349, paidCents: 0, paymentStatus: 'unpaid', payerId: 'c3', payerKind: 'relation', payerOrganisationName: null, createdAt: '2026-10-06T12:00:00Z' },
   ],
   toInvoice: [{ appointmentId: 'a2', startsAt: '2026-10-07T14:00:00Z', state: 'completed', serviceId: 's50', professionalId: 'p1', firstClient: true }],
 }

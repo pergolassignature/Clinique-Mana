@@ -217,6 +217,14 @@ export const payerPayload = z
     expires_on: z.string().nullable(),
     is_active: z.boolean(),
     note: z.string().nullable(),
+    // FP: the terms Facturation splits by; `is_stub` for the import's payers to complete.
+    coverage_percent: z.number().int().nullable().default(null),
+    renewal_month: z.number().int().nullable().default(null),
+    renewal_day: z.number().int().nullable().default(null),
+    prior_used_cents: z.number().int().nullable().default(null),
+    prior_used_sessions: z.number().int().nullable().default(null),
+    prior_used_on: z.string().nullable().default(null),
+    is_stub: z.boolean().default(false),
   })
   .transform((r) => ({
     id: r.id,
@@ -230,6 +238,13 @@ export const payerPayload = z
     expiresOn: r.expires_on,
     isActive: r.is_active,
     note: r.note,
+    coveragePercent: r.coverage_percent,
+    renewalMonth: r.renewal_month,
+    renewalDay: r.renewal_day,
+    priorUsedCents: r.prior_used_cents,
+    priorUsedSessions: r.prior_used_sessions,
+    priorUsedOn: r.prior_used_on,
+    isStub: r.is_stub,
   }))
 export type ClientPayer = z.output<typeof payerPayload>
 
