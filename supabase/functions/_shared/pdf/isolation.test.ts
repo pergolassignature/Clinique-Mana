@@ -92,6 +92,10 @@ Deno.test('pdfmake: the signing functions that do not render never reach it', as
     new URL('billing-payout-invoice/index.ts', FUNCTIONS),
   )
   assert(payout.has(RENDER), 'billing-payout-invoice renders')
+  const billing = await graph(
+    new URL('billing-documents/index.ts', FUNCTIONS),
+  )
+  assert(billing.has(RENDER), 'billing-documents renders')
 })
 
 Deno.test('pdfmake: only render.ts (and tests) import the vendored module', async () => {

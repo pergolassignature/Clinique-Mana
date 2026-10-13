@@ -159,6 +159,12 @@ select functions_are('public', array[
   'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
   'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
   'discard_payout_drafts',
+  -- Facturation, batch F2 (and Professionnels' supervisor, F2.0).
+  'get_billing_settings', 'set_billing_queue_from', 'set_special_agreement', 'list_morning_queue', 'hold_invoice_draft',
+  'release_invoice_draft', 'send_invoices', 'send_billing_document', 'record_payment', 'create_statement', 'get_billing_document',
+  'billing_deliveries_for_service', 'billing_document_for_service', 'finish_billing_delivery_for_service',
+  'discard_billing_file_for_service', 'set_professional_supervisor',
+  'billing_sync_events_for_service', 'finish_billing_sync_event_for_service',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

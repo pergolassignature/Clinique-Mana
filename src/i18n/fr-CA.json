@@ -1518,7 +1518,8 @@
             "deactivation_note": "Note de désactivation",
             "deactivation_disabled_account": "Compte désactivé avec le dossier",
             "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
-            "fiche_generated_at": "Fiche PDF générée le"
+            "fiche_generated_at": "Fiche PDF générée le",
+            "supervisor_professional_id": "Superviseur"
           },
           "professional_professions": {
             "professional_id": "Professionnel",
@@ -2768,7 +2769,8 @@
             "deactivation_reason_id": "la raison de la désactivation",
             "deactivation_note": "la note de désactivation",
             "deactivation_disabled_account": "le compte désactivé avec le dossier",
-            "activation_override_reason": "la raison de l'activation d'un dossier incomplet"
+            "activation_override_reason": "la raison de l'activation d'un dossier incomplet",
+            "supervisor_professional_id": "le superviseur"
           },
           "professional_public_profiles": {
             "bio": "la présentation",
@@ -8612,6 +8614,13 @@
           "billing_payer_defaults": "Payeurs par défaut",
           "invoice_sequences": "Numérotation des factures",
           "payment_modes": "Modes de paiement",
+          "payments": "Paiements",
+          "receipts": "Reçus",
+          "statements": "Relevés",
+          "special_agreements": "Ententes particulières",
+          "billing_queue_items": "File du matin",
+          "billing_deliveries": "Envois des documents",
+          "billing_settings": "Réglages de la facturation",
           "qbo_connections": "Connexion QuickBooks",
           "qbo_connection_tokens": "Accès QuickBooks (chiffré)",
           "qbo_account_map": "Comptes QuickBooks",
@@ -8647,7 +8656,13 @@
             "notes_internal": "Note interne",
             "finalized_at": "Finalisée le",
             "finalized_by": "Finalisée par",
-            "credited_at": "Créditée le"
+            "credited_at": "Créditée le",
+            "queue_day": "Dans la file du",
+            "hold_reason": "Mise en attente",
+            "hold_note": "Note de mise en attente",
+            "paid_cents": "Payé",
+            "payment_status": "Paiement",
+            "pdf_file_id": "PDF"
           },
           "invoice_lines": {
             "invoice_id": "Facture",
@@ -8678,7 +8693,8 @@
             "subtotal_cents": "Sous-total",
             "gst_cents": "TPS",
             "qst_cents": "TVQ",
-            "total_cents": "Total"
+            "total_cents": "Total",
+            "pdf_file_id": "PDF"
           },
           "billing_payer_defaults": {
             "client_id": "Dossier",
@@ -8696,6 +8712,67 @@
             "is_deposit": "Dépôt",
             "is_active": "Actif",
             "sort_order": "Ordre"
+          },
+          "payments": {
+            "invoice_id": "Facture",
+            "payer_client_id": "Payé par",
+            "mode_code": "Mode de paiement",
+            "amount_cents": "Montant",
+            "paid_on": "Payé le",
+            "reference": "Référence",
+            "external_ref": "Référence externe"
+          },
+          "receipts": {
+            "payment_id": "Paiement",
+            "invoice_id": "Facture",
+            "number": "Numéro",
+            "year": "Année",
+            "seq": "Rang",
+            "issued_on": "Émis le",
+            "amount_cents": "Montant",
+            "pdf_file_id": "PDF"
+          },
+          "statements": {
+            "client_id": "Dossier",
+            "payer_client_id": "Payeur",
+            "year": "Année",
+            "period_from": "Du",
+            "period_to": "Au",
+            "pdf_file_id": "PDF"
+          },
+          "special_agreements": {
+            "client_id": "Dossier",
+            "note": "Note",
+            "is_active": "En vigueur",
+            "ended_at": "Terminée le",
+            "ended_by": "Terminée par"
+          },
+          "billing_queue_items": {
+            "appointment_id": "Rendez-vous",
+            "invoice_id": "Brouillon",
+            "queued_on": "Dans la file du",
+            "problem": "Problème"
+          },
+          "billing_deliveries": {
+            "kind": "Document",
+            "invoice_id": "Facture",
+            "credit_note_id": "Note de crédit",
+            "receipt_id": "Reçu",
+            "statement_id": "Relevé",
+            "send_email": "Courriel demandé",
+            "explicit": "Renvoi",
+            "status": "État",
+            "attempts": "Essais",
+            "next_attempt_at": "Prochain essai",
+            "claimed_at": "Pris le",
+            "email_status": "Courriel",
+            "skip_reason": "Raison",
+            "email_log_id": "Courriel envoyé",
+            "error_code": "Erreur",
+            "finished_at": "Terminé le"
+          },
+          "billing_settings": {
+            "queue_from": "File du matin à partir du"
           },
           "qbo_connections": {
             "realm_id": "Numéro de l'entreprise",
@@ -8820,6 +8897,16 @@
               "manual": "Saisie",
               "service": "Service",
               "import": "Importation"
+            },
+            "hold_reason": {
+              "special_agreement": "Entente particulière",
+              "client_agreement": "Entente avec le professionnel",
+              "manual": "À la main"
+            },
+            "payment_status": {
+              "unpaid": "Non payée",
+              "partial": "Payée en partie",
+              "paid": "Payée"
             }
           },
           "invoice_lines": {
@@ -8838,7 +8925,33 @@
           "invoice_sequences": {
             "kind": {
               "invoice": "Facture",
-              "credit_note": "Note de crédit"
+              "credit_note": "Note de crédit",
+              "receipt": "Reçu"
+            }
+          },
+          "billing_deliveries": {
+            "kind": {
+              "invoice": "Facture",
+              "credit_note": "Note de crédit",
+              "receipt": "Reçu",
+              "statement": "Relevé"
+            },
+            "status": {
+              "pending": "À faire",
+              "sending": "En cours",
+              "done": "Fait",
+              "failed": "Échec"
+            },
+            "email_status": {
+              "sent": "Envoyé",
+              "skipped": "Pas envoyé",
+              "failed": "Échec"
+            },
+            "skip_reason": {
+              "not_requested": "Pas demandé",
+              "no_email": "Pas d’adresse courriel",
+              "reserved": "Réservé aux testeurs",
+              "module_disabled": "Module désactivé"
             }
           },
           "qbo_connections": {
