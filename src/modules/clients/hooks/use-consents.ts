@@ -7,6 +7,7 @@ import {
   cancelConsentRequest,
   fetchClientConsentFiles,
   fetchClientConsentStatus,
+  fetchConsentClauses,
   fetchConsentRules,
   fetchConsentSettings,
   fetchConsentTemplates,
@@ -14,11 +15,13 @@ import {
   fetchConsentTypes,
   publishConsentVersion,
   resendConsentRequest,
+  saveConsentClauses,
   saveConsentRule,
   saveConsentSettings,
   sendConsentRequest,
   type ConsentRule,
   type ConsentSettings,
+  type VersionClause,
   type Population,
 } from '../api/consents'
 import { consentKeys } from './keys'
@@ -117,5 +120,30 @@ export function useCancelConsent(clientId: string) {
     onSuccess: () => toast.success(t(`${S}.cancelled`)),
     onError: (error) => toast.error(moduleErrorMessage(error, t(`${S}.cancelError`), 'clients')),
     onSettled: () => refresh(clientId),
+  })
+}
+
+/** A consent text version's clauses (CC-13). */
+export function useConsentClauses(versionId: string | null) {
+  return useQuery({
+    queryKey: consentKeys.clauses(versionId ?? ''),
+    queryFn: () => fetchConsentClauses(versionId as string),
+    enabled: versionId !== null,
+    refetchOnWindowFocus: false,
+  })
+}
+
+/** Saves a draft's clauses; the page shows a refusal where the person acted. */
+export function useSaveConsentClauses({ onErrorMessage }: { onErrorMessage?: (message: string) => void } = {}) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ versionId, clauses }: { versionId: string; clauses: VersionClause[] }) => saveConsentClauses(versionId, clauses),
+    onSuccess: () => toast.success(t(`${S}.settings.clauses.saved`)),
+    onError: (error) => {
+      const message = moduleErrorMessage(error, t(`${S}.settings.saveError`), 'clients')
+      if (onErrorMessage) onErrorMessage(message)
+      else toast.error(message)
+    },
+    onSettled: (_data, _error, { versionId }) => queryClient.invalidateQueries({ queryKey: consentKeys.clauses(versionId) }),
   })
 }
