@@ -519,6 +519,17 @@ insert into public.clients (id, org_id, first_name, last_name, birthday, email, 
 values ('c11e0000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Camille', 'Exemple',
         date '1990-04-12', 'camille.exemple@mana.test', 'fr', '11111111-1111-1111-1111-111111111111');
 
+-- Local Stripe (Facturation, FS): the fake Stripe's keys (`npm run fake:stripe`, port 55397;
+-- _shared/testing/fake-stripe.ts FAKE_STRIPE_SECRET_KEY / _WEBHOOK_SECRET; the functions reach it
+-- through STRIPE_API_BASE_URL), stored as set_org_secret stores them: « Carte au dossier », the
+-- next-day charge and « Payer en ligne » work locally without a Stripe account.
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'stripe_secret_key',
+   vault.create_secret('sk_test_local_dev', 'org:00000000-0000-0000-0000-000000000001:stripe_secret_key')),
+  ('00000000-0000-0000-0000-000000000001', 'stripe_webhook_secret',
+   vault.create_secret('whsec_local_dev', 'org:00000000-0000-0000-0000-000000000001:stripe_webhook_secret'));
+
 -- Local QuickBooks (Facturation, FQ; the module is on above, F1): the fake Intuit's application
 -- (`npm run fake:qbo`, port 55395; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
 -- as set_org_secret stores it, and three fictitious clients the fake company's customers match:

@@ -104,6 +104,8 @@ export interface SendTemplatedEmailInput {
   values: Record<string, unknown>
   /** The button URL, from code only. */
   actionUrl: string | null
+  /** No `actionUrl`: drop the template's button instead of failing (`ComposeInput.actionOptional`). */
+  actionOptional?: boolean
   sentBy: string | null
   /**
    * « Renvoyer »: skips the 60 s same-address limit; a 5 s double-click guard
@@ -442,6 +444,7 @@ export async function sendTemplatedEmail(
   const composed = composeEmail(context, {
     values: input.values,
     actionUrl: input.actionUrl,
+    actionOptional: input.actionOptional,
     appUrl,
     mode: input.test ? 'test' : 'send',
   })

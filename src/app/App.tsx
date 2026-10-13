@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { BookingCancelPage, BookingPage, ConfirmAppointmentPage, ConfirmPage, ConsentPage, InvitationPage, PropositionPage, WaitlistAnswerPage } from './public-pages'
+import { BookingCancelPage, BookingPage, CardSetupPage, ConfirmAppointmentPage, ConfirmPage, ConsentPage, InvitationPage, PayPage, PropositionPage, WaitlistAnswerPage } from './public-pages'
 import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
@@ -156,6 +156,23 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <ConfirmAppointmentPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: « Enregistrer ma carte » and « Payer en ligne » (Facturation FS); the token is in the fragment. */}
+                <Route
+                  path="/carte"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <CardSetupPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/payer"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <PayPage />
                     </Suspense>
                   }
                 />

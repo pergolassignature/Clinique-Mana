@@ -27,8 +27,10 @@
  *    (`register_system_file`, purpose `billing_document`, subject the
  *    document; a failed upload discards the row); then the email when the
  *    database names one (`billing.<kind>`, `_en` in English, the PDF
- *    attached; a reminder (F3): `billing.reminder`, its invoice's PDF, the days
- *    and the balance; the template's module reserved → set aside `reserved`, CC-14);
+ *    attached; an invoice to a payer without a card on file carries the
+ *    « Payer en ligne » button, FS-4; a reminder (F3): `billing.reminder`, its
+ *    invoice's PDF, the days and the balance; the template's module reserved →
+ *    set aside `reserved`, CC-14);
  *    `finish_billing_delivery_for_service` with the outcome: a failure is a
  *    code, tried again by the database (10, 20 minutes), failed at the
  *    third try.
@@ -46,6 +48,7 @@ import {
 import type { Deps } from '../_shared/deps.ts'
 import { type SendResult, sendTemplatedEmail } from '../_shared/email/send.ts'
 import { readJson } from '../_shared/http.ts'
+import { generateToken, hashToken, linkUrl } from '../_shared/links.ts'
 import { runJob } from '../_shared/jobs.ts'
 import { requireModuleForOrg } from '../_shared/modules.ts'
 import { loadAssets } from '../_shared/pdf/assets.ts'
@@ -319,6 +322,41 @@ export async function deliverOrg(
   return { done, failed }
 }
 
+/**
+ * The invoice's « Payer en ligne » link (`/payer#t=…`, purpose `billing_pay`,
+ * FS-4), or null: the database issues it only for an issued invoice with a
+ * balance whose payer has no card on file, Stripe set. A failure sends the
+ * email without it (reported).
+ */
+async function payLink(
+  deps: Deps,
+  orgId: string,
+  client: SupabaseClient,
+  invoiceId: string,
+  report: (code: string) => Promise<void>,
+): Promise<string | null> {
+  try {
+    const token = generateToken()
+    const { data, error } = await client.rpc('issue_billing_link_for_service', {
+      p_org_id: orgId,
+      p_purpose: 'billing_pay',
+      p_subject_id: invoiceId,
+      p_token_hash: await hashToken(token),
+      p_actor: null,
+    })
+    if (error) {
+      await report('pay_link_failed')
+      return null
+    }
+    return data === true
+      ? linkUrl(deps.env('APP_URL') ?? '', '/payer', token)
+      : null
+  } catch {
+    await report('pay_link_failed')
+    return null
+  }
+}
+
 /** One delivery, start to finish; true when it ended (done), false when it failed. */
 async function deliverOne(
   deps: Deps,
@@ -417,6 +455,10 @@ async function deliverOne(
       d.reminder.balance_cents,
     )
     : billingEmail(doc, firstName)
+  // « Payer en ligne » (FS-4): an invoice to a payer without a card on file, Stripe set.
+  const actionUrl = d.kind === 'invoice'
+    ? await payLink(deps, orgId, client, d.document_id, report)
+    : null
   let result: SendResult | null = null
   try {
     result = await sendTemplatedEmail(
@@ -430,7 +472,8 @@ async function deliverOne(
           id: d.document_id,
         },
         values: email.values,
-        actionUrl: null,
+        actionUrl,
+        actionOptional: true,
         sentBy: null,
         explicitResend: d.explicit,
         attachments: [{

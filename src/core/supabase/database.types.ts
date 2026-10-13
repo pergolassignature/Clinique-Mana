@@ -864,48 +864,6 @@ export type Database = {
           },
         ]
       }
-      billing_dunning_runs: {
-        Row: {
-          created_at: string
-          delivery_id: string | null
-          invoice_id: string
-          org_id: string
-          run_on: string
-          step: number
-        }
-        Insert: {
-          created_at?: string
-          delivery_id?: string | null
-          invoice_id: string
-          org_id: string
-          run_on: string
-          step: number
-        }
-        Update: {
-          created_at?: string
-          delivery_id?: string | null
-          invoice_id?: string
-          org_id?: string
-          run_on?: string
-          step?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "billing_dunning_runs_delivery_id_fkey"
-            columns: ["delivery_id"]
-            isOneToOne: false
-            referencedRelation: "billing_deliveries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "billing_dunning_runs_invoice_fkey"
-            columns: ["org_id", "invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
       billing_payer_defaults: {
         Row: {
           client_id: string
@@ -1087,27 +1045,18 @@ export type Database = {
       }
       billing_settings: {
         Row: {
-          block_after_days: number
-          dunning_days: number[]
-          dunning_from: string | null
           org_id: string
           queue_from: string | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
-          block_after_days?: number
-          dunning_days?: number[]
-          dunning_from?: string | null
           org_id: string
           queue_from?: string | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
-          block_after_days?: number
-          dunning_days?: number[]
-          dunning_from?: string | null
           org_id?: string
           queue_from?: string | null
           updated_at?: string
@@ -1171,121 +1120,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      cancellation_fee_decisions: {
-        Row: {
-          amount_cents: number | null
-          appointment_id: string
-          client_id: string
-          created_at: string
-          decided_as: string | null
-          decided_at: string | null
-          decided_by: string | null
-          fee_percent: number | null
-          invoice_id: string | null
-          kind: string
-          note: string | null
-          org_id: string
-          professional_id: string
-          status: string
-        }
-        Insert: {
-          amount_cents?: number | null
-          appointment_id: string
-          client_id: string
-          created_at?: string
-          decided_as?: string | null
-          decided_at?: string | null
-          decided_by?: string | null
-          fee_percent?: number | null
-          invoice_id?: string | null
-          kind: string
-          note?: string | null
-          org_id: string
-          professional_id: string
-          status?: string
-        }
-        Update: {
-          amount_cents?: number | null
-          appointment_id?: string
-          client_id?: string
-          created_at?: string
-          decided_as?: string | null
-          decided_at?: string | null
-          decided_by?: string | null
-          fee_percent?: number | null
-          invoice_id?: string | null
-          kind?: string
-          note?: string | null
-          org_id?: string
-          professional_id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cancellation_fee_decisions_appointment_fkey"
-            columns: ["org_id", "appointment_id"]
-            isOneToOne: false
-            referencedRelation: "appointments"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_client_fkey"
-            columns: ["org_id", "client_id"]
-            isOneToOne: false
-            referencedRelation: "clients_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_decided_by_fkey"
-            columns: ["decided_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_invoice_fkey"
-            columns: ["org_id", "invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_list"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "cancellation_fee_decisions_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_readiness"
-            referencedColumns: ["org_id", "professional_id"]
           },
         ]
       }
@@ -4193,6 +4027,98 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      interac_notices: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          ignored_reason: string | null
+          invoice_id: string | null
+          matched_at: string | null
+          matched_by: string | null
+          message: string | null
+          org_id: string
+          payment_id: string | null
+          received_on: string
+          reference: string | null
+          sender_name: string
+          source: string
+          source_ref: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ignored_reason?: string | null
+          invoice_id?: string | null
+          matched_at?: string | null
+          matched_by?: string | null
+          message?: string | null
+          org_id: string
+          payment_id?: string | null
+          received_on: string
+          reference?: string | null
+          sender_name: string
+          source?: string
+          source_ref?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ignored_reason?: string | null
+          invoice_id?: string | null
+          matched_at?: string | null
+          matched_by?: string | null
+          message?: string | null
+          org_id?: string
+          payment_id?: string | null
+          received_on?: string
+          reference?: string | null
+          sender_name?: string
+          source?: string
+          source_ref?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interac_notices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "interac_notices_invoice_fkey"
+            columns: ["org_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "interac_notices_matched_by_fkey"
+            columns: ["matched_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "interac_notices_payment_fkey"
+            columns: ["org_id", "payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -9267,73 +9193,6 @@ export type Database = {
           },
         ]
       }
-      refunds: {
-        Row: {
-          amount_cents: number
-          created_at: string
-          created_by: string | null
-          error_code: string | null
-          id: string
-          invoice_id: string
-          org_id: string
-          payment_id: string
-          processed_at: string | null
-          provider_ref: string | null
-          reason: string
-          status: string
-        }
-        Insert: {
-          amount_cents: number
-          created_at?: string
-          created_by?: string | null
-          error_code?: string | null
-          id?: string
-          invoice_id: string
-          org_id: string
-          payment_id: string
-          processed_at?: string | null
-          provider_ref?: string | null
-          reason: string
-          status: string
-        }
-        Update: {
-          amount_cents?: number
-          created_at?: string
-          created_by?: string | null
-          error_code?: string | null
-          id?: string
-          invoice_id?: string
-          org_id?: string
-          payment_id?: string
-          processed_at?: string | null
-          provider_ref?: string | null
-          reason?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "refunds_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "refunds_invoice_fkey"
-            columns: ["org_id", "invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "refunds_payment_fkey"
-            columns: ["org_id", "payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments"
-            referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
       retention_grid_prices: {
         Row: {
           client_price_cents: number
@@ -10963,6 +10822,163 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "permissions"
             referencedColumns: ["key"]
+          },
+        ]
+      }
+      stripe_charges: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          failure_code: string | null
+          finished_at: string | null
+          id: string
+          invoice_id: string
+          kind: string
+          org_id: string
+          payer_client_id: string
+          payment_id: string | null
+          payment_intent_id: string | null
+          status: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by?: string | null
+          failure_code?: string | null
+          finished_at?: string | null
+          id?: string
+          invoice_id: string
+          kind: string
+          org_id: string
+          payer_client_id: string
+          payment_id?: string | null
+          payment_intent_id?: string | null
+          status?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string | null
+          failure_code?: string | null
+          finished_at?: string | null
+          id?: string
+          invoice_id?: string
+          kind?: string
+          org_id?: string
+          payer_client_id?: string
+          payment_id?: string | null
+          payment_intent_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_charges_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "stripe_charges_invoice_fkey"
+            columns: ["org_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "stripe_charges_payer_fkey"
+            columns: ["org_id", "payer_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "stripe_charges_payer_fkey"
+            columns: ["org_id", "payer_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "stripe_charges_payment_fkey"
+            columns: ["org_id", "payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      stripe_customers: {
+        Row: {
+          card_brand: string | null
+          card_exp_month: number | null
+          card_exp_year: number | null
+          card_last4: string | null
+          card_status: string
+          consent_at: string | null
+          created_at: string
+          org_id: string
+          payer_client_id: string
+          payment_method_id: string | null
+          removed_at: string | null
+          removed_by: string | null
+          stripe_customer_id: string
+          updated_at: string
+        }
+        Insert: {
+          card_brand?: string | null
+          card_exp_month?: number | null
+          card_exp_year?: number | null
+          card_last4?: string | null
+          card_status?: string
+          consent_at?: string | null
+          created_at?: string
+          org_id: string
+          payer_client_id: string
+          payment_method_id?: string | null
+          removed_at?: string | null
+          removed_by?: string | null
+          stripe_customer_id: string
+          updated_at?: string
+        }
+        Update: {
+          card_brand?: string | null
+          card_exp_month?: number | null
+          card_exp_year?: number | null
+          card_last4?: string | null
+          card_status?: string
+          consent_at?: string | null
+          created_at?: string
+          org_id?: string
+          payer_client_id?: string
+          payment_method_id?: string | null
+          removed_at?: string | null
+          removed_by?: string | null
+          stripe_customer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_customers_payer_fkey"
+            columns: ["org_id", "payer_client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "stripe_customers_payer_fkey"
+            columns: ["org_id", "payer_client_id"]
+            isOneToOne: true
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "stripe_customers_removed_by_fkey"
+            columns: ["removed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -12641,6 +12657,16 @@ export type Database = {
         }
         Returns: string
       }
+      add_interac_notice: {
+        Args: {
+          p_amount_cents: number
+          p_message?: string
+          p_received_on: string
+          p_reference?: string
+          p_sender_name: string
+        }
+        Returns: string
+      }
       add_invoice_line: {
         Args: {
           p_description?: string
@@ -12776,9 +12802,22 @@ export type Database = {
         }
         Returns: string
       }
+      begin_billing_checkout_for_service: {
+        Args: { p_token_hash: string }
+        Returns: Json
+      }
       begin_signature_request_send: {
         Args: { p_id: string; p_org_id: string; p_stale_after: string }
         Returns: boolean
+      }
+      begin_stripe_charge_for_service: {
+        Args: {
+          p_actor: string
+          p_invoice_id: string
+          p_kind: string
+          p_org_id: string
+        }
+        Returns: Json
       }
       billing_deliveries_for_service: {
         Args: { p_limit?: number; p_org_id: string }
@@ -13166,10 +13205,6 @@ export type Database = {
           status: string
         }[]
       }
-      decide_cancellation_fee: {
-        Args: { p_apply: boolean; p_appointment_id: string; p_note?: string }
-        Returns: string
-      }
       decide_qbo_customer_match: {
         Args: { p_client_id?: string; p_decision: string; p_qbo_id: string }
         Returns: string
@@ -13359,15 +13394,15 @@ export type Database = {
         }
         Returns: undefined
       }
-      finish_refund_for_service: {
+      finish_stripe_charge_for_service: {
         Args: {
-          p_error_code: string
-          p_ok: boolean
+          p_charge_id: string
+          p_failure_code: string
           p_org_id: string
-          p_provider_ref: string
-          p_refund_id: string
+          p_payment_intent_id: string
+          p_status: string
         }
-        Returns: undefined
+        Returns: Json
       }
       get_appointment_consents: {
         Args: { p_appointment_id: string }
@@ -13407,6 +13442,7 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: Json
       }
+      get_client_stripe: { Args: { p_client_id: string }; Returns: Json }
       get_client_summary: { Args: { p_id: string }; Returns: Json }
       get_communications_settings: { Args: never; Returns: Json }
       get_communications_settings_for_org: {
@@ -13645,6 +13681,10 @@ export type Database = {
         Args: { p_invoice_id: string; p_note?: string }
         Returns: undefined
       }
+      ignore_interac_notice: {
+        Args: { p_notice_id: string; p_reason: string }
+        Returns: undefined
+      }
       import_client: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
@@ -13667,6 +13707,16 @@ export type Database = {
       import_professional: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
+      }
+      issue_billing_link_for_service: {
+        Args: {
+          p_actor: string
+          p_org_id: string
+          p_purpose: string
+          p_subject_id: string
+          p_token_hash: string
+        }
+        Returns: boolean
       }
       issue_credit_note: {
         Args: { p_invoice_id: string; p_reason: string }
@@ -13966,7 +14016,6 @@ export type Database = {
           version: number
         }[]
       }
-      list_fee_decisions: { Args: { p_status?: string }; Returns: Json }
       list_files_to_purge: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
@@ -13974,6 +14023,10 @@ export type Database = {
           id: string
           object_path: string
         }[]
+      }
+      list_interac_notices: {
+        Args: { p_limit?: number; p_status?: string }
+        Returns: Json
       }
       list_invoices: {
         Args: {
@@ -14152,7 +14205,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      list_overdue_invoices: { Args: never; Returns: Json }
       list_payout_export: {
         Args: { p_month: string }
         Returns: {
@@ -14613,6 +14665,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      match_interac_notice: {
+        Args: { p_invoice_id: string; p_notice_id: string }
+        Returns: string
+      }
       match_qbo_customers: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: number
@@ -14820,6 +14876,18 @@ export type Database = {
         }
         Returns: Json
       }
+      record_interac_notice_for_service: {
+        Args: {
+          p_amount_cents: number
+          p_message: string
+          p_org_id: string
+          p_received_on: string
+          p_reference: string
+          p_sender_name: string
+          p_source_ref: string
+        }
+        Returns: string
+      }
       record_mail_attachment: {
         Args: {
           p_attachment_id: string
@@ -14903,6 +14971,29 @@ export type Database = {
         }
         Returns: string[]
       }
+      record_stripe_card_for_service: {
+        Args: {
+          p_brand: string
+          p_customer_id: string
+          p_exp_month: number
+          p_exp_year: number
+          p_last4: string
+          p_org_id: string
+          p_payment_method_id: string
+        }
+        Returns: Json
+      }
+      record_stripe_payment_for_service: {
+        Args: {
+          p_amount_cents: number
+          p_charge_id?: string
+          p_invoice_id: string
+          p_org_id: string
+          p_paid_at: string
+          p_payment_intent_id: string
+        }
+        Returns: Json
+      }
       recover_signature_request: {
         Args: {
           p_envelope_id: string
@@ -14912,24 +15003,9 @@ export type Database = {
         }
         Returns: string
       }
-      refund_payment: {
-        Args: { p_amount_cents: number; p_payment_id: string; p_reason: string }
-        Returns: string
-      }
       refund_rate_limit: {
         Args: { p_bucket: string; p_key_hash: string; p_window_seconds: number }
         Returns: undefined
-      }
-      refunds_for_service: {
-        Args: { p_limit?: number; p_org_id: string }
-        Returns: {
-          amount_cents: number
-          created_at: string
-          id: string
-          invoice_id: string
-          payment_external_ref: string
-          payment_id: string
-        }[]
       }
       register_system_file: {
         Args: {
@@ -15058,6 +15134,8 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: Json
       }
+      resolve_billing_card_link: { Args: { p_link_id: string }; Returns: Json }
+      resolve_billing_pay_link: { Args: { p_link_id: string }; Returns: Json }
       resolve_client_consent_link: {
         Args: { p_link_id: string }
         Returns: Json
@@ -15253,6 +15331,14 @@ export type Database = {
         }
         Returns: string
       }
+      save_stripe_customer_for_service: {
+        Args: {
+          p_customer_id: string
+          p_org_id: string
+          p_payer_client_id: string
+        }
+        Returns: undefined
+      }
       search_clients: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -15340,14 +15426,6 @@ export type Database = {
           p_etransfer_email: string
           p_institution_number: string
           p_transit_number: string
-        }
-        Returns: undefined
-      }
-      set_billing_dunning: {
-        Args: {
-          p_block_after_days: number
-          p_days: number[]
-          p_dunning_from: string
         }
         Returns: undefined
       }
@@ -15798,6 +15876,33 @@ export type Database = {
           p_scopes: string[]
         }
         Returns: string
+      }
+      stripe_card_for_service: {
+        Args: { p_actor: string; p_org_id: string; p_payer_client_id: string }
+        Returns: Json
+      }
+      stripe_card_link_context_for_service: {
+        Args: { p_actor: string; p_org_id: string; p_payer_client_id: string }
+        Returns: Json
+      }
+      stripe_card_removed_for_service: {
+        Args: { p_actor: string; p_org_id: string; p_payer_client_id: string }
+        Returns: undefined
+      }
+      stripe_charges_due_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          invoice_id: string
+        }[]
+      }
+      stripe_payment_failed_for_service: {
+        Args: {
+          p_charge_id?: string
+          p_failure_code: string
+          p_org_id: string
+          p_payment_intent_id: string
+        }
+        Returns: undefined
       }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }

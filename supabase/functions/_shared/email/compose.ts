@@ -58,6 +58,11 @@ export interface ComposeInput {
   values: Record<string, unknown>
   /** The button URL (secure link or app URL), from code only. */
   actionUrl: string | null
+  /**
+   * The button is optional (Facturation's « Payer en ligne », FS-4): a send
+   * without `actionUrl` drops the template's button instead of failing.
+   */
+  actionOptional?: boolean
   /** `APP_URL`: serves the wordmark, and allows local URLs when it is local. */
   appUrl: string
   mode?: 'send' | 'preview' | 'test'
@@ -119,7 +124,9 @@ export function composeEmail(
   })
   if (!rendered.ok) return rendered
 
-  const label = rendered.buttonLabel?.trim() || null
+  const optionalGone = input.actionOptional === true &&
+    input.actionUrl === null && mode === 'send'
+  const label = optionalGone ? null : rendered.buttonLabel?.trim() || null
   // Preview and test fall back to the app when the template has a button.
   const url = input.actionUrl ??
     (label !== null && mode !== 'send' ? input.appUrl : null)
