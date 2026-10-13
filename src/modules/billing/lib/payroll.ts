@@ -10,19 +10,19 @@ const percent = new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 2 })
 
 /** `71100` → « 711,00 $ »; a negative adjustment « −45,00 $ ». */
 export function formatPay(cents: number): string {
-  return `${dollars.format(cents / 100)} $`
+  return `${dollars.format(cents / 100)}\u00A0$`
 }
 
 /** `28` → « 28 % », `27.5` → « 27,5 % ». */
 export function formatRetention(pct: number): string {
-  return `${percent.format(pct)} %`
+  return `${percent.format(pct)}\u00A0%`
 }
 
 const SIGNED_DOLLARS = /^[-−]?(?:[0-9]+(?:[.,][0-9]{0,2})?|[.,][0-9]{1,2})$/
 
 /** An adjustment typed in dollars (`45`, `-12,50`, `−12.50 $`) → cents, never 0; null otherwise. */
 export function parseAdjustment(input: string): number | null {
-  const compact = input.replace(/[\s  ]/g, '').replace(/\$$/, '')
+  const compact = input.replace(/[\s\u00A0\u202F]/g, '').replace(/\$$/, '')
   if (!SIGNED_DOLLARS.test(compact)) return null
   const negative = compact.startsWith('-') || compact.startsWith('−')
   const cents = Math.round(Number(compact.replace(/^[-−]/, '').replace(',', '.')) * 100)

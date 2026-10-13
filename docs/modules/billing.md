@@ -8,7 +8,7 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 | F2 | Morning queue, receipts on payment, statements, PDFs, emails, screens | planned |
 | F3 | Dunning 3 / 5 / 7 / 10, the balance rule at booking, cancellation fees decided by the professional, refunds | planned |
 | FQ | QuickBooks Online (lane B): its `qbo_*` tables and two settings sections plug into this module | planned |
-| FPay | Payroll (lane C): « Paie », « Ma paie » | planned |
+| FPay | Payroll (lane C): periods, rules, the lock, « Paie », « Ma paie », her invoice, the QuickBooks export ([below](#paie-des-professionnels-fpay)) | built (fee wiring after F3) |
 
 - **Registry:** `modules.key = 'billing'`, depends on `clients`, `services`, `professionals`, `appointments`; starts disabled in every clinic.
 - **Migrations:** `20261013105811_clients_billing_facts` (Clients' published facts), `20261013105814_appointments_billing_facts` (Rendez-vous' published facts), `20261013105817_billing_module` (registry, tables, RLS, audit, seeds, RPCs, handlers).
@@ -21,7 +21,8 @@ The clinic's invoices: a client's dossier billed to its payer, for sessions pric
 | `billing.view` | admin, adjointe, conseillère | invoices, lines, credit notes, payers, sequences, payment modes |
 | `billing.manage` | admin, adjointe | create, edit drafts, finalise, credit, set the default payer |
 | `billing.self` | admin, professionnel | her receipts, payroll, cancellation-fee decisions (F2, FPay, F3) |
-| `billing.settings` | admin | the numbering, QuickBooks (FQ) |
+| `billing.settings` | admin | the numbering, QuickBooks (FQ), the payroll rules (FPay) |
+| `billing.payroll` | admin | the payroll: build, send, adjust, reopen, pay, export (FPay-8) |
 
 ## Tables
 
@@ -69,8 +70,24 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 - **Clients:** `private.clients_billing_facts(org, ids[])` (number, name, rate variant, « Statut Indien », language, archived, closed), `private.client_contacts_for(…, 'invoices')`, `private.clients_display_names`.
 - **Rendez-vous:** `private.appointment_billing_facts(org, ids[])`, `private.client_billable_appointments(org, client, since)`.
 - **Services et tarifs:** `private.service_price`, `private.service_booking_facts`, `services_catalog`, `billing_policy_on`.
-- **Professionnels:** `private.professional_booking_facts` (titles, primary first).
+- **Professionnels:** `private.professional_booking_facts` (titles, primary first); for the payroll `private.professional_session_pay`, `private.professional_compensation_rate`, `private.professional_payout_facts`, `private.professional_display_names`, `private.professional_profile_id`, `private.professional_for_profile`.
+- **Rendez-vous (payroll):** `private.appointments_for_billing(org, from, to)`.
+- **Services et tarifs (payroll):** `private.service_payout_facts(org, ids[])`.
 - **Core:** `tax_rates` (« Fiscalité »).
+
+## Paie des professionnels (FPay)
+
+Every month, a summary per professional of what the clinic owes her, which she checks and validates in « Ma paie » before attaching her invoice; the administration then marks it paid (Christine 14, decisions **FPay-1 … FPay-12**). Migrations `20261013111019_professionals_payout_facts`, `20261013111022_services_payout_facts`, `20261013111025_billing_payroll`; pgTAP `143_professionals_payout_facts`, `145_billing_payroll`; Vitest `lib/payroll.test.ts`, `pages/MyPayPage.test.tsx`; the function `billing-payout-invoice` (Deno tests beside it).
+
+- **Tables:** `payout_periods` (one per professional and month: state, specialty, counts, total, who built, sent, validated, paid), `payout_lines` (kind `session` / `late_cancellation` / `other_fees` / `workshop` / `adjustment`, the appointment or invoice line, the client, the service, the date, the client price, the retention, the amount, how it was priced; `amount_cents` null = « À compléter »), `professional_invoices` (one per period: uploaded or generated, the file, her number and date, the amount, `qbo_bill_id` for FQ), `payout_service_rules` (a service's rule when not its default). RLS: `billing.payroll` reads all; a professional (`billing.self`) her periods once sent, their lines and invoice; the rules with `billing.settings` or `billing.payroll`.
+- **Rules** (FPay-1, FPay-2, FPay-6, FPay-7): sessions at the client price of her primary title's grid for the session's duration less her retention in force that day (`private.professional_session_pay`; an « Entente particulière » first; IVAC and PAE at the regular price; a couple's session once); late cancellation and absence fees once paid, at « Annulation tardive » (`private.billing_paid_fees`, an empty stub until F3 replaces it); reports, discussions and tests from issued invoice lines naming her, before taxes, at « Autres frais »; workshops at « Ateliers et conférences ». The rates are Professionnels' (Paramètres → Rémunération).
+- **Once** (FPay-3): unique per appointment and kind, and per invoice line. A build also takes what was missed in the months the payroll already ran (three back at most), never before the clinic's first period.
+- **States and lock** (FPay-4, FPay-5): `draft` → `to_validate` → (`correction_requested` → `to_validate`) → `validated` → `paid`. A validated or paid period's lines never change (trigger `payout_lines_lock`); « Rouvrir » (validated only, with a reason) detaches the invoice.
+- **RPCs** (`billing.payroll`): `list_payout_periods(month)`, `build_payout_month(month)` (a finished month only), `rebuild_payout_period(id)`, `send_payout_periods(ids)` → `{sent, unpriced}`, `add_payout_adjustment(period, cents, note)`, `remove_payout_adjustment(line)`, `reopen_payout_period(id, reason)`, `mark_period_paid(id, paid_on, note)` (validated with an invoice), `list_payout_export(month)`. The professional or the administration: `list_my_payout_periods()`, `get_payout_period(id)`, `request_payout_correction(id, note)`, `validate_payout_period(id)`, `attach_professional_invoice(period, file, number, issued_on)` (purpose `billing_professional_invoice`). Settings: `list_payout_rules()`, `set_payout_rule(service, rule)` (`billing.settings`). Service role (the function): `prepare_professional_invoice(period, actor)`, `record_generated_professional_invoice(period, file, number, issued_on, actor)`.
+- **Function `billing-payout-invoice`** (user, `billing.self`, the module gate; renders: pdfmake, ADR 0008): « Générer ma facture » renders her invoice from the validated summary (clients by file number only), stores it (`register_system_file`, view `billing.payroll`, owner her) and records it; 20 an hour per caller (`LIMITS.billingPayoutInvoiceUser`).
+- **Job** `billing.payout_periods` (SQL maintenance job, the 1st at 11:15 UTC): last month's drafts for every clinic with Facturation on; one notice to `billing.payroll`. Notices to the professional on send, reopening and payment; to the administration on a correction. No email (FPay-11).
+- **Screens:** « Paie » (`/facturation/paie?mois=AAAA-MM&periode=…`, `billing.payroll`): the month's summaries, « Calculer le mois », « Envoyer les sommaires prêts (n) », « Exporter pour QuickBooks » (CSV by specialty), a summary in a side sheet (lines, adjustments, « Recalculer », « Valider pour … », the invoice on her behalf, « Marquer comme versée », « Rouvrir »). « Ma paie » (`/ma-paie`, `/ma-paie/:periodId`, `billing.self`, an account with a professional file): her summaries, « Valider le sommaire », « Signaler une correction », « Téléverser la facture » or « Générer la facture ». Paramètres → Paie (`payroll`, path `paie`): each service's rule, the job.
+- **Open:** the 30 % of a cancellation fee (FPay-6, to confirm with Christine); GST and QST on a registered professional's invoice; feeding the retention program's monthly session counts from the payroll; FQ pushes the bills.
 
 ## Keep / Change / Drop
 

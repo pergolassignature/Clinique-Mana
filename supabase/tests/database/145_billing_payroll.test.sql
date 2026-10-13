@@ -76,6 +76,7 @@ values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000
 
 create function pg_temp.svc(p_code int) returns uuid language sql as $$
   select id from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = p_code $$;
+select set_config('test.call', pg_temp.svc(50601)::text, true);
 
 -- September 2026 (clinic time), Pro Un unless said:
 --   e1 50 min, Alice, completed           → 175 $ less 28 % = 126 $
@@ -256,11 +257,11 @@ select is((select count(*)::int from public.payout_lines where appointment_id in
 
 -- The invoice and the payment.
 insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, view_permission,
-                                 owner_profile_id, owner_permission, original_name, mime_type, ext, size_bytes, status, retain_until, uploaded_by)
+                                 owner_profile_id, owner_permission, original_name, mime_type, ext, size_bytes, sha256, status, confirmed_at, retain_until, uploaded_by)
 values ('f2000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'documents',
-        'b0000000-0000-0000-0000-00000000000a/billing/x/f2000000-0000-0000-0000-000000000001.pdf', 'billing', 'billing_professional_invoice',
+        'b0000000-0000-0000-0000-00000000000a/billing/c0000000-0000-0000-0000-000000000001/f2000000-0000-0000-0000-000000000001.pdf', 'billing', 'billing_professional_invoice',
         'payout_period', current_setting('test.p1')::uuid, 'billing.payroll', 'a0000000-0000-0000-0000-000000000003', 'billing.self',
-        'Facture.pdf', 'application/pdf', 'pdf', 1000, 'ready', now() + interval '1 day', 'a0000000-0000-0000-0000-000000000003');
+        'Facture.pdf', 'application/pdf', 'pdf', 1000, repeat('a', 64), 'ready', now(), now() + interval '1 day', 'a0000000-0000-0000-0000-000000000003');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select throws_ok(format('select public.attach_professional_invoice(%L, %L, %L, %L)', current_setting('test.p1'),
@@ -281,7 +282,7 @@ select throws_ok(format('select public.reopen_payout_period(%L, %L)', current_se
 select results_eq($$ select code, rule, is_default from public.list_payout_rules() where code in (10150, 30150, 50400, 50601, 70300) order by code $$,
   $$ values (10150, 'session'::text, true), (30150, 'session', true), (50400, 'other_fees', true), (50601, 'none', true),
             (70300, 'late_cancellation', true) $$, 'the default rules');
-select lives_ok($$ select public.set_payout_rule(pg_temp.svc(50601), 'session') $$, 'a rule changed');
+select lives_ok(format('select public.set_payout_rule(%L, %L)', current_setting('test.call'), 'session'), 'a rule changed');
 select results_eq($$ select rule, is_default from public.list_payout_rules() where code = 50601 $$,
   $$ values ('session'::text, false) $$, '… shown as not the default');
 

@@ -112,11 +112,11 @@ describe('MyPayPage (« Ma paie », FPay)', () => {
     renderAt('/ma-paie')
     const table = await screen.findByRole('table', { name: t(`${M}.mine.table`) })
     const rows = within(table).getAllByRole('row')
-    expect(within(rows[1]).getByRole('link', { name: 'Septembre 2026' })).toHaveAttribute('href', `/ma-paie/${PERIOD}`)
-    expect(within(rows[1]).getByText(t(`${M}.states.to_validate`))).toBeInTheDocument()
-    expect(within(rows[1]).getByText(/346,00/)).toBeInTheDocument()
-    expect(within(rows[2]).getByText(t(`${M}.states.paid`))).toBeInTheDocument()
-    expect(within(rows[2]).getByText(t(`${M}.mine.invoiceAttached`))).toBeInTheDocument()
+    expect(within(rows[1]!).getByRole('link', { name: 'Septembre 2026' })).toHaveAttribute('href', `/ma-paie/${PERIOD}`)
+    expect(within(rows[1]!).getByText(t(`${M}.states.to_validate`))).toBeInTheDocument()
+    expect(within(rows[1]!).getByText(/346,00/)).toBeInTheDocument()
+    expect(within(rows[2]!).getByText(t(`${M}.states.paid`))).toBeInTheDocument()
+    expect(within(rows[2]!).getByText(t(`${M}.mine.invoiceAttached`))).toBeInTheDocument()
   })
 
   it('nothing yet: says when a summary appears', async () => {

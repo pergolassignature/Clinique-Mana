@@ -288,17 +288,17 @@ Deno.test('billing-payout-invoice: a failed upload or record discards the file',
   }))
 
 Deno.test('payout invoice document: amounts in French, clients by file number only', () => {
-  assertEquals(money(71100), '711,00 $')
-  assertEquals(money(123456789), '1 234 567,89 $')
-  assertEquals(money(-4500), '−45,00 $')
+  assertEquals(money(71100), '711,00\u202F$')
+  assertEquals(money(123456789), '1\u202F234\u202F567,89\u202F$')
+  assertEquals(money(-4500), '−45,00\u202F$')
   const doc = payoutInvoiceDocument(PREPARED, '2026-09', '2026-10-01')
   const json = JSON.stringify(doc)
   assertStringIncludes(json, 'Facture 2026-09')
   assertStringIncludes(json, 'Dossier 1042')
   assertStringIncludes(json, '1 octobre 2026')
-  assertStringIncludes(json, 'TPS : 123456789RT0001')
-  assertStringIncludes(json, 'Ajustement : Déplacement du 12 septembre')
-  assertStringIncludes(json, 'Total : 711,00 $')
+  assertStringIncludes(json, 'TPS\u202F: 123456789RT0001')
+  assertStringIncludes(json, 'Ajustement\u202F: Déplacement du 12 septembre')
+  assertStringIncludes(json, 'Total\u202F: 711,00\u202F$')
   assert(!json.includes('Alice'))
   const table = doc.blocks.find((b) => b.type === 'table')
   assert(table?.type === 'table')
@@ -306,8 +306,8 @@ Deno.test('payout invoice document: amounts in French, clients by file number on
     '3 septembre 2026',
     'Dossier 1042',
     'Rencontre · 10150 Consultation individuelle 50 min',
-    '175,00 $',
-    '28 %',
-    '126,00 $',
+    '175,00\u202F$',
+    '28\u202F%',
+    '126,00\u202F$',
   ])
 })

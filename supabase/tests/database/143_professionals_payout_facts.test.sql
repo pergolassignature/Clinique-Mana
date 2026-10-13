@@ -58,7 +58,7 @@ select results_eq($$ select x.source, x.pay_cents is null
                        from (values ('c0000000-0000-0000-0000-000000000002'::uuid, 50::smallint, date '2026-11-10'),
                                     ('c0000000-0000-0000-0000-000000000003', 50, '2026-11-10'),
                                     ('c0000000-0000-0000-0000-000000000001', 50, '2026-06-10')) v(p, d, o)
-                      cross join lateral private.professional_session_pay('b0000000-0000-0000-0000-00000000000a', v.p, null, v.d, v.o) x $$,
+                      cross join lateral private.professional_session_pay('b0000000-0000-0000-0000-00000000000a'::uuid, v.p, null::uuid, v.d::smallint, v.o::date) x $$,
   $$ values ('no_title'::text, true), ('no_rate', true), ('no_price', true) $$,
   'no primary title, no rate decided, no grid in force on that date: not priced');
 select is((select count(*)::int from private.professional_session_pay('b0000000-0000-0000-0000-00000000000b',

@@ -447,10 +447,13 @@ begin
      and (p_professional is null or p.professional_id = p_professional)
      and l.kind <> 'adjustment';
 
-  create temporary table if not exists pg_temp.payroll_candidates (
-    professional_id uuid, kind text, appointment_id uuid, invoice_line_id uuid, client_id uuid, service_id uuid,
-    occurred_on date, paid_on date, duration smallint, base_cents int, retention_pct numeric, amount_cents int, pricing text
-  ) on commit drop;
+  -- The candidates of this build (dropped at commit; a second build in one transaction reuses it).
+  if pg_catalog.to_regclass('pg_temp.payroll_candidates') is null then
+    create temporary table payroll_candidates (
+      professional_id uuid, kind text, appointment_id uuid, invoice_line_id uuid, client_id uuid, service_id uuid,
+      occurred_on date, paid_on date, duration smallint, base_cents int, retention_pct numeric, amount_cents int, pricing text
+    ) on commit drop;
+  end if;
   truncate pg_temp.payroll_candidates;
 
   -- Sessions: completed, one line per appointment (its first client).
@@ -1230,7 +1233,7 @@ insert into public.scheduled_jobs
 values
   ('billing.payout_periods', 'billing', 'Sommaires de paie',
    'Le 1er du mois, calcule les sommaires de paie du mois précédent, à vérifier avant l''envoi aux professionnels.',
-   'sql', 'private.job_billing_payout_periods', 'billing.payout_periods', false)
+   'sql', 'private.job_billing_payout_periods', 'billing.payout_periods', true)
 on conflict do nothing;
 
 -- 11:15 UTC on the 1st: 6:15 or 7:15 in Montréal, after the night's completions.

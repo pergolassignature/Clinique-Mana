@@ -153,6 +153,11 @@ select functions_are('public', array[
   'create_invoice', 'create_manual_invoice', 'add_invoice_line', 'set_invoice_line_price', 'remove_invoice_line',
   'set_invoice_payer', 'set_invoice_notes', 'delete_invoice_draft', 'finalize_invoice', 'issue_credit_note',
   'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing',
+  -- Facturation, batch FPay (payroll).
+  'list_payout_periods', 'build_payout_month', 'rebuild_payout_period', 'send_payout_periods', 'add_payout_adjustment',
+  'remove_payout_adjustment', 'reopen_payout_period', 'mark_period_paid', 'list_payout_export', 'list_my_payout_periods',
+  'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
+  'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

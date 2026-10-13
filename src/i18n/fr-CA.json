@@ -8611,7 +8611,11 @@
           "credit_notes": "Notes de crédit",
           "billing_payer_defaults": "Payeurs par défaut",
           "invoice_sequences": "Numérotation des factures",
-          "payment_modes": "Modes de paiement"
+          "payment_modes": "Modes de paiement",
+          "payout_periods": "Sommaires de paie",
+          "payout_lines": "Lignes de paie",
+          "professional_invoices": "Factures des professionnels",
+          "payout_service_rules": "Règles de paie"
         },
         "fields": {
           "invoices": {
@@ -8687,6 +8691,59 @@
             "is_deposit": "Dépôt",
             "is_active": "Actif",
             "sort_order": "Ordre"
+          },
+          "payout_periods": {
+            "professional_id": "Professionnel",
+            "month": "Mois",
+            "state": "État",
+            "title_name": "Spécialité",
+            "lines_count": "Lignes",
+            "unpriced_count": "Lignes à compléter",
+            "total_cents": "Total",
+            "built_at": "Calculé le",
+            "built_by": "Calculé par",
+            "sent_at": "Envoyé le",
+            "sent_by": "Envoyé par",
+            "correction_note": "Correction demandée",
+            "correction_requested_at": "Correction demandée le",
+            "validated_at": "Validé le",
+            "validated_by": "Validé par",
+            "reopen_reason": "Raison de la réouverture",
+            "paid_on": "Versé le",
+            "paid_at": "Marqué versé le",
+            "paid_by": "Marqué versé par",
+            "payment_note": "Note du versement"
+          },
+          "payout_lines": {
+            "period_id": "Sommaire",
+            "kind": "Type",
+            "appointment_id": "Rendez-vous",
+            "invoice_line_id": "Ligne de facture",
+            "client_id": "Dossier",
+            "service_id": "Service",
+            "occurred_on": "Date",
+            "paid_on": "Payé le",
+            "duration": "Durée",
+            "base_cents": "Prix client",
+            "retention_pct": "Rétention",
+            "amount_cents": "Montant",
+            "pricing": "Calcul",
+            "note": "Note"
+          },
+          "professional_invoices": {
+            "period_id": "Sommaire",
+            "source": "Origine",
+            "file_id": "Fichier",
+            "number": "Numéro",
+            "issued_on": "Date de la facture",
+            "amount_cents": "Montant",
+            "qbo_bill_id": "Dépense QuickBooks",
+            "exported_at": "Exportée le"
+          },
+          "payout_service_rules": {
+            "service_id": "Service",
+            "rule": "Règle",
+            "updated_by": "Modifiée par"
           }
         },
         "values": {
@@ -8724,6 +8781,48 @@
             "kind": {
               "invoice": "Facture",
               "credit_note": "Note de crédit"
+            }
+          },
+          "payout_periods": {
+            "state": {
+              "draft": "Brouillon",
+              "to_validate": "À valider",
+              "correction_requested": "Correction demandée",
+              "validated": "Validée",
+              "paid": "Versée"
+            }
+          },
+          "payout_lines": {
+            "kind": {
+              "session": "Rencontre",
+              "late_cancellation": "Annulation tardive ou absence",
+              "other_fees": "Rapport ou discussion",
+              "workshop": "Atelier",
+              "adjustment": "Ajustement"
+            },
+            "pricing": {
+              "grid": "Grille",
+              "agreement": "Entente particulière",
+              "rate": "Taux de la clinique",
+              "manual": "Ajustement",
+              "no_title": "Profession à confirmer",
+              "no_price": "Prix de la grille manquant",
+              "no_rate": "Taux de départ à fixer"
+            }
+          },
+          "professional_invoices": {
+            "source": {
+              "uploaded": "Téléversée",
+              "generated": "Générée"
+            }
+          },
+          "payout_service_rules": {
+            "rule": {
+              "session": "Rencontre (grille)",
+              "late_cancellation": "Annulation tardive",
+              "other_fees": "Autres frais",
+              "workshop": "Ateliers et conférences",
+              "none": "Non payé"
             }
           }
         },
