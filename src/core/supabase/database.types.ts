@@ -15695,6 +15695,31 @@ export type Database = {
         Args: { p_codes: Json; p_org_id: string }
         Returns: number
       }
+      report_cancellations: {
+        Args: {
+          p_from: string
+          p_kind?: string
+          p_professional_id?: string
+          p_reason_id?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      report_clients_to_follow_up: {
+        Args: { p_from: string; p_professional_id?: string; p_to: string }
+        Returns: Json
+      }
+      report_revenue: {
+        Args: {
+          p_from: string
+          p_mode_code?: string
+          p_professional_id?: string
+          p_service_id?: string
+          p_to: string
+          p_view: string
+        }
+        Returns: Json
+      }
       request_mail_sync: {
         Args: { p_email_address: string; p_org_id: string }
         Returns: string
@@ -16403,6 +16428,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      settle_stripe_refund_for_service: {
+        Args: {
+          p_error_code: string
+          p_ok: boolean
+          p_org_id: string
+          p_provider_ref: string
+          p_refund_id: string
+        }
+        Returns: boolean
+      }
       sms_event_known_for_service: {
         Args: {
           p_org_id: string
@@ -16507,6 +16542,19 @@ export type Database = {
           p_payment_intent_id: string
         }
         Returns: undefined
+      }
+      stripe_refund_for_service: {
+        Args: { p_org_id: string; p_refund_id: string }
+        Returns: Json
+      }
+      stripe_refunds_due_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          amount_cents: number
+          invoice_id: string
+          payment_intent_id: string
+          refund_id: string
+        }[]
       }
       submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }

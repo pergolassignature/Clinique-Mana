@@ -85,7 +85,7 @@ Deno.test('client: pages every query, pins minorversion, quotes values', async (
 Deno.test('client: a throttle is retried; a taken name is duplicate_name; Intuit bodies stay out', async () => {
   const h = qboHarness({ connected: true })
   h.intuit.failNext('/query', 429)
-  assertEquals((await client(h).accounts()).length, 9)
+  assertEquals((await client(h).accounts()).length, 10)
   await client(h).createCustomer({ DisplayName: 'Nouveau' })
   const error = await assertRejects(
     () => client(h).createCustomer({ DisplayName: 'nouveau' }),
@@ -309,7 +309,7 @@ Deno.test('sync: the company, its accounts and customers, then the matching; not
     result.customers,
     result.matched,
     result.pending,
-  ], ['ok', 9, 6, 6, false])
+  ], ['ok', 10, 6, 6, false])
   assertEquals(
     (h.state.accounts as { id: string; acct_num: string | null }[]).find((a) =>
       a.id === '3'

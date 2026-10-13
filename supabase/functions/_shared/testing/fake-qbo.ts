@@ -17,6 +17,8 @@
  * - the API wants a live bearer token of the company (401 otherwise), pages
  *   queries with `startposition` / `maxresults`, refuses a customer whose
  *   display name is taken (400, fault 6240);
+ * - FQ follow-up: `journalentry` (a refund): debits equal credits, an
+ *   Accounts Receivable line names a known customer;
  * - FQ part 2: `query` on Item and TaxCode; `invoice`, `creditmemo`,
  *   `payment`, `vendor`, `bill`, `item` creates, kept in `documents`; a
  *   create repeated with the same `requestid` answers the first one (as
@@ -302,6 +304,7 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
         vendor: 'Vendor',
         bill: 'Bill',
         item: 'Item',
+        journalentry: 'JournalEntry',
       }
       if (entityKey[rest] && req.method === 'POST') {
         const requestId = url.searchParams.get('requestid')
@@ -367,6 +370,37 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
               )
             : items.some((i) => i.Name.toLowerCase() === name.toLowerCase())
           if (!name || taken) return fault(400, '6240')
+        }
+        if (rest === 'journalentry') {
+          const lines = (body.Line as Record<string, unknown>[] | undefined) ??
+            []
+          let debit = 0
+          let credit = 0
+          for (const line of lines) {
+            const detail = line.JournalEntryLineDetail as
+              | {
+                PostingType?: string
+                AccountRef?: { value?: string }
+                Entity?: { Type?: string; EntityRef?: { value?: string } }
+              }
+              | undefined
+            const account = accounts.find((a) =>
+              a.Id === String(detail?.AccountRef?.value)
+            )
+            if (!detail || !account) return fault(400, '6000')
+            if (
+              account.AccountType === 'Accounts Receivable' &&
+              (detail.Entity?.Type !== 'Customer' ||
+                !customerIds.includes(String(detail.Entity.EntityRef?.value)))
+            ) return fault(400, '6000')
+            if (detail.PostingType === 'Debit') debit += Number(line.Amount)
+            else if (detail.PostingType === 'Credit') {
+              credit += Number(line.Amount)
+            } else return fault(400, '6000')
+          }
+          if (lines.length < 2 || Math.abs(debit - credit) > 0.001) {
+            return fault(400, '6000')
+          }
         }
         if (
           rest === 'bill' && !refOk(
@@ -528,6 +562,13 @@ export function seedCompany(fake: FakeQbo): void {
       Active: true,
     },
     { Id: '9', Name: 'Frais bancaires', AccountType: 'Expense', Active: true },
+    {
+      Id: '10',
+      Name: 'Comptes clients',
+      AccountType: 'Accounts Receivable',
+      AccountSubType: 'AccountsReceivable',
+      Active: true,
+    },
   )
   const people: [string, string, string | null, string | null][] = [
     ['Amélie', 'Tremblay', 'amelie.tremblay@example.test', null],

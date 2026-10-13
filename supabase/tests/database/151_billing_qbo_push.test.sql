@@ -170,8 +170,8 @@ select results_eq($$ select p ->> 'action', p -> 'keys' ->> 0
                                current_setting('test.pay_id')::uuid, current_setting('test.inv')::uuid) p) x $$,
   $$ values ('missing_map', 'deposit.interac') $$, 'a mode with no account: nothing pushed, the map named');
 select is(public.prepare_qbo_push_for_service('b0000000-0000-0000-0000-00000000000a', 'payment_refunded',
-            current_setting('test.pay_id')::uuid, current_setting('test.inv')::uuid) ->> 'action', 'unsupported',
-  'a refund (F3): not yet');
+            current_setting('test.pay_id')::uuid, current_setting('test.inv')::uuid) ->> 'action', 'gone',
+  'a refund event that names no recorded refund: gone (refunds: 157)');
 
 -- =============================================================================
 -- The professionals' bills (FPay)
