@@ -7414,7 +7414,8 @@
         "documenso_recipient_id": "Destinataire Documenso",
         "viewed_at": "Consulté le",
         "signed_at": "Signé le",
-        "rejected_at": "Refusé le"
+        "rejected_at": "Refusé le",
+        "redacted_at": "Anonymisé le"
       },
       "stored_files": {
         "module_key": "Module",
