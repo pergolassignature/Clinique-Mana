@@ -76,6 +76,29 @@ describe('ClientCardPanel (« Carte au dossier », FS)', () => {
     expect(await screen.findByText(t(`${S}.chargeRefused`, { reason: t('modules.billing.stripe.failures.card_declined') }))).toBeInTheDocument()
   })
 
+  it('« Prélever maintenant » only on the latest refused charge, never after a success; pending says « en cours »', async () => {
+    const charge = (id: string, invoice: string, status: 'failed' | 'succeeded', at: string) => ({
+      id, invoice_id: invoice, invoice_number: invoice, kind: 'manual' as const, amount_cents: 13000, status,
+      failure_code: status === 'failed' ? 'card_declined' : null, created_at: at,
+    })
+    mocks.api.fetchClientStripe.mockResolvedValue(stripe([payer({
+      card: { brand: 'visa', last4: '4242', exp_month: 3, exp_year: 2030, consent_at: null },
+      charges: [
+        charge('c3', 'f2', 'failed', '2026-11-05T15:00:00Z'),
+        charge('c2', 'f1', 'succeeded', '2026-11-04T15:00:00Z'),
+        charge('c1', 'f1', 'failed', '2026-11-03T15:00:00Z'),
+        charge('c0', 'f2', 'failed', '2026-11-02T15:00:00Z'),
+      ],
+    })]))
+    mocks.api.chargeNow.mockResolvedValue({ status: 'pending', failure_code: null })
+    renderPanel()
+    const buttons = await screen.findAllByRole('button', { name: t(`${S}.chargeNow`) })
+    expect(buttons).toHaveLength(1)
+    await userEvent.click(buttons[0]!)
+    await waitFor(() => expect(mocks.api.chargeNow).toHaveBeenCalledWith('f2'))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.chargePending`)))
+  })
+
   it('Facturation reserved for testers: the refusal is said', async () => {
     mocks.api.fetchClientStripe.mockResolvedValue(stripe([payer()]))
     mocks.api.sendCardLink.mockRejectedValue(new FunctionCallError('conflict', 409, 'reserved'))

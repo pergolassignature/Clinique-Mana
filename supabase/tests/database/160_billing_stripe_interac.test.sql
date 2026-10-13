@@ -10,11 +10,11 @@
 -- message); the conseillère reads, never writes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(61);
+select plan(63);
 
 select function_privs_are('public', f, a, 'authenticated', array[]::text[], f || ': not for users')
   from (values ('begin_billing_checkout_for_service', array['bytea']),
-               ('record_stripe_payment_for_service', array['uuid', 'uuid', 'text', 'integer', 'timestamp with time zone']),
+               ('record_stripe_payment_for_service', array['uuid', 'uuid', 'text', 'integer', 'timestamp with time zone', 'uuid']),
                ('begin_stripe_charge_for_service', array['uuid', 'uuid', 'text', 'uuid']),
                ('finish_stripe_charge_for_service', array['uuid', 'uuid', 'text', 'text', 'text']),
                ('record_interac_notice_for_service', array['uuid', 'text', 'date', 'integer', 'text', 'text', 'text'])) as x(f, a);
@@ -128,8 +128,10 @@ select is((select count(*)::int from public.stripe_charges_due_for_service('b000
 update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'billing';
 select set_config('test.c1', (public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a',
   'f0000000-0000-0000-0000-000000000001', 'auto', null) ->> 'charge_id'), true);
-select is(public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a', 'f0000000-0000-0000-0000-000000000001', 'auto', null),
-  null, 'once per invoice');
+select results_eq($$ select x ->> 'charge_id', (x ->> 'resume')::boolean
+                       from public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a',
+                              'f0000000-0000-0000-0000-000000000001', 'auto', null) x $$,
+  $$ values (current_setting('test.c1'), true) $$, 'once per invoice: a second run resumes the same charge');
 select is((select amount_cents from public.stripe_charges where id = current_setting('test.c1')::uuid), 13000, '… for its balance');
 select is(public.finish_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.c1')::uuid, 'succeeded',
             'pi_Charge1', null) ->> 'status', 'succeeded', 'the charge succeeds');
@@ -140,6 +142,8 @@ select is(public.record_stripe_payment_for_service('b0000000-0000-0000-0000-0000
 select is((select count(*)::int from public.payments where external_ref = 'pi_Charge1'), 1, '… recorded once');
 select results_eq($$ select mode_code, amount_cents from public.payments where external_ref = 'pi_Charge1' $$,
   $$ values ('stripe'::text, 13000) $$, '… in mode Stripe');
+select is(public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a', 'f0000000-0000-0000-0000-000000000001', 'auto', null),
+  null, '… and never charged again');
 
 -- A refusal.
 select throws_ok($$ select public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a',
@@ -182,7 +186,8 @@ select set_config('test.n1', public.add_interac_notice((now() at time zone 'Amer
 select results_eq($$ select (s ->> 'number'), (s ->> 'amount_matches')::boolean, (s ->> 'name_score')::int
                        from jsonb_array_elements(public.list_interac_notices()) n, jsonb_array_elements(n -> 'suggestions') s
                       where n ->> 'id' = current_setting('test.n1') $$,
-  $$ values ('2026-2'::text, true, 2) $$, 'suggested: the invoice whose balance is the amount, her name in the sender''s');
+  $$ values ('2026-2'::text, true, 2), ('2026-5', false, 2) $$,
+  'suggested: the invoice whose balance is the amount first, then her other invoice by her name in the sender''s');
 select isnt(public.match_interac_notice(current_setting('test.n1')::uuid, 'f0000000-0000-0000-0000-000000000002'), null, '« Rapprocher »');
 select results_eq($$ select payment_status from public.invoices where id = 'f0000000-0000-0000-0000-000000000002' $$,
   $$ values ('paid'::text) $$, '… the invoice paid by Interac');

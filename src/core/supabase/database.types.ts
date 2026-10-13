@@ -14661,11 +14661,12 @@ export type Database = {
           p_org_id: string
           p_payment_method_id: string
         }
-        Returns: string
+        Returns: Json
       }
       record_stripe_payment_for_service: {
         Args: {
           p_amount_cents: number
+          p_charge_id?: string
           p_invoice_id: string
           p_org_id: string
           p_paid_at: string
@@ -15566,6 +15567,7 @@ export type Database = {
       }
       stripe_payment_failed_for_service: {
         Args: {
+          p_charge_id?: string
           p_failure_code: string
           p_org_id: string
           p_payment_intent_id: string
