@@ -5,7 +5,6 @@ import { documentTemplateKeys } from '@/core/signing/templates/hooks'
 import { toast } from '@/shared/ui/sonner'
 import {
   cancelConsentRequest,
-  fetchClientConsentFiles,
   fetchClientConsentStatus,
   fetchConsentClauses,
   fetchConsentRules,
@@ -18,13 +17,15 @@ import {
   saveConsentClauses,
   saveConsentRule,
   saveConsentSettings,
+  sendConsentCopy,
   sendConsentRequest,
+  withdrawConsent,
   type ConsentRule,
   type ConsentSettings,
   type VersionClause,
   type Population,
 } from '../api/consents'
-import { consentKeys } from './keys'
+import { clientsKeys, consentKeys } from './keys'
 
 const S = 'modules.clients.consents'
 
@@ -34,14 +35,11 @@ export const useConsentSettings = () => useQuery({ queryKey: consentKeys.setting
 export const useConsentTemplates = () => useQuery({ queryKey: consentKeys.templates(), queryFn: fetchConsentTemplates })
 export const useConsentsToObtain = () => useQuery({ queryKey: consentKeys.toObtain(), queryFn: fetchConsentsToObtain, staleTime: 0 })
 
-/** One client's states and the sealed PDFs of the consents in force. */
+/** One client's states, each with its consent's sealed PDF, withdrawal and copy. */
 export function useClientConsents(clientId: string) {
   return useQuery({
     queryKey: consentKeys.client(clientId),
-    queryFn: async () => {
-      const [status, files] = await Promise.all([fetchClientConsentStatus(clientId), fetchClientConsentFiles(clientId)])
-      return { status, files }
-    },
+    queryFn: () => fetchClientConsentStatus(clientId),
     staleTime: 0,
   })
 }
@@ -119,6 +117,30 @@ export function useCancelConsent(clientId: string) {
     mutationFn: (requestId: string) => cancelConsentRequest(requestId),
     onSuccess: () => toast.success(t(`${S}.cancelled`)),
     onError: (error) => toast.error(moduleErrorMessage(error, t(`${S}.cancelError`), 'clients')),
+    onSettled: () => refresh(clientId),
+  })
+}
+
+/**
+ * « Retirer le consentement » (C5b, CC-16). The dialog shows a refusal where the person acted;
+ * the client's states and the list to obtain are read again either way. Its own Historique too.
+ */
+export function useWithdrawConsent(clientId: string, { onErrorMessage }: { onErrorMessage: (message: string) => void }) {
+  const refresh = useRefresh()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ consentId, note }: { consentId: string; note: string }) => withdrawConsent(consentId, note),
+    onSuccess: () => toast.success(t(`${S}.withdraw.done`)),
+    onError: (error) => onErrorMessage(moduleErrorMessage(error, t(`${S}.withdraw.error`), 'clients')),
+    onSettled: () => Promise.all([refresh(clientId), queryClient.invalidateQueries({ queryKey: clientsKeys.history(clientId) })]),
+  })
+}
+
+/** « Envoyer la copie signée » (C5b, CC-17): the outcome toasts are the caller's. */
+export function useSendConsentCopy(clientId: string) {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: (consentId: string) => sendConsentCopy(consentId),
     onSettled: () => refresh(clientId),
   })
 }

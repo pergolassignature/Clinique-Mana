@@ -1855,6 +1855,7 @@ export type Database = {
           pre_appointment_reminder_hours: number
           reminder_days: number
           retention_policy: string | null
+          signed_pdf_retention_years: number | null
           updated_at: string
           updated_by: string | null
         }
@@ -1864,6 +1865,7 @@ export type Database = {
           pre_appointment_reminder_hours?: number
           reminder_days?: number
           retention_policy?: string | null
+          signed_pdf_retention_years?: number | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1873,6 +1875,7 @@ export type Database = {
           pre_appointment_reminder_hours?: number
           reminder_days?: number
           retention_policy?: string | null
+          signed_pdf_retention_years?: number | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1987,6 +1990,8 @@ export type Database = {
           answers: Json | null
           client_id: string
           consent_key: string
+          copy_sent_at: string | null
+          copy_sent_by: string | null
           created_at: string
           id: string
           language: string
@@ -2009,6 +2014,8 @@ export type Database = {
           answers?: Json | null
           client_id: string
           consent_key: string
+          copy_sent_at?: string | null
+          copy_sent_by?: string | null
           created_at?: string
           id?: string
           language: string
@@ -2031,6 +2038,8 @@ export type Database = {
           answers?: Json | null
           client_id?: string
           consent_key?: string
+          copy_sent_at?: string | null
+          copy_sent_by?: string | null
           created_at?: string
           id?: string
           language?: string
@@ -2063,6 +2072,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients_directory"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consents_copy_sent_by_fkey"
+            columns: ["copy_sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "client_consents_request_fkey"
@@ -12936,16 +12952,30 @@ export type Database = {
       client_consents_status: {
         Row: {
           client_id: string | null
+          consent_id: string | null
           consent_key: string | null
+          copy_sent_at: string | null
           due_at: string | null
+          in_force: boolean | null
           last_sent_at: string | null
           org_id: string | null
           request_id: string | null
           signed_at: string | null
+          signed_file_id: string | null
+          source: string | null
           state: string | null
           version_label: string | null
+          withdrawn_at: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_consents_signed_file_id_fkey"
+            columns: ["signed_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_consents_to_obtain: {
         Row: {
@@ -15802,6 +15832,10 @@ export type Database = {
         Returns: undefined
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
+      mark_client_consent_copy_sent_for_service: {
+        Args: { p_actor: string; p_consent_id: string; p_org_id: string }
+        Returns: string
+      }
       mark_email_failed: {
         Args: { p_attempts: number; p_error_code: string; p_id: string }
         Returns: undefined
@@ -15917,6 +15951,10 @@ export type Database = {
       pii_health_check: { Args: never; Returns: boolean }
       prepare_appointment_message_for_service: {
         Args: { p_message_id: string; p_org_id: string; p_token_hash: string }
+        Returns: Json
+      }
+      prepare_client_consent_copy_for_service: {
+        Args: { p_actor: string; p_consent_id: string; p_org_id: string }
         Returns: Json
       }
       prepare_client_consent_request_for_service: {
@@ -17379,6 +17417,10 @@ export type Database = {
           target_kind: string
           to_call_count: number
         }[]
+      }
+      withdraw_client_consent: {
+        Args: { p_id: string; p_note: string }
+        Returns: string
       }
       withdraw_professional_image_consent: {
         Args: { p_id: string; p_note?: string; p_withdrawn_on: string }

@@ -19,6 +19,11 @@
  * 6. 200 `{ request_id, resent, signers: [{ role, sent, code? }] }`: an email
  *    that failed is listed (« Renvoyer » sends new links); the request stands.
  *
+ * `{ action: 'copy', consent_id }` (C5b, CC-17): « Envoyer la copie signée »,
+ * the sealed PDF emailed to the people who sign for the client today
+ * (`copy.ts`), after the same auth and limit; 200 `{ consent_id,
+ * copy_sent_at, recipients: [{ role, sent, code? }] }`.
+ *
  * Nothing logs or reports a name, an address or a token.
  */
 import { z } from 'zod'
@@ -33,6 +38,7 @@ import {
   emailConsentSigners,
   prepareConsentRequest,
 } from '../_shared/client-consents.ts'
+import { sendSignedCopy } from './copy.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { isExpectedRpcError } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
@@ -55,6 +61,10 @@ const bodySchema = z.discriminatedUnion('action', [
   z.strictObject({
     action: z.literal('resend'),
     request_id: z.guid(),
+  }),
+  z.strictObject({
+    action: z.literal('copy'),
+    consent_id: z.guid(),
   }),
 ])
 
@@ -89,6 +99,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       req,
     )
     if (limited) return limited
+
+    if (input.action === 'copy') {
+      return sendSignedCopy(
+        { fn: FN, deps, client, orgId, actor, req },
+        input.consent_id,
+      )
+    }
 
     const result = await prepareConsentRequest(
       client,
