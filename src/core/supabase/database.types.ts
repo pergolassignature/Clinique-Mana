@@ -14228,6 +14228,10 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
+      import_invoice: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_professional: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json

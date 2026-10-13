@@ -186,6 +186,8 @@ select functions_are('public', array[
   'refunds_for_service', 'finish_refund_for_service',
   -- Demandes × Facturation: the waiting list's fee.
   'invoice_waitlist_fee',
+  -- Facturation: the GOrendezvous import (I3).
+  'import_invoice',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',

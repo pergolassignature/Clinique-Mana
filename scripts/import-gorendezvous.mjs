@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// The GOrendezvous import (plan §9; batch I1: the clients, their relations, the price gap report).
+// The GOrendezvous import (plan §9; batch I1: the clients, their relations, the price gap report;
+// batch I3: the invoices, their lines and payments, as history).
 // Runbook: docs/runbooks/import-gorendezvous.md. Running it against the clinic's database is
 // Jonathan's call: never against production without his go-ahead in chat.
 //
@@ -7,12 +8,19 @@
 //        [--commit] [--url <api>] [--anon-key <key>] [--report <file>] [--today AAAA-MM-JJ]
 //   node scripts/import-gorendezvous.mjs prix --lines <csv> --employees <csv> [--services <csv>]
 //        [--on AAAA-MM-JJ] [--url <api>] [--anon-key <key>] [--report <file>]
+//   node scripts/import-gorendezvous.mjs factures --invoices <csv> --lines <csv> --payments <csv>
+//        [--employees <csv>] [--services <csv>] [--clients-map <csv>] [--commit] [--url <api>]
+//        [--anon-key <key>] [--report <file>]
 //
 // The safety model of import-professionals.mjs (decision I-7):
 // - A dry run by default: every client goes through import_client(row, true), which does everything
 //   and rolls it back. --commit dry-runs every row first, imports nothing if one is in error, asks
 //   for « importer », then imports row by row (each row all or nothing; a re-run skips the files
 //   already imported, by their GOrendezvous id), then the relations. « prix » only reads.
+// - « factures » the same way through import_invoice(row, dry_run) (billing.manage): an invoice
+//   whose client is not found, or has homonyms, is listed and left out (--clients-map, « Facture ;
+//   ClientId », settles them on a re-run); a row the database refuses stops the import. Imported
+//   invoices are history: nothing is sent, nothing goes to QuickBooks, nothing is reminded.
 // - The local stack (http://127.0.0.1:55321) unless --url names another; a remote one must be
 //   https and its project reference is typed back first.
 // - The person running it signs in with her own account on the terminal (/dev/tty, the password
@@ -35,15 +43,18 @@ import { MAPPING_REASON_LABELS, readEmployees, readServiceCodes } from './import
 import { PAYLOAD_REASON_LABELS, RELATION_REASON_LABELS, clientPayload, readRelations } from './import-gorendezvous/payloads.mjs'
 import { priceGapReport, priceGaps } from './import-gorendezvous/price-gaps.mjs'
 import { clientsReport } from './import-gorendezvous/report.mjs'
-import { readInvoiceLines } from './import-gorendezvous/revenue.mjs'
+import { INVOICE_REASON_LABELS, assembleInvoices, byMonth, lastNumbers, readClientsMap } from './import-gorendezvous/invoices.mjs'
+import { fmtMoney } from './import-gorendezvous/report.mjs'
+import { REVENUE_REASON_LABELS, readInvoiceLines, readInvoices, readPayments } from './import-gorendezvous/revenue.mjs'
 import { decodeUtf8 } from './import-gorendezvous/table.mjs'
 
 const USAGE = `Usage :
   node scripts/import-gorendezvous.mjs clients --clients <csv> [--employees <csv>] [--relations <csv>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>] [--today AAAA-MM-JJ]
   node scripts/import-gorendezvous.mjs prix --lines <csv> --employees <csv> [--services <csv>] [--on AAAA-MM-JJ] [--url <api>] [--anon-key <clé>] [--report <fichier>]
+  node scripts/import-gorendezvous.mjs factures --invoices <csv> --lines <csv> --payments <csv> [--employees <csv>] [--services <csv>] [--clients-map <csv>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
   Sans --commit : essai, rien n'est écrit. Base par défaut : ${LOCAL_URL}.`
 
-const LABELS = { ...REASON_LABELS, ...MAPPING_REASON_LABELS, ...PAYLOAD_REASON_LABELS, ...RELATION_REASON_LABELS }
+const LABELS = { ...REASON_LABELS, ...MAPPING_REASON_LABELS, ...PAYLOAD_REASON_LABELS, ...RELATION_REASON_LABELS, ...REVENUE_REASON_LABELS, ...INVOICE_REASON_LABELS }
 const fmt = (n) => n.toLocaleString('fr-CA')
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
 
@@ -59,6 +70,9 @@ export function parseCli(argv) {
         relations: { type: 'string' },
         lines: { type: 'string' },
         services: { type: 'string' },
+        invoices: { type: 'string' },
+        payments: { type: 'string' },
+        'clients-map': { type: 'string' },
         commit: { type: 'boolean', default: false },
         url: { type: 'string' },
         'anon-key': { type: 'string' },
@@ -74,12 +88,15 @@ export function parseCli(argv) {
   const { values, positionals } = parsed
   const command = positionals[0]
   if (values.help) return { help: true }
-  if (positionals.length !== 1 || !['clients', 'prix'].includes(command)) throw new InputError(USAGE)
+  if (positionals.length !== 1 || !['clients', 'prix', 'factures'].includes(command)) throw new InputError(USAGE)
   if (command === 'clients' && !values.clients) throw new InputError(`« clients » demande --clients <csv>.\n${USAGE}`)
   if (command === 'prix' && (!values.lines || !values.employees)) throw new InputError(`« prix » demande --lines <csv> et --employees <csv>.\n${USAGE}`)
   if (command === 'prix' && values.commit) throw new InputError('« prix » ne fait que lire : --commit ne s’applique pas.')
+  if (command === 'factures' && (!values.invoices || !values.lines || !values.payments)) {
+    throw new InputError(`« factures » demande --invoices <csv>, --lines <csv> et --payments <csv>.\n${USAGE}`)
+  }
   for (const key of ['today', 'on']) if (values[key] && !DATE.test(values[key])) throw new InputError(`--${key} attend une date AAAA-MM-JJ.`)
-  return { command, ...values, anonKey: values['anon-key'] }
+  return { command, ...values, anonKey: values['anon-key'], clientsMap: values['clients-map'] }
 }
 
 /** Line numbers, at most 30 of them, then « … et N autres ». */
@@ -213,13 +230,29 @@ export async function run(argv, deps) {
     if (!anonKey) throw new InputError('Clé anon manquante : --anon-key <clé> ou VITE_SUPABASE_ANON_KEY.')
     checkPublicKey(anonKey)
     const read = (file) => (file ? deps.readFile(file) : undefined)
-    const texts = { clients: read(cli.clients), employees: read(cli.employees), relations: read(cli.relations), lines: read(cli.lines), services: read(cli.services) }
+    const texts = {
+      clients: read(cli.clients),
+      employees: read(cli.employees),
+      relations: read(cli.relations),
+      lines: read(cli.lines),
+      services: read(cli.services),
+      invoices: read(cli.invoices),
+      payments: read(cli.payments),
+      clientsMap: read(cli.clientsMap),
+    }
 
     // Everything the files say before any question: a file that cannot be read stops here.
     const today = cli.today ?? clinicToday(deps.now())
     const parsedClients = texts.clients === undefined ? null : readClients(texts.clients, { today })
     const parsedRelations = texts.relations === undefined ? null : readRelations(texts.relations)
     const parsedLines = texts.lines === undefined ? null : readInvoiceLines(texts.lines)
+    const parsedInvoices = texts.invoices === undefined ? null : readInvoices(texts.invoices)
+    const parsedPayments = texts.payments === undefined ? null : readPayments(texts.payments)
+    const clientsMap = readClientsMap(texts.clientsMap)
+    if (clientsMap.rejected.length > 0) {
+      say('== Fichier --clients-map : lignes refusées', ...byReason(clientsMap.rejected))
+      throw new InputError('Corrigez le fichier --clients-map, puis relancez : rien n’a été fait.')
+    }
 
     if (cli.report) report = deps.openReport(cli.report)
     unsubscribe = deps.onSignals(requestStop)
@@ -242,6 +275,7 @@ export async function run(argv, deps) {
     }
 
     if (cli.command === 'prix') return await prix(ctx, { on: cli.on ?? today, parsedLines, employees, texts, say })
+    if (cli.command === 'factures') return await factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedPayments, clientsMap, employees, texts, say })
     return await clients(ctx, { cli, target, parsedClients, parsedRelations, employees, say })
   } catch (error) {
     if (!(error instanceof InputError) && !(error instanceof Aborted)) throw error
@@ -381,6 +415,119 @@ async function prix(ctx, { on, parsedLines, employees, texts, say }) {
   const gaps = priceGaps(parsedLines.lines, { professionalFor: employees.lookup, codeFor: services.codeFor, gridPrice })
   say(...priceGapReport(gaps, { titleName, serviceName, on }))
   return 0
+}
+
+const FILE_LABELS = { invoices: '« par facture »', lines: '« par service-produit »', payments: '« par paiement »' }
+
+/** The month table: invoices and money per month, the export's beside what goes in. */
+function monthTable(exported, kept, keptLabel) {
+  const keptBy = new Map(byMonth(kept).map((m) => [m.month, m]))
+  return byMonth(exported).map((m) => {
+    const k = keptBy.get(m.month) ?? { count: 0, total_cents: 0 }
+    return `  ${m.month} : export ${fmt(m.count)} facture(s), ${fmtMoney(m.total_cents)} ; ${keptLabel} ${fmt(k.count)}, ${fmtMoney(k.total_cents)}`
+  })
+}
+
+/** The database pass's section for invoices: by status, the unmatched by reason, the errors by message. */
+export function invoicePassReport(entries, dryRun) {
+  const count = (status) => entries.filter((e) => e.status === status).length
+  const out = [
+    `${dryRun ? 'À importer' : 'Importées'} : ${fmt(count('ok'))} ; déjà importées : ${fmt(count('skipped'))} ; sans dossier : ${fmt(count('unmatched'))} ; en erreur : ${fmt(count('error'))}`,
+  ]
+  const unmatched = entries.filter((e) => e.status === 'unmatched').map((e) => ({ line: e.line, reasons: [e.reason] }))
+  if (unmatched.length > 0) out.push('Laissées de côté (lignes de « par facture ») :', ...byReason(unmatched))
+  const errors = entries
+    .filter((e) => e.status === 'error')
+    .map((e) => ({ line: e.line, reasons: e.errors.map((x) => (x.field ? `${x.field} : ${x.message}` : x.message)) }))
+  if (errors.length > 0) out.push('Refusées par la base (lignes de « par facture ») :', ...byReason(errors, {}))
+  return out
+}
+
+const invoiceEntry = (item, result) => ({
+  line: item.line,
+  month: item.month,
+  total_cents: item.total_cents,
+  number: result.number ?? null,
+  status: result.status,
+  reason: result.reason ?? null,
+  errors: result.errors ?? [],
+})
+
+const exportedMonths = (parsedInvoices) => parsedInvoices.invoices.map((i) => ({ month: i.date.slice(0, 7), total_cents: i.total_cents }))
+
+async function factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedPayments, clientsMap, employees, texts, say }) {
+  ctx.targetUrl = target.url
+  const catalogue = texts.services === undefined ? null : await select(ctx.client, 'services_catalog', 'code')
+  const services = catalogue ? readServiceCodes(texts.services, catalogue.map((s) => String(s.code))) : null
+  if (services && services.rejected.length > 0) {
+    say('== Fichier des services : lignes refusées', ...byReason(services.rejected))
+    throw new InputError('Corrigez le fichier des services, puis relancez : rien n’a été fait.')
+  }
+  const { rows, rejected, payerDiffers } = assembleInvoices(
+    { invoices: parsedInvoices.invoices, lines: parsedLines.lines, payments: parsedPayments.payments },
+    { professionalFor: employees ? employees.lookup : () => null, ...(services && { codeFor: services.codeFor }), refFor: clientsMap.refFor },
+  )
+  say(`Import GOrendezvous (factures) sur ${target.url} : ${cli.commit ? 'essai, puis import' : 'essai, rien n’est écrit'}.`, '')
+  say(
+    `Factures lues : ${fmt(parsedInvoices.invoices.length)} (refusées : ${fmt(parsedInvoices.rejected.length)}) ; lignes : ${fmt(parsedLines.lines.length)} (refusées : ${fmt(parsedLines.rejected.length)}) ; paiements : ${fmt(parsedPayments.payments.length)} (refusés : ${fmt(parsedPayments.rejected.length)})`,
+  )
+  for (const [file, parsed] of [
+    ['invoices', parsedInvoices],
+    ['lines', parsedLines],
+    ['payments', parsedPayments],
+  ]) {
+    const own = [...parsed.rejected, ...rejected.filter((r) => r.file === file)]
+    if (own.length > 0) say(`Lignes laissées de côté dans ${FILE_LABELS[file]} :`, ...byReason(own))
+  }
+  // A method label is GOrendezvous's (« Carte cadeau »), never a person's value.
+  const unknownMethods = [...new Set(parsedPayments.rejected.filter((r) => r.methodLabel).map((r) => r.methodLabel))]
+  if (unknownMethods.length > 0) say(`Modes de paiement inconnus (libellés de GOrendezvous) : ${unknownMethods.join(', ')}`)
+  if (payerDiffers > 0) say(`Factures payées par un tiers (IVAC, PAE…) : ${fmt(payerDiffers)} ; importées au nom du client, le payeur reste à compléter.`)
+  if (!employees) say('Sans fichier des employés (--employees) : les lignes n’ont pas de professionnel.')
+  if (clientsMap.size > 0) say(`Dossiers donnés par --clients-map : ${fmt(clientsMap.size)}`)
+
+  say('', '== Essai dans la base (chaque facture est vérifiée puis annulée)')
+  const dry = await pass(ctx, rows, async (r) => invoiceEntry(r, await rpc(ctx.client, 'import_invoice', { p_row: r.row, p_dry_run: true })), 'essai')
+  say(...invoicePassReport(dry, true))
+  say('Par mois :', ...monthTable(exportedMonths(parsedInvoices), dry.filter((e) => e.status === 'ok'), 'à importer'))
+  if (dry.error) throw dry.error
+  if (dry.length < rows.length) {
+    say(`Essai interrompu après ${fmt(dry.length)} facture(s) sur ${fmt(rows.length)} : rien n’a été écrit.`)
+    return 2
+  }
+  const errors = dry.some((e) => e.status === 'error')
+  const toImport = dry.filter((e) => e.status === 'ok')
+  if (!cli.commit) return errors ? 1 : 0
+  if (errors) {
+    say('Rien n’a été importé : corrigez les factures refusées, puis relancez.')
+    return 1
+  }
+  if (toImport.length === 0) {
+    say('Rien à importer.')
+    return 0
+  }
+  if (ctx.stop.requested) throw new Aborted('Interrompu.')
+  const left = dry.filter((e) => e.status === 'unmatched').length
+  const typed = await ctx.terminal.ask(
+    `Importer ${fmt(toImport.length)} facture(s) (${fmtMoney(toImport.reduce((sum, e) => sum + e.total_cents, 0))}) dans ${ctx.targetUrl}${left > 0 ? ` (${fmt(left)} sans dossier ne le seront pas)` : ''} ? Tapez « importer » pour confirmer : `,
+  )
+  if (typed.trim() !== 'importer') {
+    say('Import annulé : rien n’a été écrit.')
+    return 1
+  }
+  say('', '== Import')
+  const real = await pass(ctx, rows, async (r) => invoiceEntry(r, await rpc(ctx.client, 'import_invoice', { p_row: r.row, p_dry_run: false })), 'import')
+  say(...invoicePassReport(real, false))
+  const done = real.filter((e) => e.status === 'ok')
+  say('Par mois :', ...monthTable(exportedMonths(parsedInvoices), done, 'importées'))
+  const numbers = lastNumbers(done.map((e) => e.number).filter(Boolean))
+  if (numbers.length > 0) say(`Numérotation : la prochaine facture de l’app suit ${numbers.map((n) => `${n.year}-${n.last}`).join(', ')}.`)
+  if (real.error || real.length < rows.length) {
+    say(`Import arrêté après ${fmt(real.length)} facture(s) sur ${fmt(rows.length)}. Relancez la même commande avec --commit : les factures déjà importées reviendront « déjà importées ».`)
+    if (real.error) throw real.error
+    return 2
+  }
+  return real.some((e) => e.status === 'error') ? 1 : 0
 }
 
 // --- Command line ----------------------------------------------------------------------------------
