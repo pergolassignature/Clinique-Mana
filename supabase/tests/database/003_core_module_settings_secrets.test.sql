@@ -192,6 +192,8 @@ select functions_are('public', array[
   'list_professional_capacity', 'set_professional_new_client_places',
   -- Demandes, batch D4 part 2 (the waiting list's offers).
   'list_waitlist_compatible',
+  -- Demandes, the parity gaps (the consents of the request's files).
+  'demande_consents',
   -- Facturation: the GOrendezvous import (I3).
   'import_invoice',
   -- Communications: « Rédiger avec l'IA » (CM4).

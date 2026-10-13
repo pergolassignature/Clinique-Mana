@@ -4,7 +4,7 @@
 -- job), the request closed, a slot no longer possible, permissions, clinics.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(45);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -219,6 +219,24 @@ select public.set_demande_state(current_setting('test.d2')::uuid, 'closed', 'wit
 select results_eq($$ select x.response, (select count(*)::int from public.appointments a where a.hold_reference = x.id)
                       from public.demande_propositions x where x.id = current_setting('test.p5')::uuid $$,
   $$ values ('withdrawn', 0) $$, 'the request closed: its proposal withdrawn, its slot freed');
+
+-- A couple's request (parity D-37): the request's file and the partner's are both on the slot held.
+select set_config('test.dcouple', public.create_demande('{"client_id": "d0000000-0000-0000-0000-000000000002"}')::text, true);
+select public.set_demande_participants(current_setting('test.dcouple')::uuid, jsonb_build_array(
+  jsonb_build_object('client_id', 'd0000000-0000-0000-0000-000000000002', 'relationship', 'self', 'is_primary', true),
+  jsonb_build_object('client_id', 'd0000000-0000-0000-0000-000000000001', 'relationship', 'partner', 'is_primary', false)));
+select public.set_demande_state(current_setting('test.dcouple')::uuid, 'accepted');
+reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select set_config('test.p6', (public.create_proposition_for_service('a0000000-0000-0000-0000-000000000001', current_setting('test.dcouple')::uuid,
+  'c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid, array['2027-03-22 13:00Z'::timestamptz], 'video',
+  decode(repeat('c7', 32), 'hex')) ->> 'proposition_id'), true);
+select results_eq($$ select p.client_id::text from public.appointment_participants p join public.appointments a on a.id = p.appointment_id
+                      where a.hold_reference = current_setting('test.p6')::uuid order by p.client_id $$,
+  $$ values ('d0000000-0000-0000-0000-000000000001'), ('d0000000-0000-0000-0000-000000000002') $$,
+  'a couple''s request: both files on the slot held');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
 -- =============================================================================
 -- Reads, permissions, clinics

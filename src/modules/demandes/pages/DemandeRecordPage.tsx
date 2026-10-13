@@ -32,6 +32,7 @@ import { StatusDot } from '@/shared/ui/status-dot'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { CLOSED_REASONS, type ClosedReason, type DemandeBundle, type DemandeState } from '../api/demandes'
 import { LogContactDialog } from '../components/LogContactDialog'
+import { MatchDialog } from '../components/record/MatchDialog'
 import { RegisterWaitlistDialog } from '../components/waitlist/RegisterWaitlistDialog'
 import { DemandeRecordContext, type DemandeRecordData } from '../components/record/record-context'
 import { useAssignDemande, useDemande, useDemandesRealtime, useDemandesReference, useSetDemandeState, useSetHandler } from '../hooks/use-demandes'
@@ -194,7 +195,8 @@ function RecordHeader({ data }: { data: DemandeRecordData }) {
 
 /**
  * « État » and its moves; closing asks for the reason; « Liste d'attente » registers the request
- * on a list (D-15) unless it already has an open entry (back from « Proposée » or « Acceptée »).
+ * on a list (D-15) unless it already has an open entry (back from « Proposée » or « Acceptée »);
+ * « Jumelée » asks for the professional (D-38).
  */
 function StateControl({ data }: { data: DemandeRecordData }) {
   const d = data.bundle.demande
@@ -202,6 +204,7 @@ function StateControl({ data }: { data: DemandeRecordData }) {
   const setState = useSetDemandeState(data.id)
   const entries = useDemandeWaitlist(data.id)
   const [registering, setRegistering] = useState(false)
+  const [matching, setMatching] = useState(false)
   const [closing, setClosing] = useState(false)
   const [reason, setReason] = useState<ClosedReason>('not_relevant')
   const move = (state: DemandeState, closedReason: ClosedReason | null) =>
@@ -223,6 +226,7 @@ function StateControl({ data }: { data: DemandeRecordData }) {
           const next = event.target.value as DemandeState
           if (!next) return
           if (next === 'closed') setClosing(true)
+          else if (next === 'matched') setMatching(true)
           // The entries not read yet: wait (never register a request that is already on a list).
           else if (next === 'waitlist' && !entries.data) toast.error(t('common.loading'))
           else if (next === 'waitlist' && !entries.data!.some((e) => e.state !== 'closed')) {
@@ -240,6 +244,7 @@ function StateControl({ data }: { data: DemandeRecordData }) {
         ))}
       </Select>
       <RegisterWaitlistDialog demandeId={data.id} hasFile={data.bundle.client !== null} open={registering} onOpenChange={setRegistering} />
+      <MatchDialog demandeId={data.id} open={matching} onOpenChange={setMatching} />
       <AlertDialog open={closing} onOpenChange={setClosing}>
         <AlertDialogContent>
           <AlertDialogHeader>
