@@ -88,6 +88,10 @@ Deno.test('pdfmake: the signing functions that do not render never reach it', as
     new URL('clients-consent-sign/index.ts', FUNCTIONS),
   )
   assert(consent.has(RENDER), 'clients-consent-sign renders')
+  const payout = await graph(
+    new URL('billing-payout-invoice/index.ts', FUNCTIONS),
+  )
+  assert(payout.has(RENDER), 'billing-payout-invoice renders')
   const billing = await graph(
     new URL('billing-documents/index.ts', FUNCTIONS),
   )

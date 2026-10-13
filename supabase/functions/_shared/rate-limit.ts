@@ -466,6 +466,12 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 600,
   },
+  /** `billing-payout-invoice` (« Générer ma facture »), per caller: each call renders a PDF. */
+  billingPayoutInvoiceUser: {
+    bucket: 'billing.payout_invoice_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
   /** `billing-documents` « deliver » (after « Envoyer », a payment, a statement), per caller: each call renders up to 25 PDFs. */
   billingDeliverUser: {
     bucket: 'billing.deliver_user',

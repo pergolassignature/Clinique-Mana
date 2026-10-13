@@ -20,6 +20,11 @@ export const BILLING_AUDITED_TABLES = [
   'invoice_sequences',
   'payment_modes',
   'billing_settings',
+  // FPay: the payroll.
+  'payout_periods',
+  'payout_lines',
+  'professional_invoices',
+  'payout_service_rules',
   'qbo_connections',
   'qbo_connection_tokens',
   'qbo_account_map',

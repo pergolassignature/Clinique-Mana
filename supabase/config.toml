@@ -266,3 +266,5 @@ verify_jwt = false
 # Job appointments.video_sync: X-Job-Signature (runJob).
 [functions.appointments-video-sync]
 verify_jwt = false
+[functions.billing-payout-invoice]
+verify_jwt = false
