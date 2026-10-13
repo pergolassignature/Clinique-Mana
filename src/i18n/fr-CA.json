@@ -5209,7 +5209,8 @@
           "client_consent_settings": "Réglages des consentements",
           "client_consent_requests": "Demandes de consentement",
           "client_consent_request_signers": "Signataires des demandes de consentement",
-          "client_consents": "Consentements signés"
+          "client_consents": "Consentements signés",
+          "client_consent_version_clauses": "Clauses des textes de consentement"
         },
         "fields": {
           "clients": {
@@ -5437,6 +5438,11 @@
             "withdrawn_at": "Retiré le",
             "withdrawn_by": "Retiré par",
             "withdrawal_note": "Note de retrait"
+          },
+          "client_consent_version_clauses": {
+            "version_id": "Version du texte",
+            "clauses": "Clauses",
+            "updated_by": "Modifié par"
           }
         },
         "values": {
@@ -5683,6 +5689,26 @@
               "yes": "Oui",
               "no": "Non"
             }
+          },
+          "clauses": {
+            "title": "Clauses « Oui / Non »",
+            "description": "Les questions auxquelles le client répond sur notre page avant de signer, dans la langue de ce texte. « Accord requis » : il doit répondre « Oui » pour signer. Elles sont publiées avec le texte et ne changent plus ensuite.",
+            "readOnlyDescription": "Les questions de cette version, publiées avec elle. Pour les modifier, créez une nouvelle version du texte.",
+            "text": "Clause {n}",
+            "kind": "Réponse",
+            "kinds": {
+              "agree": "Accord requis",
+              "yes_no": "Oui ou non"
+            },
+            "up": "Monter la clause {n}",
+            "down": "Descendre la clause {n}",
+            "remove": "Retirer la clause {n}",
+            "add": "Ajouter une clause",
+            "max": "Un consentement a au plus 20 clauses.",
+            "none": "Aucune clause : le client signe sans répondre à des questions.",
+            "emptyText": "Chaque clause a un texte.",
+            "saved": "Clauses enregistrées.",
+            "loadError": "Impossible de charger les clauses."
           }
         },
         "page": {

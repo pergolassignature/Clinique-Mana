@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
     saveConsentRule: vi.fn(),
     saveConsentSettings: vi.fn(),
     publishConsentVersion: vi.fn(),
+    fetchConsentClauses: vi.fn(),
+    saveConsentClauses: vi.fn(),
   },
   templates: {
     listModuleTemplates: vi.fn(),
@@ -90,6 +92,11 @@ beforeEach(() => {
   mocks.api.saveConsentRule.mockResolvedValue('r1')
   mocks.api.saveConsentSettings.mockImplementation(async (patch: object) => ({ ...SETTINGS, ...patch }))
   mocks.api.publishConsentVersion.mockResolvedValue(3)
+  mocks.api.fetchConsentClauses.mockResolvedValue({
+    clauses: [{ key: 'accord', kind: 'agree', text: 'Provisional clause: I agree.' }],
+    editable: true,
+  })
+  mocks.api.saveConsentClauses.mockImplementation(async (_id: string, clauses: object) => clauses)
   mocks.templates.listModuleTemplates.mockResolvedValue([SUMMARY])
   mocks.templates.fetchTemplateVersions.mockResolvedValue([placeholderVersion()])
   mocks.templates.updateTemplateVersion.mockResolvedValue(undefined)
@@ -227,6 +234,39 @@ describe('ConsentsSettingsPage', () => {
     expect(JSON.stringify(content)).not.toContain('Texte provisoire')
     expect(JSON.stringify(content)).toContain('{{consent.clauses}}')
     await waitFor(() => expect(mocks.api.fetchConsentTemplates).toHaveBeenCalled())
+  })
+
+  it('the draft\'s « Oui / Non » clauses: added, reworded, reordered, then saved (CC-13)', async () => {
+    renderPage()
+    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
+    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
+    const card = (await screen.findByRole('heading', { name: t(`${S}.clauses.title`) })).closest('form')!
+    expect(mocks.api.fetchConsentClauses).toHaveBeenCalledWith('vwe1')
+    const first = within(card).getByRole('textbox', { name: new RegExp(`^${t(`${S}.clauses.text`, { n: '1' })}`) })
+    expect(first).toHaveValue('Provisional clause: I agree.')
+    fireEvent.change(first, { target: { value: 'I have read this consent.' } })
+    await userEvent.click(within(card).getByRole('button', { name: t(`${S}.clauses.add`) }))
+    const second = within(card).getByRole('textbox', { name: new RegExp(`^${t(`${S}.clauses.text`, { n: '2' })}`) })
+    fireEvent.change(second, { target: { value: 'Reminders by email?' } })
+    await userEvent.click(within(card).getByRole('button', { name: t(`${S}.clauses.up`, { n: '2' })}))
+    await userEvent.click(within(card).getByRole('button', { name: t('common.save') }))
+    await waitFor(() =>
+      expect(mocks.api.saveConsentClauses).toHaveBeenCalledExactlyOnceWith('vwe1', [
+        { key: 'clause_2', kind: 'yes_no', text: 'Reminders by email?' },
+        { key: 'accord', kind: 'agree', text: 'I have read this consent.' },
+      ]),
+    )
+  })
+
+  it('a clause without text is refused before any call', async () => {
+    renderPage()
+    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
+    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
+    const card = (await screen.findByRole('heading', { name: t(`${S}.clauses.title`) })).closest('form')!
+    await userEvent.click(within(card).getByRole('button', { name: t(`${S}.clauses.add`) }))
+    await userEvent.click(within(card).getByRole('button', { name: t('common.save') }))
+    expect(await within(card).findByText(t(`${S}.clauses.emptyText`))).toBeInTheDocument()
+    expect(mocks.api.saveConsentClauses).not.toHaveBeenCalled()
   })
 
   it('« Fermer le texte » closes the editor', async () => {

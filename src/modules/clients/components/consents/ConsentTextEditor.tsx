@@ -3,11 +3,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { DocumentTemplateEditor, type TemplateEditorOptions } from '@/core/signing/templates/DocumentTemplateEditor'
-import { useModuleTemplates } from '@/core/signing/templates/hooks'
+import { useModuleTemplates, useTemplateVersions } from '@/core/signing/templates/hooks'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { Button } from '@/shared/ui/button'
 import { PLACEHOLDER_MARK } from '../../api/consents'
 import { consentKeys } from '../../hooks/keys'
+import { ConsentClausesCard } from './ConsentClausesCard'
 
 const E = 'modules.clients.consents.settings.editor'
 
@@ -61,6 +62,9 @@ export function ConsentTextEditor({ templateId, name, readOnly, onClose }: { tem
     [queryClient],
   )
   const template = templates.data?.find((tpl) => tpl.id === templateId) ?? null
+  // The clauses of the version the editor shows: the draft, else the one in force (CC-13).
+  const versions = useTemplateVersions(templateId)
+  const shown = versions.data?.find((v) => v.status === 'draft') ?? versions.data?.find((v) => v.status === 'published') ?? null
   const titleId = `consent-editor-${templateId}`
 
   useEffect(() => {
@@ -90,7 +94,10 @@ export function ConsentTextEditor({ templateId, name, readOnly, onClose }: { tem
           onRetry={() => void templates.refetch()}
         />
       ) : (
-        <DocumentTemplateEditor template={template} readOnly={readOnly || !template.canEdit} options={{ ...options, handlers }} />
+        <>
+          <DocumentTemplateEditor template={template} readOnly={readOnly || !template.canEdit} options={{ ...options, handlers }} />
+          {shown && <ConsentClausesCard versionId={shown.id} readOnly={readOnly || !template.canEdit} />}
+        </>
       )}
     </section>
   )

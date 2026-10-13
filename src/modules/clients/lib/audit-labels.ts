@@ -20,6 +20,7 @@ export const CLIENTS_AUDITED_TABLES = [
   'client_tags',
   'referral_sources',
   'client_consent_types',
+  'client_consent_version_clauses',
   'client_consent_rules',
   'client_consent_settings',
 ] as const

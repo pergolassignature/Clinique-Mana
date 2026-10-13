@@ -190,7 +190,9 @@ select functions_are('public', array[
   'disconnect_my_zoom_connection', 'zoom_deauthorized_for_service', 'get_zoom_credentials_for_service',
   'set_zoom_tokens_for_service', 'mark_zoom_needs_reconnect_for_service', 'list_zoom_connections_to_refresh_for_service',
   'claim_video_tasks_for_service', 'complete_video_task_for_service', 'video_link_email_for_service',
-  'mark_video_link_emailed_for_service'
+  'mark_video_link_emailed_for_service',
+  -- Clients, CC-13 (each consent text version's clauses).
+  'get_client_consent_clauses', 'set_client_consent_clauses'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

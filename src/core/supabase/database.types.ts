@@ -1239,6 +1239,48 @@ export type Database = {
           },
         ]
       }
+      client_consent_version_clauses: {
+        Row: {
+          clauses: Json
+          created_at: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+          version_id: string
+        }
+        Insert: {
+          clauses: Json
+          created_at?: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version_id: string
+        }
+        Update: {
+          clauses?: Json
+          created_at?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_version_clauses_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_version_clauses_version_fkey"
+            columns: ["version_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_template_versions"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
       client_consents: {
         Row: {
           answers: Json | null
@@ -10766,6 +10808,10 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_client_consent_clauses: {
+        Args: { p_version_id: string }
+        Returns: Json
+      }
       get_client_summary: { Args: { p_id: string }; Returns: Json }
       get_communications_settings: { Args: never; Returns: Json }
       get_communications_settings_for_org: {
@@ -12360,6 +12406,10 @@ export type Database = {
           p_transit_number: string
         }
         Returns: undefined
+      }
+      set_client_consent_clauses: {
+        Args: { p_clauses: Json; p_version_id: string }
+        Returns: Json
       }
       set_client_consent_rule: {
         Args: {
