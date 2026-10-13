@@ -14,12 +14,14 @@ $$, $$ values ('communications.inbox', 'communications'), ('communications.mailb
 select results_eq($$
   select r.role, r.permission_key from public.role_permissions r
    where r.permission_key in ('communications.inbox', 'communications.mailboxes_manage') order by 1, 2
-$$, $$ values ('admin', 'communications.inbox'), ('admin', 'communications.mailboxes_manage') $$,
-  'template defaults: the admin only (a default of a disabled module would block the role RPCs, see the migration)');
+$$, $$ values ('admin', 'communications.inbox'), ('admin', 'communications.mailboxes_manage'), ('admin_assistant', 'communications.inbox'),
+            ('counselor', 'communications.inbox') $$,
+  'template defaults: the inbox for admin, Adjointe and Conseillère (CC-15), the mailboxes for the admin');
 select results_eq($$
   select r.role, r.permission_key from public.org_role_permissions r
    where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.permission_key in ('communications.inbox', 'communications.mailboxes_manage') order by 1, 2
-$$, $$ values ('admin', 'communications.inbox'), ('admin', 'communications.mailboxes_manage') $$,
+$$, $$ values ('admin', 'communications.inbox'), ('admin', 'communications.mailboxes_manage'), ('admin_assistant', 'communications.inbox'),
+            ('counselor', 'communications.inbox') $$,
   'a new clinic gets the defaults');
 -- No org_modules row until an admin switches it (module_enabled reads the row's absence as off).
 select is((select coalesce(bool_or(enabled), false) from public.org_modules
