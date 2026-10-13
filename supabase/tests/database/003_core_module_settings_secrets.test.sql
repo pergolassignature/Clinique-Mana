@@ -188,6 +188,8 @@ select functions_are('public', array[
   'invoice_waitlist_fee',
   -- Demandes, batch D4 (the matching panel).
   'match_professionals_for_demande',
+  -- Demandes, batch D5 (the availability board; Professionnels' places from it).
+  'list_professional_capacity', 'set_professional_new_client_places',
   -- Facturation: the GOrendezvous import (I3).
   'import_invoice',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
