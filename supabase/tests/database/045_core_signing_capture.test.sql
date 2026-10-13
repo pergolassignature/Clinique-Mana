@@ -322,9 +322,11 @@ $$, $$ values ('c0000000-0000-0000-0000-0000000000d1:envelope_706'::text, false)
               ('c0000000-0000-0000-0000-0000000000d1:envelope_708', true) $$,
   'one notice per envelope of the request');
 
-select lives_ok($$ select private.run_sql_job('core.signing_unsaved_alert') $$, 'run_sql_job runs it');
+-- Run by hand (`manual`) and read back by that trigger: the real hourly run (pg_cron, at :55) may
+-- commit its own `cron` row while this file runs.
+select lives_ok($$ select private.run_sql_job('core.signing_unsaved_alert', 'manual') $$, 'run_sql_job runs it');
 select results_eq($$
-  select status, detail from public.scheduled_job_runs where job_key = 'core.signing_unsaved_alert'
+  select status, detail from public.scheduled_job_runs where job_key = 'core.signing_unsaved_alert' and trigger = 'manual'
 $$, $$ values ('ok'::text,
   'notified=0 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0'::text) $$,
   'and logs an ok run with its counts');
