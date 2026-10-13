@@ -27,9 +27,21 @@ const mocks = vi.hoisted(() => ({
     restoreAvailabilityRule: vi.fn(),
     addAvailabilityException: vi.fn(),
   },
+  changes: {
+    changeAppointmentService: vi.fn(),
+    restoreAppointment: vi.fn(),
+    confirmAppointment: vi.fn(),
+    fetchAppointmentConsents: vi.fn(),
+    fetchBookingConsents: vi.fn(),
+  },
+  messages: { fetchWithoutReminder: vi.fn() },
+  history: { fetchAppointmentHistory: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../api/agenda', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/agenda')>()), ...mocks.api }))
+vi.mock('../api/changes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/changes')>()), ...mocks.changes }))
+vi.mock('../api/messages', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/messages')>()), ...mocks.messages }))
+vi.mock('../api/history', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/history')>()), ...mocks.history }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 vi.mock('@/modules/clients', () => ({
@@ -47,7 +59,10 @@ const AVAILABILITY = '/agenda?date=2027-03-15&mode=disponibilites&professionnel=
 
 const REFERENCE: AgendaReference = {
   professionals: [{ id: 'p1', name: 'Félix Gauthier', active: true, titleIds: ['t1'] }],
-  services: [{ id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'] }],
+  services: [
+    { id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'] },
+    { id: 's30', code: 10130, name: 'Consultation individuelle 30 min', durationMinutes: 30, bufferAfterMinutes: 0, forTwo: false, colour: null, titleIds: ['t1'] },
+  ],
   reasons: [{ id: 'r1', key: 'not_specified', name: 'Non spécifiée', active: true }],
 }
 
@@ -108,6 +123,13 @@ beforeEach(() => {
   mocks.api.deleteAvailabilityRule.mockResolvedValue(undefined)
   mocks.api.restoreAvailabilityRule.mockResolvedValue('w1b')
   mocks.api.addAvailabilityException.mockResolvedValue('x1')
+  mocks.changes.changeAppointmentService.mockResolvedValue(undefined)
+  mocks.changes.restoreAppointment.mockResolvedValue(undefined)
+  mocks.changes.confirmAppointment.mockResolvedValue(undefined)
+  mocks.changes.fetchAppointmentConsents.mockResolvedValue([])
+  mocks.changes.fetchBookingConsents.mockResolvedValue([])
+  mocks.messages.fetchWithoutReminder.mockResolvedValue([])
+  mocks.history.fetchAppointmentHistory.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -138,9 +160,9 @@ describe('AgendaPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByRole('button', { name: '10:00, Alice Essai' })
-    // Tuesday's column, 11:30 (7:00 + 4.5 h at 48 px per hour).
+    // Tuesday's column, 11:30 (6:00 + 5.5 h at 48 px per hour).
     const column = screen.getByTestId('agenda-column-2027-03-16')
-    fireEvent.click(column, { clientY: 4.5 * 48 + 1 })
+    fireEvent.click(column, { clientY: 5.5 * 48 + 1 })
     const sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
     expect(within(sheet).getByLabelText(/^Heure/)).toHaveValue('11:30')
     await user.selectOptions(within(sheet).getByLabelText(/^Service/), 's50')
@@ -246,12 +268,12 @@ describe('AgendaPage', () => {
   it('a drag on an empty part of a day draws a window, saved at once with the defaults, then told with « Annuler »', async () => {
     renderPage({ path: AVAILABILITY })
     await screen.findByRole('button', { name: t(`${A}.windowLabel`, { start: '09:00', end: '17:00' }) })
-    // Tuesday from 9:00 (2 h below 7:00 at 48 px an hour) to 12:00 (5 h).
+    // Tuesday from 9:00 (3 h below 6:00 at 48 px an hour) to 12:00 (6 h).
     const column = screen.getByTestId('agenda-column-2027-03-16')
-    fireEvent.pointerDown(column, { clientY: 2 * 48 + 1, button: 0, pointerId: 1 })
-    fireEvent.pointerMove(column, { clientY: 5 * 48, pointerId: 1 })
+    fireEvent.pointerDown(column, { clientY: 3 * 48 + 1, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(column, { clientY: 6 * 48, pointerId: 1 })
     expect(screen.getByTestId('availability-ghost')).toHaveTextContent('9 h – 12 h')
-    fireEvent.pointerUp(column, { clientY: 5 * 48, pointerId: 1 })
+    fireEvent.pointerUp(column, { clientY: 6 * 48, pointerId: 1 })
     await waitFor(() =>
       expect(mocks.api.setAvailabilityWindow).toHaveBeenCalledWith({
         id: null,
@@ -325,9 +347,9 @@ describe('AgendaPage', () => {
     await screen.findByRole('button', { name: t(`${A}.windowLabel`, { start: '09:00', end: '17:00' }) })
     await user.click(screen.getByRole('button', { name: t(`${D}.toolBlock`) }))
     const column = screen.getByTestId('agenda-column-2027-03-17')
-    fireEvent.pointerDown(column, { clientY: 3 * 48, button: 0, pointerId: 4 })
-    fireEvent.pointerMove(column, { clientY: 4 * 48, pointerId: 4 })
-    fireEvent.pointerUp(column, { clientY: 4 * 48, pointerId: 4 })
+    fireEvent.pointerDown(column, { clientY: 4 * 48, button: 0, pointerId: 4 })
+    fireEvent.pointerMove(column, { clientY: 5 * 48, pointerId: 4 })
+    fireEvent.pointerUp(column, { clientY: 5 * 48, pointerId: 4 })
     // Wednesday 10:00–11:00 in Montréal (EDT).
     await waitFor(() =>
       expect(mocks.api.addAvailabilityException).toHaveBeenCalledWith({
@@ -343,6 +365,165 @@ describe('AgendaPage', () => {
     renderPage({ path: AVAILABILITY })
     await user.click(await screen.findByRole('button', { name: t(`${D}.addWindow`) }))
     expect(await screen.findByRole('dialog', { name: t(`${D}.newTitle`) })).toBeInTheDocument()
+  })
+
+  describe('the parity audit (AP-28 … AP-32)', () => {
+    it('« Changer le service »: the same moment, the new service; an overlap is shown as written', async () => {
+      const user = userEvent.setup()
+      mocks.changes.changeAppointmentService.mockRejectedValueOnce({ code: 'P0001', hint: 'overlap', message: 'Ce professionnel a déjà un rendez-vous sur ce créneau (pause après comprise).' })
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      const service = within(sheet).getByRole('combobox', { name: /^Service/ })
+      expect(service).toHaveValue('s50')
+      const submit = within(sheet).getByRole('button', { name: t(`${E}.changeService`) })
+      expect(submit).toHaveAttribute('aria-disabled', 'true')
+      await user.selectOptions(service, 's30')
+      expect(within(sheet).getByText(t(`${E}.serviceHelp`, { duration: '30', buffer: '0' }))).toBeInTheDocument()
+      await user.click(submit)
+      expect(await within(sheet).findByText('Ce professionnel a déjà un rendez-vous sur ce créneau (pause après comprise).')).toBeInTheDocument()
+      await user.click(submit)
+      await waitFor(() => expect(mocks.changes.changeAppointmentService).toHaveBeenLastCalledWith('a1', 's30', null))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.appointments.saved.serviceChanged')))
+    })
+
+    it('« Marquer confirmé » on a booked appointment (the staff)', async () => {
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('button', { name: t(`${E}.markConfirmed`) }))
+      await waitFor(() => expect(mocks.changes.confirmAppointment).toHaveBeenCalledWith('a1'))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.appointments.saved.confirmed')))
+    })
+
+    it('a confirmed appointment offers no « Marquer confirmé »', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'confirmed' })])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      expect(within(sheet).queryByRole('button', { name: t(`${E}.markConfirmed`) })).not.toBeInTheDocument()
+    })
+
+    it('« Rétablir » a cancelled appointment still to come; a taken slot is shown as written', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'cancelled', cancelReasonId: 'r1', startsAt: '2099-03-16T14:00:00Z', endsAt: '2099-03-16T14:50:00Z' })])
+      mocks.changes.restoreAppointment.mockRejectedValueOnce({ code: 'P0001', hint: 'overlap', message: 'Le créneau est maintenant pris : ce rendez-vous ne peut pas être rétabli.' })
+      renderPage({ path: '/agenda?date=2099-03-16&professionnel=p1' })
+      await user.click(await screen.findByRole('button', { name: /Alice Essai/ }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('tab', { name: t(`${E}.tabs.cancel`) }))
+      const restore = within(sheet).getByRole('button', { name: t(`${E}.restore`) })
+      await user.click(restore)
+      expect(await within(sheet).findByText('Le créneau est maintenant pris : ce rendez-vous ne peut pas être rétabli.')).toBeInTheDocument()
+      await user.click(restore)
+      await waitFor(() => expect(mocks.changes.restoreAppointment).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.appointments.saved.restored')))
+    })
+
+    it('a past cancelled appointment: no « Rétablir », the reason said', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'cancelled', cancelReasonId: 'r1', startsAt: '2026-01-05T15:00:00Z', endsAt: '2026-01-05T15:50:00Z' })])
+      renderPage({ path: '/agenda?date=2026-01-05&professionnel=p1' })
+      await user.click(await screen.findByRole('button', { name: /Alice Essai/ }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('tab', { name: t(`${E}.tabs.cancel`) }))
+      expect(within(sheet).getByText(t(`${E}.restorePast`))).toBeInTheDocument()
+      expect(within(sheet).queryByRole('button', { name: t(`${E}.restore`) })).not.toBeInTheDocument()
+    })
+
+    it('the consents still to sign: on the appointment and at booking, by name; never blocking', async () => {
+      const user = userEvent.setup()
+      mocks.changes.fetchAppointmentConsents.mockResolvedValue([
+        { clientId: 'c1', consentKey: 'general', consentName: 'Consentement général', state: 'missing' },
+        { clientId: 'c1', consentKey: 'waitlist', consentName: 'Liste d’attente', state: 'signed' },
+      ])
+      mocks.changes.fetchBookingConsents.mockResolvedValue([{ clientId: 'c1', consentKey: 'general', consentName: 'Consentement général', state: 'pending' }])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      let sheet = await screen.findByRole('dialog')
+      const C = `${E}.consents`
+      expect(await within(sheet).findByText(t(`${C}.line`, { name: 'Consentement général', state: t(`${C}.state.missing`) }))).toBeInTheDocument()
+      expect(within(sheet).queryByText(/Liste d’attente/)).not.toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await user.click(screen.getByRole('button', { name: t(`${A}.new`) }))
+      sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
+      await user.selectOptions(within(sheet).getByLabelText(/^Service/), 's50')
+      await user.click(within(sheet).getByRole('button', { name: 'Choisir Alice' }))
+      expect(await within(sheet).findByText(t(`${C}.line`, { name: 'Consentement général', state: t(`${C}.state.pending`) }))).toBeInTheDocument()
+      expect(mocks.changes.fetchBookingConsents).toHaveBeenLastCalledWith('s50', ['c1'])
+      await user.click(within(sheet).getByRole('button', { name: t(`${E}.book`) }))
+      await waitFor(() => expect(mocks.api.bookAppointment).toHaveBeenCalled())
+    })
+
+    it('« Clients sans rappel »: « Marquer confirmé » after the call; a confirmed one says so', async () => {
+      const user = userEvent.setup()
+      mocks.messages.fetchWithoutReminder.mockResolvedValue([
+        { id: 'a1', professionalId: 'p1', startsAt: '2027-03-15T14:00:00Z', participants: [{ clientId: 'c1', name: 'Alice Essai', clientNumber: 1 }], confirmed: false },
+        { id: 'a2', professionalId: 'p1', startsAt: '2027-03-16T14:00:00Z', participants: [{ clientId: 'c2', name: 'Marc Essai', clientNumber: 2 }], confirmed: true },
+      ])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: t('modules.appointments.withoutReminder.title') }))
+      const sheet = await screen.findByRole('dialog', { name: t('modules.appointments.withoutReminder.title') })
+      expect(within(sheet).getByText(t('modules.appointments.withoutReminder.confirmedBadge'))).toBeInTheDocument()
+      await user.click(within(sheet).getByRole('button', { name: t('modules.appointments.withoutReminder.markConfirmedLabel', { name: 'Alice Essai' }) }))
+      await waitFor(() => expect(mocks.changes.confirmAppointment).toHaveBeenCalledWith('a1'))
+    })
+  })
+
+  describe('the grid, part 2 (AP-33)', () => {
+    it('an appointment outside 6:00–22:00 widens the grid: never hidden, drawn with its height', async () => {
+      // Monday 2027-03-15 at 5:00 and 22:30 in Montréal (EDT).
+      mocks.api.fetchAgenda.mockResolvedValue([
+        appointment({ id: 'early', startsAt: '2027-03-15T09:00:00Z', endsAt: '2027-03-15T09:50:00Z' }),
+        appointment({ id: 'late', startsAt: '2027-03-16T02:30:00Z', endsAt: '2027-03-16T03:20:00Z' }),
+      ])
+      renderPage()
+      const early = await screen.findByRole('button', { name: '05:00, Alice Essai' })
+      const late = screen.getByRole('button', { name: '22:30, Alice Essai' })
+      expect(early.style.top).toBe('0px')
+      expect(early.style.height).toBe('40px')
+      // 5:00 to 24:00 at 48 px an hour: 22:30 is 17.5 h below 5:00.
+      expect(late.style.top).toBe(`${17.5 * 48}px`)
+      expect(screen.getByTestId('agenda-column-2027-03-15').style.height).toBe(`${19 * 48}px`)
+    })
+
+    it("a service with a colour marks the block's left edge", async () => {
+      mocks.api.fetchAgendaReference.mockResolvedValue({ ...REFERENCE, services: [{ ...REFERENCE.services[0]!, colour: '#2f855a' }] })
+      renderPage()
+      const block = await screen.findByRole('button', { name: '10:00, Alice Essai' })
+      expect(block.style.borderLeftColor).toBe('#2f855a')
+      expect(block.style.borderLeftWidth).toBe('4px')
+    })
+
+    it('`rendez-vous=<id>` opens the appointment (a link from the client file); closing it drops the parameter', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([appointment({ id: '00000000-0000-4000-8000-0000000000a1' })])
+      renderPage({ path: '/agenda?date=2027-03-15&professionnel=p1&rendez-vous=00000000-0000-4000-8000-0000000000a1' })
+      expect(await screen.findByRole('dialog', { name: 'Alice Essai' })).toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+
+    it('« Historique »: who did what, by day, in plain words', async () => {
+      const user = userEvent.setup()
+      mocks.history.fetchAppointmentHistory.mockResolvedValue([
+        { id: 2, created_at: '2027-03-10T15:00:00Z', table_name: 'appointments', record_id: 'a1', action: 'update',
+          changed_fields: { state: { before: 'booked', after: 'confirmed' }, updated_at: { before: 'x', after: 'y' } }, actor_id: 'u1', actor_name: 'Rachel Essai', actor_role: 'counselor', source: 'rpc:confirm_appointment' },
+        { id: 1, created_at: '2027-03-09T15:00:00Z', table_name: 'appointments', record_id: 'a1', action: 'insert',
+          changed_fields: { service_id: 's50', professional_id: 'p1', internal_note: '(masqué)' }, actor_id: 'u1', actor_name: 'Rachel Essai', actor_role: 'counselor', source: 'app' },
+      ])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('tab', { name: t(`${E}.tabs.history`) }))
+      expect(await within(sheet).findAllByText('Rachel Essai')).toHaveLength(2)
+      expect(within(sheet).getByText('Félix Gauthier', { selector: 'li span' })).toBeInTheDocument()
+      expect(within(sheet).getByText(/10150 · Consultation individuelle 50 min/)).toBeInTheDocument()
+      expect(mocks.history.fetchAppointmentHistory).toHaveBeenCalledWith('a1', null)
+    })
   })
 
   it('the adjointe books too', async () => {

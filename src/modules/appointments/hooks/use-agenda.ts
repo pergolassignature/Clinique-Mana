@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t, type TranslationKey } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
 import { moduleErrorMessage, rpcErrorCode } from '@/core/modules/errors'
@@ -30,6 +30,17 @@ import {
   type SeriesInput,
   type SeriesRule,
 } from '../api/agenda'
+import {
+  changeAppointmentService,
+  confirmAppointment,
+  fetchAgendaSettings,
+  fetchAppointmentConsents,
+  fetchBookingConsents,
+  restoreAppointment,
+  saveAgendaSettings,
+  type AgendaSettings,
+} from '../api/changes'
+import { APPOINTMENT_HISTORY_PAGE_SIZE, fetchAppointmentHistory } from '../api/history'
 import { fetchWithoutReminder } from '../api/messages'
 import type { AppointmentMode, Presence } from '../api/parse'
 import { appointmentsKeys } from './keys'
@@ -144,3 +155,49 @@ export const useSaveAvailabilityRule = (feedback?: MutationFeedback) => useAgend
 export const useDeleteAvailabilityRule = (feedback?: MutationFeedback) => useAgendaMutation((id: string) => deleteAvailabilityRule(id), `${S}.ruleDeleted`, feedback)
 export const useAddException = (feedback?: MutationFeedback) => useAgendaMutation((input: ExceptionInput) => addAvailabilityException(input), `${S}.exception`, feedback)
 export const useRemoveException = (feedback?: MutationFeedback) => useAgendaMutation((id: string) => removeAvailabilityException(id), `${S}.exceptionRemoved`, feedback)
+
+// --- The parity audit's gaps (AP-28 … AP-32) ------------------------------------------------------
+
+export const useChangeService = (feedback?: MutationFeedback) =>
+  useAgendaMutation(
+    ({ id, serviceId, outsideAvailabilityReason }: { id: string; serviceId: string; outsideAvailabilityReason: string | null }) =>
+      changeAppointmentService(id, serviceId, outsideAvailabilityReason),
+    `${S}.serviceChanged`,
+    feedback,
+  )
+export const useRestoreAppointment = (feedback?: MutationFeedback) => useAgendaMutation((id: string) => restoreAppointment(id), `${S}.restored`, feedback)
+export const useConfirmAppointment = (feedback?: MutationFeedback) => useAgendaMutation((id: string) => confirmAppointment(id), `${S}.confirmed`, feedback)
+export const useSaveAgendaSettings = (feedback?: MutationFeedback) => useAgendaMutation((s: AgendaSettings) => saveAgendaSettings(s), `${S}.settings`, feedback)
+
+/** The consents an appointment requires (shown, never blocking: R-47). */
+export function useAppointmentConsents(appointmentId: string | null) {
+  return useQuery({
+    queryKey: appointmentsKeys.consents(appointmentId ?? ''),
+    queryFn: () => fetchAppointmentConsents(appointmentId ?? ''),
+    enabled: appointmentId !== null,
+  })
+}
+
+/** The consents a booking would require, once a service and a client are chosen. */
+export function useBookingConsents(serviceId: string, clientIds: readonly string[]) {
+  return useQuery({
+    queryKey: appointmentsKeys.bookingConsents(serviceId, clientIds),
+    queryFn: () => fetchBookingConsents(serviceId, clientIds),
+    enabled: serviceId !== '' && clientIds.length > 0,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** An appointment's « Historique », 50 rows a page (keyset on the audit id), read when the tab opens. */
+export function useAppointmentHistory(id: string) {
+  return useInfiniteQuery({
+    queryKey: appointmentsKeys.history(id),
+    queryFn: ({ pageParam }) => fetchAppointmentHistory(id, pageParam),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.length < APPOINTMENT_HISTORY_PAGE_SIZE ? undefined : (last.at(-1)?.id ?? undefined)),
+  })
+}
+
+export function useAgendaSettings() {
+  return useQuery({ queryKey: appointmentsKeys.settings(), queryFn: fetchAgendaSettings })
+}

@@ -8888,7 +8888,8 @@
             "business_start": "Ouverture",
             "business_end": "Fermeture",
             "reminder_business_days": "Rappel (jours ouvrables avant)",
-            "reminder_local_hour": "Heure d'envoi des rappels"
+            "reminder_local_hour": "Heure d'envoi des rappels",
+            "late_notice_business_hours": "Préavis compté en heures ouvrables"
           },
           "professional_video_links": {
             "professional_id": "Professionnel",
@@ -9145,7 +9146,11 @@
         "exceptionRemoved": "Exception retirée.",
         "series": "Série réservée.",
         "seriesCancelled": "Rendez-vous de la série annulés.",
-        "personal": "Rendez-vous personnel ajouté."
+        "personal": "Rendez-vous personnel ajouté.",
+        "serviceChanged": "Service changé.",
+        "restored": "Rendez-vous rétabli.",
+        "confirmed": "Rendez-vous marqué confirmé.",
+        "settings": "Réglages de l’agenda enregistrés."
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
@@ -9225,7 +9230,8 @@
         "tabs": {
           "appointment": "Rendez-vous",
           "notes": "Notes",
-          "cancel": "Annulation"
+          "cancel": "Annulation",
+          "history": "Historique"
         },
         "presence": "Présence",
         "presenceOf": "Présence de {name}",
@@ -9280,6 +9286,36 @@
           "failed": "La création de la réunion Zoom a échoué.",
           "retry": "Réessayer",
           "none": "Aucun lien vidéo : ce professionnel n'a ni Zoom connecté ni lien fixe."
+        },
+        "serviceSection": "Service du rendez-vous",
+        "serviceHelp": "Même date, même heure : la durée suit le service ({duration} min, pause de {buffer} min). Le client reçoit un avis de modification.",
+        "changeService": "Changer le service",
+        "changingService": "Changement…",
+        "markConfirmed": "Marquer confirmé",
+        "markConfirmedHelp": "Après un appel au client : le rendez-vous passe à « Confirmé ».",
+        "restore": "Rétablir le rendez-vous",
+        "restoreHelp": "Il redevient « Réservé » à la même heure si le créneau est encore libre, et le client reçoit un avis de modification.",
+        "restoring": "Rétablissement…",
+        "restorePast": "Un rendez-vous passé ne se rétablit pas : réservez-en un nouveau au besoin.",
+        "consents": {
+          "title": "Consentements requis",
+          "help": "Le rendez-vous se réserve quand même : envoyez le consentement depuis le dossier du client.",
+          "line": "{name} : {state}",
+          "lineFor": "{client} — {name} : {state}",
+          "loadError": "Les consentements requis ne se chargent pas.",
+          "state": {
+            "missing": "manquant",
+            "pending": "envoyé, pas encore signé",
+            "resign": "à signer de nouveau"
+          }
+        },
+        "history": {
+          "loadError": "L’historique du rendez-vous ne se charge pas.",
+          "empty": "Rien à afficher pour ce rendez-vous.",
+          "system": "Le système",
+          "arrow": " → ",
+          "loadMore": "Charger plus",
+          "loadingMore": "Chargement…"
         }
       },
       "availability": {
@@ -9355,7 +9391,10 @@
         "title": "Clients sans rappel",
         "description": "Les rendez-vous des 7 prochains jours dont personne ne peut recevoir de rappel (aucun courriel, aucun texto autorisé) : appelez ces clients.",
         "empty": "Tous les clients des 7 prochains jours recevront un rappel.",
-        "loadError": "La liste des clients sans rappel ne se charge pas."
+        "loadError": "La liste des clients sans rappel ne se charge pas.",
+        "markConfirmed": "Marquer confirmé",
+        "markConfirmedLabel": "Marquer confirmé le rendez-vous de {name}",
+        "confirmedBadge": "Confirmé"
       },
       "visits": {
         "title": "Rendez-vous",
@@ -9367,7 +9406,8 @@
         "more": "Afficher plus",
         "cancelled": "Annulé : {reason}",
         "cancelledLate": "Annulé tard : {reason}",
-        "loadError": "Les rendez-vous du client ne se chargent pas."
+        "loadError": "Les rendez-vous du client ne se chargent pas.",
+        "openLabel": "Ouvrir le rendez-vous du {when} dans l’agenda"
       },
       "personal": {
         "title": "Rendez-vous personnel",
@@ -9400,6 +9440,33 @@
         "already": "Your attendance at this appointment is already confirmed.",
         "invalid": "This link can no longer be used. For any question, please call the clinic.",
         "error": "The confirmation could not be saved. Please try again in a moment or call the clinic."
+      },
+      "settings": {
+        "title": "Agenda",
+        "description": "Les heures d’ouverture de la clinique, l’envoi des rappels et le préavis d’annulation.",
+        "loadError": "Les réglages de l’agenda ne se chargent pas.",
+        "hoursTitle": "Heures d’ouverture et rappels",
+        "hoursDescription": "Les jours ouvrables comptent pour les rappels (la veille ouvrable) et pour le préavis d’annulation. Ils ne limitent pas les réservations.",
+        "businessDays": "Jours ouvrables",
+        "weekdays": {
+          "1": "Lundi",
+          "2": "Mardi",
+          "3": "Mercredi",
+          "4": "Jeudi",
+          "5": "Vendredi",
+          "6": "Samedi",
+          "7": "Dimanche"
+        },
+        "businessStart": "Ouverture",
+        "businessEnd": "Fermeture",
+        "reminderDays": "Rappel (jours ouvrables avant)",
+        "reminderDaysHelp": "De 1 à 5 jours ouvrables avant le rendez-vous.",
+        "reminderHour": "Heure d’envoi des rappels",
+        "reminderHourHelp": "De 0 à 23 h, heure de la clinique.",
+        "lateNotice": "Préavis compté en heures ouvrables",
+        "lateNoticeHelp": "Les jours non ouvrables ne comptent pas : avec 24 h de préavis, un rendez-vous du lundi 10 h s’annule au plus tard le vendredi 10 h. Sinon, les heures du calendrier.",
+        "daysRequired": "Choisissez au moins un jour ouvrable.",
+        "invalid": "Indiquez un nombre entier dans les limites."
       }
     },
     "billing": {

@@ -24,12 +24,17 @@ import { Textarea } from '@/shared/ui/textarea'
 import type { AgendaReference, SeriesRule } from '../api/agenda'
 import { MODES, PRESENCES, type AgendaAppointment, type AppointmentMode, type Presence } from '../api/parse'
 import {
+  useAppointmentConsents,
   useAppointmentDetail,
   useBookAppointment,
+  useBookingConsents,
   useCancelAppointment,
   useCancelSeriesFrom,
+  useChangeService,
+  useConfirmAppointment,
   useCreateSeries,
   useMoveAppointment,
+  useRestoreAppointment,
   useSeriesPreview,
   useSetAppointmentDetails,
   useSetPresence,
@@ -37,6 +42,8 @@ import {
 import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVariant, stateLabel } from '../lib/display'
 import { isoWeekday } from '../lib/time'
 import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
+import { AppointmentHistory } from './AppointmentHistory'
+import { ConsentsNotice } from './ConsentsNotice'
 import { SeriesFields } from './SeriesFields'
 import { VideoSection } from './VideoSection'
 
@@ -57,6 +64,8 @@ const OUTSIDE = 'outside_availability'
  * « Annulation » (in-sheet tabs, out of the tab order). The database checks every rule: a slot
  * outside the availability offers « Hors disponibilités » with a reason to the staff (AP-12), a
  * client with a balance the override to who holds it (R-58); every other refusal shows here.
+ * Since the parity audit: « Changer le service » (AP-28), « Rétablir » (AP-29), « Marquer
+ * confirmé » (AP-30), and the consents still to sign, at booking and on the appointment (AP-32).
  */
 export function AppointmentSheet({ target, reference, onClose }: { target: SheetTarget; reference: AgendaReference; onClose: () => void }) {
   // A form with changes asks before the sheet closes (CLAUDE.md §8).
@@ -161,6 +170,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   }
   const book = useBookAppointment(feedback)
   const createSeries = useCreateSeries(feedback)
+  const consents = useBookingConsents(serviceId, clients.map((c) => c.id))
   const service = services.find((s) => s.id === serviceId)
   const needed = service?.forTwo ? 2 : 1
   // The series' rule once complete: its dates and conflicts come from the database.
@@ -283,6 +293,9 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
             </Suspense>
           )}
         </section>
+        {serviceId && clients.length > 0 && (
+          <ConsentsNotice consents={consents.data} failed={consents.isError} clientName={(id) => clients.find((c) => c.id === id)?.name ?? ''} />
+        )}
         <FormField label={t(`${E}.internalNote`)} width="full" help={t(`${E}.internalNoteHelp`)}>
           {(field) => <Textarea {...field} value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={5000} />}
         </FormField>
@@ -314,7 +327,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   )
 }
 
-type EditTab = 'appointment' | 'notes' | 'cancel'
+type EditTab = 'appointment' | 'notes' | 'cancel' | 'history'
 
 /** A personal appointment (AP-17): its professional takes it off her agenda (a cancellation, « Non spécifiée »). */
 function PersonalCancel({ id, onDone }: { id: string; onDone: () => void }) {
@@ -367,7 +380,7 @@ function EditPanel({
       </SheetHeader>
       {!a.isPersonal && (
         <NavTabs className="px-6">
-          {(['appointment', 'notes', 'cancel'] as const).map((key) => (
+          {(['appointment', 'notes', 'cancel', 'history'] as const).map((key) => (
             <NavTab key={key} active={tab === key} onClick={() => key !== tab && confirmLeave(() => setTab(key))}>
               {t(`${E}.tabs.${key}`)}
             </NavTab>
@@ -375,12 +388,102 @@ function EditPanel({
         </NavTabs>
       )}
       <SheetBody className="space-y-4">
-        {tab === 'appointment' && <AppointmentTab key={a.startsAt} appointment={a} move={move} reference={reference} open={open} />}
+        {tab === 'appointment' && !a.isPersonal && a.state !== 'cancelled' && a.state !== 'completed' && <AppointmentConsents appointment={a} />}
+        {tab === 'appointment' && <AppointmentTab key={`${a.startsAt}|${a.serviceId ?? ''}`} appointment={a} move={move} reference={reference} open={open} />}
         {a.isPersonal && open && <PersonalCancel id={a.id} onDone={onClose} />}
         {tab === 'notes' && <NotesTab appointment={a} />}
         {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
+        {tab === 'history' && <AppointmentHistory appointment={a} reference={reference} />}
       </SheetBody>
     </div>
+  )
+}
+
+/** The consents this appointment still needs (AP-32), per client by name when there are two. */
+function AppointmentConsents({ appointment: a }: { appointment: AgendaAppointment }) {
+  const consents = useAppointmentConsents(a.id)
+  return <ConsentsNotice consents={consents.data} failed={consents.isError} clientName={(id) => a.participants.find((p) => p.clientId === id)?.name ?? ''} />
+}
+
+/** « Changer le service » (AP-28): the same moment, the new service's duration; the client told once. */
+function ServiceSection({ appointment: a, reference }: { appointment: AgendaAppointment; reference: AgendaReference }) {
+  const { can } = useAccess()
+  const offered = servicesFor(reference, a.professionalId).filter((s) => s.durationMinutes > 0)
+  const [serviceId, setServiceId] = useState(a.serviceId ?? '')
+  const [outside, setOutside] = useState(false)
+  const [outsideReason, setOutsideReason] = useState('')
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const change = useChangeService({
+    onErrorMessage: (msg, error) => {
+      if (rpcErrorHint(error) === OUTSIDE && can('appointments.manage')) setOutside(true)
+      setRefusal(msg)
+    },
+  })
+  const chosen = reference.services.find((s) => s.id === serviceId)
+  const changed = serviceId !== '' && serviceId !== a.serviceId
+  useUnsavedChanges(changed)
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-medium">{t(`${E}.serviceSection`)}</h3>
+      <FormField
+        label={t(`${E}.service`)}
+        width="md"
+        help={chosen ? t(`${E}.serviceHelp`, { duration: String(chosen.durationMinutes), buffer: String(chosen.bufferAfterMinutes) }) : undefined}
+      >
+        {(field) => (
+          <Select {...field} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+            {offered.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.code} · {s.name}
+              </option>
+            ))}
+          </Select>
+        )}
+      </FormField>
+      <OverrideFields outside={outside} balance={false} outsideReason={outsideReason} balanceReason="" setOutsideReason={setOutsideReason} setBalanceReason={() => undefined} />
+      <Refusal message={refusal} />
+      <Button
+        type="button"
+        variant="outline"
+        aria-disabled={!changed || change.isPending || undefined}
+        className={softDisabledClasses}
+        onClick={() => {
+          if (!changed || change.isPending) return
+          setRefusal(null)
+          change.mutate({ id: a.id, serviceId, outsideAvailabilityReason: outside ? outsideReason.trim() || null : null })
+        }}
+      >
+        {t(change.isPending ? `${E}.changingService` : `${E}.changeService`)}
+      </Button>
+    </section>
+  )
+}
+
+/** « Marquer confirmé » (AP-30, appointments.manage): after a call, a booked appointment becomes « Confirmé ». */
+function MarkConfirmed({ appointment: a }: { appointment: AgendaAppointment }) {
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const confirm = useConfirmAppointment({ onErrorMessage: (msg) => setRefusal(msg) })
+  return (
+    <section className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-disabled={confirm.isPending || undefined}
+          className={softDisabledClasses}
+          onClick={() => {
+            if (confirm.isPending) return
+            setRefusal(null)
+            confirm.mutate(a.id)
+          }}
+        >
+          {t(`${E}.markConfirmed`)}
+        </Button>
+        <span className="text-xs text-muted-foreground">{t(`${E}.markConfirmedHelp`)}</span>
+      </div>
+      <Refusal message={refusal} />
+    </section>
   )
 }
 
@@ -453,6 +556,7 @@ function AppointmentTab({
           </ul>
         </section>
       )}
+      {a.state === 'booked' && !a.isPersonal && can('appointments.manage') && <MarkConfirmed appointment={a} />}
       {open && (
         <section className="space-y-3">
           <h3 className="text-sm font-medium">{t(`${E}.move`)}</h3>
@@ -497,6 +601,7 @@ function AppointmentTab({
           </Button>
         </section>
       )}
+      {open && !a.isPersonal && a.serviceId && <ServiceSection appointment={a} reference={reference} />}
     </>
   )
 }
@@ -563,15 +668,18 @@ function CancelTab({ appointment: a, reference, open, onDone }: { appointment: A
   if (!open) {
     const name = reference.reasons.find((r) => r.id === a.cancelReasonId)?.name
     return (
-      <div className="space-y-1 text-sm">
-        <p>
-          {a.state === 'cancelled'
-            ? t(`${E}.cancelledWith`, { reason: name ?? t(`${E}.noReason`) })
-            : a.state === 'held'
-              ? t(`${E}.heldNotice`)
-              : t(`${E}.notCancellable`)}
-        </p>
-        {detail.data?.cancelDetails && <p className="text-muted-foreground">{detail.data.cancelDetails}</p>}
+      <div className="space-y-3 text-sm">
+        <div className="space-y-1">
+          <p>
+            {a.state === 'cancelled'
+              ? t(`${E}.cancelledWith`, { reason: name ?? t(`${E}.noReason`) })
+              : a.state === 'held'
+                ? t(`${E}.heldNotice`)
+                : t(`${E}.notCancellable`)}
+          </p>
+          {detail.data?.cancelDetails && <p className="text-muted-foreground">{detail.data.cancelDetails}</p>}
+        </div>
+        {a.state === 'cancelled' && <RestoreSection appointment={a} />}
       </div>
     )
   }
@@ -614,5 +722,33 @@ function CancelTab({ appointment: a, reference, open, onDone }: { appointment: A
         {t(cancelling ? `${E}.cancelling` : `${E}.cancelSubmit`)}
       </Button>
     </form>
+  )
+}
+
+/** « Rétablir » (AP-29): a cancelled appointment still to come is booked again if its slot is free. */
+function RestoreSection({ appointment: a }: { appointment: AgendaAppointment }) {
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const restore = useRestoreAppointment({ onErrorMessage: (msg) => setRefusal(msg) })
+  // The clinic's « now » is the browser's instant; the database refuses a past one anyway.
+  const past = new Date(a.startsAt).getTime() <= Date.now()
+  if (past) return <p className="text-muted-foreground">{t(`${E}.restorePast`)}</p>
+  return (
+    <section className="space-y-2">
+      <p className="text-muted-foreground">{t(`${E}.restoreHelp`)}</p>
+      <Refusal message={refusal} />
+      <Button
+        type="button"
+        variant="outline"
+        aria-disabled={restore.isPending || undefined}
+        className={softDisabledClasses}
+        onClick={() => {
+          if (restore.isPending) return
+          setRefusal(null)
+          restore.mutate(a.id)
+        }}
+      >
+        {t(restore.isPending ? `${E}.restoring` : `${E}.restore`)}
+      </Button>
+    </section>
   )
 }

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Route, Routes } from 'react-router-dom'
 import { t } from '@/i18n'
 import { renderWithContexts } from '@/test/contexts'
+import { accessForRole, type FixtureRole } from '@/test/role-fixtures'
 import type { ClientVisit } from '../api/visits'
 import { ClientVisitsPanel } from './ClientVisitsPanel'
 
@@ -31,7 +32,7 @@ const visit = (overrides: Partial<ClientVisit>): ClientVisit => ({
   ...overrides,
 })
 
-function open() {
+function open(role?: FixtureRole) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -39,7 +40,7 @@ function open() {
         <Routes>
           <Route path="/clients/:id/:onglet" element={<ClientVisitsPanel />} />
         </Routes>,
-        { path: '/clients/c1/visites' },
+        { path: '/clients/c1/visites', ...(role && { access: { access: accessForRole(role) } }) },
       )}
     </QueryClientProvider>,
   )
@@ -62,6 +63,20 @@ describe('ClientVisitsPanel', () => {
     expect(within(past).getByText('Présent')).toBeInTheDocument()
     expect(within(past).getByText(t(`${V}.cancelledLate`, { reason: 'Plus requis' }))).toBeInTheDocument()
     expect(mocks.fetchClientVisits).toHaveBeenCalledWith('c1', null)
+  })
+
+  it('each date opens the appointment in the agenda (AP-33): « Agenda » for the staff, « Mon agenda » for a professional', async () => {
+    mocks.fetchClientVisits.mockResolvedValue([visit({ id: '00000000-0000-4000-8000-0000000000a1' })])
+    open('counselor')
+    const link = await screen.findByRole('link', { name: /^Ouvrir le rendez-vous du/ })
+    expect(link).toHaveAttribute('href', '/agenda?date=2099-03-15&vue=jour&professionnel=p1&rendez-vous=00000000-0000-4000-8000-0000000000a1')
+  })
+
+  it('… a professional to « Mon agenda »', async () => {
+    mocks.fetchClientVisits.mockResolvedValue([visit({ id: '00000000-0000-4000-8000-0000000000a1' })])
+    open('provider')
+    const link = await screen.findByRole('link', { name: /^Ouvrir le rendez-vous du/ })
+    expect(link).toHaveAttribute('href', '/mon-agenda?date=2099-03-15&vue=jour&rendez-vous=00000000-0000-4000-8000-0000000000a1')
   })
 
   it('no appointment yet', async () => {

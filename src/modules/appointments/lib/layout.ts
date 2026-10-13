@@ -1,5 +1,5 @@
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
-import { GRID_END, GRID_START, isoWeekday, minutesOf, minutesOnDay } from './time'
+import { DEFAULT_GRID, isoWeekday, minutesOf, minutesOnDay, type GridRange } from './time'
 
 /** An item placed in a day column: its minutes and its lane among overlapping ones. */
 export interface Placed<T> {
@@ -65,9 +65,9 @@ export function exceptionsOn(exceptions: readonly AvailabilityException[], profe
     .filter((e) => e.end > e.start)
 }
 
-/** Top and height of a [start, end) range in a grid of `hourHeight` px per hour, clipped to the grid. */
-export function verticalBox(start: number, end: number, hourHeight: number): { top: number; height: number } {
-  const s = Math.max(start, GRID_START)
-  const e = Math.min(end, GRID_END)
-  return { top: ((s - GRID_START) / 60) * hourHeight, height: Math.max(((e - s) / 60) * hourHeight, 0) }
+/** Top and height of a [start, end) range in a grid of `hourHeight` px per hour, clipped to the grid's `range`. */
+export function verticalBox(start: number, end: number, hourHeight: number, range: GridRange = DEFAULT_GRID): { top: number; height: number } {
+  const s = Math.max(start, range.start)
+  const e = Math.min(end, range.end)
+  return { top: ((s - range.start) / 60) * hourHeight, height: Math.max(((e - s) / 60) * hourHeight, 0) }
 }

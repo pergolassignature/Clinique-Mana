@@ -68,8 +68,8 @@ describe('MyAgendaPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByRole('heading', { level: 1, name: t('modules.appointments.mine.title') })
-    // Tuesday, 12:00 (7:00 + 5 h at 48 px per hour).
-    fireEvent.click(await screen.findByTestId('agenda-column-2027-03-16'), { clientY: 5 * 48 + 1 })
+    // Tuesday, 12:00 (6:00 + 6 h at 48 px per hour).
+    fireEvent.click(await screen.findByTestId('agenda-column-2027-03-16'), { clientY: 6 * 48 + 1 })
     const dialog = await screen.findByRole('dialog', { name: t(`${P}.title`) })
     await user.type(within(dialog).getByLabelText(/^Libellé/), 'Dentiste')
     await user.click(within(dialog).getByRole('button', { name: t(`${P}.save`) }))
