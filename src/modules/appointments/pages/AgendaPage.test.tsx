@@ -18,6 +18,9 @@ const mocks = vi.hoisted(() => ({
     fetchAppointmentDetail: vi.fn(),
     bookAppointment: vi.fn(),
     moveAppointment: vi.fn(),
+    previewSeries: vi.fn(),
+    createSeries: vi.fn(),
+    cancelSeriesFrom: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
@@ -62,6 +65,7 @@ const appointment = (overrides: Partial<AgendaAppointment> = {}): AgendaAppointm
   videoUrl: null,
   videoStatus: null,
   participants: [{ clientId: 'c1', name: 'Alice Essai', clientNumber: 1, role: 'client', presence: 'expected', confirmedAt: null }],
+  seriesId: null,
   ...overrides,
 })
 
@@ -75,6 +79,13 @@ beforeEach(() => {
   mocks.api.fetchAppointmentDetail.mockResolvedValue(null)
   mocks.api.bookAppointment.mockResolvedValue('new')
   mocks.api.moveAppointment.mockResolvedValue(undefined)
+  mocks.api.previewSeries.mockResolvedValue([
+    { occurrence: 1, startsAt: '2027-03-15T14:00:00Z', endsAt: '2027-03-15T14:50:00Z', conflict: null },
+    { occurrence: 2, startsAt: '2027-03-29T14:00:00Z', endsAt: '2027-03-29T14:50:00Z', conflict: 'overlap' },
+    { occurrence: 3, startsAt: '2027-04-12T14:00:00Z', endsAt: '2027-04-12T14:50:00Z', conflict: null },
+  ])
+  mocks.api.createSeries.mockResolvedValue('series')
+  mocks.api.cancelSeriesFrom.mockResolvedValue(2)
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -158,6 +169,42 @@ describe('AgendaPage', () => {
     expect(within(sheet).queryByRole('button', { name: t(`${E}.move`) })).not.toBeInTheDocument()
     expect(within(sheet).getByRole('combobox', { name: "Présence d'Alice Essai" })).toBeDisabled()
     expect(mocks.api.moveAppointment).not.toHaveBeenCalled()
+  })
+
+  it('a series every 2 weeks (R3): the dates and their conflict from the database, booked once the conflict is skipped', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: t(`${A}.new`) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
+    await user.selectOptions(within(sheet).getByLabelText(/^Service/), 's50')
+    await user.click(within(sheet).getByRole('button', { name: 'Choisir Alice' }))
+    await user.click(within(sheet).getByRole('checkbox', { name: t(`${E}.series.repeat`) }))
+    await user.selectOptions(within(sheet).getByLabelText(/^Fréquence/), '2')
+    expect(await within(sheet).findByText('3 dates, dont 1 en conflit.')).toBeInTheDocument()
+    expect(within(sheet).getByText(t(`${E}.series.conflict.overlap`))).toBeInTheDocument()
+    expect(mocks.api.previewSeries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ professionalId: 'p1', serviceId: 's50', intervalWeeks: 2, weekdays: [1], count: 10, until: null }),
+    )
+    const submit = within(sheet).getByRole('button', { name: 'Réserver 3 rendez-vous' })
+    expect(submit).toHaveAttribute('aria-disabled', 'true')
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Ignorer les dates en conflit (1)' }))
+    await user.click(within(sheet).getByRole('button', { name: 'Réserver 2 rendez-vous' }))
+    await waitFor(() => expect(mocks.api.createSeries).toHaveBeenCalled())
+    expect(mocks.api.createSeries.mock.calls[0]?.[0]).toMatchObject({ intervalWeeks: 2, weekdays: [1], count: 10, clientIds: ['c1'], skipConflicts: true })
+    expect(mocks.api.bookAppointment).not.toHaveBeenCalled()
+  })
+
+  it('cancels the rest of a series from one of its appointments', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchAgenda.mockResolvedValue([appointment({ seriesId: 'series' })])
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+    const sheet = await screen.findByRole('dialog')
+    await user.click(within(sheet).getByRole('tab', { name: t(`${E}.tabs.cancel`) }))
+    await user.selectOptions(within(sheet).getByLabelText(/^Raison/), 'not_specified')
+    await user.click(within(sheet).getByRole('checkbox', { name: t(`${E}.series.cancelRest`) }))
+    await user.click(within(sheet).getByRole('button', { name: t(`${E}.cancelSubmit`) }))
+    await waitFor(() => expect(mocks.api.cancelSeriesFrom).toHaveBeenCalledWith('a1', 'not_specified', null, false))
   })
 
   it('availability mode: one professional at a time', async () => {

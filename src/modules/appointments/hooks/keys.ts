@@ -8,4 +8,5 @@ export const appointmentsKeys = {
   detail: (id: string) => [...appointmentsKeys.all, 'detail', id] as const,
   reference: () => [...appointmentsKeys.all, 'reference'] as const,
   availability: (professionalIds: readonly string[], since: string) => [...appointmentsKeys.all, 'availability', professionalIds, since] as const,
+  seriesPreview: (rule: object) => [...appointmentsKeys.all, 'series-preview', rule] as const,
 }
