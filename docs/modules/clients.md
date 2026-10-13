@@ -5,15 +5,15 @@ The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): o
 | Batch | What | Status |
 |---|---|---|
 | C1 | Schema: registry, tables, RLS, audit, published views and helpers, the agreements' FK | built |
-| C2 | RPCs: duplicates, create / update / archive, relations, insurance, payers, tags, merge, search, summary, Loi 25 export and anonymisation, `client_contacts_for` | planned |
+| C2 | RPCs: duplicates, create / update / archive, relations, insurance, payers, tags, merge, search, summary, Loi 25 export and anonymisation, `client_contacts_for` | built |
 | C3 | List, « Nouveau client », record, « Mes clients » | planned |
 | C4 | Merge UI, « Confidentialité », ⌘K, e2e, this doc completed | planned |
 | C5a | Client consents: schema, RPCs, functions (part 1); UI (part 2) | part 1 built |
 | C5b | Withdrawal, copy to the client, reports, re-sign campaign | planned |
 
 - **Registry:** `modules.key = 'clients'` (migration `20261012213428_clients_module`), depends on `professionals`. It **starts disabled** in every clinic; the local seed enables it.
-- **Migrations:** `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`).
-- **Tests:** pgTAP `104_clients_module`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Migrations:** (Demandes' handlers: `20261013022645_demandes_client_handlers`) `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261013022637_clients_duplicates`, `20261013022641_clients_rpcs`.
+- **Tests:** pgTAP `104_clients_module`, `110_clients_duplicates` (the import library's cases), `111_clients_rpcs`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
 
 ## Permissions
 
@@ -52,6 +52,28 @@ Other modules read these, never the raw tables (CLAUDE.md §5):
 - **For Services et tarifs' prices:** a client's `rate_variant` is the `p_variant` and `tax_exempt` the `p_tax_exempt` of `service_price` (S-1, S-2).
 - **Coming in C2:** `search_clients`, `get_client_summary`, `client_payers_active` (Facturation), `private.client_contacts_for(client, right)` (who receives communications or invoices, on which channels).
 
+## RPCs (C2)
+
+All definer, permission first, French `P0001` with a HINT naming the field (the form puts the message under it). A merged or anonymised file refuses every write (HINT `merged` / `anonymized`).
+
+| RPC | Permission | What |
+|---|---|---|
+| `find_client_duplicates(first, last, email, phones[], birthday, exclude)` | `clients.view` | HIGH / MEDIUM candidates with reasons (I-5, CL-12), at most 10, with number, name, birthday, email, mobile, archived |
+| `create_client(client jsonb, confirm_medium)` | `clients.manage` | normalises (names trimmed, email lower case, phones to E.164, postal code `A1A 1A1`, province code), refuses a HIGH duplicate (HINT `duplicate`, « n° X »), needs `confirm_medium` for a MEDIUM one (HINT `duplicate_medium`), saves the notes, links the primary professional |
+| `update_client(id, client jsonb)` | `clients.manage` | replaces every editable field (the form sends them all; duplicates not re-checked); the notes only when their keys are present |
+| `set_client_notes(id, admin_notes, special_agreement_note)`, `archive_client`, `unarchive_client` | `clients.manage` | |
+| `set_client_relation(client, related, type, related_rights, client_rights)`, `remove_client_relation` | `clients.manage` | `type` is what the related person is to the client; rights `{main_contact, manages_appointments, receives_communications, receives_invoices}` per direction; one main contact per client (CL-14) |
+| `upsert_client_insurance(client, rank, …)`, `delete_client_insurance` | `clients.manage` | deleting the main one promotes the secondary |
+| `save_client_payer(client, id, kind, …)`, `end_client_payer(id)` | `clients.manage` | one active per kind (a second save updates it), an active IVAC file once per clinic; ended payers stay |
+| `set_client_tags(client, tag_ids[])`, `save_client_tag(id, name)`, `set_client_tag_active` | `clients.manage` | ≤ 5 active tags of the clinic's list |
+| `merge_clients(keep, merge)` | `clients.merge` | CL-15, CL-16 |
+| `search_clients(query, limit)` | `clients.view`, or `clients.self` (her linked clients) | ⌘K: every word in the name (accents ignored), the email, the number or a phone's digits; never merged or anonymised files |
+| `get_client_summary(id)` | `clients.view`; `clients.self` linked: the `my_clients` columns | the record's bundle: file, notes, relations both ways, insurance, payers, tags, professionals, merges |
+| `export_client_privacy(id)` | `clients.privacy` | the summary + `exported_at`; an `audit_log` read row (sections, never values) |
+| `anonymize_client(id)` | `clients.privacy` | CL-17; the files merged into it too, every module's copies through its handler |
+
+**For other modules:** `private.client_contacts_for(org, client, right)` (`communications`, `invoices`, `appointments`: the client herself and each relation holding the right, with her own language and channels; the caller decides what age means), `private.clients_unlink_professional(org, client, pro)` (Demandes' reassignment; a primary professional's link stays), the view **`client_payers_active`** (Facturation), and the catalogue **`client_merge_handlers`**: a module adds a row naming `private.<module>_reassign_client(old, new) → int` and the merge runs it (Professionnels' moves the « Ententes particulières », Demandes' its requests, participants and waiting-list entries; Rendez-vous and Facturation add theirs), and **`client_anonymize_handlers`** the same way for an anonymisation (`private.<module>_anonymize_client(id) → int`: Professionnels turns an agreement's label into « CLI-n » and drops its note; Demandes blanks the contact typed before the file and the participants' names).
+
 ## Rules for the other lanes
 
 - A child, each parent and a spouse are each a client; never store a guardian on the child's row. Who signs, books or pays for someone is read from the relation's rights.
@@ -62,10 +84,10 @@ Other modules read these, never the raw tables (CLAUDE.md §5):
 
 ## For C2 and the import (from the C1 review)
 
-- **Merge** (`merge_clients`): delete the relation between the two files first; for a person related to both, OR the rights into the kept file's row and drop the merged one; resolve `client_insurances` (rank), `client_payers` (one active per kind), tags (shared, > 5 combined) and links (primary key) before moving the rest; follow `merged_into_id` chains. Moving a relation side re-sorts the pair and swaps it whole (the trigger), which keeps who holds which right.
+- **Merge** (`merge_clients`, built in C2): delete the relation between the two files first; for a person related to both, OR the rights into the kept file's row and drop the merged one; resolve `client_insurances` (rank), `client_payers` (one active per kind), tags (shared, > 5 combined) and links (primary key) before moving the rest; follow `merged_into_id` chains. Moving a relation side re-sorts the pair and swaps it whole (the trigger), which keeps who holds which right.
 - **Ententes particulières:** `set_professional_client_agreement` finds the open agreement by label when `client_id` is null, and the no-overlap key is `coalesce(client_id, label)`: I1 fills `client_id` on every row of a series at once, and the RPC learns to match on `client_id` or the label in the same release; a merge re-points agreements through a Professionnels hook.
-- **Links:** they never end today; add an end (or an unlink helper) before Demandes writes links on reassignment. `clients_link_professional` moves `last_linked_at` at most once a day.
-- **Anonymisation:** `anonymize_client` deletes the relations and tag links (their audit rows would still tie the person to a relative), blanks the identity and `external_ref`; `anonymized_at` can never be cleared (trigger).
+- **Links:** `private.clients_unlink_professional` (C2) ends a link on reassignment, except the primary professional's. `clients_link_professional` moves `last_linked_at` at most once a day.
+- **Anonymisation** (built in C2): `anonymize_client` deletes the relations and tag links (their audit rows would still tie the person to a relative), blanks the identity and `external_ref`; `anonymized_at` can never be cleared (trigger).
 - **File numbers:** a transaction-level advisory lock per clinic (not the org row), also for an explicit number (the import's).
 - **Search:** at ~8 500 rows a scan is fine; C2 may add an `unaccent` expression index (Professionnels' immutable normaliser) for accent-insensitive search and the phone digit matches.
 
