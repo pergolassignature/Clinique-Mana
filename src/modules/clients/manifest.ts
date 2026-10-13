@@ -39,6 +39,12 @@ export const clientsManifest: ModuleManifest = {
       permission: 'clients.view',
       component: lazyPage(() => import('./pages/ConsentsToObtainPage'), 'ConsentsToObtainPage'),
     },
+    // FP-9: the IVAC and PAE payers to complete (the import's tags); linked from « Payeurs tiers ».
+    {
+      path: 'clients/payeurs-a-completer',
+      permission: 'clients.view',
+      component: lazyPage(() => import('./pages/PayersToCompletePage'), 'PayersToCompletePage'),
+    },
     // The tab is a URL segment: apercu, informations… (RECORD_TABS)
     { path: 'clients/:id/:onglet?', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientRecordPage'), 'ClientRecordPage') },
     { path: 'mes-clients', permission: 'clients.self', component: lazyPage(() => import('./pages/MyClientsPage'), 'MyClientsPage') },

@@ -7,19 +7,62 @@ import { t } from '@/i18n'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole, type FixtureRole } from '@/test/role-fixtures'
 import type { ClientBilling } from '../api/invoices'
+import type { ClientPayerBilling } from '../api/payers'
 import { ClientBillingPanel } from './ClientBillingPanel'
 
 const mocks = vi.hoisted(() => ({
   api: { fetchClientBilling: vi.fn(), fetchBillingNames: vi.fn(), createInvoice: vi.fn(), setDefaultPayer: vi.fn(), createManualInvoice: vi.fn() },
   queue: { setSpecialAgreement: vi.fn(), createStatement: vi.fn(), deliverNow: vi.fn() },
+  payers: { fetchClientPayersBilling: vi.fn(), setClientPayerOrganisation: vi.fn(), createPayerInvoice: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/invoices', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
 vi.mock('../api/queue', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.queue }))
+vi.mock('../api/payers', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.payers }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const C = 'modules.billing.client'
+const CP = 'modules.billing.payers.client'
+
+const PAE: ClientPayerBilling = {
+  clientPayerId: 'cp2',
+  kind: 'pae',
+  organisationName: 'Fournisseur X',
+  fileNumber: 'PAE-9',
+  isStub: false,
+  organisation: { id: 'o-pae', name: 'Fournisseur X', chosen: false, billingEmail: 'factures@x.test' },
+  periodFrom: '2026-04-01',
+  periodTo: '2027-03-31',
+  usedCents: 26000,
+  usedSessions: 3,
+  maxAmountCents: 30000,
+  maxSessions: null,
+  expired: false,
+  pendingCents: 8000,
+  options: [
+    { id: 'o-pae', name: 'Fournisseur X' },
+    { id: 'o-y', name: 'Fournisseur Y' },
+  ],
+  budgetLow: true,
+}
+const STUB: ClientPayerBilling = {
+  ...PAE,
+  clientPayerId: 'cp3',
+  kind: 'ivac',
+  organisationName: null,
+  fileNumber: null,
+  isStub: true,
+  organisation: { id: 'o-ivac', name: 'IVAC', chosen: false, billingEmail: null },
+  periodFrom: null,
+  periodTo: null,
+  usedCents: 0,
+  usedSessions: 0,
+  maxAmountCents: null,
+  pendingCents: 0,
+  options: [{ id: 'o-ivac', name: 'IVAC' }],
+  budgetLow: false,
+}
 
 const BILLING: ClientBilling = {
   defaultPayerId: 'c1',
@@ -60,6 +103,9 @@ beforeEach(() => {
   mocks.queue.setSpecialAgreement.mockResolvedValue(undefined)
   mocks.queue.createStatement.mockResolvedValue('s1')
   mocks.queue.deliverNow.mockResolvedValue({ done: 1, failed: 0 })
+  mocks.payers.fetchClientPayersBilling.mockResolvedValue([])
+  mocks.payers.setClientPayerOrganisation.mockResolvedValue(undefined)
+  mocks.payers.createPayerInvoice.mockResolvedValue('i9')
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -91,6 +137,24 @@ describe('ClientBillingPanel', () => {
     await user.click(screen.getByRole('button', { name: t(`${C}.statement.send`) }))
     await waitFor(() => expect(mocks.queue.createStatement).toHaveBeenCalledWith({ clientId: 'c1', year: expect.any(Number), payerId: 'c3', send: true }))
     await waitFor(() => expect(mocks.queue.deliverNow).toHaveBeenCalled())
+  })
+
+  it('« Payeurs tiers » (FP-8): the year\u2019s use, « Budget bas », the organisation billed, a payer invoice by hand', async () => {
+    mocks.payers.fetchClientPayersBilling.mockResolvedValue([PAE, STUB])
+    const user = userEvent.setup()
+    open()
+    const section = await screen.findByRole('region', { name: t(`${CP}.title`) })
+    expect(within(section).getByText(t(`${CP}.usedOfAmount`, { used: '260,00 $', max: '300,00 $' }))).toBeInTheDocument()
+    expect(within(section).getByText(t(`${CP}.budgetLow`))).toBeInTheDocument()
+    expect(within(section).getByText(t(`${CP}.pending`, { amount: '80,00 $' }))).toBeInTheDocument()
+    // The import's IVAC payer: to complete, no invoice by hand until it is.
+    expect(within(section).getByText(t(`${CP}.stub`))).toBeInTheDocument()
+    expect(within(section).getAllByRole('button', { name: /^Nouvelle facture à/ })).toHaveLength(1)
+    await user.selectOptions(within(section).getAllByLabelText(/^Organisme facturé/)[0]!, 'o-y')
+    await waitFor(() => expect(mocks.payers.setClientPayerOrganisation).toHaveBeenCalledWith('cp2', 'o-y'))
+    await user.click(within(section).getByRole('button', { name: t(`${CP}.createInvoice`, { organisation: 'Fournisseur X' }) }))
+    await waitFor(() => expect(mocks.payers.createPayerInvoice).toHaveBeenCalledWith('cp2'))
+    expect(await screen.findByText('Page de la facture')).toBeInTheDocument()
   })
 
   it('the conseillère reads: no creation, the payer read-only', async () => {

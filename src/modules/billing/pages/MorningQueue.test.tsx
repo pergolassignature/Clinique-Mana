@@ -80,6 +80,15 @@ describe('MorningQueue', () => {
     await waitFor(() => expect(mocks.queue.releaseDraft).toHaveBeenCalledWith('i1'))
   })
 
+  it('a payer to complete (FP-9): no « Envoyer », the dossier\u2019s « Assurance et payeurs » instead', async () => {
+    mocks.queue.fetchMorningQueue.mockResolvedValue([row('i4', 'Sam Essai', { holdReason: 'payer_incomplete' })])
+    open()
+    const link = await screen.findByRole('link', { name: t(`${Q}.completePayer`) })
+    expect(link).toHaveAttribute('href', '/clients/c-i4/assurance-et-payeurs')
+    expect(screen.getByText(t(`${Q}.holds.payer_incomplete`))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t(`${Q}.send`) })).not.toBeInTheDocument()
+  })
+
   it('the conseillère reads the queue, never sends', async () => {
     open('counselor')
     await screen.findByRole('list', { name: t(`${Q}.label`) })

@@ -137,6 +137,31 @@ describe('InvoicePage', () => {
     await waitFor(() => expect(mocks.api.setInvoicePayer).toHaveBeenCalledWith('i1', 'c3'))
   })
 
+  it('a payer\u2019s share (FP-2): its negative amount under the session, never removed by hand', async () => {
+    const base = bundle()
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...base,
+      lines: [
+        base.lines[0]!,
+        {
+          ...base.lines[0]!,
+          id: 'l9',
+          lineType: 'payer_share',
+          description: 'Part payée par l\u2019IVAC — dossier n° IV-1',
+          serviceCode: null,
+          unitPriceCents: -9450,
+          subtotalCents: -9450,
+          totalCents: -9450,
+        },
+      ],
+    })
+    open()
+    const lines = await screen.findByRole('table', { name: t(`${I}.lines`) })
+    expect(within(lines).getAllByText(/94,50/).length).toBeGreaterThan(0)
+    expect(within(lines).queryByRole('button', { name: t(`${I}.removeLine`, { description: 'Part payée par l\u2019IVAC — dossier n° IV-1' }) })).not.toBeInTheDocument()
+    expect(within(lines).getByRole('button', { name: t(`${I}.removeLine`, { description: base.lines[0]!.description }) })).toBeInTheDocument()
+  })
+
   it('an amount to type, then « Finaliser sans envoyer » numbers it (its PDF, no email)', async () => {
     const user = userEvent.setup()
     open()
