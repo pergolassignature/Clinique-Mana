@@ -11,7 +11,8 @@
 -- * else the name, among the imported files (`external_ref` « gorendezvous:… »): the same words
 --   whatever their order, case, accents and punctuation (« Tremblay, Marie-Ève » = « marie eve
 --   tremblay »), exactly one file.
--- A merged file leads to the one kept; an anonymised one is never found. Returns `status` `ok`,
+-- A merged file leads along its merges to the one kept; an anonymised file, found or kept, is
+-- never returned. Returns `status` `ok`,
 -- `not_found` or `ambiguous`, and the file's id when `ok`.
 -- =============================================================================
 
@@ -47,17 +48,28 @@ as $$
 declare
   v_ids uuid[];
 begin
-  if nullif(pg_catalog.btrim(coalesce(p_ref, '')), '') is not null then
-    select pg_catalog.array_agg(distinct coalesce(c.merged_into_id, c.id)) into v_ids
+  -- The files found, each followed along its merges to the file kept (a bounded chain), which
+  -- must not be anonymised.
+  with recursive found as (
+    select c.id
       from public.clients c
-     where c.org_id = p_org and c.external_ref = pg_catalog.btrim(p_ref) and c.anonymized_at is null;
-  else
-    select pg_catalog.array_agg(distinct coalesce(c.merged_into_id, c.id)) into v_ids
-      from public.clients c
-     where c.org_id = p_org and c.external_ref like 'gorendezvous:%' and c.anonymized_at is null
-       and private.clients_import_name_key(c.first_name, c.last_name) = private.clients_import_name_key(p_name, null)
-       and private.clients_import_name_key(p_name, null) is not null;
-  end if;
+     where c.org_id = p_org and c.anonymized_at is null
+       and case when nullif(pg_catalog.btrim(coalesce(p_ref, '')), '') is not null
+                then c.external_ref = pg_catalog.btrim(p_ref)
+                else c.external_ref like 'gorendezvous:%'
+                     and private.clients_import_name_key(p_name, null) is not null
+                     and private.clients_import_name_key(c.first_name, c.last_name) = private.clients_import_name_key(p_name, null) end
+  ), chain (start_id, id, merged_into_id, anonymized_at, depth) as (
+    select f.id, c.id, c.merged_into_id, c.anonymized_at, 0
+      from found f join public.clients c on c.id = f.id
+    union all
+    select ch.start_id, c.id, c.merged_into_id, c.anonymized_at, ch.depth + 1
+      from chain ch join public.clients c on c.org_id = p_org and c.id = ch.merged_into_id
+     where ch.depth < 20
+  )
+  select pg_catalog.array_agg(distinct ch.id) into v_ids
+    from chain ch
+   where ch.merged_into_id is null and ch.anonymized_at is null;
   if coalesce(pg_catalog.cardinality(v_ids), 0) = 0 then
     status := 'not_found';
   elsif pg_catalog.cardinality(v_ids) > 1 then

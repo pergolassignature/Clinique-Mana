@@ -8,7 +8,7 @@
 -- blocking a booking.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(28);
 
 select function_privs_are('public', 'import_invoice', array['jsonb', 'boolean'], 'authenticated', array['EXECUTE'], 'import_invoice: authenticated');
 select function_privs_are('private', f, a, 'authenticated', array[]::text[], f || ': no role')
@@ -103,6 +103,20 @@ select is(public.import_invoice(current_setting('test.row')::jsonb || '{"gorende
   'client_not_found', 'a file not imported: not found');
 select is(public.import_invoice(current_setting('test.row')::jsonb || '{"gorendezvous_number": "2025-0001300", "client_name": "Luc Homonyme", "client_ref": "gorendezvous:103"}', true) ->> 'status',
   'ok', 'the reference settles it');
+-- Merges: followed to the file kept (two steps), never to an anonymised one.
+reset role;
+insert into public.clients (id, org_id, first_name, last_name, external_ref) values
+  ('d0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'Zoé', 'Chaîne', 'gorendezvous:105'),
+  ('d0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'Zoé', 'Milieu', null),
+  ('d0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'Zoé', 'Gardée', null);
+update public.clients set merged_into_id = 'd0000000-0000-0000-0000-000000000007', archived_at = now() where id = 'd0000000-0000-0000-0000-000000000006';
+update public.clients set merged_into_id = 'd0000000-0000-0000-0000-000000000006', archived_at = now() where id = 'd0000000-0000-0000-0000-000000000005';
+select results_eq($$ select status, client_id from private.clients_import_match('b0000000-0000-0000-0000-00000000000a', null, 'Zoé Chaîne') $$,
+  $$ values ('ok'::text, 'd0000000-0000-0000-0000-000000000007'::uuid) $$, 'a chain of merges: the file kept at its end');
+update public.clients set anonymized_at = now() where id = 'd0000000-0000-0000-0000-000000000007';
+select is((private.clients_import_match('b0000000-0000-0000-0000-00000000000a', null, 'Zoé Chaîne')).status, 'not_found', 'the file kept anonymised since: not found');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 -- Refusals, in French with their field.
 select is(public.import_invoice(current_setting('test.row')::jsonb || '{"gorendezvous_number": "2025-0001301", "total_cents": 11499, "subtotal_cents": 10001}', true) -> 'errors' -> 0 ->> 'message',
   'Les lignes ne font pas le total de la facture.', 'lines that do not make the total: refused');
