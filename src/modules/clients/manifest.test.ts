@@ -26,6 +26,11 @@ describe('clientsManifest', () => {
     ])
   })
 
+  it('⌘K: the files for the staff (clients.view), loaded on demand', async () => {
+    expect(clientsManifest.search?.map((s) => [s.id, s.permission, s.minChars])).toEqual([['clients', 'clients.view', 2]])
+    expect(typeof (await clientsManifest.search?.[0]?.load())).toBe('function')
+  })
+
   it('exports the public consent page as a lazy page (nothing of it loads with the manifest)', () => {
     expect(typeof consentPublicPage.preload).toBe('function')
   })

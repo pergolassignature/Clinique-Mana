@@ -71,9 +71,9 @@ const ENTRY_FILES = {
 const restrict = (...patternSets) => ({ 'no-restricted-imports': ['error', { patterns: patternSets.flat() }] })
 
 // The PDF renderer (react-pdf, its fonts) is a chunk of its own, loaded on demand (P4-58): only
-// the professionals module's `pdf/` folder imports it, and other files reach that folder through a
+// a module's `pdf/` folder (Professionnels' fiche, Clients' Loi 25 export) imports it, and other files reach that folder through a
 // dynamic import() (or a type-only import), never a static one that would pull it into their chunk.
-const PDF_MESSAGE = 'The PDF renderer loads on demand: import @react-pdf only inside src/modules/professionals/pdf/, and that folder only with import() or `import type`.'
+const PDF_MESSAGE = 'The PDF renderer loads on demand: import @react-pdf only inside src/modules/{professionals,clients}/pdf/, and those folders only with import() or `import type`.'
 const PDF_RESTRICTIONS = {
   '@typescript-eslint/no-restricted-imports': [
     'error',
@@ -139,5 +139,5 @@ export default tseslint.config(
   { files: ENTRY_FILES.app, ignores: TESTS, rules: restrict(APP_LAYERS, ENTRY_RESTRICTIONS) },
   { files: ENTRY_FILES.modules, ignores: TESTS, rules: restrict(MODULE_LAYERS, ENTRY_RESTRICTIONS) },
   { files: ENTRY_FILES.other, ignores: TESTS, rules: restrict(ENTRY_RESTRICTIONS) },
-  { files: ['src/**/*.{ts,tsx}'], ignores: ['src/modules/professionals/pdf/**', ...TESTS], rules: PDF_RESTRICTIONS },
+  { files: ['src/**/*.{ts,tsx}'], ignores: ['src/modules/professionals/pdf/**', 'src/modules/clients/pdf/**', ...TESTS], rules: PDF_RESTRICTIONS },
 )

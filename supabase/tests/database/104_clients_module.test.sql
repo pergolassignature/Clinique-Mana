@@ -43,7 +43,9 @@ select is_empty($$
      and p.tablename in ('referral_sources', 'client_tags', 'clients', 'client_notes', 'client_relations', 'client_insurances',
                          'client_payers', 'client_tag_links', 'client_professional_links', 'client_merges')
      and p.qual not like '%has_permission(''clients.%'
-$$, 'every policy of the module carries a clients.* gate');
+     -- C4: Demandes (which depends on Clients) reads the active sources through referral_sources_catalog.
+     and not (p.policyname = 'referral_sources_select_demandes' and p.qual like '%has_permission(''demandes.view''%')
+$$, 'every policy of the module carries a clients.* gate (or, for the referral sources, Demandes'' own)');
 select is_empty($$
   select c.relname from pg_class c
    where c.relnamespace = 'public'::regnamespace

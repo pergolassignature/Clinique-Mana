@@ -346,3 +346,62 @@ export type MyClient = z.output<typeof myClientPayload>
 /** A reference row (source, tag), inactive ones included: a file may still hold one. */
 export const optionPayload = z.object({ id: z.string(), name: z.string(), is_active: z.boolean() }).transform((r) => ({ id: r.id, name: r.name, active: r.is_active }))
 export type ClientOption = z.output<typeof optionPayload>
+
+/**
+ * The Loi 25 export's sections beyond the summary (`export_client_privacy`, C4): the files merged
+ * into this one (each a summary), the consents (signed, their version, signers and answers) and when.
+ */
+export const exportExtraPayload = z
+  .object({
+    merged_files: z.array(summaryPayload),
+    consents: z.array(
+      z
+        .object({
+          consent_key: z.string(),
+          name: z.string(),
+          version_label: z.string(),
+          language: z.string(),
+          signed_at: z.string(),
+          signed_by: z.unknown(),
+          answers: z.unknown().nullable(),
+          source: z.string(),
+          superseded_at: z.string().nullable(),
+          withdrawn_at: z.string().nullable(),
+          withdrawal_note: z.string().nullable(),
+        })
+        .transform((r) => ({
+          key: r.consent_key,
+          name: r.name,
+          version: r.version_label,
+          language: r.language,
+          signedAt: r.signed_at,
+          signers: Array.isArray(r.signed_by)
+            ? r.signed_by.flatMap((s: unknown) => (typeof s === 'object' && s !== null && typeof (s as { name?: unknown }).name === 'string' ? [(s as { name: string }).name] : []))
+            : [],
+          answers: r.answers,
+          source: r.source,
+          supersededAt: r.superseded_at,
+          withdrawnAt: r.withdrawn_at,
+          withdrawalNote: r.withdrawal_note,
+        })),
+    ),
+    exported_at: z.string(),
+  })
+  .transform((r) => ({ mergedFiles: r.merged_files, consents: r.consents, exportedAt: r.exported_at }))
+export type ClientExportExtra = z.output<typeof exportExtraPayload>
+export type ClientExport = { summary: ClientSummary } & ClientExportExtra
+
+/** One row of the record's « Historique » (`list_client_history`): an `audit_log` row, as the journal reads it. */
+export const historyEntryPayload = z.object({
+  id: z.number(),
+  created_at: z.string(),
+  table_name: z.string(),
+  record_id: z.string(),
+  action: z.string(),
+  changed_fields: z.unknown().nullable(),
+  actor_id: z.string().nullable(),
+  actor_name: z.string().nullable(),
+  actor_role: z.string().nullable(),
+  source: z.string(),
+})
+export type ClientHistoryEntry = z.output<typeof historyEntryPayload>

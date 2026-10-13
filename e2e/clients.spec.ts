@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures/auth'
 
 /**
@@ -75,4 +76,67 @@ test('a professional sees « Mes clients », never the clinic list', async ({ pa
   await expect(page.getByText('Léa Gagnon-Fictive')).toBeVisible()
   await expect(page.getByText('Marc Gagnon-Fictif')).toBeHidden()
   await expect(page.getByRole('navigation').getByRole('link', { name: 'Clients', exact: true })).toBeHidden()
+})
+
+/** Creates a file through « Nouveau client » and returns its record URL. */
+async function createFile(page: Page, first: string, last: string, extra: { email?: string; birthday?: string; confirmMedium?: boolean }) {
+  await page.goto('/clients')
+  await page.getByRole('button', { name: 'Nouveau client' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Nouveau client' })
+  await sheet.getByRole('textbox', { name: /^Prénom/ }).fill(first)
+  await sheet.getByRole('textbox', { name: /^Nom/ }).fill(last)
+  if (extra.email) await sheet.getByRole('textbox', { name: /^Courriel/ }).fill(extra.email)
+  if (extra.birthday) await sheet.getByLabel(/^Date de naissance/).fill(extra.birthday)
+  if (extra.confirmMedium) await sheet.getByRole('checkbox', { name: "C'est une autre personne" }).click()
+  await sheet.getByRole('button', { name: 'Créer le dossier' }).click()
+  await expect(page).toHaveURL(/\/clients\/[0-9a-f-]{36}\/apercu$/)
+  return page.url()
+}
+
+test('C4: two files of one person are merged, the kept one keeps its history; then the Loi 25 export and anonymisation', async ({ page, signIn }) => {
+  const stamp = Date.now()
+  const first = `Fusion${stamp}`
+  await signIn('admin')
+  const kept = await createFile(page, first, 'Fictif', { email: `fusion.${stamp}@exemple.test`, birthday: '1985-05-05' })
+  // The same name and birth date: a MEDIUM duplicate, created after « C'est une autre personne ».
+  await createFile(page, first, 'Fictif', { birthday: '1985-05-05', confirmMedium: true })
+
+  // « Doublons possibles » on the second file, « Fusionner »: the older file is kept by default.
+  await expect(page.getByText('Doublons possibles : ces dossiers semblent être la même personne.')).toBeVisible()
+  await page.getByRole('button', { name: 'Fusionner', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Fusionner deux dossiers' })
+  await expect(dialog.getByText('Une fusion ne se défait pas.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Fusionner les dossiers' }).click()
+  await expect(page).toHaveURL(kept)
+  await expect(page.getByText('Dossiers fusionnés.')).toBeVisible()
+
+  // « Historique » names the merge.
+  await page.getByRole('tab', { name: 'Historique' }).click()
+  await expect(page.getByText(/Fusions de dossiers/).first()).toBeVisible()
+
+  // « Confidentialité »: the export downloads a PDF named by the number, never the name.
+  await page.getByRole('button', { name: 'Autres actions sur le dossier' }).click()
+  const download = page.waitForEvent('download')
+  await page.getByRole('menuitem', { name: 'Exporter le dossier (PDF)' }).click()
+  expect((await download).suggestedFilename()).toMatch(/^dossier-CLI-\d{6}\.pdf$/)
+
+  // « Anonymiser »: the number typed, then the file reads « Anonymisé ».
+  const number = (await page.getByText(/^CLI-\d{6}$/).first().textContent()) ?? ''
+  await page.getByRole('button', { name: 'Autres actions sur le dossier' }).click()
+  await page.getByRole('menuitem', { name: 'Anonymiser le dossier…' }).click()
+  const confirm = page.getByRole('alertdialog', { name: 'Anonymiser ce dossier ?' })
+  await confirm.getByRole('textbox').fill(number)
+  await confirm.getByRole('button', { name: 'Anonymiser' }).click()
+  await expect(page.getByText('Dossier anonymisé.')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Client anonymisé')
+})
+
+test('C4: ⌘K finds a file by name', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto('/clients')
+  await page.getByRole('banner').getByRole('button', { name: 'Rechercher' }).click()
+  const palette = page.getByRole('dialog', { name: 'Rechercher' })
+  await palette.getByRole('combobox').fill('Tremblay-Fic')
+  await palette.getByRole('option', { name: /Alice Tremblay-Fictive/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: /Alice Tremblay-Fictive/ })).toBeVisible()
 })
