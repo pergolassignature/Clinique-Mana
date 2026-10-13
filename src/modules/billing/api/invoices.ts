@@ -25,15 +25,18 @@ export function sqlArgs<F extends keyof Functions>(args: { [K in keyof RpcArgs<F
 
 export const INVOICE_STATUSES = ['draft', 'issued', 'credited'] as const
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number]
-export const LINE_TYPES = ['service', 'cancellation_fee', 'file_opening', 'adjustment', 'ivac_gap'] as const
+export const LINE_TYPES = ['service', 'cancellation_fee', 'file_opening', 'adjustment', 'ivac_gap', 'payer_share', 'payer_claim'] as const
 export type LineType = (typeof LINE_TYPES)[number]
 
 const person = z.object({ id: z.string(), name: z.string(), client_number: z.number().int().nullable() })
 const option = z.object({ id: z.string(), name: z.string(), is_self: z.boolean(), relation: z.string().nullable() })
 
-export const HOLD_REASONS = ['special_agreement', 'client_agreement', 'manual', 'price_missing', 'payer_missing'] as const
+export const HOLD_REASONS = ['special_agreement', 'client_agreement', 'manual', 'price_missing', 'payer_missing', 'payer_incomplete'] as const
 export type HoldReason = (typeof HOLD_REASONS)[number]
 export const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'] as const
+/** Who an invoice is billed to: the client, a relation, or a payer organisation (FP: IVAC, a PAE). */
+export const PAYER_KINDS = ['client', 'relation', 'organisation'] as const
+export type InvoicePayerKind = (typeof PAYER_KINDS)[number]
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 
 /** A document's deliveries, newest first (`billing_deliveries`): what the screens say of its PDF and email. */
@@ -84,6 +87,8 @@ const invoicePayload = z.object({
   payment_status: z.enum(PAYMENT_STATUSES).default('unpaid'),
   pdf_file_id: z.string().nullable().default(null),
   payer_has_email: z.boolean().default(true),
+  payer_kind: z.enum(PAYER_KINDS).default('client'),
+  payer_reference: z.string().nullable().default(null),
 })
 
 const linePayload = z.object({
@@ -196,6 +201,8 @@ const invoiceBundle = z
       paymentStatus: r.invoice.payment_status,
       pdfFileId: r.invoice.pdf_file_id,
       payerHasEmail: r.invoice.payer_has_email,
+      payerKind: r.invoice.payer_kind,
+      payerReference: r.invoice.payer_reference,
     },
     client: { id: r.client.id, name: r.client.name, clientNumber: r.client.client_number },
     payer: { id: r.payer.id, name: r.payer.name },
@@ -251,11 +258,13 @@ const listRow = z
     paid_cents: z.number().int().default(0),
     payment_status: z.enum(PAYMENT_STATUSES).default('unpaid'),
     created_at: z.string(),
+    payer_kind: z.enum(PAYER_KINDS).default('client'),
   })
   .transform((r) => ({
     id: r.id,
     number: r.number,
     status: r.status,
+    payerKind: r.payer_kind,
     paidCents: r.paid_cents,
     paymentStatus: r.payment_status,
     clientId: r.client_id,
@@ -303,6 +312,8 @@ const clientBilling = z
         payment_status: z.enum(PAYMENT_STATUSES).default('unpaid'),
         payer_client_id: z.string(),
         created_at: z.string(),
+        payer_kind: z.enum(PAYER_KINDS).default('client'),
+        payer_organisation_name: z.string().nullable().default(null),
       }),
     ),
     payments: z
@@ -376,6 +387,8 @@ const clientBilling = z
       paidCents: i.paid_cents,
       paymentStatus: i.payment_status,
       payerId: i.payer_client_id,
+      payerKind: i.payer_kind,
+      payerOrganisationName: i.payer_organisation_name,
       createdAt: i.created_at,
     })),
     toInvoice: r.to_invoice.map((a) => ({
