@@ -25,13 +25,13 @@ export function sqlArgs<F extends keyof Functions>(args: { [K in keyof RpcArgs<F
 
 export const INVOICE_STATUSES = ['draft', 'issued', 'credited'] as const
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number]
-export const LINE_TYPES = ['service', 'cancellation_fee', 'file_opening', 'adjustment', 'ivac_gap'] as const
+export const LINE_TYPES = ['service', 'cancellation_fee', 'file_opening', 'adjustment', 'ivac_gap', 'payer_share', 'payer_claim'] as const
 export type LineType = (typeof LINE_TYPES)[number]
 
 const person = z.object({ id: z.string(), name: z.string(), client_number: z.number().int().nullable() })
 const option = z.object({ id: z.string(), name: z.string(), is_self: z.boolean(), relation: z.string().nullable() })
 
-export const HOLD_REASONS = ['special_agreement', 'client_agreement', 'manual', 'price_missing', 'payer_missing'] as const
+export const HOLD_REASONS = ['special_agreement', 'client_agreement', 'manual', 'price_missing', 'payer_missing', 'payer_incomplete'] as const
 export type HoldReason = (typeof HOLD_REASONS)[number]
 export const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'] as const
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]

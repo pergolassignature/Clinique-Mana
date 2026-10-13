@@ -33,6 +33,10 @@ export const BILLING_AUDITED_TABLES = [
   'stripe_customers',
   'stripe_charges',
   'interac_notices',
+  // FP: third-party payers (IVAC, PAE).
+  'payer_organisations',
+  'billing_payer_rates',
+  'client_payer_organisations',
   'qbo_connections',
   'qbo_connection_tokens',
   'qbo_account_map',
