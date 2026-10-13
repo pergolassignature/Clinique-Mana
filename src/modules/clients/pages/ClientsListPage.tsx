@@ -1,8 +1,9 @@
-import { useId, useMemo } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { usePreferenceWriter, useUserPreference } from '@/core/preferences/hooks'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -22,6 +23,7 @@ import type { ClientListRow } from '../api/parse'
 import { CreateClientDialog } from '../components/list/CreateClientDialog'
 import { useClientsList, useClientsReference } from '../hooks/use-clients'
 import { CLIENT_STATUSES, clientPath, type ClientStatusFilter } from '../lib/constants'
+import { CLIENTS_FILTERS_PREFERENCE, filterQuery, fromRememberedFilters, toRememberedFilters } from '../lib/remembered-filters'
 import { ageOf, choices, clientNumberLabel, phoneLabel, rateVariantLabel } from '../lib/display'
 
 const L = 'modules.clients.list'
@@ -55,10 +57,28 @@ export function ClientsListPage() {
   const location = useLocation()
   const filters = readFilters(params, searchOf(location.state))
   const searchId = useId()
+  // Remembered filters (C4): on arrival with no filter in the URL, the person's saved ones are
+  // written into it; each filter she chooses is saved (debounced); a link with filters wins.
+  const preference = useUserPreference(CLIENTS_FILTERS_PREFERENCE)
+  const { schedule } = usePreferenceWriter(CLIENTS_FILTERS_PREFERENCE)
+  // The URL update is a transition: until it lands (« applying »), the list waits rather than
+  // showing every file for a moment.
+  const [phase, setPhase] = useState<'waiting' | 'applying' | 'done'>('waiting')
+  const hasFilters = filterQuery(params) !== ''
+  useEffect(() => {
+    if (phase === 'applying' && hasFilters) setPhase('done')
+    if (phase !== 'waiting' || preference.isPending) return
+    const saved = hasFilters ? null : fromRememberedFilters(preference.data)
+    if (saved) {
+      setParams(saved, { replace: true, state: location.state })
+      setPhase('applying')
+    } else setPhase('done')
+  }, [phase, preference.isPending, preference.data, hasFilters, setParams, location.state])
+  const restoring = phase === 'waiting' || (phase === 'applying' && !hasFilters)
   // The search reaches the server 250 ms after the last keystroke; the field shows what is typed.
   const debouncedQuery = useDebouncedValue(filters.query, 250)
   const query = useMemo(() => ({ ...filters, query: debouncedQuery }), [filters.status, filters.professionalId, filters.tagId, debouncedQuery]) // eslint-disable-line react-hooks/exhaustive-deps
-  const list = useClientsList(query)
+  const list = useClientsList(query, !restoring)
   const reference = useClientsReference()
   const rows = list.data?.pages.flat()
   const filtered = Boolean(filters.query || filters.professionalId || filters.tagId || filters.status !== 'active')
@@ -70,6 +90,8 @@ export function ClientsListPage() {
       else next.set(key, value)
     }
     setParams(next, { replace: true, state: q ? { q } : null })
+    setPhase('done')
+    if (filterQuery(next) !== filterQuery(params)) schedule(toRememberedFilters(next))
   }
 
   return (
@@ -134,7 +156,13 @@ export function ClientsListPage() {
               title={t(`${L}.noMatch.title`)}
               body={t(`${L}.noMatch.body`)}
               action={
-                <Button variant="outline" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setParams(new URLSearchParams(), { replace: true })
+                    schedule(null)
+                  }}
+                >
                   {t(`${L}.reset`)}
                 </Button>
               }
@@ -144,7 +172,7 @@ export function ClientsListPage() {
           )
         ) : (
           <ClientsTable
-            rows={rows ?? null}
+            rows={restoring ? null : (rows ?? null)}
             professionals={reference.data?.professionals}
             tags={reference.data?.tags}
             more={list.hasNextPage ? { loading: list.isFetchingNextPage, load: () => void list.fetchNextPage() } : null}

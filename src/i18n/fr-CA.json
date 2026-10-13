@@ -5758,7 +5758,9 @@
         "insuranceRemoved": "Assurance retirée.",
         "payer": "Payeur enregistré.",
         "payerEnded": "Payeur terminé.",
-        "tags": "Étiquettes enregistrées."
+        "tags": "Étiquettes enregistrées.",
+        "merged": "Dossiers fusionnés.",
+        "anonymized": "Dossier anonymisé."
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
@@ -5896,7 +5898,8 @@
           "medium": "Dossiers semblables : vérifiez qu'il ne s'agit pas de la même personne.",
           "open": "Ouvrir le dossier existant",
           "checking": "Recherche de dossiers semblables…",
-          "announce": "Dossiers semblables trouvés : {count}."
+          "announce": "Dossiers semblables trouvés : {count}.",
+          "pick": "Choisir ce dossier"
         },
         "reasons": {
           "email": "même courriel",
@@ -5932,7 +5935,8 @@
           "proches": "Proches",
           "assurance-et-payeurs": "Assurance et payeurs",
           "consentements": "Consentements",
-          "visites-et-paiements": "Visites et paiements"
+          "visites-et-paiements": "Visites et paiements",
+          "historique": "Historique"
         },
         "overview": {
           "person": "La personne",
@@ -6060,6 +6064,29 @@
         "consents": {
           "title": "Consentements",
           "description": "Chaque consentement du client : signé, à signer de nouveau ou en attente. La demande part par courriel au client, ou à ses parents s'il a moins de 14 ans."
+        },
+        "menu": {
+          "label": "Autres actions sur le dossier",
+          "merge": "Fusionner avec un autre dossier…",
+          "privacy": "Confidentialité",
+          "export": "Exporter le dossier (PDF)",
+          "anonymize": "Anonymiser le dossier…"
+        },
+        "history": {
+          "title": "Historique",
+          "description": "Qui a changé quoi dans ce dossier, du plus récent au plus ancien. Les renseignements personnels n'y paraissent pas : on voit qu'ils ont changé, pas leur valeur.",
+          "empty": "Aucune modification pour le moment",
+          "system": "Le système",
+          "arrow": " → ",
+          "loadMore": "Charger plus",
+          "loadingMore": "Chargement…",
+          "loadMoreError": "Impossible de charger la suite. Réessayez.",
+          "loadError": "Impossible de charger l'historique."
+        },
+        "duplicates": {
+          "title": "Doublons possibles : ces dossiers semblent être la même personne.",
+          "open": "Ouvrir",
+          "merge": "Fusionner"
         }
       },
       "mine": {
@@ -6081,6 +6108,114 @@
         },
         "primary": "Professionnel principal",
         "archived": "Archivé"
+      },
+      "merge": {
+        "title": "Fusionner deux dossiers",
+        "description": "Le dossier de {client} et un autre dossier de la même personne deviennent un seul dossier.",
+        "other": "Autre dossier de la personne",
+        "otherHelp": "Par son nom, son courriel, son numéro ou son téléphone.",
+        "results": "Dossiers trouvés",
+        "noResult": "Aucun dossier trouvé.",
+        "loadError": "Impossible de charger l'autre dossier.",
+        "notFound": "Ce dossier n'existe plus.",
+        "keepLegend": "Dossier conservé (son numéro reste)",
+        "thisFile": "(ce dossier)",
+        "changeOther": "Choisir un autre dossier",
+        "closed": "Ce dossier est déjà fusionné ou anonymisé : il ne peut pas être fusionné.",
+        "valuesTitle": "Valeurs à garder",
+        "valuesHelp": "Là où les deux dossiers diffèrent, choisissez la valeur à garder. Par défaut, celle du dossier conservé.",
+        "filledTitle": "Repris de l'autre dossier (vides dans le dossier conservé)",
+        "summary": "{merged} sera fusionné dans {kept}, puis archivé.",
+        "movesLead": "Passent au dossier conservé : {items}. Les notes sont ajoutées à la suite.",
+        "final": "Une fusion ne se défait pas.",
+        "submit": "Fusionner les dossiers",
+        "submitting": "Fusion…",
+        "unknownValue": "Valeur retirée de la liste",
+        "ext": "poste {ext}",
+        "address": "Adresse",
+        "moves": {
+          "relations": "proches : {count}",
+          "insurances": "assurances : {count}",
+          "payers": "payeurs : {count}",
+          "tags": "étiquettes : {count}",
+          "professionals": "professionnels liés : {count}"
+        },
+        "keptColumn": "Dossier conservé",
+        "mergedColumn": "Autre dossier"
+      },
+      "privacy": {
+        "exported": "Dossier exporté.",
+        "exportFailed": "L'export n'a pas fonctionné. Réessayez.",
+        "anonymize": {
+          "title": "Anonymiser ce dossier ?",
+          "body": "Le dossier de {client} ({number}) sera vidé de tout ce qui identifie la personne (Loi 25).",
+          "goes": "Effacés : le nom, la date de naissance, les coordonnées, l'adresse, les notes, les proches, les étiquettes et les assurances.",
+          "stays": "Gardés : le numéro de dossier, les liens avec les professionnels, les rendez-vous et les factures (sans le nom).",
+          "final": "Une anonymisation ne se défait pas. Les dossiers fusionnés dans celui-ci sont anonymisés aussi.",
+          "confirmLabel": "Pour confirmer, tapez le numéro du dossier : {number}",
+          "submit": "Anonymiser",
+          "submitting": "Anonymisation…"
+        },
+        "pdf": {
+          "title": "Dossier client : renseignements détenus",
+          "meta": "{clinic} · Export fait le {date} (Loi 25, accès aux renseignements personnels)",
+          "footer": "Exporté le {date} · Document confidentiel",
+          "page": "Page {page} de {pages}",
+          "yes": "Oui",
+          "no": "Non",
+          "notGiven": "Non indiqué",
+          "none": "Aucun",
+          "identity": "Identité",
+          "contact": "Coordonnées",
+          "address": "Adresse",
+          "file": "Dossier",
+          "openedOn": "Dossier ouvert le",
+          "archivedOn": "Archivé le",
+          "notes": "Notes administratives",
+          "relations": "Proches",
+          "person": "Personne",
+          "relation": "Lien",
+          "theirRights": "Ce que ce proche peut faire",
+          "ownRights": "Ce que le client peut faire pour ce proche",
+          "insurances": "Assurances",
+          "rank": "Rang",
+          "mainInsurance": "Assurance principale",
+          "secondaryInsurance": "Assurance secondaire",
+          "insurer": "Assureur",
+          "policy": "Numéro de police",
+          "certificate": "Numéro de certificat",
+          "holder": "Titulaire",
+          "payers": "Payeurs (IVAC, PAE)",
+          "payerKind": "Payeur",
+          "fileNumber": "Numéro de dossier du payeur",
+          "sessionAmount": "Montant par séance",
+          "period": "Période",
+          "state": "État",
+          "active": "Actif",
+          "ended": "Terminé",
+          "note": "Note",
+          "tags": "Étiquettes",
+          "professionals": "Professionnels liés",
+          "professional": "Professionnel",
+          "formerProfessional": "Professionnel retiré de la liste",
+          "since": "Depuis le",
+          "consents": "Consentements",
+          "consent": "Consentement",
+          "version": "Version",
+          "signedOn": "Signé le",
+          "signedBy": "Signé par",
+          "withdrawn": "Retiré le {date}",
+          "superseded": "Remplacé par une version plus récente",
+          "inForce": "En vigueur",
+          "mergedFile": "Dossier fusionné dans celui-ci : {client}"
+        }
+      },
+      "picker": {
+        "label": "Client",
+        "help": "Par son nom, son courriel, son numéro ou son téléphone. Créez le dossier s'il n'existe pas.",
+        "results": "Dossiers trouvés",
+        "noResult": "Aucun dossier trouvé.",
+        "searchError": "La recherche n'a pas fonctionné. Réessayez."
       }
     },
     "communications": {
