@@ -5,7 +5,8 @@ import type { DemandeState, InboxRow, Promise_ } from '../api/demandes'
 const D = 'modules.demandes'
 
 /** The record's tabs: their URL segments, in order. */
-export const RECORD_TABS = ['accueil', 'participants', 'suivi', 'historique'] as const
+/** « Jumelage » (D4) shows with professionals.view only (the panel names « Bon à savoir »). */
+export const RECORD_TABS = ['accueil', 'participants', 'suivi', 'jumelage', 'historique'] as const
 export type RecordTab = (typeof RECORD_TABS)[number]
 
 export const demandePath = (id: string, tab: RecordTab = 'accueil') => `/demandes/${id}/${tab}`

@@ -1486,7 +1486,9 @@
           "professional_public_profiles": "Profils publics des professionnels",
           "professional_matching_profiles": "Profils de jumelage",
           "professional_matching_notes": "Notes Bon à savoir",
+          "professional_matching_priorities": "Priorités de jumelage",
           "professional_motifs": "Motifs des professionnels",
+          "professional_refused_motifs": "Motifs refusés",
           "professional_clienteles": "Clientèles des professionnels",
           "professional_languages": "Langues des professionnels",
           "professional_private": "Données privées des professionnels",
@@ -1821,6 +1823,14 @@
             "is_active": "Actif",
             "requires_note": "Note requise",
             "disables_account": "Désactive le compte"
+          },
+          "professional_matching_priorities": {
+            "professional_id": "Professionnel",
+            "reason": "Raison de prioriser"
+          },
+          "professional_refused_motifs": {
+            "professional_id": "Professionnel",
+            "motif_id": "Motif refusé"
           }
         },
         "values": {
@@ -2370,6 +2380,14 @@
             "search": "Motif ou catégorie…",
             "blocked": "Réservé aux professionnels qui ont un titre d'un ordre professionnel. Ajoutez d'abord un tel titre dans « Identité et permis »."
           },
+          "refusedMotifs": {
+            "title": "Motifs refusés",
+            "description": "Les motifs à éviter pour ce dossier. Dans Demandes, un motif refusé présent dans une demande donne un avertissement, jamais une exclusion. Réservé à l'équipe.",
+            "edit": "Modifier les motifs refusés",
+            "empty": "Aucun motif refusé",
+            "search": "Motif ou catégorie…",
+            "heldBlocked": "Déjà dans ses motifs : retirez-le d'abord de ses motifs."
+          },
           "languages": {
             "title": "Langues",
             "description": "Les langues dans lesquelles les rencontres peuvent se faire.",
@@ -2400,6 +2418,14 @@
             "placeholder": "Par exemple : écrire avant de réserver ; pas de couples l'été.",
             "help": "1000 caractères au maximum. Le texte n'apparaît pas dans l'historique.",
             "empty": "Aucune note."
+          },
+          "priority": {
+            "title": "Priorité de jumelage",
+            "description": "Remplace les couleurs du classeur : « À prioriser » s'affiche dans le panneau de jumelage de Demandes, avec la raison. L'ordre des suggestions ne change pas. Réservé à l'équipe.",
+            "label": "Raison de prioriser",
+            "placeholder": "Par exemple : nouvelle professionnelle, ses places à remplir.",
+            "help": "Laissez vide pour retirer « À prioriser ». 200 caractères au maximum.",
+            "empty": "Pas de priorité."
           },
           "availability": {
             "title": "Disponibilités générales",
@@ -2633,6 +2659,11 @@
             "changed": "a modifié la note Bon à savoir",
             "removed": "a retiré la note Bon à savoir"
           },
+          "matchingPriority": {
+            "added": "a marqué le dossier « À prioriser » : {reason}",
+            "changed": "a changé la raison de prioriser : {reason}",
+            "removed": "a retiré « À prioriser »"
+          },
           "changedOne": "a modifié {field}",
           "changedValue": "a modifié {field} : {before} → {after}",
           "activated": "a activé le dossier",
@@ -2776,6 +2807,14 @@
             "specializedMany": "a indiqué une spécialisation pour {count} clientèles",
             "unspecializedFew": "a retiré la spécialisation pour : {names}",
             "unspecializedMany": "a retiré la spécialisation pour {count} clientèles"
+          },
+          "professional_refused_motifs": {
+            "addedOne": "a ajouté le motif refusé {name}",
+            "addedFew": "a ajouté les motifs refusés {names}",
+            "addedMany": "a ajouté {count} motifs refusés",
+            "removedOne": "a retiré le motif refusé {name}",
+            "removedFew": "a retiré les motifs refusés {names}",
+            "removedMany": "a retiré {count} motifs refusés"
           }
         },
         "fields": {
@@ -7617,6 +7656,7 @@
           "accueil": "Accueil",
           "participants": "Participants",
           "suivi": "Suivi",
+          "jumelage": "Jumelage",
           "historique": "Historique"
         },
         "received": "Reçue le {date} · {channel}",
@@ -8286,7 +8326,9 @@
           "noSlot": "Aucune plage libre pour ce service ces prochains jours.",
           "incomplete": "Choisissez le professionnel, le service et au moins une plage.",
           "send": "Envoyer la proposition ({count} plages)",
-          "sending": "Envoi…"
+          "sending": "Envoi…",
+          "insuranceConfirm": "L'assurance de ce professionnel est expirée : je confirme vouloir lui proposer ce nouveau client.",
+          "insuranceUnconfirmed": "Son assurance est expirée : cochez la confirmation avant d'envoyer."
         },
         "page": {
           "title": "Votre premier rendez-vous",
@@ -8358,6 +8400,78 @@
           "professional": "The professional is not a fit for me",
           "changed_mind": "I changed my mind",
           "other": "Another reason"
+        }
+      },
+      "matching": {
+        "title": "Professionnels suggérés",
+        "description": "Selon la demande et les règles de jumelage. Ordre : l'adéquation (les motifs de la demande, une clientèle ★, les disponibilités), puis les places restantes, puis le nom.",
+        "criteriaTitle": "Ce que la demande indique",
+        "age": "{age} ans",
+        "ageUnknown": "Âge inconnu",
+        "sexUnknown": "Sexe inconnu",
+        "sex": {
+          "female": "Une femme",
+          "male": "Un homme",
+          "other": "Autre"
+        },
+        "profession": "Profession demandée : {name}",
+        "clientele": "Clientèle : {name}",
+        "motifs": "Motifs : {names}",
+        "noMotifs": "Aucun motif indiqué",
+        "periods": "Disponibilités : {periods}",
+        "noPeriods": "Disponibilités non indiquées",
+        "preferredGender": {
+          "female": "Préfère une professionnelle",
+          "male": "Préfère un professionnel"
+        },
+        "eligible": "Admissibles ({count})",
+        "noneEligible": "Aucun professionnel ne répond à tous les critères. Les non admissibles et leurs raisons sont plus bas.",
+        "others": "Non admissibles ({count})",
+        "priority": "À prioriser",
+        "placesLeftOne": "1 place restante",
+        "placesLeftOther": "{count} places restantes",
+        "placesNone": "0 place restante",
+        "motifHits": "Motifs : {names} ({count} sur {total})",
+        "noMotifHit": "Aucun des motifs de la demande",
+        "specialized": "★ Clientèle spécialisée",
+        "periodHits": "Disponibilités : {periods}",
+        "note": "Bon à savoir",
+        "propose": "Proposer",
+        "proposeTo": "Proposer {name}",
+        "openFile": "Voir le dossier",
+        "pending": "Une proposition attend déjà sa réponse : retirez-la d'abord dans Suivi.",
+        "notOpen": "On propose un professionnel à une demande « Acceptée » ou en liste d'attente.",
+        "reasons": {
+          "inactive": "Dossier inactif",
+          "not_ready": "Dossier incomplet",
+          "not_accepting": "N'accepte pas de nouveaux clients",
+          "title": "N'a pas la profession demandée",
+          "clientele": "Ne voit pas cette clientèle",
+          "min_age": "N'accepte pas cet âge",
+          "women_only": "Femmes seulement",
+          "language": "Ne parle pas la langue de la demande",
+          "gender": "Pas le genre demandé"
+        },
+        "warnings": {
+          "refused_motif": "Motif refusé : {names} (à vérifier : c'est possible s'il n'est pas l'élément à travailler)",
+          "insurance_expired": "Assurance expirée",
+          "insurance_expiring": "Assurance bientôt échue",
+          "insurance_missing": "Assurance manquante",
+          "age_unknown": "A un âge minimum : âge du client à vérifier",
+          "sex_unknown": "Femmes seulement : à vérifier",
+          "no_places": "0 place restante",
+          "clientele_unknown": "Âge inconnu : la clientèle n'a pas pu être vérifiée"
+        },
+        "confirmInsurance": {
+          "title": "L'assurance de {name} est expirée",
+          "body": "Avant de proposer un nouveau client, confirmez que c'est voulu.",
+          "action": "Proposer quand même"
+        },
+        "loadError": "Les suggestions n'ont pas pu être chargées.",
+        "warningsLabel": "À vérifier",
+        "ignored": {
+          "profession": "La profession demandée est archivée : elle n'est pas appliquée.",
+          "clientele": "La clientèle demandée est archivée : elle n'est pas appliquée."
         }
       }
     },
