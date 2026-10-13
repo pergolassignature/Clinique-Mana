@@ -1,0 +1,63 @@
+import { expect, test } from './fixtures/auth'
+
+/**
+ * Demandes, D2 (local only, after `npm run db:reset`: the seed enables Demandes; the counselor holds
+ * demandes.view / manage / notes by the template, D-1). Fictional names, one per run.
+ *
+ * The counselor takes a call: « Nouvelle demande » (la saisie rapide) → the record opens → « Noter
+ * un appel » (no answer, next try tomorrow) → the inbox shows it « Sans réponse » → « Je m'en
+ * occupe » → a callback task in « Suivi » → « Historique » tells it → closed with a reason.
+ */
+test('the counselor takes a request from the first call to its closing', async ({ page, signIn }) => {
+  const name = `Essai Demande ${Date.now() % 100000}`
+  await signIn('counselor')
+  await page.getByRole('link', { name: 'Demandes' }).first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Demandes' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Nouvelle demande' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Nouvelle demande' })
+  await dialog.getByRole('textbox', { name: 'Nom' }).fill(name)
+  await dialog.getByRole('textbox', { name: 'Téléphone' }).fill('514 555-0177')
+  await dialog.getByRole('button', { name: 'Créer la demande' }).click()
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
+  await expect(page).toHaveURL(/\/demandes\/[0-9a-f-]{36}\/accueil$/)
+
+  // A first call, not answered.
+  await page.getByRole('button', { name: 'Noter un appel' }).first().click()
+  const call = page.getByRole('dialog', { name: `Noter un appel : ${name}` })
+  await expect(call.getByRole('combobox', { name: 'Résultat' })).toHaveValue('no_answer')
+  await call.getByRole('button', { name: "Enregistrer l'essai" }).click()
+  await expect(call).toBeHidden()
+  await expect(page.getByText('Rappelée dans les délais')).toBeVisible()
+
+  // « Je m'en occupe », then a callback in « Suivi ».
+  await page.getByRole('button', { name: "Je m'en occupe" }).click()
+  await expect(page.getByRole('button', { name: 'Je laisse la demande' })).toBeVisible()
+  await page.getByRole('tab', { name: 'Suivi' }).click()
+  await page.getByRole('form', { name: 'Ajouter une tâche' }).getByRole('combobox', { name: 'Tâche' }).selectOption('callback')
+  await page.getByRole('button', { name: 'Ajouter la tâche' }).click()
+  await expect(page.getByRole('list', { name: 'Tâches ouvertes' }).getByText('Rappel')).toBeVisible()
+
+  // The inbox: « Sans réponse », handled by her.
+  await page.getByRole('link', { name: 'Demandes' }).first().click()
+  await page.getByRole('button', { name: /Sans réponse/ }).click()
+  const row = page.getByRole('row').filter({ hasText: name })
+  await expect(row).toBeVisible()
+  await expect(row.getByText(/s’en occupe/)).toBeVisible()
+  await row.getByRole('link', { name }).click()
+
+  // Historique, then closed with a reason.
+  await page.getByRole('tab', { name: 'Historique' }).click()
+  await expect(page.getByText('Demande reçue')).toBeVisible()
+  await expect(page.getByText('Essai : Téléphone · Pas de réponse')).toBeVisible()
+  await page.getByRole('combobox', { name: "Changer l'état" }).selectOption('closed')
+  const close = page.getByRole('alertdialog', { name: 'Fermer la demande ?' })
+  await close.getByRole('combobox', { name: 'Raison' }).selectOption('duplicate')
+  await close.getByRole('button', { name: 'Fermer la demande' }).click()
+  await expect(page.getByText('Fermée : En double').first()).toBeVisible()
+})
+
+test('the professional has no « Demandes »', async ({ page, signIn }) => {
+  await signIn('provider')
+  await expect(page.getByRole('link', { name: 'Demandes' })).toHaveCount(0)
+})

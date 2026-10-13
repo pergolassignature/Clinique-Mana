@@ -362,6 +362,14 @@ Clients (C5a): `clients-consent-send` (user, `clients.manage`), `clients-consent
 
 Only the functions that create a signature request render a PDF (pdfmake, about +0.8 MB uploaded): core's `signing-test-document`, Professionnels' `professionals-contract-send` and `professionals-consent-sign`, and Clients' `clients-consent-sign` (through `_shared/signing.ts`). `_shared/pdf/isolation.test.ts` keeps the renderer out of the signing functions that do not render (`signing-webhook`, `signing-sync`, `signing-test-connection`).
 
+### Realtime between staff (D2)
+
+Migration `20261013043542_core_realtime` (pgTAP `114`; roadmap §3.1). One **private broadcast channel per clinic and module**, `org:<org id>:<module key>`:
+- **Who listens:** the RLS policy `org_module_broadcast_receive` on `realtime.messages` (Supabase's authorization of private channels) calls `private.realtime_topic_allowed(topic)`: the caller's clinic and a permission of that module (so a disabled or reserved module's channel is closed). Nobody sends from the browser.
+- **What travels:** `{ module, table, record_id, op }` only, from the trigger `private.broadcast_record_change(module, id_column[, table])` that a module puts on its tables (`realtime.send`; a failed broadcast is a warning, never a failed write). Never `id` in the payload (`realtime.send` would take it as the message's id).
+- **The browser:** `useOrgRealtime(module, { onChange, onResync })` (`src/core/realtime`): `setAuth`, then the private channel; each change → the module invalidates its keys and reads again through its RPCs; back after a cut → `onResync` reads everything again. Nothing polls.
+- A module using it: Demandes (D2).
+
 ### How a module plugs in
 
 All of it is data seeded by the module's own migration (core never imports module code, ADR 0003):

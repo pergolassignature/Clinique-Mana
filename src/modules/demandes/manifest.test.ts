@@ -3,12 +3,15 @@ import { t } from '@/i18n'
 import { demandesManifest } from './index'
 
 describe('demandesManifest', () => {
-  it('uses the English module key, depends on clients and professionals, and has no screen yet (D1)', () => {
+  it('uses the English module key, depends on clients and professionals; « Demandes » and its record (D2)', () => {
     expect(demandesManifest.key).toBe('demandes')
     expect(t(demandesManifest.labelKey)).toBe('Demandes')
     expect(demandesManifest.dependsOn).toEqual(['clients', 'professionals'])
-    expect(demandesManifest.routes).toEqual([])
-    expect(demandesManifest.settingsSections).toEqual([])
+    expect(demandesManifest.nav).toEqual([expect.objectContaining({ path: '/demandes', permission: 'demandes.view' })])
+    expect(demandesManifest.routes.map((r) => [r.path, r.permission])).toEqual([
+      ['demandes', 'demandes.view'],
+      ['demandes/:id/:onglet?', 'demandes.view'],
+    ])
   })
 
   it('names its audited tables, columns and codes for the Journal d’audit, in its own chunk', async () => {

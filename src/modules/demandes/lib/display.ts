@@ -52,7 +52,7 @@ export function promiseText(promise: Promise_, hours: number): { label: string; 
     case 'soon':
       return { label: t(`${D}.promise.soon`, { hours: h }), tone: 'warning' }
     case 'ok':
-      return { label: t(`${D}.promise.ok`, { hours: h }), tone: 'default' }
+      return { label: hours < 1 ? t(`${D}.promise.fresh`) : t(`${D}.promise.ok`, { hours: h }), tone: 'default' }
     case 'met':
       return { label: t(`${D}.promise.met`), tone: 'success' }
     case 'met_late':

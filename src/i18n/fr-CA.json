@@ -6959,7 +6959,8 @@
         "soon": "À rappeler bientôt : {hours} h ouvrables",
         "late": "En retard : {hours} h ouvrables sans appel",
         "met": "Rappelée dans les délais",
-        "metLate": "Rappelée après 48 h ouvrables"
+        "metLate": "Rappelée après 48 h ouvrables",
+        "fresh": "Reçue depuis moins d’une heure ouvrable"
       },
       "options": {
         "channel": {
