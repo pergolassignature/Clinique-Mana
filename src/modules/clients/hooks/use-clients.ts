@@ -15,6 +15,7 @@ import {
   fetchClientsReference,
   fetchClientSummary,
   fetchMyClients,
+  fetchPayersToComplete,
   findClientDuplicates,
   mergeClients,
   removeClientRelation,
@@ -164,6 +165,7 @@ export const useDeleteClientInsurance = (feedback?: MutationFeedback) =>
 export const useSaveClientPayer = (feedback?: MutationFeedback) => useClientsMutation((input: PayerInput) => saveClientPayer(input), `${S}.payer`, feedback)
 
 export const useEndClientPayer = (feedback?: MutationFeedback) => useClientsMutation((id: string) => endClientPayer(id), `${S}.payerEnded`, feedback)
+export const usePayersToComplete = () => useQuery({ queryKey: clientsKeys.payersToComplete(), queryFn: fetchPayersToComplete })
 
 export const useSetClientTags = (feedback?: MutationFeedback) =>
   useClientsMutation(({ clientId, tagIds }: { clientId: string; tagIds: string[] }) => setClientTags(clientId, tagIds), `${S}.tags`, feedback)

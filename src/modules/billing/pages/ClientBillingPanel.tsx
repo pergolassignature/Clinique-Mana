@@ -20,6 +20,7 @@ import { toast } from '@/shared/ui/sonner'
 import { Textarea } from '@/shared/ui/textarea'
 import type { ClientBilling } from '../api/invoices'
 import { PdfLink } from '../components/documents'
+import { ClientPayersCard } from './ClientPayersCard'
 import { deliveryText } from '../lib/delivery'
 import { useCreateStatement, useSetSpecialAgreement } from '../hooks/use-queue'
 import {
@@ -118,6 +119,7 @@ export function ClientBillingPanel() {
         note={b.specialAgreement?.note ?? null}
         manage={manage}
       />
+      <ClientPayersCard clientId={id} manage={manage} />
 
       <div className="space-y-1.5">
         <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

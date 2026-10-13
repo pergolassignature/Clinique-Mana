@@ -14,6 +14,8 @@ export const clientsKeys = {
   duplicates: (key: string) => [...clientsKeys.all, 'duplicates', key] as const,
   search: (query: string) => [...clientsKeys.all, 'search', query] as const,
   history: (id: string) => [...clientsKeys.all, 'history', id] as const,
+  /** FP-9: « Payeurs à compléter » (a payer saved refetches it, under `all`). */
+  payersToComplete: () => [...clientsKeys.all, 'payers-to-complete'] as const,
 }
 
 /**

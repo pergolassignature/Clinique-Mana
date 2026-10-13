@@ -293,6 +293,7 @@ describe('AuthenticatedApp', () => {
       t('modules.reports.cancellations.nav'),
       t('modules.billing.name'),
       t('modules.billing.interac.nav'),
+      t('modules.billing.payers.nav'),
       t('modules.reports.revenue.nav'),
       t('modules.communications.inbox.menu'),
       t('modules.communications.sms.nav'),
@@ -320,7 +321,12 @@ describe('AuthenticatedApp', () => {
       t('modules.clients.consents.nav'),
       t('modules.reports.cancellations.nav'),
     ])
-    expect(section('nav.groups.billing')).toEqual([t('modules.billing.name'), t('modules.billing.interac.nav'), t('modules.reports.revenue.nav')])
+    expect(section('nav.groups.billing')).toEqual([
+      t('modules.billing.name'),
+      t('modules.billing.interac.nav'),
+      t('modules.billing.payers.nav'),
+      t('modules.reports.revenue.nav'),
+    ])
     expect(section('nav.groups.team')).toEqual([t('modules.professionals.name')])
   })
 
