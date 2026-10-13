@@ -197,7 +197,8 @@ Migration `20261013045323_demandes_booking`; pgTAP `116_demandes_booking`; funct
   - The booking writes through D1's `private.demandes_insert`.
 - **Source (R-74):** captured by the page and stored on the request:
   - `referral_source_id`, `source_campaign` (from `utm_campaign`), `source_utm` (utm_* only), `source_referrer` and `source_landing_page`;
-  - shown to the counselor by `components/DemandeSourceCard` (D2 mounts it on the record);
+  - shown to the counselor by `components/DemandeSourceCard` (D2 mounts it on the record): the channel and « Provenance déclarée » (the full question in its help), then only the capture lines that hold something (« Aucune donnée de campagne » once, for a request not booked on the page);
+  - **corrected** (D-26, migration `20261013125941_demandes_source_edit`, pgTAP 146): « Modifier » on the card (`demandes.manage`, a closed request too) changes the channel and the declared source (« Non précisé », or the clinic's `referral_sources_catalog`) through `set_demande_source` (audited before and after); the booking page's capture is a fact the system recorded and is never edited;
   - reportable through the view **`demandes_sources`** (security invoker, staff with `demandes.view`; D6).
 - **Paramètres → Appels découverte** (`appels-decouverte`, seen with `demandes.view`, changed with `demandes.manage`): the page's address for the website's button, « Réservation en ligne ouverte », and the weekly ranges.
 - **Tests:**

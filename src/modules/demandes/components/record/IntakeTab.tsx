@@ -13,7 +13,7 @@ import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
 import { toast } from '@/shared/ui/sonner'
 import { BENEFICIARIES, GENDERS, MODALITIES, PAYER_KINDS, PERIODS, type DemandeBundle } from '../../api/demandes'
-import { useUpdateDemande } from '../../hooks/use-demandes'
+import { useSetDemandeSource, useUpdateDemande } from '../../hooks/use-demandes'
 import { fileLabel, optionLabel } from '../../lib/display'
 import { DemandeSourceCard } from '../DemandeSourceCard'
 import { ClientLink } from './ClientLink'
@@ -140,14 +140,35 @@ function FileCard() {
   )
 }
 
-/** Where the request came from (D3c's card, R-74): the channel, the answer, the campaign. */
+/**
+ * Where the request came from (D3c's card, R-74): the channel, the declared source, the campaign.
+ * « Modifier » corrects the first two (D-26: demandes.manage, a closed request too: it is a fact
+ * about how the person came).
+ */
 function SourceSection() {
-  const { bundle, reference } = useDemandeRecord()
+  const { id, bundle, reference } = useDemandeRecord()
   const d = bundle.demande
+  const save = useSetDemandeSource(id)
   const heard = d.referral_source_id ? (reference.referral_sources.find((s) => s.id === d.referral_source_id)?.name ?? null) : null
   return (
     <div className="p-5">
-      <DemandeSourceCard demande={d} referralSourceName={heard} />
+      <DemandeSourceCard
+        demande={d}
+        referralSources={reference.referral_sources}
+        referralSourceName={heard}
+        onSave={
+          bundle.can.manage
+            ? async (values) => {
+                try {
+                  await save.mutateAsync(values)
+                  toast.success(t('modules.demandes.sources.saved'))
+                } catch (error) {
+                  throw new Error(demandesError(error))
+                }
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }
