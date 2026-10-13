@@ -116,7 +116,12 @@ type Outcome =
   | { kind: 'failed'; code: string }
 
 /** A failure of the clinic's email setup: always ends the run. */
-const SETUP_FAILURES = new Set(['not_configured', 'module_disabled'])
+// `module_reserved`: the module is reserved for its testers (P3-40, CC-14): nothing is sent.
+const SETUP_FAILURES = new Set([
+  'not_configured',
+  'module_disabled',
+  'module_reserved',
+])
 /** After the probe, these failures end the run too (P4-265). */
 const BATCH_STOP_FAILURES = new Set(['provider_error', 'rate_limited'])
 
