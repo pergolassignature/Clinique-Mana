@@ -6,7 +6,7 @@ import { cn } from '@/shared/lib/utils'
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
 import { exceptionsOn, placeAppointments, verticalBox, windowsOn } from '../lib/layout'
 import { GRID_END, GRID_START, SNAP, hhmm, instantOf, minutesOnDay, snap } from '../lib/time'
-import { appointmentTitle, blockClasses, isBusyOnly } from '../lib/display'
+import { appointmentTitle, blockClasses, isBusyOnly, stateLabel } from '../lib/display'
 
 /** Pixels per hour of the grid (14 hours: 7:00 to 21:00). */
 export const HOUR_HEIGHT = 48
@@ -219,6 +219,7 @@ function Column({ column, height, ...props }: TimeGridProps & { column: GridColu
                   {a.state === 'cancelled' && <Ban aria-hidden className="size-3" />}
                 </span>
                 <span className="block truncate">{appointmentTitle(a)}</span>
+                {a.state === 'held' && <span className="block truncate text-muted-foreground">{stateLabel(a.state)}</span>}
                 {props.showProfessional && <span className="block truncate text-muted-foreground">{props.professionalName(a.professionalId)}</span>}
               </button>
             )

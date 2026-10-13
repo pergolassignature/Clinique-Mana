@@ -142,6 +142,24 @@ describe('AgendaPage', () => {
     await waitFor(() => expect(mocks.api.moveAppointment).toHaveBeenCalledWith({ id: 'a1', startsAt: '2027-03-15T14:30:00.000Z', professionalId: null, outsideAvailabilityReason: null }))
   })
 
+  it('a held slot (R1b): hatched « En attente d’acceptation », never dragged, managed from the demande', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'held' })])
+    renderPage()
+    const block = await screen.findByRole('button', { name: '10:00, Alice Essai' })
+    expect(within(block).getByText("En attente d'acceptation")).toBeInTheDocument()
+    expect(block.className).toContain('border-dashed')
+    fireEvent.pointerDown(block, { clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(block, { clientY: 124, pointerId: 1 })
+    fireEvent.pointerUp(block, { clientY: 124, pointerId: 1 })
+    await user.click(block)
+    const sheet = await screen.findByRole('dialog')
+    expect(within(sheet).getByText(t(`${E}.heldNotice`))).toBeInTheDocument()
+    expect(within(sheet).queryByRole('button', { name: t(`${E}.move`) })).not.toBeInTheDocument()
+    expect(within(sheet).getByRole('combobox', { name: "Présence d'Alice Essai" })).toBeDisabled()
+    expect(mocks.api.moveAppointment).not.toHaveBeenCalled()
+  })
+
   it('availability mode: one professional at a time', async () => {
     renderPage({ path: '/agenda?date=2027-03-15&mode=disponibilites' })
     expect(await screen.findByText(t(`${A}.choosePro`))).toBeInTheDocument()
