@@ -8,10 +8,11 @@ import { setClinicTimezone } from '@/shared/lib/timezone'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { cancellationsReport, followUpReport, invoiceReport, paymentReport } from '../test/fixtures'
 import { CancellationsPage } from './CancellationsPage'
+import { ConsentsReportPage } from './ConsentsReportPage'
 import { RevenuePage } from './RevenuePage'
 
 const mocks = vi.hoisted(() => ({
-  api: { fetchRevenue: vi.fn(), fetchCancellations: vi.fn(), fetchFollowUp: vi.fn() },
+  api: { fetchRevenue: vi.fn(), fetchCancellations: vi.fn(), fetchFollowUp: vi.fn(), fetchConsentsReport: vi.fn() },
   download: vi.fn(),
 }))
 vi.mock('../api/reports', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/reports')>()), ...mocks.api }))
@@ -34,6 +35,7 @@ function renderAt(path: string) {
         <Routes>
           <Route path="/rapports/revenus" element={<RevenuePage />} />
           <Route path="/rapports/annulations" element={<CancellationsPage />} />
+          <Route path="/rapports/consentements" element={<ConsentsReportPage />} />
         </Routes>,
         { path, access: { access: { ...testAccess, permissions: ['reports.view', 'reports.finance'], modules: ['reports'] } } },
       )}
@@ -92,5 +94,36 @@ describe('« Annulations et absences » and « Clients à relancer » (RP-3, RP-
     await waitFor(() =>
       expect(mocks.download).toHaveBeenCalledWith('clients-a-relancer-2026-09-01-au-2026-09-30.csv', expect.stringContaining('Alice Essai')),
     )
+  })
+})
+
+describe('« Consentements » (Clients C5b, CC-19)', () => {
+  const report = {
+    gaps: [{ consent_key: 'general', consent_name: 'Consentement général', signed: 12, resign: 2, pending: 3, overdue: 1, withdrawn: 1, none: 4 }],
+    by_professional: [
+      { professional_id: 'p1', professional_name: 'Félix Gauthier', consent_key: 'general', consent_name: 'Consentement général', signed: 7, to_obtain: 2 },
+      { professional_id: null, professional_name: null, consent_key: 'general', consent_name: 'Consentement général', signed: 5, to_obtain: 5 },
+    ],
+    months: [{ month: '2026-09', signed: 6, imported: 300, withdrawn: 1 }],
+    delays: [{ consent_key: 'general', consent_name: 'Consentement général', count: 6, average_days: 2.5, median_days: 1 }],
+    totals: { clients: 23, signed: 306, withdrawn: 1 },
+    options: { professionals: [{ id: 'p1', name: 'Félix Gauthier' }] },
+  }
+
+  it('today per consent and per professional, per month, the delay; filters from the address; the CSV', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchConsentsReport.mockResolvedValue(report)
+    renderAt('/rapports/consentements?du=2026-09-01&au=2026-09-30&pro=p1')
+    const gaps = await screen.findByRole('table', { name: t(`${R}.consents.gapsTitle`) })
+    expect(within(gaps).getAllByRole('row')[1]).toHaveTextContent('Consentement général1223114')
+    expect(mocks.api.fetchConsentsReport).toHaveBeenCalledWith({ from: '2026-09-01', to: '2026-09-30', professionalId: 'p1' })
+    const pros = screen.getByRole('table', { name: t(`${R}.consents.byProfessionalTitle`) })
+    expect(within(pros).getByText(t(`${R}.consents.noProfessional`))).toBeInTheDocument()
+    const months = screen.getByRole('table', { name: t(`${R}.consents.monthsTitle`) })
+    expect(within(months).getByText('septembre 2026')).toBeInTheDocument()
+    const delays = screen.getByRole('table', { name: t(`${R}.consents.delaysTitle`) })
+    expect(within(delays).getByText('2,5 j')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${R}.export`) }))
+    expect(mocks.download).toHaveBeenCalledWith('consentements-2026-09-01-au-2026-09-30.csv', expect.stringContaining('Consentement général;12;2;3;1;1;4'))
   })
 })

@@ -15,7 +15,7 @@ The clinic's reports, read-only: what GOrendezvous's « Revenus », « Annulatio
 
 | Key | Who (defaults) | What |
 |---|---|---|
-| `reports.view` | admin | « Annulations et absences », « Clients à relancer » |
+| `reports.view` | admin | « Annulations et absences », « Clients à relancer », « Consentements » |
 | `reports.finance` | admin, adjointe | « Revenus » |
 
 ## RPCs
@@ -27,18 +27,21 @@ All definer, permission first, French `P0001` with a HINT (`period`, `view`, `ki
 | `report_revenue(view, from, to, professional, service, mode)` → jsonb | `reports.finance` | `invoice`: one row per invoice issued in the period and not credited (dossier, payer, professionals, totals, paid, balance); `service`: one row per line, and `by_service`; `payment`: one row per payment made in the period (whatever the invoice's date), and `by_mode`. `credited`: the invoices issued in the period then credited, counted apart (RP-2). `options`: the period's professionals and services, the clinic's modes. |
 | `report_cancellations(from, to, professional, reason, kind)` → jsonb | `reports.view` | one row per client of the period's appointments cancelled (reason, late, kept on the schedule, the client's next appointment) or where the client was absent; `by_reason` and `totals` count appointments (a couple's once). Never a personal appointment nor a held one; never the cancellation's details (RP-3). |
 | `report_clients_to_follow_up(from, to, professional)` → jsonb | `reports.view` | per client, the period's last cancellation or absence with nothing booked, confirmed or completed after it (whoever the professional), files neither archived nor closed; `events`: how many in the period (RP-4). |
+| `report_consents(from, to, professional)` → jsonb | `reports.view` | Clients C5b (CC-19): `gaps`, per active consent, today's count of active files in each state (signed, resign, pending, overdue, withdrawn, none), the record tabs' states; `by_professional`, per primary professional and consent, signed and « à obtenir » (pending, overdue, resign, withdrawn); `months`, per month of the period, the signatures in the app, the imported ones and the withdrawals; `delays`, per consent, the period's signatures in the app with the average and median days from the first send; `totals`. Counts only, never a name. The professional filter reads the file's primary professional. |
 
 ## What this module reads (published only)
 
 - **Facturation:** `private.billing_revenue_lines(org, from, to)`, `private.billing_revenue_payments(org, from, to)`, `private.billing_payment_mode_names(org)`.
 - **Rendez-vous:** `private.appointment_absence_facts(org, from, to)` (instants: Rapports gives the clinic day's bounds), `private.cancellation_reason_names(org)`.
-- **Clients:** `private.clients_display_names`, `private.clients_billing_facts` (archived, closed).
+- **Clients:** `private.clients_display_names`, `private.clients_billing_facts` (archived, closed), and for « Consentements » `private.client_consent_state_facts(org)`, `private.client_consent_event_facts(org, from, to)` and `private.clients_consent_names(org)`.
 - **Professionnels:** `private.professional_display_names`. **Services et tarifs:** `private.service_payout_facts` (code, name).
 
 ## Screens
 
 - **« Revenus »** (`/rapports/revenus`, menu Facturation, `reports.finance`): real tabs « Par facture », « Par service », « Par paiement » (`?vue=`); the period (« Du », « Au », « Ce mois-ci », « Mois dernier », « Cette année », « Année dernière »; this month by default), « Professionnel », « Service », « Mode de paiement » (by payment); the totals, the credited invoices said apart, the rows (each invoice links to its page), « Exporter (CSV) ». Every filter is in the address.
 - **« Annulations et absences »** (`/rapports/annulations`, menu Suivi, `reports.view`): « Par raison » (the totals, per reason with the late ones, then each appointment with the client's next one or « Aucun rendez-vous après ») and « Clients à relancer » (`?onglet=relancer`: each client linked to the file, the last missed appointment, how many); filters: the period, the professional, the type and the reason; « Exporter (CSV) ».
+
+- **« Consentements »** (`/rapports/consentements`, menu Suivi « Rapport des consentements », `reports.view`): the totals; « Aujourd'hui, par consentement »; « Par professionnel principal »; « Signatures et retraits par mois »; « Délai entre l'envoi et la signature ». Filters: the period, the primary professional. « Exporter (CSV) » saves the states per consent.
 
 ## CSV (RP-6)
 
