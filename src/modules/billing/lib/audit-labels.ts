@@ -25,6 +25,10 @@ export const BILLING_AUDITED_TABLES = [
   'payout_lines',
   'professional_invoices',
   'payout_service_rules',
+  // FS: Stripe and Interac.
+  'stripe_customers',
+  'stripe_charges',
+  'interac_notices',
   'qbo_connections',
   'qbo_connection_tokens',
   'qbo_account_map',

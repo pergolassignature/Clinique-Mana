@@ -502,6 +502,24 @@ export const LIMITS = {
   },
   /** `qbo-sync` (« Synchroniser »), per caller: each pass reads the whole company. */
   qboSyncUser: { bucket: 'qbo.sync_user', max: 30, windowSeconds: 3_600 },
+  /** `billing-stripe` (card link, « Prélever maintenant », « Retirer la carte »), per caller: each call reaches Stripe. */
+  billingStripeUser: {
+    bucket: 'billing.stripe_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
+  /** `billing-stripe-checkout` (« Enregistrer ma carte », « Payer en ligne »), per IP, before any lookup. */
+  billingCheckoutIp: {
+    bucket: 'billing.checkout_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
+  /** `stripe-webhook`, per IP, before the org's secret is read (anyone can post there). */
+  stripeWebhookIp: {
+    bucket: 'webhooks.stripe_ip',
+    max: 300,
+    windowSeconds: 60,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**
