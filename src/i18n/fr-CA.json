@@ -6864,7 +6864,13 @@
             "expires_at": "Lien valide jusqu’au",
             "secure_link_id": "Lien d’acceptation",
             "directory_updated_at": "Profil mis à jour le",
-            "directory_snapshot": "Profil présenté"
+            "directory_snapshot": "Profil présenté",
+            "service_id": "Service",
+            "mode": "Mode",
+            "slots": "Plages réservées",
+            "accepted_appointment_id": "Rendez-vous choisi",
+            "accepted_starts_at": "Plage choisie",
+            "language": "Langue du courriel"
           },
           "waitlist_entries": {
             "demande_id": "Demande",
@@ -7923,6 +7929,88 @@
         "cancelBodyOnline": "L'appel disparaît de la liste ; la demande reste ouverte. La personne a réservé en ligne : prévenez-la, aucun courriel ne part.",
         "cancelAction": "Annuler l'appel",
         "cancelled": "Appel annulé."
+      },
+      "propositions": {
+        "title": "Propositions",
+        "description": "Les professionnels proposés à la personne, les plages réservées pour elle 48 h et sa réponse.",
+        "loadError": "Les propositions n'ont pas pu être chargées.",
+        "none": "Aucune proposition pour cette demande.",
+        "needsAgenda": "Pour proposer des plages, Rendez-vous doit être activé et vous devez pouvoir lire l'agenda.",
+        "open": "Proposer un professionnel",
+        "mode": {
+          "video": "En vidéo",
+          "phone": "Par téléphone"
+        },
+        "response": {
+          "pending": "En attente de réponse (jusqu'au {date})",
+          "accepted": "Acceptée : premier rendez-vous le {date}",
+          "declined": "Refusée",
+          "declinedBecause": "Refusée : {reason}",
+          "expired": "Sans réponse en 48 h : plages libérées",
+          "withdrawn": "Retirée"
+        },
+        "reasons": {
+          "schedule": "Les plages ne conviennent pas",
+          "fee": "Le tarif",
+          "professional": "Le professionnel ne convient pas",
+          "changed_mind": "La personne a changé d'idée",
+          "other": "Autre raison"
+        },
+        "slots": "Plages réservées : {slots}",
+        "by": "Proposée le {date} par {name}",
+        "withdraw": "Retirer la proposition",
+        "withdrawTitle": "Retirer la proposition ?",
+        "withdrawBody": "Les plages réservées sont libérées et le lien envoyé ne fonctionne plus. Prévenez la personne si elle attend votre appel.",
+        "withdrawn": "Proposition retirée : les plages sont libérées.",
+        "sent": "Proposition envoyée : les plages sont réservées 48 h.",
+        "notEmailed": "La proposition est faite, mais le courriel n'est pas parti : appelez la personne ou retirez la proposition.",
+        "rateLimited": "Trop de propositions en peu de temps. Réessayez dans un moment.",
+        "form": {
+          "title": "Proposer un professionnel",
+          "description": "Choisissez le professionnel, le service et 1 à 3 de ses plages libres. Elles sont réservées 48 h pour la personne, qui reçoit un courriel pour choisir.",
+          "professional": "Professionnel",
+          "service": "Service",
+          "choose": "Choisir",
+          "mode": "Rendez-vous",
+          "slots": "Plages libres (jusqu'à {max}, sur {days} jours)",
+          "slotsError": "Les plages libres n'ont pas pu être chargées.",
+          "noSlot": "Aucune plage libre pour ce service ces prochains jours.",
+          "incomplete": "Choisissez le professionnel, le service et au moins une plage.",
+          "send": "Envoyer la proposition ({count} plages)",
+          "sending": "Envoi…"
+        },
+        "page": {
+          "title": "Votre premier rendez-vous",
+          "body": "{clinic} vous propose un premier rendez-vous avec {professional} ({service}, {mode}).",
+          "byVideo": "en vidéo",
+          "byPhone": "par téléphone",
+          "heldUntil": "Ces plages vous sont réservées jusqu'au {when}.",
+          "when": "{day} à {time}",
+          "choose": "Choisissez votre plage",
+          "accept": "Choisir cette plage",
+          "sending": "Réservation…",
+          "none": "Aucune ne me convient",
+          "reasonLabel": "Pourquoi ? (facultatif)",
+          "reasonNone": "Je préfère ne pas le dire",
+          "declineConfirm": "Confirmer : aucune ne me convient",
+          "noSlotLeft": "Aucune plage n'est encore réservée pour vous : appelez la clinique.",
+          "acceptedTitle": "C'est réservé !",
+          "acceptedBody": "Votre premier rendez-vous est le {when}. À bientôt !",
+          "acceptedPlain": "Votre premier rendez-vous est réservé. À bientôt !",
+          "declinedTitle": "C'est noté",
+          "declinedBody": "Une conseillère vous rappellera pour trouver autre chose.",
+          "invalid": "Ce lien ne peut plus être utilisé : il a déjà servi, il a été retiré ou les 48 h sont passées. Appelez la clinique au besoin.",
+          "error": "Votre réponse n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique.",
+          "unavailable": {
+            "hold_gone": "Cette plage n'est plus réservée pour vous. Choisissez-en une autre, ou appelez la clinique.",
+            "hold_expired": "Le délai de cette plage est passé. Choisissez-en une autre, ou appelez la clinique.",
+            "overlap": "Cette plage vient d'être prise. Choisissez-en une autre, ou appelez la clinique.",
+            "outside_availability": "Cette plage n'est plus offerte. Choisissez-en une autre, ou appelez la clinique.",
+            "balance_due": "Un solde reste à régler : appelez la clinique pour réserver.",
+            "starts_at": "Cette plage est déjà passée. Choisissez-en une autre.",
+            "other": "Cette plage n'est plus possible. Choisissez-en une autre, ou appelez la clinique."
+          }
+        }
       }
     },
     "appointments": {
