@@ -466,6 +466,18 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 600,
   },
+  /** `billing-documents` « deliver » (after « Envoyer », a payment, a statement), per caller: each call renders up to 25 PDFs. */
+  billingDeliverUser: {
+    bucket: 'billing.deliver_user',
+    max: 120,
+    windowSeconds: 3_600,
+  },
+  /** `billing-documents` « preview » (« Aperçu PDF »), per caller: each call renders a PDF. */
+  billingPreviewUser: {
+    bucket: 'billing.preview_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
   /** `qbo-connect` (« Connecter QuickBooks », « Déconnecter »), per caller. */
   qboConnectUser: { bucket: 'qbo.connect_user', max: 20, windowSeconds: 3_600 },
   /** `qbo-callback` (the code exchange), per caller: each call reaches Intuit's token endpoint. */
