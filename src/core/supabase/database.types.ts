@@ -2310,6 +2310,7 @@ export type Database = {
           rate_variant: string | null
           referral_source_id: string | null
           referred_by: string | null
+          referred_by_client_id: string | null
           reminders_by_email: boolean
           reminders_by_sms: boolean
           sex: string | null
@@ -2355,6 +2356,7 @@ export type Database = {
           rate_variant?: string | null
           referral_source_id?: string | null
           referred_by?: string | null
+          referred_by_client_id?: string | null
           reminders_by_email?: boolean
           reminders_by_sms?: boolean
           sex?: string | null
@@ -2400,6 +2402,7 @@ export type Database = {
           rate_variant?: string | null
           referral_source_id?: string | null
           referred_by?: string | null
+          referred_by_client_id?: string | null
           reminders_by_email?: boolean
           reminders_by_sms?: boolean
           sex?: string | null
@@ -2494,6 +2497,20 @@ export type Database = {
             columns: ["org_id", "referral_source_id"]
             isOneToOne: false
             referencedRelation: "referral_sources_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_referred_by_client_fkey"
+            columns: ["org_id", "referred_by_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "clients_referred_by_client_fkey"
+            columns: ["org_id", "referred_by_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
             referencedColumns: ["org_id", "id"]
           },
         ]

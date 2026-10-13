@@ -1,10 +1,12 @@
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { DescriptionList } from '@/shared/components/DescriptionList'
 import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
 import { formatDateOnlyFull, formatClinicDateShort } from '@/shared/lib/timezone'
 import { PossibleDuplicates } from '../PossibleDuplicates'
 import { useClientRecordData } from '../record-context'
-import { clientNumberLabel, languageLabel, phoneLabel, relationTypeLabel, sexLabel } from '../../../lib/display'
+import { clientPath } from '../../../lib/constants'
+import { clientNumberLabel, languageLabel, referrerLabel, phoneLabel, relationTypeLabel, sexLabel } from '../../../lib/display'
 
 const O = 'modules.clients.record.overview'
 const F = 'modules.clients.fields'
@@ -79,7 +81,21 @@ export function OverviewTab() {
                 empty: t(`${O}.nobody`),
               },
               { label: t(`${F}.referralSource`), value: reference.referralSources.find((s) => s.id === client.referralSourceId)?.name },
-              { label: t(`${F}.referredBy`), value: client.referredBy },
+              {
+                label: t(`${F}.referredBy`),
+                // The referring file (CL-30): a link to it, « Dossier anonymisé » once anonymised.
+                value: summary.referrer ? (
+                  summary.referrer.anonymized ? (
+                    referrerLabel(summary.referrer)
+                  ) : (
+                    <Link to={clientPath(summary.referrer.id)} className="text-link hover:underline">
+                      {referrerLabel(summary.referrer)}
+                    </Link>
+                  )
+                ) : (
+                  client.referredBy
+                ),
+              },
               { label: t(`${O}.openedOn`), value: formatClinicDateShort(client.createdAt) },
               { label: t(`${F}.adminNotes`), value: summary.adminNotes && <span className="whitespace-pre-line">{summary.adminNotes}</span>, empty: t(`${O}.noNotes`) },
             ]}
