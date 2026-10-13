@@ -7,12 +7,14 @@ import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { Loading } from '@/shared/components/LoadState'
 import { Button } from '@/shared/ui/button'
+import { asPublicLanguage, usePageLanguage, type PublicLanguage } from '@/shared/lib/public-language'
 import { formatInClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
 import { useNoIndex, usePageTitle } from '@/shared/lib/use-page-title'
 import { cancelCall, resolveCancelLink } from '../../api/booking'
 import { PublicFrame } from './PublicFrame'
 
-const C = 'modules.demandes.booking.cancel'
+/** The page's text in the call's language (chosen when booking). */
+const TEXT = (lang: PublicLanguage) => (lang === 'en' ? 'modules.demandes.booking.cancelEn' : 'modules.demandes.booking.cancel') as 'modules.demandes.booking.cancel'
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
 const GONE = ['link_invalid', 'link_expired', 'link_used']
 
@@ -30,11 +32,11 @@ function report(error: unknown) {
 /**
  * `/appel-decouverte/annuler#t=…` (Demandes D3c): the confirmation email's cancel link. The token
  * leaves the address bar before any request (never in a log, the history or a query key);
- * `resolve-link` shows the call, « Annuler l'appel » cancels it once. Never indexed.
+ * `resolve-link` shows the call, « Annuler l'appel » cancels it once. In the call's language (French
+ * or English). Never indexed.
  */
 export function BookingCancelPage() {
   useNoIndex()
-  usePageTitle(t(`${C}.title`))
   const { hash } = useLocation()
   const [token] = useState(() => {
     const value = new URLSearchParams(hash.slice(1)).get('t')
@@ -56,6 +58,10 @@ export function BookingCancelPage() {
   useEffect(() => {
     if (link.error) report(link.error)
   }, [link.error])
+  const lang = asPublicLanguage(link.data?.language)
+  const C = TEXT(lang)
+  usePageTitle(t(`${C}.title`))
+  usePageLanguage(lang)
   const [state, setState] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
 
   const ended = (text: string) => (
@@ -86,10 +92,16 @@ export function BookingCancelPage() {
   }
   if (link.isError) return ended(link.error instanceof FunctionCallError && GONE.includes(link.error.code) ? t(`${C}.invalid`) : t(`${C}.error`))
   setClinicTimezone(link.data.timezone)
-  const when = t('modules.demandes.booking.page.slotLabel', {
-    day: formatInClinicTimezone(link.data.starts_at, 'EEEE d MMMM'),
-    time: formatInClinicTimezone(link.data.starts_at, "H 'h' mm"),
-  })
+  const when =
+    lang === 'en'
+      ? t('modules.demandes.booking.pageEn.slotLabel', {
+          day: formatInClinicTimezone(link.data.starts_at, 'EEEE, MMMM d', 'en'),
+          time: formatInClinicTimezone(link.data.starts_at, 'h:mm aaaa', 'en'),
+        })
+      : t('modules.demandes.booking.page.slotLabel', {
+          day: formatInClinicTimezone(link.data.starts_at, 'EEEE d MMMM'),
+          time: formatInClinicTimezone(link.data.starts_at, "H 'h' mm"),
+        })
 
   const cancel = async () => {
     if (state === 'pending') return

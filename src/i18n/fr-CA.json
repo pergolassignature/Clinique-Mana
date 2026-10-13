@@ -128,6 +128,14 @@
       "minutesOther": "Réessayez dans environ {count} minutes.",
       "hourOne": "Réessayez dans environ 1 heure.",
       "hoursOther": "Réessayez dans environ {count} heures."
+    },
+    "retryInEn": {
+      "later": "Please try again later.",
+      "moment": "Please try again in a moment.",
+      "minuteOne": "Please try again in about 1 minute.",
+      "minutesOther": "Please try again in about {count} minutes.",
+      "hourOne": "Please try again in about 1 hour.",
+      "hoursOther": "Please try again in about {count} hours."
     }
   },
   "auth": {
@@ -7644,7 +7652,8 @@
           "doneTitle": "Votre appel est réservé",
           "doneBody": "Une conseillère vous appellera le {when}. Un courriel de confirmation vous a été envoyé, avec un lien pour annuler au besoin.",
           "doneNoEmail": "Une conseillère vous appellera le {when}. Le courriel de confirmation n’a pas pu partir : notez ce moment.",
-          "chooseDay": "Le jour"
+          "chooseDay": "Le jour",
+          "switchLanguage": "English"
         },
         "cancel": {
           "title": "Annuler votre appel découverte",
@@ -7700,6 +7709,55 @@
             "badRange": "La fin doit suivre le début.",
             "addFor": "Ajouter une plage le {day}"
           }
+        },
+        "cancelEn": {
+          "title": "Cancel your discovery call",
+          "body": "Your call with {clinic} is scheduled for {when}.",
+          "confirm": "Cancel the call",
+          "cancelling": "Cancelling…",
+          "doneTitle": "Call cancelled",
+          "doneBody": "Your call is cancelled. You can book another time on the clinic’s page.",
+          "invalid": "This link is no longer valid: the call is already cancelled or past.",
+          "error": "The cancellation could not be made. Please try again in a few minutes or call the clinic."
+        },
+        "pageEn": {
+          "title": "Book a discovery call",
+          "intro": "A free {minutes}-minute call with a counsellor from {clinic}: she listens to your needs and guides you to the right person.",
+          "closed": "Online booking is not open right now. Please call the clinic: we will call you back quickly.",
+          "noSlot": "No time is available right now. Please come back soon or call the clinic.",
+          "loadError": "The page could not be loaded. Please try again in a few minutes.",
+          "chooseSlot": "Choose a time",
+          "slotsHelp": "Times shown: {timezone}. The counsellor calls you at the number you give.",
+          "slotLabel": "{day} at {time}",
+          "more": "See other days",
+          "you": "Your details",
+          "firstName": "First name",
+          "lastName": "Last name",
+          "email": "Email",
+          "emailHelp": "The confirmation and the cancellation link are sent there.",
+          "phone": "Phone",
+          "phoneHelp": "The number where the counsellor calls you.",
+          "language": "Language of the call",
+          "french": "French",
+          "english": "English",
+          "heard": "How did you hear about MANA?",
+          "heardNone": "Choose (optional)",
+          "message": "A few words about your needs (optional)",
+          "messageHelp": "Do not write any medical details here: the counsellor will discuss them with you.",
+          "submit": "Book the call",
+          "checking": "Checking…",
+          "booking": "Booking…",
+          "required": "This field is required.",
+          "chooseSlotFirst": "Please choose a time.",
+          "invalidEmail": "Please enter a valid email address.",
+          "invalidPhone": "Please enter a 10-digit number.",
+          "tooMany": "Too many bookings from this device.",
+          "error": "The booking could not be made. Please try again in a few minutes or call the clinic.",
+          "doneTitle": "Your call is booked",
+          "doneBody": "A counsellor will call you on {when}. A confirmation email has been sent to you, with a link to cancel if needed.",
+          "doneNoEmail": "A counsellor will call you on {when}. The confirmation email could not be sent: please note this time.",
+          "chooseDay": "The day",
+          "switchLanguage": "Français"
         }
       },
       "sources": {
@@ -7953,6 +8011,19 @@
           "bodyNoList": "Vous êtes sur la liste d'attente de {clinic}. Souhaitez-vous y rester ?",
           "stay": "Oui, je reste sur la liste",
           "leave": "Non, retirez-moi de la liste"
+        },
+        "answerEn": {
+          "title": "Waiting list",
+          "stayTitle": "Thank you!",
+          "stayBody": "You stay on the waiting list. We will call you as soon as a spot opens up.",
+          "leaveTitle": "Noted",
+          "leaveBody": "You have been removed from the waiting list. You can call us back at any time.",
+          "invalid": "This link can no longer be used: it was already used or it has expired. Please call the clinic if needed.",
+          "error": "Your answer could not be saved. Please try again in a moment or call the clinic.",
+          "body": "You are on the waiting list of {clinic} ({list}). Would you like to stay on it?",
+          "bodyNoList": "You are on the waiting list of {clinic}. Would you like to stay on it?",
+          "stay": "Yes, I am staying on the list",
+          "leave": "No, remove me from the list"
         }
       },
       "calls": {
@@ -8081,6 +8152,45 @@
             "starts_at": "Cette plage est déjà passée. Choisissez-en une autre.",
             "other": "Cette plage n'est plus possible. Choisissez-en une autre, ou appelez la clinique."
           }
+        },
+        "pageEn": {
+          "title": "Your first appointment",
+          "body": "{clinic} offers you a first appointment with {professional} ({service}, {mode}).",
+          "byVideo": "by video",
+          "byPhone": "by phone",
+          "heldUntil": "These times are held for you until {when}.",
+          "when": "{day} at {time}",
+          "choose": "Choose your time",
+          "accept": "Choose this time",
+          "sending": "Booking…",
+          "none": "None of these work for me",
+          "reasonLabel": "Why? (optional)",
+          "reasonNone": "I prefer not to say",
+          "declineConfirm": "Confirm: none of these work for me",
+          "noSlotLeft": "No time is held for you anymore: please call the clinic.",
+          "acceptedTitle": "You are booked!",
+          "acceptedBody": "Your first appointment is on {when}. See you soon!",
+          "acceptedPlain": "Your first appointment is booked. See you soon!",
+          "declinedTitle": "Noted",
+          "declinedBody": "A counsellor will call you back to find something else.",
+          "invalid": "This link can no longer be used: it was already used, withdrawn, or the 48 hours have passed. Please call the clinic if needed.",
+          "error": "Your answer could not be saved. Please try again in a moment or call the clinic.",
+          "unavailable": {
+            "hold_gone": "This time is no longer held for you. Please choose another one, or call the clinic.",
+            "hold_expired": "The hold on this time has passed. Please choose another one, or call the clinic.",
+            "overlap": "This time was just taken. Please choose another one, or call the clinic.",
+            "outside_availability": "This time is no longer offered. Please choose another one, or call the clinic.",
+            "balance_due": "A balance is still due: please call the clinic to book.",
+            "starts_at": "This time has already passed. Please choose another one.",
+            "other": "This time is no longer possible. Please choose another one, or call the clinic."
+          }
+        },
+        "reasonsEn": {
+          "schedule": "The times do not work for me",
+          "fee": "The fee",
+          "professional": "The professional is not a fit for me",
+          "changed_mind": "I changed my mind",
+          "other": "Another reason"
         }
       }
     },
@@ -8645,6 +8755,17 @@
         "loadError": "Votre agenda ne se charge pas.",
         "notProfessionalTitle": "Aucun dossier professionnel",
         "notProfessionalBody": "Votre compte n'est lié à aucun dossier professionnel : il n'a pas d'agenda."
+      },
+      "confirmEn": {
+        "title": "Confirm your appointment",
+        "bodyVideo": "{clinic}: appointment on {when} with {professional}, by video.",
+        "bodyPhone": "{clinic}: appointment on {when} with {professional}, by phone.",
+        "call": "To cancel or change this appointment, please call the clinic.",
+        "button": "Confirm my attendance",
+        "done": "Thank you: your attendance is confirmed.",
+        "already": "Your attendance at this appointment is already confirmed.",
+        "invalid": "This link can no longer be used. For any question, please call the clinic.",
+        "error": "The confirmation could not be saved. Please try again in a moment or call the clinic."
       }
     },
     "billing": {
@@ -10196,6 +10317,32 @@
             "alreadyPaid": "Cette facture est déjà payée. Merci !",
             "thanks": "Merci : votre paiement est reçu. Le reçu vous sera envoyé par courriel.",
             "cancelled": "Le paiement n’a pas été fait. Vous pouvez reprendre avec le même lien."
+          }
+        },
+        "publicEn": {
+          "invalid": "This link is no longer valid. Please contact the clinic for a new one.",
+          "error": "Something went wrong. Please try again in a moment, or contact the clinic.",
+          "unavailable": "Online payment is not available right now. Please contact the clinic.",
+          "opening": "Opening Stripe…",
+          "card": {
+            "title": "Save a card",
+            "intro": "Hello {name}, {clinic} invites you to save a credit card for your payments.",
+            "authorization": "By saving your card, you authorize {clinic} to charge it for your invoices, the day after each appointment, until you ask for it to be removed.",
+            "stripe": "The card is saved on the secure page of Stripe, our payment provider: the clinic never sees its number.",
+            "button": "Save my card",
+            "already": "A card is already on file. To change it, please contact the clinic.",
+            "thanks": "Thank you: your card is saved. You can close this page.",
+            "cancelled": "You did not save a card. The link stays valid for a few days if you change your mind."
+          },
+          "pay": {
+            "title": "Pay an invoice",
+            "intro": "Invoice {number} of {date}, {clinic}.",
+            "balance": "Balance due: {amount}",
+            "stripe": "The payment is made on the secure page of Stripe, our payment provider. Your receipt is sent by email.",
+            "button": "Pay online",
+            "alreadyPaid": "This invoice is already paid. Thank you!",
+            "thanks": "Thank you: your payment is received. Your receipt will be sent by email.",
+            "cancelled": "The payment was not made. You can start again with the same link."
           }
         }
       },

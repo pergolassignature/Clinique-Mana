@@ -8,10 +8,12 @@ import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { Loading } from '@/shared/components/LoadState'
 import { Button } from '@/shared/ui/button'
+import { asPublicLanguage, usePageLanguage, type PublicLanguage } from '@/shared/lib/public-language'
 import { useNoIndex, usePageTitle } from '@/shared/lib/use-page-title'
 import { confirmByLink, resolveConfirmLink } from '../../api/messages'
 
-const C = 'modules.appointments.confirm'
+/** The page's text in the recipient's language (the message's: the moment comes written in it). */
+const TEXT = (lang: PublicLanguage) => (lang === 'en' ? 'modules.appointments.confirmEn' : 'modules.appointments.confirm') as 'modules.appointments.confirm'
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
 const GONE = ['link_invalid', 'link_expired', 'link_used']
 
@@ -46,11 +48,11 @@ function Frame({ title, children }: { title: string; children: ReactNode }) {
  * change email. The token leaves the address bar before any request (never in a log, the history
  * or a query key); `resolve-link` shows the moment, the professional and the mode; « Confirmer ma
  * présence » confirms once (`appointments-confirm`). To cancel or change, the client calls the
- * clinic (R-39: no cancellation link). Never indexed.
+ * clinic (R-39: no cancellation link). In the recipient's language (French or English). Never
+ * indexed.
  */
 export function ConfirmAppointmentPage() {
   useNoIndex()
-  usePageTitle(t(`${C}.title`))
   const { hash } = useLocation()
   const [token] = useState(() => {
     const value = new URLSearchParams(hash.slice(1)).get('t')
@@ -72,6 +74,10 @@ export function ConfirmAppointmentPage() {
   useEffect(() => {
     if (link.error) report(link.error)
   }, [link.error])
+  const lang = asPublicLanguage(link.data?.language)
+  const C = TEXT(lang)
+  usePageTitle(t(`${C}.title`))
+  usePageLanguage(lang)
   const [state, setState] = useState<'idle' | 'pending' | 'confirmed' | 'error' | 'gone'>('idle')
 
   const notice = (text: string, done = false) => (

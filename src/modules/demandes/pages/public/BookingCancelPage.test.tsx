@@ -59,3 +59,12 @@ describe('BookingCancelPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.invalid`))
   })
 })
+
+describe('BookingCancelPage in English', () => {
+  it('a call booked in English: the moment and the button in English', async () => {
+    mocks.resolveCancelLink.mockResolvedValue({ clinic_name: 'Clinique MANA', timezone: 'America/Toronto', starts_at: '2026-10-14T13:00:00.000Z', language: 'en' })
+    open()
+    expect(await screen.findByText(/Your call with Clinique MANA is scheduled for Wednesday, October 14 at 9:00 a\.m\./)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('modules.demandes.booking.cancelEn.confirm') })).toBeInTheDocument()
+  })
+})

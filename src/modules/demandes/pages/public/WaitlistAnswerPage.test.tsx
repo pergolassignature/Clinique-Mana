@@ -70,3 +70,14 @@ describe('WaitlistAnswerPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${A}.invalid`))
   })
 })
+
+describe('WaitlistAnswerPage in English', () => {
+  it('an English demande: the question and the answers in English', async () => {
+    const user = userEvent.setup()
+    mocks.resolveFollowupLink.mockResolvedValue({ clinic_name: 'Clinique MANA', list_name: 'Psychologie', language: 'en' })
+    open()
+    expect(await screen.findByText(t('modules.demandes.waitlist.answerEn.body', { clinic: 'Clinique MANA', list: 'Psychologie' }))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t('modules.demandes.waitlist.answerEn.stay') }))
+    expect(await screen.findByText(t('modules.demandes.waitlist.answerEn.stayTitle'))).toBeInTheDocument()
+  })
+})

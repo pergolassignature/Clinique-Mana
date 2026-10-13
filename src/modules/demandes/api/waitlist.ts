@@ -239,7 +239,8 @@ export async function saveWaitlistSettings(s: WaitlistSettings): Promise<Waitlis
 
 const linkSchema = z.object({
   purpose: z.literal('waitlist_followup'),
-  display: z.object({ clinic_name: z.string(), list_name: nullableString }),
+  // `language`: the demande's (the page speaks it); French when absent.
+  display: z.object({ clinic_name: z.string(), list_name: nullableString, language: z.enum(['fr', 'en']).default('fr') }),
 })
 export type FollowupLinkDisplay = z.infer<typeof linkSchema>['display']
 
