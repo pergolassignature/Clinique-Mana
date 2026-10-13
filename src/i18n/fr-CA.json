@@ -470,7 +470,28 @@
       "dependsOn": "Requiert :",
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
-      "loadError": "Impossible de charger les modules."
+      "loadError": "Impossible de charger les modules.",
+      "testers": {
+        "label": "Réservé aux testeurs",
+        "switchLabel": "{module} : réservé aux testeurs",
+        "help": "Seules les personnes ci-dessous voient le module, l'administration comprise. Aucun texto ne part vers les clients tant qu'il est réservé (sauf le test de l'administration).",
+        "none": "Personne ne voit ce module : ajoutez au moins un testeur.",
+        "listLabel": "Testeurs de {module}",
+        "remove": "Retirer {name} des testeurs",
+        "add": "Ajouter un testeur…",
+        "option": "{name} ({role})",
+        "unknownUser": "Utilisateur inconnu",
+        "noUsers": "Les noms des testeurs s'affichent avec la permission de voir les utilisateurs.",
+        "saved": "Accès au module mis à jour.",
+        "added": "Testeur ajouté.",
+        "removed": "Testeur retiré.",
+        "loadError": "Impossible de charger les testeurs des modules.",
+        "confirm": {
+          "title": "Réserver {module} aux testeurs ?",
+          "body": "Tout le monde perd l'accès au module tout de suite, sauf les testeurs de la liste. L'administration aussi : ajoutez-vous à la liste si vous devez continuer à l'utiliser.",
+          "action": "Réserver aux testeurs"
+        }
+      }
     },
     "jobs": {
       "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
@@ -5142,6 +5163,246 @@
         }
       }
     },
+    "clients": {
+      "name": "Clients",
+      "audit": {
+        "tables": {
+          "clients": "Clients",
+          "client_notes": "Notes administratives des clients",
+          "client_relations": "Proches des clients",
+          "client_insurances": "Assurances des clients",
+          "client_payers": "Payeurs des clients (IVAC, PAE)",
+          "client_tag_links": "Étiquettes des clients",
+          "client_professional_links": "Professionnels liés aux clients",
+          "client_merges": "Fusions de dossiers",
+          "client_tags": "Liste des étiquettes",
+          "referral_sources": "Provenances"
+        },
+        "fields": {
+          "clients": {
+            "id": "Identifiant",
+            "client_number": "Numéro de dossier",
+            "first_name": "Prénom",
+            "last_name": "Nom",
+            "birth_first_name": "Prénom à la naissance",
+            "pronouns": "Pronoms",
+            "sex": "Sexe",
+            "birthday": "Date de naissance",
+            "email": "Courriel",
+            "mobile_e164": "Cellulaire",
+            "home_e164": "Téléphone (maison)",
+            "work_e164": "Téléphone (travail)",
+            "work_ext": "Poste",
+            "language": "Langue",
+            "time_zone": "Fuseau horaire",
+            "reminders_by_sms": "Rappels par texto",
+            "reminders_by_email": "Rappels par courriel",
+            "address_line1": "Adresse",
+            "address_line2": "Adresse (suite)",
+            "city": "Ville",
+            "province": "Province",
+            "postal_code": "Code postal",
+            "country": "Pays",
+            "referral_source_id": "Provenance",
+            "referred_by": "Référé par",
+            "custom_field": "Champ personnalisé",
+            "primary_professional_id": "Professionnel principal",
+            "rate_variant": "Tarif",
+            "tax_exempt": "Exemption de taxes (Statut Indien)",
+            "is_banned": "Client banni",
+            "file_incomplete": "Dossier incomplet",
+            "special_agreement": "Entente particulière",
+            "shared_custody": "Garde partagée",
+            "external_ref": "Référence GOrendezvous",
+            "archived_at": "Archivé le",
+            "archived_by": "Archivé par",
+            "merged_into_id": "Fusionné dans",
+            "anonymized_at": "Anonymisé le",
+            "anonymized_by": "Anonymisé par",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_notes": {
+            "client_id": "Client",
+            "admin_notes": "Notes administratives",
+            "special_agreement_note": "Note de l'entente particulière",
+            "updated_by": "Modifié par",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_relations": {
+            "id": "Identifiant",
+            "client_a_id": "Client A",
+            "client_b_id": "Client B",
+            "type_a_to_b": "Lien de A envers B",
+            "type_b_to_a": "Lien de B envers A",
+            "a_main_contact": "A est le contact principal de B",
+            "a_manages_appointments": "A gère les rendez-vous et formulaires de B",
+            "a_receives_communications": "A reçoit les communications de B",
+            "a_receives_invoices": "A reçoit les reçus et factures de B",
+            "b_main_contact": "B est le contact principal de A",
+            "b_manages_appointments": "B gère les rendez-vous et formulaires de A",
+            "b_receives_communications": "B reçoit les communications de A",
+            "b_receives_invoices": "B reçoit les reçus et factures de A",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_insurances": {
+            "client_id": "Client",
+            "rank": "Rang",
+            "insurer": "Assureur",
+            "policy_number": "Numéro de police",
+            "certificate_number": "Numéro de certificat",
+            "holder_relation": "Lien avec l'assuré",
+            "holder_name": "Nom de l'assuré",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_payers": {
+            "id": "Identifiant",
+            "client_id": "Client",
+            "kind": "Type de payeur",
+            "organisation_name": "Organisme",
+            "file_number": "Numéro de dossier",
+            "session_amount_cents": "Montant par séance",
+            "max_sessions": "Nombre maximal de séances",
+            "max_amount_cents": "Montant maximal",
+            "starts_on": "Début",
+            "expires_on": "Échéance",
+            "is_active": "Actif",
+            "note": "Note",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_tag_links": {
+            "client_id": "Client",
+            "tag_id": "Étiquette",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_professional_links": {
+            "client_id": "Client",
+            "professional_id": "Professionnel",
+            "reason": "Raison du lien",
+            "first_linked_at": "Lié le",
+            "last_linked_at": "Dernier lien le",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_merges": {
+            "id": "Identifiant",
+            "kept_client_id": "Dossier conservé",
+            "merged_client_id": "Dossier fusionné",
+            "moved": "Éléments déplacés",
+            "merged_at": "Fusionné le",
+            "merged_by": "Fusionné par",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "client_tags": {
+            "id": "Identifiant",
+            "name": "Nom",
+            "sort_order": "Ordre",
+            "is_active": "Active",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          },
+          "referral_sources": {
+            "id": "Identifiant",
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément du système",
+            "sort_order": "Ordre",
+            "is_active": "Active",
+            "org_id": "Clinique",
+            "created_at": "Créé le",
+            "updated_at": "Modifié le",
+            "created_by": "Créé par"
+          }
+        },
+        "values": {
+          "clients": {
+            "sex": {
+              "female": "Femme",
+              "male": "Homme",
+              "other": "Autre"
+            },
+            "language": {
+              "fr": "Français",
+              "en": "Anglais"
+            },
+            "rate_variant": {
+              "student": "Tarif étudiant",
+              "reduced": "Tarif réduit"
+            }
+          },
+          "client_relations": {
+            "type_a_to_b": {
+              "parent": "Parent",
+              "child": "Enfant",
+              "guardian": "Tuteur ou tutrice",
+              "ward": "Personne sous tutelle",
+              "spouse": "Conjoint ou conjointe",
+              "sibling": "Frère ou sœur",
+              "other": "Autre"
+            },
+            "type_b_to_a": {
+              "parent": "Parent",
+              "child": "Enfant",
+              "guardian": "Tuteur ou tutrice",
+              "ward": "Personne sous tutelle",
+              "spouse": "Conjoint ou conjointe",
+              "sibling": "Frère ou sœur",
+              "other": "Autre"
+            }
+          },
+          "client_insurances": {
+            "holder_relation": {
+              "self": "Le client",
+              "spouse": "Conjoint ou conjointe",
+              "parent": "Parent",
+              "other": "Autre"
+            }
+          },
+          "client_payers": {
+            "kind": {
+              "ivac": "IVAC",
+              "pae": "PAE"
+            }
+          },
+          "client_professional_links": {
+            "reason": {
+              "created": "Dossier créé par le professionnel",
+              "primary": "Professionnel principal",
+              "appointment": "Rendez-vous",
+              "demande": "Demande",
+              "import": "Importation"
+            }
+          }
+        },
+        "sources": {
+          "seed:clients_reference": "Listes initiales"
+        }
+      }
+    },
     "communications": {
       "name": "Communications",
       "audit": {
@@ -5608,6 +5869,394 @@
           "sizeMb": "{size} Mo"
         }
       }
+    },
+    "demandes": {
+      "name": "Demandes",
+      "audit": {
+        "tables": {
+          "demandes": "Demandes",
+          "demande_notes": "Notes internes des demandes",
+          "demande_participants": "Personnes visées par les demandes",
+          "demande_motifs": "Motifs des demandes",
+          "demande_events": "Historique des demandes",
+          "demande_tasks": "Tâches des demandes",
+          "demande_propositions": "Propositions de professionnels",
+          "waitlist_entries": "Liste d’attente",
+          "waitlist_contacts": "Suivis de la liste d’attente",
+          "waitlist_offers": "Offres de plage"
+        },
+        "fields": {
+          "demandes": {
+            "reference": "Numéro",
+            "reference_year": "Année du numéro",
+            "reference_seq": "Rang du numéro",
+            "received_at": "Reçue le",
+            "received_by": "Reçue par",
+            "channel": "Canal",
+            "referral_source_id": "Provenance",
+            "source_campaign": "Campagne",
+            "source_utm": "Paramètres de campagne",
+            "source_referrer": "Page d’origine",
+            "client_id": "Dossier client",
+            "contact_name": "Nom",
+            "contact_email": "Courriel",
+            "contact_phone_e164": "Téléphone",
+            "beneficiary": "Pour qui",
+            "previous_therapy": "Consultation antérieure",
+            "language": "Langue",
+            "modality": "Mode",
+            "availability_periods": "Disponibilités",
+            "availability_days": "Jours disponibles",
+            "preferred_pro_gender": "Genre du professionnel souhaité",
+            "profession_title_id": "Profession souhaitée",
+            "clientele_id": "Clientèle",
+            "concerns": "Préoccupations",
+            "payer_kind": "Payeur",
+            "insurer": "Assureur",
+            "state": "État",
+            "closed_reason": "Raison de fermeture",
+            "closed_at": "Fermée le",
+            "is_urgent": "Urgente",
+            "assigned_to": "Conseillère",
+            "assigned_at": "Assignée le",
+            "matched_professional_id": "Professionnel jumelé",
+            "matched_at": "Jumelée le",
+            "last_contact_at": "Dernier contact",
+            "next_contact_at": "Prochaine tentative",
+            "contact_attempts": "Tentatives de contact",
+            "external_ref": "Référence externe"
+          },
+          "demande_notes": {
+            "demande_id": "Demande",
+            "internal_note": "Note interne"
+          },
+          "demande_participants": {
+            "demande_id": "Demande",
+            "client_id": "Dossier client",
+            "display_name": "Nom",
+            "relationship": "Lien",
+            "birthday": "Date de naissance",
+            "is_primary": "Personne principale"
+          },
+          "demande_motifs": {
+            "demande_id": "Demande",
+            "motif_id": "Motif"
+          },
+          "demande_events": {
+            "demande_id": "Demande",
+            "kind": "Événement",
+            "from_state": "État précédent",
+            "to_state": "Nouvel état",
+            "closed_reason": "Raison de fermeture",
+            "contact_channel": "Moyen de contact",
+            "contact_outcome": "Résultat",
+            "professional_id": "Professionnel",
+            "assignee": "Conseillère",
+            "at": "Le",
+            "by_user": "Par"
+          },
+          "demande_tasks": {
+            "demande_id": "Demande",
+            "kind": "Tâche",
+            "due_at": "À faire le",
+            "assigned_to": "Assignée à",
+            "state": "État",
+            "outcome": "Résultat",
+            "done_at": "Terminée le",
+            "done_by": "Terminée par"
+          },
+          "demande_propositions": {
+            "demande_id": "Demande",
+            "professional_id": "Professionnel",
+            "proposed_at": "Proposé le",
+            "proposed_by": "Proposé par",
+            "response": "Réponse",
+            "responded_at": "Répondu le",
+            "decline_reason": "Raison du refus",
+            "expires_at": "Lien valide jusqu’au",
+            "secure_link_id": "Lien d’acceptation",
+            "directory_updated_at": "Profil mis à jour le",
+            "directory_snapshot": "Profil présenté"
+          },
+          "waitlist_entries": {
+            "demande_id": "Demande",
+            "client_id": "Dossier client",
+            "target_profession_title_id": "Profession visée",
+            "target_professional_id": "Professionnel visé",
+            "priority": "Priorité",
+            "priority_reason": "Raison de la priorité",
+            "registered_at": "Inscrite le",
+            "registered_by": "Inscrite par",
+            "availability_periods": "Disponibilités",
+            "availability_days": "Jours disponibles",
+            "modality": "Mode",
+            "language": "Langue",
+            "preferred_pro_gender": "Genre du professionnel souhaité",
+            "clientele_id": "Clientèle",
+            "payer_kind": "Payeur",
+            "motif_ids": "Motifs",
+            "bridge_professional_id": "Professionnel « pont »",
+            "state": "État",
+            "fee_status": "Frais d’inscription",
+            "fee_waived_reason": "Raison de l’exonération",
+            "fee_invoice_id": "Facture",
+            "consent_signed_at": "Consentement signé le",
+            "last_contact_at": "Dernier contact",
+            "next_contact_at": "Prochain contact",
+            "exit_reason": "Raison de sortie",
+            "exited_at": "Sortie le",
+            "exited_by": "Sortie par",
+            "external_ref": "Référence externe"
+          },
+          "waitlist_contacts": {
+            "entry_id": "Inscription",
+            "kind": "Moyen",
+            "outcome": "Résultat",
+            "at": "Le",
+            "by_user": "Par"
+          },
+          "waitlist_offers": {
+            "entry_id": "Inscription",
+            "professional_id": "Professionnel",
+            "slots": "Plages offertes",
+            "channel": "Moyen",
+            "offered_at": "Offerte le",
+            "offered_by": "Offerte par",
+            "expires_at": "Expire le",
+            "secure_link_id": "Lien",
+            "response": "Réponse",
+            "responded_at": "Répondu le"
+          }
+        },
+        "values": {
+          "demandes": {
+            "state": {
+              "new": "Nouvelle",
+              "evaluating": "En évaluation",
+              "accepted": "Acceptée",
+              "proposed": "Proposée",
+              "matched": "Jumelée",
+              "waitlist": "Liste d’attente",
+              "closed": "Fermée"
+            },
+            "closed_reason": {
+              "referred_out": "Orientée ailleurs",
+              "not_relevant": "Non pertinente",
+              "no_answer": "Sans réponse",
+              "withdrew": "Ne souhaite plus",
+              "duplicate": "En double",
+              "other": "Autre"
+            },
+            "channel": {
+              "phone": "Téléphone",
+              "email": "Courriel",
+              "web_form": "Formulaire du site",
+              "booking_page": "Page de réservation",
+              "sms": "Texto",
+              "referral": "Référence",
+              "walk_in": "En personne",
+              "other": "Autre"
+            },
+            "beneficiary": {
+              "self": "Elle-même ou lui-même",
+              "child": "Un enfant",
+              "teen": "Un adolescent",
+              "couple": "Un couple",
+              "family": "Une famille",
+              "other": "Autre"
+            },
+            "modality": {
+              "video": "Vidéo",
+              "phone": "Téléphone",
+              "any": "Indifférent"
+            },
+            "preferred_pro_gender": {
+              "female": "Une femme",
+              "male": "Un homme",
+              "any": "Indifférent"
+            },
+            "payer_kind": {
+              "self": "La personne",
+              "insurance": "Assurance",
+              "eap": "PAE",
+              "ivac": "IVAC",
+              "other": "Autre",
+              "unknown": "À préciser"
+            },
+            "language": {
+              "fr": "Français",
+              "en": "Anglais"
+            }
+          },
+          "demande_participants": {
+            "relationship": {
+              "self": "La personne",
+              "child": "Enfant",
+              "partner": "Conjoint ou conjointe",
+              "parent": "Parent",
+              "sibling": "Frère ou sœur",
+              "other": "Autre"
+            }
+          },
+          "demande_events": {
+            "kind": {
+              "created": "Demande créée",
+              "state_changed": "Changement d’état",
+              "assigned": "Assignation",
+              "contact": "Tentative de contact",
+              "task_done": "Tâche terminée",
+              "urgent_set": "Marquée urgente",
+              "urgent_cleared": "Urgence retirée"
+            },
+            "from_state": {
+              "new": "Nouvelle",
+              "evaluating": "En évaluation",
+              "accepted": "Acceptée",
+              "proposed": "Proposée",
+              "matched": "Jumelée",
+              "waitlist": "Liste d’attente",
+              "closed": "Fermée"
+            },
+            "to_state": {
+              "new": "Nouvelle",
+              "evaluating": "En évaluation",
+              "accepted": "Acceptée",
+              "proposed": "Proposée",
+              "matched": "Jumelée",
+              "waitlist": "Liste d’attente",
+              "closed": "Fermée"
+            },
+            "closed_reason": {
+              "referred_out": "Orientée ailleurs",
+              "not_relevant": "Non pertinente",
+              "no_answer": "Sans réponse",
+              "withdrew": "Ne souhaite plus",
+              "duplicate": "En double",
+              "other": "Autre"
+            },
+            "contact_channel": {
+              "phone": "Téléphone",
+              "email": "Courriel",
+              "sms": "Texto",
+              "other": "Autre"
+            },
+            "contact_outcome": {
+              "reached": "Jointe",
+              "voicemail": "Message laissé",
+              "no_answer": "Sans réponse",
+              "message_sent": "Message envoyé",
+              "wrong_number": "Mauvais numéro"
+            }
+          },
+          "demande_tasks": {
+            "kind": {
+              "discovery_call": "Appel découverte",
+              "callback": "Rappel",
+              "follow_up": "Suivi",
+              "other": "Autre"
+            },
+            "state": {
+              "open": "À faire",
+              "done": "Terminée",
+              "cancelled": "Annulée"
+            },
+            "outcome": {
+              "reached": "Jointe",
+              "voicemail": "Message laissé",
+              "no_answer": "Sans réponse",
+              "message_sent": "Message envoyé",
+              "wrong_number": "Mauvais numéro",
+              "not_needed": "Plus nécessaire"
+            }
+          },
+          "demande_propositions": {
+            "response": {
+              "pending": "En attente",
+              "accepted": "Acceptée",
+              "declined": "Refusée",
+              "no_answer": "Sans réponse",
+              "expired": "Expirée",
+              "withdrawn": "Retirée"
+            },
+            "decline_reason": {
+              "schedule": "Horaire",
+              "fee": "Tarif",
+              "professional": "Professionnel",
+              "changed_mind": "A changé d’idée",
+              "other": "Autre"
+            }
+          },
+          "waitlist_entries": {
+            "priority": {
+              "normal": "Normale",
+              "priority": "Prioritaire"
+            },
+            "state": {
+              "incomplete": "Incomplète",
+              "active": "Active",
+              "to_call": "À rappeler",
+              "offered": "Plage offerte",
+              "closed": "Sortie de la liste"
+            },
+            "fee_status": {
+              "to_invoice": "À facturer",
+              "invoiced": "Facturés",
+              "paid": "Payés",
+              "waived": "Exonérés"
+            },
+            "exit_reason": {
+              "placed": "Placée à la clinique",
+              "referred_elsewhere": "Orientée ailleurs",
+              "withdrew": "Ne souhaite plus",
+              "no_answer": "Sans réponse",
+              "other": "Autre"
+            },
+            "modality": {
+              "video": "Vidéo",
+              "phone": "Téléphone",
+              "any": "Indifférent"
+            },
+            "payer_kind": {
+              "self": "La personne",
+              "insurance": "Assurance",
+              "eap": "PAE",
+              "ivac": "IVAC",
+              "other": "Autre",
+              "unknown": "À préciser"
+            }
+          },
+          "waitlist_contacts": {
+            "kind": {
+              "call": "Appel",
+              "email": "Courriel",
+              "sms": "Texto",
+              "followup_email": "Courriel de suivi"
+            },
+            "outcome": {
+              "reached": "Jointe",
+              "voicemail": "Message laissé",
+              "no_answer": "Sans réponse",
+              "message_sent": "Message envoyé",
+              "wants_to_stay": "Reste sur la liste",
+              "wants_to_leave": "Quitte la liste"
+            }
+          },
+          "waitlist_offers": {
+            "channel": {
+              "phone": "Téléphone",
+              "email": "Courriel",
+              "link": "Lien sécurisé"
+            },
+            "response": {
+              "pending": "En attente",
+              "accepted": "Acceptée",
+              "declined": "Refusée",
+              "expired": "Expirée",
+              "withdrawn": "Retirée"
+            }
+          }
+        }
+      }
     }
   },
   "roles": {
@@ -5626,6 +6275,7 @@
       "roles": "Rôles",
       "org_role_permissions": "Permissions des rôles",
       "org_modules": "Modules",
+      "org_module_testers": "Testeurs des modules",
       "org_module_settings": "Paramètres de module",
       "org_secrets": "Secrets",
       "tax_rates": "Taux de taxes",
@@ -5706,7 +6356,12 @@
       "org_modules": {
         "module_key": "Module",
         "enabled": "Activé",
-        "disabled_at": "Désactivé le"
+        "disabled_at": "Désactivé le",
+        "testers_only": "Réservé aux testeurs"
+      },
+      "org_module_testers": {
+        "module_key": "Module",
+        "user_id": "Testeur"
       },
       "org_module_settings": {
         "module_key": "Module",

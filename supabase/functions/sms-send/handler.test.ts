@@ -74,6 +74,7 @@ function setup(
       },
       mark_sms_sent: { data: null },
       mark_sms_failed: { data: null },
+      module_open_to_all_for_org: { data: true },
       ...options.rpc,
     },
   })
@@ -126,16 +127,17 @@ Deno.test('a reply: queued and claimed by the RPC, sent through the transport, m
     requestId: `mana-${MESSAGE_ID}`,
   }])
   assertEquals(rpcNames(s), [
+    'module_open_to_all_for_org',
     'consume_rate_limit',
     'consume_rate_limit',
     'queue_sms_for_service',
     'mark_sms_sent',
   ])
-  const queued = s.service.calls[2].args
+  const queued = s.service.calls[3].args
   assertEquals(queued.p_actor, ADMIN_ID)
   assertEquals(queued.p_kind, 'reply')
   assertEquals(queued.p_org_id, ORG_ID)
-  assertEquals(s.service.calls[3].args.p_provider_msg_id, 10325)
+  assertEquals(s.service.calls[4].args.p_provider_msg_id, 10325)
 })
 
 Deno.test('a test: communications.sms_manage, the clinic consent text, kind test', async () => {
@@ -207,7 +209,10 @@ Deno.test('the limits: the caller first, then the clinic day; a refusal queues n
   const refused = await user.handler(post({ to: '514 555-1234', body: 'x' }))
   assertEquals(refused.status, 429)
   assertEquals(refused.headers.get('Retry-After'), '120')
-  assertEquals(rpcNames(user), ['consume_rate_limit'])
+  assertEquals(rpcNames(user), [
+    'module_open_to_all_for_org',
+    'consume_rate_limit',
+  ])
   const org = setup({
     limits: {
       'sms.org_day': { allowed: false, hits: 501, retry_after_seconds: 3600 },
@@ -217,7 +222,11 @@ Deno.test('the limits: the caller first, then the clinic day; a refusal queues n
     (await org.handler(post({ to: '514 555-1234', body: 'x' }))).status,
     429,
   )
-  assertEquals(rpcNames(org), ['consume_rate_limit', 'consume_rate_limit'])
+  assertEquals(rpcNames(org), [
+    'module_open_to_all_for_org',
+    'consume_rate_limit',
+    'consume_rate_limit',
+  ])
 })
 
 Deno.test('the RPC refusals pass through: no consent (P0001 → 400 refusal), 42501 → 403', async () => {
@@ -286,4 +295,31 @@ Deno.test('a PBX failure: the row is marked failed, 502 with the code and the ro
     assertEquals((await res.json()).error.code, 'not_configured')
   })
   assertEquals(quiet, [], 'a clinic setup gap is not an incident')
+})
+
+Deno.test('a reply while Communications is reserved for its testers: refused, nothing queued nor sent (R-72)', async () => {
+  const s = setup({ rpc: { module_open_to_all_for_org: { data: false } } })
+  const res = await s.handler(
+    post({ to: '514 555-1234', body: 'Bonjour, à demain.' }),
+  )
+  assertEquals(res.status, 400)
+  const json = await res.json()
+  assertEquals(json.error.refusal, true)
+  assertEquals(
+    rpcNames(s),
+    ['module_open_to_all_for_org'],
+    'no quota used, nothing queued',
+  )
+  assertEquals(s.sent.length, 0)
+})
+
+Deno.test('the admin test still goes while Communications is reserved for its testers', async () => {
+  const s = setup({
+    permissions: ['communications.sms_manage'],
+    rpc: { module_open_to_all_for_org: { data: false } },
+  })
+  const res = await s.handler(post({ test: true, to: '514 555-1234' }))
+  assertEquals(res.status, 200)
+  assert(!rpcNames(s).includes('module_open_to_all_for_org'))
+  assertEquals(s.sent.length, 1)
 })

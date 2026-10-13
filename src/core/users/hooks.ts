@@ -40,9 +40,12 @@ export const userKeys = {
   invitations: () => [...userKeys.all, 'invitations'] as const,
 }
 
-/** Always fresh on mount: another manager may have changed someone meanwhile. */
-export function useOrgUsers() {
-  return useQuery({ queryKey: userKeys.list(), queryFn: fetchOrgUsers, staleTime: 0 })
+/**
+ * Always fresh on mount: another manager may have changed someone meanwhile. `enabled: false` for
+ * a caller without users.view (« Modules »' tester picker).
+ */
+export function useOrgUsers({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({ queryKey: userKeys.list(), queryFn: fetchOrgUsers, staleTime: 0, enabled })
 }
 
 /** The key of the role matrix's cell saves (useSetRolePermission). */
