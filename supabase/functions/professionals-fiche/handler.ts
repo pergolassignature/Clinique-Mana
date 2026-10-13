@@ -51,6 +51,7 @@ import {
   errorResponse,
   handleCors,
   jsonResponse,
+  refusalResponse,
   verifyAuth,
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
@@ -147,6 +148,12 @@ async function outcomeResponse(
       )
     case 'module_disabled':
       return errorResponse('module_disabled', 'Module disabled', 403, req)
+    case 'module_reserved':
+      // P3-40 (CC-14): the module is reserved for its testers.
+      return refusalResponse(
+        'Les courriels de ce module sont suspendus : il est réservé aux testeurs.',
+        req,
+      )
     case 'recipient_not_allowed':
     case 'attachment_not_allowed':
       // The catalogue row no longer allows what this function relies on.

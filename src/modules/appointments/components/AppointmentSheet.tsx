@@ -38,6 +38,7 @@ import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVari
 import { isoWeekday } from '../lib/time'
 import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
 import { SeriesFields } from './SeriesFields'
+import { VideoSection } from './VideoSection'
 
 const E = 'modules.appointments.editor'
 
@@ -315,6 +316,21 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
 
 type EditTab = 'appointment' | 'notes' | 'cancel'
 
+/** A personal appointment (AP-17): its professional takes it off her agenda (a cancellation, « Non spécifiée »). */
+function PersonalCancel({ id, onDone }: { id: string; onDone: () => void }) {
+  const cancel = useCancelAppointment()
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      aria-disabled={cancel.isPending || undefined}
+      onClick={() => !cancel.isPending && cancel.mutate({ id, reasonKey: 'not_specified', details: null, keptOnSchedule: false }, { onSuccess: onDone })}
+    >
+      {t('modules.appointments.personal.cancel')}
+    </Button>
+  )
+}
+
 function EditPanel({
   appointment: a,
   move,
@@ -360,6 +376,7 @@ function EditPanel({
       )}
       <SheetBody className="space-y-4">
         {tab === 'appointment' && <AppointmentTab key={a.startsAt} appointment={a} move={move} reference={reference} open={open} />}
+        {a.isPersonal && open && <PersonalCancel id={a.id} onDone={onClose} />}
         {tab === 'notes' && <NotesTab appointment={a} />}
         {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
       </SheetBody>
@@ -400,6 +417,7 @@ function AppointmentTab({
   return (
     <>
       {a.state === 'held' && <p className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-sm">{t(`${E}.heldNotice`)}</p>}
+      {a.mode === 'video' && !a.isPersonal && a.state !== 'cancelled' && a.state !== 'held' && <VideoSection appointmentId={a.id} />}
       {detail.data?.outsideAvailabilityReason && (
         <p className="text-sm">
           <span className="text-muted-foreground">{t(`${E}.outsideBadge`)} : </span>

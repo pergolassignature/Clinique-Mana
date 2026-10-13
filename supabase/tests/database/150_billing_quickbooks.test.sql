@@ -1,10 +1,10 @@
--- Facturation, batch FQ part 1 (migration *_billing_quickbooks.sql): the module skeleton, the
+-- Facturation, batch FQ part 1 (migration *_billing_quickbooks.sql), on F1's module: the
 -- QuickBooks connection (encrypted tokens, one company per clinic, rotation), the chart of
 -- accounts with Christine's defaults, the customers read and matched with Clients' rules, the
 -- report and its decisions, Clients' merge and anonymisation handlers.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(92);
+select plan(94);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (billing on; admin 01, counselor 02), org B (admin 05).
@@ -36,9 +36,9 @@ insert into public.clients (id, org_id, first_name, last_name, email, mobile_e16
 -- =============================================================================
 -- Registry and privileges
 -- =============================================================================
-select is((select count(*)::int from public.modules where key = 'billing'), 1, 'the billing module is registered');
+select is((select count(*)::int from public.modules where key = 'billing'), 1, 'the billing module is registered (F1)');
 select results_eq($$ select depends_on from public.module_dependencies where module_key = 'billing' order by 1 $$,
-  $$ values ('clients'), ('professionals'), ('services') $$, 'it depends on clients, professionals and services');
+  $$ values ('appointments'), ('clients'), ('professionals'), ('services') $$, 'it depends on F1''s four modules');
 select results_eq($$ select role from public.role_permissions where permission_key = 'billing.settings' order by 1 $$,
   $$ values ('admin') $$, 'billing.settings: the admin by default');
 select table_privs_are('public', t.name, 'authenticated', array['SELECT'], t.name || ': authenticated reads only')
@@ -166,6 +166,8 @@ $$, $$ values ('deposit.bank_transfer', '23', true), ('deposit.cheque', '23', tr
   'Christine''s defaults: 1075, 1070, « Fonds non déposés », « Compte courant », « Services », « Ventes »');
 select is((select qbo_account_id from public.qbo_account_map where profession_title_id = current_setting('test.psy')::uuid), '30',
   'an expense account by specialty, by the title''s name');
+select is_empty($$ select 1 from public.qbo_account_map where map_key = 'deposit.credit_note' $$,
+  'a credit note lands no money: no deposit account (F1''s is_deposit = false)');
 select ok((select count(*) from public.qbo_account_map where org_id = 'b0000000-0000-0000-0000-00000000000a' and map_key = 'expense')
           = (select count(*) from public.profession_titles_catalog where org_id = 'b0000000-0000-0000-0000-00000000000a'),
   'one expense row per active title');
@@ -179,6 +181,8 @@ select throws_ok($$ select public.set_qbo_account_map('revenue.services', null, 
 select throws_ok($$ select public.set_qbo_account_map('revenue.services', null, '99') $$,
   'P0001', 'Ce compte n''existe plus dans QuickBooks. Synchronisez, puis choisissez-en un autre.', 'an inactive account is refused');
 select throws_ok($$ select public.set_qbo_account_map('expense', null, '30') $$, '22023', null, 'an expense names a title');
+select throws_ok($$ select public.set_qbo_account_map('deposit.credit_note', null, '21') $$, '22023', null,
+  'only a payment mode that lands money has a deposit account');
 reset role;
 set local role service_role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);

@@ -4,10 +4,10 @@
 -- Plan:      docs/plans/2026-10-11-modules-coding-plan.md §8 (FQ); roadmap §2.6 and §2.6 bis
 -- Decisions: FQ-1 … (docs/plans/2026-10-07-decisions-log.md)
 --
--- The `billing` module starts here, as a skeleton (FQ-1): its registry row, one permission
--- (`billing.settings`) and the QuickBooks tables (all `qbo_*`). F1 (lane A) builds the invoices on
--- top of it: its permissions, routes and tables; `payment_modes` attach to `qbo_account_map` by
--- the mode's code.
+-- On F1's module (lane A, `20261013105817_billing_module`: the registry row, `billing.settings`,
+-- `payment_modes`, Clients' handler rows): the QuickBooks tables (all `qbo_*`), keyed to F1's
+-- `payment_modes` by code (`deposit.<code>` for each mode that lands money, `is_deposit`), and
+-- the QuickBooks part of F1's two Clients handlers (replaced, F1's body kept).
 --
 -- PS Hub's connector is the source (roadmap §2.6), with its flaws fixed:
 -- * the tokens are encrypted under a key version (`qbo_connection_tokens`, nobody reads the
@@ -27,28 +27,6 @@
 -- dossier) pair (R-30) are recorded in `qbo_links` by the push (after F1).
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:billing_quickbooks', true);
-
--- -----------------------------------------------------------------------------
--- Registry
--- -----------------------------------------------------------------------------
-insert into public.modules (key, name) values ('billing', 'Facturation')
-on conflict do nothing;
-
--- Facturation bills clients (payers, dossiers), for services, by professionals (expenses by
--- title). Rendez-vous joins when it exists.
-insert into public.module_dependencies (module_key, depends_on) values
-  ('billing', 'clients'),
-  ('billing', 'services'),
-  ('billing', 'professionals')
-on conflict do nothing;
-
-insert into public.permissions (key, module_key, description) values
-  ('billing.settings', 'billing', 'Configurer QuickBooks et la facturation')
-on conflict do nothing;
-
-insert into public.role_permissions (role, permission_key) values
-  ('admin', 'billing.settings')
-on conflict do nothing;
 
 -- -----------------------------------------------------------------------------
 -- Helpers
@@ -251,8 +229,9 @@ create policy qbo_accounts_select on public.qbo_accounts
 -- map_key: `revenue.services` (client invoices, « Services »), `revenue.file_opening` (file
 -- openings, « Ventes »), `deposit.<mode>` (where a payment of that mode lands: `interac` « 1075
 -- Virement bancaire à recevoir », `stripe` « 1070 Banque Stripe », `qbo_payments_card` « Fonds non
--- déposés », `bank_transfer` and `cheque` « Compte courant »), `expense` with a profession title
--- (the professionals' invoices by specialty, FPay). F1's `payment_modes` reference `deposit.<code>`.
+-- déposés », `bank_transfer` and `cheque` « Compte courant »: one per F1 `payment_modes` code with
+-- `is_deposit`; `credit_note` lands no money, so it has none), `expense` with a profession title
+-- (the professionals' invoices by specialty, FPay).
 -- qbo_account_id null: not chosen yet. `suggested`: filled by the sync from Christine's defaults
 -- (names and numbers), until a person chooses (then false, never overwritten).
 create table public.qbo_account_map (
@@ -265,10 +244,9 @@ create table public.qbo_account_map (
   updated_by uuid references public.profiles(user_id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint qbo_account_map_key_check check (map_key in (
-    'revenue.services', 'revenue.file_opening',
-    'deposit.interac', 'deposit.stripe', 'deposit.qbo_payments_card', 'deposit.bank_transfer', 'deposit.cheque',
-    'expense')),
+  constraint qbo_account_map_key_check check (
+    map_key in ('revenue.services', 'revenue.file_opening', 'expense')
+    or map_key ~ '^deposit\.[a-z][a-z0-9_]{1,40}$'),
   constraint qbo_account_map_title_check check ((map_key = 'expense') = (profession_title_id is not null)),
   constraint qbo_account_map_account_check check (qbo_account_id is null or qbo_account_id ~ '^[0-9]{1,32}$'),
   constraint qbo_account_map_title_fkey foreign key (org_id, profession_title_id)
@@ -726,8 +704,9 @@ $$;
 
 revoke all on function private.qbo_default_account(uuid, text, text[]) from public, anon, authenticated, service_role;
 
--- The map's rows exist for every key and every active profession title; an empty or suggested
--- row takes the default (a person's choice is never overwritten).
+-- The map's rows exist for every key, every payment mode that lands money (F1's `payment_modes`,
+-- `is_deposit`, active) and every active profession title; an empty or suggested row takes the
+-- default (a person's choice is never overwritten).
 create function private.qbo_apply_account_defaults(p_org_id uuid, p_connection_id uuid)
 returns int
 language plpgsql
@@ -738,8 +717,11 @@ declare
 begin
   insert into public.qbo_account_map (org_id, map_key)
   select p_org_id, k.key
-    from (values ('revenue.services'), ('revenue.file_opening'), ('deposit.interac'), ('deposit.stripe'),
-                 ('deposit.qbo_payments_card'), ('deposit.bank_transfer'), ('deposit.cheque')) k(key)
+    from (values ('revenue.services'), ('revenue.file_opening')) k(key)
+  union all
+  select p_org_id, 'deposit.' || pm.code
+    from public.payment_modes pm
+   where pm.org_id = p_org_id and pm.is_deposit and pm.is_active
   on conflict do nothing;
   insert into public.qbo_account_map (org_id, map_key, profession_title_id)
   select p_org_id, 'expense', t.id from public.profession_titles_catalog t where t.org_id = p_org_id
@@ -1060,13 +1042,17 @@ begin
                      'acct_num', a.acct_num, 'account_type', a.account_type)
                      order by a.acct_num nulls last, a.fully_qualified_name, a.name)
                      from public.qbo_accounts a where a.connection_id = v_connection and a.active), '[]'::jsonb),
+    -- A deposit row carries its payment mode's name (F1's `payment_modes`); a mode no longer
+    -- active or no longer a deposit is left out.
     'map', coalesce((select jsonb_agg(jsonb_build_object(
                      'key', m.map_key, 'profession_title_id', m.profession_title_id, 'profession_title_name', t.name,
-                     'account_id', m.qbo_account_id, 'suggested', m.suggested)
-                     order by m.map_key, t.sort_order, t.name)
+                     'mode_name', pm.name, 'account_id', m.qbo_account_id, 'suggested', m.suggested)
+                     order by m.map_key not like 'revenue.%', pm.sort_order nulls last, m.map_key, t.sort_order, t.name)
                      from public.qbo_account_map m
                      left join public.profession_titles_catalog t on t.id = m.profession_title_id
-                    where m.org_id = v_org and (m.profession_title_id is null or t.id is not null)), '[]'::jsonb)
+                     left join public.payment_modes pm on pm.org_id = m.org_id and 'deposit.' || pm.code = m.map_key
+                    where m.org_id = v_org and (m.profession_title_id is null or t.id is not null)
+                      and (m.map_key not like 'deposit.%' or (pm.id is not null and pm.is_deposit and pm.is_active))), '[]'::jsonb)
   );
 end;
 $$;
@@ -1087,6 +1073,11 @@ declare
 begin
   if p_key is null or (p_key = 'expense') <> (p_profession_title_id is not null) then
     raise exception 'A key (and a title for an expense)' using errcode = '22023';
+  end if;
+  if p_key not in ('revenue.services', 'revenue.file_opening', 'expense')
+     and not exists (select 1 from public.payment_modes pm
+                      where pm.org_id = v_org and pm.is_deposit and 'deposit.' || pm.code = p_key) then
+    raise exception 'Unknown key' using errcode = '22023';
   end if;
   select c.id into v_connection from public.qbo_connections c where c.org_id = v_org and c.status <> 'disconnected';
   if v_connection is null then
@@ -1243,12 +1234,13 @@ revoke all on function public.decide_qbo_customer_match(text, text, uuid) from p
 grant execute on function public.decide_qbo_customer_match(text, text, uuid) to authenticated;
 
 -- =============================================================================
--- Clients' merge and anonymisation (C2's handler catalogues, ADR 0003)
+-- Clients' merge and anonymisation: F1's two handlers (`20261013105817_billing_module`) replaced,
+-- F1's body kept as is, the QuickBooks part added after it (F1 registered the handler rows)
 -- =============================================================================
 -- A merge moves the matches and the links to the kept file, unless the kept file already has its
 -- own (then the merged file's stay where they are: QuickBooks keeps its history under its own
 -- customer; the push bills the kept file's).
-create function private.billing_reassign_client(p_old uuid, p_new uuid)
+create or replace function private.billing_reassign_client(p_old uuid, p_new uuid)
 returns int
 language plpgsql
 set search_path = ''
@@ -1257,6 +1249,25 @@ declare
   v_total int := 0;
   v_count int;
 begin
+  -- F1: the invoices and the default payers.
+  update public.invoices i set client_id = p_new,
+         payer_client_id = case when i.payer_client_id = p_old then p_new else i.payer_client_id end,
+         payer_kind = case when (case when i.payer_client_id = p_old then p_new else i.payer_client_id end) = p_new then 'client' else i.payer_kind end
+   where i.client_id = p_old;
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  update public.invoices i set payer_client_id = p_new,
+         payer_kind = case when i.client_id = p_new then 'client' else 'relation' end
+   where i.payer_client_id = p_old;
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  delete from public.billing_payer_defaults d
+   where d.client_id = p_old
+     and exists (select 1 from public.billing_payer_defaults k where k.client_id = p_new and k.effective_from = d.effective_from);
+  update public.billing_payer_defaults d set client_id = p_new where d.client_id = p_old;
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  update public.billing_payer_defaults d set payer_client_id = p_new where d.payer_client_id = p_old;
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+
+  -- FQ: the QuickBooks matches and links.
   update public.qbo_customer_matches m
      set candidate_client_ids = pg_catalog.array_replace(m.candidate_client_ids, p_old, p_new)
    where p_old = any (m.candidate_client_ids);
@@ -1281,35 +1292,38 @@ begin
   return v_total;
 end;
 $$;
-revoke all on function private.billing_reassign_client(uuid, uuid) from public, anon, authenticated, service_role;
 
--- An anonymisation blanks this app's copy of the customers matched to the person (QuickBooks keeps
--- its accounting record; the next read brings its names back only if the clinic left them there).
-create function private.billing_anonymize_client(p_id uuid)
+-- An anonymisation: F1 keeps the invoices and blanks their free texts, drops the default payers;
+-- FQ blanks this app's copy of the customers matched to the person (QuickBooks keeps its
+-- accounting record; the next read brings its names back only if the clinic left them there).
+create or replace function private.billing_anonymize_client(p_id uuid)
 returns int
 language plpgsql
 set search_path = ''
 as $$
 declare
+  v_total int := 0;
   v_count int;
 begin
+  -- F1.
+  update public.invoices i set notes_client = null, notes_internal = null
+   where (i.client_id = p_id or i.payer_client_id = p_id) and (i.notes_client is not null or i.notes_internal is not null);
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  delete from public.billing_payer_defaults d where d.client_id = p_id or d.payer_client_id = p_id;
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+
+  -- FQ.
   update public.qbo_customers q
      set display_name = '(anonymisé)', given_name = null, family_name = null, company_name = null, email = null, phones = '{}'
     from public.qbo_customer_matches m
    where m.connection_id = q.connection_id and m.qbo_id = q.qbo_id and m.client_id = p_id
      and q.display_name <> '(anonymisé)';
-  get diagnostics v_count = row_count;
-  return v_count;
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  return v_total;
 end;
 $$;
-revoke all on function private.billing_anonymize_client(uuid) from public, anon, authenticated, service_role;
-
-insert into public.client_merge_handlers (module_key, function_name)
-values ('billing', 'private.billing_reassign_client')
-on conflict do nothing;
-insert into public.client_anonymize_handlers (module_key, function_name)
-values ('billing', 'private.billing_anonymize_client')
-on conflict do nothing;
+revoke all on function private.billing_reassign_client(uuid, uuid), private.billing_anonymize_client(uuid)
+  from public, anon, authenticated, service_role;
 
 -- =============================================================================
 -- The keep-alive job: refresh the tokens daily so the 100-day refresh token never lapses while

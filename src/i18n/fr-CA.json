@@ -6707,7 +6707,8 @@
             "unread": "Non lus",
             "starred": "Suivis",
             "sent": "Envoyés",
-            "all": "Tous les courriels"
+            "all": "Tous les courriels",
+            "to_link": "À rattacher"
           }
         },
         "list": {
@@ -6720,7 +6721,8 @@
           "noSubject": "(sans objet)",
           "unread": "Non lu :",
           "starred": "Suivi",
-          "attachments": "Pièces jointes"
+          "attachments": "Pièces jointes",
+          "emptyToLink": "Aucun courriel à rattacher."
         },
         "thread": {
           "select": "Choisissez un courriel pour le lire.",
@@ -6752,6 +6754,30 @@
           "attachmentInGmail": "dans Gmail seulement",
           "sizeKb": "{size} ko",
           "sizeMb": "{size} Mo"
+        },
+        "link": {
+          "label": "Dossier client",
+          "loadError": "Le dossier client du courriel n'a pas pu être lu.",
+          "linkedTo": "Rattaché au dossier",
+          "auto": "(trouvé par l'adresse de l'expéditeur)",
+          "unlink": "Détacher",
+          "change": "Changer de dossier",
+          "candidates": "Plusieurs dossiers correspondent à l'adresse de l'expéditeur. Choisissez le bon :",
+          "linkTo": "Rattacher",
+          "linkToLabel": "Rattacher au dossier {file}",
+          "other": "Un autre dossier",
+          "none": "Aucun dossier client rattaché.",
+          "link": "Rattacher à un dossier",
+          "searchLabel": "Chercher un dossier",
+          "searchPlaceholder": "Nom, courriel, numéro ou téléphone",
+          "searchHint": "Tapez au moins 2 caractères.",
+          "searching": "Recherche en cours…",
+          "noResult": "Aucun dossier ne correspond.",
+          "searchError": "La recherche n'a pas abouti. Réessayez.",
+          "results": "Dossiers trouvés",
+          "archived": "Archivé",
+          "linkedToast": "Courriel rattaché au dossier.",
+          "unlinkedToast": "Courriel détaché du dossier."
         }
       }
     },
@@ -8357,7 +8383,8 @@
         "exception": "Exception ajoutée.",
         "exceptionRemoved": "Exception retirée.",
         "series": "Série réservée.",
-        "seriesCancelled": "Rendez-vous de la série annulés."
+        "seriesCancelled": "Rendez-vous de la série annulés.",
+        "personal": "Rendez-vous personnel ajouté."
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
@@ -8482,6 +8509,16 @@
           "book": "Réserver {count} rendez-vous",
           "cancelRest": "Annuler aussi les rendez-vous suivants de la série",
           "cancelRestHelp": "Ce rendez-vous et ceux qui le suivent dans la série, avec la même raison."
+        },
+        "video": {
+          "title": "Vidéo",
+          "start": "Démarrer",
+          "zoom": "Réunion Zoom du rendez-vous",
+          "fixed": "Lien fixe du professionnel",
+          "pending": "Le lien Zoom se prépare : il sera envoyé au client dès qu'il est prêt.",
+          "failed": "La création de la réunion Zoom a échoué.",
+          "retry": "Réessayer",
+          "none": "Aucun lien vidéo : ce professionnel n'a ni Zoom connecté ni lien fixe."
         }
       },
       "availability": {
@@ -8530,10 +8567,283 @@
         "description": "Les rendez-vous des 7 prochains jours dont personne ne peut recevoir de rappel (aucun courriel, aucun texto autorisé) : appelez ces clients.",
         "empty": "Tous les clients des 7 prochains jours recevront un rappel.",
         "loadError": "La liste des clients sans rappel ne se charge pas."
+      },
+      "visits": {
+        "title": "Rendez-vous",
+        "empty": "Ce client n'a encore aucun rendez-vous.",
+        "coming": "À venir ({count})",
+        "past": "Passés",
+        "noneComing": "Aucun rendez-vous à venir.",
+        "nonePast": "Aucun rendez-vous passé.",
+        "more": "Afficher plus",
+        "cancelled": "Annulé : {reason}",
+        "cancelledLate": "Annulé tard : {reason}",
+        "loadError": "Les rendez-vous du client ne se chargent pas."
+      },
+      "personal": {
+        "title": "Rendez-vous personnel",
+        "description": "Bloquez du temps à votre agenda : l'équipe le voit comme « Occupé », sans le libellé.",
+        "label": "Libellé",
+        "labelHelp": "Vous seul le voyez (par exemple « Dentiste »).",
+        "day": "Date",
+        "start": "Début",
+        "end": "Fin",
+        "work": "Rendez-vous de travail",
+        "workHelp": "Une rencontre liée à votre travail (réunion, formation).",
+        "save": "Ajouter",
+        "new": "Rendez-vous personnel",
+        "cancel": "Retirer ce rendez-vous personnel"
+      },
+      "mine": {
+        "title": "Mon agenda",
+        "description": "Vos rendez-vous et vos disponibilités. Les réservations des clients passent par la clinique.",
+        "loadError": "Votre agenda ne se charge pas.",
+        "notProfessionalTitle": "Aucun dossier professionnel",
+        "notProfessionalBody": "Votre compte n'est lié à aucun dossier professionnel : il n'a pas d'agenda."
       }
     },
     "billing": {
       "name": "Facturation",
+      "audit": {
+        "tables": {
+          "invoices": "Factures",
+          "invoice_lines": "Lignes de facture",
+          "credit_notes": "Notes de crédit",
+          "billing_payer_defaults": "Payeurs par défaut",
+          "invoice_sequences": "Numérotation des factures",
+          "payment_modes": "Modes de paiement",
+          "qbo_connections": "Connexion QuickBooks",
+          "qbo_connection_tokens": "Accès QuickBooks (chiffré)",
+          "qbo_account_map": "Comptes QuickBooks",
+          "qbo_customer_matches": "Correspondance des clients QuickBooks",
+          "qbo_links": "Clients QuickBooks facturés"
+        },
+        "fields": {
+          "invoices": {
+            "number": "Numéro",
+            "year": "Année",
+            "seq": "Rang",
+            "status": "État",
+            "client_id": "Dossier",
+            "payer_kind": "Type de payeur",
+            "payer_client_id": "Facturé à",
+            "issued_on": "Émise le",
+            "due_on": "Due le",
+            "gst_rate": "Taux TPS",
+            "qst_rate": "Taux TVQ",
+            "tax_exempt": "Exempté de taxes (Statut Indien)",
+            "subtotal_cents": "Sous-total",
+            "gst_cents": "TPS",
+            "qst_cents": "TVQ",
+            "total_cents": "Total",
+            "source_type": "Origine",
+            "source_id": "Origine (référence)",
+            "external_ref": "Référence externe",
+            "notes_client": "Note au client",
+            "notes_internal": "Note interne",
+            "finalized_at": "Finalisée le",
+            "finalized_by": "Finalisée par",
+            "credited_at": "Créditée le"
+          },
+          "invoice_lines": {
+            "invoice_id": "Facture",
+            "position": "Rang",
+            "line_type": "Type de ligne",
+            "appointment_id": "Rendez-vous",
+            "service_id": "Service",
+            "service_code": "Code du service",
+            "description": "Description",
+            "quantity": "Quantité",
+            "unit_price_cents": "Prix unitaire",
+            "price_source": "Source du prix",
+            "tax_rule": "Taxes",
+            "subtotal_cents": "Sous-total",
+            "gst_cents": "TPS",
+            "qst_cents": "TVQ",
+            "total_cents": "Total",
+            "credited": "Créditée",
+            "professional_id": "Professionnel"
+          },
+          "credit_notes": {
+            "invoice_id": "Facture",
+            "number": "Numéro",
+            "year": "Année",
+            "seq": "Rang",
+            "reason": "Raison",
+            "issued_on": "Émise le",
+            "subtotal_cents": "Sous-total",
+            "gst_cents": "TPS",
+            "qst_cents": "TVQ",
+            "total_cents": "Total"
+          },
+          "billing_payer_defaults": {
+            "client_id": "Dossier",
+            "payer_client_id": "Facturé à",
+            "effective_from": "À partir du"
+          },
+          "invoice_sequences": {
+            "kind": "Type",
+            "year": "Année",
+            "last_number": "Dernier numéro"
+          },
+          "payment_modes": {
+            "code": "Code",
+            "name": "Nom",
+            "is_deposit": "Dépôt",
+            "is_active": "Actif",
+            "sort_order": "Ordre"
+          },
+          "qbo_connections": {
+            "realm_id": "Numéro de l'entreprise",
+            "environment": "Environnement",
+            "company_name": "Entreprise",
+            "status": "Statut",
+            "status_reason": "Raison du statut",
+            "connected_by": "Connecté par",
+            "connected_at": "Connecté le",
+            "disconnected_at": "Déconnecté le",
+            "disconnected_by": "Déconnecté par",
+            "refresh_token_expires_at": "Fin de l'accès sans renouvellement",
+            "last_sync_at": "Dernière synchronisation",
+            "last_sync_status": "Résultat de la synchronisation",
+            "last_error_code": "Code de la dernière erreur",
+            "last_error_at": "Dernière erreur le",
+            "accounts_synced_at": "Comptes lus le",
+            "customers_synced_at": "Clients lus le"
+          },
+          "qbo_connection_tokens": {
+            "connection_id": "Connexion",
+            "access_token": "Jeton d'accès",
+            "refresh_token": "Jeton de renouvellement",
+            "access_token_expires_at": "Fin du jeton d'accès",
+            "key_version": "Version de la clé"
+          },
+          "qbo_account_map": {
+            "map_key": "Type d'écriture",
+            "profession_title_id": "Titre",
+            "qbo_account_id": "Compte QuickBooks",
+            "suggested": "Suggéré",
+            "updated_by": "Modifié par"
+          },
+          "qbo_customer_matches": {
+            "connection_id": "Connexion",
+            "qbo_id": "Client QuickBooks",
+            "client_id": "Dossier client",
+            "level": "Niveau",
+            "reasons": "Raisons",
+            "candidate_client_ids": "Dossiers possibles",
+            "status": "Statut",
+            "source": "Origine",
+            "match_input_hash": "Empreinte des données lues",
+            "decided_by": "Décidé par",
+            "decided_at": "Décidé le"
+          },
+          "qbo_links": {
+            "connection_id": "Connexion",
+            "kind": "Type",
+            "payer_client_id": "Payeur",
+            "client_id": "Dossier client",
+            "qbo_customer_id": "Client QuickBooks",
+            "source": "Origine"
+          }
+        },
+        "values": {
+          "invoices": {
+            "status": {
+              "draft": "Brouillon",
+              "issued": "Émise",
+              "credited": "Créditée"
+            },
+            "payer_kind": {
+              "client": "Le client",
+              "relation": "Un proche"
+            },
+            "source_type": {
+              "appointment": "Rendez-vous",
+              "manual": "Saisie",
+              "service": "Service",
+              "import": "Importation"
+            }
+          },
+          "invoice_lines": {
+            "line_type": {
+              "service": "Séance",
+              "cancellation_fee": "Frais d'annulation",
+              "file_opening": "Ouverture de dossier",
+              "adjustment": "Ajustement",
+              "ivac_gap": "Écart IVAC"
+            },
+            "tax_rule": {
+              "exempt": "Non taxable",
+              "taxable": "Taxable"
+            }
+          },
+          "invoice_sequences": {
+            "kind": {
+              "invoice": "Facture",
+              "credit_note": "Note de crédit"
+            }
+          },
+          "qbo_connections": {
+            "environment": {
+              "production": "Production",
+              "sandbox": "Bac à sable"
+            },
+            "status": {
+              "connected": "Connecté",
+              "needs_reconnect": "À reconnecter",
+              "disconnected": "Déconnecté"
+            },
+            "last_sync_status": {
+              "ok": "Réussie",
+              "partial": "Partielle",
+              "failed": "Échouée"
+            }
+          },
+          "qbo_account_map": {
+            "map_key": {
+              "revenue_services": "Factures des clients",
+              "revenue_file_opening": "Ouvertures de dossier",
+              "deposit_interac": "Virement Interac",
+              "deposit_stripe": "Carte (Stripe)",
+              "deposit_qbo_payments_card": "Carte (QuickBooks Payments)",
+              "deposit_bank_transfer": "Virement bancaire",
+              "deposit_cheque": "Chèque",
+              "expense": "Dépenses par spécialité"
+            }
+          },
+          "qbo_customer_matches": {
+            "status": {
+              "linked": "Rattaché",
+              "to_decide": "À décider",
+              "no_match": "Sans correspondance",
+              "ignored": "Ignoré"
+            },
+            "level": {
+              "high": "Forte",
+              "medium": "Possible",
+              "none": "Aucune"
+            },
+            "source": {
+              "auto": "Automatique",
+              "manual": "Choisie par une personne"
+            }
+          },
+          "qbo_links": {
+            "kind": {
+              "payer": "Payeur (client parent)",
+              "dossier": "Dossier (sous-client)"
+            },
+            "source": {
+              "matched": "Rapproché",
+              "created": "Créé par l'application"
+            }
+          }
+        },
+        "sources": {
+          "seed:billing_reference": "Listes initiales"
+        }
+      },
       "errors": {
         "notConfigured": "L'application Intuit n'est pas encore configurée (Paramètres → QuickBooks → Application Intuit).",
         "providerError": "QuickBooks n'a pas répondu. Réessayez dans quelques minutes.",
@@ -8656,7 +8966,9 @@
               "label": "Paiements par chèque",
               "help": "Habituellement « Compte courant »."
             }
-          }
+          },
+          "depositOther": "Dépôts : {mode}",
+          "depositOtherHelp": "Le compte où arrivent les paiements de ce mode."
         },
         "jobs": {
           "title": "Tâches planifiées",
@@ -8757,127 +9069,6 @@
             "ignored": "{customer} est ignoré.",
             "to_decide": "{customer} est de nouveau à décider.",
             "no_match": "{customer} est sans correspondance."
-          }
-        }
-      },
-      "audit": {
-        "tables": {
-          "qbo_connections": "Connexion QuickBooks",
-          "qbo_connection_tokens": "Accès QuickBooks (chiffré)",
-          "qbo_account_map": "Comptes QuickBooks",
-          "qbo_customer_matches": "Correspondance des clients QuickBooks",
-          "qbo_links": "Clients QuickBooks facturés"
-        },
-        "fields": {
-          "qbo_connections": {
-            "realm_id": "Numéro de l'entreprise",
-            "environment": "Environnement",
-            "company_name": "Entreprise",
-            "status": "Statut",
-            "status_reason": "Raison du statut",
-            "connected_by": "Connecté par",
-            "connected_at": "Connecté le",
-            "disconnected_at": "Déconnecté le",
-            "disconnected_by": "Déconnecté par",
-            "refresh_token_expires_at": "Fin de l'accès sans renouvellement",
-            "last_sync_at": "Dernière synchronisation",
-            "last_sync_status": "Résultat de la synchronisation",
-            "last_error_code": "Code de la dernière erreur",
-            "last_error_at": "Dernière erreur le",
-            "accounts_synced_at": "Comptes lus le",
-            "customers_synced_at": "Clients lus le"
-          },
-          "qbo_connection_tokens": {
-            "connection_id": "Connexion",
-            "access_token": "Jeton d'accès",
-            "refresh_token": "Jeton de renouvellement",
-            "access_token_expires_at": "Fin du jeton d'accès",
-            "key_version": "Version de la clé"
-          },
-          "qbo_account_map": {
-            "map_key": "Type d'écriture",
-            "profession_title_id": "Titre",
-            "qbo_account_id": "Compte QuickBooks",
-            "suggested": "Suggéré",
-            "updated_by": "Modifié par"
-          },
-          "qbo_customer_matches": {
-            "connection_id": "Connexion",
-            "qbo_id": "Client QuickBooks",
-            "client_id": "Dossier client",
-            "level": "Niveau",
-            "reasons": "Raisons",
-            "candidate_client_ids": "Dossiers possibles",
-            "status": "Statut",
-            "source": "Origine",
-            "match_input_hash": "Empreinte des données lues",
-            "decided_by": "Décidé par",
-            "decided_at": "Décidé le"
-          },
-          "qbo_links": {
-            "connection_id": "Connexion",
-            "kind": "Type",
-            "payer_client_id": "Payeur",
-            "client_id": "Dossier client",
-            "qbo_customer_id": "Client QuickBooks",
-            "source": "Origine"
-          }
-        },
-        "values": {
-          "qbo_connections": {
-            "environment": {
-              "production": "Production",
-              "sandbox": "Bac à sable"
-            },
-            "status": {
-              "connected": "Connecté",
-              "needs_reconnect": "À reconnecter",
-              "disconnected": "Déconnecté"
-            },
-            "last_sync_status": {
-              "ok": "Réussie",
-              "partial": "Partielle",
-              "failed": "Échouée"
-            }
-          },
-          "qbo_account_map": {
-            "map_key": {
-              "revenue_services": "Factures des clients",
-              "revenue_file_opening": "Ouvertures de dossier",
-              "deposit_interac": "Virement Interac",
-              "deposit_stripe": "Carte (Stripe)",
-              "deposit_qbo_payments_card": "Carte (QuickBooks Payments)",
-              "deposit_bank_transfer": "Virement bancaire",
-              "deposit_cheque": "Chèque",
-              "expense": "Dépenses par spécialité"
-            }
-          },
-          "qbo_customer_matches": {
-            "status": {
-              "linked": "Rattaché",
-              "to_decide": "À décider",
-              "no_match": "Sans correspondance",
-              "ignored": "Ignoré"
-            },
-            "level": {
-              "high": "Forte",
-              "medium": "Possible",
-              "none": "Aucune"
-            },
-            "source": {
-              "auto": "Automatique",
-              "manual": "Choisie par une personne"
-            }
-          },
-          "qbo_links": {
-            "kind": {
-              "payer": "Payeur (client parent)",
-              "dossier": "Dossier (sous-client)"
-            },
-            "source": {
-              "matched": "Rapproché",
-              "created": "Créé par l'application"
-            }
           }
         }
       }

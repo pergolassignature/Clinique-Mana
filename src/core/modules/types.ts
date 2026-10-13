@@ -42,6 +42,23 @@ export interface ModuleHomeCard {
   component: LazyPage
 }
 
+/**
+ * The slots a module may fill in another module's screen. The host renders each panel where the
+ * slot is; a panel reads what it needs from the route (`client.visits`: the record's `:id`).
+ *   `client.visits`: Clients' record, tab « Visites et paiements » (Rendez-vous R5, Facturation F2).
+ */
+export type ModuleSlotName = 'client.visits'
+
+/** A panel a module adds to a slot, for whoever holds one of its permissions. */
+export interface ModuleSlotItem {
+  /** Stable English identifier, unique across modules (React key, error scope). */
+  id: string
+  /** Shown when the user holds any of these. */
+  permissions: readonly string[]
+  /** A lazyPage(): the host does not load the module's code for users who cannot see it. */
+  component: LazyPage
+}
+
 /** One record the global search (⌘K) found. */
 export interface ModuleSearchResult {
   /** Unique within its provider (React key, cmdk value). */
@@ -137,6 +154,8 @@ export interface ModuleManifest {
   homeCards?: readonly ModuleHomeCard[]
   /** Its record groups in the global search (⌘K), in this order. */
   search?: readonly ModuleSearchProvider[]
+  /** Its panels in other modules' screens, by slot (`ModuleSlotName`). */
+  slots?: Partial<Record<ModuleSlotName, readonly ModuleSlotItem[]>>
   /**
    * The names and values of its audited tables, for the Journal d'audit. A loader: the labels
    * (and the formatting code they use) load in their own chunk when the journal opens, never on

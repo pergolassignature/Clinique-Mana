@@ -9,8 +9,11 @@ import { invokeFunction } from '@/core/supabase/functions'
  * RLS is the check.
  */
 
-/** The list's views (the left pane). */
-export const MAIL_VIEWS = ['inbox', 'unread', 'starred', 'sent', 'all'] as const
+/**
+ * The list's views (the left pane). `to_link` (« À rattacher », CM2b): the inbox's threads not
+ * linked to a file and never unlinked by a person; shown only with `clients.view`.
+ */
+export const MAIL_VIEWS = ['inbox', 'unread', 'starred', 'sent', 'all', 'to_link'] as const
 export type MailView = (typeof MAIL_VIEWS)[number] | 'label'
 
 /** Threads per page (the RPC caps at 100). */

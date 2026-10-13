@@ -6,6 +6,7 @@ import { toast } from '@/shared/ui/sonner'
 import {
   addAvailabilityException,
   bookAppointment,
+  bookPersonalAppointment,
   cancelAppointment,
   cancelSeriesFrom,
   createSeries,
@@ -14,6 +15,7 @@ import {
   fetchAgendaReference,
   fetchAppointmentDetail,
   fetchAvailability,
+  fetchMyAgendaReference,
   moveAppointment,
   previewSeries,
   removeAvailabilityException,
@@ -23,6 +25,7 @@ import {
   type BookInput,
   type ExceptionInput,
   type MoveInput,
+  type PersonalInput,
   type RuleInput,
   type SeriesInput,
   type SeriesRule,
@@ -46,6 +49,11 @@ export function useAppointmentDetail(id: string | null) {
 
 export function useAgendaReference() {
   return useQuery({ queryKey: appointmentsKeys.reference(), queryFn: fetchAgendaReference, staleTime: 5 * 60_000 })
+}
+
+/** « Mon agenda »: the professional's own reference (R5). */
+export function useMyAgendaReference(enabled = true) {
+  return useQuery({ queryKey: appointmentsKeys.myReference(), queryFn: fetchMyAgendaReference, staleTime: 5 * 60_000, enabled })
 }
 
 export function useAvailability(professionalIds: readonly string[], sinceIso: string) {
@@ -109,6 +117,8 @@ export const useCancelSeriesFrom = (feedback?: MutationFeedback) =>
     `${S}.seriesCancelled`,
     feedback,
   )
+export const useBookPersonal = (feedback?: MutationFeedback) =>
+  useAgendaMutation((input: PersonalInput) => bookPersonalAppointment(input), `${S}.personal`, feedback)
 export const useMoveAppointment = (feedback?: MutationFeedback) => useAgendaMutation((input: MoveInput) => moveAppointment(input), `${S}.moved`, feedback)
 export const useSetAppointmentDetails = (feedback?: MutationFeedback) =>
   useAgendaMutation(

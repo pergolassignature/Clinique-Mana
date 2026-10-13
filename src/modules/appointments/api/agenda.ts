@@ -86,6 +86,24 @@ export async function fetchAgendaReference(): Promise<AgendaReference> {
   }
 }
 
+/**
+ * « Mon agenda »'s reference (R5): the professional herself, the services she offers
+ * (`get_my_agenda_reference`: she cannot read the staff's views) and the cancellation reasons.
+ */
+export async function fetchMyAgendaReference(): Promise<AgendaReference> {
+  const [mine, reasons] = await Promise.all([
+    supabase.rpc('get_my_agenda_reference'),
+    supabase.from('cancellation_reasons').select('id, key, name, is_active').order('sort_order').limit(LIST_MAX),
+  ])
+  if (mine.error) throw mine.error
+  if (reasons.error) throw reasons.error
+  const parsed = parseRpc(
+    z.object({ professional: professionalOptionPayload, services: z.array(serviceOptionPayload) }),
+    mine.data,
+  )
+  return { professionals: [parsed.professional], services: parsed.services, reasons: parseRpc(z.array(reasonPayload), reasons.data) }
+}
+
 /** The windows of these professionals, and their exceptions ending after `sinceIso` (the shown range's start). */
 export async function fetchAvailability(professionalIds: readonly string[], sinceIso: string): Promise<{ rules: AvailabilityRule[]; exceptions: AvailabilityException[] }> {
   const [rules, exceptions] = await Promise.all([
@@ -212,6 +230,23 @@ export async function cancelSeriesFrom(id: string, reasonKey: string, details: s
   )
   if (error) throw error
   return parseRpc(z.number().int(), data)
+}
+
+export interface PersonalInput {
+  startsAt: string
+  endsAt: string
+  label: string | null
+  isWork: boolean
+}
+
+/** A personal appointment on one's own agenda (AP-17). */
+export async function bookPersonalAppointment(input: PersonalInput): Promise<string> {
+  const { data, error } = await supabase.rpc(
+    'book_personal_appointment',
+    sqlArgs<'book_personal_appointment'>({ p_starts_at: input.startsAt, p_ends_at: input.endsAt, p_label: input.label, p_is_work: input.isWork }),
+  )
+  if (error) throw error
+  return parseRpc(z.string(), data)
 }
 
 export interface MoveInput {

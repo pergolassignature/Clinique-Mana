@@ -56,6 +56,8 @@ const mapRowSchema = z.object({
   key: z.string(),
   profession_title_id: z.string().nullable(),
   profession_title_name: z.string().nullable(),
+  /** A deposit row's payment mode (F1's `payment_modes.name`). */
+  mode_name: z.string().nullable(),
   account_id: z.string().nullable(),
   suggested: z.boolean(),
 })

@@ -333,9 +333,8 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
   useUnsavedChanges(dirty)
   const firstSelect = useRef<HTMLSelectElement>(null)
 
-  const fixed = ACCOUNT_MAP_KEYS.map((key) => settings.map.find((row) => row.key === key && row.profession_title_id === null)).filter(
-    (row): row is AccountMapRow => row !== undefined,
-  )
+  // The revenue rows, then one deposit row per payment mode that lands money (in the modes' order).
+  const fixed = settings.map.filter((row) => row.key !== 'expense' && row.profession_title_id === null)
   const expenses = settings.map.filter((row) => row.key === 'expense')
   const missing = settings.map.filter((row) => !(values[rowId(row)] ?? '')).length
 
@@ -394,6 +393,10 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-foreground">{t(`${Q}.accounts.revenueAndDeposits`)}</legend>
         {fixed.map((mapRow, index) => {
+          if (!(ACCOUNT_MAP_KEYS as readonly string[]).includes(mapRow.key)) {
+            // A payment mode the clinic added: its own name.
+            return row(mapRow, index, t(`${Q}.accounts.depositOther`, { mode: mapRow.mode_name ?? mapRow.key }), t(`${Q}.accounts.depositOtherHelp`))
+          }
           // « revenue.services » → the label of « revenue_services » (a dot would be a path in t()).
           const id = mapRow.key.replace('.', '_')
           return row(mapRow, index, t(`${Q}.accounts.keys.${id}.label` as never), t(`${Q}.accounts.keys.${id}.help` as never))

@@ -56,6 +56,8 @@ const managerCaller = accessForRole('admin_assistant', {
   modules: ['professionals'],
   permissions: [...ROLE_PERMISSIONS.admin_assistant, 'users.view', 'users.manage'],
 })
+/** The same manager in a clinic where Facturation is disabled: she holds none of its permissions. */
+const managerWithoutBilling = { ...managerCaller, permissions: managerCaller.permissions.filter((p) => !p.startsWith('billing.')) }
 
 const P = {
   audit: "Consulter le journal d'audit",
@@ -887,7 +889,7 @@ describe('UserSheet', () => {
         { permission_key: 'audit.view', granted: true },
         { permission_key: 'billing.view', granted: false },
       ])
-      renderSheet(conseillere, managerCaller)
+      renderSheet(conseillere, managerWithoutBilling)
       const blocked = await screen.findByRole('button', { name: L.resetCount(2) })
       expect(blocked).toHaveAttribute('aria-disabled', 'true')
       const hint = t('settings.users.sheet.permissions.reset.blockedHidden', { module: 'Facturation' })

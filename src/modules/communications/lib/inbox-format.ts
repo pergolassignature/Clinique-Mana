@@ -9,3 +9,11 @@ export function senderLabel(name: string | null, address: string | null): string
 export function gmailThreadUrl(mailbox: string, gmailThreadId: string): string {
   return `https://mail.google.com/mail/?authuser=${encodeURIComponent(mailbox)}#all/${encodeURIComponent(gmailThreadId)}`
 }
+
+/**
+ * « CLI-000123 · Alice Exemple » (CM2b): the file's number as Clients writes it (its
+ * `clientNumberLabel`; Communications does not import Clients' code, CM-12).
+ */
+export function fileLabel(clientNumber: number, name: string): string {
+  return `CLI-${String(clientNumber).padStart(6, '0')} · ${name}`
+}

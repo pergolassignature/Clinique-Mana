@@ -64,6 +64,7 @@ function harness(opts: {
   prepare?: RpcRoute
   moduleEnabled?: boolean
   mailStatus?: number
+  moduleOpen?: boolean
 } = {}) {
   const service = fakeSupabase({
     rpc: {
@@ -82,6 +83,7 @@ function harness(opts: {
       get_email_context: (args) => ({
         data: emailContextFixture({
           module_key: 'appointments',
+          module_open: opts.moduleOpen ?? true,
           template: {
             key: String(args.p_template_key),
             subject: 'Rendez-vous — {{clinic.name}}',
@@ -248,6 +250,26 @@ Deno.test('appointments-messages: a send that fails is finished not sent (tried 
     assertEquals(
       callsTo(service.calls, 'finish_job_run').map((a) => a.p_detail),
       ['reminders=4 emailed=0 skipped=0 failed=2'],
+    )
+  })
+})
+
+Deno.test('appointments-messages: an email core holds (Rendez-vous reserved, CC-14) is set aside, never sent nor retried', async () => {
+  await run(async () => {
+    const { handler, service, http } = harness({ moduleOpen: false })
+    await captureConsole('log', async () => {
+      await handler(await jobRequest())
+    })
+    assertEquals(http.calls.length, 0)
+    assertEquals(
+      callsTo(service.calls, 'finish_appointment_message_for_service').map((
+        a,
+      ) => [a.p_sent, a.p_skip_reason]),
+      [[false, 'reserved'], [false, 'reserved']],
+    )
+    assertEquals(
+      callsTo(service.calls, 'finish_job_run').map((a) => a.p_detail),
+      ['reminders=4 emailed=0 skipped=2 failed=0'],
     )
   })
 })
