@@ -38,8 +38,8 @@ export const TAG_FIELD_LABELS = {
 
 /** The payment methods Facturation records, in French. */
 export const PAYMENT_METHOD_LABELS = {
-  card_qbo_payments: 'Carte (QuickBooks Payments)',
-  card_stripe: 'Carte (Stripe)',
+  qbo_payments_card: 'Carte (QuickBooks Payments)',
+  stripe: 'Carte (Stripe)',
   interac: 'Interac',
   credit_note: 'Note de crédit',
   cheque: 'Chèque',

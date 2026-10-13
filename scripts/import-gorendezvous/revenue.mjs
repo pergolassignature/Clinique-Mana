@@ -61,11 +61,11 @@ export const PAYMENT_COLUMNS = {
  * answer 6; R-57): imported as card. A method not listed rejects the payment (`unknown_payment_method`).
  */
 export const PAYMENT_METHODS = {
-  'argent comptant': 'card_qbo_payments',
-  'carte de credit': 'card_qbo_payments',
+  'argent comptant': 'qbo_payments_card',
+  'carte de credit': 'qbo_payments_card',
   interac: 'interac',
   'virement interac': 'interac',
-  stripe: 'card_stripe',
+  stripe: 'stripe',
   'note de credit': 'credit_note',
   cheque: 'cheque',
   'virement bancaire': 'bank_transfer',
