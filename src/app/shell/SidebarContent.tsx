@@ -1,9 +1,11 @@
 import type { MouseEvent } from 'react'
 import { LogOut } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import logoUrl from '@/assets/logo-header.svg'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
 import { useRoleLabel } from '@/core/access/org-roles'
+import { isUnder } from '@/core/settings/paths'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from '@/shared/ui/field-classes'
@@ -33,6 +35,11 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
   const { org_name, display_name, role } = useReadyAccess()
   const roleText = useRoleLabel(role)
   const touch = variant === 'sheet'
+  const { pathname } = useLocation()
+  // « Clients » stays active on a record (/clients/…) but not on « Consentements »
+  // (/clients/consentements), which is its own item: the longer item wins where it matches.
+  const shadowedHere = (path: string) =>
+    navItems.some((other) => other.path.startsWith(`${path}/`) && isUnder(pathname, other.path))
 
   return (
     <>
@@ -50,6 +57,7 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
             <GuardedNavLink
               key={item.path}
               to={item.path}
+              end={shadowedHere(item.path)}
               onClick={onLinkClick && ((event) => onLinkClick(event, item.path))}
               title={collapsed ? label : undefined}
               className={({ isActive }) =>
