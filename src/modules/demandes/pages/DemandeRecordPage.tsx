@@ -278,7 +278,7 @@ function AssignControl({ data }: { data: DemandeRecordData }) {
   )
 }
 
-/** « Je m'en occupe » (a soft lock, D-8): taking over from someone else asks first. */
+/** « Je m'en occupe » (a soft lock, D-13): taking over from someone else asks first. */
 function HandlerControl({ bundle, id }: { bundle: DemandeBundle; id: string }) {
   const { user_id: me } = useReadyAccess()
   const handler = useSetHandler()

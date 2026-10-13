@@ -24,7 +24,7 @@ function splitName(name: string | null): { first: string; last: string } {
 }
 
 /**
- * TEMPORAIRE (D-9): « Rattacher un dossier ». Search the clinic's files (Clients' `search_clients`)
+ * TEMPORAIRE (D-14): « Rattacher un dossier ». Search the clinic's files (Clients' `search_clients`)
  * or create one from the request's contact, with Clients' duplicate rules (a HIGH duplicate is
  * linked, never created again; a MEDIUM one needs « C'est une autre personne »). Replaced by the
  * Clients picker (lane A, C4) in the first Demandes batch after it.

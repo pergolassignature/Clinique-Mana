@@ -151,7 +151,7 @@ export function useSetHandler() {
   })
 }
 
-// TEMPORAIRE (D-9): the small client picker, until Clients exports its own (C4).
+// TEMPORAIRE (D-14): the small client picker, until Clients exports its own (C4).
 export function useClientSearch(query: string) {
   const trimmed = query.trim()
   return useQuery({

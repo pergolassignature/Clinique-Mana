@@ -2,15 +2,15 @@
 -- Module Demandes, batch D2: the inbox, the record, « Je m'en occupe », realtime
 -- =============================================================================
 -- Plan:      docs/plans/2026-10-11-modules-coding-plan.md §10 (D2); roadmap §2.3, §3.1
--- Decisions: D-7 … (docs/plans/2026-10-07-decisions-log.md)
+-- Decisions: D-12 … (docs/plans/2026-10-07-decisions-log.md)
 --
 -- * The promise (« nous vous rappelons en 24 à 48 h ouvrables », the website's): measured in
 --   business hours (Monday to Friday, the clinic's time zone) from reception to the first contact
 --   attempt (`demande_events` kind `contact`): `ok` under 24 h, `soon` from 24 h, `late` from 48 h;
---   once contacted, `met` or `met_late` (D-7).
+--   once contacted, `met` or `met_late` (D-12).
 -- * « Sans réponse »: an open request whose latest contact attempt did not reach the person.
 -- * « Je m'en occupe » (roadmap §3.1): a soft lock, `handled_by` / `handled_at`, shown for 2
---   hours, never blocking: another counselor may take it over (D-8).
+--   hours, never blocking: another counselor may take it over (D-13).
 -- * Realtime: the request and its children announce `{ module: 'demandes', table, record_id, op }`
 --   on `org:<org>:demandes` (`*_core_realtime.sql`); the screens read again through these RPCs.
 -- * Reads are definer RPCs that check `demandes.view` first and join the published directories
@@ -31,7 +31,7 @@ alter table public.demandes
   add constraint demandes_handled_check check (handled_by is null or handled_at is not null);
 create index demandes_handled_by_idx on public.demandes (handled_by, org_id);
 
--- How long « Je m'en occupe » is shown (D-8).
+-- How long « Je m'en occupe » is shown (D-13).
 create function private.demandes_handling_window()
 returns interval
 language sql
@@ -94,7 +94,7 @@ as $$
 $$;
 revoke all on function private.demandes_business_hours(timestamptz, timestamptz, text) from public, anon, authenticated, service_role;
 
--- `ok` / `soon` / `late` before the first contact attempt, `met` / `met_late` after (D-7).
+-- `ok` / `soon` / `late` before the first contact attempt, `met` / `met_late` after (D-12).
 create function private.demandes_promise(p_hours numeric, p_contacted boolean)
 returns text
 language sql
@@ -352,7 +352,7 @@ grant execute on function public.get_demande(uuid) to authenticated;
 -- What the intake and the filters choose from (`demandes.view`): the people who work requests
 -- (demandes.manage), the « Comment avez-vous entendu parler de MANA ? » list, and Professionnels'
 -- catalogues (motifs by category, titles, clientèles).
--- TEMPORAIRE (D-9): the referral sources are read from Clients' table until Clients publishes
+-- TEMPORAIRE (D-14): the referral sources are read from Clients' table until Clients publishes
 -- `referral_sources_catalog` (lane A, C4); the first Demandes batch after C4 switches to it.
 create function public.get_demandes_reference()
 returns jsonb

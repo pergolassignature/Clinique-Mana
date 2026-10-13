@@ -397,6 +397,30 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 3_600,
   },
+  /** `demandes-book-call` « page »: the booking page's slots, per IP (a person reloads a few times). */
+  bookingPageIp: {
+    bucket: 'demandes.booking_page_ip',
+    max: 60,
+    windowSeconds: 600,
+  },
+  /** `demandes-book-call` « book », per IP, before any write: a family may book two calls, a bot is cut early. */
+  bookingIp: {
+    bucket: 'demandes.booking_ip',
+    max: 5,
+    windowSeconds: 3_600,
+  },
+  /** One booking per solved check (its nonce): a solved check is never replayed. */
+  bookingChallenge: {
+    bucket: 'demandes.booking_challenge',
+    max: 1,
+    windowSeconds: 3_600,
+  },
+  /** `demandes-book-call` « cancel », per IP, before any lookup. */
+  bookingCancelIp: {
+    bucket: 'demandes.booking_cancel_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

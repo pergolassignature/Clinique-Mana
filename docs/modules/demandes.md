@@ -8,7 +8,7 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 | D2 | Inbox (the 24–48 h promise, « sans réponse », filters), quick entry, record (Accueil, Participants, Suivi, Historique), « Je m'en occupe », core realtime | built |
 | D3 | Waiting list part 1 | planned |
 | D3b | Discovery-call tasks, proposals with acceptance link | planned |
-| D3c | Public discovery-call booking page with source tracking (lane C) | planned |
+| D3c | Public discovery-call booking page with source tracking (lane C) | built |
 | D4–D6 | Matching panel and waiting list part 2, places, KPIs (after the cutover) | planned |
 
 - **Registry:** `modules.key = 'demandes'` (migration `20261012223803_demandes_module`), depends on `clients` and `professionals`. It **starts disabled** in every clinic; the local seed enables it.
@@ -68,7 +68,7 @@ All `security definer`, permission first, the caller's clinic only, the request'
 
 ## D2: the inbox and the record
 
-Migrations `20261013043542_core_realtime` (core, see the [core doc](core.md#realtime-between-staff-d2)) and `20261013043547_demandes_inbox`; pgTAP `117`, `118`; decisions D-7 … D-9.
+Migrations `20261013054816_core_realtime` (core, see the [core doc](core.md#realtime-between-staff-d2)) and `20261013054821_demandes_inbox`; pgTAP `117`, `118`; decisions D-12 … D-14.
 
 ### RPCs
 
@@ -78,9 +78,9 @@ Migrations `20261013043542_core_realtime` (core, see the [core doc](core.md#real
 | `demandes_counts()` | `demandes.view` | open, late, no answer, due now, mine, unassigned, waiting list |
 | `get_demande(p_id)` | `demandes.view` | the record's bundle: the request (no internal numbering), its file (`clients_directory`), the matched professional, motifs, participants, tasks, events with the people's names, the note (only with `demandes.notes`), what the caller may do. Null for another clinic's |
 | `get_demandes_reference()` | `demandes.view` | the people who work requests (`demandes.manage`), the referral sources, Professionnels' motifs (by category), titles and clientèles |
-| `set_demande_handler(p_id, p_take, p_expected)` | `demandes.manage` | « Je m'en occupe » / « Je laisse » (one's own hold only); taking over needs the handler the person saw (`p_expected`), else a French refusal naming who has it (D-8) |
+| `set_demande_handler(p_id, p_take, p_expected)` | `demandes.manage` | « Je m'en occupe » / « Je laisse » (one's own hold only); taking over needs the handler the person saw (`p_expected`), else a French refusal naming who has it (D-13) |
 
-- **The promise (D-7):** « nous vous rappelons en 24 à 48 h ouvrables » (the website's words), measured in business hours (Monday–Friday, the clinic's time zone) from reception to the first contact attempt (any event with a channel: « Noter un appel » or a call task done): `ok` under 24 h, `soon` from 24 h, `late` from 48 h; once contacted, `met` or `met_late`; a request no longer open and never called has `none`.
+- **The promise (D-12):** « nous vous rappelons en 24 à 48 h ouvrables » (the website's words), measured in business hours (Monday–Friday, the clinic's time zone) from reception to the first contact attempt (any event with a channel: « Noter un appel » or a call task done): `ok` under 24 h, `soon` from 24 h, `late` from 48 h; once contacted, `met` or `met_late`; a request no longer open and never called has `none`.
 - **« Sans réponse »:** an open request whose latest attempt did not reach the person.
 - **Forms and realtime:** a form being edited keeps its edits when another counselor saves; « Recharger » takes the new values (`useServerDraft`).
 - **Realtime:** `demandes`, `demande_tasks`, `demande_participants`, `demande_notes` and `demande_motifs` announce `{ module: 'demandes', table: 'demandes', record_id: <the request>, op }` on `org:<org>:demandes`; the inbox and the record read again (`useDemandesRealtime`).
@@ -89,12 +89,43 @@ Migrations `20261013043542_core_realtime` (core, see the [core doc](core.md#real
 
 - **`/demandes`** (« Demandes », nav, `demandes.view`): real tabs for the views (decision #35) with their counts; filters « En retard », « Sans réponse », « Urgentes », « À rappeler maintenant » and « Toutes / Les miennes / Non assignées » in the address (`?vue=`, `?filtres=`, `?pour=`), the search in the history state (Loi 25: never in the URL). Each row: the person and the number, when it came in and how, the promise in words, the state, the counselor, the follow-up; « Noter un appel » (`demandes.manage`). « Nouvelle demande » is the quick entry (a name, a phone or an email, the channel, urgent, « Je m'en occupe », the note with `demandes.notes`), then the record opens.
 - **`/demandes/:id/:onglet`** (`accueil`, `participants`, `suivi`, `historique`): the header (the person, the number, the state and its moves (closing asks for the reason), the counselor, « Je m'en occupe », « Noter un appel »); **Accueil** the file (« Rattacher un dossier »), the contact and the intake, saved together (only the changed keys); **Participants** who the request is for, one main person; **Suivi** the attempts, the dated tasks (the discovery call, a callback, a follow-up; done with an outcome, cancelled), the internal note; **Historique** the events in words, by whom and when. Read-only without `demandes.manage` or once closed. « Jumelée » is not offered here: the matching panel (D4) and the proposals (D3b) set it.
-- **TEMPORAIRE (D-9):** « Rattacher un dossier » is a small picker over Clients' published RPCs (`search_clients`; creation with `find_client_duplicates` then `create_client`, a HIGH duplicate linked, never created again); `get_demandes_reference()` reads `referral_sources` directly. Both switch to Clients' picker and `referral_sources_catalog` (lane A, C4) in the first Demandes batch after C4.
+- **TEMPORAIRE (D-14):** « Rattacher un dossier » is a small picker over Clients' published RPCs (`search_clients`; creation with `find_client_duplicates` then `create_client`, a HIGH duplicate linked, never created again); `get_demandes_reference()` reads `referral_sources` directly. Both switch to Clients' picker and `referral_sources_catalog` (lane A, C4) in the first Demandes batch after C4.
 
 ## What the module publishes
 
-For the professional: `my_demandes` and `my_waitlist_entries` (above). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the public booking function's write path (D3c).
+For the professional: `my_demandes` and `my_waitlist_entries` (above). Coming: `demandes_summary`, `get_places_remaining(professional)` and `waitlist_summary` (Rapports), the view `demandes_sources` (D3c, below).
 
 ## Messages to people outside the clinic (P3-40)
 
 D1 sends nothing. Every send path the module adds (the proposal's acceptance link D3b, the waiting-list follow-ups D3, the booking page's confirmations D3c) checks `module_open_to_all_for_org(org, 'demandes')` first, in SQL at its choke point: while Demandes is « Réservé aux testeurs », a manual send is refused in French and an automatic one is not queued; the admin's test still goes. Its pgTAP covers the refusal ([core doc](core.md), « Modules reserved for testers »).
+
+## The discovery-call booking page (D3c)
+
+Migration `20261013045323_demandes_booking`; pgTAP `116_demandes_booking`; function `demandes-book-call`; decisions R-74, **D-7 … D-11**.
+
+- **Public pages:**
+  - `/appel-decouverte?clinique=<org>`: one screen. The person chooses a day, then a time (the clinic's time zone), and gives a name, an email and a phone, the call's language, « Comment avez-vous entendu parler de MANA ? » and optionally a few words.
+  - `/appel-decouverte/annuler#t=…`: the confirmation's cancel link.
+  - Both are never indexed.
+- **The function** (`demandes-book-call`, public):
+  - `page` returns the slots, the list and a signed proof-of-work ticket (D-7);
+  - `book` books the call: per-IP limit first, the ticket checked and spent once, the cancel token hashed, the confirmation email sent;
+  - `cancel` cancels by the link, once.
+- **Database:**
+  - the rule: `get_` / `set_demandes_booking_settings` (org_module_settings, `booking`);
+  - service RPCs `demandes_booking_page_for_service`, `book_discovery_call_for_service`, `cancel_discovery_call_for_service`;
+  - `resolve_discovery_call_link` (secure-link purpose `discovery_call`);
+  - the new column `demandes.source_landing_page` (redacted in the audit).
+  - The booking writes through D1's `private.demandes_insert`.
+- **Source (R-74):** captured by the page and stored on the request:
+  - `referral_source_id`, `source_campaign` (from `utm_campaign`), `source_utm` (utm_* only), `source_referrer` and `source_landing_page`;
+  - shown to the counselor by `components/DemandeSourceCard` (D2 mounts it on the record);
+  - reportable through the view **`demandes_sources`** (security invoker, staff with `demandes.view`; D6).
+- **Paramètres → Appels découverte** (`appels-decouverte`, seen with `demandes.view`, changed with `demandes.manage`): the page's address for the website's button, « Réservation en ligne ouverte », and the weekly ranges.
+- **Tests:**
+  - pgTAP 116;
+  - Deno `demandes-book-call/handler.test.ts`;
+  - Vitest: the pages, the card, `lib/booking`;
+  - `e2e/booking.spec.ts`: book, the email, cancel.
+  - The local seed opens booking every day from 8 h to 20 h.
+

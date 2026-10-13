@@ -322,7 +322,7 @@ export async function setHandler(id: string, take: boolean, expected: string | n
 }
 
 // ---------------------------------------------------------------------------------------------
-// TEMPORAIRE (D-9): a minimal client picker over Clients' published RPCs, until Clients exports
+// TEMPORAIRE (D-14): a minimal client picker over Clients' published RPCs, until Clients exports
 // its own (lane A, C4). Search a file (`search_clients`), or create one from the request's contact
 // with the duplicate rules (`find_client_duplicates`, `create_client`).
 // ---------------------------------------------------------------------------------------------

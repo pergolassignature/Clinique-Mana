@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { ConfirmPage, ConsentPage, InvitationPage } from './public-pages'
+import { BookingCancelPage, BookingPage, ConfirmPage, ConsentPage, InvitationPage } from './public-pages'
 import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
@@ -112,6 +112,23 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <ConsentPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: the discovery-call booking page that replaces Calendly, and its cancel link (Demandes D3c). */}
+                <Route
+                  path="/appel-decouverte"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <BookingPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/appel-decouverte/annuler"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <BookingCancelPage />
                     </Suspense>
                   }
                 />
