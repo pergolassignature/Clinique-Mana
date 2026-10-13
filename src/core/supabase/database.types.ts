@@ -4328,6 +4328,99 @@ export type Database = {
           },
         ]
       }
+      mail_drafts: {
+        Row: {
+          attachment_file_ids: string[]
+          bcc_addresses: string[]
+          body_html: string
+          cc_addresses: string[]
+          client_id: string | null
+          connection_id: string
+          created_at: string
+          id: string
+          mode: string
+          org_id: string
+          reply_to_message_id: string | null
+          subject: string
+          thread_id: string | null
+          to_addresses: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attachment_file_ids?: string[]
+          bcc_addresses?: string[]
+          body_html?: string
+          cc_addresses?: string[]
+          client_id?: string | null
+          connection_id: string
+          created_at?: string
+          id?: string
+          mode?: string
+          org_id: string
+          reply_to_message_id?: string | null
+          subject?: string
+          thread_id?: string | null
+          to_addresses?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attachment_file_ids?: string[]
+          bcc_addresses?: string[]
+          body_html?: string
+          cc_addresses?: string[]
+          client_id?: string | null
+          connection_id?: string
+          created_at?: string
+          id?: string
+          mode?: string
+          org_id?: string
+          reply_to_message_id?: string | null
+          subject?: string
+          thread_id?: string | null
+          to_addresses?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_drafts_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_drafts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_drafts_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "mail_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_drafts_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "mail_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_drafts_user_id_org_id_fkey"
+            columns: ["user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
+      }
       mail_labels: {
         Row: {
           color_background: string | null
@@ -4515,6 +4608,101 @@ export type Database = {
           },
         ]
       }
+      mail_sends: {
+        Row: {
+          client_id: string | null
+          connection_id: string
+          created_at: string
+          draft_id: string | null
+          error_code: string | null
+          file_ids: string[]
+          gmail_message_id: string | null
+          gmail_thread_id: string | null
+          id: string
+          mode: string
+          org_id: string
+          recipient_count: number
+          send_key: string
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          template_key: string | null
+          thread_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          connection_id: string
+          created_at?: string
+          draft_id?: string | null
+          error_code?: string | null
+          file_ids?: string[]
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          mode: string
+          org_id: string
+          recipient_count: number
+          send_key: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          template_key?: string | null
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          connection_id?: string
+          created_at?: string
+          draft_id?: string | null
+          error_code?: string | null
+          file_ids?: string[]
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          mode?: string
+          org_id?: string
+          recipient_count?: number
+          send_key?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          template_key?: string | null
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_sends_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "mail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_sends_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_sends_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "mail_sends_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "mail_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mail_sync_state: {
         Row: {
           connection_id: string
@@ -4594,6 +4782,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_templates: {
+        Row: {
+          body_html: string
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          owner_id: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body_html: string
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          owner_id: string
+          subject?: string
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          owner_id?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_templates_owner_id_org_id_fkey"
+            columns: ["owner_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
           },
         ]
       }
@@ -11478,6 +11714,17 @@ export type Database = {
         Args: { p_demande_id: string; p_outcome: string; p_task_id: string }
         Returns: undefined
       }
+      complete_mail_send: {
+        Args: {
+          p_error_code?: string
+          p_gmail_message_id?: string
+          p_gmail_thread_id?: string
+          p_org_id: string
+          p_send_id: string
+          p_status: string
+        }
+        Returns: string
+      }
       complete_signature_request: {
         Args: {
           p_id: string
@@ -11710,6 +11957,7 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      delete_mail_draft: { Args: { p_id: string }; Returns: undefined }
       delete_mail_messages: {
         Args: {
           p_connection_id: string
@@ -11718,6 +11966,7 @@ export type Database = {
         }
         Returns: number
       }
+      delete_mail_template: { Args: { p_id: string }; Returns: undefined }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_professional_client_agreement: {
         Args: { p_row_id: string }
@@ -11900,6 +12149,7 @@ export type Database = {
         Returns: Json
       }
       get_invoice: { Args: { p_invoice_id: string }; Returns: Json }
+      get_mail_compose_context: { Args: { p_client_id: string }; Returns: Json }
       get_mail_connection_credentials: {
         Args: { p_connection_id: string; p_org_id: string }
         Returns: {
@@ -11913,6 +12163,7 @@ export type Database = {
           status: string
         }[]
       }
+      get_mail_draft: { Args: { p_id: string }; Returns: Json }
       get_mail_thread: { Args: { p_thread_id: string }; Returns: Json }
       get_mail_thread_link: { Args: { p_thread_id: string }; Returns: Json }
       get_mail_threads_for_action: {
@@ -12232,6 +12483,21 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_client_mail_threads: {
+        Args: { p_client_id: string }
+        Returns: {
+          connection_id: string
+          id: string
+          last_from_address: string
+          last_from_name: string
+          last_message_at: string
+          link_source: string
+          message_count: number
+          snippet: string
+          subject: string
+          unread_count: number
+        }[]
+      }
       list_client_visits: {
         Args: { p_before?: string; p_client_id: string; p_limit?: number }
         Returns: {
@@ -12482,6 +12748,17 @@ export type Database = {
           size_bytes: number
         }[]
       }
+      list_mail_compose_templates: {
+        Args: never
+        Returns: {
+          body: string
+          format: string
+          id: string
+          kind: string
+          name: string
+          subject: string
+        }[]
+      }
       list_mail_connections: {
         Args: never
         Returns: {
@@ -12519,6 +12796,20 @@ export type Database = {
           status: string
           sync_requested_at: string
           watch_expires_at: string
+        }[]
+      }
+      list_mail_drafts: {
+        Args: never
+        Returns: {
+          attachment_count: number
+          client_id: string
+          connection_id: string
+          id: string
+          mode: string
+          subject: string
+          thread_id: string
+          to_addresses: string[]
+          updated_at: string
         }[]
       }
       list_mail_threads: {
@@ -13068,6 +13359,10 @@ export type Database = {
         }
         Returns: Json
       }
+      prepare_mail_send: {
+        Args: { p_actor: string; p_org_id: string; p_send: Json }
+        Returns: Json
+      }
       prepare_my_image_consent: {
         Args: { p_action: string; p_actor: string; p_idempotency_key: string }
         Returns: Json
@@ -13435,6 +13730,16 @@ export type Database = {
       }
       save_language: {
         Args: { p_code: string; p_id: string; p_name: string }
+        Returns: string
+      }
+      save_mail_draft: { Args: { p_draft: Json; p_id: string }; Returns: Json }
+      save_mail_template: {
+        Args: {
+          p_body_html: string
+          p_id: string
+          p_name: string
+          p_subject: string
+        }
         Returns: string
       }
       save_motif: {

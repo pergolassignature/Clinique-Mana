@@ -34,6 +34,7 @@ const PANELS: Record<ClientRecordTab, ReturnType<typeof lazyPage>> = {
   'assurance-et-payeurs': lazyPage(() => import('../components/record/tabs/CoverageTab'), 'CoverageTab'),
   consentements: lazyPage(() => import('../components/record/tabs/ConsentsTab'), 'ConsentsTab'),
   'visites-et-paiements': lazyPage(() => import('../components/record/tabs/VisitsTab'), 'VisitsTab'),
+  courriels: lazyPage(() => import('../components/record/tabs/MessagesTab'), 'MessagesTab'),
   historique: lazyPage(() => import('../components/record/tabs/HistoryTab'), 'HistoryTab'),
 }
 

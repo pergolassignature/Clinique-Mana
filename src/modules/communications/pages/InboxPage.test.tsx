@@ -18,6 +18,13 @@ const mocks = vi.hoisted(() => ({
     modifyMailThreads: vi.fn(),
   },
   mailboxes: { listMailConnections: vi.fn() },
+  composer: {
+    listDrafts: vi.fn(),
+    getDraft: vi.fn(),
+    saveDraft: vi.fn(),
+    listTemplates: vi.fn(),
+    sendMail: vi.fn(),
+  },
   links: {
     getMailThreadLink: vi.fn(),
     linkMailThread: vi.fn(),
@@ -34,6 +41,13 @@ vi.mock('../api/inbox', async (importOriginal) => ({ ...(await importOriginal<ty
 vi.mock('../api/mailboxes', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/mailboxes')>()),
   ...mocks.mailboxes,
+}))
+vi.mock('../api/composer', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/composer')>()),
+  ...mocks.composer,
+}))
+vi.mock('../components/composer/RichEmailEditor', () => ({
+  RichEmailEditor: ({ initialHtml, label }: { initialHtml: string; label: string }) => <textarea aria-label={label} defaultValue={initialHtml} />,
 }))
 vi.mock('../api/client-links', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client-links')>()),
@@ -139,6 +153,9 @@ beforeEach(() => {
     { gmail_label_id: 'Label_1', name: 'Factures', type: 'user', visibility: null, color_background: null },
   ])
   mocks.inbox.modifyMailThreads.mockResolvedValue({ changed: 1, failed: [] })
+  mocks.composer.listDrafts.mockResolvedValue([])
+  mocks.composer.listTemplates.mockResolvedValue([])
+  mocks.composer.saveDraft.mockResolvedValue({ id: 'd1', updatedAt: '2026-10-13T15:00:00Z' })
   mocks.links.getMailThreadLink.mockResolvedValue({ status: 'unlinked', source: null, client: null, candidates: [] })
   mocks.links.linkMailThread.mockResolvedValue(undefined)
   mocks.links.unlinkMailThread.mockResolvedValue(undefined)
@@ -427,5 +444,40 @@ describe('InboxPage: the thread → client link (CM2b)', () => {
     const group = await screen.findByRole('group', { name: t(`${L}.label`) })
     await user.click(within(group).getByRole('button', { name: t(`${L}.linkToLabel`, { file: 'CLI-000042 · Alice Exemple' }) }))
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith('Choisissez un dossier client de la clinique.'))
+  })
+})
+
+describe('InboxPage: the composer (CM3)', () => {
+  const K = 'modules.communications.composer'
+
+  it('« Répondre » opens the composer on the thread: the sender, « Re : », the quote', async () => {
+    const user = userEvent.setup()
+    renderPage(`/courriels?fil=${T1}`)
+    await user.click(await screen.findByRole('button', { name: t(`${I}.thread.reply`) }))
+    const composer = await screen.findByRole('dialog', { name: /Demande de rendez-vous/ })
+    expect(within(composer).getByLabelText(t(`${K}.to`))).toHaveValue('alice@exemple.test')
+    expect(within(composer).getByLabelText(t(`${K}.subject`))).toHaveValue(`${t(`${K}.prefixReply`)} Demande de rendez-vous`)
+    expect((within(composer).getByLabelText(t(`${K}.body`)) as HTMLTextAreaElement).value).toContain('<blockquote>')
+  })
+
+  it('« Nouveau message » opens an empty composer; « Brouillons » lists the drafts and reopens one', async () => {
+    const user = userEvent.setup()
+    mocks.composer.listDrafts.mockResolvedValue([
+      { id: 'd1', connection_id: MAILBOX.id, mode: 'new', thread_id: null, client_id: null, subject: 'Suivi', to_addresses: ['bruno@exemple.test'], attachment_count: 0, updated_at: '2026-10-13T14:00:00Z' },
+    ])
+    mocks.composer.getDraft.mockResolvedValue({
+      id: 'd1', connectionId: MAILBOX.id, mode: 'new', threadId: null, replyToMessageId: null, clientId: null,
+      to: ['bruno@exemple.test'], cc: [], bcc: [], subject: 'Suivi', bodyHtml: '<p>Texte</p>', attachments: [], updatedAt: '2026-10-13T14:00:00Z',
+    })
+    renderPage()
+    const nav = await screen.findByRole('navigation', { name: t(`${I}.nav.label`) })
+    await user.click(within(nav).getByRole('button', { name: t(`${I}.nav.newMessage`) }))
+    expect(await screen.findByRole('dialog', { name: t(`${K}.titleNew`) })).toBeInTheDocument()
+    await user.click(within(nav).getByRole('button', { name: new RegExp(t(`${I}.nav.views.drafts`)) }))
+    const drafts = await screen.findByRole('list', { name: t(`${I}.drafts.label`) })
+    await user.click(within(drafts).getByRole('button', { name: /Suivi/ }))
+    const composer = await screen.findByRole('dialog', { name: /Suivi/ })
+    expect(within(composer).getByLabelText(t(`${K}.to`))).toHaveValue('bruno@exemple.test')
+    expect(mocks.composer.getDraft).toHaveBeenCalledWith('d1')
   })
 })

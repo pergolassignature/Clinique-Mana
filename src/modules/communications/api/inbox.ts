@@ -14,7 +14,8 @@ import { invokeFunction } from '@/core/supabase/functions'
  * linked to a file and never unlinked by a person; shown only with `clients.view`.
  */
 export const MAIL_VIEWS = ['inbox', 'unread', 'starred', 'sent', 'all', 'to_link'] as const
-export type MailView = (typeof MAIL_VIEWS)[number] | 'label'
+/** A view of the left pane: a list of threads, a label, or « Brouillons » (CM3: the drafts, not threads). */
+export type MailView = (typeof MAIL_VIEWS)[number] | 'label' | 'drafts'
 
 /** Threads per page (the RPC caps at 100). */
 export const THREAD_PAGE_SIZE = 50
