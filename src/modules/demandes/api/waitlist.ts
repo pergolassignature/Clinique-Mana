@@ -173,6 +173,15 @@ export async function updateWaitlistEntry(id: string, patch: Record<string, unkn
   if (error) throw error
 }
 
+/** « Facturer l'inscription »: Facturation invoices the fee and sends it to the dossier's payer. Returns the invoice's number. */
+export async function invoiceWaitlistFee(id: string): Promise<string> {
+  const { data, error } = await supabase.rpc('invoice_waitlist_fee', { p_entry_id: id })
+  if (error) throw error
+  const parsed = z.string().safeParse(data)
+  if (!parsed.success) throw new Error('demandes: unexpected RPC shape')
+  return parsed.data
+}
+
 export async function setWaitlistFee(id: string, status: 'to_invoice' | 'paid' | 'waived', reason: string | null): Promise<void> {
   const { error } = await supabase.rpc('set_waitlist_fee', { p_id: id, p_status: status, ...(reason && { p_reason: reason }) })
   if (error) throw error
