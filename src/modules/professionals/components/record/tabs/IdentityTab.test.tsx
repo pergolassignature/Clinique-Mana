@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
     setPayerNumber: vi.fn(),
     setProfessionalEmail: vi.fn(),
     setProfessions: vi.fn(),
+    setSupervisor: vi.fn(),
+    fetchSupervisorOptions: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
   address: { fetchAddressSuggestions: vi.fn(), fetchPlaceAddress: vi.fn() },
@@ -36,6 +38,13 @@ beforeEach(() => {
   mocks.record.updateProfessional.mockImplementation(async (_id: string, patch: ProfessionalPatch) => {
     stored = { ...stored, professional: { ...stored.professional, ...patch } }
   })
+  mocks.record.fetchSupervisorOptions.mockResolvedValue([
+    { id: stored.professional.id, name: 'Elle-même' },
+    { id: 'sup-1', name: 'Hélène Superviseure' },
+  ])
+  mocks.record.setSupervisor.mockImplementation(async (_id: string, supervisorId: string | null) => {
+    stored = { ...stored, professional: { ...stored.professional, supervisorId } }
+  })
   mocks.record.setProfessionalEmail.mockImplementation(async (_id: string, email: string) => {
     stored = { ...stored, professional: { ...stored.professional, email } }
   })
@@ -47,6 +56,18 @@ const save = (form: HTMLElement) => userEvent.click(within(form).getByRole('butt
 const required = (label: string) => `${label} ${t('common.form.required')}`
 
 describe('IdentityTab', () => {
+  it('« Supervision »: an intern\u2019s supervisor chosen among the others (never herself), saved alone', async () => {
+    renderRecordTab(<IdentityTab />, { record: stored })
+    const supervision = card(t(`${I}.supervisor.title`))
+    const select = within(supervision).getByRole('combobox', { name: t(`${I}.supervisor.label`) })
+    await waitFor(() => expect(within(select).getByRole('option', { name: 'Hélène Superviseure' })).toBeInTheDocument())
+    expect(within(select).queryByRole('option', { name: 'Elle-même' })).not.toBeInTheDocument()
+    await userEvent.selectOptions(select, 'sup-1')
+    await save(supervision)
+    await waitFor(() => expect(mocks.record.setSupervisor).toHaveBeenCalledExactlyOnceWith(stored.professional.id, 'sup-1'))
+    expect(mocks.record.updateProfessional).not.toHaveBeenCalled()
+  })
+
   it('saves only the Identité fields, the gender null when « Non indiqué »', async () => {
     stored = { ...stored, professional: { ...stored.professional, gender: 'female' } }
     renderRecordTab(<IdentityTab />, { record: stored })

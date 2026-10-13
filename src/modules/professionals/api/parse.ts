@@ -170,6 +170,8 @@ const professionalPayload = z
     deactivation_note: z.string().nullable(),
     deactivation_disabled_account: z.boolean(),
     activation_override_reason: z.string().nullable(),
+    /** F2.0 (Facturation): the intern's supervisor, printed on her receipts (R-60). */
+    supervisor_professional_id: z.string().nullable().default(null),
     created_at: z.string(),
     updated_at: z.string(),
   })
@@ -195,6 +197,7 @@ const professionalPayload = z
     /** True when this module's deactivation disabled the account (reactivation re-enables it, P4-11). */
     deactivationDisabledAccount: p.deactivation_disabled_account,
     activationOverrideReason: p.activation_override_reason,
+    supervisorId: p.supervisor_professional_id,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   }))

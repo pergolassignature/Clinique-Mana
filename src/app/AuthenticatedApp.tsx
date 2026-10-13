@@ -7,6 +7,7 @@ import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { Forbidden, NotFound, RequireAccess } from '@/core/access/guards'
 import { AccountPage } from '@/core/account/pages/AccountPage'
 import { ModuleAuditContext, type ModuleAuditSource } from '@/core/audit/module-labels'
+import { groupNavItems } from '@/core/modules/nav-groups'
 import { resolveEnabledModules } from '@/core/modules/resolve'
 import { ModuleSlotsContext } from '@/core/modules/slots'
 import type { ModuleSlotItem, ModuleSlotName, SettingsSection } from '@/core/modules/types'
@@ -95,12 +96,11 @@ export function AuthenticatedApp() {
   const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter(shown)), [modules, shown])
 
   const navItems = useMemo<ShellNavItem[]>(() => {
-    const moduleItems = modules
-      .flatMap((m) => [m.nav ?? []].flat())
-      .filter(shown)
-      .sort((a, b) => a.order - b.order)
-    return [
-      { path: '/accueil', labelKey: 'nav.home', icon: Home },
+    const moduleItems = modules.flatMap((m) => [m.nav ?? []].flat()).filter(shown)
+    // In menu order (decision NAV-1): by section, then by `order` within it. The palette and
+    // Accueil's shortcuts follow the same order; the sidebar heads each section.
+    return groupNavItems<ShellNavItem>([
+      { path: '/accueil', labelKey: 'nav.home', icon: Home, group: 'main', order: 0 },
       ...moduleItems,
       ...(canOpenSettings
         ? [
@@ -108,12 +108,13 @@ export function AuthenticatedApp() {
               path: SETTINGS_BASE_PATH,
               labelKey: 'nav.settings' as const,
               icon: Settings,
+              group: 'settings' as const,
               // Named in the topbar as « Paramètres / <section> ».
               subPages: visibleSections.map((s) => ({ path: settingsSectionPath(s), labelKey: s.labelKey })),
             },
           ]
         : []),
-    ]
+    ]).flatMap((g) => g.items)
   }, [modules, shown, canOpenSettings, visibleSections])
 
   return (

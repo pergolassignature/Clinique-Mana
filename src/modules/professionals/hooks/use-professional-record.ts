@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query'
 import { fetchProfessionalHistory, PROFESSIONAL_HISTORY_PAGE_SIZE } from '../api/history'
-import { fetchProfessionalRecord } from '../api/record'
+import { fetchProfessionalRecord, fetchSupervisorOptions } from '../api/record'
 import type { HistoryEntry } from '../api/parse'
 import { professionalKeys } from './keys'
 
@@ -64,4 +64,9 @@ export function refreshProfessionalHistory(queryClient: QueryClient, id: string)
 /** Starts loading the first history page (Historique tab hover or focus). */
 export function prefetchProfessionalHistory(queryClient: QueryClient, id: string): Promise<void> {
   return queryClient.prefetchInfiniteQuery(historyQuery(id))
+}
+
+/** Who may supervise an intern (« Supervision », F2.0): the active professionals, by name. */
+export function useSupervisorOptions(enabled = true) {
+  return useQuery({ queryKey: professionalKeys.supervisors(), queryFn: fetchSupervisorOptions, enabled, staleTime: 60_000 })
 }

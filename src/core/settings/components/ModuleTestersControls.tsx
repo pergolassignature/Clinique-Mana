@@ -44,7 +44,8 @@ interface ModuleTestersControlsProps {
  * module (the administration too only when listed); the list names each tester with « Retirer »,
  * and « Ajouter un testeur » offers the clinic's active users not listed yet. Reserving an enabled
  * module asks first (everyone else loses it at once). While a change saves, the controls are
- * inactive (`aria-disabled`, focus kept).
+ * inactive (`aria-disabled`, focus kept). While the module itself is off, the block is muted and
+ * says the testers see nothing until it is turned on; on and reserved, « Visible seulement par ».
  */
 export function ModuleTestersControls({
   moduleKey,
@@ -73,8 +74,15 @@ export function ModuleTestersControls({
     (u) => u.status === 'active' && !testerIds.includes(u.user_id)
   )
 
+  const visibleTo = testerIds.map(nameOf).join(', ')
   return (
-    <div className="space-y-2">
+    <div className={cn('space-y-2', !moduleEnabled && 'opacity-60')}>
+      {/* The reservation only applies to an enabled module: say so, rather than look « on ». */}
+      {!moduleEnabled && testersOnly && (
+        <p className="text-xs text-muted-foreground" role="status">
+          {t(`${T}.moduleOff`)}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <Label htmlFor={switchId} className="text-xs font-normal">
@@ -103,6 +111,11 @@ export function ModuleTestersControls({
       </div>
       {testersOnly && (
         <div className="space-y-2">
+          {moduleEnabled && testerIds.length > 0 && (
+            <p className="text-xs font-medium" role="status">
+              {t(`${T}.visibleTo`, { names: visibleTo })}
+            </p>
+          )}
           {testerIds.length === 0 ? (
             <Alert variant="warning" role="status">
               <TriangleAlert aria-hidden />
