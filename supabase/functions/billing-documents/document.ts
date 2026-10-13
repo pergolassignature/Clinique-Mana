@@ -9,6 +9,10 @@
  * the service, the amount paid, the receipt's number, the clinic's address
  * and tax numbers (roadmap §2.6 bis).
  *
+ * A payer organisation's invoice (FP-4, FP-11) is billed to the organisation
+ * with the clinic's provider number and the payer's file number, due on its
+ * date; an IVAC invoice also names each professional's IVAC number.
+ *
  * pdfmake-free: plain model data (`_shared/pdf/model.ts`).
  */
 import { z } from 'zod'
@@ -25,6 +29,9 @@ const personSchema = z.object({
   first_name: maybe,
   client_number: z.number().int().nullable().optional(),
   language: z.enum(['fr', 'en']).nullable().optional(),
+  /** FP: an organisation payer's kind and the clinic's provider number with it. */
+  organisation_kind: z.enum(['ivac', 'pae']).nullable().optional(),
+  provider_number: maybe,
 })
 
 const clinicSchema = z.object({
@@ -94,6 +101,9 @@ const invoiceDocSchema = z.object({
     total_cents: cents,
     paid_cents: cents,
     notes_client: maybe,
+    due_on: maybe,
+    payer_kind: maybe,
+    payer_reference: maybe,
   }),
   payment: z.object({ amount_cents: cents, paid_on: text, mode: maybe })
     .nullable().optional(),
@@ -102,6 +112,11 @@ const invoiceDocSchema = z.object({
   payer: personSchema,
   lines: z.array(lineSchema).max(200),
   professionals: z.array(professionalSchema).max(50),
+  /** FP-11: an IVAC invoice's professionals' IVAC numbers. */
+  payer_numbers: z.array(
+    z.object({ professional_id: z.string(), number: text }),
+  )
+    .max(50).optional(),
 })
 
 const statementDocSchema = z.object({
@@ -224,6 +239,10 @@ const LABELS = {
     intern: 'stagiaire',
     supervisedBy: 'sous la supervision de',
     licence: 'N° de permis',
+    ivac: 'N° IVAC',
+    providerNumber: 'N° de fournisseur de la clinique',
+    payerFile: 'N° de dossier',
+    dueOn: 'Échéance',
     paid: 'Montant payé',
     on: 'le',
     forInvoice: 'Pour la facture',
@@ -274,6 +293,10 @@ const LABELS = {
     intern: 'intern',
     supervisedBy: 'under the supervision of',
     licence: 'Licence no.',
+    ivac: 'IVAC no.',
+    providerNumber: 'Clinic provider no.',
+    payerFile: 'File no.',
+    dueOn: 'Due',
     paid: 'Amount paid',
     on: 'on',
     forInvoice: 'For invoice',
@@ -468,14 +491,24 @@ function totalsTable(doc: InvoiceDoc, language: Language, l: Labels): Block {
 function professionalsBlocks(
   professionals: Professional[],
   l: Labels,
+  payerNumbers: { professional_id: string; number: string }[] = [],
 ): Block[] {
   if (professionals.length === 0) return []
+  const numberOf = (id: string) =>
+    payerNumbers.find((n) => n.professional_id === id)?.number
   return [
     { type: 'heading', level: 3, text: l.professionals },
     {
       type: 'list',
       ordered: false,
-      items: professionals.map((p) => [plain(professionalLine(p, l))]),
+      items: professionals.map((p) => {
+        const ivac = numberOf(p.professional_id)
+        return [
+          plain(
+            `${professionalLine(p, l)}${ivac ? `, ${l.ivac} ${ivac}` : ''}`,
+          ),
+        ]
+      }),
     },
   ]
 }
@@ -538,7 +571,18 @@ function invoiceBlocks(
   if (date) {
     blocks.push(para(label(l.date, language), plain(day(date, language))))
   }
-  if (doc.kind === 'invoice' && doc.number) blocks.push(para(plain(l.due)))
+  const organisation = doc.invoice.payer_kind === 'organisation'
+  if (doc.kind === 'invoice' && doc.number) {
+    // FP-4: an organisation pays in its delay; a client on receipt.
+    blocks.push(
+      organisation && doc.invoice.due_on
+        ? para(
+          label(l.dueOn, language),
+          plain(day(doc.invoice.due_on, language)),
+        )
+        : para(plain(l.due)),
+    )
+  }
   if (doc.kind === 'invoice' && !doc.number) {
     blocks.push(para(bold(l.previewNote)))
   }
@@ -548,6 +592,16 @@ function invoiceBlocks(
       plain(personLine(doc.payer, l)),
     ),
   )
+  if (organisation && doc.payer.provider_number) {
+    blocks.push(
+      para(label(l.providerNumber, language), plain(doc.payer.provider_number)),
+    )
+  }
+  if (organisation && doc.invoice.payer_reference) {
+    blocks.push(
+      para(label(l.payerFile, language), plain(doc.invoice.payer_reference)),
+    )
+  }
   blocks.push(
     para(label(l.servedTo, language), plain(personLine(doc.client, l))),
   )
@@ -594,7 +648,9 @@ function invoiceBlocks(
     blocks.push(linesTable(lines, doc.professionals, language, l))
   }
   blocks.push(totalsTable(doc, language, l))
-  blocks.push(...professionalsBlocks(doc.professionals, l))
+  blocks.push(
+    ...professionalsBlocks(doc.professionals, l, doc.payer_numbers ?? []),
+  )
   if (doc.kind === 'invoice' && doc.invoice.notes_client) {
     blocks.push(para(label(l.note, language), plain(doc.invoice.notes_client)))
   }

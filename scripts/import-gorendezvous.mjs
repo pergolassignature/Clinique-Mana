@@ -16,7 +16,10 @@
 // - A dry run by default: every client goes through import_client(row, true), which does everything
 //   and rolls it back. --commit dry-runs every row first, imports nothing if one is in error, asks
 //   for « importer », then imports row by row (each row all or nothing; a re-run skips the files
-//   already imported, by their GOrendezvous id), then the relations. « prix » only reads.
+//   already imported, by their GOrendezvous id), then the relations, then the payer tags (IVAC,
+//   PAE) as payers « à compléter » through import_client_payers (FP-9: once per client and kind, a
+//   re-run adds none twice; the adjointe completes them from « Payeurs à compléter »). « prix »
+//   only reads.
 // - « factures » the same way through import_invoice(row, dry_run) (billing.manage): an invoice
 //   whose client is not found, or has homonyms, is listed and left out (--clients-map, « Facture ;
 //   ClientId », settles them on a re-run); a row the database refuses stops the import. Imported
@@ -334,20 +337,25 @@ async function clients(ctx, { cli, target, parsedClients, parsedRelations, emplo
   const relationProblems = parsedRelations ? parsedRelations.rejected.length + relationsMissing(parsedClients, parsedRelations) : 0
   const toCreate = dry.filter((e) => e.status === 'ok').length
   const relations = parsedRelations?.relations ?? []
+  // FP-9: the files whose tags name a payer (IVAC, PAE) get it « à compléter » once imported.
+  const payerRows = prepared.filter((p) => (p.record.payers ?? []).length > 0)
+  if (payerRows.length > 0) {
+    say(`Payeurs tiers des étiquettes (IVAC, PAE) : ${fmt(payerRows.length)} client(s), ajoutés « à compléter » après l’import (Clients → « Payeurs à compléter »).`)
+  }
   if (!cli.commit) return errors || relationProblems > 0 ? 1 : 0
   if (errors || relationProblems > 0) {
     say(errors ? 'Rien n’a été importé : corrigez les erreurs, puis relancez.' : 'Rien n’a été importé : corrigez le fichier des liens, puis relancez.')
     return 1
   }
   // A re-run after every client is in still imports the relations (a resumed run, or a relations file that came later).
-  if (toCreate === 0 && relations.length === 0) {
+  if (toCreate === 0 && relations.length === 0 && payerRows.length === 0) {
     say('Rien à importer.')
     return 0
   }
   if (ctx.stop.requested) throw new Aborted('Interrompu.')
   const left = parsedClients.rejected.length
   const typed = await ctx.terminal.ask(
-    `Importer ${fmt(toCreate)} client(s)${relations.length > 0 ? ` et ${fmt(relations.length)} lien(s)` : ''} dans ${ctx.targetUrl}${left > 0 ? ` (${fmt(left)} ligne(s) refusée(s) du fichier ne le seront pas)` : ''} ? Tapez « importer » pour confirmer : `,
+    `Importer ${fmt(toCreate)} client(s)${relations.length > 0 ? ` et ${fmt(relations.length)} lien(s)` : ''}${payerRows.length > 0 ? ` (et les payeurs tiers de ${fmt(payerRows.length)} client(s))` : ''} dans ${ctx.targetUrl}${left > 0 ? ` (${fmt(left)} ligne(s) refusée(s) du fichier ne le seront pas)` : ''} ? Tapez « importer » pour confirmer : `,
   )
   if (typed.trim() !== 'importer') {
     say('Import annulé : rien n’a été écrit.')
@@ -355,6 +363,8 @@ async function clients(ctx, { cli, target, parsedClients, parsedRelations, emplo
   }
   const RESUME = 'Relancez la même commande avec --commit : les fiches et les liens déjà importés reviendront « déjà importés ».'
   let failed = false
+  /** The lines the import refused: their payers are not added (the file is not there). */
+  const refused = new Set()
   if (toCreate > 0) {
     say('', '== Import')
     const real = await pass(ctx, prepared, async (p) => clientEntry(p.record.line, await rpc(ctx.client, 'import_client', { p_row: p.row, p_dry_run: false })), 'import')
@@ -365,6 +375,7 @@ async function clients(ctx, { cli, target, parsedClients, parsedRelations, emplo
       return 2
     }
     failed = real.some((e) => e.status === 'error')
+    for (const e of real) if (e.status === 'error') refused.add(e.line)
   }
   if (relations.length > 0) {
     say('', '== Liens entre clients')
@@ -380,6 +391,32 @@ async function clients(ctx, { cli, target, parsedClients, parsedRelations, emplo
       return 2
     }
     failed ||= linkErrors.length > 0
+  }
+  const payersToAdd = payerRows.filter((p) => !refused.has(p.record.line))
+  if (payersToAdd.length > 0) {
+    say('', '== Payeurs tiers (étiquettes IVAC, PAE)')
+    const made = await pass(
+      ctx,
+      payersToAdd,
+      async (p) => ({
+        line: p.record.line,
+        ...(await rpc(ctx.client, 'import_client_payers', { p_row: { client_ref: p.row.external_ref, payers: p.record.payers }, p_dry_run: false })),
+      }),
+      'payeurs',
+    )
+    const payerErrors = made.filter((m) => m.status === 'error').map((m) => ({ line: m.line, reasons: (m.errors ?? []).map((x) => x.message) }))
+    const created = made.reduce((sum, m) => sum + (m.status === 'ok' ? (m.created ?? 0) : 0), 0)
+    say(
+      `Payeurs « à compléter » ajoutés : ${fmt(created)} ; clients qui les avaient déjà : ${fmt(made.filter((m) => m.status === 'ok' && (m.created ?? 0) === 0).length)} ; en erreur : ${fmt(payerErrors.length)}`,
+      ...byReason(payerErrors, {}),
+      ...(created > 0 ? ['Complétez-les dans Clients → « Payeurs à compléter » (numéro de dossier, fournisseur, couverture) : d’ici là, leurs séances attendent dans la file du matin.'] : []),
+    )
+    if (made.error || made.length < payersToAdd.length) {
+      say(`Payeurs arrêtés après ${fmt(made.length)} sur ${fmt(payersToAdd.length)}. ${RESUME}`)
+      if (made.error) throw made.error
+      return 2
+    }
+    failed ||= payerErrors.length > 0
   }
   return failed ? 1 : 0
 }
