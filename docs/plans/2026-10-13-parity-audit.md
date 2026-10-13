@@ -23,7 +23,7 @@ Many items appear in more than one source, so the gaps below are merged.
 
 **How to read the tables**
 - Size: S under half a day, M 1–2 days, L 3 days or more.
-- « Owner » is the coordinator's assignment where it was given; otherwise a suggested lane.
+- « Owner » is the coordinator's assignment (2026-10-13).
 - **Blocked** names the external input an item waits for.
 
 ## Before the cutover (Nov 30)
@@ -60,10 +60,10 @@ Many items appear in more than one source, so the gaps below are merged.
 | L4 | IVAC event date on the client's IVAC payer | Clients: `client_payers`, `CoverageTab` | S | C | Christine (does IVAC need it?) |
 | L5 | IVAC report `/rapports/ivac` (totals by state, filter, professional's IVAC number, CSV) | Rapports (RP2) | M | C | — |
 | L6 | Refunds in the revenue « par paiement » view | Rapports: `report_revenue` | S | C | — |
-| L7 | CSV on the waitlist, invoices and clients lists | Demandes, Facturation, Clients | S | to assign | — |
+| L7 | CSV on the waitlist, invoices and clients lists | Demandes, Facturation, Clients | S | C | — |
 | L8 | Receipt signature (clinic, or per professional) | Facturation: `billing-documents` | S | C | Christine (do insurers require it?); signature images |
 | L9 | One receipt per spouse for a couple session | Facturation | M | C | Christine |
-| L10 | Billing on the appointment (invoice state, price preview, fee info): needs a new `appointment.sheet` slot | Core slot, Facturation panel | M | to assign (C for the panel) | — |
+| L10 | Billing on the appointment (invoice state, price preview, fee info): needs a new `appointment.sheet` slot | Core slot, Facturation panel | M | C (a core `appointment.sheet` slot) | — |
 | L11 | A professional's own receipts (`billing.self`, `/mes-recus`) | Facturation: definer RPC and page | M | C | Christine (do professionals read them today?) |
 | L12 | Appointment editor extras: <br>• history tab; <br>• its messages and reminder state on the block; <br>• « resend »; <br>• the required-consent prompt (before consent rules are switched on) | Rendez-vous: `AppointmentSheet` | M | A | — |
 | L13 | Deep link to one appointment (`rendez-vous=<id>`); clickable visits on the client's file | Rendez-vous, Clients | S | A | — |
@@ -79,10 +79,10 @@ Many items appear in more than one source, so the gaps below are merged.
 | L23 | Christine's monthly reports (answer 18) | Rapports | M | C | Christine's list |
 | L24 | Website « Nous écrire » → a demande | Demandes: `demandes-web-form` | M | B | Website access (Elementor webhook) |
 | L25 | Consents part 2 (C5b): withdrawal, gaps, signed copy, re-sign | Clients | M | A | Christine (retention setting) |
-| L26 | Services per professional (exclusions within a title), or a read-only « Services offerts » card | Services | S–M | A | I2 export (do exceptions exist?), then Christine |
+| L26 | Services per professional (exclusions within a title), or a read-only « Services offerts » card | Services | S–M | A | I2 export (do exceptions exist?), then Christine (question 62) |
 | L27 | Services list sort and description search; after-tax price preview | Services | S | A | — |
 | L28 | Workbook priority colours (Christine 19) | Demandes | S | B | Christine's workbook |
-| L29 | « Accueil » cards per module (figures, work queues). Legacy had none. | Each module's `homeCards` | M | to assign | — |
+| L29 | « Accueil » cards per module (figures, work queues). Legacy had none. | Each module's `homeCards` | M | B (coordinates; each module adds its cards) | — |
 
 ## Stale docs found on the way
 
