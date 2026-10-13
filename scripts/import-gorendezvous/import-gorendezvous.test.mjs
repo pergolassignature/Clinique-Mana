@@ -111,12 +111,13 @@ describe('readTable', () => {
 })
 
 describe('tags', () => {
-  it('useful tags become fields or payers; satisfaction and obsolete ones are dropped; the rest stay free', () => {
-    const result = mapTags(splitTags('IVAC, Tarif étudiant, Satisfaite, ivac ; Statut Indien | Atelier'))
-    expect(result.fields).toEqual({ rate_variant: 'student', tax_exempt_status: true })
+  it('useful tags become C2 fields; a payer tag stays free until I3 enters the payer; satisfaction and obsolete ones are dropped', () => {
+    const result = mapTags(splitTags('IVAC, Tarif étudiant, Satisfaite, ivac ; Statut Indien | Atelier ; Entente de paiement'))
+    expect(result.fields).toEqual({ rate_variant: 'student', tax_exempt: true, special_agreement: true })
+    expect(result.notes).toEqual(['Entente de paiement'])
     expect(result.payers).toEqual(['ivac'])
     expect(result.dropped).toEqual(['Satisfaite'])
-    expect(result.freeTags).toEqual(['Atelier'])
+    expect(result.freeTags).toEqual(['IVAC', 'Atelier'])
     expect(result.issues).toEqual([])
   })
 
@@ -157,12 +158,14 @@ describe('readClients', () => {
       archived: false,
       primary_professional_label: 'Pro Alpha',
       tagFields: { rate_variant: 'student' },
+      tagNotes: [],
       payers: ['ivac'],
-      freeTags: [],
+      freeTags: ['IVAC'],
+      insurance: null,
       flags: [],
     })
     expect(byRef(1002)).toMatchObject({ first_name: 'Camille', last_name: 'Tremblay-Fictif', language: 'fr' })
-    expect(byRef(1007)).toMatchObject({ work_e164: '+18195550104', work_ext: '22', payers: ['pae'] })
+    expect(byRef(1007)).toMatchObject({ work_e164: '+18195550104', work_ext: '22', payers: ['pae'], freeTags: ['PAE externe'] })
   })
 
   it('flags the values it leaves out, keeps the row', () => {
@@ -312,7 +315,7 @@ describe('the dry-run report', () => {
     expect(report).toContain('Lignes lues : 13 ; gardées : 10 (actives 9, archivées 1) ; rejetées : 3')
     expect(report).toContain('ClientId déjà vu plus haut dans le fichier (1) : lignes 14')
     expect(report).toContain('Doublons : HIGH 1 paire (1 personne en plusieurs fiches), MEDIUM 2 paires à trancher')
-    expect(report).toContain('Étiquettes devenues des champs : tarif étudiant (1), payeur IVAC (1), payeur PAE (1)')
+    expect(report).toContain('Étiquettes devenues des champs : tarif étudiant (1), payeur IVAC à compléter (1), payeur PAE à compléter (1)')
     expect(report).toContain('Carte (QuickBooks Payments) 175,00 $')
     expect(report).toContain('ligne 4 ↔ ligne 5')
     expect(report).toContain('Étiquettes inconnues (gardées libres, à ajouter à la table) : Étiquette maison')

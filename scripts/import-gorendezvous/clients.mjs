@@ -47,6 +47,10 @@ export const CLIENT_COLUMNS = {
   archived: ['Archived', 'IsArchived', 'Archivé'],
   primaryProfessional: ['PrimaryProfessional', 'Primary Professional', 'Professionnel principal'],
   referredBy: ['ReferredBy', 'Referred By', 'Référé par'],
+  // The main insurance, when the export carries it (« à vérifier »: the first export confirms, I-2).
+  insurer: ['Insurance', 'InsuranceCompany', 'Insurance Company', 'Insurer', 'Assurance', 'Assureur', 'Compagnie d’assurance', "Compagnie d'assurance"],
+  policyNumber: ['PolicyNumber', 'Policy Number', 'Numéro de police', 'No de police', 'Police'],
+  certificateNumber: ['CertificateNumber', 'Certificate Number', 'MemberId', 'Member ID', 'Numéro de certificat', 'Certificat'],
 }
 
 /** The fields without which the file is refused. */
@@ -81,7 +85,8 @@ export const REASON_LABELS = {
  * - `clients`: one record per kept row: `line`, `externalRef` (« gorendezvous:<ClientId> »), the
  *   `clients` fields (names, `sex`, `birthday`, `email`, `mobile_e164`, `home_e164`, `work_e164`,
  *   `work_ext`, `language`, the address, `archived`, `last_appointment_on`, `referred_by`,
- *   `primary_professional_label`), the tag mapping (`tagFields`, `payers`, `freeTags`) and `flags`
+ *   `primary_professional_label`, `insurance`), the tag mapping (`tagFields`, `tagNotes`, `payers`,
+ *   `freeTags`) and `flags`
  *   (reason codes for the values left out);
  * - `rejected`: `{ line, reasons }` for the rows not imported;
  * - `columns`: the fields found and the headers not read.
@@ -162,7 +167,11 @@ export function readClients(text, { today }) {
       last_appointment_on: optional('lastAppointment', parseDateOnly, 'invalid_last_appointment'),
       referred_by: row.get('referredBy') || null,
       primary_professional_label: row.get('primaryProfessional') || null,
+      insurance: row.get('insurer')
+        ? { insurer: row.get('insurer'), policy_number: row.get('policyNumber') || null, certificate_number: row.get('certificateNumber') || null }
+        : null,
       tagFields: tags.fields,
+      tagNotes: tags.notes,
       payers: tags.payers,
       freeTags: tags.freeTags,
       unknownTags: tags.unknown,

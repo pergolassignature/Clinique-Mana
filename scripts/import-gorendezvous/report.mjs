@@ -29,12 +29,11 @@ export const TAG_FIELD_LABELS = {
   'rate_variant=reduced': 'tarif réduit',
   'is_banned=true': 'client banni',
   'file_incomplete=true': 'dossier incomplet',
-  'payment_plan=true': 'entente de paiement',
-  'custom_billing=true': 'facturation personnalisée',
-  'tax_exempt_status=true': 'exemption de taxes (Statut Indien)',
-  'payer=ivac': 'payeur IVAC',
-  'payer=pae': 'payeur PAE',
-  'payer=employer': 'payeur externe',
+  'special_agreement=true': 'entente particulière (paiement ou facturation)',
+  'tax_exempt=true': 'exemption de taxes (Statut Indien)',
+  'payer=ivac': 'payeur IVAC à compléter',
+  'payer=pae': 'payeur PAE à compléter',
+  'payer=external': 'payeur externe à compléter',
 }
 
 /** The payment methods Facturation records, in French. */
