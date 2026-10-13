@@ -4,6 +4,7 @@ import { accessKeys } from '@/core/access/access-context'
 import { rpcErrorCode } from '@/core/modules/errors'
 import { toast } from '@/shared/ui/sonner'
 import { decideFee, fetchFeeDecisions, fetchOverdueInvoices, refundPayment, setDunning, type DunningInput, type FeeStatus } from '../api/follow-up'
+import { refundByStripe, type StripeRefundStatus } from '../api/stripe'
 import { billingError } from '../lib/errors'
 import type { MutationFeedback } from './use-invoices'
 import { billingKeys } from './keys'
@@ -34,6 +35,23 @@ const S = 'modules.billing.saved'
 /** « Appliquer les frais » (a draft in the morning queue) / « Ne pas facturer ». */
 export const useDecideFee = (feedback?: MutationFeedback) =>
   useFollowUpMutation(({ appointmentId, apply, note }: { appointmentId: string; apply: boolean; note: string | null }) => decideFee(appointmentId, apply, note), null, feedback)
+/**
+ * « Rembourser » (F3's `refund_payment`). A Stripe payment's refund is then made at Stripe at once
+ * (FS-9): its toast says what Stripe did; a call that fails leaves it « En attente » for the job.
+ */
 export const useRefundPayment = (feedback?: MutationFeedback) =>
-  useFollowUpMutation(({ paymentId, amountCents, reason }: { paymentId: string; amountCents: number; reason: string }) => refundPayment(paymentId, amountCents, reason), `${S}.refund`, feedback)
+  useFollowUpMutation(
+    async ({ paymentId, amountCents, reason, modeCode }: { paymentId: string; amountCents: number; reason: string; modeCode: string }) => {
+      const refundId = await refundPayment(paymentId, amountCents, reason)
+      if (modeCode !== 'stripe') {
+        toast.success(t(`${S}.refund`))
+        return
+      }
+      const status: StripeRefundStatus = await refundByStripe(refundId).catch(() => 'pending' as const)
+      if (status === 'failed') toast.error(t(`${S}.refundStripe.failed`))
+      else toast.success(t(status === 'pending' ? `${S}.refundStripe.pending` : `${S}.refundStripe.recorded`))
+    },
+    null,
+    feedback,
+  )
 export const useSetDunning = (feedback?: MutationFeedback) => useFollowUpMutation((input: DunningInput) => setDunning(input), `${S}.dunning`, feedback)
