@@ -276,6 +276,24 @@ describe('DemandeRecordPage', () => {
     expect(within(dialog).getByRole('combobox', { name: t('modules.demandes.propositions.form.professional') })).toHaveValue('pro1')
   })
 
+  it('Jumelage: ?proposer= for someone no longer eligible says why, and opens nothing', async () => {
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'waitlist' }))
+    renderPage('jumelage?proposer=pro3', ['demandes', 'clients', 'professionals', 'appointments'])
+    const M = 'modules.demandes.matching'
+    await waitFor(() =>
+      expect(mocks.toast.error).toHaveBeenCalledWith(
+        t(`${M}.offer.notEligible`, { name: 'Pro Trois', reasons: `${t(`${M}.reasons.language`)}, ${t(`${M}.reasons.not_ready`)}` }),
+      ),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('Jumelage: ?proposer= with an expired insurance asks first', async () => {
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'waitlist' }))
+    renderPage('jumelage?proposer=pro2', ['demandes', 'clients', 'professionals', 'appointments'])
+    expect(await screen.findByRole('alertdialog', { name: t('modules.demandes.matching.confirmInsurance.title', { name: 'Pro Deux' }) })).toBeInTheDocument()
+  })
+
   it('Suivi: proposing a professional whose insurance is expired asks for a confirmation (rule 8)', async () => {
     const user = userEvent.setup()
     mocks.waitlist.fetchWaitlistLists.mockResolvedValue([

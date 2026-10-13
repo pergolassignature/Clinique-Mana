@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
-import { LoadError } from '@/shared/components/LoadState'
+import { useAccess } from '@/core/access/access-context'
+import { LoadError, Loading } from '@/shared/components/LoadState'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
@@ -21,14 +22,15 @@ const O = 'modules.demandes.waitlist.offers'
  */
 export function CompatibleCard({ professionalId, name }: { professionalId: string; name: string }) {
   const compatible = useWaitlistCompatible(professionalId, true)
+  const { can } = useAccess()
+  // The proposal needs the request's rights and the agenda's (D3b).
+  const canOffer = can('demandes.manage') && can('appointments.view')
   return (
     <SettingsCard as="section" layout="section" title={t(`${O}.title`, { name })} description={t(`${O}.description`)}>
       {compatible.isError && !compatible.data ? (
         <LoadError message={t(`${O}.loadError`)} onRetry={() => void compatible.refetch()} retrying={compatible.isFetching} />
       ) : !compatible.data ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {t('common.loading')}
-        </p>
+        <Loading />
       ) : compatible.data.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t(`${O}.none`, { name })}</p>
       ) : (
@@ -60,9 +62,15 @@ export function CompatibleCard({ professionalId, name }: { professionalId: strin
                   </p>
                 )}
               </div>
-              <Link to={offerPath(row.demande_id, professionalId)} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'max-sm:h-11')}>
-                {t(`${O}.offer`)}
-              </Link>
+              {canOffer && (
+                <Link
+                  to={offerPath(row.demande_id, professionalId)}
+                  aria-label={t(`${O}.offerTo`, { name: row.person_name ?? row.reference })}
+                  className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'max-sm:h-11')}
+                >
+                  {t(`${O}.offer`)}
+                </Link>
+              )}
             </li>
           ))}
         </ol>

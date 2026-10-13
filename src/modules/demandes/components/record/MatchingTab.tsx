@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Dialog } from '@/shared/ui/dialog'
+import { toast } from '@/shared/ui/sonner'
 import type { MatchCriteria, MatchedProfessional } from '../../api/matching'
 import { useDemandeMatch } from '../../hooks/use-matching'
 import { usePropositions } from '../../hooks/use-propositions'
@@ -46,22 +47,27 @@ export function MatchingTab() {
   const asked = params.get('proposer')
 
   const data = match.data
-  const pendingNow = (propositions.data ?? []).some((p) => p.response === 'pending')
-  const openNow = ['accepted', 'waitlist', 'proposed'].includes(bundle.demande.state)
-  const canProposeNow = canEdit && openNow && !pendingNow && can('appointments.view')
+  const pending = (propositions.data ?? []).some((p) => p.response === 'pending')
+  const open = ['accepted', 'waitlist', 'proposed'].includes(bundle.demande.state)
+  const canPropose = canEdit && open && !pending && can('appointments.view')
   // « Offrir la plage » (D4 part 2): `?proposer=<professional>` opens the proposal to her once,
-  // through the same path as « Proposer » (an expired insurance asks first).
+  // through the same path as « Proposer » (an expired insurance asks first); when it cannot, the
+  // person is told why — never a silent no-op.
   useEffect(() => {
     if (!asked || !data || !propositions.data) return
-    const professional = data.professionals.find((p) => p.professional_id === asked && p.eligible)
-    if (professional && canProposeNow) {
-      if (professional.warnings.includes('insurance_expired')) setConfirming(professional)
-      else setProposing(professional)
-    }
+    const professional = data.professionals.find((p) => p.professional_id === asked)
+    if (!professional) toast.error(t(`${M}.offer.unknown`))
+    else if (!professional.eligible) {
+      toast.error(t(`${M}.offer.notEligible`, { name: professional.display_name, reasons: professional.reasons.map(reasonLabel).join(', ') }))
+    } else if (pending) toast.error(t(`${M}.pending`))
+    else if (!open) toast.error(t(`${M}.notOpen`))
+    else if (!canPropose) toast.error(t(`${M}.offer.notAllowed`))
+    else if (professional.warnings.includes('insurance_expired')) setConfirming(professional)
+    else setProposing(professional)
     const next = new URLSearchParams(params)
     next.delete('proposer')
     setParams(next, { replace: true })
-  }, [asked, data, propositions.data, canProposeNow]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [asked, data, propositions.data, canPropose]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (match.isError && !match.data) {
     return <LoadError message={t(`${M}.loadError`)} retrying={match.isFetching} onRetry={() => void match.refetch()} />
@@ -70,9 +76,6 @@ export function MatchingTab() {
   const { criteria, professionals } = match.data
   const eligible = professionals.filter((p) => p.eligible)
   const others = professionals.filter((p) => !p.eligible)
-  const pending = (propositions.data ?? []).some((p) => p.response === 'pending')
-  const open = ['accepted', 'waitlist', 'proposed'].includes(bundle.demande.state)
-  const canPropose = canEdit && open && !pending && can('appointments.view')
   const propose = (p: MatchedProfessional) => (p.warnings.includes('insurance_expired') ? setConfirming(p) : setProposing(p))
 
   return (

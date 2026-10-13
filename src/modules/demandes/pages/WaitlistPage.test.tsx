@@ -140,7 +140,7 @@ describe('WaitlistPage', () => {
     expect(within(rows[0]!).getByText(t(`${W}.priority.priority`))).toBeInTheDocument()
     expect(within(rows[0]!).getByText(t(`${O}.warnings.age_unknown`))).toBeInTheDocument()
     expect(within(rows[1]!).getByText(new RegExp(t(`${O}.titleList`, { name: 'Psychologie' })))).toBeInTheDocument()
-    expect(within(rows[1]!).getByRole('link', { name: t(`${O}.offer`) })).toHaveAttribute('href', `/demandes/d1/jumelage?proposer=${PRO}`)
+    expect(within(rows[1]!).getByRole('link', { name: t(`${O}.offerTo`, { name: 'Léa Essai' }) })).toHaveAttribute('href', `/demandes/d1/jumelage?proposer=${PRO}`)
     expect(mocks.offers.fetchWaitlistCompatible).toHaveBeenCalledWith(PRO)
   })
 

@@ -4,7 +4,7 @@
 -- photo; the next one after a declined proposal; permissions. Professionnels' facts are a fixture.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(17);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -121,6 +121,43 @@ update private.test_facts set new_client_places = 0;
 update public.capacity_snapshots set places_left = 0 where snapshot_on < private.clinic_today_for_org('b0000000-0000-0000-0000-00000000000a');
 select private.demandes_capacity_snapshot('b0000000-0000-0000-0000-00000000000a');
 select is((select count(*)::int from public.notifications where kind = 'demandes.waitlist_slot_available'), 1, 'no place: no new notice');
+
+-- The clinic's first photo: nothing to compare, no notice.
+delete from public.capacity_snapshots;
+delete from public.notifications where kind = 'demandes.waitlist_slot_available';
+update private.test_facts set new_client_places = 2;
+select private.demandes_capacity_snapshot('b0000000-0000-0000-0000-00000000000a');
+select is((select count(*)::int from public.notifications where kind = 'demandes.waitlist_slot_available'), 0, 'the first photo: no notice');
+
+-- Léa also on her own list: listed once, from her own list.
+insert into public.waitlist_entries (org_id, demande_id, target_professional_id, registered_at, language, state, fee_status, fee_waived_reason)
+values ('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
+        now() - interval '20 days', 'fr', 'active', 'waived', 'Test');
+select results_eq($$ select count(*)::int, max(target_kind) from private.demandes_waitlist_compatible('b0000000-0000-0000-0000-00000000000a',
+                       'c0000000-0000-0000-0000-000000000001') where demande_id = 'e0000000-0000-0000-0000-000000000001' $$,
+  $$ values (1, 'professional') $$, 'one row per request, her own list first');
+-- Marc's entry offered by phone, a new one wanting a man: neither is offered.
+update public.waitlist_entries set state = 'offered' where demande_id = 'e0000000-0000-0000-0000-000000000002';
+insert into public.demandes (id, org_id, reference, reference_year, reference_seq, contact_name, state)
+values ('e0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'DEM-2026-8005', 2026, 8005, 'Paul', 'waitlist');
+insert into public.waitlist_entries (org_id, demande_id, target_professional_id, registered_at, language, preferred_pro_gender, state, fee_status, fee_waived_reason)
+values ('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000001',
+        now() - interval '100 days', 'fr', 'male', 'active', 'waived', 'Test');
+select results_eq($$ select demande_id from private.demandes_waitlist_compatible('b0000000-0000-0000-0000-00000000000a',
+                       'c0000000-0000-0000-0000-000000000001') $$,
+  $$ values ('e0000000-0000-0000-0000-000000000001'::uuid) $$, 'an offered entry and one wanting a man are left out (the entry''s own criteria)');
+-- Léa's proposal ends: withdrawn, or declined with nobody else waiting — no « au suivant ».
+delete from public.notifications where kind = 'demandes.waitlist_offer_next';
+insert into public.demande_propositions (id, demande_id, org_id, professional_id, response, expires_at) values
+  ('f0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
+   'c0000000-0000-0000-0000-000000000001', 'pending', now() + interval '48 hours');
+select private.demandes_end_proposition('b0000000-0000-0000-0000-00000000000a', 'f0000000-0000-0000-0000-000000000002', 'withdrawn', 'withdrawn', null);
+insert into public.demande_propositions (id, demande_id, org_id, professional_id, response, expires_at) values
+  ('f0000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
+   'c0000000-0000-0000-0000-000000000001', 'pending', now() + interval '48 hours');
+select private.demandes_end_proposition('b0000000-0000-0000-0000-00000000000a', 'f0000000-0000-0000-0000-000000000003', 'expired', 'expired', null);
+select is((select count(*)::int from public.notifications where kind = 'demandes.waitlist_offer_next'), 0,
+  'withdrawn, or nobody else compatible waits: no « Plage à offrir au suivant »');
 
 select * from finish();
 rollback;

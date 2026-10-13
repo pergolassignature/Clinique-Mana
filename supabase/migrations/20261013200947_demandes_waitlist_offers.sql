@@ -11,13 +11,15 @@
 --   offered — « Active » or « À rappeler » (the consent and the fee settled), no proposal pending —
 --   of her own list and of her professions' lists, whose criteria she meets (D4's hard filters,
 --   with the entry's own criteria: its language, periods, gender, clientèle, motifs; the person's
---   age and sex as the request's), in list order (« Prioritaire » first, then the oldest). Granted
+--   age and sex as the request's; her own list keeps the request's profession, as its panel does),
+--   one row per request (her own list first), in list order (« Prioritaire » first, then the
+--   oldest). Granted
 --   to no role. `list_waitlist_compatible(professional)` (`demandes.view` and
 --   `professionals.view`) shows them with the warnings.
--- * « Place disponible » (D-34): the nightly photo (D5) compares each professional with her last
---   one; a place opened (places left back above 0, new clients accepted again, newly active) while
---   someone compatible waits → one notice `demandes.waitlist_slot_available` (`demandes.waitlist`)
---   per professional per day, to `/liste-attente?liste=p-<her>`.
+-- * « Place disponible » (D-34): the nightly photo (D5) compares each professional with the clinic's
+--   previous photo; a place opened (more places left than then, new clients accepted again, active
+--   again or newly) while someone compatible waits → one notice `demandes.waitlist_slot_available`
+--   (`demandes.waitlist`) per professional per day, to `/liste-attente?liste=p-<her>`.
 -- * « Offrir la plage » (D-35): the proposal of D3b (1 to 3 of her free slots held 48 h, one link),
 --   from the compatible row; a proposal of hers declined or unanswered for a person on the list →
 --   notice `demandes.waitlist_offer_next` (« Plage à offrir au suivant »), when someone else
@@ -46,7 +48,8 @@ as $$
       from public.waitlist_entries e, pro
      where e.org_id = p_org and e.state in ('active', 'to_call')
        and (e.target_professional_id = p_professional or e.target_profession_title_id = any (pro.title_ids))
-       and not exists (select 1 from public.demande_propositions x where x.demande_id = e.demande_id and x.response = 'pending')
+       and not exists (select 1 from public.demande_propositions x
+                        where x.org_id = p_org and x.demande_id = e.demande_id and x.response = 'pending')
   ),
   matched as (
     select e.id as entry_id, e.demande_id, case when e.target_professional_id is not null then 'professional' else 'title' end as target_kind,
@@ -58,16 +61,23 @@ as $$
                  'availability_periods', pg_catalog.to_jsonb(e.availability_periods),
                  'preferred_pro_gender', e.preferred_pro_gender,
                  'clientele_id', (select k.id from public.clienteles_catalog k where k.org_id = p_org and k.id = e.clientele_id),
-                 'profession_title_id', e.target_profession_title_id,
+                 -- A profession's list: that profession; her own list: the request's, as its panel applies it.
+                 'profession_title_id', coalesce(e.target_profession_title_id::text,
+                                                 private.demandes_match_criteria(p_org, e.demande_id) ->> 'profession_title_id'),
                  'motif_ids', coalesce((select pg_catalog.jsonb_agg(c.id) from public.motifs_catalog c
                                          where c.org_id = p_org and c.id = any (e.motif_ids)), '[]')) as criteria
       ) cr
       cross join lateral private.demandes_match(p_org, cr.criteria, array[p_professional]) m
+  ),
+  one_per_request as (
+    select distinct on (x.demande_id) x.*
+      from matched x
+     where x.eligible
+     order by x.demande_id, (x.target_kind = 'professional') desc, (x.priority = 'priority') desc, x.registered_at, x.entry_id
   )
   select x.entry_id, x.demande_id, x.target_kind, x.priority, x.registered_at, x.warnings, x.fit,
          pg_catalog.row_number() over (order by (x.priority = 'priority') desc, x.registered_at, x.entry_id)
-    from matched x
-   where x.eligible
+    from one_per_request x
 $$;
 revoke all on function private.demandes_waitlist_compatible(uuid, uuid) from public, anon, authenticated, service_role;
 
@@ -75,7 +85,6 @@ revoke all on function private.demandes_waitlist_compatible(uuid, uuid) from pub
 create function public.list_waitlist_compatible(p_professional_id uuid)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -86,6 +95,11 @@ begin
   perform private.demandes_require('professionals.view');
   if not exists (select 1 from private.professional_matching_facts(v_org, array[p_professional_id])) then
     raise exception 'Ce professionnel n''existe pas.' using errcode = 'P0001', hint = 'professional_id';
+  end if;
+  -- Entries whose consent and fee are settled become active first (as `list_waitlist` does).
+  if exists (select 1 from public.waitlist_entries x where x.org_id = v_org and x.state = 'incomplete') then
+    perform pg_catalog.set_config('app.audit_source', 'rpc:list_waitlist_compatible', true);
+    perform private.waitlist_promote(v_org);
   end if;
   return coalesce((
     select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
@@ -115,10 +129,10 @@ as $$
 declare
   v_day date := private.clinic_today_for_org(p_org);
   v_n int;
-  v_had_before boolean;
+  v_prev_day date;
   r record;
 begin
-  v_had_before := exists (select 1 from public.capacity_snapshots c where c.org_id = p_org and c.snapshot_on < v_day);
+  v_prev_day := (select pg_catalog.max(c.snapshot_on) from public.capacity_snapshots c where c.org_id = p_org and c.snapshot_on < v_day);
   insert into public.capacity_snapshots as c (org_id, professional_id, snapshot_on, places_declared, places_used, places_left, accepting_new_clients)
   select p_org, f.professional_id, v_day, pl.places_declared, pl.places_used, pl.places_left, f.accepting_new_clients
     from private.professional_matching_facts(p_org) f
@@ -129,19 +143,21 @@ begin
         places_left = excluded.places_left, accepting_new_clients = excluded.accepting_new_clients,
         taken_at = pg_catalog.now();
   get diagnostics v_n = row_count;
-  -- D4 part 2 (D-34): a place opened since the last photo (places left back above 0, new clients
-  -- accepted again, a professional newly active) and someone compatible waits: « Place disponible »,
-  -- once a day per professional. Not on the clinic's first photo (nothing to compare).
-  if v_had_before then
+  -- D4 part 2 (D-34): a place opened since the clinic's last photo (more places left than then,
+  -- new clients accepted again, a professional active again or newly) and someone compatible
+  -- waits: « Place disponible », once a day per professional. Not on the clinic's first photo.
+  if v_prev_day is not null then
+    -- Entries whose consent and fee are settled count (as the list settles them).
+    perform private.waitlist_promote(p_org);
     for r in
       select t.professional_id
         from public.capacity_snapshots t
-        left join lateral (select p.* from public.capacity_snapshots p
-                            where p.org_id = p_org and p.professional_id = t.professional_id and p.snapshot_on < v_day
-                            order by p.snapshot_on desc limit 1) prev on true
+        left join public.capacity_snapshots prev
+          on prev.org_id = p_org and prev.professional_id = t.professional_id and prev.snapshot_on = v_prev_day
        where t.org_id = p_org and t.snapshot_on = v_day
          and t.accepting_new_clients and coalesce(t.places_left, 1) > 0
-         and (prev.professional_id is null or not prev.accepting_new_clients or prev.places_left = 0)
+         and (prev.professional_id is null or not prev.accepting_new_clients or prev.places_left = 0
+              or t.places_left > prev.places_left)
     loop
       if exists (select 1 from private.demandes_waitlist_compatible(p_org, r.professional_id)) then
         perform private.notify(p_org, 'demandes', 'demandes.waitlist_slot_available', 'normal',

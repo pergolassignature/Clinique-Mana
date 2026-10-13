@@ -43,5 +43,5 @@ test('a professional’s waiting list says who she could be offered', async ({ p
   await list.selectOption(value!)
   await expect(page).toHaveURL(/liste=p-/)
   await expect(page.getByRole('heading', { name: 'Personnes compatibles avec Félix Gauthier' })).toBeVisible()
-  await expect(page.getByText(/Personne de compatible n'attend Félix Gauthier/)).toBeVisible()
+  await expect(page.getByText(/Aucune personne compatible n'attend Félix Gauthier/)).toBeVisible()
 })
