@@ -9,7 +9,7 @@ import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
 import { SaveButton } from '@/shared/components/SaveButton'
 import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
-import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
@@ -18,6 +18,7 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Switch } from '@/shared/ui/switch'
 import type { ConsentRule, ConsentSettings, ConsentTemplate, ConsentType, Population } from '../../api/consents'
+import { ConsentTextEditor } from '../../components/consents/ConsentTextEditor'
 import {
   useConsentRules,
   useConsentSettings,
@@ -35,7 +36,8 @@ const S = 'modules.clients.consents.settings'
  * Paramètres → Consentements (Clients C5a; seen with `clients.view`, changed with `clients.manage`):
  * the 14 texts (7 consents × French and English) with « Publier » and who must sign again (R-49);
  * when each consent is asked (the rules, switched on once a text is published); the delays and
- * reminders. The texts themselves are edited with the clinic's management (decision CC-2).
+ * reminders. « Modifier le texte » opens a text in core's shared editor under the cards (CC-12);
+ * opening another one or closing it asks first while a draft has unsaved changes.
  */
 export function ConsentsSettingsPage() {
   const { readOnly } = useSettingsSection()
@@ -44,6 +46,12 @@ export function ConsentsSettingsPage() {
   const rules = useConsentRules()
   const settings = useConsentSettings()
   const failed = [types, templates, rules, settings].filter((q) => q.isError && !q.data)
+  const [editing, setEditing] = useState<{ templateId: string; name: string } | null>(null)
+  const confirmLeave = useConfirmLeave()
+  const openText = (next: { templateId: string; name: string } | null) => {
+    if (next?.templateId === editing?.templateId) return
+    confirmLeave(() => setEditing(next))
+  }
 
   let content
   if (failed.length > 0) {
@@ -53,7 +61,7 @@ export function ConsentsSettingsPage() {
   } else {
     content = (
       <SectionSurface>
-        <TextsCard types={types.data} templates={templates.data} readOnly={readOnly} />
+        <TextsCard types={types.data} templates={templates.data} readOnly={readOnly} onOpen={openText} />
         <RulesCard types={types.data} rules={rules.data} templates={templates.data} readOnly={readOnly} />
         <DelaysCard settings={settings.data} readOnly={readOnly} />
       </SectionSurface>
@@ -64,11 +72,22 @@ export function ConsentsSettingsPage() {
       <PageHeader level={1} title={t(`${S}.title`)} description={t(`${S}.description`)} />
       {readOnly && <ReadOnlyNotice />}
       {content}
+      {editing && <ConsentTextEditor key={editing.templateId} templateId={editing.templateId} name={editing.name} readOnly={readOnly} onClose={() => openText(null)} />}
     </div>
   )
 }
 
-function TextsCard({ types, templates, readOnly }: { types: ConsentType[]; templates: ConsentTemplate[]; readOnly: boolean }) {
+function TextsCard({
+  types,
+  templates,
+  readOnly,
+  onOpen,
+}: {
+  types: ConsentType[]
+  templates: ConsentTemplate[]
+  readOnly: boolean
+  onOpen: (text: { templateId: string; name: string }) => void
+}) {
   const [publishing, setPublishing] = useState<{ template: ConsentTemplate; name: string } | null>(null)
   return (
     <SettingsCard as="section" layout="section" title={t(`${S}.texts.title`)} description={t(`${S}.texts.description`)}>
@@ -80,14 +99,27 @@ function TextsCard({ types, templates, readOnly }: { types: ConsentType[]; templ
             {(['fr', 'en'] as const).map((lang) => {
               const template = templates.find((tpl) => tpl.consentKey === type.key && tpl.language === lang)
               if (!template) return null
+              const language = t(lang === 'en' ? `${S}.texts.english` : `${S}.texts.french`)
+              const textName = `${type.name} (${language.toLocaleLowerCase('fr-CA')})`
               return (
-                <div key={lang} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">{t(`${S}.texts.line`, { language: t(lang === 'en' ? `${S}.texts.english` : `${S}.texts.french`), state: textState(template) })}</span>
-                  {!readOnly && template.draft && !template.draft.placeholder && (
-                    <Button type="button" variant="outline" size="sm" onClick={() => setPublishing({ template, name: lang === 'en' ? type.nameEn : type.name })}>
-                      {t(`${S}.texts.publish`)}
+                <div key={lang} className="flex flex-col gap-2 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                  <span className="min-w-0 text-muted-foreground">{t(`${S}.texts.line`, { language, state: textState(template) })}</span>
+                  <span className="flex shrink-0 flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-label={t(readOnly ? `${S}.texts.viewLabel` : `${S}.texts.editLabel`, { name: textName })}
+                      onClick={() => onOpen({ templateId: template.id, name: textName })}
+                    >
+                      {t(readOnly ? `${S}.texts.view` : `${S}.texts.edit`)}
                     </Button>
-                  )}
+                    {!readOnly && template.draft && !template.draft.placeholder && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setPublishing({ template, name: lang === 'en' ? type.nameEn : type.name })}>
+                        {t(`${S}.texts.publish`)}
+                      </Button>
+                    )}
+                  </span>
                 </div>
               )
             })}

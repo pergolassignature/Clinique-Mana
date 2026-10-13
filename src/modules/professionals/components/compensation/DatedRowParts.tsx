@@ -1,7 +1,8 @@
 import { type FormEvent, type ReactNode, type RefObject } from 'react'
 import type { UseFormRegisterReturn } from 'react-hook-form'
-import { CircleAlert, TriangleAlert } from 'lucide-react'
+import { TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
+import { RefusalAlert } from '@/shared/components/RefusalAlert'
 import { SaveButton } from '@/shared/components/SaveButton'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { useClinicDate } from '@/shared/lib/use-clinic-date'
@@ -38,18 +39,8 @@ export function DatedStatusBadge({ status }: { status: DatedStatus }) {
   return <Badge variant={status === 'current' ? 'success' : 'info'}>{t(`${W}.statuses.${status}`)}</Badge>
 }
 
-/** A refusal shown where the user acted: the message, and the readable HINT under it. */
-export function RefusalAlert({ message, detail }: { message: string; detail?: string | null }) {
-  return (
-    <Alert variant="destructive" role="alert">
-      <CircleAlert aria-hidden />
-      <AlertDescription className="text-foreground">
-        {message}
-        {detail && <span className="mt-0.5 block text-muted-foreground">{detail}</span>}
-      </AlertDescription>
-    </Alert>
-  )
-}
+/** A refusal shown where the user acted: the message, and the readable HINT under it (shared). */
+export { RefusalAlert }
 
 interface DialogFormProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void

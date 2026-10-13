@@ -7,27 +7,21 @@ import { syncOutcomeText } from '@/core/signing/hooks'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { functionErrorText } from '@/core/supabase/function-errors'
 import { toast } from '@/shared/ui/sonner'
+import { useModuleTemplates, type TemplateMutationHandlers } from '@/core/signing/templates/hooks'
 import {
-  archiveTemplateVersion,
-  createTemplateVersion,
   fetchProfessionalContract,
   fetchProfessionalImageConsent,
-  fetchTemplateVersions,
   listContractTemplates,
-  publishTemplateVersion,
   recordPaperContract,
   sendProfessionalContract,
-  updateTemplateVersion,
   type ContractAction,
-  type DraftContent,
   type PaperContractInput,
   type SigningForm,
 } from '../api/contracts'
-import { contractTemplateKeys, isContractKey, professionalKeys } from './keys'
+import { isContractKey, professionalKeys } from './keys'
 import { functionErrorMessage, showMutationError, type MutationFeedback } from './mutation-feedback'
 import { refreshProfessionalHistory } from './use-professional-record'
 
-const T = 'modules.professionals.contract.toasts'
 const E = 'modules.professionals.contract.errors'
 
 /** The i18n root of a form's own words (the card's title, its toasts, its refusals). */
@@ -200,57 +194,26 @@ export function useRecordPaperContract() {
   })
 }
 
-// --- « Paramètres → Contrats et formulaires » --------------------------------------------------------
+// --- « Paramètres → Contrats et formulaires » (the shared editor, core: CC-12) ---------------------
+
+export { useTemplateVersions } from '@/core/signing/templates/hooks'
 
 export function useContractTemplates() {
-  return useQuery({ queryKey: contractTemplateKeys.list(), queryFn: listContractTemplates })
-}
-
-/** A template's versions; not refetched on focus while a draft may be in the editor. */
-export function useTemplateVersions(templateId: string | null) {
-  return useQuery({
-    queryKey: contractTemplateKeys.versions(templateId ?? ''),
-    queryFn: () => fetchTemplateVersions(templateId as string),
-    enabled: templateId !== null,
-    refetchOnWindowFocus: false,
-  })
+  return useModuleTemplates('professionals', listContractTemplates)
 }
 
 /**
- * The editor's writes. Each refetches the templates and their versions; a publication or a retired
- * version also every signing card (« Aucun modèle … publié » follows it).
+ * What the shared editor needs from Professionnels to behave as it always has here: the module's
+ * failures said its way (`showMutationError`) and, after a publication or a retired version, every
+ * signing card refetched (« Aucun modèle … publié » follows it), never the records around them.
  */
-export function useTemplateMutations(feedback?: MutationFeedback) {
+export function useContractEditorHandlers(): Required<Pick<TemplateMutationHandlers, 'onError' | 'onChanged'>> {
   const queryClient = useQueryClient()
-  const refresh = (cards: boolean) =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: contractTemplateKeys.all }),
-      cards && queryClient.invalidateQueries({ queryKey: professionalKeys.all, predicate: (query) => isContractKey(query.queryKey) }),
-    ])
-  const onError = (error: unknown) => showMutationError(queryClient, error, feedback)
-  const create = useMutation({
-    mutationFn: createTemplateVersion,
-    onSuccess: () => toast.success(t(`${T}.versionCreated`)),
-    onError,
-    onSettled: () => refresh(false),
-  })
-  const save = useMutation({
-    mutationFn: ({ versionId, content }: { versionId: string; content: DraftContent }) => updateTemplateVersion(versionId, content),
-    onSuccess: () => toast.success(t(`${T}.draftSaved`)),
-    onError,
-    onSettled: () => refresh(false),
-  })
-  const publish = useMutation({
-    mutationFn: publishTemplateVersion,
-    onSuccess: () => toast.success(t(`${T}.published`)),
-    onError,
-    onSettled: () => refresh(true),
-  })
-  const archive = useMutation({
-    mutationFn: archiveTemplateVersion,
-    onSuccess: () => toast.success(t(`${T}.archived`)),
-    onError,
-    onSettled: () => refresh(true),
-  })
-  return { create, save, publish, archive }
+  return {
+    onError: (error, show) => showMutationError(queryClient, error, { onErrorMessage: show }),
+    onChanged: (write) => {
+      if (write === 'publish' || write === 'archive')
+        void queryClient.invalidateQueries({ queryKey: professionalKeys.all, predicate: (query) => isContractKey(query.queryKey) })
+    },
+  }
 }
