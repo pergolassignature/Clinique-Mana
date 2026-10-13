@@ -2088,6 +2088,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           external_ref: string | null
+          handled_at: string | null
+          handled_by: string | null
           id: string
           insurer: string | null
           is_urgent: boolean
@@ -2134,6 +2136,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           external_ref?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
@@ -2180,6 +2184,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           external_ref?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           insurer?: string | null
           is_urgent?: boolean
@@ -2249,6 +2255,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "demandes_handled_by_fkey"
+            columns: ["handled_by", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
           },
           {
             foreignKeyName: "demandes_matched_professional_fkey"
@@ -9545,6 +9558,18 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      demandes_counts: {
+        Args: never
+        Returns: {
+          due: number
+          late: number
+          mine: number
+          no_answer: number
+          open: number
+          unassigned: number
+          waitlist: number
+        }[]
+      }
       discard_consent_draft: { Args: { p_id: string }; Returns: undefined }
       discard_system_file: {
         Args: { p_file_id: string; p_org_id: string }
@@ -9626,7 +9651,9 @@ export type Database = {
         Returns: Json
       }
       get_consent_versions: { Args: { p_key?: string }; Returns: Json }
+      get_demande: { Args: { p_id: string }; Returns: Json }
       get_demandes_booking_settings: { Args: never; Returns: Json }
+      get_demandes_reference: { Args: never; Returns: Json }
       get_email_context: {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
@@ -9893,6 +9920,44 @@ export type Database = {
           special_agreement: boolean
           tag_ids: string[]
           tax_exempt: boolean
+        }[]
+      }
+      list_demandes: {
+        Args: {
+          p_assigned?: string
+          p_flags?: string[]
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_view?: string
+        }
+        Returns: {
+          assigned_name: string
+          assigned_to: string
+          beneficiary: string
+          channel: string
+          client_id: string
+          client_number: number
+          contact_attempts: number
+          first_contact_at: string
+          handled_at: string
+          handled_by: string
+          handled_by_name: string
+          id: string
+          is_urgent: boolean
+          last_contact_at: string
+          last_outcome: string
+          motif_count: number
+          next_contact_at: string
+          next_task_due: string
+          no_answer: boolean
+          open_tasks: number
+          person_name: string
+          promise: string
+          received_at: string
+          reference: string
+          state: string
+          waiting_hours: number
         }[]
       }
       list_document_template_versions: {
@@ -10917,6 +10982,10 @@ export type Database = {
           p_retention_pct: number
         }
         Returns: string
+      }
+      set_demande_handler: {
+        Args: { p_expected?: string; p_id: string; p_take: boolean }
+        Returns: undefined
       }
       set_demande_note: {
         Args: { p_id: string; p_note: string }

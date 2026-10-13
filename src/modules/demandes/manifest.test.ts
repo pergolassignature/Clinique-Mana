@@ -3,10 +3,15 @@ import { t } from '@/i18n'
 import { bookingCancelPublicPage, bookingPublicPage, demandesManifest } from './index'
 
 describe('demandesManifest', () => {
-  it('uses the English module key and depends on clients and professionals', () => {
+  it('uses the English module key, depends on clients and professionals; « Demandes » and its record (D2)', () => {
     expect(demandesManifest.key).toBe('demandes')
     expect(t(demandesManifest.labelKey)).toBe('Demandes')
     expect(demandesManifest.dependsOn).toEqual(['clients', 'professionals'])
+    expect(demandesManifest.nav).toEqual([expect.objectContaining({ path: '/demandes', permission: 'demandes.view' })])
+    expect(demandesManifest.routes.map((r) => [r.path, r.permission])).toEqual([
+      ['demandes', 'demandes.view'],
+      ['demandes/:id/:onglet?', 'demandes.view'],
+    ])
   })
 
   it('Paramètres → Appels découverte (D3c): seen with demandes.view, changed with demandes.manage; the public pages are lazy', () => {
