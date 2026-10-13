@@ -29,7 +29,7 @@ import { UpcomingList } from '../components/UpcomingList'
 import { WithoutReminderSheet } from '../components/WithoutReminderSheet'
 import { useAgenda, useAgendaReference, useAvailability, useMoveAppointment, useMyAgendaReference } from '../hooks/use-agenda'
 import { useAvailabilityEditing } from '../hooks/use-availability-edit'
-import { servicesFor, weekdayLabel } from '../lib/display'
+import { APPOINTMENT_LINK_PARAM as LINK_PARAM, servicesFor, weekdayLabel } from '../lib/display'
 import { addDays, daysFrom, hhmm, isoWeekday, monthGrid, rangeOf, startOfWeek } from '../lib/time'
 
 const A = 'modules.appointments.agenda'
@@ -38,12 +38,13 @@ type View = (typeof VIEWS)[number]
 type Mode = 'rendez-vous' | 'disponibilites'
 type SheetState = Extract<SheetTarget, { kind: 'create' }> | { kind: 'edit'; id: string; move?: { startsAt: string } }
 const UPCOMING_DAYS = 14
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * « Agenda » (plan R2): the clinic's appointments in four views (Jour, Semaine, Prochains jours,
  * Mois: real Radix tabs, decision #35), for all professionals, a service's or one; the view, the
  * date, the professional, the service and the mode live in the URL (a link opens the same
- * agenda). « Rendez-vous »: click a free quarter hour to book there, drag an appointment to move
+ * agenda; `rendez-vous=<id>` with its date opens that appointment, AP-33). « Rendez-vous »: click a free quarter hour to book there, drag an appointment to move
  * it, open one to edit, mark presence or cancel. « Disponibilités » (one professional): her weekly
  * windows to edit and her exceptions. Every rule is the database's (R1, AP-12).
  */
@@ -109,7 +110,9 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const service = mine ? null : (reference.services.find((s) => s.id === params.get('service')) ?? null)
   const mode: Mode = params.get('mode') === 'disponibilites' ? 'disponibilites' : 'rendez-vous'
   // The editor holds an id: it always shows the agenda's current row (never a stale snapshot).
-  const [sheet, setSheet] = useState<SheetState | null>(null)
+  // `rendez-vous=<id>` (with its date) opens one from a link (Clients' « Visites et paiements »).
+  const linked = params.get(LINK_PARAM)
+  const [sheet, setSheet] = useState<SheetState | null>(() => (linked && UUID.test(linked) ? { kind: 'edit', id: linked } : null))
   const [rule, setRule] = useState<RuleTarget | null>(null)
   const [tool, setTool] = useState<AvailabilityTool>('available')
 
@@ -352,6 +355,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
               onCreate={onCreate}
               onOpen={(a) => setSheet({ kind: 'edit', id: a.id })}
               onMove={onMove}
+              serviceColour={(id) => reference.services.find((s) => s.id === id)?.colour ?? null}
             />
           )}
           {mode === 'disponibilites' && pro && (
@@ -367,7 +371,16 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
         </div>
       )}
 
-      {sheetTarget && <AppointmentSheet target={sheetTarget} reference={reference} onClose={() => setSheet(null)} />}
+      {sheetTarget && (
+        <AppointmentSheet
+          target={sheetTarget}
+          reference={reference}
+          onClose={() => {
+            setSheet(null)
+            if (linked) update({ [LINK_PARAM]: null })
+          }}
+        />
+      )}
       {rule && <RuleDialog target={rule} reference={reference} onClose={() => setRule(null)} />}
       {personal && <PersonalDialog day={personal.day} time={personal.time} onClose={() => setPersonal(null)} />}
     </>

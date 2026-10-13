@@ -9230,7 +9230,8 @@
         "tabs": {
           "appointment": "Rendez-vous",
           "notes": "Notes",
-          "cancel": "Annulation"
+          "cancel": "Annulation",
+          "history": "Historique"
         },
         "presence": "Présence",
         "presenceOf": "Présence de {name}",
@@ -9307,6 +9308,14 @@
             "pending": "envoyé, pas encore signé",
             "resign": "à signer de nouveau"
           }
+        },
+        "history": {
+          "loadError": "L’historique du rendez-vous ne se charge pas.",
+          "empty": "Rien à afficher pour ce rendez-vous.",
+          "system": "Le système",
+          "arrow": " → ",
+          "loadMore": "Charger plus",
+          "loadingMore": "Chargement…"
         }
       },
       "availability": {
@@ -9397,7 +9406,8 @@
         "more": "Afficher plus",
         "cancelled": "Annulé : {reason}",
         "cancelledLate": "Annulé tard : {reason}",
-        "loadError": "Les rendez-vous du client ne se chargent pas."
+        "loadError": "Les rendez-vous du client ne se chargent pas.",
+        "openLabel": "Ouvrir le rendez-vous du {when} dans l’agenda"
       },
       "personal": {
         "title": "Rendez-vous personnel",

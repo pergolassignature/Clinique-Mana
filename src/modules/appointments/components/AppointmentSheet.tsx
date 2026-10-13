@@ -42,6 +42,7 @@ import {
 import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVariant, stateLabel } from '../lib/display'
 import { isoWeekday } from '../lib/time'
 import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
+import { AppointmentHistory } from './AppointmentHistory'
 import { ConsentsNotice } from './ConsentsNotice'
 import { SeriesFields } from './SeriesFields'
 import { VideoSection } from './VideoSection'
@@ -326,7 +327,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   )
 }
 
-type EditTab = 'appointment' | 'notes' | 'cancel'
+type EditTab = 'appointment' | 'notes' | 'cancel' | 'history'
 
 /** A personal appointment (AP-17): its professional takes it off her agenda (a cancellation, « Non spécifiée »). */
 function PersonalCancel({ id, onDone }: { id: string; onDone: () => void }) {
@@ -379,7 +380,7 @@ function EditPanel({
       </SheetHeader>
       {!a.isPersonal && (
         <NavTabs className="px-6">
-          {(['appointment', 'notes', 'cancel'] as const).map((key) => (
+          {(['appointment', 'notes', 'cancel', 'history'] as const).map((key) => (
             <NavTab key={key} active={tab === key} onClick={() => key !== tab && confirmLeave(() => setTab(key))}>
               {t(`${E}.tabs.${key}`)}
             </NavTab>
@@ -392,6 +393,7 @@ function EditPanel({
         {a.isPersonal && open && <PersonalCancel id={a.id} onDone={onClose} />}
         {tab === 'notes' && <NotesTab appointment={a} />}
         {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
+        {tab === 'history' && <AppointmentHistory appointment={a} reference={reference} />}
       </SheetBody>
     </div>
   )

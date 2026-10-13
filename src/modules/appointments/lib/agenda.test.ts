@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { setClinicTimezone } from '@/shared/lib/timezone'
 import type { AvailabilityRule } from '../api/parse'
 import { packLanes, verticalBox, windowsOn } from './layout'
-import { addDays, instantOf, isoWeekday, minutesOnDay, monthGrid, snap, startOfWeek } from './time'
+import { addDays, gridRangeFor, instantOf, isoWeekday, minutesOnDay, monthGrid, snap, startOfWeek } from './time'
 
 beforeAll(() => setClinicTimezone('America/Toronto'))
 
@@ -59,6 +59,18 @@ describe('the agenda calendar', () => {
     expect(windowsOn([rule], 'p', '2027-03-15')).toEqual([{ rule, start: 540, end: 720 }])
     expect(windowsOn([rule], 'p', '2027-07-05')).toEqual([])
     expect(windowsOn([rule], 'p', '2027-03-16')).toEqual([])
-    expect(verticalBox(540, 720, 48)).toEqual({ top: 96, height: 144 })
+    expect(verticalBox(540, 720, 48)).toEqual({ top: 144, height: 144 })
+    // A grid widened to 5:00 (an appointment before 6:00, never hidden).
+    expect(verticalBox(300, 330, 48, { start: 300, end: 22 * 60 })).toEqual({ top: 0, height: 24 })
+  })
+})
+
+describe('the grid range (AP-33)', () => {
+  it('6:00–22:00 by default, widened by whole hours to any appointment outside it, within the day', () => {
+    expect(gridRangeFor([])).toEqual({ start: 360, end: 1320 })
+    expect(gridRangeFor([{ start: 600, end: 650 }])).toEqual({ start: 360, end: 1320 })
+    expect(gridRangeFor([{ start: 5 * 60 + 30, end: 6 * 60 + 20 }, { start: 22 * 60 + 15, end: 23 * 60 + 5 }])).toEqual({ start: 300, end: 24 * 60 })
+    expect(gridRangeFor([{ start: 0, end: 30 }])).toEqual({ start: 0, end: 1320 })
+    expect(gridRangeFor([{ start: 700, end: 700 }])).toEqual({ start: 360, end: 1320 })
   })
 })

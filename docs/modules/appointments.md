@@ -202,6 +202,28 @@ Migrations `20261013215759_clients_consent_names` (Clients publishes `private.cl
   - `appointment_messages.event_at` (the transaction's time, for `changed` and `cancelled`) joins the key `appointment_messages_unique_key` (`nulls not distinct`). So each new change or cancellation is a new message (a restored appointment cancelled again is told again), while reminders and confirmations keep one per start.
 - **Tests:** pgTAP 171 and 172; Vitest (`AgendaPage.test.tsx`: the service, its overlap refusal, « Marquer confirmé », « Rétablir » and its refusal, a past one, the consents at booking and on the appointment, « Clients sans rappel »; `AgendaSettingsPage.test.tsx`); Playwright (`appointments.spec.ts`: book, change the service, confirm, cancel, restore; Paramètres → Agenda).
 
+## The parity audit's gaps, part 2 (AP-33)
+
+Migration `20261013223925_appointments_history`; pgTAP `173_appointments_history`. Item P4 of the [parity audit](../plans/2026-10-13-parity-audit.md) and the extras.
+
+- **Grid hours:**
+  - The grid now runs 6:00 to 22:00, like the legacy agenda (`lib/time.ts`: `GRID_START`, `GRID_END`, `DEFAULT_GRID`).
+  - The appointments' grid widens by whole hours to any appointment outside that range, so no appointment is ever drawn without height or hidden (`gridRangeFor`, `TimeGrid`).
+  - `verticalBox` takes the grid's range.
+  - Drags stay within the range shown.
+  - « Disponibilités » keeps 6:00 to 22:00.
+- **Service colour:** when a service has a colour (Services et tarifs), it marks the left edge of its blocks. The state keeps the block's own tone.
+- **Deep link:**
+  - `rendez-vous=<id>`, together with the appointment's `date`, opens its sheet (`APPOINTMENT_LINK_PARAM`, `appointmentLink`).
+  - Closing the sheet drops the parameter.
+  - In « Visites et paiements » (Clients), each date links there: to « Agenda » for the staff, to « Mon agenda » for a professional.
+- **« Historique »**, a fourth tab of the sheet:
+  - `list_appointment_history(id, before, limit)` returns the audit rows of the appointment, its participants and its video meeting, newest first, 50 a page.
+  - Redacted values (notes, message, label, link) stay « (masqué) ».
+  - Staff read clinic appointments (`appointments.view`); a professional reads her own, personal ones included.
+  - The display copies Clients' history: by clinic day, in the Journal d'audit's words, with the professional, service, client and reason by name.
+- **Not built** (Drop pending Jonathan's OK, coordinator): resizing an appointment by dragging, and dragging services from a side bar.
+
 ## Rules for the other lanes
 
 - Never book by inserting: `book_appointment` holds every rule; the import (I1) will get its own service-role entry that keeps `external_ref`.
