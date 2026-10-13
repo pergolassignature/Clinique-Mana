@@ -460,6 +460,12 @@ export const LIMITS = {
     max: 120,
     windowSeconds: 60,
   },
+  /** `appointments-confirm` (« Confirmer ma présence »), per IP, before any lookup: one use per link, a few retries. */
+  appointmentConfirmIp: {
+    bucket: 'appointments.confirm_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

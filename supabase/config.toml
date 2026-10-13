@@ -228,6 +228,12 @@ verify_jwt = false
 # Job clients.consent_reminders: X-Job-Signature (runJob).
 [functions.clients-consent-reminders]
 verify_jwt = false
+# Rendez-vous R4. Public token: « Confirmer ma présence » (the single-use link is the credential).
+[functions.appointments-confirm]
+verify_jwt = false
+# Job appointments.messages: X-Job-Signature (runJob).
+[functions.appointments-messages]
+verify_jwt = false
 [functions.sms-send]
 verify_jwt = false
 # The PBX's message events: the org's webhook secret (X-Signature, HMAC-SHA256, timingSafeEqual).
