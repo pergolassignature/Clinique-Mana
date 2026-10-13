@@ -232,3 +232,28 @@ Deno.test('billing-stripe: remove_card detaches, then records', () =>
       service.calls.some((c) => c.fn === 'stripe_card_removed_for_service'),
     )
   }))
+
+Deno.test('billing-stripe: a charge Stripe is still processing is pending, never finished nor refused', () =>
+  run(async () => {
+    const { handler, service } = setup({
+      rpc: {
+        begin_stripe_charge_for_service: {
+          data: {
+            charge_id: CHARGE,
+            amount_cents: 13000,
+            invoice_number: '2026-1',
+            customer_id: 'cus_fake1',
+            payment_method_id: 'pm_fakeProcessing',
+            clinic_name: 'Clinique MANA',
+          },
+        },
+      },
+    })
+    const res = await handler(
+      post({ action: 'charge_now', invoice_id: INVOICE }),
+    )
+    assertEquals(await res.json(), { status: 'pending', failure_code: null })
+    assert(
+      !service.calls.some((c) => c.fn === 'finish_stripe_charge_for_service'),
+    )
+  }))

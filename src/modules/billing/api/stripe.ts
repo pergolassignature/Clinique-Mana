@@ -55,7 +55,7 @@ export async function sendCardLink(payerClientId: string): Promise<void> {
   await invokeFunction('billing-stripe', { action: 'card_link', payer_client_id: payerClientId })
 }
 
-const chargeNowSchema = z.object({ status: z.enum(['succeeded', 'failed']), failure_code: z.string().nullable() })
+const chargeNowSchema = z.object({ status: z.enum(['succeeded', 'failed', 'pending']), failure_code: z.string().nullable() })
 
 /** « Prélever maintenant » (billing.manage): the charge's outcome. */
 export async function chargeNow(invoiceId: string): Promise<z.infer<typeof chargeNowSchema>> {

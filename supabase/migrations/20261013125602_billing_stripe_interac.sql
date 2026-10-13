@@ -4,7 +4,7 @@
 -- Plan:      docs/plans/2026-10-11-modules-coding-plan.md §8 (FS)
 -- Answers:   docs/research/2026-10-12-christine-answers.md (6: Interac to administration@, Stripe
 --            charged the day after the appointment when the card is on file)
--- Decisions: FS-1 … FS-10 (decisions log), BI-8 (a payment is for one invoice), P3-40
+-- Decisions: FS-1 … FS-8 (decisions log), BI-8 (a payment is for one invoice), P3-40
 -- Needs:     *_billing_queue_payments.sql (F2), *_core_webhook_events_stripe_provider.sql
 --
 -- * One way to record a payment (agreed with lane A): `private.billing_record_payment` holds
@@ -31,9 +31,9 @@
 --   nor when Stripe is not configured.
 -- * Interac (FS-6): `interac_notices` is « À rapprocher »: a transfer notice (amount, sender,
 --   message), typed by the adjointe or, later, read from administration@ by Communications
---   (`record_interac_notice_for_service`, CM1b); the list suggests the issued invoices whose
---   balance is the amount, the payer's name in the sender's first; one click records the payment
---   (mode `interac`), or « Ignorer ».
+--   (`record_interac_notice_for_service`, CM1b: matched at once when exactly one invoice fits); the
+--   list suggests the issued invoices whose balance is the amount, the payer's name in the
+--   sender's first; one click records the payment (mode `interac`), or « Ignorer ».
 -- * Refunds are F3's (`refunds`, `pending_provider` for a Stripe payment): FS's function will take
 --   them from F3's service RPCs once F3 is merged.
 -- =============================================================================
@@ -570,7 +570,9 @@ begin
   if not coalesce(c.found, false) or c.is_closed then
     return pg_catalog.jsonb_build_object('state', 'invalid');
   end if;
-  perform private.consume_secure_link(p_token_hash, l.purpose);
+  if (private.consume_secure_link(p_token_hash, l.purpose)).id is null then
+    return pg_catalog.jsonb_build_object('state', 'invalid');
+  end if;
   return pg_catalog.jsonb_build_object(
     'state', 'valid',
     'org_id', l.org_id,
@@ -589,18 +591,22 @@ end;
 $$;
 
 -- The card Stripe saved (checkout in setup mode): the customer's payer gets it, with today's
--- consent. Returns the payer, or null for an unknown customer.
+-- consent. Returns {payer_client_id, replaced_payment_method_id} (the card it replaces, for the
+-- webhook to detach), or null for an unknown customer.
 create function public.record_stripe_card_for_service(
   p_org_id uuid, p_customer_id text, p_payment_method_id text, p_brand text, p_last4 text, p_exp_month int, p_exp_year int
 )
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
   v_payer uuid;
+  v_old text;
 begin
+  select s.payment_method_id into v_old from public.stripe_customers s
+   where s.org_id = p_org_id and s.stripe_customer_id = p_customer_id for update;
   update public.stripe_customers s
      set payment_method_id = p_payment_method_id,
          card_brand = pg_catalog.left(pg_catalog.lower(coalesce(p_brand, 'card')), 20),
@@ -608,11 +614,13 @@ begin
          card_status = 'active', consent_at = pg_catalog.now(), removed_at = null, removed_by = null
    where s.org_id = p_org_id and s.stripe_customer_id = p_customer_id
   returning s.payer_client_id into v_payer;
-  if v_payer is not null then
-    -- The card link has done its work.
-    perform private.revoke_secure_links(p_org_id, 'billing_card_setup', 'client', v_payer, null);
+  if v_payer is null then
+    return null;
   end if;
-  return v_payer;
+  -- The card link has done its work.
+  perform private.revoke_secure_links(p_org_id, 'billing_card_setup', 'client', v_payer, null);
+  return pg_catalog.jsonb_build_object('payer_client_id', v_payer,
+    'replaced_payment_method_id', case when v_old is distinct from p_payment_method_id then v_old end);
 end;
 $$;
 
@@ -652,12 +660,14 @@ begin
 end;
 $$;
 
--- A payment Stripe confirmed (Checkout « Payer en ligne », or a charge's PaymentIntent): recorded
--- once (the PaymentIntent is the reference), at most the balance; what exceeds it, or a payment on
--- an invoice no longer issued, is told to billing.manage (to refund). Returns {receipt_id,
--- recorded_cents, excess_cents}.
+-- A payment Stripe confirmed (Checkout « Payer en ligne », or a charge's PaymentIntent, its
+-- charge named by p_charge_id when the metadata carries it): recorded once (the PaymentIntent is
+-- the reference), at most the balance. What exceeds it, or a payment the invoice no longer takes
+-- (credited, the mode off…), is told to billing.manage, never raised (Stripe would retry for
+-- days). Returns {receipt_id, recorded_cents, excess_cents}.
 create function public.record_stripe_payment_for_service(
-  p_org_id uuid, p_invoice_id uuid, p_payment_intent_id text, p_amount_cents int, p_paid_at timestamptz
+  p_org_id uuid, p_invoice_id uuid, p_payment_intent_id text, p_amount_cents int, p_paid_at timestamptz,
+  p_charge_id uuid default null
 )
 returns jsonb
 language plpgsql
@@ -684,24 +694,31 @@ begin
   if v_receipt is null then
     v_amount := least(p_amount_cents, greatest(v.total_cents - v.paid_cents, 0));
     if v.status = 'issued' and v_amount > 0 then
-      v_receipt := private.billing_record_payment(p_org_id, v.id, 'stripe', v_amount,
-                     (p_paid_at at time zone private.payroll_tz(p_org_id))::date, null, p_payment_intent_id, null);
-      select r.payment_id into v_payment from public.receipts r where r.id = v_receipt;
+      begin
+        v_receipt := private.billing_record_payment(p_org_id, v.id, 'stripe', v_amount,
+                       least((p_paid_at at time zone private.payroll_tz(p_org_id))::date, private.billing_today(p_org_id)),
+                       null, p_payment_intent_id, null);
+        select r.payment_id into v_payment from public.receipts r where r.id = v_receipt;
+      exception when sqlstate 'P0001' then
+        v_amount := 0;
+      end;
     else
       v_amount := 0;
     end if;
     if v_amount < p_amount_cents then
-      perform private.notify(p_org_id, 'billing', 'billing.stripe_excess', 'important', 'Paiement Stripe à rembourser',
+      perform private.notify(p_org_id, 'billing', 'billing.stripe_excess', 'important', 'Paiement Stripe à vérifier',
                              'Un paiement Stripe de ' || private.billing_format_money(p_amount_cents) || ' pour la facture '
-                             || coalesce(v.number, '') || ' dépasse son solde de '
-                             || private.billing_format_money(p_amount_cents - v_amount) || ' : remboursez l''écart.',
+                             || coalesce(v.number, '') || ' n''a été enregistré que pour '
+                             || private.billing_format_money(v_amount) || ' : enregistrez ou remboursez l''écart.',
                              '/facturation/factures/' || v.id::text, 'invoice', v.id, 'billing.manage', null,
                              'billing.stripe_excess:' || p_payment_intent_id, null);
     end if;
   end if;
   update public.stripe_charges s
-     set status = 'succeeded', finished_at = coalesce(s.finished_at, pg_catalog.now()), payment_id = v_payment
-   where s.org_id = p_org_id and s.payment_intent_id = p_payment_intent_id and s.status <> 'succeeded';
+     set status = 'succeeded', finished_at = coalesce(s.finished_at, pg_catalog.now()), payment_id = v_payment,
+         payment_intent_id = coalesce(s.payment_intent_id, p_payment_intent_id)
+   where s.org_id = p_org_id and s.status <> 'succeeded'
+     and (s.payment_intent_id = p_payment_intent_id or (p_charge_id is not null and s.id = p_charge_id and s.invoice_id = v.id));
   return pg_catalog.jsonb_build_object('receipt_id', v_receipt, 'recorded_cents', v_amount,
                                        'excess_cents', greatest(p_amount_cents - v_amount, 0));
 end;
@@ -720,7 +737,7 @@ as $$
     from public.invoices i
     join public.stripe_customers s on s.org_id = i.org_id and s.payer_client_id = i.payer_client_id and s.card_status = 'active'
    where i.org_id = p_org_id and i.status = 'issued' and i.total_cents - i.paid_cents > 0
-     and i.issued_on >= (s.consent_at at time zone private.payroll_tz(p_org_id))::date
+     and coalesce(i.finalized_at, i.issued_on::timestamptz) >= s.consent_at
      and i.issued_on >= private.billing_today(p_org_id) - 14
      and public.module_open_to_all_for_org(p_org_id, 'billing')
      and private.billing_stripe_configured(p_org_id)
@@ -730,8 +747,11 @@ as $$
 $$;
 
 -- Starts a charge (`auto`: the job, once per invoice; `manual`: « Prélever maintenant » by
--- p_actor, billing.manage): what the PaymentIntent needs. Null when the invoice is no longer
--- chargeable (paid, credited, no card, one in flight); refusals in French for the manual one.
+-- p_actor, billing.manage): what the PaymentIntent needs. Only an invoice finalised after the
+-- payer's consent, while Facturation is open to everyone (P3-40). A charge still pending from the
+-- last 24 h is resumed (`resume: true`, the same id, so the same idempotency key: Stripe answers
+-- its true outcome without charging again); older, it is given up (`abandoned`). Null when the
+-- invoice is no longer chargeable; refusals in French for the manual one.
 create function public.begin_stripe_charge_for_service(p_org_id uuid, p_invoice_id uuid, p_kind text, p_actor uuid)
 returns jsonb
 language plpgsql
@@ -741,6 +761,7 @@ as $$
 declare
   v public.invoices;
   s public.stripe_customers;
+  c public.stripe_charges;
   v_id uuid;
 begin
   if p_kind not in ('auto', 'manual') then
@@ -750,19 +771,25 @@ begin
     raise exception 'Permission refusée : billing.manage' using errcode = '42501';
   end if;
   select i.* into v from public.invoices i where i.org_id = p_org_id and i.id = p_invoice_id for update;
-  -- A charge left pending for an hour (the function stopped before Stripe answered) is given up:
-  -- a payment Stripe confirms later still arrives by the webhook (recorded up to the balance).
-  update public.stripe_charges c
+  update public.stripe_charges x
      set status = 'failed', failure_code = 'abandoned', finished_at = pg_catalog.now()
-   where c.org_id = p_org_id and c.invoice_id = p_invoice_id and c.status = 'pending'
-     and c.created_at < pg_catalog.now() - interval '1 hour';
+   where x.org_id = p_org_id and x.invoice_id = p_invoice_id and x.status = 'pending'
+     and x.created_at < pg_catalog.now() - interval '24 hours';
   select x.* into s from private.billing_active_card(p_org_id, v.payer_client_id) x;
+  select x.* into c from public.stripe_charges x where x.org_id = p_org_id and x.invoice_id = p_invoice_id and x.status = 'pending';
+  if c.id is not null and s.payer_client_id is not null then
+    return pg_catalog.jsonb_build_object(
+      'charge_id', c.id, 'amount_cents', c.amount_cents, 'invoice_number', v.number, 'resume', true,
+      'customer_id', s.stripe_customer_id, 'payment_method_id', s.payment_method_id,
+      'clinic_name', (select coalesce(o.legal_name, o.name) from public.organizations o where o.id = p_org_id));
+  end if;
   if v.id is null or v.status <> 'issued' or v.total_cents - v.paid_cents <= 0 or s.payer_client_id is null
      or not private.billing_stripe_configured(p_org_id)
-     or exists (select 1 from public.stripe_charges c where c.invoice_id = v.id and c.status = 'pending')
-     or (p_kind = 'auto' and exists (select 1 from public.stripe_charges c where c.invoice_id = v.id and c.kind = 'auto')) then
+     or not public.module_open_to_all_for_org(p_org_id, 'billing')
+     or coalesce(v.finalized_at, v.issued_on::timestamptz) < s.consent_at
+     or (p_kind = 'auto' and exists (select 1 from public.stripe_charges x where x.invoice_id = v.id and x.kind = 'auto')) then
     if p_kind = 'manual' then
-      raise exception 'Cette facture ne peut pas être prélevée : elle est payée, sans carte au dossier, ou un prélèvement est en cours.'
+      raise exception 'Cette facture ne peut pas être prélevée : elle est payée, émise avant l''autorisation de la carte, sans carte au dossier, ou Facturation est réservé aux testeurs.'
         using errcode = 'P0001', hint = 'charge';
     end if;
     return null;
@@ -771,7 +798,7 @@ begin
   values (p_org_id, v.id, v.payer_client_id, p_kind, v.total_cents - v.paid_cents, p_actor)
   returning id into v_id;
   return pg_catalog.jsonb_build_object(
-    'charge_id', v_id, 'amount_cents', v.total_cents - v.paid_cents, 'invoice_number', v.number,
+    'charge_id', v_id, 'amount_cents', v.total_cents - v.paid_cents, 'invoice_number', v.number, 'resume', false,
     'customer_id', s.stripe_customer_id, 'payment_method_id', s.payment_method_id,
     'clinic_name', (select coalesce(o.legal_name, o.name) from public.organizations o where o.id = p_org_id));
 end;
@@ -805,7 +832,7 @@ begin
     return pg_catalog.jsonb_build_object('status', c.status);
   end if;
   if p_status = 'succeeded' then
-    v_result := public.record_stripe_payment_for_service(p_org_id, c.invoice_id, p_payment_intent_id, c.amount_cents, pg_catalog.now());
+    v_result := public.record_stripe_payment_for_service(p_org_id, c.invoice_id, p_payment_intent_id, c.amount_cents, pg_catalog.now(), c.id);
     update public.stripe_charges x set status = 'succeeded', finished_at = pg_catalog.now(),
            payment_id = coalesce(x.payment_id, (select r.payment_id from public.receipts r where r.id = (v_result ->> 'receipt_id')::uuid))
      where x.id = c.id;
@@ -821,8 +848,11 @@ begin
 end;
 $$;
 
--- A PaymentIntent that failed after the job ended (the webhook): its charge fails, if still pending.
-create function public.stripe_payment_failed_for_service(p_org_id uuid, p_payment_intent_id text, p_failure_code text)
+-- A PaymentIntent that failed after the function ended (the webhook): its charge fails, if still
+-- pending, found by the PaymentIntent or by p_charge_id (the metadata's, when the function never
+-- stored the PaymentIntent).
+create function public.stripe_payment_failed_for_service(p_org_id uuid, p_payment_intent_id text, p_failure_code text,
+                                                         p_charge_id uuid default null)
 returns void
 language plpgsql
 security definer
@@ -832,7 +862,9 @@ declare
   v_id uuid;
 begin
   select c.id into v_id from public.stripe_charges c
-   where c.org_id = p_org_id and c.payment_intent_id = p_payment_intent_id and c.status = 'pending';
+   where c.org_id = p_org_id and c.status = 'pending'
+     and (c.payment_intent_id = p_payment_intent_id or (p_charge_id is not null and c.id = p_charge_id))
+   limit 1;
   if v_id is not null then
     perform public.finish_stripe_charge_for_service(p_org_id, v_id, 'failed', p_payment_intent_id, p_failure_code);
   end if;
@@ -873,14 +905,22 @@ begin
      where i.org_id = p_org_id and i.status = 'issued' and i.total_cents - i.paid_cents = p_amount_cents
        and private.billing_name_score(p_sender_name, pf.first_name,
              pg_catalog.btrim(pg_catalog.substr(pf.display_name, pg_catalog.length(pf.first_name) + 1))) > 0
+       and not exists (select 1 from public.stripe_charges c where c.invoice_id = i.id and c.status = 'pending')
+       and not exists (select 1 from private.billing_active_card(p_org_id, i.payer_client_id))
      limit 2);
   if pg_catalog.cardinality(v_only) = 1 then
-    v_receipt := private.billing_record_payment(p_org_id, v_only[1], 'interac', p_amount_cents, p_received_on,
-                   nullif(pg_catalog.left(pg_catalog.btrim(coalesce(p_reference, '')), 100), ''), 'interac:' || v_id::text, null);
-    update public.interac_notices x
-       set status = 'matched', invoice_id = v_only[1], matched_at = pg_catalog.now(),
-           payment_id = (select r.payment_id from public.receipts r where r.id = v_receipt)
-     where x.id = v_id;
+    begin
+      v_receipt := private.billing_record_payment(p_org_id, v_only[1], 'interac', p_amount_cents,
+                     least(p_received_on, private.billing_today(p_org_id)),
+                     nullif(pg_catalog.left(pg_catalog.btrim(coalesce(p_reference, '')), 100), ''), 'interac:' || v_id::text, null);
+      update public.interac_notices x
+         set status = 'matched', invoice_id = v_only[1], matched_at = pg_catalog.now(),
+             payment_id = (select r.payment_id from public.receipts r where r.id = v_receipt)
+       where x.id = v_id;
+    exception when sqlstate 'P0001' then
+      -- Left « À rapprocher » for the adjointe.
+      null;
+    end;
   end if;
   return v_id;
 end;
@@ -1072,9 +1112,9 @@ revoke all on function public.resolve_billing_card_link(uuid), public.resolve_bi
   public.issue_billing_link_for_service(uuid, text, uuid, bytea, uuid), public.begin_billing_checkout_for_service(bytea),
   public.record_stripe_card_for_service(uuid, text, text, text, text, int, int), public.stripe_card_for_service(uuid, uuid, uuid),
   public.stripe_card_removed_for_service(uuid, uuid, uuid),
-  public.record_stripe_payment_for_service(uuid, uuid, text, int, timestamptz), public.stripe_charges_due_for_service(uuid, int),
+  public.record_stripe_payment_for_service(uuid, uuid, text, int, timestamptz, uuid), public.stripe_charges_due_for_service(uuid, int),
   public.begin_stripe_charge_for_service(uuid, uuid, text, uuid), public.finish_stripe_charge_for_service(uuid, uuid, text, text, text),
-  public.stripe_payment_failed_for_service(uuid, text, text),
+  public.stripe_payment_failed_for_service(uuid, text, text, uuid),
   public.record_interac_notice_for_service(uuid, text, date, int, text, text, text),
   public.get_client_stripe(uuid), public.list_interac_notices(text, int), public.add_interac_notice(date, int, text, text, text),
   public.match_interac_notice(uuid, uuid), public.ignore_interac_notice(uuid, text)
@@ -1084,9 +1124,9 @@ grant execute on function public.resolve_billing_card_link(uuid), public.resolve
   public.issue_billing_link_for_service(uuid, text, uuid, bytea, uuid), public.begin_billing_checkout_for_service(bytea),
   public.record_stripe_card_for_service(uuid, text, text, text, text, int, int), public.stripe_card_for_service(uuid, uuid, uuid),
   public.stripe_card_removed_for_service(uuid, uuid, uuid),
-  public.record_stripe_payment_for_service(uuid, uuid, text, int, timestamptz), public.stripe_charges_due_for_service(uuid, int),
+  public.record_stripe_payment_for_service(uuid, uuid, text, int, timestamptz, uuid), public.stripe_charges_due_for_service(uuid, int),
   public.begin_stripe_charge_for_service(uuid, uuid, text, uuid), public.finish_stripe_charge_for_service(uuid, uuid, text, text, text),
-  public.stripe_payment_failed_for_service(uuid, text, text),
+  public.stripe_payment_failed_for_service(uuid, text, text, uuid),
   public.record_interac_notice_for_service(uuid, text, date, int, text, text, text)
   to service_role;
 grant execute on function public.get_client_stripe(uuid), public.list_interac_notices(text, int),
@@ -1104,6 +1144,7 @@ values
    'Chaque jour, prélève sur la carte au dossier du payeur les factures émises depuis la veille (une fois par facture). Un refus laisse la facture impayée et avise la facturation.',
    'function', 'billing-stripe-charges', null, 'billing.stripe_charges', 10, false)
 on conflict do nothing;
+select cron.schedule('billing.stripe_charges', '25 * * * *', $$select private.invoke_job_function('billing.stripe_charges')$$);
 
 -- -----------------------------------------------------------------------------
 -- Emails: « Enregistrer ma carte »; the invoice's « Payer en ligne » button

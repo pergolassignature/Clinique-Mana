@@ -91,6 +91,11 @@ Deno.test('billing-stripe-checkout: « Payer en ligne » opens a payment checkou
     const call = stripe.calls.find((c) => c.path === '/v1/checkout/sessions')!
     assertEquals(call.params.get('customer_email'), 'alice@exemple.test')
     assertEquals(call.params.get('line_items[0][price_data][currency]'), 'cad')
+    // The balance of the moment: the session lapses after 31 minutes.
+    assertEquals(
+      call.params.get('expires_at'),
+      String(Math.floor(Date.parse('2026-11-03T15:00:00Z') / 1000) + 31 * 60),
+    )
     assertEquals(
       call.params.get('payment_intent_data[metadata][invoice_id]'),
       INVOICE,

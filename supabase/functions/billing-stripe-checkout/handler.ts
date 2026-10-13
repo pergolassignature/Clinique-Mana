@@ -218,6 +218,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           payment_intent_data: { metadata },
         }
       }
+      // Paid within the half hour, at the balance of the moment (Stripe's
+      // minimum is 30 minutes).
+      params.expires_at = Math.floor(deps.now().getTime() / 1000) + 31 * 60
       const session = await stripe.createCheckoutSession(params)
       if (!isCheckoutUrl(session.url, deps.env)) {
         return await fail('checkout_url_invalid', 502, 'provider_error')

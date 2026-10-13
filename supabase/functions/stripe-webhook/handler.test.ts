@@ -3,6 +3,7 @@ import { createHandler } from './handler.ts'
 import { signStripePayload } from '../_shared/stripe/webhook.ts'
 import { withEnv } from '../_shared/testing/env.ts'
 import {
+  CHARGE,
   FAKE_STRIPE_WEBHOOK_SECRET,
   INVOICE,
   NOW,
@@ -49,7 +50,9 @@ function setup(opts: StripeHarnessOptions = {}) {
   const h = stripeHarness({
     ...opts,
     rpc: {
-      record_stripe_card_for_service: { data: PAYER },
+      record_stripe_card_for_service: {
+        data: { payer_client_id: PAYER, replaced_payment_method_id: null },
+      },
       record_stripe_payment_for_service: {
         data: { receipt_id: 'r', recorded_cents: 20000, excess_cents: 0 },
       },
@@ -110,6 +113,7 @@ Deno.test("stripe-webhook: a paid checkout records the invoice's payment once, w
     )!
     assertEquals(recorded.args.p_payment_intent_id, 'pi_link1')
     assertEquals(recorded.args.p_amount_cents, 20000)
+    assertEquals(recorded.args.p_charge_id, null)
     assert(service.calls.some((c) => c.fn === 'complete_webhook_event'))
   }))
 
@@ -214,4 +218,125 @@ Deno.test('stripe-webhook: a failure in the database fails the event (500, Strip
       service.calls.find((c) => c.fn === 'fail_webhook_event')?.args.p_error,
       'record_stripe_payment_for_service_failed',
     )
+  }))
+
+Deno.test("stripe-webhook: a charge's PaymentIntent settles its own charge, dated by the event", () =>
+  run(async () => {
+    const { handler, service } = setup()
+    const created = NOW_S - 3 * 86400
+    const res = await handler(
+      await signed({
+        ...event('payment_intent.succeeded', {
+          id: 'pi_job1',
+          amount_received: 20000,
+          currency: 'cad',
+          metadata: { org_id: ORG_ID, invoice_id: INVOICE, charge_id: CHARGE },
+        }),
+        created,
+      }),
+    )
+    assertEquals((await res.json()).outcome, 'payment_recorded')
+    const recorded = service.calls.find((c) =>
+      c.fn === 'record_stripe_payment_for_service'
+    )!
+    assertEquals(recorded.args.p_charge_id, CHARGE)
+    assertEquals(
+      recorded.args.p_paid_at,
+      new Date(created * 1000).toISOString(),
+    )
+
+    const failed = setup()
+    await failed.handler(
+      await signed(event('payment_intent.payment_failed', {
+        id: 'pi_job2',
+        metadata: { org_id: ORG_ID, invoice_id: INVOICE, charge_id: CHARGE },
+      })),
+    )
+    assertEquals(
+      failed.service.calls.find((c) =>
+        c.fn === 'stripe_payment_failed_for_service'
+      )?.args.p_charge_id,
+      CHARGE,
+    )
+  }))
+
+Deno.test('stripe-webhook: an amount in another currency is never recorded', () =>
+  run(async () => {
+    const { handler, service } = setup()
+    const res = await handler(
+      await signed(event('payment_intent.succeeded', {
+        id: 'pi_usd1',
+        amount_received: 500,
+        currency: 'usd',
+        metadata: { org_id: ORG_ID, invoice_id: INVOICE },
+      })),
+    )
+    assertEquals((await res.json()).outcome, 'skipped')
+    assert(
+      !service.calls.some((c) => c.fn === 'record_stripe_payment_for_service'),
+    )
+  }))
+
+Deno.test('stripe-webhook: module off, a payment is kept for a retry (503), a failure is dropped', () =>
+  run(async () => {
+    const off = { rpc: { module_enabled_for_org: { data: false } } }
+    const pay = setup(off)
+    const res = await pay.handler(
+      await signed(event('payment_intent.succeeded', {
+        id: 'pi_off1',
+        amount_received: 500,
+        metadata: { org_id: ORG_ID, invoice_id: INVOICE },
+      })),
+    )
+    assertEquals(res.status, 503)
+    assertEquals(
+      pay.service.calls.find((c) => c.fn === 'fail_webhook_event')?.args
+        .p_error,
+      'module_disabled',
+    )
+    assert(
+      !pay.service.calls.some((c) =>
+        c.fn === 'record_stripe_payment_for_service'
+      ),
+    )
+
+    const other = setup(off)
+    const o = await other.handler(
+      await signed(event('payment_intent.payment_failed', { id: 'pi_off2' })),
+    )
+    assertEquals(o.status, 200)
+    assertEquals((await o.json()).outcome, 'module_disabled')
+  }))
+
+Deno.test('stripe-webhook: a new card detaches the one it replaces at Stripe', () =>
+  run(async () => {
+    const { handler, stripe } = setup({
+      rpc: {
+        record_stripe_card_for_service: {
+          data: {
+            payer_client_id: PAYER,
+            replaced_payment_method_id: 'pm_old1',
+          },
+        },
+      },
+    })
+    stripe.paymentMethods.set('pm_old1', {
+      customer: 'cus_fake1',
+      detached: false,
+      declined: false,
+    })
+    stripe.sessions.set('cs_setup2', {
+      id: 'cs_setup2',
+      mode: 'setup',
+      customer: 'cus_fake1',
+      amount: null,
+      metadata: {},
+      clientReference: null,
+      successUrl: '',
+      cancelUrl: '',
+      completed: false,
+    })
+    const res = await handler(await signed(await stripe.complete('cs_setup2')))
+    assertEquals((await res.json()).outcome, 'card_saved')
+    assertEquals(stripe.paymentMethods.get('pm_old1')?.detached, true)
   }))

@@ -15,8 +15,10 @@
  *    - `{ action: 'charge_now', invoice_id }`: « Prélever maintenant »:
  *      `begin_stripe_charge_for_service` (kind `manual`), the off-session
  *      PaymentIntent (idempotent per charge), then
- *      `finish_stripe_charge_for_service`; 200 `{ status }` (`succeeded` or
- *      `failed`, with Stripe's `failure_code`).
+ *      `finish_stripe_charge_for_service`; 200 `{ status }` (`succeeded`,
+ *      `failed` with Stripe's `failure_code`, or `pending` while Stripe is
+ *      processing: the webhook settles it). A charge still pending is resumed
+ *      under its own idempotency key, never doubled.
  *    - `{ action: 'remove_card', payer_client_id }`: « Retirer la carte »:
  *      the card detached at Stripe (already gone is fine), then
  *      `stripe_card_removed_for_service`.
@@ -247,6 +249,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           },
           idempotencyKey: `charge:${charge.data.charge_id}`,
         })
+        if (intent.status === 'processing') {
+          // Not refused: the webhook settles it (never a second charge).
+          return jsonResponse(
+            { status: 'pending', failure_code: null },
+            200,
+            req,
+          )
+        }
         const succeeded = intent.status === 'succeeded'
         const finished = await service.rpc('finish_stripe_charge_for_service', {
           p_org_id: orgId,

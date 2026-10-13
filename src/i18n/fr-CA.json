@@ -9820,7 +9820,8 @@
           "invoice": "Facture {number}",
           "chargeNow": "Prélever maintenant",
           "charged": "Prélèvement réussi : le reçu suit.",
-          "chargeRefused": "Prélèvement refusé : {reason}."
+          "chargeRefused": "Prélèvement refusé : {reason}.",
+          "chargePending": "Prélèvement en cours chez Stripe : le reçu suivra dès qu’il sera confirmé."
         },
         "settings": {
           "title": "Paiements en ligne",

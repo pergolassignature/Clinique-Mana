@@ -10,7 +10,7 @@
 -- message); the conseillère reads, never writes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(60);
+select plan(61);
 
 select function_privs_are('public', f, a, 'authenticated', array[]::text[], f || ': not for users')
   from (values ('begin_billing_checkout_for_service', array['bytea']),
@@ -48,13 +48,18 @@ insert into public.clients (id, org_id, first_name, last_name, email) values
   ('d0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Alice', 'Tremblay', 'alice@exemple.test'),
   ('d0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Bruno', 'Côté', null);
 -- Three issued invoices of Alice (130 $, 175 $, 200 $), one of Bruno (90 $).
-insert into public.invoices (id, org_id, number, year, seq, status, client_id, payer_client_id, issued_on, subtotal_cents, total_cents)
+insert into public.invoices (id, org_id, number, year, seq, status, client_id, payer_client_id, issued_on, subtotal_cents, total_cents, finalized_at)
 select i::uuid, 'b0000000-0000-0000-0000-00000000000a', n, 2026, s, 'issued', c::uuid, c::uuid,
-       (now() at time zone 'America/Toronto')::date, t, t
+       (now() at time zone 'America/Toronto')::date, t, t, now()
   from (values ('f0000000-0000-0000-0000-000000000001', '2026-1', 1, 'd0000000-0000-0000-0000-000000000001', 13000),
                ('f0000000-0000-0000-0000-000000000002', '2026-2', 2, 'd0000000-0000-0000-0000-000000000001', 17500),
                ('f0000000-0000-0000-0000-000000000003', '2026-3', 3, 'd0000000-0000-0000-0000-000000000001', 20000),
                ('f0000000-0000-0000-0000-000000000004', '2026-4', 4, 'd0000000-0000-0000-0000-000000000002', 9000)) as v(i, n, s, c, t);
+-- One of Alice's finalised the day before her card is saved.
+insert into public.invoices (id, org_id, number, year, seq, status, client_id, payer_client_id, issued_on, subtotal_cents, total_cents, finalized_at)
+values ('f0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', '2026-5', 2026, 5, 'issued',
+        'd0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001',
+        (now() at time zone 'America/Toronto')::date - 1, 5000, 5000, now() - interval '1 day');
 
 -- One way to record a payment.
 set local role authenticated;
@@ -96,8 +101,8 @@ select is(public.resolve_billing_card_link((select id from public.secure_links w
   'its page names her');
 select results_eq($$ select x ->> 'state', x ->> 'mode', x ->> 'customer_id' from public.begin_billing_checkout_for_service(decode(repeat('02', 32), 'hex')) x $$,
   $$ values ('valid'::text, 'setup'::text, 'cus_Alice1'::text) $$, 'the card link opens a setup checkout');
-select is(public.record_stripe_card_for_service('b0000000-0000-0000-0000-00000000000a', 'cus_Alice1', 'pm_Card4242', 'visa', '4242', 12, 2030),
-  'd0000000-0000-0000-0000-000000000001'::uuid, 'Stripe brings back her card');
+select is(public.record_stripe_card_for_service('b0000000-0000-0000-0000-00000000000a', 'cus_Alice1', 'pm_Card4242', 'visa', '4242', 12, 2030) ->> 'payer_client_id',
+  'd0000000-0000-0000-0000-000000000001', 'Stripe brings back her card');
 select results_eq($$ select card_status, card_brand, card_last4, consent_at is not null from public.stripe_customers $$,
   $$ values ('active'::text, 'visa'::text, '4242'::text, true) $$, '… on file, with her consent, never the number');
 select is((select count(*)::int from public.secure_links where purpose = 'billing_card_setup' and revoked_at is null), 0,
@@ -112,7 +117,11 @@ select is(public.issue_billing_link_for_service('b0000000-0000-0000-0000-0000000
 -- The next-day charge.
 select results_eq($$ select invoice_id from public.stripe_charges_due_for_service('b0000000-0000-0000-0000-00000000000a') order by 1 $$,
   $$ values ('f0000000-0000-0000-0000-000000000001'::uuid), ('f0000000-0000-0000-0000-000000000002'), ('f0000000-0000-0000-0000-000000000003') $$,
-  'due: her three invoices issued since her consent');
+  'due: her three invoices finalised since her consent (not the one of the day before)');
+select throws_ok($$ select public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a',
+                     'f0000000-0000-0000-0000-000000000005', 'manual', 'a0000000-0000-0000-0000-000000000002') $$, 'P0001',
+  'Cette facture ne peut pas être prélevée : elle est payée, émise avant l''autorisation de la carte, sans carte au dossier, ou Facturation est réservé aux testeurs.',
+  '« Prélever maintenant »: never an invoice from before the consent');
 update public.org_modules set testers_only = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'billing';
 select is((select count(*)::int from public.stripe_charges_due_for_service('b0000000-0000-0000-0000-00000000000a')), 0,
   'reserved for testers: nothing charged (P3-40)');
@@ -138,12 +147,13 @@ select throws_ok($$ select public.begin_stripe_charge_for_service('b0000000-0000
   'Permission refusée : billing.manage', '« Prélever maintenant »: not the conseillère');
 select set_config('test.c2', (public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a',
   'f0000000-0000-0000-0000-000000000002', 'manual', 'a0000000-0000-0000-0000-000000000002') ->> 'charge_id'), true);
-select throws_ok($$ select public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a',
-                     'f0000000-0000-0000-0000-000000000002', 'manual', 'a0000000-0000-0000-0000-000000000002') $$, 'P0001',
-  'Cette facture ne peut pas être prélevée : elle est payée, sans carte au dossier, ou un prélèvement est en cours.',
-  'never two charges in flight');
-select is(public.finish_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.c2')::uuid, 'failed',
-            'pi_Charge2', 'card_declined') ->> 'status', 'failed', 'the charge is refused');
+select results_eq($$ select x ->> 'charge_id', (x ->> 'resume')::boolean from public.begin_stripe_charge_for_service('b0000000-0000-0000-0000-00000000000a',
+                       'f0000000-0000-0000-0000-000000000002', 'manual', 'a0000000-0000-0000-0000-000000000002') x $$,
+  $$ values (current_setting('test.c2'), true) $$, 'never two charges in flight: the pending one is resumed (its idempotency key)');
+select lives_ok($$ select public.stripe_payment_failed_for_service('b0000000-0000-0000-0000-00000000000a', 'pi_Charge2', 'card_declined',
+                     current_setting('test.c2')::uuid) $$, 'the webhook finds the charge by its id (its PaymentIntent never stored)');
+select results_eq($$ select status, payment_intent_id, failure_code from public.stripe_charges where id = current_setting('test.c2')::uuid $$,
+  $$ values ('failed'::text, 'pi_Charge2'::text, 'card_declined'::text) $$, 'the charge is refused');
 select results_eq($$ select payment_status from public.invoices where id = 'f0000000-0000-0000-0000-000000000002' $$,
   $$ values ('unpaid'::text) $$, '… the invoice stays unpaid');
 select is((select count(*)::int from public.notifications where kind = 'billing.charge_failed' and recipient_permission = 'billing.manage'), 1,

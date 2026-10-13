@@ -9,7 +9,10 @@
  * 3. The org's `stripe_webhook_secret`; the signature checked
  *    (`verifyStripeSignature`: HMAC in constant time, 5 minutes).
  * 4. `claimEvent` (`stripe`, `<org>:<event id>`): a duplicate → 200, one in
- *    progress → 409; then the module check (`requireModuleForOrg`).
+ *    progress → 409; then the module check (`requireModuleForOrg`): off, a
+ *    payment event is kept failed for Stripe's retries (503), another one is
+ *    dropped. Amounts in CAD only; a payment is dated by the event's
+ *    `created`; a charge's own id (`metadata.charge_id`) settles that charge.
  * 5. Handled:
  *    - `checkout.session.completed`, mode `setup`: the setup intent's card
  *      (brand, last four, expiry) → `record_stripe_card_for_service`;
@@ -50,11 +53,13 @@ const MAX_BODY = 256 * 1024
 const metadataSchema = z.looseObject({
   org_id: z.string().optional(),
   invoice_id: z.string().optional(),
+  charge_id: z.string().optional(),
 }).nullable().optional()
 
 const eventSchema = z.looseObject({
   id: z.string().regex(/^evt_[A-Za-z0-9]{1,64}$/),
   type: z.string().max(100),
+  created: z.number().int().positive().optional(),
   data: z.looseObject({
     object: z.looseObject({
       id: z.string().max(100).optional(),
@@ -66,6 +71,7 @@ const eventSchema = z.looseObject({
       payment_intent: z.string().nullable().optional(),
       amount_total: z.number().int().nullable().optional(),
       amount_received: z.number().int().nullable().optional(),
+      currency: z.string().nullable().optional(),
       metadata: metadataSchema,
       last_payment_error: z.looseObject({
         code: z.string().optional(),
@@ -85,16 +91,38 @@ class HandlingFailure extends Error {
 
 const SAFE_CODE = /^[a-z0-9_]{1,64}$/
 
-/** The invoice an object pays, when it is this org's (never another org's metadata). */
-function invoiceOf(
-  object: StripeEvent['data']['object'],
-  orgId: string,
-): string | null {
+type StripeObject = StripeEvent['data']['object']
+
+/** The metadata, when it is this org's (never another org's ids). */
+function ownMetadata(object: StripeObject, orgId: string) {
   const meta = object.metadata
-  if (!meta?.invoice_id || !UUID.test(meta.invoice_id)) return null
-  if ((meta.org_id ?? '').toLowerCase() !== orgId.toLowerCase()) return null
-  return meta.invoice_id
+  if (!meta || (meta.org_id ?? '').toLowerCase() !== orgId.toLowerCase()) {
+    return null
+  }
+  return meta
 }
+
+/** The invoice an object pays, when it is this org's. */
+function invoiceOf(object: StripeObject, orgId: string): string | null {
+  const id = ownMetadata(object, orgId)?.invoice_id
+  return id && UUID.test(id) ? id : null
+}
+
+/** The charge a PaymentIntent was made for (the job or « Prélever maintenant »). */
+function chargeOf(object: StripeObject, orgId: string): string | null {
+  const id = ownMetadata(object, orgId)?.charge_id
+  return id && UUID.test(id) ? id : null
+}
+
+/** Amounts are recorded only in Canadian dollars. */
+const isCad = (object: StripeObject) =>
+  (object.currency ?? 'cad').toLowerCase() === 'cad'
+
+/** Events that bring money: kept for a retry while the module is off. */
+const MONEY_EVENTS = new Set([
+  'checkout.session.completed',
+  'payment_intent.succeeded',
+])
 
 async function handle(
   event: StripeEvent,
@@ -104,6 +132,8 @@ async function handle(
   now: Date,
 ): Promise<string> {
   const object = event.data.object
+  // When Stripe made the event (its retries keep the payment's day).
+  const paidAt = event.created ? new Date(event.created * 1000) : now
   const rpc = async (fn: string, args: Record<string, unknown>) => {
     const { data, error } = await client.rpc(fn, args)
     if (error) throw new HandlingFailure(`${fn}_failed`)
@@ -116,7 +146,7 @@ async function handle(
     if (!stripe) throw new HandlingFailure('stripe_not_configured')
     const card = await stripe.setupIntentCard(object.setup_intent)
     if (!card || !card.customerId) return 'skipped'
-    const payer = await rpc('record_stripe_card_for_service', {
+    const saved = await rpc('record_stripe_card_for_service', {
       p_org_id: orgId,
       p_customer_id: card.customerId,
       p_payment_method_id: card.paymentMethodId,
@@ -124,8 +154,16 @@ async function handle(
       p_last4: card.last4,
       p_exp_month: card.expMonth,
       p_exp_year: card.expYear,
-    })
-    return payer ? 'card_saved' : 'skipped'
+    }) as
+      | { payer_client_id?: string; replaced_payment_method_id?: string | null }
+      | null
+    if (!saved?.payer_client_id) return 'skipped'
+    // The card it replaces is detached at Stripe (best effort: gone here).
+    if (saved.replaced_payment_method_id) {
+      await stripe.detachPaymentMethod(saved.replaced_payment_method_id)
+        .catch(() => {})
+    }
+    return 'card_saved'
   }
 
   if (
@@ -134,14 +172,15 @@ async function handle(
     const invoice = invoiceOf(object, orgId)
     if (
       object.payment_status !== 'paid' || !invoice || !object.payment_intent ||
-      !object.amount_total
+      !object.amount_total || !isCad(object)
     ) return 'skipped'
     await rpc('record_stripe_payment_for_service', {
       p_org_id: orgId,
       p_invoice_id: invoice,
       p_payment_intent_id: object.payment_intent,
       p_amount_cents: object.amount_total,
-      p_paid_at: now.toISOString(),
+      p_paid_at: paidAt.toISOString(),
+      p_charge_id: null,
     })
     return 'payment_recorded'
   }
@@ -149,7 +188,9 @@ async function handle(
   if (event.type === 'payment_intent.succeeded') {
     const invoice = invoiceOf(object, orgId)
     const amount = object.amount_received ?? 0
-    if (!invoice || !object.id?.startsWith('pi_') || amount < 1) {
+    if (
+      !invoice || !object.id?.startsWith('pi_') || amount < 1 || !isCad(object)
+    ) {
       return 'skipped'
     }
     await rpc('record_stripe_payment_for_service', {
@@ -157,7 +198,8 @@ async function handle(
       p_invoice_id: invoice,
       p_payment_intent_id: object.id,
       p_amount_cents: amount,
-      p_paid_at: now.toISOString(),
+      p_paid_at: paidAt.toISOString(),
+      p_charge_id: chargeOf(object, orgId),
     })
     return 'payment_recorded'
   }
@@ -170,6 +212,7 @@ async function handle(
       p_org_id: orgId,
       p_payment_intent_id: object.id,
       p_failure_code: SAFE_CODE.test(raw) ? raw : 'declined',
+      p_charge_id: chargeOf(object, orgId),
     })
     return 'charge_failed'
   }
@@ -264,6 +307,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const gate = await requireModuleForOrg(client, orgId, 'billing')
     if (gate) {
+      // Money Stripe took is never dropped: Stripe retries until it is back.
+      if (MONEY_EVENTS.has(event.type)) {
+        await failEvent(client, claim.id, claim.token, 'module_disabled')
+          .catch(() => false)
+        return webhookResponse(503)
+      }
       await completeEvent(client, claim.id, claim.token).catch(() => false)
       return webhookResponse(200, { outcome: 'module_disabled' })
     }

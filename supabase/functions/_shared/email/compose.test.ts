@@ -265,7 +265,10 @@ Deno.test('composeEmail: an optional button without its URL is left out (FS-4); 
   const without = ok({ actionUrl: null, actionOptional: true })
   assert(!without.html.includes('Créer mon accès'), 'no button')
   assert(!without.text.includes('Créer mon accès'))
-  const withUrl = ok({ actionUrl: 'https://app.cliniquemana.com/payer#t=abc', actionOptional: true })
+  const withUrl = ok({
+    actionUrl: 'https://app.cliniquemana.com/payer#t=abc',
+    actionOptional: true,
+  })
   assert(withUrl.html.includes('Créer mon accès'))
 })
 

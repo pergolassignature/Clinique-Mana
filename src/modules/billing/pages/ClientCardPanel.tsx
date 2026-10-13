@@ -153,10 +153,21 @@ function Charges({ charges, manage, onError }: { charges: readonly StripeCharge[
       (result) =>
         result.status === 'succeeded'
           ? toast.success(t(`${S}.charged`))
-          : onError(t(`${S}.chargeRefused`, { reason: failureLabel(result.failure_code) })),
+          : result.status === 'pending'
+            ? toast.success(t(`${S}.chargePending`))
+            : onError(t(`${S}.chargeRefused`, { reason: failureLabel(result.failure_code) })),
       (failure: unknown) => onError(stripeErrorMessage(failure)),
     )
   }
+  // « Prélever maintenant » only on an invoice's latest charge, refused, never after a success
+  // (charges come newest first).
+  const retryable = new Set(
+    [...new Set(charges.map((c) => c.invoice_id))].flatMap((invoiceId) => {
+      const own = charges.filter((c) => c.invoice_id === invoiceId)
+      const latest = own[0]
+      return latest && latest.status === 'failed' && !own.some((c) => c.status === 'succeeded') ? [latest.id] : []
+    }),
+  )
   return (
     <ul className="mt-3 space-y-1 border-t border-border-light pt-2" aria-label={t(`${S}.charges`)}>
       {charges.map((c) => (
@@ -168,7 +179,7 @@ function Charges({ charges, manage, onError }: { charges: readonly StripeCharge[
           <span className="tabular">{formatPay(c.amount_cents)}</span>
           <Badge variant={chargeStatusVariant(c.status)}>{chargeStatusLabel(c.status)}</Badge>
           {c.status === 'failed' && <span className="text-xs text-muted-foreground">{failureLabel(c.failure_code)}</span>}
-          {manage && c.status === 'failed' && (
+          {manage && retryable.has(c.id) && (
             <Button type="button" variant="link" aria-disabled={charge.isPending || undefined} onClick={() => retry(c)}>
               {t(`${S}.chargeNow`)}
             </Button>

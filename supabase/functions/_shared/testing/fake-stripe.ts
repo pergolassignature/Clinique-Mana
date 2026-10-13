@@ -19,6 +19,8 @@ export const FAKE_CARD = {
   exp_year: 2030,
 }
 export const FAKE_DECLINED_PM = 'pm_fakeDeclined'
+/** A card whose charge stays `processing` (the webhook settles it). */
+export const FAKE_PROCESSING_PM = 'pm_fakeProcessing'
 
 interface Session {
   id: string
@@ -316,17 +318,13 @@ export function fakeStripe(options: FakeStripeOptions = {}): FakeStripe {
           payment_intent: { id: pi, status: 'requires_payment_method' },
         })
       } else {
+        const status = pm === FAKE_PROCESSING_PM ? 'processing' : 'succeeded'
         paymentIntents.set(pi, {
           amount,
-          status: 'succeeded',
+          status,
           metadata: nested(params, 'metadata'),
         })
-        res = json({
-          id: pi,
-          object: 'payment_intent',
-          status: 'succeeded',
-          amount,
-        })
+        res = json({ id: pi, object: 'payment_intent', status, amount })
       }
       if (idempotencyKey) idempotent.set(idempotencyKey, res.clone())
       return res
