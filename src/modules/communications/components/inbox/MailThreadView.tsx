@@ -49,7 +49,11 @@ export function MailThreadView({ threadId, labels, onBack }: MailThreadViewProps
   const heading = useRef<HTMLHeadingElement>(null)
   const markedRead = useRef<string | null>(null)
 
-  useEffect(() => heading.current?.focus(), [threadId])
+  // The subject takes the focus once the thread is there (the heading is not rendered while it loads).
+  const loaded = Boolean(thread.data)
+  useEffect(() => {
+    if (loaded) heading.current?.focus()
+  }, [threadId, loaded])
   useEffect(() => {
     const data = thread.data
     if (!data || data.unread_count === 0 || markedRead.current === threadId) return
