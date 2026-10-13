@@ -68,7 +68,7 @@ All `security definer`, permission first, the caller's clinic only, the request'
 
 ## D2: the inbox and the record
 
-Migrations `20261013043542_core_realtime` (core, see the [core doc](core.md#realtime-between-staff-d2)) and `20261013043547_demandes_inbox`; pgTAP `114`, `115`; decisions D-7 … D-9.
+Migrations `20261013043542_core_realtime` (core, see the [core doc](core.md#realtime-between-staff-d2)) and `20261013043547_demandes_inbox`; pgTAP `117`, `118`; decisions D-7 … D-9.
 
 ### RPCs
 

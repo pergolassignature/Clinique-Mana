@@ -6610,7 +6610,9 @@
             "last_contact_at": "Dernier contact",
             "next_contact_at": "Prochaine tentative",
             "contact_attempts": "Tentatives de contact",
-            "external_ref": "Référence externe"
+            "external_ref": "Référence externe",
+            "handled_by": "S'en occupe",
+            "handled_at": "Prise en charge le"
           },
           "demande_notes": {
             "demande_id": "Demande",
