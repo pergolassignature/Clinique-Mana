@@ -42,6 +42,7 @@ const LINK_PATHS: ReadonlySet<string> = new Set([
   '/invitation',
   '/consentement',
   '/appel-decouverte/annuler',
+  '/liste-attente/reponse',
 ])
 
 /** The only plain-http app origin accepted: the local Vite server. */
@@ -52,6 +53,7 @@ export type LinkPath =
   | '/invitation'
   | '/consentement'
   | '/appel-decouverte/annuler'
+  | '/liste-attente/reponse'
 
 /** Base64url of `bytes`, without padding (RFC 4648 §5). */
 function base64Url(bytes: Uint8Array): string {

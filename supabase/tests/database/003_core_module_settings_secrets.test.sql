@@ -163,7 +163,12 @@ select functions_are('public', array[
   'import_client', 'import_client_relation',
   -- Demandes, batch D3c (the booking page).
   'get_demandes_booking_settings', 'set_demandes_booking_settings', 'demandes_booking_page_for_service',
-  'book_discovery_call_for_service', 'cancel_discovery_call_for_service', 'resolve_discovery_call_link'
+  'book_discovery_call_for_service', 'cancel_discovery_call_for_service', 'resolve_discovery_call_link',
+  -- Demandes, batch D3 (the waiting list, part 1).
+  'get_demandes_waitlist_settings', 'set_demandes_waitlist_settings', 'register_waitlist', 'update_waitlist_entry',
+  'set_waitlist_fee', 'log_waitlist_contact', 'add_waitlist_offer', 'answer_waitlist_offer', 'exit_waitlist',
+  'list_waitlist', 'waitlist_lists', 'get_waitlist_entry', 'waitlist_followup_for_service',
+  'prepare_waitlist_followup_for_service', 'resolve_waitlist_followup_link', 'answer_waitlist_followup_for_service'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
