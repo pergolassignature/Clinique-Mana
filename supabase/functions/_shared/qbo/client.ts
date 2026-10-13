@@ -167,6 +167,45 @@ export const customerSchema = z.looseObject({
 })
 export type QboCustomer = z.infer<typeof customerSchema>
 
+export const itemSchema = z.looseObject({
+  Id: z.string(),
+  Name: z.string(),
+  Sku: z.string().optional(),
+  Type: z.string().optional(),
+  IncomeAccountRef: z.looseObject({ value: z.string() }).optional(),
+  Active: z.boolean().optional(),
+})
+export type QboItem = z.infer<typeof itemSchema>
+
+export const taxCodeSchema = z.looseObject({
+  Id: z.string(),
+  Name: z.string(),
+  Taxable: z.boolean().optional(),
+  Active: z.boolean().optional(),
+})
+export type QboTaxCode = z.infer<typeof taxCodeSchema>
+
+/** The entities the push creates, and the key Intuit answers each under. */
+export type QboEntity =
+  | 'invoice'
+  | 'creditmemo'
+  | 'payment'
+  | 'vendor'
+  | 'bill'
+  | 'item'
+const ENTITY_KEYS: Record<QboEntity, string> = {
+  invoice: 'Invoice',
+  creditmemo: 'CreditMemo',
+  payment: 'Payment',
+  vendor: 'Vendor',
+  bill: 'Bill',
+  item: 'Item',
+}
+const createdSchema = z.looseObject({
+  Id: z.string().regex(/^[0-9]{1,32}$/),
+  TotalAmt: z.number().optional(),
+})
+
 const companyInfoSchema = z.looseObject({
   CompanyInfo: z.looseObject({
     CompanyName: z.string().optional(),
@@ -187,7 +226,15 @@ export class QboClient {
     method: 'GET' | 'POST',
     path: string,
     schema: S,
-    options: { query?: Record<string, string>; body?: unknown } = {},
+    options: {
+      query?: Record<string, string>
+      body?: unknown
+      /**
+       * Intuit's `requestid` (a create): the same id again answers the first
+       * create instead of making a second document, so a retry is safe.
+       */
+      requestId?: string
+    } = {},
   ): Promise<z.output<S>> {
     const url = new URL(
       `${this.#opts.origin}/v3/company/${
@@ -195,6 +242,7 @@ export class QboClient {
       }/${path}`,
     )
     url.searchParams.set('minorversion', QBO_MINOR_VERSION)
+    if (options.requestId) url.searchParams.set('requestid', options.requestId)
     for (const [key, value] of Object.entries(options.query ?? {})) {
       url.searchParams.set(key, value)
     }
@@ -289,7 +337,7 @@ export class QboClient {
    * built by the caller from constants or `qboQuote`d values only.
    */
   async queryAll<S extends z.ZodType>(
-    entity: 'Account' | 'Customer',
+    entity: 'Account' | 'Customer' | 'Item' | 'TaxCode',
     where: string,
     schema: S,
   ): Promise<z.output<S>[]> {
@@ -328,13 +376,47 @@ export class QboClient {
   }
 
   /** Creates a customer (the push's, `customers.ts`); the created row. */
-  async createCustomer(payload: Record<string, unknown>): Promise<QboCustomer> {
+  async createCustomer(
+    payload: Record<string, unknown>,
+    requestId?: string,
+  ): Promise<QboCustomer> {
     const answer = await this.#call(
       'POST',
       'customer',
       z.looseObject({ Customer: customerSchema }),
-      { body: payload },
+      { body: payload, requestId },
     )
     return answer.Customer
+  }
+
+  /** Every item, active or not (a service code's item, GOrendezvous's). */
+  items(): Promise<QboItem[]> {
+    return this.queryAll('Item', 'Active in (true, false)', itemSchema)
+  }
+
+  /** Every tax code (the map's « taxable » and « exempt »). */
+  taxCodes(): Promise<QboTaxCode[]> {
+    return this.queryAll('TaxCode', '', taxCodeSchema)
+  }
+
+  /**
+   * Creates one document of the push (CM: FQ part 2) — `invoice`,
+   * `creditmemo`, `payment`, `vendor`, `bill`, `item` — with its
+   * `requestid`; the created entity's id and, for a sale, its total.
+   */
+  async create(
+    entity: QboEntity,
+    payload: Record<string, unknown>,
+    requestId: string,
+  ): Promise<{ id: string; totalAmt: number | null }> {
+    const key = ENTITY_KEYS[entity]
+    const answer = await this.#call(
+      'POST',
+      entity,
+      z.looseObject({ [key]: createdSchema }),
+      { body: payload, requestId },
+    )
+    const created = answer[key] as z.infer<typeof createdSchema>
+    return { id: created.Id, totalAmt: created.TotalAmt ?? null }
   }
 }

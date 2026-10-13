@@ -5,6 +5,11 @@ import { billingErrorMessage } from '../api/errors'
 import {
   decideMatch,
   disconnectQbo,
+  fetchInvoicePushStatus,
+  listQboPushes,
+  retryQboPush,
+  setQboPushPaused,
+  type PushStatus,
   fetchMatchCounts,
   fetchQboSettings,
   finishQboConnect,
@@ -127,4 +132,34 @@ export function useDecideMatch() {
     mutationFn: ({ qboId, decision }: { qboId: string; decision: MatchDecision }) => decideMatch(qboId, decision),
     onSettled: () => queryClient.invalidateQueries({ queryKey: qboKeys.matches() }),
   })
+}
+
+/** « Démarrer l'envoi » / « Mettre en pause » (FQ part 2). */
+export function useSetQboPushPaused() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: setQboPushPaused,
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: qboKeys.settings() }),
+      queryClient.invalidateQueries({ queryKey: qboKeys.pushes() }),
+    ]),
+  })
+}
+
+/** « Envois à QuickBooks ». */
+export function useQboPushes(status: PushStatus | null) {
+  return useQuery({ queryKey: qboKeys.pushList(status), queryFn: () => listQboPushes(status) })
+}
+
+export function useRetryQboPush() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: retryQboPush,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: qboKeys.pushes() }),
+  })
+}
+
+/** An invoice's state in QuickBooks. */
+export function useInvoicePushStatus(invoiceId: string) {
+  return useQuery({ queryKey: qboKeys.invoicePush(invoiceId), queryFn: () => fetchInvoicePushStatus(invoiceId) })
 }

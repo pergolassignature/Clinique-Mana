@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => ({
     startQboConnect: vi.fn(),
     syncQbo: vi.fn(),
     disconnectQbo: vi.fn(),
+    listQboPushes: vi.fn(),
+    setQboPushPaused: vi.fn(),
+    retryQboPush: vi.fn(),
   },
   secrets: { listOrgSecretKeys: vi.fn(), setOrgSecret: vi.fn() },
   jobs: { listScheduledJobs: vi.fn(), setScheduledJobEnabled: vi.fn(), listScheduledJobRuns: vi.fn(), runScheduledJobNow: vi.fn() },
@@ -69,6 +72,8 @@ const CONNECTED: QboSettings = {
     { id: '20', name: 'Virement bancaire à recevoir', fully_qualified_name: 'Virement bancaire à recevoir', acct_num: '1075', account_type: 'Other Current Asset' },
     { id: '23', name: 'Compte courant', fully_qualified_name: 'Compte courant', acct_num: null, account_type: 'Bank' },
   ],
+  tax_codes: [{ id: '4', name: 'TPS/TVQ QC - 9,975' }],
+  push: { paused: true, pending: 0, failed: 0, pushed: 0, waiting_events: 2 },
   map: [
     { key: 'revenue.services', profession_title_id: null, profession_title_name: null, mode_name: null, account_id: '10', suggested: true },
     { key: 'deposit.interac', profession_title_id: null, profession_title_name: null, mode_name: 'Virement Interac', account_id: '20', suggested: true },
@@ -86,6 +91,20 @@ beforeEach(() => {
     { key: 'qbo_client_secret', updated_at: '2026-10-13T11:00:00+00:00' },
   ])
   mocks.jobs.listScheduledJobs.mockResolvedValue([job])
+  mocks.api.listQboPushes.mockResolvedValue({
+    paused: true,
+    pending_events: 2,
+    counts: { failed: 1 },
+    pushes: [
+      {
+        id: 'p1', kind: 'payment', entity_id: 'e1', invoice_id: 'i1', invoice_number: '2026-12', status: 'failed', attempts: 8,
+        next_attempt_at: '2026-10-13T12:00:00Z', last_error_code: 'missing_map', qbo_id: null, amount_mismatch: false,
+        pushed_at: null, updated_at: '2026-10-13T12:00:00Z',
+      },
+    ],
+  })
+  mocks.api.setQboPushPaused.mockResolvedValue(undefined)
+  mocks.api.retryQboPush.mockResolvedValue(undefined)
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -132,13 +151,47 @@ describe('QuickBooksSettingsPage', () => {
 
   it('without a connection: « Connecter QuickBooks » opens Intuit', async () => {
     const user = userEvent.setup()
-    mocks.api.fetchQboSettings.mockResolvedValue({ connection: null, accounts: [], map: [] })
+    mocks.api.fetchQboSettings.mockResolvedValue({ ...CONNECTED, connection: null, accounts: [], map: [] })
     mocks.api.startQboConnect.mockResolvedValue('https://appcenter.intuit.com/connect/oauth2?state=x')
     renderPage()
     expect(await screen.findByText(t(`${Q}.status.notConnected`))).toBeInTheDocument()
-    expect(screen.getByText(t(`${Q}.accounts.connectFirst`))).toBeInTheDocument()
+    expect(screen.getAllByText(t(`${Q}.accounts.connectFirst`)).length).toBeGreaterThan(0)
     await user.click(screen.getByRole('button', { name: t(`${Q}.connection.connect`) }))
     await waitFor(() => expect(mocks.leaveFor).toHaveBeenCalledWith('https://appcenter.intuit.com/connect/oauth2?state=x'))
     expect(mocks.api.startQboConnect).toHaveBeenCalledWith('production')
+  })
+
+  it('« Envoi à QuickBooks »: paused by default; « Démarrer l’envoi » asks first', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const P = `${Q}.push`
+    expect(await screen.findByText(t(`${P}.paused`))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${P}.start`) }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText(t(`${P}.startBody`))).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: t(`${P}.startAction`) }))
+    await waitFor(() => expect(mocks.api.setQboPushPaused).toHaveBeenCalledWith(false, expect.anything()))
+  })
+
+  it('lists what was refused, why in plain words, with « Réessayer »', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const P = `${Q}.push`
+    const list = await screen.findByRole('list', { name: t(`${P}.openList`) })
+    expect(within(list).getByText(t(`${P}.kinds.payment`))).toBeInTheDocument()
+    expect(within(list).getByText(new RegExp(t(`${P}.errors.missing_map`).slice(0, 20)))).toBeInTheDocument()
+    await user.click(within(list).getByRole('button', { name: t(`${P}.retry`) }))
+    await waitFor(() => expect(mocks.api.retryQboPush).toHaveBeenCalledWith('p1', expect.anything()))
+  })
+
+  it('the tax rows choose among the company’s tax codes', async () => {
+    mocks.api.fetchQboSettings.mockResolvedValue({
+      ...CONNECTED,
+      map: [...CONNECTED.map, { key: 'tax.taxable', profession_title_id: null, profession_title_name: null, mode_name: null, account_id: '4', suggested: true }],
+    })
+    renderPage()
+    const select = await screen.findByLabelText(t(`${Q}.accounts.keys.tax_taxable.label`))
+    expect(select).toHaveValue('4')
+    expect(within(select).getByRole('option', { name: 'TPS/TVQ QC - 9,975' })).toBeInTheDocument()
   })
 })

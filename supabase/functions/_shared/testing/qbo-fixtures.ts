@@ -142,6 +142,9 @@ function qboRoutes(state: QboState): Record<string, RpcRoute> {
       state.finished.push(args)
       return ok(null)
     },
+    // FQ part 2: the sync also reads the items and the tax codes.
+    replace_qbo_items: (args) => ok((args.p_items as unknown[]).length),
+    replace_qbo_tax_codes: (args) => ok((args.p_codes as unknown[]).length),
   }
 }
 

@@ -56,6 +56,11 @@ test('with the fake Intuit: connect, the accounts suggested, the customers match
   await expect(page.getByText('Suggéré').first()).toBeVisible()
   await expect(page.getByLabel(/Note de crédit/)).toHaveCount(0)
 
+  // FQ part 2: the tax codes suggested, and the push paused until the go/no-go.
+  await expect(page.getByLabel('Lignes taxables')).not.toHaveValue('')
+  await expect(page.getByText('En pause : rien n’est envoyé').or(page.getByText("En pause : rien n'est envoyé"))).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Démarrer l’envoi' }).or(page.getByRole('button', { name: "Démarrer l'envoi" }))).toBeEnabled()
+
   // The customers' report.
   await page.goto('/parametres/quickbooks-clients')
   await expect(page.getByRole('tab', { name: /À décider/ })).toBeVisible()

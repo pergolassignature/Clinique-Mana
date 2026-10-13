@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
+import { QboInvoiceStatus } from '../components/QboInvoiceStatus'
 import { useAccess } from '@/core/access/access-context'
 import { CheckboxField } from '@/shared/components/CheckboxField'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
@@ -143,6 +144,8 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
         <Badge variant={statusVariant(invoice.status)}>{statusLabel(invoice.status)}</Badge>
         {invoice.status === 'issued' && <Badge variant={paymentVariant(invoice.paymentStatus)}>{paymentLabel(invoice.paymentStatus)}</Badge>}
         {invoice.taxExempt && <Badge variant="outline">{t(`${I}.taxExempt`)}</Badge>}
+        {/* FQ part 2: the invoice's state in QuickBooks. */}
+        {invoice.status !== 'draft' && <QboInvoiceStatus invoiceId={invoice.id} />}
       </div>
       {refusal && <RefusalAlert message={refusal} />}
       {invoice.status === 'draft' && invoice.holdNow !== null && (

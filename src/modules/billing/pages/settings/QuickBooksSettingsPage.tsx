@@ -45,6 +45,7 @@ import {
 } from '../../api/quickbooks'
 import { useDisconnectQbo, useQboSettings, useSaveAccountMapRow, useStartQboConnect, useSyncQbo } from '../../hooks/use-quickbooks'
 import { connectionStatus, syncOutcome } from '../../lib/qbo-status'
+import { QboPushCard } from './QboPushCard'
 
 const Q = 'modules.billing.qbo'
 
@@ -74,6 +75,7 @@ export function QuickBooksSettingsPage() {
         <ConnectionCard connection={settings.data.connection} />
         <AppCard readOnly={!can('settings.integrations_manage')} />
         <AccountsCard settings={settings.data} />
+        <QboPushCard settings={settings.data} />
         <JobsCard canRead={can('settings.view')} />
       </>
     )
@@ -334,7 +336,9 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
   const firstSelect = useRef<HTMLSelectElement>(null)
 
   // The revenue rows, then one deposit row per payment mode that lands money (in the modes' order).
-  const fixed = settings.map.filter((row) => row.key !== 'expense' && row.profession_title_id === null)
+  const fixed = settings.map.filter((row) => row.key !== 'expense' && !row.key.startsWith('tax.') && row.profession_title_id === null)
+  // FQ part 2: the tax codes the push puts on its lines.
+  const taxes = settings.map.filter((row) => row.key.startsWith('tax.'))
   const expenses = settings.map.filter((row) => row.key === 'expense')
   const missing = settings.map.filter((row) => !(values[rowId(row)] ?? '')).length
 
@@ -356,7 +360,9 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
 
   const row = (mapRow: AccountMapRow, index: number, label: string, help: string) => {
     const id = rowId(mapRow)
-    const choices = settings.accounts.filter((account) => accountFits(mapRow.key, account.account_type))
+    const choices = mapRow.key.startsWith('tax.')
+      ? settings.tax_codes.map((code) => ({ id: code.id, label: code.name }))
+      : settings.accounts.filter((account) => accountFits(mapRow.key, account.account_type)).map((account) => ({ id: account.id, label: accountLabel(account) }))
     const value = values[id] ?? ''
     return (
       <FormField key={id} label={label} help={help}>
@@ -370,9 +376,9 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
               className="min-w-0 flex-1 sm:max-w-md"
             >
               <option value="">{t(`${Q}.accounts.none`)}</option>
-              {choices.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {accountLabel(account)}
+              {choices.map((choice) => (
+                <option key={choice.id} value={choice.id}>
+                  {choice.label}
                 </option>
               ))}
             </Select>
@@ -402,6 +408,19 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
           return row(mapRow, index, t(`${Q}.accounts.keys.${id}.label` as never), t(`${Q}.accounts.keys.${id}.help` as never))
         })}
       </fieldset>
+      {taxes.length > 0 && (
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium text-foreground">{t(`${Q}.accounts.taxes`)}</legend>
+          {taxes.map((mapRow) =>
+            row(
+              mapRow,
+              -1,
+              t(mapRow.key === 'tax.taxable' ? `${Q}.accounts.keys.tax_taxable.label` : `${Q}.accounts.keys.tax_exempt.label`),
+              t(mapRow.key === 'tax.taxable' ? `${Q}.accounts.keys.tax_taxable.help` : `${Q}.accounts.keys.tax_exempt.help`),
+            ),
+          )}
+        </fieldset>
+      )}
       {expenses.length > 0 && (
         <fieldset className="space-y-3">
           <legend className="text-sm font-medium text-foreground">{t(`${Q}.accounts.expenses`)}</legend>

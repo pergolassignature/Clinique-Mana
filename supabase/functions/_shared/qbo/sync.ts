@@ -75,7 +75,7 @@ export async function rowHash(
 }
 
 /** A call with the current token; one forced refresh on a 401, then once more. */
-async function withFreshToken<T>(
+export async function withFreshToken<T>(
   ctx: SyncContext,
   app: OAuthApp,
   run: (qbo: QboClient) => Promise<T>,
@@ -162,6 +162,9 @@ export async function runQboSync(
       company: await qbo.companyName(),
       accounts: await qbo.accounts(),
       customers: await qbo.customers(),
+      // FQ part 2: the items (a service code's) and the tax codes the push uses.
+      items: await qbo.items(),
+      taxCodes: await qbo.taxCodes(),
     }))
     companyName = read.company
     await rpc(ctx.client, 'replace_qbo_accounts', {
@@ -179,6 +182,26 @@ export async function runQboSync(
     })
     result.accounts = read.accounts.length
     accountsDone = true
+    await rpc(ctx.client, 'replace_qbo_items', {
+      p_org_id: ctx.orgId,
+      p_items: read.items.map((i) => ({
+        id: i.Id,
+        name: i.Name.slice(0, 200),
+        sku: i.Sku?.slice(0, 100) ?? null,
+        item_type: i.Type?.slice(0, 32) ?? null,
+        income_account_id: i.IncomeAccountRef?.value ?? null,
+        active: i.Active !== false,
+      })).filter((i) => /^[0-9]{1,32}$/.test(i.id)).slice(0, 5_000),
+    })
+    await rpc(ctx.client, 'replace_qbo_tax_codes', {
+      p_org_id: ctx.orgId,
+      p_codes: read.taxCodes.map((t) => ({
+        id: t.Id,
+        name: t.Name.slice(0, 200),
+        taxable: t.Taxable ?? null,
+        active: t.Active !== false,
+      })).filter((t) => /^[A-Za-z0-9]{1,32}$/.test(t.id)).slice(0, 500),
+    })
 
     const rows = await Promise.all(read.customers.map(async (c) => {
       const row = customerRow(c)
