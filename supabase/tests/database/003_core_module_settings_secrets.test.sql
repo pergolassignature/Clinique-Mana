@@ -169,6 +169,12 @@ select functions_are('public', array[
   -- Demandes, batch D3c (the booking page).
   'get_demandes_booking_settings', 'set_demandes_booking_settings', 'demandes_booking_page_for_service',
   'book_discovery_call_for_service', 'cancel_discovery_call_for_service', 'resolve_discovery_call_link',
+  -- Demandes, batch D3 (the waiting list, part 1).
+  'get_demandes_waitlist_settings', 'set_demandes_waitlist_settings', 'register_waitlist', 'update_waitlist_entry',
+  'set_waitlist_fee', 'log_waitlist_contact', 'add_waitlist_offer', 'answer_waitlist_offer', 'exit_waitlist',
+  'list_waitlist', 'waitlist_lists', 'get_waitlist_entry', 'waitlist_followup_for_service',
+  'prepare_waitlist_followup_for_service', 'mark_waitlist_followup_sent_for_service', 'resolve_waitlist_followup_link',
+  'answer_waitlist_followup_for_service',
   -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
   'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
   'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',

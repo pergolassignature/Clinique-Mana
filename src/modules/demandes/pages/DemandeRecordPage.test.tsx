@@ -24,9 +24,11 @@ const mocks = vi.hoisted(() => ({
     saveParticipants: vi.fn(),
     logContact: vi.fn(),
   },
+  waitlist: { listWaitlist: vi.fn(), fetchWaitlistLists: vi.fn(), registerWaitlist: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/demandes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/demandes')>()), ...mocks.api }))
+vi.mock('../api/waitlist', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/waitlist')>()), ...mocks.waitlist }))
 vi.mock('@/core/realtime/use-org-realtime', () => ({ useOrgRealtime: () => undefined }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -53,6 +55,8 @@ function bundle(over: Partial<DemandeBundle> = {}, demande: Partial<DemandeBundl
       referral_source_id: null,
       source_campaign: null,
       source_referrer: null,
+      source_utm: null,
+      source_landing_page: null,
       client_id: 'c1',
       contact_name: 'Alice Tremblay',
       contact_email: null,
@@ -131,6 +135,11 @@ beforeEach(() => {
   for (const fn of ['updateDemande', 'setDemandeState', 'assignDemande', 'setHandler', 'completeTask', 'cancelTask', 'addTask', 'saveNote', 'saveParticipants', 'logContact'] as const) {
     mocks.api[fn].mockResolvedValue(undefined)
   }
+  mocks.waitlist.listWaitlist.mockResolvedValue([])
+  mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
+    { target_kind: 'title', target_id: 't1', name: 'Psychologie', open_count: 4, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: 30 },
+  ])
+  mocks.waitlist.registerWaitlist.mockResolvedValue(['w1'])
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -248,6 +257,58 @@ describe('DemandeRecordPage', () => {
     renderPage('historique')
     expect(await screen.findByText(t('modules.demandes.history.created'))).toBeInTheDocument()
     expect(screen.getByText(t('modules.demandes.history.contact', { channel: 'Téléphone', outcome: 'Pas de réponse' }))).toBeInTheDocument()
+  })
+
+  it('Accueil: where the request came from (D3c\'s card)', async () => {
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { channel: 'booking_page', source_campaign: 'automne', source_landing_page: 'https://cliniquemana.com/psy' }))
+    renderPage()
+    expect(await screen.findByRole('heading', { name: t('modules.demandes.sources.title') })).toBeInTheDocument()
+    expect(screen.getByText('automne')).toBeInTheDocument()
+    expect(screen.getByText('https://cliniquemana.com/psy')).toBeInTheDocument()
+  })
+
+  it('« Liste d\'attente » without an entry registers the request: a profession, a priority with its reason', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.selectOptions(await screen.findByRole('combobox', { name: t(`${R}.changeState`) }), 'waitlist')
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.waitlist.register.title') })
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.waitlist.register.profession') }), 't1')
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.waitlist.priority.priority') }))
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.waitlist.register.save') }))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(t('modules.demandes.waitlist.register.reasonNeeded'))
+    await user.type(within(dialog).getByRole('textbox', { name: t('modules.demandes.waitlist.register.reason') }), 'Enfant en attente')
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.waitlist.register.save') }))
+    await waitFor(() =>
+      expect(mocks.waitlist.registerWaitlist).toHaveBeenCalledWith(ID, { titleId: 't1', professionalId: null, priority: 'priority', priorityReason: 'Enfant en attente' }),
+    )
+    expect(mocks.api.setDemandeState).not.toHaveBeenCalled()
+  })
+
+  it('without a client file, registering says to link it first', async () => {
+    const user = userEvent.setup()
+    mocks.api.getDemande.mockResolvedValue(bundle({ client: null }, { client_id: null }))
+    renderPage()
+    await user.selectOptions(await screen.findByRole('combobox', { name: t(`${R}.changeState`) }), 'waitlist')
+    const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.waitlist.register.title') })
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(t('modules.demandes.waitlist.register.fileNeeded'))
+  })
+
+  it('Suivi: the request\'s entries with their rank and what is missing', async () => {
+    mocks.waitlist.listWaitlist.mockResolvedValue([
+      {
+        id: 'w1', demande_id: ID, reference: 'DEM-2026-0007', client_id: 'c1', client_number: 42, person_name: 'Alice Tremblay',
+        target_kind: 'title', target_id: 't1', target_name: 'Psychologie', priority: 'normal', priority_reason: null,
+        registered_at: '2026-10-01T14:00:00Z', waited_days: 12, state: 'incomplete', fee_status: 'to_invoice', fee_waived_reason: null,
+        consent_state: 'pending', last_contact_at: null, next_contact_at: null, bridge_professional_id: null, bridge_name: null,
+        exit_reason: null, exited_at: null, rank: 3, list_size: 5, pending_offer: false, followup_unanswered: false,
+      },
+    ])
+    renderPage('suivi')
+    const card = await screen.findByRole('list', { name: t('modules.demandes.waitlist.card.title') })
+    expect(within(card).getByRole('link', { name: 'Psychologie' })).toHaveAttribute('href', '/liste-attente?liste=t-t1')
+    expect(within(card).getByText('3e sur 5')).toBeInTheDocument()
+    expect(within(card).getByText(t('modules.demandes.waitlist.consent.pending'))).toBeInTheDocument()
+    expect(within(card).getByText(t('modules.demandes.waitlist.fee.status.to_invoice'))).toBeInTheDocument()
   })
 
   it('a request that is not the clinic\'s: « Demande introuvable »', async () => {
