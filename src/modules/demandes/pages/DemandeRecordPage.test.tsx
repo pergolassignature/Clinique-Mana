@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     saveNote: vi.fn(),
     saveParticipants: vi.fn(),
     logContact: vi.fn(),
+    fetchDemandeConsents: vi.fn(),
   },
   waitlist: { listWaitlist: vi.fn(), fetchWaitlistLists: vi.fn(), registerWaitlist: vi.fn() },
   propositions: { listPropositions: vi.fn(), fetchPropositionServices: vi.fn(), fetchOpenSlots: vi.fn(), propose: vi.fn(), withdrawProposition: vi.fn() },
@@ -36,7 +37,8 @@ vi.mock('../api/matching', async (importOriginal) => ({ ...(await importOriginal
 vi.mock('@/core/realtime/use-org-realtime', () => ({ useOrgRealtime: () => undefined }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
-// Clients' picker (its own tests in Clients): a stand-in that shows what it was given and picks « c9 ».
+// Clients' picker (its own tests in Clients): a stand-in that shows what it was given and picks « c9 »
+// (a file the picker does not name: « Nouveau dossier » until saved).
 vi.mock('@/modules/clients', () => ({
   ClientPicker: (props: { onSelect: (id: string, client: null) => void; excludeIds?: readonly string[]; initialValues?: Record<string, string> }) => (
     <button type="button" onClick={() => props.onSelect('c9', null)}>
@@ -107,6 +109,16 @@ function bundle(over: Partial<DemandeBundle> = {}, demande: Partial<DemandeBundl
       contact_phone_e164: '+15145550101',
       beneficiary: 'self',
       previous_therapy: null,
+      has_issues: null,
+      issues: [],
+      issues_comment: null,
+      previous_professionals: [],
+      previous_comment: null,
+      has_legal_context: null,
+      legal_context: [],
+      legal_detail: null,
+      motif_other: null,
+      availability_other: null,
       language: 'fr',
       modality: 'any',
       availability_periods: ['evening'],
@@ -179,6 +191,7 @@ beforeEach(() => {
   for (const fn of ['updateDemande', 'setDemandeState', 'assignDemande', 'setHandler', 'completeTask', 'cancelTask', 'addTask', 'saveNote', 'saveParticipants', 'logContact'] as const) {
     mocks.api[fn].mockResolvedValue(undefined)
   }
+  mocks.api.fetchDemandeConsents.mockResolvedValue([])
   mocks.waitlist.listWaitlist.mockResolvedValue([])
   mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
     { target_kind: 'title', target_id: 't1', name: 'Psychologie', open_count: 4, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: 30 },
@@ -357,7 +370,36 @@ describe('DemandeRecordPage', () => {
     const dialog = await screen.findByRole('alertdialog')
     await user.selectOptions(within(dialog).getByRole('combobox', { name: t(`${R}.close.reason`) }), 'withdrew')
     await user.click(within(dialog).getByRole('button', { name: t(`${R}.close.action`) }))
-    await waitFor(() => expect(mocks.api.setDemandeState).toHaveBeenCalledWith(ID, 'closed', 'withdrew'))
+    await waitFor(() => expect(mocks.api.setDemandeState).toHaveBeenCalledWith(ID, 'closed', 'withdrew', null))
+  })
+
+  it('« Jumelée » by hand asks for the professional (D-38)', async () => {
+    const user = userEvent.setup()
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
+      { target_kind: 'professional', target_id: 'pro1', name: 'Pro Un', open_count: 0, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: null },
+    ])
+    renderPage()
+    await user.selectOptions(await screen.findByRole('combobox', { name: t(`${R}.changeState`) }), 'matched')
+    const dialog = await screen.findByRole('dialog', { name: t(`${R}.match.title`) })
+    await user.click(within(dialog).getByRole('button', { name: t(`${R}.match.action`) }))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(t(`${R}.match.needed`))
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t(`${R}.match.professional`) }), 'pro1')
+    await user.click(within(dialog).getByRole('button', { name: t(`${R}.match.action`) }))
+    await waitFor(() => expect(mocks.api.setDemandeState).toHaveBeenCalledWith(ID, 'matched', null, 'pro1'))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${R}.match.done`, { name: 'Pro Un' }))
+  })
+
+  it('Jumelage: « Jumeler » presets the professional in the match', async () => {
+    const user = userEvent.setup()
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'waitlist' }))
+    mocks.waitlist.fetchWaitlistLists.mockResolvedValue([
+      { target_kind: 'professional', target_id: 'pro1', name: 'Pro Un', open_count: 0, incomplete_count: 0, to_call_count: 0, offered_count: 0, average_wait_days: null },
+    ])
+    renderPage('jumelage')
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.matching.matchTo', { name: 'Pro Un' }) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${R}.match.title`) })
+    await waitFor(() => expect(within(dialog).getByRole('combobox', { name: t(`${R}.match.professional`) })).toHaveValue('pro1'))
   })
 
   it('« Je m\'en occupe » taken by someone else asks before taking over', async () => {
@@ -398,6 +440,83 @@ describe('DemandeRecordPage', () => {
     expect(mocks.api.saveParticipants.mock.calls[0]![1]).toEqual([
       { client_id: 'c1', display_name: null, relationship: 'self', birthday: null, is_primary: true },
     ])
+  })
+
+  it('Participants: another file of the clinic through Clients\' picker; a couple with one person is said, not blocked', async () => {
+    const user = userEvent.setup()
+    const P = 'modules.demandes.participants'
+    mocks.api.getDemande.mockResolvedValue(
+      bundle(
+        { participants: [{ id: 'p1', client_id: 'c1', display_name: null, relationship: 'self', birthday: null, is_primary: true, client: { client_number: 42, display_name: 'Alice Tremblay' } }] },
+        { beneficiary: 'couple' },
+      ),
+    )
+    renderPage('participants')
+    expect(await screen.findByText(t(`${P}.count.couple`, { count: '1' }))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${P}.addClient`) }))
+    await user.click(await screen.findByRole('button', { name: 'picker undefined|undefined|undefined|c1' }))
+    expect(screen.queryByText(t(`${P}.count.couple`, { count: '1' }))).not.toBeInTheDocument()
+    expect(screen.getByText(t(`${P}.picker.newFile`))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.saveParticipants).toHaveBeenCalledTimes(1))
+    expect(mocks.api.saveParticipants.mock.calls[0]![1]).toEqual([
+      { id: 'p1', client_id: 'c1', display_name: null, relationship: 'self', birthday: null, is_primary: true },
+      { client_id: 'c9', display_name: null, relationship: 'partner', birthday: null, is_primary: false },
+    ])
+  })
+
+  it('Participants: each file\'s consents, live, and what to settle for the request (D-39)', async () => {
+    const P = 'modules.demandes.participants'
+    mocks.api.getDemande.mockResolvedValue(
+      bundle({
+        participants: [
+          { id: 'p1', client_id: 'c1', display_name: null, relationship: 'self', birthday: null, is_primary: true, client: { client_number: 42, display_name: 'Alice Tremblay' } },
+          { id: 'p2', client_id: 'c2', display_name: null, relationship: 'partner', birthday: null, is_primary: false, client: { client_number: 43, display_name: 'Bruno Tremblay' } },
+        ],
+      }),
+    )
+    mocks.api.fetchDemandeConsents.mockResolvedValue([
+      { client_id: 'c1', consents: [{ key: 'general', name: 'Consentement général', state: 'signed' }] },
+      { client_id: 'c2', consents: [{ key: 'general', name: 'Consentement général', state: 'missing' }] },
+    ])
+    renderPage('participants')
+    expect(await screen.findByText(t(`${P}.consents.toSettle`))).toBeInTheDocument()
+    const missing = t(`${P}.consents.state.missing`, { name: 'Consentement général' })
+    expect(screen.getByText(t(`${P}.consents.fileLine`, { file: 'N° 43 · Bruno Tremblay', status: missing }))).toBeInTheDocument()
+    expect(screen.getByText(t(`${P}.consents.valid`))).toBeInTheDocument()
+    expect(screen.getAllByText(missing)).toHaveLength(1)
+  })
+
+  it('Participants: every consent valid says so', async () => {
+    mocks.api.fetchDemandeConsents.mockResolvedValue([{ client_id: 'c1', consents: [{ key: 'general', name: 'Consentement général', state: 'signed' }] }])
+    renderPage('participants')
+    expect(await screen.findByText(t('modules.demandes.participants.consents.allValid'))).toBeInTheDocument()
+  })
+
+  it('Accueil: « Enjeux » Oui opens its follow-ups; « Non » clears them (D-40)', async () => {
+    const user = userEvent.setup()
+    const A = 'modules.demandes.intake.need'
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { has_issues: true, issues: ['coparenting'], issues_comment: 'Garde partagée' }))
+    renderPage()
+    expect(await screen.findByRole('checkbox', { name: 'Coparentalité' })).toBeChecked()
+    expect(screen.getByRole('textbox', { name: t(`${A}.issuesComment`) })).toHaveValue('Garde partagée')
+    await user.selectOptions(screen.getByRole('combobox', { name: t(`${A}.issues`) }), 'no')
+    expect(screen.queryByRole('checkbox', { name: 'Coparentalité' })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox', { name: t(`${A}.legal`) }), 'yes')
+    await user.click(screen.getByRole('checkbox', { name: 'DPJ' }))
+    await user.type(screen.getByRole('textbox', { name: t(`${A}.legalDetail`) }), 'Suivi en cours')
+    await user.type(screen.getByRole('textbox', { name: t(`${A}.motifOther`) }), 'Deuil')
+    await user.click(screen.getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.updateDemande).toHaveBeenCalledTimes(1))
+    expect(mocks.api.updateDemande).toHaveBeenCalledWith(ID, {
+      has_issues: false,
+      issues: [],
+      issues_comment: null,
+      has_legal_context: true,
+      legal_context: ['dpj'],
+      legal_detail: 'Suivi en cours',
+      motif_other: 'Deuil',
+    })
   })
 
   it('Historique: the events in plain words, by whom', async () => {

@@ -22,6 +22,7 @@ import type { MatchCriteria, MatchedProfessional } from '../../api/matching'
 import { useDemandeMatch } from '../../hooks/use-matching'
 import { usePropositions } from '../../hooks/use-propositions'
 import { criteriaLines, fitLines, placesLabel, reasonLabel, warningLabels } from '../../lib/matching'
+import { MatchDialog } from './MatchDialog'
 import { ProposeForm } from './PropositionsCard'
 import { useDemandeRecord } from './record-context'
 
@@ -33,7 +34,8 @@ const M = 'modules.demandes.matching'
  * with its places, « À prioriser », the warnings (a refused motif: R-66, never a filter; the
  * insurance; an age or a sex to check) and « Bon à savoir ». Those left out follow, folded, with
  * why. « Proposer » opens the proposal (D3b) with her preset; an expired insurance asks first
- * (rule 8). Staff only: the tab shows with professionals.view.
+ * (rule 8). « Jumeler » matches the request to her by hand (D-38: a person booked by phone).
+ * Staff only: the tab shows with professionals.view.
  */
 export function MatchingTab() {
   const { id, bundle, canEdit } = useDemandeRecord()
@@ -43,6 +45,7 @@ export function MatchingTab() {
   const [showOthers, setShowOthers] = useState(false)
   const [confirming, setConfirming] = useState<MatchedProfessional | null>(null)
   const [proposing, setProposing] = useState<MatchedProfessional | null>(null)
+  const [matching, setMatching] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
   const asked = params.get('proposer')
 
@@ -50,6 +53,7 @@ export function MatchingTab() {
   const pending = (propositions.data ?? []).some((p) => p.response === 'pending')
   const open = ['accepted', 'waitlist', 'proposed'].includes(bundle.demande.state)
   const canPropose = canEdit && open && !pending && can('appointments.view')
+  const canMatch = canEdit && open
   // « Offrir la plage » (D4 part 2): `?proposer=<professional>` opens the proposal to her once,
   // through the same path as « Proposer » (an expired insurance asks first); when it cannot, the
   // person is told why — never a silent no-op.
@@ -92,7 +96,13 @@ export function MatchingTab() {
         ) : (
           <ol aria-label={t(`${M}.title`)} className="divide-y divide-border-light">
             {eligible.map((p) => (
-              <ProfessionalRow key={p.professional_id} professional={p} criteria={criteria} onPropose={canPropose ? () => propose(p) : undefined} />
+              <ProfessionalRow
+                key={p.professional_id}
+                professional={p}
+                criteria={criteria}
+                onPropose={canPropose ? () => propose(p) : undefined}
+                onMatch={canMatch ? () => setMatching(p.professional_id) : undefined}
+              />
             ))}
           </ol>
         )}
@@ -146,6 +156,7 @@ export function MatchingTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <MatchDialog demandeId={id} professionalId={matching} open={matching !== null} onOpenChange={(next) => !next && setMatching(null)} />
       <Dialog open={proposing !== null} onOpenChange={(next) => !next && setProposing(null)}>
         {proposing && (
           <ProposeForm
@@ -168,7 +179,17 @@ function CriteriaList({ criteria }: { criteria: MatchCriteria }) {
   )
 }
 
-function ProfessionalRow({ professional: p, criteria, onPropose }: { professional: MatchedProfessional; criteria: MatchCriteria; onPropose?: () => void }) {
+function ProfessionalRow({
+  professional: p,
+  criteria,
+  onPropose,
+  onMatch,
+}: {
+  professional: MatchedProfessional
+  criteria: MatchCriteria
+  onPropose?: () => void
+  onMatch?: () => void
+}) {
   const places = placesLabel(p)
   const warnings = warningLabels(p)
   return (
@@ -191,6 +212,11 @@ function ProfessionalRow({ professional: p, criteria, onPropose }: { professiona
           {onPropose && (
             <Button type="button" variant="outline" size="sm" onClick={onPropose} aria-label={t(`${M}.proposeTo`, { name: p.display_name })} className="max-sm:h-11">
               {t(`${M}.propose`)}
+            </Button>
+          )}
+          {onMatch && (
+            <Button type="button" variant="outline" size="sm" onClick={onMatch} aria-label={t(`${M}.matchTo`, { name: p.display_name })} className="max-sm:h-11">
+              {t(`${M}.match`)}
             </Button>
           )}
         </div>

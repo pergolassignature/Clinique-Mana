@@ -9,11 +9,13 @@ import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
 import { getClinicDateString } from '@/shared/lib/timezone'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { FormField } from '@/shared/ui/form-field'
+import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { Textarea } from '@/shared/ui/textarea'
 import { useSequence, useSetSequence } from '../../hooks/use-invoices'
 import type { BillingSettings } from '../../api/queue'
 import { useSetDunning } from '../../hooks/use-follow-up'
-import { useBillingSettings, useSetQueueFrom } from '../../hooks/use-queue'
+import { useBillingSettings, useSetInvoiceNote, useSetQueueFrom } from '../../hooks/use-queue'
 
 const S = 'modules.billing.settings'
 
@@ -52,6 +54,7 @@ export function BillingSettingsPage() {
           settings={settings.data}
           readOnly={readOnly}
         />
+        <InvoiceNoteCard key={`${settings.data.invoiceNote.fr}|${settings.data.invoiceNote.en}`} settings={settings.data} readOnly={readOnly} />
       </SectionSurface>
     )
   }
@@ -173,6 +176,60 @@ function DunningCard({ settings, readOnly }: { settings: BillingSettings; readOn
       <FormField label={t(`${D}.block`)} help={t(`${D}.blockHelp`)} error={errors.block}>
         {(field) => <Input {...field} value={block} onChange={(e) => setBlock(e.target.value)} readOnly={readOnly} inputMode="numeric" className="tabular w-28" />}
       </FormField>
+    </SettingsCard>
+  )
+}
+
+const N = 'modules.billing.settings.invoiceNote'
+
+/**
+ * « Note des factures » (BI-21): what every invoice and its email add about paying, per language.
+ * The Interac line comes from Paramètres → Coordonnées bancaires; the note is the clinic's own
+ * text (by default: the receipt within 24 business hours). « Texte par défaut » restores it;
+ * an empty note prints nothing.
+ */
+function InvoiceNoteCard({ settings, readOnly }: { settings: BillingSettings; readOnly: boolean }) {
+  const initial = settings.invoiceNote
+  const [fr, setFr] = useState(initial.fr)
+  const [en, setEn] = useState(initial.en)
+  const [error, setError] = useState<string | null>(null)
+  const save = useSetInvoiceNote({ onErrorMessage: setError })
+  const dirty = fr !== initial.fr || en !== initial.en
+  useUnsavedChanges(dirty && !readOnly)
+  const reset = () => {
+    setFr(initial.fr)
+    setEn(initial.en)
+    setError(null)
+  }
+  return (
+    <SettingsCard
+      layout="section"
+      title={t(`${N}.title`)}
+      description={t(`${N}.description`)}
+      dirty={dirty}
+      readOnly={readOnly}
+      pending={save.isPending}
+      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        setError(null)
+        save.mutate({ fr: fr.trim(), en: en.trim() })
+      }}
+      footer={<FormActions onCancel={reset} dirty={dirty} pending={save.isPending} />}
+    >
+      <p className="text-sm text-muted-foreground">
+        {settings.etransferEmail ? t(`${N}.interac`, { email: settings.etransferEmail }) : t(`${N}.noInterac`)}
+      </p>
+      <FormField label={t(`${N}.fr`)} help={initial.frDefault ? t(`${N}.isDefault`) : undefined} width="full" error={error ?? undefined}>
+        {(field) => <Textarea {...field} value={fr} onChange={(e) => setFr(e.target.value)} readOnly={readOnly} rows={3} maxLength={1000} />}
+      </FormField>
+      <FormField label={t(`${N}.en`)} help={initial.enDefault ? t(`${N}.isDefault`) : undefined} width="full">
+        {(field) => <Textarea {...field} value={en} onChange={(e) => setEn(e.target.value)} readOnly={readOnly} rows={3} maxLength={1000} />}
+      </FormField>
+      {!readOnly && !(initial.frDefault && initial.enDefault) && (
+        <Button type="button" variant="outline" size="sm" aria-disabled={save.isPending || undefined} onClick={() => save.mutate({ fr: null, en: null })}>
+          {t(`${N}.restore`)}
+        </Button>
+      )}
     </SettingsCard>
   )
 }

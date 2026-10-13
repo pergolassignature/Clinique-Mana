@@ -7301,7 +7301,17 @@
             "external_ref": "Référence externe",
             "handled_by": "S'en occupe",
             "handled_at": "Prise en charge le",
-            "source_landing_page": "Page d’arrivée"
+            "source_landing_page": "Page d’arrivée",
+            "has_issues": "Enjeux",
+            "issues": "Enjeux nommés",
+            "issues_comment": "Précisions sur les enjeux",
+            "previous_professionals": "Professionnels consultés",
+            "previous_comment": "Précisions sur les consultations",
+            "has_legal_context": "Contexte légal",
+            "legal_context": "Contexte légal nommé",
+            "legal_detail": "Précisions sur le contexte légal",
+            "motif_other": "Autre motif",
+            "availability_other": "Autres disponibilités"
           },
           "demande_notes": {
             "demande_id": "Demande",
@@ -7763,6 +7773,21 @@
           "parent": "Parent",
           "sibling": "Frère ou sœur",
           "other": "Autre"
+        },
+        "issue": {
+          "coparenting": "Coparentalité",
+          "other": "Autre"
+        },
+        "previousProfessional": {
+          "psychologist": "Psychologue",
+          "social_worker": "Travailleuse sociale ou travailleur social",
+          "psychoeducator": "Psychoéducatrice ou psychoéducateur",
+          "physician": "Médecin",
+          "other": "Autre"
+        },
+        "legalContext": {
+          "court_order": "Ordonnance du tribunal",
+          "dpj": "DPJ"
         }
       },
       "inbox": {
@@ -7902,7 +7927,24 @@
         },
         "stale": "Quelqu'un d'autre a modifié cette demande pendant que vous la changiez.",
         "reload": "Recharger (vos changements seront perdus)",
-        "waitlistPermission": "Inscrire sur la liste d'attente demande la permission « Gérer la liste d'attente »."
+        "waitlistPermission": "Inscrire sur la liste d'attente demande la permission « Gérer la liste d'attente ».",
+        "match": {
+          "title": "Jumeler la demande",
+          "description": "Pour une personne jumelée et réservée par téléphone. Choisissez le professionnel.",
+          "professional": "Professionnel",
+          "choose": "Choisir…",
+          "effects": {
+            "files": "Le professionnel voit les dossiers de la demande.",
+            "primary": "Il devient le professionnel principal des dossiers qui n'en ont pas.",
+            "pending": "Une proposition en attente est retirée et la demande quitte la liste d'attente.",
+            "book": "Réservez ensuite le rendez-vous dans l'agenda."
+          },
+          "action": "Jumeler",
+          "saving": "Jumelage…",
+          "needed": "Choisissez un professionnel.",
+          "done": "La demande est jumelée à {name}.",
+          "loadError": "La liste des professionnels n'a pas pu être lue."
+        }
       },
       "intake": {
         "file": {
@@ -7930,7 +7972,19 @@
           "motifsHelp": "Cochez les motifs nommés par la personne.",
           "concerns": "Préoccupations",
           "concernsHelp": "Dans les mots de la personne. Rien de clinique : la note interne n'est pas un dossier.",
-          "urgent": "Urgente"
+          "urgent": "Urgente",
+          "previousProfessionals": "Professionnels consultés",
+          "previousComment": "Précisions sur les consultations",
+          "issues": "Enjeux",
+          "issuesHelp": "Par exemple une coparentalité.",
+          "issuesWhich": "Enjeux nommés",
+          "issuesComment": "Précisions sur les enjeux",
+          "legal": "Contexte légal",
+          "legalHelp": "Un fait (une ordonnance, la DPJ), jamais un dossier clinique.",
+          "legalWhich": "Contexte légal nommé",
+          "legalDetail": "Précisions sur le contexte légal",
+          "motifOther": "Autre motif",
+          "motifOtherHelp": "Un motif nommé par la personne qui n'est pas dans la liste."
         },
         "prefs": {
           "title": "Préférences",
@@ -7941,7 +7995,9 @@
           "periods": "Moments",
           "days": "Jours",
           "payer": "Payeur",
-          "insurer": "Assureur"
+          "insurer": "Assureur",
+          "availabilityOther": "Autres disponibilités",
+          "availabilityOtherHelp": "Par exemple : le vendredi midi."
         },
         "unknown": "Non indiqué",
         "any": "Toutes",
@@ -7966,7 +8022,35 @@
         "nameNeeded": "Chaque personne a un nom ou un dossier.",
         "onePrimary": "Choisissez une seule personne principale.",
         "saved": "Les participants sont enregistrés.",
-        "tooMany": "Au plus {max} personnes par demande."
+        "tooMany": "Au plus {max} personnes par demande.",
+        "addClient": "Ajouter un dossier de la clinique",
+        "picker": {
+          "title": "Ajouter un dossier de la clinique",
+          "description": "Cherchez le dossier de la personne, ou créez-le. Il s'ajoute aux participants ; enregistrez ensuite.",
+          "newFile": "Nouveau dossier"
+        },
+        "count": {
+          "couple": "Une demande de couple vise deux personnes. Participants inscrits : {count}.",
+          "family": "Une demande de famille vise au moins deux personnes. Participants inscrits : {count}."
+        },
+        "consents": {
+          "label": "Consentements :",
+          "valid": "Consentements valides",
+          "noneRequired": "Aucun consentement requis",
+          "state": {
+            "missing": "{name} : à faire signer",
+            "resign": "{name} : à signer de nouveau",
+            "overdue": "{name} : signature en retard",
+            "pending": "{name} : envoyé, pas encore signé",
+            "signed": "{name} : signé"
+          },
+          "allValid": "Tous les consentements requis des dossiers de la demande sont valides.",
+          "toSettle": "Des consentements sont à régler",
+          "fileLine": "{file} : {status}",
+          "noBlock": "Ça ne bloque ni le jumelage ni la proposition. Les consentements s'envoient du dossier du client.",
+          "afterSave": "Les consentements de ce dossier s'affichent une fois enregistré.",
+          "loadError": "Les consentements des dossiers n'ont pas pu être lus."
+        }
       },
       "followUp": {
         "contacts": {
@@ -8712,7 +8796,9 @@
           "unknown": "Ce professionnel n'est pas dans le panneau de jumelage : la plage n'a pas été offerte.",
           "notEligible": "{name} n'est plus admissible pour cette demande ({reasons}) : la plage n'a pas été offerte.",
           "notAllowed": "Vous ne pouvez pas proposer de professionnel pour cette demande (il faut aussi l'accès à l'agenda)."
-        }
+        },
+        "match": "Jumeler",
+        "matchTo": "Jumeler la demande à {name}"
       },
       "capacity": {
         "nav": "Places restantes",
@@ -9561,7 +9647,9 @@
             "queue_from": "File du matin à partir du",
             "dunning_from": "Relances à partir du",
             "dunning_days": "Jours de relance",
-            "block_after_days": "Rendez-vous refusés après (jours)"
+            "block_after_days": "Rendez-vous refusés après (jours)",
+            "invoice_note_fr": "Note des factures (français)",
+            "invoice_note_en": "Note des factures (anglais)"
           },
           "qbo_connections": {
             "realm_id": "Numéro de l'entreprise",
@@ -10057,7 +10145,8 @@
           "recorded": "Remboursement fait par Stripe : la carte du payeur est remboursée.",
           "pending": "Remboursement demandé à Stripe : il est confirmé dès sa réponse.",
           "failed": "Stripe n’a pas fait le remboursement : rien n’est remboursé. La facturation en est avisée."
-        }
+        },
+        "invoiceNote": "Note des factures enregistrée."
       },
       "list": {
         "title": "Factures",
@@ -10280,6 +10369,16 @@
           "block": "Refus des rendez-vous après (jours)",
           "blockHelp": "Un client dont une facture est impayée depuis ce nombre de jours ne peut plus réserver sans exception.",
           "blockInvalid": "Indiquez un nombre de jours entre 1 et 90."
+        },
+        "invoiceNote": {
+          "title": "Note des factures",
+          "description": "Ce que chaque facture et son courriel disent du paiement, en français et en anglais (selon la langue du payeur). Le bouton « Payer en ligne » du courriel reste là quand les paiements en ligne sont actifs.",
+          "interac": "La facture indique aussi : « Paiement par virement Interac à {email} (dépôt automatique). » L’adresse se change dans Paramètres → Coordonnées bancaires.",
+          "noInterac": "Aucune adresse Interac : ajoutez-la dans Paramètres → Coordonnées bancaires pour qu’elle paraisse sur les factures.",
+          "fr": "Note en français",
+          "en": "Note en anglais",
+          "isDefault": "Texte par défaut de l’application.",
+          "restore": "Rétablir le texte par défaut"
         }
       },
       "qbo": {

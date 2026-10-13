@@ -157,14 +157,32 @@ const settingsPayload = z
     dunning_from: z.string().nullable().default(null),
     dunning_days: z.array(z.number().int()).default([3, 5, 7, 10]),
     block_after_days: z.number().int().default(10),
+    invoice_note_fr: z.string().default(''),
+    invoice_note_en: z.string().default(''),
+    invoice_note_fr_default: z.boolean().default(true),
+    invoice_note_en_default: z.boolean().default(true),
+    etransfer_email: z.string().nullable().default(null),
   })
-  .transform((r) => ({ queueFrom: r.queue_from, dunningFrom: r.dunning_from, dunningDays: r.dunning_days, blockAfterDays: r.block_after_days }))
+  .transform((r) => ({
+    queueFrom: r.queue_from,
+    dunningFrom: r.dunning_from,
+    dunningDays: r.dunning_days,
+    blockAfterDays: r.block_after_days,
+    invoiceNote: { fr: r.invoice_note_fr, en: r.invoice_note_en, frDefault: r.invoice_note_fr_default, enDefault: r.invoice_note_en_default },
+    etransferEmail: r.etransfer_email,
+  }))
 export type BillingSettings = z.output<typeof settingsPayload>
 
 export async function fetchBillingSettings(): Promise<BillingSettings> {
   const { data, error } = await supabase.rpc('get_billing_settings')
   if (error) throw error
   return parse(settingsPayload, data)
+}
+
+/** BI-21: the standing invoice note per language (null: the default text; '' : none). */
+export async function setInvoiceNote(fr: string | null, en: string | null): Promise<void> {
+  const { error } = await supabase.rpc('set_billing_invoice_note', sqlArgs<'set_billing_invoice_note'>({ p_fr: fr, p_en: en }))
+  if (error) throw error
 }
 
 /** The first day whose sessions the morning queue invoices (null: off). */

@@ -12,7 +12,17 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
 import { toast } from '@/shared/ui/sonner'
-import { BENEFICIARIES, GENDERS, MODALITIES, PAYER_KINDS, PERIODS, type DemandeBundle } from '../../api/demandes'
+import {
+  BENEFICIARIES,
+  GENDERS,
+  ISSUES,
+  LEGAL_CONTEXTS,
+  MODALITIES,
+  PAYER_KINDS,
+  PERIODS,
+  PREVIOUS_PROFESSIONALS,
+  type DemandeBundle,
+} from '../../api/demandes'
 import { useSetDemandeSource, useUpdateDemande } from '../../hooks/use-demandes'
 import { fileLabel, optionLabel } from '../../lib/display'
 import { DemandeSourceCard } from '../DemandeSourceCard'
@@ -42,7 +52,29 @@ interface Values {
   payer_kind: string
   insurer: string
   is_urgent: boolean
+  // D-40: the follow-up questions (« Non » clears what follows).
+  has_issues: string
+  issues: string[]
+  issues_comment: string
+  previous_professionals: string[]
+  previous_comment: string
+  has_legal_context: string
+  legal_context: string[]
+  legal_detail: string
+  motif_other: string
+  availability_other: string
 }
+
+/** The yes / no questions and what follows each (cleared on « Non » or no answer). */
+const FOLLOW_UPS = {
+  has_issues: ['issues', 'issues_comment'],
+  previous_therapy: ['previous_professionals', 'previous_comment'],
+  has_legal_context: ['legal_context', 'legal_detail'],
+} as const satisfies Record<string, readonly (keyof Values)[]>
+type YesNoKey = keyof typeof FOLLOW_UPS
+type CodesKey = 'issues' | 'previous_professionals' | 'legal_context'
+
+const yesNo = (value: boolean | null) => (value === null ? '' : value ? 'yes' : 'no')
 
 function valuesOf(bundle: DemandeBundle): Values {
   const d = bundle.demande
@@ -51,7 +83,7 @@ function valuesOf(bundle: DemandeBundle): Values {
     contact_email: d.contact_email ?? '',
     contact_phone: d.contact_phone_e164 ? formatPhone(d.contact_phone_e164) : '',
     beneficiary: d.beneficiary ?? '',
-    previous_therapy: d.previous_therapy === null ? '' : d.previous_therapy ? 'yes' : 'no',
+    previous_therapy: yesNo(d.previous_therapy),
     language: d.language,
     modality: d.modality,
     availability_periods: [...d.availability_periods],
@@ -64,6 +96,16 @@ function valuesOf(bundle: DemandeBundle): Values {
     payer_kind: d.payer_kind,
     insurer: d.insurer ?? '',
     is_urgent: d.is_urgent,
+    has_issues: yesNo(d.has_issues),
+    issues: [...d.issues].sort(),
+    issues_comment: d.issues_comment ?? '',
+    previous_professionals: [...d.previous_professionals].sort(),
+    previous_comment: d.previous_comment ?? '',
+    has_legal_context: yesNo(d.has_legal_context),
+    legal_context: [...d.legal_context].sort(),
+    legal_detail: d.legal_detail ?? '',
+    motif_other: d.motif_other ?? '',
+    availability_other: d.availability_other ?? '',
   }
 }
 
@@ -86,10 +128,15 @@ function patchOf(initial: Values, values: Values): Record<string, unknown> | { e
         patch.contact_email = text(values.contact_email)?.toLowerCase() ?? null
         break
       case 'previous_therapy':
-        patch.previous_therapy = values.previous_therapy === '' ? null : values.previous_therapy === 'yes'
+      case 'has_issues':
+      case 'has_legal_context':
+        patch[key] = values[key] === '' ? null : values[key] === 'yes'
         break
       case 'motif_ids':
-        patch.motif_ids = [...values.motif_ids].sort()
+      case 'issues':
+      case 'previous_professionals':
+      case 'legal_context':
+        patch[key] = [...values[key]].sort()
         break
       case 'availability_periods':
       case 'availability_days':
@@ -183,7 +230,14 @@ function IntakeForm() {
   const update = useUpdateDemande(id)
   useUnsavedChanges(dirty)
   const set = <K extends keyof Values>(key: K, value: Values[K]) => setValues((prev) => ({ ...prev, [key]: value }))
-  const toggle = <K extends 'availability_periods' | 'availability_days' | 'motif_ids'>(key: K, item: Values[K][number]) =>
+  // « Non » (or no answer) clears what follows the question (legacy; the database does too).
+  const answer = (key: YesNoKey, value: string) =>
+    setValues((prev) => {
+      const next: Values = { ...prev, [key]: value }
+      if (value !== 'yes') for (const follow of FOLLOW_UPS[key]) (next as unknown as Record<string, unknown>)[follow] = Array.isArray(prev[follow]) ? [] : ''
+      return next
+    })
+  const toggle = <K extends 'availability_periods' | 'availability_days' | 'motif_ids' | CodesKey>(key: K, item: Values[K][number]) =>
     setValues((prev) => {
       const list = prev[key] as (string | number)[]
       const next = list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
@@ -229,6 +283,36 @@ function IntakeForm() {
     </FormField>
   )
 
+  const yesNoField = (key: YesNoKey, label: string, help?: string) => (
+    <FormField label={label} help={help}>
+      {(field) => (
+        <Select {...field} value={values[key]} onChange={(e) => answer(key, e.target.value)} readOnly={!canEdit}>
+          <option value="">{t(`${A}.unknown`)}</option>
+          {['yes', 'no'].map((o) => (
+            <option key={o} value={o}>
+              {optionLabel('yesNo', o)}
+            </option>
+          ))}
+        </Select>
+      )}
+    </FormField>
+  )
+  const codes = (key: CodesKey, group: string, options: readonly string[], legend: string) => (
+    <fieldset className="space-y-1.5">
+      <legend className="text-sm font-medium">{legend}</legend>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {options.map((o) => (
+          <CheckboxField key={o} label={optionLabel(group, o)} checked={values[key].includes(o)} onCheckedChange={() => canEdit && toggle(key, o)} />
+        ))}
+      </div>
+    </fieldset>
+  )
+  const comment = (key: 'issues_comment' | 'previous_comment' | 'legal_detail', label: string) => (
+    <FormField label={label}>
+      {(field) => <Textarea {...field} value={values[key]} onChange={(e) => set(key, e.target.value)} readOnly={!canEdit} rows={2} maxLength={2000} />}
+    </FormField>
+  )
+
   return (
     <form onSubmit={submit} noValidate className="contents">
       {draft.stale && <StaleNotice onReload={draft.reload} />}
@@ -253,8 +337,29 @@ function IntakeForm() {
       <SettingsCard as="section" layout="section" title={t(`${A}.need.title`)} description={t(`${A}.need.description`)}>
         <FormRow>
           {choice('beneficiary', BENEFICIARIES, 'beneficiary', t(`${A}.need.beneficiary`), true)}
-          {choice('yesNo', ['yes', 'no'], 'previous_therapy', t(`${A}.need.previousTherapy`), true)}
+          {yesNoField('previous_therapy', t(`${A}.need.previousTherapy`))}
         </FormRow>
+        {values.previous_therapy === 'yes' && (
+          <div className="space-y-3 border-l-2 border-border-light pl-3">
+            {codes('previous_professionals', 'previousProfessional', PREVIOUS_PROFESSIONALS, t(`${A}.need.previousProfessionals`))}
+            {comment('previous_comment', t(`${A}.need.previousComment`))}
+          </div>
+        )}
+        {/* Each question, then what follows it (the tab order keeps them together). */}
+        <FormRow>{yesNoField('has_issues', t(`${A}.need.issues`), t(`${A}.need.issuesHelp`))}</FormRow>
+        {values.has_issues === 'yes' && (
+          <div className="space-y-3 border-l-2 border-border-light pl-3">
+            {codes('issues', 'issue', ISSUES, t(`${A}.need.issuesWhich`))}
+            {comment('issues_comment', t(`${A}.need.issuesComment`))}
+          </div>
+        )}
+        <FormRow>{yesNoField('has_legal_context', t(`${A}.need.legal`), t(`${A}.need.legalHelp`))}</FormRow>
+        {values.has_legal_context === 'yes' && (
+          <div className="space-y-3 border-l-2 border-border-light pl-3">
+            {codes('legal_context', 'legalContext', LEGAL_CONTEXTS, t(`${A}.need.legalWhich`))}
+            {comment('legal_detail', t(`${A}.need.legalDetail`))}
+          </div>
+        )}
         <FormRow>
           <FormField label={t(`${A}.need.title_`)}>
             {(field) => (
@@ -295,6 +400,9 @@ function IntakeForm() {
             ))}
           </div>
         </fieldset>
+        <FormField label={t(`${A}.need.motifOther`)} help={t(`${A}.need.motifOtherHelp`)}>
+          {(field) => <Input {...field} value={values.motif_other} onChange={(e) => set('motif_other', e.target.value)} readOnly={!canEdit} maxLength={200} autoComplete="off" />}
+        </FormField>
         <FormField label={t(`${A}.need.concerns`)} help={t(`${A}.need.concernsHelp`)}>
           {(field) => <Textarea {...field} value={values.concerns} onChange={(e) => set('concerns', e.target.value)} readOnly={!canEdit} rows={3} />}
         </FormField>
@@ -323,6 +431,11 @@ function IntakeForm() {
             ))}
           </div>
         </fieldset>
+        <FormField label={t(`${A}.prefs.availabilityOther`)} help={t(`${A}.prefs.availabilityOtherHelp`)}>
+          {(field) => (
+            <Input {...field} value={values.availability_other} onChange={(e) => set('availability_other', e.target.value)} readOnly={!canEdit} maxLength={300} autoComplete="off" />
+          )}
+        </FormField>
         <FormRow>
           {choice('payer', PAYER_KINDS, 'payer_kind', t(`${A}.prefs.payer`))}
           <FormField label={t(`${A}.prefs.insurer`)}>
