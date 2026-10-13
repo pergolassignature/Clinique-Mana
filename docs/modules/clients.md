@@ -177,7 +177,7 @@ Migrations `20261013205008_core_stored_files_retention` (core: `private.set_stor
 
 ## Consents, part 3 (batch C5b: the report)
 
-Migrations `20261013230407_clients_consent_report_facts` (Clients) and `20261013230412_reports_consents` (Rapports); pgTAP `174`, `175`; decision **CC-19**.
+Migrations `20261013233508_clients_consent_report_facts` (Clients) and `20261013233513_reports_consents` (Rapports); pgTAP `174`, `175`; decision **CC-19**.
 
 - **Published for Rapports:** `private.client_consent_state_facts(org)` (one row per active file and active consent: the file's primary professional and the state as the record's tab shows it, `client_consents_status`, or `none`) and `private.client_consent_event_facts(org, from, to)` (the signatures, app or import, and the withdrawals of a period, with the request's first send for the app's).
 - **Rapports → « Consentements »:** see [reports doc](reports.md). The counts are the record tabs' (C5b acceptance).
