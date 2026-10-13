@@ -520,7 +520,7 @@ values ('c11e0000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000
         date '1990-04-12', 'camille.exemple@mana.test', 'fr', '11111111-1111-1111-1111-111111111111');
 
 -- Local QuickBooks (Facturation, FQ; the module is on above, F1): the fake Intuit's application
--- (`npm run fake:qbo`, port 55394; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
+-- (`npm run fake:qbo`, port 55395; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
 -- as set_org_secret stores it, and three fictitious clients the fake company's customers match:
 -- Amélie Tremblay by email (rattachée), Marc-Antoine Côté by phone and name (rattaché), Paul
 -- Bélanger sharing Julie Bélanger's phone under another name (à décider). Only Admin holds

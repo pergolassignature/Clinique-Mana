@@ -89,12 +89,13 @@ const SheetBody = ({
 )
 SheetBody.displayName = 'SheetBody'
 
+/** The sheet's actions; `px-5` as SheetBody, so the buttons end where the form does. */
 const SheetFooter = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex shrink-0 flex-col-reverse gap-2 border-t border-border p-3 sm:flex-row sm:justify-end', className)}
+    className={cn('flex shrink-0 flex-col-reverse gap-2 border-t border-border px-5 py-3 sm:flex-row sm:justify-end', className)}
     {...props}
   />
 )

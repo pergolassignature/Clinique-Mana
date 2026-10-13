@@ -98,9 +98,25 @@ export function FormField({ label, width, className, help, error, required, read
 }
 
 /**
- * Fields that belong together on one line (Prénom | Nom; Ville | Province | Code postal), 12 px
- * apart, wrapping when the column is too narrow. Give each `FormField` a `width`.
+ * How a `columns` row splits the column, from `sm` (stacked below): `2` and `3` equal columns,
+ * `address` Ville (the rest) | Province (12rem) | Code postal (the `sm` width). A row with only
+ * one field keeps it in the first column.
  */
-export function FormRow({ className, children }: { className?: string; children: ReactNode }) {
+const ROW_COLUMNS = {
+  2: 'sm:grid-cols-2',
+  3: 'sm:grid-cols-3',
+  address: 'sm:grid-cols-[minmax(0,1fr)_12rem_var(--field-sm)]',
+} as const
+
+export type FormRowColumns = keyof typeof ROW_COLUMNS
+
+/**
+ * Fields that belong together on one line (Prénom | Nom; Ville | Province | Code postal), 12 px
+ * apart. Without `columns`: each `FormField` at its `width`, wrapping when the column is too
+ * narrow. With `columns`: a grid that ends exactly where a `width="full"` field does, so every row
+ * of a form shares one right edge; its fields take no `width` (or `full`), they fill their cell.
+ */
+export function FormRow({ columns, className, children }: { columns?: FormRowColumns; className?: string; children: ReactNode }) {
+  if (columns) return <div className={cn('grid grid-cols-1 items-start gap-3', ROW_COLUMNS[columns], className)}>{children}</div>
   return <div className={cn('flex flex-wrap items-start gap-3', className)}>{children}</div>
 }

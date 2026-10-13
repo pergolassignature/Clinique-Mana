@@ -43,7 +43,7 @@ interface SelectProps {
   form: ClientForm
   name: ClientFieldKey
   label: string
-  width?: 'sm' | 'md'
+  width?: 'sm' | 'md' | 'full'
   required?: boolean
   /** The empty choice's words; without it the field has no empty choice. */
   placeholder?: string

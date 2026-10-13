@@ -28,9 +28,9 @@ export const clientsManifest: ModuleManifest = {
   labelKey: 'modules.clients.name',
   dependsOn: ['professionals'],
   nav: [
-    { path: '/clients', labelKey: 'modules.clients.name', icon: UsersRound, permission: 'clients.view', order: 15 },
-    { path: '/clients/consentements', labelKey: 'modules.clients.consents.nav', icon: FileCheck, permission: 'clients.view', order: 16 },
-    { path: '/mes-clients', labelKey: 'modules.clients.mine.title', icon: Contact, permission: 'clients.self', shownWhen: hasProfessionalFile, order: 7 },
+    { path: '/clients', labelKey: 'modules.clients.name', icon: UsersRound, permission: 'clients.view', group: 'followUp', order: 15 },
+    { path: '/clients/consentements', labelKey: 'modules.clients.consents.nav', icon: FileCheck, permission: 'clients.view', group: 'followUp', order: 16 },
+    { path: '/mes-clients', labelKey: 'modules.clients.mine.title', icon: Contact, permission: 'clients.self', shownWhen: hasProfessionalFile, group: 'main', order: 7 },
   ],
   routes: [
     { path: 'clients', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientsListPage'), 'ClientsListPage') },

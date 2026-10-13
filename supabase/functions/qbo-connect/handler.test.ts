@@ -66,7 +66,7 @@ Deno.test("qbo-connect: start answers Intuit's consent page with a signed state 
     const url = new URL((await res.json()).url)
     assertEquals(
       url.origin + url.pathname,
-      'http://127.0.0.1:55394/connect/oauth2',
+      'http://127.0.0.1:55395/connect/oauth2',
     )
     assertEquals(url.searchParams.get('client_id'), 'local-dev-qbo-client-id')
     assertEquals(

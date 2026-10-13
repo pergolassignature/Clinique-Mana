@@ -1,10 +1,11 @@
-import type { MouseEvent } from 'react'
+import { useId, type MouseEvent } from 'react'
 import { LogOut } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import logoUrl from '@/assets/logo-header.svg'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
 import { useRoleLabel } from '@/core/access/org-roles'
+import { groupNavItems } from '@/core/modules/nav-groups'
 import { isUnder } from '@/core/settings/paths'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { cn } from '@/shared/lib/utils'
@@ -28,14 +29,16 @@ interface SidebarContentProps {
 }
 
 /**
- * The sidebar's inside (design system SidebarNav): logo, main menu, and the signed-in user with a
- * sign-out button. Rendered in the desktop sidebar and in the mobile sheet.
+ * The sidebar's inside (design system SidebarNav): logo, main menu by section (decision NAV-1), and
+ * the signed-in user with a sign-out button. Rendered in the desktop sidebar and in the mobile sheet.
  */
 export function SidebarContent({ navItems, collapsed, variant, signingOut, onSignOut, onLinkClick }: SidebarContentProps) {
   const { org_name, display_name, role } = useReadyAccess()
   const roleText = useRoleLabel(role)
   const touch = variant === 'sheet'
   const { pathname } = useLocation()
+  // The desktop sidebar and the phone sheet both render this: their heading ids must differ.
+  const navId = useId()
   // « Clients » stays active on a record (/clients/…) but not on « Consentements »
   // (/clients/consentements), which is its own item: the longer item wins where it matches.
   const shadowedHere = (path: string) =>
@@ -50,29 +53,52 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
         <span className="sr-only">{org_name || t('app.name')}</span>
       </div>
 
-      <nav aria-label={t('nav.label')} className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pt-1">
-        {navItems.map((item) => {
-          const label = t(item.labelKey)
+      <nav aria-label={t('nav.label')} className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-1">
+        {/* By section (decision NAV-1), as Paramètres' menu: a labelled section is a group named by
+            its heading, plain text that is never focused. Collapsed, the headings stay for screen
+            readers and a rule separates the sections. */}
+        {groupNavItems(navItems).map((group, index) => {
+          const headingId = group.labelKey ? `${navId}-${group.id}` : undefined
           return (
-            <GuardedNavLink
-              key={item.path}
-              to={item.path}
-              end={shadowedHere(item.path)}
-              onClick={onLinkClick && ((event) => onLinkClick(event, item.path))}
-              title={collapsed ? label : undefined}
-              className={({ isActive }) =>
-                cn(
-                  `group flex items-center gap-2.5 rounded-md text-sm transition-colors duration-120 ${focusRing}`,
-                  collapsed ? 'justify-center p-2' : touch ? 'min-h-10 px-2 py-2.5' : 'px-2 py-1.5',
-                  isActive
-                    ? 'bg-card font-medium text-foreground ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-ink/5 hover:text-foreground',
-                )
-              }
+            <div
+              key={group.id}
+              role={headingId ? 'group' : undefined}
+              aria-labelledby={headingId}
+              className={cn('flex flex-col gap-px', index > 0 && (collapsed ? 'mt-1.5 border-t border-border pt-1.5' : 'mt-3'))}
             >
-              <item.icon className="h-4 w-4 shrink-0 text-subtle group-aria-[current=page]:text-foreground" aria-hidden />
-              <span className={collapsed ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{label}</span>
-            </GuardedNavLink>
+              {group.labelKey && (
+                <p
+                  id={headingId}
+                  className={collapsed ? 'sr-only' : 'mb-0.5 truncate px-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground'}
+                >
+                  {t(group.labelKey)}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const label = t(item.labelKey)
+                return (
+                  <GuardedNavLink
+                    key={item.path}
+                    to={item.path}
+                    end={shadowedHere(item.path)}
+                    onClick={onLinkClick && ((event) => onLinkClick(event, item.path))}
+                    title={collapsed ? label : undefined}
+                    className={({ isActive }) =>
+                      cn(
+                        `group flex items-center gap-2.5 rounded-md text-sm transition-colors duration-120 ${focusRing}`,
+                        collapsed ? 'justify-center p-2' : touch ? 'min-h-10 px-2 py-2.5' : 'px-2 py-1.5',
+                        isActive
+                          ? 'bg-card font-medium text-foreground ring-1 ring-border'
+                          : 'text-muted-foreground hover:bg-ink/5 hover:text-foreground',
+                      )
+                    }
+                  >
+                    <item.icon className="h-4 w-4 shrink-0 text-subtle group-aria-[current=page]:text-foreground" aria-hidden />
+                    <span className={collapsed ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{label}</span>
+                  </GuardedNavLink>
+                )
+              })}
+            </div>
           )
         })}
       </nav>

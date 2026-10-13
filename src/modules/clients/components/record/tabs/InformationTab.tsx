@@ -44,18 +44,18 @@ export function InformationTab() {
         <ClientCard title={t(`${I}.identity`)} fields={IDENTITY} firstField="firstName">
           {(form) => (
             <>
-              <FormRow>
-                <TextField form={form} name="firstName" label={t(`${F}.firstName`)} required />
-                <TextField form={form} name="lastName" label={t(`${F}.lastName`)} required />
+              <FormRow columns={2}>
+                <TextField form={form} name="firstName" label={t(`${F}.firstName`)} width="full" required />
+                <TextField form={form} name="lastName" label={t(`${F}.lastName`)} width="full" required />
               </FormRow>
-              <FormRow>
-                <TextField form={form} name="birthFirstName" label={t(`${F}.birthFirstName`)} />
-                <TextField form={form} name="pronouns" label={t(`${F}.pronouns`)} help={t(`${F}.pronounsHelp`)} />
+              <FormRow columns={2}>
+                <TextField form={form} name="birthFirstName" label={t(`${F}.birthFirstName`)} width="full" />
+                <TextField form={form} name="pronouns" label={t(`${F}.pronouns`)} width="full" help={t(`${F}.pronounsHelp`)} />
               </FormRow>
-              <FormRow>
-                <TextField form={form} name="birthday" label={t(`${F}.birthday`)} width="sm" type="date" />
-                <SelectField form={form} name="sex" label={t(`${F}.sex`)} width="sm" placeholder={t(`${F}.notSaid`)} options={SEXES.map((v) => ({ value: v, label: sexLabel(v) }))} />
-                <SelectField form={form} name="language" label={t(`${F}.language`)} width="sm" required options={LANGUAGES.map((v) => ({ value: v, label: languageLabel(v) }))} />
+              <FormRow columns={3}>
+                <TextField form={form} name="birthday" label={t(`${F}.birthday`)} width="full" type="date" />
+                <SelectField form={form} name="sex" label={t(`${F}.sex`)} width="full" placeholder={t(`${F}.notSaid`)} options={SEXES.map((v) => ({ value: v, label: sexLabel(v) }))} />
+                <SelectField form={form} name="language" label={t(`${F}.language`)} width="full" required options={LANGUAGES.map((v) => ({ value: v, label: languageLabel(v) }))} />
               </FormRow>
             </>
           )}
@@ -65,12 +65,12 @@ export function InformationTab() {
           {(form) => (
             <>
               <TextField form={form} name="email" label={t(`${F}.email`)} width="full" type="email" />
-              <FormRow>
-                <TextField form={form} name="mobile" label={t(`${F}.mobile`)} type="tel" regroup={regroupPhone} />
-                <TextField form={form} name="home" label={t(`${F}.home`)} type="tel" regroup={regroupPhone} />
+              <FormRow columns={2}>
+                <TextField form={form} name="mobile" label={t(`${F}.mobile`)} width="full" type="tel" regroup={regroupPhone} />
+                <TextField form={form} name="home" label={t(`${F}.home`)} width="full" type="tel" regroup={regroupPhone} />
               </FormRow>
-              <FormRow>
-                <TextField form={form} name="work" label={t(`${F}.work`)} type="tel" regroup={regroupPhone} />
+              <FormRow columns={2}>
+                <TextField form={form} name="work" label={t(`${F}.work`)} width="full" type="tel" regroup={regroupPhone} />
                 <TextField form={form} name="workExt" label={t(`${F}.workExt`)} width="xs" />
               </FormRow>
               <CheckGroup>
@@ -89,22 +89,25 @@ export function InformationTab() {
                   <AddressAutocomplete {...field} {...form.register('addressLine1')} autofill={addressAutofill(form, ADDRESS_FIELDS)} placeholder={t('address.line1Placeholder')} />
                 )}
               </FormField>
-              <TextField form={form} name="addressLine2" label={t(`${F}.addressLine2`)} />
-              <FormRow>
-                <TextField form={form} name="city" label={t(`${F}.city`)} />
+              {/* Alone in the first column, as Professionnels' address forms (P4-220). */}
+              <FormRow columns={2}>
+                <TextField form={form} name="addressLine2" label={t(`${F}.addressLine2`)} width="full" />
+              </FormRow>
+              <FormRow columns="address">
+                <TextField form={form} name="city" label={t(`${F}.city`)} width="full" />
                 {abroad ? (
-                  <TextField form={form} name="province" label={t(`${F}.provinceAbroad`)} />
+                  <TextField form={form} name="province" label={t(`${F}.provinceAbroad`)} width="full" />
                 ) : (
                   <SelectField
                     form={form}
                     name="province"
                     label={t(`${F}.province`)}
-                    width="sm"
+                    width="full"
                     placeholder={t(`${F}.notSaid`)}
                     options={PROVINCE_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
                   />
                 )}
-                <TextField form={form} name="postalCode" label={t(`${F}.postalCode`)} width="sm" regroup={abroad ? undefined : (v) => formatPostalCode(v.trim())} />
+                <TextField form={form} name="postalCode" label={t(`${F}.postalCode`)} width="full" regroup={abroad ? undefined : (v) => formatPostalCode(v.trim())} />
               </FormRow>
             </>
           )}
@@ -113,18 +116,22 @@ export function InformationTab() {
         <ClientCard title={t(`${I}.file`)} fields={FILE} firstField="primaryProfessionalId">
           {(form) => (
             <>
-              <FormRow>
+              <FormRow columns={2}>
                 <SelectField
                   form={form}
                   name="primaryProfessionalId"
                   label={t(`${F}.primaryProfessional`)}
+                  width="full"
                   placeholder={t(`${F}.none`)}
                   options={choices(reference.professionals, [summary.client.primaryProfessionalId])}
                 />
+                {/* A one-line label, so both selects stay on one line; the question is the help. */}
                 <SelectField
                   form={form}
                   name="referralSourceId"
-                  label={t(`${F}.referralSource`)}
+                  label={t(`${F}.referralSourceShort`)}
+                  help={t(`${F}.referralSource`)}
+                  width="full"
                   placeholder={t(`${F}.notSaid`)}
                   options={choices(reference.referralSources, [summary.client.referralSourceId])}
                 />
@@ -138,13 +145,16 @@ export function InformationTab() {
         <ClientCard title={t(`${I}.billing`)} description={t(`${I}.billingHelp`)} fields={BILLING} firstField="rateVariant">
           {(form) => (
             <>
-              <SelectField
-                form={form}
-                name="rateVariant"
-                label={t(`${F}.rateVariant`)}
-                placeholder={t(`${F}.regularRate`)}
-                options={RATE_VARIANTS.map((v) => ({ value: v, label: rateVariantLabel(v) }))}
-              />
+              <FormRow columns={2}>
+                <SelectField
+                  form={form}
+                  name="rateVariant"
+                  label={t(`${F}.rateVariant`)}
+                  width="full"
+                  placeholder={t(`${F}.regularRate`)}
+                  options={RATE_VARIANTS.map((v) => ({ value: v, label: rateVariantLabel(v) }))}
+                />
+              </FormRow>
               <CheckGroup>
                 <CheckField form={form} name="taxExempt" label={t(`${F}.taxExempt`)} help={t(`${F}.taxExemptHelp`)} />
                 <CheckField form={form} name="specialAgreement" label={t(`${F}.specialAgreement`)} help={t(`${F}.specialAgreementHelp`)} />

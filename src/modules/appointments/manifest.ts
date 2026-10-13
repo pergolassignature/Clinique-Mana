@@ -26,7 +26,7 @@ export const appointmentsManifest: ModuleManifest = {
   labelKey: 'modules.appointments.name',
   dependsOn: ['clients', 'services', 'professionals'],
   nav: [
-    { path: '/agenda', labelKey: 'modules.appointments.agenda.title', icon: CalendarDays, permission: 'appointments.view', order: 12 },
+    { path: '/agenda', labelKey: 'modules.appointments.agenda.title', icon: CalendarDays, permission: 'appointments.view', group: 'followUp', order: 12 },
     // The professional's own agenda (R5).
     {
       path: '/mon-agenda',
@@ -34,6 +34,7 @@ export const appointmentsManifest: ModuleManifest = {
       icon: CalendarRange,
       permission: 'appointments.self',
       shownWhen: hasProfessionalFile,
+      group: 'main',
       order: 6,
     },
     // The professional's video link (RZ).
@@ -43,6 +44,7 @@ export const appointmentsManifest: ModuleManifest = {
       icon: Video,
       permission: 'appointments.self',
       shownWhen: hasProfessionalFile,
+      group: 'main',
       order: 7,
     },
   ],
