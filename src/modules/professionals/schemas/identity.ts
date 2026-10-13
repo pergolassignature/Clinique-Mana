@@ -57,3 +57,12 @@ export const experienceAndPayersSchema = experienceSchema.extend(payerNumbersSch
 export function toPayerNumbersFormValues(payerNumbers: readonly PayerNumber[]): PayerNumbersValues {
   return { ivac: payerNumbers.find((p) => p.type === 'ivac')?.number ?? '' }
 }
+
+/** « Supervision » (F2.0): the supervisor's id, or empty for none. */
+export const supervisorSchema = z.object({
+  supervisorId: z.string().transform((v) => (v === '' ? null : v)),
+})
+
+export function toSupervisorFormValues(p: Professional): z.input<typeof supervisorSchema> {
+  return { supervisorId: p.supervisorId ?? '' }
+}

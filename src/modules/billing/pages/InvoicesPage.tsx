@@ -10,28 +10,29 @@ import { Button } from '@/shared/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { InvoiceStatus } from '../api/invoices'
 import { useInvoices } from '../hooks/use-invoices'
-import { formatCents, statusLabel, statusVariant } from '../lib/money'
+import { formatCents, paymentLabel, paymentVariant, statusLabel, statusVariant } from '../lib/money'
+import { MorningQueue } from './MorningQueue'
 
 const L = 'modules.billing.list'
-const VIEWS = ['brouillons', 'emises', 'creditees', 'toutes'] as const
+const VIEWS = ['file', 'brouillons', 'emises', 'creditees', 'toutes'] as const
 type View = (typeof VIEWS)[number]
-const STATUS_OF: Record<View, InvoiceStatus | null> = { brouillons: 'draft', emises: 'issued', creditees: 'credited', toutes: null }
+type ListView = Exclude<View, 'file'>
+const STATUS_OF: Record<ListView, InvoiceStatus | null> = { brouillons: 'draft', emises: 'issued', creditees: 'credited', toutes: null }
 
 /**
- * « Factures » (`/facturation`, `billing.view`; F1): the invoices newest first, by state (real
- * Radix tabs, the view in the URL): drafts to finish, issued, credited, all. A row opens the
- * invoice. New invoices start from the client's « Visites et paiements ».
+ * « Factures » (`/facturation`, `billing.view`): the morning queue first (F2, the default view),
+ * then the invoices newest first by state (real Radix tabs, the view in the URL): drafts to
+ * finish, issued (with their payment state), credited, all. A row opens the invoice. New invoices
+ * start from the client's « Visites et paiements ».
  */
 export function InvoicesPage() {
   usePageTitle(t(`${L}.title`))
   const [params, setParams] = useSearchParams()
-  const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : 'brouillons'
-  const invoices = useInvoices(STATUS_OF[view])
-  const rows = invoices.data?.pages.flat() ?? []
+  const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : 'file'
   return (
     <>
       <PageHeader level={1} title={t(`${L}.title`)} description={t(`${L}.description`)} />
-      <Tabs value={view} onValueChange={(v) => setParams(v === 'brouillons' ? {} : { vue: v }, { replace: true })} className="mb-3">
+      <Tabs value={view} onValueChange={(v) => setParams(v === 'file' ? {} : { vue: v }, { replace: true })} className="mb-3">
         <TabsList aria-label={t(`${L}.views`)}>
           {VIEWS.map((v) => (
             <TabsTrigger key={v} value={v}>
@@ -40,6 +41,16 @@ export function InvoicesPage() {
           ))}
         </TabsList>
       </Tabs>
+      {view === 'file' ? <MorningQueue /> : <InvoiceList view={view} />}
+    </>
+  )
+}
+
+function InvoiceList({ view }: { view: ListView }) {
+  const invoices = useInvoices(STATUS_OF[view])
+  const rows = invoices.data?.pages.flat() ?? []
+  return (
+    <>
       {invoices.isError && !invoices.data ? (
         <LoadError message={t(`${L}.loadError`)} onRetry={() => void invoices.refetch()} retrying={invoices.isFetching} />
       ) : !invoices.data ? (
@@ -58,6 +69,7 @@ export function InvoicesPage() {
                   <th className="px-3 py-2 font-medium">{t(`${L}.issuedOn`)}</th>
                   <th className="px-3 py-2 text-right font-medium">{t(`${L}.total`)}</th>
                   <th className="px-3 py-2 font-medium">{t(`${L}.status`)}</th>
+                  <th className="px-3 py-2 font-medium">{t(`${L}.payment`)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -74,6 +86,9 @@ export function InvoicesPage() {
                     <td className="tabular px-3 py-2 text-right">{formatCents(r.totalCents)}</td>
                     <td className="px-3 py-2">
                       <Badge variant={statusVariant(r.status)}>{statusLabel(r.status)}</Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      {r.status === 'issued' && <Badge variant={paymentVariant(r.paymentStatus)}>{paymentLabel(r.paymentStatus)}</Badge>}
                     </td>
                   </tr>
                 ))}

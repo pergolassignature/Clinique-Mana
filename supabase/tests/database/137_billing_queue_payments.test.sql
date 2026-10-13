@@ -111,7 +111,7 @@ reset role;
 -- The job: yesterday's and the day before's sessions, once; held for an agreement.
 select is(private.job_billing_build_drafts(), 'built=5 held=2 failed=0', 'five drafts, two held (Zoé''s and Théo''s agreements)');
 select is(private.job_billing_build_drafts(), 'built=0 held=0 failed=0', '… once');
-select results_eq($$ select q.appointment_id, i.hold_reason from public.billing_queue_items q join public.invoices i on i.id = q.invoice_id order by q.appointment_id $$,
+select results_eq($$ select q.appointment_id, i.hold_reason from public.billing_queue_items q join public.invoices i on i.id = q.invoice_id where q.org_id = 'b0000000-0000-0000-0000-00000000000a' order by q.appointment_id $$,
   $$ values ('e0000000-0000-0000-0000-000000000001'::uuid, null::text), ('e0000000-0000-0000-0000-000000000002', 'special_agreement'),
             ('e0000000-0000-0000-0000-000000000003', null), ('e0000000-0000-0000-0000-000000000004', 'client_agreement'),
             ('e0000000-0000-0000-0000-000000000006', null) $$,
@@ -152,7 +152,7 @@ select lives_ok($$ select public.release_invoice_draft(current_setting('test.lea
 select lives_ok($$ select public.release_invoice_draft(current_setting('test.zoe')::uuid) $$, 'Zoé''s agreement validated');
 select results_eq($$ select error is null, number ~ '^[0-9]{4}-[23]$' from public.send_invoices(array[current_setting('test.zoe')::uuid, current_setting('test.lea2')::uuid]) $$,
   $$ values (true, true), (true, true) $$, '« Tout envoyer »: both, the next numbers');
-select is((select count(*)::int from public.billing_deliveries where kind = 'invoice' and send_email), 3, 'three emails asked');
+select is((select count(*)::int from public.billing_deliveries where org_id = 'b0000000-0000-0000-0000-00000000000a' and kind = 'invoice' and send_email), 3, 'three emails asked');
 select ok(not exists (select 1 from pg_catalog.jsonb_array_elements(public.list_morning_queue()) x
                        where x ->> 'id' in (current_setting('test.zoe'), current_setting('test.nadia'))), 'the sent leave the queue');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
@@ -243,7 +243,7 @@ select results_eq($$ select i.paid_cents, i.payment_status, r.number ~ '^R-[0-9]
 select lives_ok($$ select public.record_payment(current_setting('test.lea2')::uuid, 'cheque', current_setting('test.total')::int - 5000) $$, 'the rest');
 select results_eq($$ select paid_cents = total_cents, payment_status from public.invoices where id = current_setting('test.lea2')::uuid $$,
   $$ values (true, 'paid'::text) $$, '… paid');
-select is((select count(*)::int from public.billing_deliveries where kind = 'receipt' and send_email), 2, 'each receipt goes to the payer');
+select is((select count(*)::int from public.billing_deliveries where org_id = 'b0000000-0000-0000-0000-00000000000a' and kind = 'receipt' and send_email), 2, 'each receipt goes to the payer');
 select throws_ok($$ select public.issue_credit_note(current_setting('test.lea2')::uuid, 'Erreur') $$,
   'P0001', 'Cette facture a des paiements : remboursez-les avant de la créditer.', 'a paid invoice waits for refunds');
 select throws_ok($$ select public.record_payment(current_setting('test.lea2')::uuid, 'interac', 1) $$,
@@ -252,7 +252,7 @@ select throws_ok($$ select public.record_payment(current_setting('test.lea2')::u
 select lives_ok($$ select public.issue_credit_note(current_setting('test.zoe')::uuid, 'Erreur de tarif') $$, 'Zoé''s credited');
 select lives_ok($$ select public.issue_credit_note(current_setting('test.nadia')::uuid, 'Erreur de tarif') $$, 'Nadia''s credited');
 select results_eq($$ select i.id::text, d.send_email from public.billing_deliveries d join public.invoices i on i.id = d.invoice_id
-                      where d.kind = 'credit_note' order by d.send_email $$,
+                      where d.org_id = 'b0000000-0000-0000-0000-00000000000a' and d.kind = 'credit_note' order by d.send_email $$,
   $$ values (current_setting('test.nadia'), false), (current_setting('test.zoe'), true) $$, 'the credit note emailed when the invoice was');
 -- A manual finalising: its PDF, no email.
 select set_config('test.m', public.create_manual_invoice('d0000000-0000-0000-0000-000000000004')::text, true);
@@ -284,7 +284,7 @@ select is((select count(*)::int from public.special_agreements where client_id =
 reset role;
 
 -- QuickBooks' outbox (FQ): each issued invoice, credit note and payment once, never an import.
-select results_eq($$ select kind, count(*)::int from public.billing_sync_events group by kind order by kind $$,
+select results_eq($$ select kind, count(*)::int from public.billing_sync_events where org_id = 'b0000000-0000-0000-0000-00000000000a' group by kind order by kind $$,
   $$ values ('invoice_credited'::text, 2), ('invoice_issued', 4), ('payment_recorded', 2) $$,
   'every issued invoice, credit note and payment is in the outbox');
 select is((select count(*)::int from public.billing_sync_events
@@ -293,7 +293,7 @@ select is(private.billing_invoice_for_sync('b0000000-0000-0000-0000-00000000000a
   (select number from public.credit_notes where invoice_id = current_setting('test.zoe')::uuid), 'the invoice''s read names its credit note');
 select is((private.billing_payment_for_sync('b0000000-0000-0000-0000-00000000000a',
              (select id from public.payments where reference = 'CA1234')) ->> 'mode_code'), 'interac', 'the payment''s read names its mode');
-select set_config('test.ev', (select min(id)::text from public.billing_sync_events), true);
+select set_config('test.ev', (select min(id)::text from public.billing_sync_events where org_id = 'b0000000-0000-0000-0000-00000000000a'), true);
 select lives_ok($$ select public.finish_billing_sync_event_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.ev')::bigint, 'qbo_unavailable') $$,
   'a push that fails');
 select results_eq($$ select attempts, processed_at is null from public.billing_sync_events where id = current_setting('test.ev')::bigint $$,

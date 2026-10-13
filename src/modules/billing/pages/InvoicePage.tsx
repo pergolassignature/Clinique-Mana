@@ -8,7 +8,7 @@ import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { RefusalAlert } from '@/shared/components/RefusalAlert'
-import { formatDateOnly } from '@/shared/lib/timezone'
+import { formatDateOnly, getClinicDateString } from '@/shared/lib/timezone'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import {
@@ -30,6 +30,7 @@ import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import { Textarea } from '@/shared/ui/textarea'
 import type { InvoiceBundle, InvoiceLine } from '../api/invoices'
+import { deliveryText, PdfLink, PreviewButton } from '../components/documents'
 import {
   useAddAdjustment,
   useDeleteDraft,
@@ -41,16 +42,20 @@ import {
   useSetInvoicePayer,
   useSetLinePrice,
 } from '../hooks/use-invoices'
-import { formatCents, lineTypeLabel, parseDollars, statusLabel, statusVariant } from '../lib/money'
+import { useRecordPayment, useReleaseDraft, useResendDocument, useSendInvoices } from '../hooks/use-queue'
+import { formatCents, lineTypeLabel, paymentLabel, paymentVariant, parseDollars, statusLabel, statusVariant } from '../lib/money'
+import { HoldButton } from './MorningQueue'
 
 const I = 'modules.billing.invoice'
 
 /**
- * An invoice (`/facturation/factures/:id`, F1): the dossier and « Facturé à » (chosen among the
- * client and the relations holding the right, a draft only), the lines with their taxes, the
- * totals the database computed, the notes. A draft takes adjustments, amounts to type and line
- * removals, then « Finaliser » numbers it (`AAAA-N`); an issued invoice is corrected only by a
- * credit note (then a new invoice).
+ * An invoice (`/facturation/factures/:id`): the dossier and « Facturé à » (chosen among the client
+ * and the relations holding the right, a draft only), the lines with their taxes, the totals the
+ * database computed, the notes. A draft takes adjustments, amounts to type and line removals, then
+ * « Finaliser et envoyer » numbers it (`AAAA-N`) and sends its PDF to the payer (F2; « Finaliser
+ * sans envoyer » keeps the email); « Aperçu PDF » renders it first. An issued invoice shows its
+ * PDF, what its email did, its payments with their receipts (« Enregistrer un paiement »), and is
+ * corrected only by a credit note (then a new invoice).
  */
 export function InvoicePage() {
   const { id = '' } = useParams()
@@ -71,6 +76,10 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
   const feedback = { onErrorMessage: setRefusal }
   const setPayer = useSetInvoicePayer(feedback)
   const finalize = useFinalizeInvoice(feedback)
+  const send = useSendInvoices(feedback)
+  const release = useReleaseDraft(feedback)
+  const resend = useResendDocument(feedback)
+  const delivery = deliveryText(bundle.deliveries[0])
   return (
     <div className="space-y-5">
       <PageHeader
@@ -80,9 +89,12 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
         actions={
           <div className="flex flex-wrap gap-2">
             {draft && <DeleteDraft invoiceId={invoice.id} />}
+            {invoice.status === 'draft' && <PreviewButton kind="invoice" id={invoice.id} />}
+            {draft && invoice.queueDay !== null && invoice.holdReason === null && <HoldButton invoiceId={invoice.id} />}
             {draft && (
               <Button
                 type="button"
+                variant="outline"
                 aria-disabled={finalize.isPending || undefined}
                 onClick={() => {
                   if (finalize.isPending) return
@@ -90,7 +102,35 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
                   finalize.mutate(invoice.id, { onSuccess: (number) => toast.success(t(`${I}.finalized`, { number })) })
                 }}
               >
-                {t(`${I}.finalize`)}
+                {t(`${I}.finalizeOnly`)}
+              </Button>
+            )}
+            {draft && (
+              <Button
+                type="button"
+                aria-disabled={send.isPending || undefined}
+                onClick={() => {
+                  if (send.isPending) return
+                  setRefusal(null)
+                  send.mutate([invoice.id], {
+                    onSuccess: ([result]) => {
+                      if (result?.error) setRefusal(result.error)
+                      else if (result?.number) toast.success(t(`${I}.sentOne`, { number: result.number }))
+                    },
+                  })
+                }}
+              >
+                {t(`${I}.sendFinalize`)}
+              </Button>
+            )}
+            {manage && invoice.status !== 'draft' && (
+              <Button
+                type="button"
+                variant="outline"
+                aria-disabled={resend.isPending || undefined}
+                onClick={() => resend.mutate({ kind: 'invoice', id: invoice.id })}
+              >
+                {t(`${I}.resend`)}
               </Button>
             )}
             {manage && invoice.status === 'issued' && <CreditNoteButton invoiceId={invoice.id} />}
@@ -99,9 +139,32 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
       />
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={statusVariant(invoice.status)}>{statusLabel(invoice.status)}</Badge>
+        {invoice.status === 'issued' && <Badge variant={paymentVariant(invoice.paymentStatus)}>{paymentLabel(invoice.paymentStatus)}</Badge>}
         {invoice.taxExempt && <Badge variant="outline">{t(`${I}.taxExempt`)}</Badge>}
       </div>
       {refusal && <RefusalAlert message={refusal} />}
+      {invoice.status === 'draft' && invoice.holdNow !== null && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <span>
+            {t(`${I}.held`, { reason: t(`modules.billing.queue.holds.${invoice.holdNow}`) })}
+            {invoice.holdNote && <span className="block text-muted-foreground">{invoice.holdNote}</span>}
+          </span>
+          {manage && invoice.holdReason !== null && (
+            <Button type="button" size="sm" variant="outline" aria-disabled={release.isPending || undefined} onClick={() => release.mutate(invoice.id)}>
+              {t(`${I}.release`)}
+            </Button>
+          )}
+        </div>
+      )}
+      {invoice.status === 'draft' && !invoice.payerHasEmail && invoice.holdNow !== 'payer_missing' && (
+        <p className="text-sm text-muted-foreground">{t(`${I}.noEmail`)}</p>
+      )}
+      {invoice.status !== 'draft' && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <PdfLink fileId={invoice.pdfFileId} label={t(`${I}.download`)} />
+          {delivery && <span className="text-muted-foreground">{delivery}</span>}
+        </div>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1 text-sm">
@@ -147,8 +210,13 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
         <section className="rounded-md border border-border bg-muted/40 p-3 text-sm">
           <p className="font-medium">{t(`${I}.creditNote`, { number: creditNote.number, date: formatDateOnly(creditNote.issuedOn) })}</p>
           <p className="text-muted-foreground">{creditNote.reason}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <PdfLink fileId={creditNote.pdfFileId} label={t(`${I}.downloadCreditNote`)} />
+            {deliveryText(creditNote.deliveries[0]) && <span className="text-muted-foreground">{deliveryText(creditNote.deliveries[0])}</span>}
+          </div>
         </section>
       )}
+      {invoice.status !== 'draft' && <Payments bundle={bundle} manage={manage} />}
       {manage && <Notes key={`${invoice.notesClient}|${invoice.notesInternal}`} bundle={bundle} />}
     </div>
   )
@@ -316,6 +384,106 @@ function Totals({ bundle }: { bundle: InvoiceBundle }) {
         <dd className="tabular">{formatCents(invoice.totalCents)}</dd>
       </div>
     </dl>
+  )
+}
+
+const P = 'modules.billing.invoice.payments'
+
+/** The invoice's payments and their receipts; « Enregistrer un paiement » while a balance is left. */
+function Payments({ bundle, manage }: { bundle: InvoiceBundle; manage: boolean }) {
+  const { invoice, payments } = bundle
+  const balance = invoice.totalCents - invoice.paidCents
+  return (
+    <section className="space-y-2" aria-labelledby="invoice-payments">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="invoice-payments" className="text-base font-semibold">
+          {t(`${P}.title`)}
+        </h2>
+        <p className="tabular text-sm">
+          {t(`${P}.paid`, { amount: formatCents(invoice.paidCents) })} · {t(`${P}.balance`, { amount: formatCents(balance) })}
+        </p>
+      </div>
+      {payments.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t(`${P}.none`)}</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-md border border-border bg-card text-sm" aria-label={t(`${P}.list`)}>
+          {payments.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+              <span>
+                <span className="tabular font-medium">{formatCents(p.amountCents)}</span>
+                <span className="text-muted-foreground">
+                  {' · '}
+                  {formatDateOnly(p.paidOn)} · {p.mode}
+                  {p.reference ? ` · ${p.reference}` : ''}
+                </span>
+                {p.receiptNumber && (
+                  <span className="block text-xs text-muted-foreground">
+                    {t(`${P}.receipt`, { number: p.receiptNumber })}
+                    {deliveryText(p.receiptDeliveries[0]) ? ` · ${deliveryText(p.receiptDeliveries[0])}` : ''}
+                  </span>
+                )}
+              </span>
+              {p.receiptNumber && <PdfLink fileId={p.receiptFileId} label={t(`${P}.receiptPdf`, { number: p.receiptNumber })} />}
+            </li>
+          ))}
+        </ul>
+      )}
+      {manage && invoice.status === 'issued' && balance > 0 && <PaymentForm key={balance} bundle={bundle} balance={balance} />}
+    </section>
+  )
+}
+
+function PaymentForm({ bundle, balance }: { bundle: InvoiceBundle; balance: number }) {
+  const today = getClinicDateString(new Date())
+  const [mode, setMode] = useState(bundle.paymentModes[0]?.code ?? '')
+  const [amount, setAmount] = useState((balance / 100).toFixed(2).replace('.', ','))
+  const [paidOn, setPaidOn] = useState(today)
+  const [reference, setReference] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const record = useRecordPayment({ onErrorMessage: setError })
+  return (
+    <form
+      noValidate
+      aria-label={t(`${P}.add`)}
+      className="space-y-3 rounded-md border border-border p-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (record.isPending) return
+        const cents = parseDollars(amount)
+        if (cents === null) return setError(t(`${I}.amountInvalid`))
+        if (!paidOn) return setError(t(`${P}.dateInvalid`))
+        setError(null)
+        record.mutate({ invoiceId: bundle.invoice.id, modeCode: mode, amountCents: cents, paidOn, reference: reference.trim() || null })
+      }}
+    >
+      <h3 className="text-sm font-medium">{t(`${P}.add`)}</h3>
+      <FormRow>
+        <FormField label={t(`${P}.mode`)} width="md" required>
+          {(field) => (
+            <Select {...field} value={mode} onChange={(e) => setMode(e.target.value)}>
+              {bundle.paymentModes.map((m) => (
+                <option key={m.code} value={m.code}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
+        <FormField label={t(`${P}.amount`)} help={t(`${P}.amountHelp`)} width="sm" required>
+          {(field) => <Input {...field} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="tabular" />}
+        </FormField>
+        <FormField label={t(`${P}.paidOn`)} width="sm" required>
+          {(field) => <Input {...field} type="date" value={paidOn} max={today} onChange={(e) => setPaidOn(e.target.value)} />}
+        </FormField>
+      </FormRow>
+      <FormField label={t(`${P}.reference`)} help={t(`${P}.referenceHelp`)} width="md">
+        {(field) => <Input {...field} value={reference} onChange={(e) => setReference(e.target.value)} maxLength={100} />}
+      </FormField>
+      {error && <RefusalAlert message={error} />}
+      <Button type="submit" aria-disabled={record.isPending || undefined}>
+        {t(`${P}.submit`)}
+      </Button>
+    </form>
   )
 }
 
