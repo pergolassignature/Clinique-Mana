@@ -1,0 +1,447 @@
+import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { Controller, useForm, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Link, useNavigate } from 'react-router-dom'
+import { CircleAlert, Plus, TriangleAlert, X } from 'lucide-react'
+import { t } from '@/i18n'
+import { addressAutofill } from '@/core/address/autofill'
+import { AddressAutocomplete } from '@/core/address/components/AddressAutocomplete'
+import { rpcErrorHint } from '@/core/modules/errors'
+import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
+import { CheckboxField } from '@/shared/components/CheckboxField'
+import { SaveButton } from '@/shared/components/SaveButton'
+import { SectionHeading } from '@/shared/components/SectionHeading'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { formatPostalCode, parsePhone, regroupPhone } from '@/shared/lib/format'
+import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
+import { formatDateOnlyShort } from '@/shared/lib/timezone'
+import { useDebouncedValue } from '@/shared/lib/use-debounced-value'
+import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { cn } from '@/shared/lib/utils'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
+import { Button } from '@/shared/ui/button'
+import { FormField, FormRow } from '@/shared/ui/form-field'
+import { Input } from '@/shared/ui/input'
+import { closeButtonClasses } from '@/shared/ui/overlay-classes'
+import { Select } from '@/shared/ui/select'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/ui/sheet'
+import { Textarea } from '@/shared/ui/textarea'
+import type { ClientDuplicate } from '../../api/parse'
+import { useClientDuplicates, useClientsReference, useCreateClient } from '../../hooks/use-clients'
+import { LANGUAGES, SEXES, clientPath } from '../../lib/constants'
+import { clientNumberLabel, languageLabel, phoneLabel, sexLabel } from '../../lib/display'
+import { ALL_CLIENT_FIELDS, clientCardSchema, emptyClientForm, fieldOfHint, toClientFields, type ClientFieldOutput, type ClientFormValues } from '../../schemas/client'
+
+const C = 'modules.clients.create'
+
+const ADDRESS_FIELDS = { line1: 'addressLine1', line2: 'addressLine2', city: 'city', province: 'province', postalCode: 'postalCode' } as const
+
+/**
+ * « Nouveau client » (plan C3.3): a sheet in sections (Identité, Coordonnées, Adresse, Dossier,
+ * Notes administratives). While the name is typed, the « Dossiers semblables » panel lists the
+ * clinic's possible duplicates (the rules of the import, I-5), 400 ms after the last keystroke,
+ * each with « Ouvrir le dossier existant ». A HIGH duplicate refuses the creation; a MEDIUM one
+ * needs « C'est une autre personne » ticked. Closing with changes asks first; the record opens
+ * once created.
+ */
+export function CreateClientDialog() {
+  const [open, setOpen] = useState(false)
+  const addRef = useRef<HTMLButtonElement>(null)
+  return (
+    <Sheet open={open} onOpenChange={() => undefined}>
+      <SheetTrigger asChild>
+        <Button ref={addRef} onClick={() => setOpen(true)}>
+          <Plus aria-hidden />
+          {t(`${C}.add`)}
+        </Button>
+      </SheetTrigger>
+      {open && <CreatePanel onClose={() => setOpen(false)} />}
+    </Sheet>
+  )
+}
+
+function CreatePanel({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate()
+  const reference = useClientsReference()
+  const [confirming, setConfirming] = useState(false)
+  const [confirmMedium, setConfirmMedium] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
+  // The staff notes have their own table: kept beside the form, sent with the creation.
+  const [adminNotes, setAdminNotes] = useState('')
+  const firstName = useRef<HTMLInputElement | null>(null)
+  const schema = useMemo(() => clientCardSchema(ALL_CLIENT_FIELDS), [])
+  const form = useForm<ClientFormValues, unknown, ClientFieldOutput>({ resolver: zodResolver(schema), defaultValues: emptyClientForm() })
+  const { errors } = form.formState
+  const isDirty = form.formState.isDirty || adminNotes.trim() !== ''
+  useUnsavedChanges(isDirty)
+  const create = useCreateClient({
+    onErrorMessage: (message, error) => {
+      const hint = rpcErrorHint(error)
+      const field = fieldOfHint(hint)
+      if (field) form.setError(field, { message }, { shouldFocus: true })
+      else setRefusal(message)
+    },
+  })
+
+  // The duplicate panel follows the identity and the contacts, once a first and a last name are typed.
+  const [first, last, email, mobile, home, birthday] = useWatch({ control: form.control, name: ['firstName', 'lastName', 'email', 'mobile', 'home', 'birthday'] })
+  const probe = useDebouncedValue(
+    useMemo(
+      () =>
+        first.trim() && last.trim()
+          ? {
+              firstName: first.trim(),
+              lastName: last.trim(),
+              email: email.trim().toLowerCase() || null,
+              phones: [mobile, home].map((v) => parsePhone(v)).filter((v): v is string => v !== null),
+              birthday: /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(birthday) ? birthday : null,
+            }
+          : null,
+      [first, last, email, mobile, home, birthday],
+    ),
+    400,
+  )
+  const duplicates = useClientDuplicates(probe)
+  const found = probe ? (duplicates.data ?? []) : []
+  const high = found.some((d) => d.level === 'high')
+  const medium = !high && found.some((d) => d.level === 'medium')
+
+  const requestClose = () => {
+    if (create.isPending) return
+    if (isDirty) setConfirming(true)
+    else onClose()
+  }
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    void form.handleSubmit((output) => {
+      setRefusal(null)
+      const fields = toClientFields(output)
+      fields.admin_notes = adminNotes.trim() || null
+      create.mutate(
+        { fields, confirmMedium },
+        {
+          onSuccess: (id) => {
+            onClose()
+            navigate(clientPath(id))
+          },
+        },
+      )
+    })(event)
+  }
+
+  return (
+    <SheetContent
+      hideClose
+      onOpenAutoFocus={(event) => {
+        event.preventDefault()
+        firstName.current?.focus()
+      }}
+      onEscapeKeyDown={(event) => {
+        event.preventDefault()
+        requestClose()
+      }}
+      onInteractOutside={(event) => {
+        event.preventDefault()
+        requestClose()
+      }}
+      className="max-w-[620px]"
+    >
+      <SheetHeader>
+        <SheetTitle>{t(`${C}.title`)}</SheetTitle>
+        <SheetDescription>{t(`${C}.description`)}</SheetDescription>
+      </SheetHeader>
+      {/* Custom X: it closes through the guard. Out of the tab order (CLAUDE.md §10). */}
+      <button type="button" tabIndex={-1} onClick={requestClose} className={closeButtonClasses}>
+        <X aria-hidden className="h-4 w-4" />
+        <span className="sr-only">{t('common.close')}</span>
+      </button>
+      <form noValidate onSubmit={submit} aria-busy={create.isPending || undefined} className="flex min-h-0 flex-1 flex-col">
+        <SheetBody className="space-y-5">
+          <section className="space-y-3">
+            <SectionHeading as="h3">{t(`${C}.sections.identity`)}</SectionHeading>
+            <FormRow>
+              <FormField label={t('modules.clients.fields.firstName')} width="md" required error={errors.firstName?.message}>
+                {(field) => {
+                  const { ref, ...rest } = form.register('firstName')
+                  return (
+                    <Input
+                      {...field}
+                      {...rest}
+                      ref={(element) => {
+                        ref(element)
+                        firstName.current = element
+                      }}
+                      autoComplete="off"
+                    />
+                  )
+                }}
+              </FormField>
+              <FormField label={t('modules.clients.fields.lastName')} width="md" required error={errors.lastName?.message}>
+                {(field) => <Input {...field} {...form.register('lastName')} autoComplete="off" />}
+              </FormField>
+            </FormRow>
+            <FormRow>
+              <FormField label={t('modules.clients.fields.birthday')} width="sm" error={errors.birthday?.message}>
+                {(field) => <Input {...field} {...form.register('birthday')} type="date" min="1900-01-01" autoComplete="off" />}
+              </FormField>
+              <FormField label={t('modules.clients.fields.sex')} width="sm" error={errors.sex?.message}>
+                {(field) => (
+                  <Controller
+                    control={form.control}
+                    name="sex"
+                    render={({ field: f }) => (
+                      <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} placeholder={t('modules.clients.fields.notSaid')} clearable>
+                        {SEXES.map((sex) => (
+                          <option key={sex} value={sex}>
+                            {sexLabel(sex)}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('modules.clients.fields.language')} width="sm" required error={errors.language?.message}>
+                {(field) => (
+                  <Controller
+                    control={form.control}
+                    name="language"
+                    render={({ field: f }) => (
+                      <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref}>
+                        {LANGUAGES.map((language) => (
+                          <option key={language} value={language}>
+                            {languageLabel(language)}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                )}
+              </FormField>
+            </FormRow>
+            <FormField label={t('modules.clients.fields.pronouns')} width="md" help={t('modules.clients.fields.pronounsHelp')} error={errors.pronouns?.message}>
+              {(field) => <Input {...field} {...form.register('pronouns')} autoComplete="off" />}
+            </FormField>
+          </section>
+
+          <DuplicatePanel duplicates={found} loading={probe !== null && duplicates.isFetching} />
+
+          <section className="space-y-3">
+            <SectionHeading as="h3">{t(`${C}.sections.contact`)}</SectionHeading>
+            <FormField label={t('modules.clients.fields.email')} width="full" error={errors.email?.message}>
+              {(field) => <Input {...field} {...form.register('email')} type="email" autoComplete="off" spellCheck={false} />}
+            </FormField>
+            <FormRow>
+              <FormField label={t('modules.clients.fields.mobile')} width="md" error={errors.mobile?.message}>
+                {(field) => <Input {...field} {...form.register('mobile', regroupOnBlur(form, 'mobile', regroupPhone))} type="tel" autoComplete="off" />}
+              </FormField>
+              <FormField label={t('modules.clients.fields.home')} width="md" error={errors.home?.message}>
+                {(field) => <Input {...field} {...form.register('home', regroupOnBlur(form, 'home', regroupPhone))} type="tel" autoComplete="off" />}
+              </FormField>
+            </FormRow>
+            <Controller
+              control={form.control}
+              name="remindersBySms"
+              render={({ field: f }) => (
+                <CheckboxField ref={f.ref} label={t('modules.clients.fields.remindersBySms')} checked={f.value as boolean} onCheckedChange={f.onChange} onBlur={f.onBlur} />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="remindersByEmail"
+              render={({ field: f }) => (
+                <CheckboxField ref={f.ref} label={t('modules.clients.fields.remindersByEmail')} checked={f.value as boolean} onCheckedChange={f.onChange} onBlur={f.onBlur} />
+              )}
+            />
+          </section>
+
+          <section className="space-y-3">
+            <SectionHeading as="h3">{t(`${C}.sections.address`)}</SectionHeading>
+            <FormField label={t('modules.clients.fields.addressLine1')} error={errors.addressLine1?.message}>
+              {(field) => (
+                <AddressAutocomplete {...field} {...form.register('addressLine1')} autofill={addressAutofill(form, ADDRESS_FIELDS)} placeholder={t('address.line1Placeholder')} />
+              )}
+            </FormField>
+            <FormField label={t('modules.clients.fields.addressLine2')} width="md" error={errors.addressLine2?.message}>
+              {(field) => <Input {...field} {...form.register('addressLine2')} placeholder={t('address.line2Placeholder')} autoComplete="off" />}
+            </FormField>
+            <FormRow>
+              <FormField label={t('modules.clients.fields.city')} width="md" error={errors.city?.message}>
+                {(field) => <Input {...field} {...form.register('city')} autoComplete="off" />}
+              </FormField>
+              <FormRow className="flex-nowrap">
+                <FormField label={t('modules.clients.fields.province')} width="sm" error={errors.province?.message}>
+                  {(field) => (
+                    <Controller
+                      control={form.control}
+                      name="province"
+                      render={({ field: f }) => (
+                        <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} autoComplete="off" clearable placeholder={t('modules.clients.fields.notSaid')}>
+                          {PROVINCE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {t(option.labelKey)}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    />
+                  )}
+                </FormField>
+                <FormField label={t('modules.clients.fields.postalCode')} width="xs" error={errors.postalCode?.message}>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      {...form.register('postalCode', regroupOnBlur(form, 'postalCode', (v) => formatPostalCode(v.trim())))}
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                    />
+                  )}
+                </FormField>
+              </FormRow>
+            </FormRow>
+          </section>
+
+          <section className="space-y-3">
+            <SectionHeading as="h3">{t(`${C}.sections.file`)}</SectionHeading>
+            <FormRow>
+              <FormField label={t('modules.clients.fields.referralSource')} width="md" error={errors.referralSourceId?.message}>
+                {(field) => (
+                  <Controller
+                    control={form.control}
+                    name="referralSourceId"
+                    render={({ field: f }) => (
+                      <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} placeholder={t('modules.clients.fields.notSaid')} clearable>
+                        {reference.data?.referralSources.map((source) => (
+                          <option key={source.id} value={source.id}>
+                            {source.name}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                )}
+              </FormField>
+              <FormField label={t('modules.clients.fields.primaryProfessional')} width="md" error={errors.primaryProfessionalId?.message}>
+                {(field) => (
+                  <Controller
+                    control={form.control}
+                    name="primaryProfessionalId"
+                    render={({ field: f }) => (
+                      <Select {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} placeholder={t('modules.clients.fields.none')} clearable>
+                        {reference.data?.professionals.map((pro) => (
+                          <option key={pro.id} value={pro.id}>
+                            {pro.name}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                )}
+              </FormField>
+            </FormRow>
+            <FormField label={t('modules.clients.fields.referredBy')} width="full" error={errors.referredBy?.message}>
+              {(field) => <Input {...field} {...form.register('referredBy')} autoComplete="off" />}
+            </FormField>
+            <FormField label={t('modules.clients.fields.adminNotes')} width="full" help={t('modules.clients.fields.adminNotesHelp')}>
+              {(field) => <Textarea {...field} value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} rows={3} maxLength={5000} />}
+            </FormField>
+          </section>
+
+          {medium && (
+            <CheckboxField label={t(`${C}.confirmMedium`)} help={t(`${C}.confirmMediumHelp`)} checked={confirmMedium} onCheckedChange={(value) => setConfirmMedium(value === true)} />
+          )}
+          {refusal && (
+            <Alert variant="destructive" role="alert">
+              <CircleAlert aria-hidden />
+              <AlertDescription className="text-foreground">{refusal}</AlertDescription>
+            </Alert>
+          )}
+        </SheetBody>
+        <SheetFooter>
+          <Button
+            type="button"
+            variant="outline"
+            aria-disabled={create.isPending || undefined}
+            onClick={ignoreWhenInactive(create.isPending, requestClose)}
+            className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+          >
+            {t('common.cancel')}
+          </Button>
+          <SaveButton pending={create.isPending} disabled={!isDirty || high} variant={isDirty && !high ? 'default' : 'outline'} label={t(`${C}.submit`)} pendingLabel={t(`${C}.submitting`)} />
+        </SheetFooter>
+      </form>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t(`${C}.confirmClose.title`)}</AlertDialogTitle>
+            <AlertDialogDescription>{t(`${C}.confirmClose.body`)}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t(`${C}.confirmClose.stay`)}</AlertDialogCancel>
+            <AlertDialogAction onClick={onClose}>{t(`${C}.confirmClose.leave`)}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </SheetContent>
+  )
+}
+
+/** The words of a duplicate's reasons (the codes of find_client_duplicates). */
+const REASONS = {
+  email: `${C}.reasons.email`,
+  phone: `${C}.reasons.phone`,
+  same_name: `${C}.reasons.same_name`,
+  similar_name: `${C}.reasons.similar_name`,
+  birthday: `${C}.reasons.birthday`,
+  birthday_differs: `${C}.reasons.birthday_differs`,
+  shared_contact: `${C}.reasons.shared_contact`,
+  partial_email: `${C}.reasons.partial_email`,
+  partial_phone: `${C}.reasons.partial_phone`,
+} as const
+const reasonLabel = (reason: string): string => (reason in REASONS ? t(REASONS[reason as keyof typeof REASONS]) : '')
+
+/**
+ * « Dossiers semblables »: the possible duplicates while the person is typed, HIGH first (« Ce
+ * client a déjà un dossier »), each with its number, birthday and contact and « Ouvrir le dossier
+ * existant ». A polite live region: a screen reader hears the count once it changes.
+ */
+function DuplicatePanel({ duplicates, loading }: { duplicates: readonly ClientDuplicate[]; loading: boolean }) {
+  const high = duplicates.some((d) => d.level === 'high')
+  return (
+    <div role="status" aria-live="polite" className="empty:hidden">
+      {duplicates.length > 0 && (
+        <Alert variant={high ? 'destructive' : 'warning'}>
+          {high ? <CircleAlert aria-hidden /> : <TriangleAlert aria-hidden />}
+          <AlertDescription className="space-y-2 text-foreground">
+            <p className="font-medium">{t(high ? `${C}.duplicates.high` : `${C}.duplicates.medium`)}</p>
+            <ul className="space-y-1.5">
+              {duplicates.map((d) => (
+                <li key={d.clientId} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm">
+                  <span>
+                    <span className="font-medium">{d.displayName}</span> · <span className="tabular">{clientNumberLabel(d.clientNumber)}</span>
+                    {d.birthday && <> · {formatDateOnlyShort(d.birthday)}</>}
+                    {(d.email || d.mobile) && <span className="block text-xs text-muted-foreground">{[d.email, phoneLabel(d.mobile)].filter(Boolean).join(' · ')}</span>}
+                    <span className="block text-xs text-muted-foreground">{d.reasons.map(reasonLabel).filter(Boolean).join(', ')}</span>
+                  </span>
+                  <Link to={clientPath(d.clientId)} target="_blank" rel="noreferrer" className="text-link text-sm underline-offset-2 hover:underline">
+                    {t(`${C}.duplicates.open`)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+      {loading && duplicates.length === 0 && <span className="sr-only">{t(`${C}.duplicates.checking`)}</span>}
+    </div>
+  )
+}

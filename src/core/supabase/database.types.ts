@@ -9670,6 +9670,37 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_clients: {
+        Args: {
+          p_after_first?: string
+          p_after_id?: string
+          p_after_last?: string
+          p_limit?: number
+          p_professional_id?: string
+          p_query?: string
+          p_status?: string
+          p_tag_id?: string
+        }
+        Returns: {
+          birthday: string
+          client_number: number
+          email: string
+          file_incomplete: boolean
+          first_name: string
+          id: string
+          is_archived: boolean
+          is_banned: boolean
+          last_name: string
+          mobile_e164: string
+          primary_professional_id: string
+          rate_variant: string
+          sort_first: string
+          sort_last: string
+          special_agreement: boolean
+          tag_ids: string[]
+          tax_exempt: boolean
+        }[]
+      }
       list_document_template_versions: {
         Args: { p_template_id: string }
         Returns: {

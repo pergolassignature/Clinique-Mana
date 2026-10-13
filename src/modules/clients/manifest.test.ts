@@ -3,12 +3,25 @@ import { t } from '@/i18n'
 import { clientsManifest } from './index'
 
 describe('clientsManifest', () => {
-  it('uses the English module key, depends on professionals, and has no screen yet (C1)', () => {
+  it('uses the English module key, depends on professionals; French routes, code-split pages', () => {
     expect(clientsManifest.key).toBe('clients')
     expect(t(clientsManifest.labelKey)).toBe('Clients')
     expect(clientsManifest.dependsOn).toEqual(['professionals'])
-    expect(clientsManifest.routes).toEqual([])
+    expect(clientsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
+      ['clients', 'clients.view'],
+      ['clients/:id/:onglet?', 'clients.view'],
+      ['mes-clients', 'clients.self'],
+    ])
+    for (const route of clientsManifest.routes) expect(typeof route.component.preload).toBe('function')
     expect(clientsManifest.settingsSections).toEqual([])
+  })
+
+  it('« Clients » for the staff, « Mes clients » for an account linked to a professional file', () => {
+    const [staff, mine] = [clientsManifest.nav ?? []].flat()
+    expect(staff).toMatchObject({ path: '/clients', permission: 'clients.view' })
+    expect(mine).toMatchObject({ path: '/mes-clients', permission: 'clients.self' })
+    expect(mine?.shownWhen?.({ has_professional_file: false } as never)).toBe(false)
+    expect(mine?.shownWhen?.({ has_professional_file: true } as never)).toBe(true)
   })
 
   it('names its audited tables for the Journal d’audit, in its own chunk, with personal values left to the redaction', async () => {

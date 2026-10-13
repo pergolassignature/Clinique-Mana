@@ -1,19 +1,20 @@
 # Module `clients` (« Clients »)
 
-The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): one row per person, the relations between people and what each may do for the other, insurance, payers (IVAC, PAE), tags, and which professionals may see a client. Plan: [coding plan §6](../plans/2026-10-11-modules-coding-plan.md#6-clients-clients--full-task-detail); roadmap §2.2 and §2.2 bis; data: [GOrendezvous tour §2](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); decisions R-5, R-7 … R-10, R-48, R-54, R-61, R-64 and **CL-1 … CL-11** in the [decisions log](../plans/2026-10-07-decisions-log.md).
+The clinic's client files (~7 400 active and ~1 080 archived in GOrendezvous): one row per person, the relations between people and what each may do for the other, insurance, payers (IVAC, PAE), tags, and which professionals may see a client. Plan: [coding plan §6](../plans/2026-10-11-modules-coding-plan.md#6-clients-clients--full-task-detail); roadmap §2.2 and §2.2 bis; data: [GOrendezvous tour §2](../research/2026-10-11-gorendezvous-tour.md); [Christine's answers](../research/2026-10-12-christine-answers.md); decisions R-5, R-7 … R-10, R-48, R-54, R-61, R-64 and **CL-1 … CL-22** in the [decisions log](../plans/2026-10-07-decisions-log.md).
 
 | Batch | What | Status |
 |---|---|---|
 | C1 | Schema: registry, tables, RLS, audit, published views and helpers, the agreements' FK | built |
 | C2 | RPCs: duplicates, create / update / archive, relations, insurance, payers, tags, merge, search, summary, Loi 25 export and anonymisation, `client_contacts_for` | built |
-| C3 | List, « Nouveau client », record, « Mes clients » | planned |
-| C4 | Merge UI, « Confidentialité », ⌘K, e2e, this doc completed | planned |
+| C3 | List, « Nouveau client », record, « Mes clients » | built |
+| C4 | Merge UI, « Confidentialité », ⌘K, the record's « Historique », remembered list filters, this doc completed | planned |
 | C5a | Client consents: schema, RPCs, functions (part 1); UI (part 2) | part 1 built |
 | C5b | Withdrawal, copy to the client, reports, re-sign campaign | planned |
 
 - **Registry:** `modules.key = 'clients'` (migration `20261012213428_clients_module`), depends on `professionals`. It **starts disabled** in every clinic; the local seed enables it.
-- **Migrations:** (Demandes' handlers: `20261013022645_demandes_client_handlers`) `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261013022637_clients_duplicates`, `20261013022641_clients_rpcs`.
-- **Tests:** pgTAP `104_clients_module`, `110_clients_duplicates` (the import library's cases), `111_clients_rpcs`; Vitest `src/modules/clients/manifest.test.ts`; the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Migrations:** (Demandes' handlers: `20261013022645_demandes_client_handlers`) `20261012213428_clients_module`, `20261012213431_professionals_client_agreements_client_fk` (Professionnels: `professional_client_agreements.client_id → clients`); C2: `20261013022637_clients_duplicates`, `20261013022641_clients_rpcs`; C3: `20261013030641_clients_list`.
+- **Tests:** pgTAP `104_clients_module`, `110_clients_duplicates` (the import library's cases), `111_clients_rpcs`, `112_clients_list`; Vitest `src/modules/clients/**/*.test.ts(x)` (manifest, form schema, payloads, list page with the creation sheet, record page); Playwright `e2e/clients.spec.ts` (duplicate refused, creation, a parent with rights, « Mes clients »); the audit labels checked by `src/app/audit-labels.test.ts`.
+- **Local seed:** five fictional files (« …-Fictive »), Léa with her two parents, an IVAC payer, an insurance, the tags Atelier and Visio; Félix (`provider@mana.test`) is the primary professional of Alice and Léa, so « Mes clients » has rows.
 
 ## Permissions
 
@@ -67,12 +68,20 @@ All definer, permission first, French `P0001` with a HINT naming the field (the 
 | `save_client_payer(client, id, kind, …)`, `end_client_payer(id)` | `clients.manage` | one active per kind (a second save updates it), an active IVAC file once per clinic; ended payers stay |
 | `set_client_tags(client, tag_ids[])`, `save_client_tag(id, name)`, `set_client_tag_active` | `clients.manage` | ≤ 5 active tags of the clinic's list |
 | `merge_clients(keep, merge)` | `clients.merge` | CL-15, CL-16 |
+| `list_clients(query, status, professional, tag, after…, limit)` (C3) | `clients.view` | the list page: active / archived / all, by primary professional or tag, the search words of `search_clients`; keyset by the folded last name, first name, id (50 a page); merged and anonymised files never |
 | `search_clients(query, limit)` | `clients.view`, or `clients.self` (her linked clients) | ⌘K: every word in the name (accents ignored), the email, the number or a phone's digits; never merged or anonymised files |
 | `get_client_summary(id)` | `clients.view`; `clients.self` linked: the `my_clients` columns | the record's bundle: file, notes, relations both ways, insurance, payers, tags, professionals, merges |
 | `export_client_privacy(id)` | `clients.privacy` | the summary + `exported_at`; an `audit_log` read row (sections, never values) |
 | `anonymize_client(id)` | `clients.privacy` | CL-17; the files merged into it too, every module's copies through its handler |
 
 **For other modules:** `private.client_contacts_for(org, client, right)` (`communications`, `invoices`, `appointments`: the client herself and each relation holding the right, with her own language and channels; the caller decides what age means), `private.clients_unlink_professional(org, client, pro)` (Demandes' reassignment; a primary professional's link stays), the view **`client_payers_active`** (Facturation), and the catalogue **`client_merge_handlers`**: a module adds a row naming `private.<module>_reassign_client(old, new) → int` and the merge runs it (Professionnels' moves the « Ententes particulières », Demandes' its requests, participants and waiting-list entries; Rendez-vous and Facturation add theirs), and **`client_anonymize_handlers`** the same way for an anonymisation (`private.<module>_anonymize_client(id) → int`: Professionnels turns an agreement's label into « CLI-n » and drops its note; Demandes blanks the contact typed before the file and the participants' names).
+
+## Screens (C3)
+
+- **« Clients »** (`/clients`, `clients.view`, nav order 20): search (name, email, number, phone; 250 ms), « Actifs / Archivés / Tous », primary professional, tag; the filters live in the URL (`q`, `statut`, `professionnel`, `etiquette`); « Afficher plus » loads the next 50 (`list_clients`). Columns: name and number, birthday and age, email and mobile, primary professional, the flags (banned, incomplete, agreement, Statut Indien, rate) and tags.
+- **« Nouveau client »** (`clients.manage`): a sheet in sections (Identité, Coordonnées, Adresse with `AddressAutocomplete`, Dossier with the staff note). The similar files show while typing (400 ms, `find_client_duplicates`) with their reasons and « Ouvrir le dossier existant »: a HIGH one blocks « Créer le dossier », a MEDIUM one needs « C'est une autre personne » (CL-13, CL-20). A refusal goes under its field (the HINT). The new file opens on « Aperçu ».
+- **The record** (`/clients/:id/:onglet`): the header (name, pronouns, number, age, state, flags, tags; « Archiver / Restaurer »; a merged file links to the kept one) and five page-level Radix tabs, each its own chunk reading the one bundle (`get_client_summary`): « Aperçu » (read-only), « Informations » (cards Identité, Coordonnées, Adresse, Dossier, Tarif et indicateurs, Notes, Étiquettes; CL-21), « Proches » (relations with both directions' rights), « Assurance et payeurs », « Visites et paiements » (empty until Rendez-vous and Facturation). Read-only without `clients.manage`, or for a merged or anonymised file. « Consentements » is lane C's (C5a part 2); « Historique » comes in C4.
+- **« Mes clients »** (`/mes-clients`, `clients.self`, shown to an account linked to a professional file): `my_clients` with a local search; nothing but what CL-5 allows.
 
 ## Rules for the other lanes
 
