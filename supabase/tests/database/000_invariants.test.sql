@@ -76,6 +76,8 @@ select is_empty($$
      -- qbo_accounts, qbo_customers (FQ-3): the QuickBooks company's chart of accounts and
      -- customers as last read, replaced at each sync; the customers are names, emails and phones
      -- QuickBooks holds (Loi 25). What a person decides (the account map, a match) is audited.
+     -- billing_sync_events (F2, agreed with FQ): the QuickBooks outbox, ids and codes only, one row
+     -- per issued invoice, credit note and payment, rewritten as the push tries; no business data.
      -- mail_drafts (CM-14): each person's unsent drafts, autosaved every few seconds and deleted
      -- once sent; auditing them would keep every version of a text that may never leave (and a
      -- client's words quoted in a reply) in audit_log forever. The send itself is audited (mail_sends).
@@ -84,7 +86,7 @@ select is_empty($$
                            'user_preferences', 'signature_request_syncs', 'sms_messages',
                            'sms_provider_sessions', 'appointment_messages',
                            'mail_threads', 'mail_messages', 'mail_attachments', 'mail_labels', 'mail_sync_state',
-                           'qbo_accounts', 'qbo_customers', 'mail_drafts')
+                           'qbo_accounts', 'qbo_customers', 'billing_sync_events', 'mail_drafts')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');

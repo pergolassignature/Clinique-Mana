@@ -31,9 +31,9 @@ export const demandesManifest: ModuleManifest = {
   labelKey: 'modules.demandes.name',
   dependsOn: ['clients', 'professionals'],
   nav: [
-    { path: '/demandes', labelKey: 'modules.demandes.name', icon: Inbox, permission: 'demandes.view', order: 12 },
-    { path: '/demandes/appels', labelKey: 'modules.demandes.calls.nav', icon: PhoneOutgoing, permission: 'demandes.view', order: 12.5 },
-    { path: '/liste-attente', labelKey: 'modules.demandes.waitlist.name', icon: ListOrdered, permission: 'demandes.view', order: 13 },
+    { path: '/demandes', labelKey: 'modules.demandes.name', icon: Inbox, permission: 'demandes.view', group: 'intake', order: 12 },
+    { path: '/demandes/appels', labelKey: 'modules.demandes.calls.nav', icon: PhoneOutgoing, permission: 'demandes.view', group: 'intake', order: 12.5 },
+    { path: '/liste-attente', labelKey: 'modules.demandes.waitlist.name', icon: ListOrdered, permission: 'demandes.view', group: 'intake', order: 13 },
   ],
   routes: [
     { path: 'demandes', permission: 'demandes.view', component: lazyPage(() => import('./pages/DemandesInboxPage'), 'DemandesInboxPage') },

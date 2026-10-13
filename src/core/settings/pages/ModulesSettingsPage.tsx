@@ -17,7 +17,8 @@ import { Switch } from '@/shared/ui/switch'
  * While a change saves, every switch is inactive (`aria-disabled`, so the one just pressed keeps
  * focus): modules depend on each other, and the server checks against the committed state.
  * Under each switch, « Réservé aux testeurs » and the testers (R-72); the testers' names need
- * users.view (an admin has it), else only the count is known.
+ * users.view (an admin has it), else only the count is known. A requirement still off reads
+ * « (désactivé) », and a module that is off shows its testers muted, with what to do.
  */
 export function ModulesSettingsPage() {
   const {
@@ -31,7 +32,13 @@ export function ModulesSettingsPage() {
   const { can } = useAccess()
   const testers = useModuleTesters()
   const users = useOrgUsers({ enabled: can('users.view') })
-  const nameByKey = new Map(modules?.map((m) => [m.key, m.name]))
+  const byKey = new Map(modules?.map((m) => [m.key, m]))
+  /** « Clients (désactivé) » for a requirement still off: the order to turn them on is obvious. */
+  const dependencyName = (key: string) => {
+    const dependency = byKey.get(key)
+    if (!dependency) return key
+    return dependency.enabled ? dependency.name : t('settings.modules.dependencyOff', { name: dependency.name })
+  }
   const pending = setEnabled.isPending
   const saving = pending ? setEnabled.variables : undefined
 
@@ -77,9 +84,7 @@ export function ModulesSettingsPage() {
                           className="text-xs text-muted-foreground"
                         >
                           {t('settings.modules.dependsOn')}{' '}
-                          {m.depends_on
-                            .map((key) => nameByKey.get(key) ?? key)
-                            .join(', ')}
+                          {m.depends_on.map(dependencyName).join(', ')}
                         </p>
                       )}
                     </div>

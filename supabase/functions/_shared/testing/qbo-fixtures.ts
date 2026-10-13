@@ -189,7 +189,7 @@ export function qboHarness(opts: QboHarnessOptions = {}) {
     APP_URL: 'http://localhost:5173',
     INTERNAL_FUNCTION_SECRET: 'local-dev-internal-function-secret',
     QBO_APPCENTER_BASE_URL: FAKE_ORIGIN,
-    QBO_APPCENTER_PUBLIC_URL: 'http://127.0.0.1:55394',
+    QBO_APPCENTER_PUBLIC_URL: 'http://127.0.0.1:55395',
     QBO_OAUTH_BASE_URL: FAKE_ORIGIN,
     QBO_REVOKE_BASE_URL: FAKE_ORIGIN,
     QBO_API_BASE_URL: FAKE_ORIGIN,

@@ -153,6 +153,18 @@ select functions_are('public', array[
   'create_invoice', 'create_manual_invoice', 'add_invoice_line', 'set_invoice_line_price', 'remove_invoice_line',
   'set_invoice_payer', 'set_invoice_notes', 'delete_invoice_draft', 'finalize_invoice', 'issue_credit_note',
   'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing',
+  -- Facturation, batch FPay (payroll).
+  'list_payout_periods', 'build_payout_month', 'rebuild_payout_period', 'send_payout_periods', 'add_payout_adjustment',
+  'remove_payout_adjustment', 'reopen_payout_period', 'mark_period_paid', 'list_payout_export', 'list_my_payout_periods',
+  'get_payout_period', 'request_payout_correction', 'validate_payout_period', 'attach_professional_invoice',
+  'prepare_professional_invoice', 'record_generated_professional_invoice', 'list_payout_rules', 'set_payout_rule',
+  'discard_payout_drafts',
+  -- Facturation, batch F2 (and Professionnels' supervisor, F2.0).
+  'get_billing_settings', 'set_billing_queue_from', 'set_special_agreement', 'list_morning_queue', 'hold_invoice_draft',
+  'release_invoice_draft', 'send_invoices', 'send_billing_document', 'record_payment', 'create_statement', 'get_billing_document',
+  'billing_deliveries_for_service', 'billing_document_for_service', 'finish_billing_delivery_for_service',
+  'discard_billing_file_for_service', 'set_professional_supervisor',
+  'billing_sync_events_for_service', 'finish_billing_sync_event_for_service',
   'get_communications_settings', 'set_communications_settings', 'get_communications_settings_for_org',
   'list_mail_connections', 'store_mail_connection', 'disconnect_mail_connection', 'get_mail_connection_credentials',
   'set_mail_access_token', 'set_mail_connection_status', 'request_mail_sync', 'list_mail_connections_to_sync',
@@ -174,7 +186,7 @@ select functions_are('public', array[
   'record_inbound_sms', 'apply_sms_delivery_event', 'sms_event_known_for_service', 'get_sms_provider_context',
   'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel',
   'create_demande', 'update_demande', 'set_demande_state', 'assign_demande', 'log_demande_contact',
-  'add_demande_task', 'complete_demande_task', 'cancel_demande_task', 'set_demande_note', 'set_demande_participants',
+  'add_demande_task', 'complete_demande_task', 'cancel_demande_task', 'set_demande_note', 'set_demande_participants', 'set_demande_source',
   'list_demandes', 'demandes_counts', 'get_demande', 'get_demandes_reference', 'set_demande_handler',
   -- Clients, batch C5a (consents).
   'set_client_consent_rule', 'set_client_consent_settings', 'cancel_client_consent_request', 'publish_client_consent_version',

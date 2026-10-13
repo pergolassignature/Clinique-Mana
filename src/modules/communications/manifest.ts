@@ -17,9 +17,9 @@ export const communicationsManifest: ModuleManifest = {
   dependsOn: [],
   nav: [
     // « Courriels » (CM2): the clinic's Gmail mailboxes, read in the app.
-    { path: '/courriels', labelKey: 'modules.communications.inbox.menu', icon: Mail, permission: 'communications.inbox', order: 20 },
+    { path: '/courriels', labelKey: 'modules.communications.inbox.menu', icon: Mail, permission: 'communications.inbox', group: 'communications', order: 20 },
     // « Textos » (batch SM): the conversations with the clinic's SMS number.
-    { path: '/textos', labelKey: 'modules.communications.sms.nav', icon: MessageSquareText, permission: 'communications.sms', order: 21 },
+    { path: '/textos', labelKey: 'modules.communications.sms.nav', icon: MessageSquareText, permission: 'communications.sms', group: 'communications', order: 21 },
   ],
   routes: [
     { path: 'courriels', permission: 'communications.inbox', component: lazyPage(() => import('./pages/InboxPage'), 'InboxPage') },

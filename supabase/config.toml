@@ -237,6 +237,8 @@ verify_jwt = false
 # Job appointments.messages: X-Job-Signature (runJob).
 [functions.appointments-messages]
 verify_jwt = false
+[functions.billing-documents]
+verify_jwt = false
 [functions.sms-send]
 verify_jwt = false
 # The PBX's message events: the org's webhook secret (X-Signature, HMAC-SHA256, timingSafeEqual).
@@ -266,4 +268,6 @@ verify_jwt = false
 verify_jwt = false
 # Job appointments.video_sync: X-Job-Signature (runJob).
 [functions.appointments-video-sync]
+verify_jwt = false
+[functions.billing-payout-invoice]
 verify_jwt = false

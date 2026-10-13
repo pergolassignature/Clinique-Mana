@@ -13,6 +13,7 @@ import {
   logContact,
   saveNote,
   saveParticipants,
+  setDemandeSource,
   setDemandeState,
   setHandler,
   updateDemande,
@@ -90,6 +91,15 @@ export function useCreateDemande() {
 export function useUpdateDemande(id: string) {
   const after = useAfterWrite()
   return useMutation({ mutationFn: (patch: Record<string, unknown>) => updateDemande(id, patch), onSettled: () => after(id) })
+}
+
+/** « Provenance » corrected (D-26). */
+export function useSetDemandeSource(id: string) {
+  const after = useAfterWrite()
+  return useMutation({
+    mutationFn: ({ channel, referralSourceId }: { channel: string; referralSourceId: string | null }) => setDemandeSource(id, channel, referralSourceId),
+    onSettled: () => after(id),
+  })
 }
 
 export function useSetDemandeState(id: string) {

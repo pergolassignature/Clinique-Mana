@@ -520,7 +520,7 @@ values ('c11e0000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000
         date '1990-04-12', 'camille.exemple@mana.test', 'fr', '11111111-1111-1111-1111-111111111111');
 
 -- Local QuickBooks (Facturation, FQ; the module is on above, F1): the fake Intuit's application
--- (`npm run fake:qbo`, port 55394; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
+-- (`npm run fake:qbo`, port 55395; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
 -- as set_org_secret stores it, and three fictitious clients the fake company's customers match:
 -- Amélie Tremblay by email (rattachée), Marc-Antoine Côté by phone and name (rattaché), Paul
 -- Bélanger sharing Julie Bélanger's phone under another name (à décider). Only Admin holds
@@ -557,7 +557,7 @@ declare
   v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
   v_monday date := (date_trunc('week', now() at time zone 'America/Toronto'))::date + 7;
   v_service uuid;
-  v_alice uuid; v_lea uuid; v_marc uuid; v_past uuid;
+  v_alice uuid; v_lea uuid; v_marc uuid; v_past uuid; v_day date;
   d int;
 begin
   perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
@@ -579,9 +579,53 @@ begin
   -- Last week's Wednesday: Alice's completed session, to invoice (Facturation F1).
   v_past := public.book_appointment(v_pro, v_service, (v_monday - 12 + time '10:00') at time zone 'America/Toronto', array[v_alice]);
   update public.appointments set state = 'completed', completed_at = ends_at where id = v_past;
+  -- The last weekday before today: Marc's completed session, for the morning queue (Facturation
+  -- F2); the queue starts that day (Alice's session above stays « à facturer » for F1's e2e).
+  v_day := (now() at time zone 'America/Toronto')::date - 1;
+  while extract(isodow from v_day) > 5 loop
+    v_day := v_day - 1;
+  end loop;
+  v_past := public.book_appointment(v_pro, v_service, (v_day + time '11:00') at time zone 'America/Toronto', array[v_marc]);
+  update public.appointments set state = 'completed', completed_at = ends_at where id = v_past;
+  perform public.set_billing_queue_from(v_day);
   perform set_config('request.jwt.claims', '', false);
+  perform private.job_billing_build_drafts();
 end;
 $appointments$;
+
+-- Paie (Facturation FPay; fictional, local only): last month's two completed sessions of Félix
+-- (professional n° 4, provider@mana.test, 30 % retention) with Alice, so « Paie »
+-- (`/facturation/paie`) has a month to calculate and « Ma paie » a summary (e2e/payroll.spec.ts).
+-- Written directly (completed appointments cannot be booked in the past).
+do $payroll$
+declare
+  v_org constant uuid := '00000000-0000-0000-0000-000000000001';
+  v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
+  v_month date := (date_trunc('month', now() at time zone 'America/Toronto') - interval '1 month')::date;
+  v_service uuid;
+  v_alice uuid;
+  v_id uuid;
+  d int;
+begin
+  select s.id into v_service
+    from public.services_catalog s, private.professional_booking_facts(v_org, v_pro) f
+   where s.org_id = v_org and s.duration_minutes = 50
+     and (pg_catalog.cardinality(s.title_ids) = 0 or s.title_ids && f.title_ids)
+   order by s.code limit 1;
+  select id into v_alice from public.clients where last_name = 'Tremblay-Fictive';
+  foreach d in array array[6, 13] loop
+    insert into public.appointments (org_id, professional_id, service_id, starts_at, ends_at, blocks_until, state, completed_at)
+    values (v_org, v_pro, v_service,
+            (v_month + d + time '10:00') at time zone 'America/Toronto',
+            (v_month + d + time '10:50') at time zone 'America/Toronto',
+            (v_month + d + time '11:00') at time zone 'America/Toronto',
+            'completed', (v_month + d + time '11:10') at time zone 'America/Toronto')
+    returning id into v_id;
+    insert into public.appointment_participants (appointment_id, client_id, org_id, role, presence)
+    values (v_id, v_alice, v_org, 'client', 'present');
+  end loop;
+end;
+$payroll$;
 
 -- Local video links (Rendez-vous RZ): the fake Zoom's app and webhook secret token
 -- (`npm run fake:zoom`, port 55394; _shared/testing/fake-zoom.ts FAKE_ZOOM_CLIENT_ID / _SECRET; the

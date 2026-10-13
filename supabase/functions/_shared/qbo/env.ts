@@ -8,7 +8,7 @@
  * sandbox (PS Hub had production only). On a dev machine (`APP_URL` local,
  * like the Gmail fake) `QBO_APPCENTER_BASE_URL`, `QBO_OAUTH_BASE_URL`,
  * `QBO_REVOKE_BASE_URL` and `QBO_API_BASE_URL` point them at the local fake
- * (`npm run fake:qbo`, port 55394); `QBO_APPCENTER_PUBLIC_URL` is the consent
+ * (`npm run fake:qbo`, port 55395); `QBO_APPCENTER_PUBLIC_URL` is the consent
  * page as the browser reaches it. A stray value on a hosted project is
  * ignored, so a key can never be sent elsewhere.
  */

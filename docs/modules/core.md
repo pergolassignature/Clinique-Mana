@@ -393,6 +393,7 @@ All of it is data seeded by the module's own migration (core never imports modul
 
 - `src/core/auth/`: session, recovery, login/forgot/reset pages (ADR 0006).
 - `src/core/access/`: `AccessProvider`, `useAccess`, `useReadyAccess`, guards `RequireAuth` / `RequireAccess`; `org-roles.ts` (`useOrgId`, `useOrgRoles`, `useRoleLabel`, `roleKeys`).
+- `src/core/modules/nav-groups.ts` (NAV-1): the main menu's sections (`NAV_GROUPS`: `main`, « Accueil des clients », « Suivi », « Facturation », « Communications », « Équipe », « Autres », `settings`); a module's nav item names one in `group` (none: « Autres »), `groupNavItems` orders the menu by section then `order`, and leaves out a section with nothing for the user; the sidebar heads each labelled section.
 - `src/core/account/`: « Mon compte » (`/mon-compte`, every signed-in user): display name, email change (neutral, #38), password (with reauthentication code), « Se déconnecter de tous les appareils » (#33).
 - `src/core/settings/`: `SettingsLayout`, `coreSettingsSections` (`sections.ts`), `paths.ts`, `visible-sections.ts`; `organization/`, `tax/`, `bank/` (api, hooks, Zod schemas); `components/` (`OrganizationCard`, `OrganizationSettingsPage`, `TaxRatesCard`, `NewTaxRateDialog`, `BankDetailsCard`/`Form`, `TimezonePicker`); `pages/` (one per section).
 - `src/core/users/`: users list and sheet (`UserSheet`: role, status, one switch per permission), role matrix (`RoleMatrix`, `RoleNameDialog`, `DeleteRoleDialog`), `permissions.ts` (mirrors the database guards so the UI hides what the server would refuse).

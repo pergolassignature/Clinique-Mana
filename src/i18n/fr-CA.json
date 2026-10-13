@@ -14,6 +14,14 @@
     "userMenu": "Menu de {name}",
     "collapse": "Réduire le menu",
     "expand": "Agrandir le menu",
+    "groups": {
+      "intake": "Accueil des clients",
+      "followUp": "Suivi",
+      "billing": "Facturation",
+      "communications": "Communications",
+      "team": "Équipe",
+      "other": "Autres"
+    },
     "breadcrumb": "Fil d'Ariane",
     "search": "Rechercher…",
     "searchLabel": "Rechercher",
@@ -585,8 +593,11 @@
           "title": "Réserver {module} aux testeurs ?",
           "body": "Tout le monde perd l'accès au module tout de suite, sauf les testeurs de la liste. L'administration aussi : ajoutez-vous à la liste si vous devez continuer à l'utiliser.",
           "action": "Réserver aux testeurs"
-        }
-      }
+        },
+        "moduleOff": "Le module est désactivé : activez-le pour que les testeurs le voient.",
+        "visibleTo": "Visible seulement par : {names}"
+      },
+      "dependencyOff": "{name} (désactivé)"
     },
     "jobs": {
       "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
@@ -1518,7 +1529,8 @@
             "deactivation_note": "Note de désactivation",
             "deactivation_disabled_account": "Compte désactivé avec le dossier",
             "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
-            "fiche_generated_at": "Fiche PDF générée le"
+            "fiche_generated_at": "Fiche PDF générée le",
+            "supervisor_professional_id": "Superviseur"
           },
           "professional_professions": {
             "professional_id": "Professionnel",
@@ -2567,6 +2579,15 @@
           "payers": {
             "ivac": "N° IVAC",
             "ivacHelp": "Unique dans la clinique. Laissez vide pour le retirer."
+          },
+          "supervisor": {
+            "title": "Supervision",
+            "description": "Pour un stagiaire : le nom, l’ordre et le permis de son superviseur sont imprimés sur ses reçus.",
+            "label": "Superviseur",
+            "none": "Aucun (pas un stagiaire)",
+            "saved": "Superviseur enregistré.",
+            "loadError": "La liste des professionnels ne se charge pas.",
+            "inactive": "Un professionnel inactif"
           }
         }
       },
@@ -2768,7 +2789,8 @@
             "deactivation_reason_id": "la raison de la désactivation",
             "deactivation_note": "la note de désactivation",
             "deactivation_disabled_account": "le compte désactivé avec le dossier",
-            "activation_override_reason": "la raison de l'activation d'un dossier incomplet"
+            "activation_override_reason": "la raison de l'activation d'un dossier incomplet",
+            "supervisor_professional_id": "le superviseur"
           },
           "professional_public_profiles": {
             "bio": "la présentation",
@@ -5870,6 +5892,7 @@
         "provinceAbroad": "Province ou État",
         "postalCode": "Code postal",
         "referralSource": "Comment avez-vous entendu parler de MANA ?",
+        "referralSourceShort": "Provenance",
         "referredBy": "Référé par",
         "customField": "Champ personnalisé",
         "primaryProfessional": "Professionnel principal",
@@ -7836,12 +7859,20 @@
       "sources": {
         "title": "Provenance",
         "channel": "Canal",
-        "heard": "Comment la personne a entendu parler de MANA",
+        "heard": "Provenance déclarée",
         "campaign": "Campagne",
         "utm": "Paramètres de campagne",
         "referrer": "Page d’origine",
         "landing": "Page d’arrivée",
-        "none": "Non indiquée"
+        "heardQuestion": "Comment la personne a entendu parler de MANA",
+        "notSaid": "Non précisé",
+        "noCampaign": "Aucune donnée de campagne",
+        "edit": "Modifier",
+        "editTitle": "Modifier la provenance",
+        "capturedReadOnly": "La campagne et les pages notées par la page de réservation ne se modifient pas : le système les a enregistrées.",
+        "archivedSource": "Provenance retirée de la liste",
+        "saved": "Provenance enregistrée.",
+        "saveError": "La provenance n'a pas pu être enregistrée."
       },
       "waitlist": {
         "name": "Liste d'attente",
@@ -8777,11 +8808,22 @@
           "billing_payer_defaults": "Payeurs par défaut",
           "invoice_sequences": "Numérotation des factures",
           "payment_modes": "Modes de paiement",
+          "payments": "Paiements",
+          "receipts": "Reçus",
+          "statements": "Relevés",
+          "special_agreements": "Ententes particulières",
+          "billing_queue_items": "File du matin",
+          "billing_deliveries": "Envois des documents",
+          "billing_settings": "Réglages de la facturation",
           "qbo_connections": "Connexion QuickBooks",
           "qbo_connection_tokens": "Accès QuickBooks (chiffré)",
           "qbo_account_map": "Comptes QuickBooks",
           "qbo_customer_matches": "Correspondance des clients QuickBooks",
-          "qbo_links": "Clients QuickBooks facturés"
+          "qbo_links": "Clients QuickBooks facturés",
+          "payout_periods": "Sommaires de paie",
+          "payout_lines": "Lignes de paie",
+          "professional_invoices": "Factures des professionnels",
+          "payout_service_rules": "Règles de paie"
         },
         "fields": {
           "invoices": {
@@ -8808,7 +8850,13 @@
             "notes_internal": "Note interne",
             "finalized_at": "Finalisée le",
             "finalized_by": "Finalisée par",
-            "credited_at": "Créditée le"
+            "credited_at": "Créditée le",
+            "queue_day": "Dans la file du",
+            "hold_reason": "Mise en attente",
+            "hold_note": "Note de mise en attente",
+            "paid_cents": "Payé",
+            "payment_status": "Paiement",
+            "pdf_file_id": "PDF"
           },
           "invoice_lines": {
             "invoice_id": "Facture",
@@ -8839,7 +8887,8 @@
             "subtotal_cents": "Sous-total",
             "gst_cents": "TPS",
             "qst_cents": "TVQ",
-            "total_cents": "Total"
+            "total_cents": "Total",
+            "pdf_file_id": "PDF"
           },
           "billing_payer_defaults": {
             "client_id": "Dossier",
@@ -8857,6 +8906,67 @@
             "is_deposit": "Dépôt",
             "is_active": "Actif",
             "sort_order": "Ordre"
+          },
+          "payments": {
+            "invoice_id": "Facture",
+            "payer_client_id": "Payé par",
+            "mode_code": "Mode de paiement",
+            "amount_cents": "Montant",
+            "paid_on": "Payé le",
+            "reference": "Référence",
+            "external_ref": "Référence externe"
+          },
+          "receipts": {
+            "payment_id": "Paiement",
+            "invoice_id": "Facture",
+            "number": "Numéro",
+            "year": "Année",
+            "seq": "Rang",
+            "issued_on": "Émis le",
+            "amount_cents": "Montant",
+            "pdf_file_id": "PDF"
+          },
+          "statements": {
+            "client_id": "Dossier",
+            "payer_client_id": "Payeur",
+            "year": "Année",
+            "period_from": "Du",
+            "period_to": "Au",
+            "pdf_file_id": "PDF"
+          },
+          "special_agreements": {
+            "client_id": "Dossier",
+            "note": "Note",
+            "is_active": "En vigueur",
+            "ended_at": "Terminée le",
+            "ended_by": "Terminée par"
+          },
+          "billing_queue_items": {
+            "appointment_id": "Rendez-vous",
+            "invoice_id": "Brouillon",
+            "queued_on": "Dans la file du",
+            "problem": "Problème"
+          },
+          "billing_deliveries": {
+            "kind": "Document",
+            "invoice_id": "Facture",
+            "credit_note_id": "Note de crédit",
+            "receipt_id": "Reçu",
+            "statement_id": "Relevé",
+            "send_email": "Courriel demandé",
+            "explicit": "Renvoi",
+            "status": "État",
+            "attempts": "Essais",
+            "next_attempt_at": "Prochain essai",
+            "claimed_at": "Pris le",
+            "email_status": "Courriel",
+            "skip_reason": "Raison",
+            "email_log_id": "Courriel envoyé",
+            "error_code": "Erreur",
+            "finished_at": "Terminé le"
+          },
+          "billing_settings": {
+            "queue_from": "File du matin à partir du"
           },
           "qbo_connections": {
             "realm_id": "Numéro de l'entreprise",
@@ -8910,6 +9020,59 @@
             "client_id": "Dossier client",
             "qbo_customer_id": "Client QuickBooks",
             "source": "Origine"
+          },
+          "payout_periods": {
+            "professional_id": "Professionnel",
+            "month": "Mois",
+            "state": "État",
+            "title_name": "Spécialité",
+            "lines_count": "Lignes",
+            "unpriced_count": "Lignes à compléter",
+            "total_cents": "Total",
+            "built_at": "Calculé le",
+            "built_by": "Calculé par",
+            "sent_at": "Envoyé le",
+            "sent_by": "Envoyé par",
+            "correction_note": "Correction demandée",
+            "correction_requested_at": "Correction demandée le",
+            "validated_at": "Validé le",
+            "validated_by": "Validé par",
+            "reopen_reason": "Raison de la réouverture",
+            "paid_on": "Versé le",
+            "paid_at": "Marqué versé le",
+            "paid_by": "Marqué versé par",
+            "payment_note": "Note du versement"
+          },
+          "payout_lines": {
+            "period_id": "Sommaire",
+            "kind": "Type",
+            "appointment_id": "Rendez-vous",
+            "invoice_line_id": "Ligne de facture",
+            "client_id": "Dossier",
+            "service_id": "Service",
+            "occurred_on": "Date",
+            "paid_on": "Payé le",
+            "duration": "Durée",
+            "base_cents": "Prix client",
+            "retention_pct": "Rétention",
+            "amount_cents": "Montant",
+            "pricing": "Calcul",
+            "note": "Note"
+          },
+          "professional_invoices": {
+            "period_id": "Sommaire",
+            "source": "Origine",
+            "file_id": "Fichier",
+            "number": "Numéro",
+            "issued_on": "Date de la facture",
+            "amount_cents": "Montant",
+            "qbo_bill_id": "Dépense QuickBooks",
+            "exported_at": "Exportée le"
+          },
+          "payout_service_rules": {
+            "service_id": "Service",
+            "rule": "Règle",
+            "updated_by": "Modifiée par"
           }
         },
         "values": {
@@ -8928,6 +9091,16 @@
               "manual": "Saisie",
               "service": "Service",
               "import": "Importation"
+            },
+            "hold_reason": {
+              "special_agreement": "Entente particulière",
+              "client_agreement": "Entente avec le professionnel",
+              "manual": "À la main"
+            },
+            "payment_status": {
+              "unpaid": "Non payée",
+              "partial": "Payée en partie",
+              "paid": "Payée"
             }
           },
           "invoice_lines": {
@@ -8946,7 +9119,33 @@
           "invoice_sequences": {
             "kind": {
               "invoice": "Facture",
-              "credit_note": "Note de crédit"
+              "credit_note": "Note de crédit",
+              "receipt": "Reçu"
+            }
+          },
+          "billing_deliveries": {
+            "kind": {
+              "invoice": "Facture",
+              "credit_note": "Note de crédit",
+              "receipt": "Reçu",
+              "statement": "Relevé"
+            },
+            "status": {
+              "pending": "À faire",
+              "sending": "En cours",
+              "done": "Fait",
+              "failed": "Échec"
+            },
+            "email_status": {
+              "sent": "Envoyé",
+              "skipped": "Pas envoyé",
+              "failed": "Échec"
+            },
+            "skip_reason": {
+              "not_requested": "Pas demandé",
+              "no_email": "Pas d’adresse courriel",
+              "reserved": "Réservé aux testeurs",
+              "module_disabled": "Module désactivé"
             }
           },
           "qbo_connections": {
@@ -9003,6 +9202,48 @@
               "matched": "Rapproché",
               "created": "Créé par l'application"
             }
+          },
+          "payout_periods": {
+            "state": {
+              "draft": "Brouillon",
+              "to_validate": "À valider",
+              "correction_requested": "Correction demandée",
+              "validated": "Validée",
+              "paid": "Versée"
+            }
+          },
+          "payout_lines": {
+            "kind": {
+              "session": "Rencontre",
+              "late_cancellation": "Annulation tardive ou absence",
+              "other_fees": "Rapport ou discussion",
+              "workshop": "Atelier",
+              "adjustment": "Ajustement"
+            },
+            "pricing": {
+              "grid": "Grille",
+              "agreement": "Entente particulière",
+              "rate": "Taux de la clinique",
+              "manual": "Ajustement",
+              "no_title": "Profession à confirmer",
+              "no_price": "Prix de la grille manquant",
+              "no_rate": "Taux de départ à fixer"
+            }
+          },
+          "professional_invoices": {
+            "source": {
+              "uploaded": "Téléversée",
+              "generated": "Générée"
+            }
+          },
+          "payout_service_rules": {
+            "rule": {
+              "session": "Rencontre (grille)",
+              "late_cancellation": "Annulation tardive",
+              "other_fees": "Autres frais",
+              "workshop": "Ateliers et conférences",
+              "none": "Non payé"
+            }
           }
         },
         "sources": {
@@ -9030,13 +9271,20 @@
         "deleted": "Brouillon supprimé.",
         "credited": "Note de crédit émise : la facture est créditée.",
         "defaultPayer": "Payeur par défaut changé.",
-        "sequence": "Numérotation enregistrée."
+        "sequence": "Numérotation enregistrée.",
+        "held": "Brouillon mis en attente.",
+        "released": "Brouillon remis dans la file.",
+        "resent": "Envoi au payeur demandé.",
+        "payment": "Paiement enregistré : le reçu part au payeur.",
+        "agreement": "Entente particulière enregistrée.",
+        "queueFrom": "File du matin enregistrée."
       },
       "list": {
         "title": "Factures",
         "description": "Les factures de la clinique, des plus récentes aux plus anciennes. Une nouvelle facture se crée depuis le dossier du client (« Visites et paiements »).",
         "views": "États des factures",
         "view": {
+          "file": "File du matin",
           "brouillons": "Brouillons",
           "emises": "Émises",
           "creditees": "Créditées",
@@ -9046,7 +9294,8 @@
           "brouillons": "Aucun brouillon de facture.",
           "emises": "Aucune facture émise.",
           "creditees": "Aucune facture créditée.",
-          "toutes": "Aucune facture."
+          "toutes": "Aucune facture.",
+          "file": "La file du matin est vide."
         },
         "loadError": "Les factures ne se chargent pas.",
         "number": "Numéro",
@@ -9057,7 +9306,8 @@
         "total": "Total",
         "status": "État",
         "draft": "Brouillon",
-        "more": "Afficher plus"
+        "more": "Afficher plus",
+        "payment": "Paiement"
       },
       "invoice": {
         "title": "Facture {number}",
@@ -9116,7 +9366,46 @@
         "creditTitle": "Émettre une note de crédit ?",
         "creditBody": "La facture entière est créditée et ne compte plus. Pour corriger, créez ensuite une nouvelle facture.",
         "creditReason": "Raison",
-        "creditSubmit": "Émettre la note de crédit"
+        "creditSubmit": "Émettre la note de crédit",
+        "sendFinalize": "Finaliser et envoyer",
+        "finalizeOnly": "Finaliser sans envoyer",
+        "sentOne": "Facture {number} finalisée et envoyée au payeur.",
+        "preview": "Aperçu PDF",
+        "previewError": "L’aperçu ne s’est pas fait. Réessayez dans un moment.",
+        "download": "Télécharger le PDF",
+        "downloadCreditNote": "PDF de la note de crédit",
+        "resend": "Renvoyer au payeur",
+        "held": "En attente : {reason}.",
+        "release": "Remettre dans la file",
+        "noEmail": "Le payeur n’a pas d’adresse courriel : la facture ne partira pas par courriel. Choisissez un autre payeur, ou remettez-la autrement.",
+        "delivery": {
+          "pending": "Envoi en cours : le PDF se prépare.",
+          "sent": "Envoyée au payeur par courriel le {date}.",
+          "no_email": "PDF prêt. Pas envoyé par courriel : le payeur n’a pas d’adresse.",
+          "reserved": "PDF prêt. Pas envoyé par courriel : la Facturation est réservée à ses testeurs.",
+          "not_requested": "PDF prêt. Pas envoyé par courriel.",
+          "module_disabled": "PDF prêt. Pas envoyé par courriel : le module est désactivé.",
+          "emailFailed": "L’adresse courriel du payeur a été refusée.",
+          "failed": "Le PDF ou le courriel a échoué. Utilisez « Renvoyer au payeur »."
+        },
+        "payments": {
+          "title": "Paiements",
+          "list": "Paiements de la facture",
+          "none": "Aucun paiement.",
+          "balance": "Solde : {amount}",
+          "paid": "Payé : {amount}",
+          "receipt": "Reçu {number}",
+          "receiptPdf": "PDF du reçu {number}",
+          "add": "Enregistrer un paiement",
+          "mode": "Mode de paiement",
+          "amount": "Montant",
+          "amountHelp": "Au plus le solde de la facture.",
+          "paidOn": "Date du paiement",
+          "reference": "Référence",
+          "referenceHelp": "Le numéro du virement Interac ou du chèque, par exemple.",
+          "submit": "Enregistrer le paiement",
+          "dateInvalid": "Indiquez la date du paiement."
+        }
       },
       "client": {
         "title": "Factures",
@@ -9133,11 +9422,37 @@
         "invoices": "Factures du dossier",
         "noInvoice": "Aucune facture pour ce dossier.",
         "draft": "Brouillon",
-        "billedTo": "facturée à {name}"
+        "billedTo": "facturée à {name}",
+        "balance": "Solde du dossier : {amount}",
+        "agreement": {
+          "title": "Entente particulière",
+          "help": "Les séances de ce dossier s’arrêtent dans la file du matin pour validation avant l’envoi.",
+          "note": "Note de l’entente",
+          "save": "Enregistrer l’entente",
+          "end": "Terminer l’entente",
+          "none": "Aucune entente particulière.",
+          "noteInvalid": "La note compte de 3 à 500 caractères."
+        },
+        "payments": "Paiements du dossier",
+        "noPayment": "Aucun paiement.",
+        "paymentLine": "{amount} le {date} ({mode}), facture {invoice}",
+        "statement": {
+          "title": "Relevés",
+          "help": "Les factures, notes de crédit et paiements d’une année, pour un payeur.",
+          "year": "Année",
+          "payer": "Payeur",
+          "make": "Préparer le relevé",
+          "send": "Préparer et envoyer au payeur",
+          "list": "Relevés du dossier",
+          "item": "Relevé {year}",
+          "preparing": "en préparation",
+          "download": "Télécharger",
+          "made": "Relevé demandé : il sera prêt dans un instant."
+        }
       },
       "settings": {
         "title": "Facturation",
-        "description": "La numérotation des factures. QuickBooks a ses propres sections.",
+        "description": "La numérotation des factures et la file du matin. QuickBooks a ses propres sections.",
         "loadError": "La numérotation ne se charge pas.",
         "numberInvalid": "Indiquez un nombre entier.",
         "numbering": {
@@ -9145,6 +9460,12 @@
           "description": "Les factures sont numérotées par année (AAAA-N), sans trou. La prochaine facture sera la {next}.",
           "last": "Dernier numéro utilisé en {year}",
           "lastHelp": "À la bascule, le dernier numéro de GOrendezvous pour l'année ; jamais moins qu'un numéro déjà donné ici."
+        },
+        "queue": {
+          "title": "File du matin",
+          "description": "Chaque nuit, les séances réalisées la veille deviennent des brouillons de facture à relire et à envoyer. Rien n’est préparé avant la date choisie : à la bascule, choisissez le premier jour qui suit GOrendezvous.",
+          "from": "À partir du",
+          "fromHelp": "Au plus tôt il y a 14 jours. Vide : la file est arrêtée."
         }
       },
       "qbo": {
@@ -9363,6 +9684,333 @@
             "to_decide": "{customer} est de nouveau à décider.",
             "no_match": "{customer} est sans correspondance."
           }
+        }
+      },
+      "payroll": {
+        "nav": {
+          "payroll": "Paie",
+          "myPay": "Ma paie"
+        },
+        "states": {
+          "draft": "Brouillon",
+          "to_validate": "À valider",
+          "correction_requested": "Correction demandée",
+          "validated": "Validée",
+          "paid": "Versée"
+        },
+        "kinds": {
+          "session": "Rencontre",
+          "late_cancellation": "Annulation tardive ou absence",
+          "other_fees": "Rapport ou discussion",
+          "workshop": "Atelier",
+          "adjustment": "Ajustement"
+        },
+        "rules": {
+          "session": "Rencontre : tarif de la grille",
+          "late_cancellation": "Frais d’annulation : taux « Annulation tardive », une fois payés",
+          "other_fees": "Taux « Autres frais »",
+          "workshop": "Taux « Ateliers et conférences »",
+          "none": "Non payé au professionnel"
+        },
+        "pricing": {
+          "grid": "Grille",
+          "agreement": "Entente particulière",
+          "rate": "Taux de la clinique",
+          "manual": "Ajustement",
+          "no_title": "Profession à confirmer",
+          "no_price": "Prix de la grille manquant",
+          "no_rate": "Taux de départ à fixer"
+        },
+        "errors": {
+          "failed": "L’opération sur la paie n’a pas pu être faite. Réessayez."
+        },
+        "lines": {
+          "table": "Lignes du sommaire",
+          "empty": "Aucune ligne.",
+          "columns": {
+            "date": "Date",
+            "client": "Client",
+            "service": "Service",
+            "base": "Prix client",
+            "retention": "Rétention",
+            "amount": "Montant",
+            "actions": "Actions"
+          },
+          "late": "Mois précédent",
+          "noClient": "Aucun client",
+          "fileNumber": "Dossier {number}",
+          "paidOn": "payé le {date}",
+          "unpriced": "À compléter : {reason}",
+          "removeAdjustment": "Retirer l’ajustement « {note} »",
+          "subtotal": "{kind} ({count})",
+          "total": "Total"
+        },
+        "period": {
+          "unknownProfessional": "Professionnel",
+          "lineCount": "{count} ligne(s)",
+          "paidOn": "Versée le {date}",
+          "notSent": "Ce sommaire n’a pas été envoyé : une ligne est à compléter.",
+          "invoiceFirst": "La facture du professionnel est requise avant le versement.",
+          "actions": {
+            "validate": "Valider le sommaire",
+            "validateFor": "Valider pour {name}",
+            "correction": "Signaler une correction",
+            "send": "Envoyer au professionnel",
+            "sendAgain": "Renvoyer au professionnel",
+            "adjust": "Ajouter un ajustement",
+            "rebuild": "Recalculer",
+            "rebuilding": "Calcul…",
+            "upload": "Téléverser la facture",
+            "replaceUpload": "Remplacer par un fichier",
+            "generate": "Générer la facture",
+            "replaceGenerate": "Générer à nouveau",
+            "paid": "Marquer comme versée",
+            "reopen": "Rouvrir"
+          },
+          "notices": {
+            "unpriced": "{count} ligne(s) à compléter : l’administration doit les corriger avant que vous puissiez valider.",
+            "unpricedStaff": "{count} ligne(s) à compléter : fixez le taux ou la profession dans Professionnels, puis « Recalculer ».",
+            "draft": "Brouillon : le professionnel ne le voit pas encore. Vérifiez-le, puis « Envoyer au professionnel ».",
+            "toValidate": "Vérifiez chaque ligne. Si tout est juste, validez le sommaire ; sinon, signalez la correction à faire.",
+            "toValidateStaff": "Envoyé : le professionnel doit le valider. « Recalculer » le remet en brouillon.",
+            "invoiceMissing": "Sommaire validé : ajoutez votre facture, téléversée ou générée à partir du sommaire.",
+            "invoiceMissingStaff": "Validé : la facture du professionnel est attendue (vous pouvez l’ajouter pour lui).",
+            "readyToPay": "Validé et facturé : prêt à verser.",
+            "correction": "Correction demandée le {date} :",
+            "reopened": "Rouvert par l’administration : {reason}"
+          },
+          "invoice": {
+            "summary": "Facture {number} du {date}",
+            "uploaded": "Téléversée",
+            "generated": "Générée à partir du sommaire",
+            "open": "Ouvrir la facture",
+            "unavailable": "Facture indisponible pour le moment."
+          },
+          "validateDialog": {
+            "title": "Valider le sommaire de {month} ?",
+            "body": "Vous confirmez le total de {amount}. Le sommaire sera verrouillé ; vous pourrez ensuite ajouter votre facture.",
+            "staffBody": "Vous validez pour {name} le total de {amount}. Le sommaire sera verrouillé.",
+            "confirm": "Valider"
+          },
+          "correctionDialog": {
+            "title": "Signaler une correction",
+            "description": "Dites à l’administration ce qui est à corriger dans le sommaire de {month}.",
+            "label": "Correction à faire",
+            "help": "Par exemple : une rencontre manquante, un tarif, une date.",
+            "submit": "Envoyer la demande"
+          },
+          "reopenDialog": {
+            "title": "Rouvrir le sommaire",
+            "description": "Le sommaire de {name} redevient « À valider » et sa facture est retirée. Il ou elle en est avisé.",
+            "label": "Raison",
+            "submit": "Rouvrir"
+          },
+          "toasts": {
+            "sent": "Sommaire envoyé à {name}.",
+            "rebuilt": "Sommaire recalculé.",
+            "validated": "Sommaire validé.",
+            "correction": "Demande de correction envoyée.",
+            "adjusted": "Ajustement ajouté.",
+            "adjustmentRemoved": "Ajustement retiré.",
+            "reopened": "Sommaire rouvert.",
+            "paid": "Paie de {name} marquée comme versée.",
+            "uploaded": "Facture ajoutée.",
+            "generated": "Facture générée et ajoutée."
+          },
+          "rebuildDialog": {
+            "title": "Recalculer un sommaire envoyé ?",
+            "body": "Le sommaire de {name} redevient un brouillon : il ou elle ne le voit plus jusqu’à ce que vous le renvoyiez."
+          }
+        },
+        "dialogs": {
+          "noteLength": "Écrivez de {min} à {max} caractères.",
+          "adjustment": {
+            "title": "Ajouter un ajustement",
+            "description": "Un montant à ajouter au sommaire, ou à retirer avec un signe moins (par exemple -25).",
+            "amount": "Montant ($)",
+            "amountHelp": "Négatif pour retirer un montant.",
+            "amountInvalid": "Entrez un montant en dollars, différent de zéro (par exemple 45 ou -12,50).",
+            "note": "Raison",
+            "submit": "Ajouter"
+          },
+          "paid": {
+            "title": "Marquer comme versée",
+            "description": "La paie de {name} ({amount}) a été versée.",
+            "date": "Date du versement",
+            "note": "Note",
+            "noteHelp": "Facultatif : par exemple le numéro du virement.",
+            "submit": "Marquer comme versée"
+          },
+          "invoice": {
+            "uploadTitle": "Téléverser la facture",
+            "uploadDescription": "La facture du professionnel pour {month}, d’un total de {amount}.",
+            "generateTitle": "Générer la facture",
+            "generateDescription": "Une facture PDF au nom du professionnel, faite à partir du sommaire de {month} ({amount}). Les clients y figurent par numéro de dossier.",
+            "number": "Numéro de facture",
+            "numberHelp": "Le numéro de votre propre facturation.",
+            "numberRequired": "Le numéro de facture est requis.",
+            "numberTooLong": "Le numéro de facture compte 40 caractères au plus.",
+            "date": "Date de la facture",
+            "dateRequired": "La date de la facture est requise.",
+            "dateRange": "La date de la facture doit suivre le début du mois et ne pas être dans le futur.",
+            "fixFields": "Corrigez le numéro ou la date avant d’envoyer le fichier.",
+            "choose": "Choisir le fichier",
+            "hint": "PDF, JPEG ou PNG, 10 Mo au plus.",
+            "generate": "Générer la facture",
+            "generating": "Génération…"
+          }
+        },
+        "mine": {
+          "title": "Ma paie",
+          "description": "Vos sommaires de paie mensuels : vérifiez-les, validez-les, puis ajoutez votre facture.",
+          "table": "Mes sommaires de paie",
+          "loadError": "Vos sommaires de paie n’ont pas pu être chargés.",
+          "emptyTitle": "Aucun sommaire de paie pour l’instant",
+          "emptyBody": "Le sommaire d’un mois paraît ici au début du mois suivant, une fois vérifié par l’administration.",
+          "columns": {
+            "month": "Mois",
+            "state": "État",
+            "lines": "Lignes",
+            "total": "Total",
+            "invoice": "Facture"
+          },
+          "paidOn": "le {date}",
+          "invoiceAttached": "Ajoutée",
+          "invoiceToAttach": "À ajouter",
+          "invoiceNotYet": "Après la validation",
+          "periodTitle": "Paie de {month}",
+          "periodDescription": "Chaque rencontre réalisée est payée au tarif de la grille, moins la rétention de la clinique.",
+          "periodLoadError": "Ce sommaire n’a pas pu être chargé.",
+          "back": "Tous mes sommaires"
+        },
+        "admin": {
+          "title": "Paie des professionnels",
+          "description": "Les sommaires mensuels, calculés le 1er du mois à partir des rencontres réalisées.",
+          "table": "Sommaires du mois",
+          "loadError": "Les sommaires du mois n’ont pas pu être chargés.",
+          "periodLoadError": "Ce sommaire n’a pas pu être chargé.",
+          "emptyTitle": "Aucun sommaire pour ce mois",
+          "emptyBody": "« Calculer le mois » crée les sommaires à partir des rencontres réalisées.",
+          "emptyBodyUnfinished": "Le mois n’est pas terminé : ses sommaires se calculent à partir du 1er du mois suivant.",
+          "build": "Calculer le mois",
+          "rebuild": "Recalculer le mois",
+          "building": "Calcul…",
+          "sendReady": "Envoyer les sommaires prêts ({count})",
+          "export": "Exporter pour QuickBooks",
+          "exportEmpty": "Aucune facture de professionnel pour ce mois.",
+          "exportFileName": "Factures des professionnels {month}.csv",
+          "previousMonth": "Mois précédent",
+          "nextMonth": "Mois suivant",
+          "summary": "{periods} sommaire(s), {total} · {unpriced} à compléter · {validated} validé(s) · {paid} versé(s)",
+          "unknownProfessional": "Professionnel",
+          "noSpecialty": "Profession à confirmer",
+          "noInvoice": "Aucune",
+          "unpriced": "{count} à compléter",
+          "sheetTitle": "{name} · {month}",
+          "sheetDescription": "Le sommaire, ses lignes et la facture du professionnel.",
+          "columns": {
+            "professional": "Professionnel",
+            "specialty": "Spécialité",
+            "state": "État",
+            "lines": "Lignes",
+            "total": "Total",
+            "invoice": "Facture"
+          },
+          "toasts": {
+            "built": "Mois calculé : {created} nouveau(x) sommaire(s), {rebuilt} recalculé(s), {locked} verrouillé(s).",
+            "sent": "{sent} sommaire(s) envoyé(s) ; {unpriced} en attente d’une ligne à compléter.",
+            "discarded": "{count} brouillon(s) supprimé(s)."
+          },
+          "discard": "Supprimer les brouillons ({count})",
+          "confirm": {
+            "rebuild": {
+              "title": "Recalculer {month} ?",
+              "body": "{count} sommaire(s) déjà envoyé(s) redeviennent des brouillons : les professionnels ne les voient plus jusqu’à ce que vous les renvoyiez. Les sommaires validés ou versés ne changent pas.",
+              "action": "Recalculer le mois"
+            },
+            "discard": {
+              "title": "Supprimer les brouillons de {month} ?",
+              "body": "{count} brouillon(s) jamais envoyé(s) seront supprimés, par exemple un mois calculé par erreur. Les sommaires envoyés, validés ou versés restent.",
+              "action": "Supprimer les brouillons"
+            }
+          }
+        },
+        "export": {
+          "columns": {
+            "specialty": "Spécialité",
+            "professional": "Professionnel",
+            "number": "Numéro de facture",
+            "date": "Date de la facture",
+            "amount": "Montant",
+            "state": "État",
+            "paidOn": "Versée le"
+          }
+        },
+        "settings": {
+          "title": "Paie",
+          "description": "Comment chaque service est payé au professionnel. Les taux viennent de Professionnels (Paramètres → Rémunération).",
+          "rules": {
+            "title": "Règle de paie par service",
+            "description": "Chaque choix est enregistré aussitôt et s’applique aux prochains calculs.",
+            "table": "Règles de paie",
+            "loadError": "Les règles de paie n’ont pas pu être chargées.",
+            "columns": {
+              "service": "Service",
+              "rule": "Règle"
+            },
+            "selectLabel": "Règle de paie de {service}",
+            "inactive": "Service retiré",
+            "changed": "Modifiée (n’est plus la règle par défaut)",
+            "saved": "{service} : {rule}."
+          },
+          "job": {
+            "title": "Tâche planifiée",
+            "description": "Le 1er du mois, calcule les sommaires du mois précédent en brouillon, à vérifier avant l’envoi.",
+            "unknown": "L’état des tâches planifiées n’est visible qu’avec la permission de voir les paramètres.",
+            "state": {
+              "on": "La tâche « Sommaires de paie » est activée.",
+              "onNoHour": "La tâche « Sommaires de paie » est activée.",
+              "off": "La tâche « Sommaires de paie » est désactivée : calculez chaque mois avec « Calculer le mois ».",
+              "enable": "Activer la tâche planifiée",
+              "enabling": "Activation…",
+              "askAdmin": "Une personne qui gère les tâches planifiées peut l’activer :",
+              "openJobs": "Ouvrir Tâches planifiées",
+              "unknown": "La tâche « Sommaires de paie » n’est pas disponible pour la clinique.",
+              "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
+            }
+          }
+        }
+      },
+      "payment": {
+        "unpaid": "Non payée",
+        "partial": "Payée en partie",
+        "paid": "Payée"
+      },
+      "queue": {
+        "label": "Brouillons de la file du matin",
+        "description": "Les séances réalisées les jours précédents, prêtes à relire et à envoyer. Celles qui demandent une validation sont en tête.",
+        "loadError": "La file du matin ne se charge pas.",
+        "empty": "Rien à envoyer : la file du matin est vide.",
+        "sendAll": "Tout envoyer ({count})",
+        "send": "Envoyer",
+        "open": "Ouvrir",
+        "hold": "Mettre en attente",
+        "release": "Remettre dans la file",
+        "validate": "Valider l’entente",
+        "session": "Séance du {date}",
+        "billedTo": "Facturé à {name}",
+        "sent": "Factures envoyées : {count}.",
+        "refused": "Pas envoyée ({client}) : {message}",
+        "holdTitle": "Mettre ce brouillon en attente ?",
+        "holdBody": "Il reste dans la file, en tête, jusqu’à ce que vous le remettiez dans la file. « Tout envoyer » ne l’envoie pas.",
+        "holdNote": "Note (facultative)",
+        "holdSubmit": "Mettre en attente",
+        "holds": {
+          "special_agreement": "Entente particulière : à valider",
+          "client_agreement": "Entente avec le professionnel : à valider",
+          "manual": "En attente",
+          "price_missing": "Montant à indiquer",
+          "payer_missing": "Payeur sans adresse courriel"
         }
       }
     }
