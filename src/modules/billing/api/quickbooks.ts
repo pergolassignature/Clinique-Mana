@@ -241,7 +241,7 @@ export async function setQboPushPaused(paused: boolean): Promise<void> {
   if (error) throw error
 }
 
-export const PUSH_KINDS = ['invoice', 'credit_memo', 'payment', 'bill'] as const
+export const PUSH_KINDS = ['invoice', 'credit_memo', 'payment', 'refund', 'bill'] as const
 export type PushKind = (typeof PUSH_KINDS)[number]
 export const PUSH_STATUSES = ['pending', 'pushed', 'failed'] as const
 export type PushStatus = (typeof PUSH_STATUSES)[number]
