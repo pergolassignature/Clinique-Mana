@@ -1079,6 +1079,50 @@ export type Database = {
           },
         ]
       }
+      billing_sync_events: {
+        Row: {
+          attempts: number
+          created_at: string
+          entity_id: string
+          id: number
+          invoice_id: string
+          kind: string
+          last_error_code: string | null
+          org_id: string
+          processed_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          entity_id: string
+          id?: never
+          invoice_id: string
+          kind: string
+          last_error_code?: string | null
+          org_id: string
+          processed_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          entity_id?: string
+          id?: never
+          invoice_id?: string
+          kind?: string
+          last_error_code?: string | null
+          org_id?: string
+          processed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_sync_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cancellation_reasons: {
         Row: {
           created_at: string
@@ -11901,6 +11945,17 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      billing_sync_events_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          entity_id: string
+          id: number
+          invoice_id: string
+          kind: string
+        }[]
+      }
       book_appointment: {
         Args: {
           p_balance_override_reason?: string
@@ -12398,6 +12453,10 @@ export type Database = {
           p_org_id: string
           p_skip_reason: string
         }
+        Returns: undefined
+      }
+      finish_billing_sync_event_for_service: {
+        Args: { p_error_code: string; p_id: number; p_org_id: string }
         Returns: undefined
       }
       finish_job_run: {

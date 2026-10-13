@@ -10,7 +10,7 @@
 -- on a paid invoice, and is emailed when the invoice was; statements; the agreement RPC; the reads.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(88);
+select plan(98);
 
 select function_privs_are('public', f, a, 'authenticated', array['EXECUTE'], f)
   from (values ('get_billing_settings', array[]::text[]),
@@ -282,6 +282,33 @@ select is(pg_catalog.jsonb_array_length(public.get_invoice(current_setting('test
 select lives_ok($$ select public.set_special_agreement('d0000000-0000-0000-0000-000000000002', null) $$, 'Zoé''s agreement ended');
 select is((select count(*)::int from public.special_agreements where client_id = 'd0000000-0000-0000-0000-000000000002' and is_active), 0, '… none active');
 reset role;
+
+-- QuickBooks' outbox (FQ): each issued invoice, credit note and payment once, never an import.
+select results_eq($$ select kind, count(*)::int from public.billing_sync_events group by kind order by kind $$,
+  $$ values ('invoice_credited'::text, 2), ('invoice_issued', 4), ('payment_recorded', 2) $$,
+  'every issued invoice, credit note and payment is in the outbox');
+select is((select count(*)::int from public.billing_sync_events
+            where kind = 'invoice_issued' and invoice_id = current_setting('test.zoe')::uuid), 1, '… once, a resend adds none');
+select is(private.billing_invoice_for_sync('b0000000-0000-0000-0000-00000000000a', current_setting('test.zoe')::uuid) #>> '{credit_note,number}',
+  (select number from public.credit_notes where invoice_id = current_setting('test.zoe')::uuid), 'the invoice''s read names its credit note');
+select is((private.billing_payment_for_sync('b0000000-0000-0000-0000-00000000000a',
+             (select id from public.payments where reference = 'CA1234')) ->> 'mode_code'), 'interac', 'the payment''s read names its mode');
+select set_config('test.ev', (select min(id)::text from public.billing_sync_events), true);
+select lives_ok($$ select public.finish_billing_sync_event_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.ev')::bigint, 'qbo_unavailable') $$,
+  'a push that fails');
+select results_eq($$ select attempts, processed_at is null from public.billing_sync_events where id = current_setting('test.ev')::bigint $$,
+  $$ values (1, true) $$, '… one more try, still pending');
+select lives_ok($$ select public.finish_billing_sync_event_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.ev')::bigint, null) $$,
+  'pushed');
+select ok(not exists (select 1 from public.billing_sync_events_for_service('b0000000-0000-0000-0000-00000000000a', 50)
+                       where id = current_setting('test.ev')::bigint), '… no longer listed');
+insert into public.invoices (org_id, client_id, payer_client_id, source_type, external_ref)
+values ('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000004', 'import', 'GOR-1');
+select lives_ok($$ select private.billing_queue_sync('b0000000-0000-0000-0000-00000000000a', 'invoice_issued',
+                     (select id from public.invoices where external_ref = 'GOR-1'), (select id from public.invoices where external_ref = 'GOR-1')) $$,
+  'an imported invoice …');
+select is((select count(*)::int from public.billing_sync_events e join public.invoices i on i.id = e.invoice_id where i.source_type = 'import'), 0,
+  '… never enters the outbox (already in QuickBooks)');
 
 -- Clients' anonymisation: the references and the agreements go.
 select ok(private.billing_anonymize_client('d0000000-0000-0000-0000-000000000001') >= 1, 'an anonymisation');

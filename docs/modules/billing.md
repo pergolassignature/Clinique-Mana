@@ -1,6 +1,6 @@
 # Module `billing` (« Facturation »)
 
-The clinic's invoices: a client's dossier billed to its payer, for sessions priced by Services et tarifs, numbered `AAAA-N`, taxed line by line, corrected by credit notes. Plan: [coding plan §8](../plans/2026-10-11-modules-coding-plan.md#8-facturation-billing--batches); [Christine's answers](../research/2026-10-12-christine-answers.md) (5, 6, 7, 9, 10, 11, 15, 16); legacy inventory [§F](../plans/2026-10-06-legacy-feature-inventory.md#f-facturation); decisions R-40, R-56 … R-65 and **BI-1 … BI-12** in the [decisions log](../plans/2026-10-07-decisions-log.md).
+The clinic's invoices: a client's dossier billed to its payer, for sessions priced by Services et tarifs, numbered `AAAA-N`, taxed line by line, corrected by credit notes. Plan: [coding plan §8](../plans/2026-10-11-modules-coding-plan.md#8-facturation-billing--batches); [Christine's answers](../research/2026-10-12-christine-answers.md) (5, 6, 7, 9, 10, 11, 15, 16); legacy inventory [§F](../plans/2026-10-06-legacy-feature-inventory.md#f-facturation); decisions R-40, R-56 … R-65 and **BI-1 … BI-13** in the [decisions log](../plans/2026-10-07-decisions-log.md).
 
 | Batch | What | Status |
 |---|---|---|
@@ -54,6 +54,7 @@ All per clinic, RLS on (`billing.view`; `payment_modes` also `billing.self`), `s
 | `receipts` | one per payment, `R-AAAA-N` (sequence kind `receipt`) | |
 | `statements` | a dossier's year for one payer | |
 | `billing_deliveries` | a document to render and maybe email: kind, `send_email`, `explicit` (« Renvoyer »), status `pending` / `sending` / `done` / `failed`, the email's outcome (`sent`, `skipped` with `not_requested` / `no_email` / `reserved` / `module_disabled`, `failed`), tries | claimed by `billing-documents`; three tries (the per-address limit is none) |
+| `billing_sync_events` | the QuickBooks outbox (BI-13): `invoice_issued`, `invoice_credited`, `payment_recorded`, `payment_refunded`; invoice, entity, tries, last code | service role only, not audited; once per entity; never an import |
 
 `invoices` gains `queue_day`, `hold_reason` (`special_agreement`, `client_agreement`, `manual`), `hold_note`, `paid_cents`, `payment_status` (`unpaid`, `partial`, `paid`) and `pdf_file_id`; `credit_notes`, `receipts` and `statements` have their `pdf_file_id` (purpose `billing_document`, bucket `documents`, read with `billing.view`, kept).
 
@@ -87,6 +88,7 @@ All definer, permission first, French `P0001` with a HINT naming the field.
 | `create_statement(client, year, payer, send)` → id | `billing.manage` | stored; emailed when `send` |
 | `get_billing_document(kind, id)` | `billing.view` | what a PDF prints, and the logo (« Aperçu », a draft too) |
 | `billing_deliveries_for_service`, `billing_document_for_service`, `finish_billing_delivery_for_service`, `discard_billing_file_for_service` | service role | `billing-documents` |
+| `billing_sync_events_for_service(org, limit)`, `finish_billing_sync_event_for_service(org, id, error)` | service role | FQ's push (with `private.billing_invoice_for_sync` and `private.billing_payment_for_sync`, granted to no role) |
 
 F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_note` (refused with payments; emailed when the invoice was), `get_invoice` and `get_client_billing` (payments, receipts, deliveries, the agreement, the balance) are replaced with the same signatures; `list_invoices` gains `paid_cents` and `payment_status`.
 

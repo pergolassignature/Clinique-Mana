@@ -33,6 +33,10 @@
 --   with payments waits for F3's refunds (refused here).
 -- * Statements: a dossier's year for one payer (« Relevé »): the invoices billed to that payer,
 --   the credit notes and the payments, the balance; made on request, sent or only stored.
+-- * QuickBooks (the outbox agreed with lane B): `billing_sync_events` gets `invoice_issued`,
+--   `invoice_credited` and `payment_recorded` in the transaction that makes them (never for an
+--   imported invoice); lane B's FQ part 2 reads `billing_sync_events_for_service`,
+--   `private.billing_invoice_for_sync` / `billing_payment_for_sync` and marks them done.
 -- * F1 functions replaced (same signatures): create_invoice (the shared builder), finalize_invoice
 --   (a PDF delivery, no email), issue_credit_note (refused with payments; its PDF, emailed when the
 --   invoice was), get_invoice, get_client_billing (payments, receipts, deliveries, the
@@ -233,6 +237,27 @@ create index billing_deliveries_org_receipt_idx on public.billing_deliveries (or
 create index billing_deliveries_org_statement_idx on public.billing_deliveries (org_id, statement_id);
 create index billing_deliveries_email_log_idx on public.billing_deliveries (email_log_id);
 create index billing_deliveries_created_by_idx on public.billing_deliveries (created_by);
+
+-- The QuickBooks outbox (shape agreed with lane B's FQ, 2026-10-13): one row per event, written
+-- in the transaction that makes it; lane B's job pushes it (paused until the cutover's go / no-go).
+-- An operational log of ids: not audited (000_invariants), service role only.
+create table public.billing_sync_events (
+  id bigint generated always as identity primary key,
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  kind text not null,
+  invoice_id uuid not null,
+  entity_id uuid not null,
+  created_at timestamptz not null default now(),
+  processed_at timestamptz,
+  attempts int not null default 0,
+  last_error_code text,
+  constraint billing_sync_events_kind_check check (kind in ('invoice_issued', 'invoice_credited', 'payment_recorded', 'payment_refunded')),
+  constraint billing_sync_events_error_check check (last_error_code ~ '^[a-z_]{1,40}$'),
+  constraint billing_sync_events_entity_key unique (org_id, kind, entity_id)
+);
+create index billing_sync_events_pending_idx on public.billing_sync_events (org_id, id) where processed_at is null;
+alter table public.billing_sync_events enable row level security;
+revoke all on public.billing_sync_events from anon, authenticated;
 
 -- -----------------------------------------------------------------------------
 -- RLS, grants (select only), audit
@@ -474,8 +499,22 @@ begin
          finalized_at = pg_catalog.now(), finalized_by = p_actor, hold_reason = null, hold_note = null
    where i.id = v.id;
   perform private.billing_apply_payments(v.id);
+  perform private.billing_queue_sync(p_org, 'invoice_issued', v.id, v.id);
   return v_number;
 end;
+$$;
+
+-- An event for QuickBooks (`billing_sync_events`), once per entity; never for GOrendezvous's
+-- imported invoices (already in QuickBooks).
+create function private.billing_queue_sync(p_org uuid, p_kind text, p_invoice_id uuid, p_entity uuid)
+returns void
+language sql
+set search_path = ''
+as $$
+  insert into public.billing_sync_events (org_id, kind, invoice_id, entity_id)
+  select p_org, p_kind, p_invoice_id, p_entity
+   where not exists (select 1 from public.invoices i where i.id = p_invoice_id and i.source_type = 'import')
+  on conflict (org_id, kind, entity_id) do nothing
 $$;
 
 -- Queues a document's delivery (its PDF; the email when asked). Returns the delivery's id.
@@ -524,7 +563,8 @@ revoke all on function private.billing_payer_email(uuid, uuid, uuid),
   private.billing_add_service_line(uuid, uuid, text, uuid, uuid, date, uuid, uuid, boolean),
   private.billing_invoice_appointments(uuid, uuid[], uuid, boolean, text, text, uuid, boolean),
   private.billing_apply_payments(uuid), private.billing_finalize(uuid, uuid, uuid),
-  private.billing_queue_delivery(uuid, text, uuid, boolean, boolean, uuid), private.billing_hold_now(public.invoices)
+  private.billing_queue_delivery(uuid, text, uuid, boolean, boolean, uuid), private.billing_hold_now(public.invoices),
+  private.billing_queue_sync(uuid, text, uuid, uuid)
   from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
@@ -605,6 +645,7 @@ begin
   returning id into v_id;
   update public.invoice_lines l set credited = true where l.invoice_id = v.id;
   update public.invoices i set status = 'credited', credited_at = pg_catalog.now() where i.id = v.id;
+  perform private.billing_queue_sync(v_org, 'invoice_credited', v.id, v_id);
   perform private.billing_queue_delivery(v_org, 'credit_note', v_id,
     exists (select 1 from public.billing_deliveries d where d.invoice_id = v.id and d.kind = 'invoice' and d.email_status = 'sent'),
     false, auth.uid());
@@ -879,6 +920,7 @@ begin
   values (v_org, v.id, v.payer_client_id, p_mode_code, p_amount_cents, v_paid_on, v_reference, auth.uid())
   returning id into v_payment;
   perform private.billing_apply_payments(v.id);
+  perform private.billing_queue_sync(v_org, 'payment_recorded', v.id, v_payment);
   v_seq := private.billing_next_number(v_org, 'receipt', v_year);
   insert into public.receipts (org_id, payment_id, invoice_id, number, year, seq, issued_on, amount_cents)
   values (v_org, v_payment, v.id, 'R-' || v_year::text || '-' || v_seq::text, v_year, v_seq, v_today, p_amount_cents)
@@ -1427,6 +1469,92 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
+-- QuickBooks (lane B's FQ part 2 reads these; granted to no role, or service role)
+-- -----------------------------------------------------------------------------
+-- An invoice as QuickBooks needs it: number, dates, the dossier and the payer, the lines (service
+-- code, amounts, TPS, TVQ), the totals, its credit note. Null for another clinic's.
+create function private.billing_invoice_for_sync(p_org uuid, p_invoice_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select pg_catalog.jsonb_build_object(
+           'id', i.id, 'number', i.number, 'status', i.status, 'issued_on', i.issued_on, 'due_on', i.due_on,
+           'client_id', i.client_id, 'payer_client_id', i.payer_client_id, 'payer_kind', i.payer_kind, 'source_type', i.source_type,
+           'tax_exempt', i.tax_exempt, 'gst_rate', i.gst_rate, 'qst_rate', i.qst_rate,
+           'subtotal_cents', i.subtotal_cents, 'gst_cents', i.gst_cents, 'qst_cents', i.qst_cents, 'total_cents', i.total_cents,
+           'lines', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                       'id', l.id, 'position', l.position, 'line_type', l.line_type, 'service_id', l.service_id, 'service_code', l.service_code,
+                       'professional_id', l.professional_id, 'appointment_id', l.appointment_id, 'quantity', l.quantity,
+                       'unit_price_cents', l.unit_price_cents, 'tax_rule', l.tax_rule, 'subtotal_cents', l.subtotal_cents,
+                       'gst_cents', l.gst_cents, 'qst_cents', l.qst_cents, 'total_cents', l.total_cents) order by l.position)
+                       from public.invoice_lines l where l.invoice_id = i.id), '[]'::jsonb),
+           'credit_note', (select pg_catalog.jsonb_build_object('id', c.id, 'number', c.number, 'issued_on', c.issued_on,
+                                    'subtotal_cents', c.subtotal_cents, 'gst_cents', c.gst_cents, 'qst_cents', c.qst_cents, 'total_cents', c.total_cents)
+                             from public.credit_notes c where c.invoice_id = i.id))
+    from public.invoices i where i.org_id = p_org and i.id = p_invoice_id
+$$;
+
+-- A payment as QuickBooks needs it: amount, day, the mode's code, the invoice, the payer.
+create function private.billing_payment_for_sync(p_org uuid, p_payment_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select pg_catalog.jsonb_build_object(
+           'id', p.id, 'invoice_id', p.invoice_id, 'invoice_number', i.number, 'client_id', i.client_id,
+           'payer_client_id', p.payer_client_id, 'mode_code', p.mode_code, 'amount_cents', p.amount_cents, 'paid_on', p.paid_on,
+           'external_ref', p.external_ref)
+    from public.payments p join public.invoices i on i.id = p.invoice_id
+   where p.org_id = p_org and p.id = p_payment_id
+$$;
+revoke all on function private.billing_invoice_for_sync(uuid, uuid), private.billing_payment_for_sync(uuid, uuid)
+  from public, anon, authenticated, service_role;
+
+-- The org's events not processed yet, oldest first.
+create function public.billing_sync_events_for_service(p_org_id uuid, p_limit int default 50)
+returns table (id bigint, kind text, invoice_id uuid, entity_id uuid, attempts int, created_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select e.id, e.kind, e.invoice_id, e.entity_id, e.attempts, e.created_at
+    from public.billing_sync_events e
+   where e.org_id = p_org_id and e.processed_at is null
+   order by e.id
+   limit least(greatest(coalesce(p_limit, 50), 1), 500)
+$$;
+
+-- An event pushed (p_error_code null: processed) or not (a code: one more try, left pending).
+create function public.finish_billing_sync_event_for_service(p_org_id uuid, p_id bigint, p_error_code text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_error_code is not null and p_error_code !~ '^[a-z_]{1,40}$' then
+    raise exception 'Invalid error code' using errcode = '22023';
+  end if;
+  update public.billing_sync_events e
+     set processed_at = case when p_error_code is null then pg_catalog.now() end,
+         attempts = e.attempts + case when p_error_code is null then 0 else 1 end,
+         last_error_code = p_error_code
+   where e.org_id = p_org_id and e.id = p_id and e.processed_at is null;
+  if not found then
+    raise exception 'Unknown or processed event' using errcode = '22023';
+  end if;
+end;
+$$;
+revoke all on function public.billing_sync_events_for_service(uuid, int), public.finish_billing_sync_event_for_service(uuid, bigint, text)
+  from public, anon, authenticated;
+grant execute on function public.billing_sync_events_for_service(uuid, int), public.finish_billing_sync_event_for_service(uuid, bigint, text)
+  to service_role;
+
+-- -----------------------------------------------------------------------------
 -- The job: the morning queue's drafts
 -- -----------------------------------------------------------------------------
 -- Per clinic with the module on and a « File du matin à partir du »: the completed sessions of
@@ -1611,7 +1739,7 @@ select x.key, 'billing', x.label, x.description, x.why_line, x.subject, x.body, 
 on conflict do nothing;
 
 -- -----------------------------------------------------------------------------
--- Clients' merge and anonymisation: F1's part, and the new rows
+-- Clients' merge and anonymisation: F1's part, F2's new rows, FQ's QuickBooks part (lane B)
 -- -----------------------------------------------------------------------------
 create or replace function private.billing_reassign_client(p_old uuid, p_new uuid)
 returns int
@@ -1650,6 +1778,29 @@ begin
      and exists (select 1 from public.special_agreements k where k.client_id = p_new and k.is_active);
   update public.special_agreements a set client_id = p_new where a.client_id = p_old;
   get diagnostics v_count = row_count; v_total := v_total + v_count;
+
+  -- FQ (20261013111236_billing_quickbooks): the QuickBooks matches and links, as lane B wrote them.
+  update public.qbo_customer_matches m
+     set candidate_client_ids = pg_catalog.array_replace(m.candidate_client_ids, p_old, p_new)
+   where p_old = any (m.candidate_client_ids);
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  update public.qbo_customer_matches m set client_id = p_new
+   where m.client_id = p_old
+     and not exists (select 1 from public.qbo_customer_matches k
+                      where k.connection_id = m.connection_id and k.client_id = p_new and k.status = 'linked');
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  update public.qbo_links l set payer_client_id = p_new
+   where l.payer_client_id = p_old
+     and not exists (select 1 from public.qbo_links k
+                      where k.connection_id = l.connection_id and k.kind = l.kind and k.payer_client_id = p_new
+                        and k.client_id is not distinct from (case when l.client_id = p_old then p_new else l.client_id end));
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  update public.qbo_links l set client_id = p_new
+   where l.client_id = p_old
+     and not exists (select 1 from public.qbo_links k
+                      where k.connection_id = l.connection_id and k.kind = 'dossier'
+                        and k.payer_client_id = l.payer_client_id and k.client_id = p_new);
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
   return v_total;
 end;
 $$;
@@ -1673,6 +1824,13 @@ begin
   update public.payments p set reference = null where p.payer_client_id = p_id and p.reference is not null;
   get diagnostics v_count = row_count; v_total := v_total + v_count;
   delete from public.special_agreements a where a.client_id = p_id;
+  get diagnostics v_count = row_count; v_total := v_total + v_count;
+  -- FQ (20261013111236_billing_quickbooks): this app's copy of the customers matched to the person.
+  update public.qbo_customers q
+     set display_name = '(anonymisé)', given_name = null, family_name = null, company_name = null, email = null, phones = '{}'
+    from public.qbo_customer_matches m
+   where m.connection_id = q.connection_id and m.qbo_id = q.qbo_id and m.client_id = p_id
+     and q.display_name <> '(anonymisé)';
   get diagnostics v_count = row_count; v_total := v_total + v_count;
   return v_total;
 end;
