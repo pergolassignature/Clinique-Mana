@@ -49,13 +49,14 @@ select results_eq($$
    where module_key = 'communications' and (key like 'communications.gmail%' or key like 'communications.mail%') order by 1
 $$, $$ values ('communications.gmail_sync', 'function', false, 'gmail-sync', null::text),
              ('communications.gmail_watch_renew', 'function', false, 'gmail-watch-renew', null::text),
-             ('communications.mail_bodies_purge', 'sql', true, null::text, 'private.job_mail_bodies_purge') $$,
-  'three jobs: the sync fallback, the watch renewal, the purge');
+             ('communications.mail_bodies_purge', 'sql', true, null::text, 'private.job_mail_bodies_purge'),
+             ('communications.mail_links_backfill', 'sql', true, null::text, 'private.job_mail_links_backfill') $$,
+  'four jobs: the sync fallback, the watch renewal, the purge, the links backfill (CM3)');
 select results_eq($$
   select j.jobname, j.schedule from cron.job j
    where j.jobname like 'communications.gmail%' or j.jobname like 'communications.mail%' order by 1
 $$, $$ values ('communications.gmail_sync', '*/15 * * * *'), ('communications.gmail_watch_renew', '35 * * * *'),
-             ('communications.mail_bodies_purge', '45 8 * * *') $$, 'cron entries');
+             ('communications.mail_bodies_purge', '45 8 * * *'), ('communications.mail_links_backfill', '25 8 * * *') $$, 'cron entries');
 select results_eq($$
   select module_key, bucket, upload_permission, view_permission, retain_days from public.upload_purposes where key = 'mail_attachment'
 $$, $$ values ('communications', 'documents', 'communications.mailboxes_manage', 'communications.inbox', null::int) $$,

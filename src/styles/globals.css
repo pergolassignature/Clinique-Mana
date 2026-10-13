@@ -228,6 +228,46 @@
   box-shadow: var(--ring), var(--shadow-large);
 }
 
+/* The composer's editor (Communications, CM3: TipTap's ProseMirror). Outside @layer: the class is
+   set by the editor at run time, so Tailwind never sees it in the markup. */
+.prose-email p {
+  margin: 0 0 0.5rem;
+}
+
+.prose-email ul,
+.prose-email ol {
+  margin: 0 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.prose-email ul {
+  list-style: disc;
+}
+
+.prose-email ol {
+  list-style: decimal;
+}
+
+.prose-email blockquote {
+  margin: 0 0 0.5rem;
+  border-left: 2px solid rgb(var(--border));
+  padding-left: 0.75rem;
+  color: rgb(var(--text-secondary));
+}
+
+.prose-email a {
+  color: rgb(var(--text-link));
+  text-decoration: underline;
+}
+
+.prose-email p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: rgb(var(--text-muted));
+}
+
 [data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-close-button]:focus-visible,
 [data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button]:focus-visible {
   box-shadow: var(--ring);

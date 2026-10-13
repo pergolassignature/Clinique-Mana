@@ -16,6 +16,12 @@ import type { ThreadListQuery } from '../api/inbox'
  * | a thread linked to a file or unlinked (CM2b)    | `threadLink(id)`, `threadLists()` (« À         |
  * |                                                 | rattacher » and each row's link status)        |
  * | a sync (new threads, linked by the sync)        | `threads()` covers every `threadLink(id)`      |
+ * | a draft saved (CM3, autosave)                   | `drafts()` (the list; the open draft is the    |
+ * |                                                 | composer's own state, never refetched)         |
+ * | a draft deleted                                 | `drafts()`                                     |
+ * | a template saved or deleted                     | `templates()`                                  |
+ * | a message sent                                  | `threads()` (the lists, the thread, its link), |
+ * |                                                 | `drafts()`, `clientThreads()`, `connections()` |
  *
  * The SMS side keeps its own root (`smsKeys`), so neither invalidates the other.
  */
@@ -34,6 +40,13 @@ export const mailKeys = {
   /** The search of a file to link a thread to (Clients' `search_clients`). */
   fileSearch: (query: string) => [...mailKeys.all, 'file-search', query] as const,
   labels: (connectionId: string) => [...mailKeys.all, 'labels', connectionId] as const,
+  /** The composer (CM3). */
+  drafts: () => [...mailKeys.all, 'drafts'] as const,
+  draft: (id: string) => [...mailKeys.drafts(), 'one', id] as const,
+  templates: () => [...mailKeys.all, 'templates'] as const,
+  composeContext: (clientId: string) => [...mailKeys.all, 'compose-context', clientId] as const,
+  clientThreads: () => [...mailKeys.all, 'client-threads'] as const,
+  clientThreadList: (clientId: string) => [...mailKeys.clientThreads(), clientId] as const,
 }
 
 /**

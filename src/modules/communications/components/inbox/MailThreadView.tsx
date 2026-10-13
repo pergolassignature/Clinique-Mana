@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Archive, Check, ChevronLeft, ExternalLink, Inbox, Mail, Paperclip, Star, Tag } from 'lucide-react'
+import { Archive, Check, ChevronLeft, ExternalLink, Forward, Inbox, Mail, Paperclip, Reply, ReplyAll, Star, Tag } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { useSignedFileUrl, useSignedFileUrls } from '@/core/storage/hooks'
@@ -20,6 +20,11 @@ import { htmlHasContent, prepareEmailHtml } from '../../lib/email-html'
 import { SafeEmailHtml } from '../SafeEmailHtml'
 import { gmailThreadUrl, senderLabel } from '../../lib/inbox-format'
 import { ThreadClientLink } from './ThreadClientLink'
+import type { ComposeMode } from '../../api/composer'
+import { useMailThreadLink } from '../../hooks/use-client-links'
+import { useComposerLauncher } from '../../hooks/use-composer-launcher'
+import { initialContent } from '../../lib/compose'
+import { fileLabel } from '../../lib/inbox-format'
 
 const V = 'modules.communications.inbox.thread'
 
@@ -47,6 +52,9 @@ export function MailThreadView({ threadId, onBack }: MailThreadViewProps) {
   const thread = useMailThread(threadId)
   // The file the thread belongs to (CM2b): only for whoever may see files (Clients enabled).
   const canSeeFiles = useAccess().can('clients.view')
+  // « Répondre », « Répondre à tous », « Transférer » (CM3), inside the page's composer host.
+  const composer = useComposerLauncher()
+  const link = useMailThreadLink(threadId, canSeeFiles)
   // The labels of the thread's own mailbox (a link may open a thread of another one).
   const labels = useMailLabels(thread.data?.connection_id ?? null).data ?? []
   const action = useMailAction()
@@ -73,6 +81,14 @@ export function MailThreadView({ threadId, onBack }: MailThreadViewProps) {
   if (!thread.data) return <p className="p-4 text-sm text-muted-foreground">{t(`${V}.gone`)}</p>
   const data = thread.data
   const run = (next: MailAction) => action.mutate({ threadIds: [threadId], action: next })
+  const linked = link.data?.status === 'linked' && link.data.client ? link.data.client : null
+  const compose = (mode: ComposeMode) =>
+    composer?.open({
+      kind: 'content',
+      personKnown: linked !== null,
+      fileLabel: linked ? fileLabel(linked.client_number, linked.display_name) : null,
+      content: initialContent({ connectionId: data.connection_id, mode, thread: data, mailbox: data.mailbox }),
+    })
   const inInbox = data.label_ids.includes('INBOX')
   const starred = data.label_ids.includes('STARRED')
 
@@ -87,6 +103,22 @@ export function MailThreadView({ threadId, onBack }: MailThreadViewProps) {
           {data.subject?.trim() || t('modules.communications.inbox.list.noSubject')}
         </h2>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t(`${V}.actions`)}>
+          {composer && (
+            <>
+              <Button type="button" variant="outline" size="sm" className="max-sm:h-11" onClick={() => compose('reply')}>
+                <Reply aria-hidden />
+                {t(`${V}.reply`)}
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="max-sm:h-11" onClick={() => compose('reply_all')}>
+                <ReplyAll aria-hidden />
+                {t(`${V}.replyAll`)}
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="max-sm:h-11" onClick={() => compose('forward')}>
+                <Forward aria-hidden />
+                {t(`${V}.forward`)}
+              </Button>
+            </>
+          )}
           {inInbox ? (
             <Button type="button" variant="outline" size="sm" className="max-sm:h-11" onClick={() => run({ kind: 'archive' })}>
               <Archive aria-hidden />
