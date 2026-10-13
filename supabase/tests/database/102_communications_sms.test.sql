@@ -70,7 +70,7 @@ select function_privs_are('private', f.name, f.args, r.role, array[]::text[], f.
     ('sms_normalize_e164', array['text']),
     ('sms_keyword', array['text']),
     ('sms_business_send_after', array['uuid', 'timestamp with time zone']),
-    ('send_sms', array['uuid', 'text', 'text', 'text', 'text', 'uuid', 'boolean', 'uuid']),
+    ('send_sms', array['uuid', 'text', 'text', 'text', 'text', 'uuid', 'boolean', 'uuid', 'text']),
     ('sms_confirmation_hook', array['uuid', 'text', 'uuid']),
     ('job_sms_purge', array[]::text[])
   ) as f(name, args)

@@ -10,7 +10,10 @@
  * 2. `get_email_context` ∥ `get_org_secret(org, 'resend_api_key')` (Resend
  *    only); the sender `from_address` and `reply_to` must be single mailboxes
  *    (else `not_configured`, reported `sender_invalid`).
- * 3. Module gate, then the catalogue flags. The template's `recipient_mode`
+ * 3. Module gate (disabled → `module_disabled`; reserved for its testers,
+ *    P3-40, CC-14 → `module_reserved`: refused for a typed send, skipped and
+ *    logged for an automatic one, never queued; the test send goes), then the
+ *    catalogue flags. The template's `recipient_mode`
  *    decides, not the caller: a `free` template always needs `sentBy` and
  *    consumes `emails.free_recipient`; `freeRecipient` on a `subject`
  *    template is `recipient_not_allowed`. Attachments need
@@ -132,6 +135,7 @@ export type SendFailureCode =
   | 'rate_limited'
   | 'not_configured'
   | 'module_disabled'
+  | 'module_reserved'
   | 'missing_variable'
   | 'recipient_not_allowed'
   | 'attachment_not_allowed'
@@ -197,7 +201,7 @@ const variableSchema = z.object({
  *
  *   get_email_context(p_org_id uuid, p_template_key text) returns jsonb
  *   {
- *     module_key, module_enabled boolean, timezone,
+ *     module_key, module_enabled boolean, module_open boolean, timezone,
  *     template: { key, version int, subject, body, button_label, why_line,
  *                 variables [{path,label,sample,required,kind}],
  *                 view_permission, recipient_mode 'subject'|'free',
@@ -214,6 +218,8 @@ const variableSchema = z.object({
  */
 const contextSchema = z.object({
   module_enabled: z.boolean(),
+  // Not reserved for its testers (P3-40); absent from an older context: open.
+  module_open: z.boolean().default(true),
   timezone: z.string(),
   template: z.object({
     version: z.number().int().nonnegative(),
@@ -397,6 +403,19 @@ export async function sendTemplatedEmail(
   // recipient is free, not the caller's flag.
   if (!raw.module_enabled) {
     return { ok: false, emailLogId: null, code: 'module_disabled' }
+  }
+  if (!raw.module_open && !input.test) {
+    if (!input.sentBy) {
+      // An automatic send of a reserved module: skipped, said in the logs (ids only).
+      console.log(
+        JSON.stringify({
+          fn: deps.fn,
+          code: 'email_module_reserved_skipped',
+          ids,
+        }),
+      )
+    }
+    return { ok: false, emailLogId: null, code: 'module_reserved' }
   }
   const free = raw.template.recipient_mode === 'free'
   if ((input.freeRecipient && !free) || (free && !input.sentBy)) {
