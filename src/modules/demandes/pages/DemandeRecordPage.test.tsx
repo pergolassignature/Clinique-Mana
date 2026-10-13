@@ -30,6 +30,14 @@ vi.mock('../api/demandes', async (importOriginal) => ({ ...(await importOriginal
 vi.mock('@/core/realtime/use-org-realtime', () => ({ useOrgRealtime: () => undefined }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
+// Clients' picker (its own tests in Clients): a stand-in that shows what it was given and picks « c9 ».
+vi.mock('@/modules/clients', () => ({
+  ClientPicker: (props: { onSelect: (id: string, client: null) => void; excludeIds?: readonly string[]; initialValues?: Record<string, string> }) => (
+    <button type="button" onClick={() => props.onSelect('c9', null)}>
+      {`picker ${props.initialValues?.firstName}|${props.initialValues?.lastName}|${props.initialValues?.mobile}|${props.excludeIds?.join(',')}`}
+    </button>
+  ),
+}))
 
 const R = 'modules.demandes.record'
 const ID = 'e0000000-0000-0000-0000-000000000001'
@@ -174,6 +182,16 @@ describe('DemandeRecordPage', () => {
     expect(concerns).toHaveValue('Anxiété et sommeil')
     await user.click(screen.getByRole('button', { name: t(`${R}.reload`) }))
     expect(screen.getByRole('textbox', { name: t('modules.demandes.intake.need.concerns') })).toHaveValue('Changé ailleurs')
+  })
+
+  it('« Changer de dossier »: Clients\' picker, prefilled with the contact; the file chosen becomes the request\'s', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.intake.file.change') }))
+    const picker = await screen.findByRole('button', { name: 'picker Alice|Tremblay|514 555-0101|c1' })
+    await user.click(picker)
+    await waitFor(() => expect(mocks.api.updateDemande).toHaveBeenCalledWith(ID, { client_id: 'c9' }))
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.demandes.clientLink.linked'))
   })
 
   it('closing asks for the reason', async () => {

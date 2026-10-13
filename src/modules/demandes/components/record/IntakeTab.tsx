@@ -15,7 +15,7 @@ import { toast } from '@/shared/ui/sonner'
 import { BENEFICIARIES, GENDERS, MODALITIES, PAYER_KINDS, PERIODS, type DemandeBundle } from '../../api/demandes'
 import { useUpdateDemande } from '../../hooks/use-demandes'
 import { fileLabel, optionLabel } from '../../lib/display'
-import { ClientLinkDialog } from './ClientLinkDialog'
+import { ClientLink } from './ClientLink'
 import { useServerDraft } from '../../lib/use-server-draft'
 import { useDemandeRecord } from './record-context'
 import { StaleNotice } from './StaleNotice'
@@ -103,7 +103,7 @@ function patchOf(initial: Values, values: Values): Record<string, unknown> | { e
 }
 
 /**
- * « Accueil »: the file the request belongs to (TEMPORAIRE picker, D-14), the contact, and the
+ * « Accueil »: the file the request belongs to (Clients' picker), the contact, and the
  * intake (GOrendezvous's « Requêtes de service » fields, roadmap §2.3), saved together: only the
  * changed keys reach `update_demande`. Read-only once closed or without demandes.manage.
  */
@@ -133,7 +133,7 @@ function FileCard() {
       ) : (
         <p className="text-sm text-muted-foreground">{t(`${A}.file.none`)}</p>
       )}
-      {canEdit && <ClientLinkDialog label={client ? t(`${A}.file.change`) : t(`${A}.file.link`)} />}
+      {canEdit && <ClientLink label={client ? t(`${A}.file.change`) : t(`${A}.file.link`)} />}
     </SettingsCard>
   )
 }

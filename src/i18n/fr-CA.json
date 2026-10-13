@@ -7471,23 +7471,7 @@
       "clientLink": {
         "title": "Rattacher un dossier",
         "description": "Cherchez le dossier de la personne, ou créez-le à partir de ses coordonnées.",
-        "search": "Rechercher un dossier",
-        "none": "Aucun dossier ne correspond.",
-        "results": "Dossiers trouvés",
-        "link": "Rattacher",
-        "linkTo": "Rattacher le dossier {file}",
-        "linked": "Le dossier est rattaché.",
-        "createTitle": "Créer le dossier",
-        "first": "Prénom",
-        "last": "Nom",
-        "email": "Courriel",
-        "phone": "Cellulaire",
-        "nameNeeded": "Le prénom et le nom sont nécessaires.",
-        "same": "Ce dossier existe déjà : rattachez-le plutôt.",
-        "similar": "Des dossiers semblables existent. Rattachez le bon, ou créez quand même si c’est une autre personne.",
-        "createAnyway": "C'est une autre personne : créer le dossier",
-        "create": "Créer le dossier",
-        "creating": "Création…"
+        "linked": "Le dossier est rattaché."
       },
       "errors": {
         "failed": "L'action n'a pas pu être faite. Réessayez."

@@ -19,5 +19,4 @@ export const demandesKeys = {
   counts: () => [...demandesKeys.all, 'counts'] as const,
   record: (id: string) => [...demandesKeys.all, 'record', id] as const,
   reference: () => [...demandesKeys.all, 'reference'] as const,
-  clientSearch: (query: string) => [...demandesKeys.all, 'client-search', query.trim()] as const,
 }

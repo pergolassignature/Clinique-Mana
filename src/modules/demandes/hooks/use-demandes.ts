@@ -5,17 +5,14 @@ import {
   assignDemande,
   cancelTask,
   completeTask,
-  createClientFile,
   createDemande,
   fetchCounts,
   fetchReference,
-  findDuplicates,
   getDemande,
   listDemandes,
   logContact,
   saveNote,
   saveParticipants,
-  searchClients,
   setDemandeState,
   setHandler,
   updateDemande,
@@ -24,7 +21,6 @@ import {
   type ContactOutcome,
   type DemandeState,
   type InboxQuery,
-  type NewClient,
   type ParticipantInput,
   type TaskKind,
   type TaskOutcome,
@@ -148,26 +144,5 @@ export function useSetHandler() {
   return useMutation({
     mutationFn: ({ id, take, expected = null }: { id: string; take: boolean; expected?: string | null }) => setHandler(id, take, expected),
     onSettled: (_d, _e, { id }) => after(id),
-  })
-}
-
-// TEMPORAIRE (D-14): the small client picker, until Clients exports its own (C4).
-export function useClientSearch(query: string) {
-  const trimmed = query.trim()
-  return useQuery({
-    queryKey: demandesKeys.clientSearch(trimmed),
-    queryFn: () => searchClients(trimmed),
-    enabled: trimmed.length >= 2,
-    placeholderData: keepPreviousData,
-  })
-}
-
-export function useCreateClientFile() {
-  return useMutation({
-    mutationFn: async ({ client, confirmMedium }: { client: NewClient; confirmMedium: boolean }) => {
-      const duplicates = confirmMedium ? [] : await findDuplicates(client)
-      if (duplicates.length > 0) return { created: null, duplicates }
-      return { created: await createClientFile(client, confirmMedium), duplicates }
-    },
   })
 }

@@ -351,9 +351,8 @@ grant execute on function public.get_demande(uuid) to authenticated;
 
 -- What the intake and the filters choose from (`demandes.view`): the people who work requests
 -- (demandes.manage), the « Comment avez-vous entendu parler de MANA ? » list, and Professionnels'
--- catalogues (motifs by category, titles, clientèles).
--- TEMPORAIRE (D-14): the referral sources are read from Clients' table until Clients publishes
--- `referral_sources_catalog` (lane A, C4); the first Demandes batch after C4 switches to it.
+-- catalogues (motifs by category, titles, clientèles). The referral sources come from Clients'
+-- published view `referral_sources_catalog` (the active ones).
 create function public.get_demandes_reference()
 returns jsonb
 language plpgsql
@@ -371,7 +370,7 @@ begin
                           where p.org_id = v_org and p.status = 'active'
                             and 'demandes.manage' = any (private.permission_keys_for(p.user_id))), '[]'::jsonb),
     'referral_sources', coalesce((select jsonb_agg(jsonb_build_object('id', s.id, 'name', s.name) order by s.sort_order, s.name)
-                                    from public.referral_sources s where s.org_id = v_org and s.is_active), '[]'::jsonb),
+                                    from public.referral_sources_catalog s where s.org_id = v_org), '[]'::jsonb),
     'motifs', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'name', m.name, 'category_id', m.category_id,
                                                            'category_name', m.category_name)
                                          order by m.category_sort_order nulls last, m.category_name, m.sort_order, m.name)

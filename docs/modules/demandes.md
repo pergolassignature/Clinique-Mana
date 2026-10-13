@@ -68,7 +68,7 @@ All `security definer`, permission first, the caller's clinic only, the request'
 
 ## D2: the inbox and the record
 
-Migrations `20261013054816_core_realtime` (core, see the [core doc](core.md#realtime-between-staff-d2)) and `20261013054821_demandes_inbox`; pgTAP `117`, `118`; decisions D-12 … D-14.
+Migrations `20261013054816_core_realtime` (core, see the [core doc](core.md#realtime-between-staff-d2)) and `20261013054821_demandes_inbox`; pgTAP `118`, `119`; decisions D-12 … D-14.
 
 ### RPCs
 
@@ -89,7 +89,7 @@ Migrations `20261013054816_core_realtime` (core, see the [core doc](core.md#real
 
 - **`/demandes`** (« Demandes », nav, `demandes.view`): real tabs for the views (decision #35) with their counts; filters « En retard », « Sans réponse », « Urgentes », « À rappeler maintenant » and « Toutes / Les miennes / Non assignées » in the address (`?vue=`, `?filtres=`, `?pour=`), the search in the history state (Loi 25: never in the URL). Each row: the person and the number, when it came in and how, the promise in words, the state, the counselor, the follow-up; « Noter un appel » (`demandes.manage`). « Nouvelle demande » is the quick entry (a name, a phone or an email, the channel, urgent, « Je m'en occupe », the note with `demandes.notes`), then the record opens.
 - **`/demandes/:id/:onglet`** (`accueil`, `participants`, `suivi`, `historique`): the header (the person, the number, the state and its moves (closing asks for the reason), the counselor, « Je m'en occupe », « Noter un appel »); **Accueil** the file (« Rattacher un dossier »), the contact and the intake, saved together (only the changed keys); **Participants** who the request is for, one main person; **Suivi** the attempts, the dated tasks (the discovery call, a callback, a follow-up; done with an outcome, cancelled), the internal note; **Historique** the events in words, by whom and when. Read-only without `demandes.manage` or once closed. « Jumelée » is not offered here: the matching panel (D4) and the proposals (D3b) set it.
-- **TEMPORAIRE (D-14):** « Rattacher un dossier » is a small picker over Clients' published RPCs (`search_clients`; creation with `find_client_duplicates` then `create_client`, a HIGH duplicate linked, never created again); `get_demandes_reference()` reads `referral_sources` directly. Both switch to Clients' picker and `referral_sources_catalog` (lane A, C4) in the first Demandes batch after C4.
+- **Clients (D-14):** « Rattacher un dossier » opens Clients' `ClientPicker` (`@/modules/clients`, lazy) in the Accueil card: a search result, « Choisir ce dossier » in its duplicates panel or a file made through « Nouveau client » (prefilled with the request's contact) becomes the request's file; `get_demandes_reference()` reads the referral sources from Clients' view `referral_sources_catalog`.
 
 ## What the module publishes
 

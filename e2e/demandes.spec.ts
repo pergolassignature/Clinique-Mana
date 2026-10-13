@@ -4,12 +4,16 @@ import { expect, test } from './fixtures/auth'
  * Demandes, D2 (local only, after `npm run db:reset`: the seed enables Demandes; the counselor holds
  * demandes.view / manage / notes by the template, D-1). Fictional names, one per run.
  *
- * The counselor takes a call: « Nouvelle demande » (la saisie rapide) → the record opens → « Noter
- * un appel » (no answer, next try tomorrow) → the inbox shows it « Sans réponse » → « Je m'en
- * occupe » → a callback task in « Suivi » → « Historique » tells it → closed with a reason.
+ * The counselor takes a call: « Nouvelle demande » (la saisie rapide) → the record opens → her
+ * file made through Clients' picker → « Noter un appel » (no answer, next try tomorrow) → the
+ * inbox shows it « Sans réponse » → « Je m'en occupe » → a callback task in « Suivi » →
+ * « Historique » tells it → closed with a reason.
  */
 test('the counselor takes a request from the first call to its closing', async ({ page, signIn }) => {
-  const name = `Essai Demande ${Date.now() % 100000}`
+  // Letters only (a family name), and a phone per run, so a new file never meets an earlier run's.
+  const stamp = Date.now() % 100000
+  const name = `Lucie Essai${[...String(stamp)].map((digit) => 'abcdefghij'[Number(digit)]).join('')}`
+  const phone = `514 555-${String(stamp % 10000).padStart(4, '0')}`
   await signIn('counselor')
   await page.getByRole('link', { name: 'Demandes' }).first().click()
   await expect(page.getByRole('heading', { level: 1, name: 'Demandes' })).toBeVisible()
@@ -17,10 +21,20 @@ test('the counselor takes a request from the first call to its closing', async (
   await page.getByRole('button', { name: 'Nouvelle demande' }).click()
   const dialog = page.getByRole('dialog', { name: 'Nouvelle demande' })
   await dialog.getByRole('textbox', { name: 'Nom' }).fill(name)
-  await dialog.getByRole('textbox', { name: 'Téléphone' }).fill('514 555-0177')
+  await dialog.getByRole('textbox', { name: 'Téléphone' }).fill(phone)
   await dialog.getByRole('button', { name: 'Créer la demande' }).click()
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
   await expect(page).toHaveURL(/\/demandes\/[0-9a-f-]{36}\/accueil$/)
+
+  // Her file: Clients' picker in « Accueil », « Nouveau client » prefilled from the request.
+  await page.getByRole('button', { name: 'Rattacher un dossier' }).click()
+  await page.getByRole('button', { name: 'Nouveau client' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Nouveau client' })
+  await expect(sheet.getByRole('textbox', { name: /^Prénom/ })).toHaveValue('Lucie')
+  await sheet.getByRole('button', { name: 'Créer le dossier' }).click()
+  await expect(page.getByText('Le dossier est rattaché.')).toBeVisible()
+  await expect(page).toHaveURL(/\/demandes\/[0-9a-f-]{36}\/accueil$/)
+  await expect(page.getByRole('button', { name: 'Changer de dossier' })).toBeVisible()
 
   // A first call, not answered.
   await page.getByRole('button', { name: 'Noter un appel' }).first().click()
