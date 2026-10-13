@@ -1,0 +1,525 @@
+import { Suspense, useMemo, useState, type FormEvent } from 'react'
+import { CircleAlert, TriangleAlert, X } from 'lucide-react'
+import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
+import { rpcErrorHint } from '@/core/modules/errors'
+import { ClientPicker, type PickedClient } from '@/modules/clients'
+import { CheckboxField } from '@/shared/components/CheckboxField'
+import { Loading } from '@/shared/components/LoadState'
+import { softDisabledClasses } from '@/shared/components/soft-disabled'
+import { cn } from '@/shared/lib/utils'
+import { SaveButton } from '@/shared/components/SaveButton'
+import { formatClinicDateFull, formatClinicTime, getClinicDateString, getClinicTimeString, clinicTimeToUTC } from '@/shared/lib/timezone'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/button'
+import { FormField, FormRow } from '@/shared/ui/form-field'
+import { Input } from '@/shared/ui/input'
+import { NavTab, NavTabs } from '@/shared/ui/nav-tabs'
+import { closeButtonClasses } from '@/shared/ui/overlay-classes'
+import { Select } from '@/shared/ui/select'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
+import { Textarea } from '@/shared/ui/textarea'
+import type { AgendaReference } from '../api/agenda'
+import { MODES, PRESENCES, type AgendaAppointment, type AppointmentMode, type Presence } from '../api/parse'
+import {
+  useAppointmentDetail,
+  useBookAppointment,
+  useCancelAppointment,
+  useMoveAppointment,
+  useSetAppointmentDetails,
+  useSetPresence,
+} from '../hooks/use-agenda'
+import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateLabel } from '../lib/display'
+
+const E = 'modules.appointments.editor'
+
+export type SheetTarget = { kind: 'create'; professionalId: string | null; day: string; time: string } | { kind: 'edit'; appointment: AgendaAppointment }
+
+const OUTSIDE = 'outside_availability'
+
+
+/**
+ * The appointment editor (plan R2), a sheet: « Nouveau rendez-vous » (professional, service, date
+ * and time, the client then a second person through Clients' picker, mode, internal note,
+ * message to the client), or an appointment's tabs « Rendez-vous » (move, presence), « Notes »,
+ * « Annulation » (in-sheet tabs, out of the tab order). The database checks every rule: a slot
+ * outside the availability offers « Hors disponibilités » with a reason to the staff (AP-12), a
+ * client with a balance the override to who holds it (R-58); every other refusal shows here.
+ */
+export function AppointmentSheet({ target, reference, onClose }: { target: SheetTarget; reference: AgendaReference; onClose: () => void }) {
+  return (
+    <Sheet open onOpenChange={(open) => !open && onClose()}>
+      <SheetContent hideClose className="max-w-[560px]">
+        <button type="button" tabIndex={-1} onClick={onClose} className={closeButtonClasses}>
+          <X aria-hidden className="h-4 w-4" />
+          <span className="sr-only">{t('common.close')}</span>
+        </button>
+        {target.kind === 'create' ? (
+          <CreateForm target={target} reference={reference} onClose={onClose} />
+        ) : (
+          <EditPanel appointment={target.appointment} reference={reference} onClose={onClose} />
+        )}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function OverrideFields({
+  outside,
+  balance,
+  outsideReason,
+  balanceReason,
+  setOutsideReason,
+  setBalanceReason,
+}: {
+  outside: boolean
+  balance: boolean
+  outsideReason: string
+  balanceReason: string
+  setOutsideReason: (v: string) => void
+  setBalanceReason: (v: string) => void
+}) {
+  return (
+    <>
+      {outside && (
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden />
+          <AlertDescription className="space-y-2 text-foreground">
+            <p className="font-medium">{t(`${E}.outsideTitle`)}</p>
+            <p className="text-sm">{t(`${E}.outsideHelp`)}</p>
+            <FormField label={t(`${E}.outsideReason`)} width="full" required>
+              {(field) => <Input {...field} value={outsideReason} onChange={(e) => setOutsideReason(e.target.value)} maxLength={500} />}
+            </FormField>
+          </AlertDescription>
+        </Alert>
+      )}
+      {balance && (
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden />
+          <AlertDescription className="space-y-2 text-foreground">
+            <p className="font-medium">{t(`${E}.balanceTitle`)}</p>
+            <FormField label={t(`${E}.balanceReason`)} width="full" required>
+              {(field) => <Input {...field} value={balanceReason} onChange={(e) => setBalanceReason(e.target.value)} maxLength={500} />}
+            </FormField>
+          </AlertDescription>
+        </Alert>
+      )}
+    </>
+  )
+}
+
+function Refusal({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <Alert variant="destructive" role="alert">
+      <CircleAlert aria-hidden />
+      <AlertDescription className="text-foreground">{message}</AlertDescription>
+    </Alert>
+  )
+}
+
+function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarget, { kind: 'create' }>; reference: AgendaReference; onClose: () => void }) {
+  const { can } = useAccess()
+  const [professionalId, setProfessionalId] = useState(target.professionalId ?? reference.professionals[0]?.id ?? '')
+  const services = useMemo(() => (professionalId ? servicesFor(reference, professionalId) : []), [reference, professionalId])
+  const [serviceId, setServiceId] = useState('')
+  const [day, setDay] = useState(target.day)
+  const [time, setTime] = useState(target.time)
+  const [clients, setClients] = useState<PickedClient[]>([])
+  const [mode, setMode] = useState<AppointmentMode>('video')
+  const [note, setNote] = useState('')
+  const [message, setMessage] = useState('')
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const [outside, setOutside] = useState(false)
+  const [balance, setBalance] = useState(false)
+  const [outsideReason, setOutsideReason] = useState('')
+  const [balanceReason, setBalanceReason] = useState('')
+  const book = useBookAppointment({
+    onErrorMessage: (msg, error) => {
+      const hint = rpcErrorHint(error)
+      if (hint === OUTSIDE && can('appointments.manage')) setOutside(true)
+      if (hint === 'balance_due' && can('appointments.balance_override')) setBalance(true)
+      setRefusal(msg)
+    },
+  })
+  const service = services.find((s) => s.id === serviceId)
+  const needed = service?.forTwo ? 2 : 1
+  const ready = Boolean(professionalId && serviceId && day && time && clients.length >= needed)
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!ready || book.isPending) return
+    setRefusal(null)
+    book.mutate(
+      {
+        professionalId,
+        serviceId,
+        startsAt: clinicTimeToUTC(day, time),
+        clientIds: clients.map((c) => c.id),
+        mode,
+        internalNote: note.trim() || null,
+        clientMessage: message.trim() || null,
+        balanceOverrideReason: balance ? balanceReason.trim() || null : null,
+        outsideAvailabilityReason: outside ? outsideReason.trim() || null : null,
+      },
+      { onSuccess: onClose },
+    )
+  }
+
+  const addClient = (client: PickedClient) => setClients((list) => (list.some((c) => c.id === client.id) || list.length >= 2 ? list : [...list, client]))
+
+  return (
+    <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+      <SheetHeader>
+        <SheetTitle>{t(`${E}.newTitle`)}</SheetTitle>
+        <SheetDescription>{t(`${E}.newDescription`)}</SheetDescription>
+      </SheetHeader>
+      <SheetBody className="space-y-4">
+        <FormRow>
+          <FormField label={t(`${E}.professional`)} width="md" required>
+            {(field) => (
+              <Select {...field} value={professionalId} onChange={(e) => {
+                setProfessionalId(e.target.value)
+                setServiceId('')
+              }} placeholder={t(`${E}.choose`)}>
+                {reference.professionals.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormField>
+          <FormField label={t(`${E}.service`)} width="md" required>
+            {(field) => (
+              <Select {...field} value={serviceId} onChange={(e) => setServiceId(e.target.value)} placeholder={t(`${E}.choose`)}>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.code} · {s.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormField>
+        </FormRow>
+        <FormRow>
+          <FormField label={t(`${E}.date`)} width="sm" required>
+            {(field) => <Input {...field} type="date" value={day} onChange={(e) => setDay(e.target.value)} />}
+          </FormField>
+          <FormField label={t(`${E}.time`)} width="sm" required help={service ? t(`${E}.slotHelp`, { duration: String(service.durationMinutes), buffer: String(service.bufferAfterMinutes) }) : undefined}>
+            {(field) => <Input {...field} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />}
+          </FormField>
+          <FormField label={t(`${E}.mode`)} width="sm">
+            {(field) => (
+              <Select {...field} value={mode} onChange={(e) => setMode(e.target.value as AppointmentMode)}>
+                {MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {modeLabel(m)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormField>
+        </FormRow>
+        <section className="space-y-2" aria-label={t(service?.forTwo ? `${E}.clientsTwo` : `${E}.clients`)}>
+          {clients.length > 0 && (
+            <ul className="space-y-1">
+              {clients.map((c, i) => (
+                <li key={c.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1 text-sm">
+                  <span>
+                    <span className="font-medium">{c.name}</span>
+                    <span className="text-muted-foreground"> · {t(i === 0 ? `${E}.personSeen` : `${E}.secondPerson`)}</span>
+                  </span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setClients((list) => list.filter((x) => x.id !== c.id))}>
+                    {t(`${E}.removeClient`)}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {clients.length < 2 && (
+            <Suspense fallback={<Loading />}>
+              <ClientPicker
+                label={t(clients.length === 0 ? (service?.forTwo ? `${E}.clientsTwo` : `${E}.findClient`) : service?.forTwo ? `${E}.findSecondRequired` : `${E}.findSecond`)}
+                excludeIds={clients.map((c) => c.id)}
+                onSelect={(id, client) => addClient(client ?? { id, name: t(`${E}.newClientName`), clientNumber: 0 })}
+              />
+            </Suspense>
+          )}
+        </section>
+        <FormField label={t(`${E}.internalNote`)} width="full" help={t(`${E}.internalNoteHelp`)}>
+          {(field) => <Textarea {...field} value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={5000} />}
+        </FormField>
+        <FormField label={t(`${E}.clientMessage`)} width="full" help={t(`${E}.clientMessageHelp`)}>
+          {(field) => <Textarea {...field} value={message} onChange={(e) => setMessage(e.target.value)} rows={2} maxLength={2000} />}
+        </FormField>
+        <OverrideFields
+          outside={outside}
+          balance={balance}
+          outsideReason={outsideReason}
+          balanceReason={balanceReason}
+          setOutsideReason={setOutsideReason}
+          setBalanceReason={setBalanceReason}
+        />
+        <Refusal message={refusal} />
+      </SheetBody>
+      <SheetFooter>
+        <Button type="button" variant="outline" onClick={onClose}>
+          {t('common.cancel')}
+        </Button>
+        <SaveButton pending={book.isPending} disabled={!ready} label={t(`${E}.book`)} pendingLabel={t(`${E}.booking`)} />
+      </SheetFooter>
+    </form>
+  )
+}
+
+type EditTab = 'appointment' | 'notes' | 'cancel'
+
+function EditPanel({ appointment: a, reference, onClose }: { appointment: AgendaAppointment; reference: AgendaReference; onClose: () => void }) {
+  const [tab, setTab] = useState<EditTab>('appointment')
+  const service = reference.services.find((s) => s.id === a.serviceId)
+  const pro = reference.professionals.find((p) => p.id === a.professionalId)
+  const open = a.state === 'booked' || a.state === 'confirmed'
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <SheetHeader>
+        <SheetTitle>{appointmentTitle(a)}</SheetTitle>
+        <SheetDescription>
+          {formatClinicDateFull(a.startsAt)}, {formatClinicTime(a.startsAt)} – {formatClinicTime(a.endsAt)}
+          {service && ` · ${service.name}`}
+          {pro && ` · ${pro.name}`}
+        </SheetDescription>
+        <p className="flex flex-wrap gap-1.5">
+          <Badge variant={a.state === 'cancelled' ? 'secondary' : a.state === 'booked' ? 'outline' : 'success'}>{stateLabel(a.state)}</Badge>
+          {a.keptOnSchedule && <Badge variant="secondary">{t(`${E}.keptOnSchedule`)}</Badge>}
+          {a.cancelLate && <Badge variant="warning">{t(`${E}.lateCancel`)}</Badge>}
+          {a.outsideAvailability && <Badge variant="warning">{t(`${E}.outsideBadge`)}</Badge>}
+          {a.balanceOverride && <Badge variant="warning">{t(`${E}.balanceBadge`)}</Badge>}
+          <Badge variant="outline">{modeLabel(a.mode)}</Badge>
+        </p>
+      </SheetHeader>
+      {!a.isPersonal && (
+        <NavTabs className="px-6">
+          {(['appointment', 'notes', 'cancel'] as const).map((key) => (
+            <NavTab key={key} active={tab === key} onClick={() => setTab(key)}>
+              {t(`${E}.tabs.${key}`)}
+            </NavTab>
+          ))}
+        </NavTabs>
+      )}
+      <SheetBody className="space-y-4">
+        {tab === 'appointment' && <AppointmentTab appointment={a} reference={reference} open={open} />}
+        {tab === 'notes' && <NotesTab appointment={a} />}
+        {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
+      </SheetBody>
+    </div>
+  )
+}
+
+function AppointmentTab({ appointment: a, reference, open }: { appointment: AgendaAppointment; reference: AgendaReference; open: boolean }) {
+  const { can } = useAccess()
+  const detail = useAppointmentDetail(a.id)
+  const [day, setDay] = useState(getClinicDateString(a.startsAt))
+  const [time, setTime] = useState(getClinicTimeString(a.startsAt))
+  const [professionalId, setProfessionalId] = useState(a.professionalId)
+  const [outside, setOutside] = useState(false)
+  const [outsideReason, setOutsideReason] = useState('')
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const move = useMoveAppointment({
+    onErrorMessage: (msg, error) => {
+      if (rpcErrorHint(error) === OUTSIDE && can('appointments.manage')) setOutside(true)
+      setRefusal(msg)
+    },
+  })
+  const presence = useSetPresence({ onErrorMessage: (msg) => setRefusal(msg) })
+  const changed = day !== getClinicDateString(a.startsAt) || time !== getClinicTimeString(a.startsAt) || professionalId !== a.professionalId
+  const eligible = a.serviceId ? reference.professionals.filter((p) => servicesFor(reference, p.id).some((s) => s.id === a.serviceId)) : reference.professionals
+
+  return (
+    <>
+      {detail.data?.outsideAvailabilityReason && (
+        <p className="text-sm">
+          <span className="text-muted-foreground">{t(`${E}.outsideBadge`)} : </span>
+          {detail.data.outsideAvailabilityReason}
+        </p>
+      )}
+      {a.participants.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">{t(`${E}.presence`)}</h3>
+          <ul className="space-y-1.5">
+            {a.participants.map((p) => (
+              <li key={p.clientId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>
+                  <span className="font-medium">{p.name}</span>
+                  {p.role === 'second' && <span className="text-muted-foreground"> · {t(`${E}.secondPerson`)}</span>}
+                  {p.confirmedAt && <span className="text-muted-foreground"> · {t(`${E}.confirmed`)}</span>}
+                </span>
+                <Select
+                  aria-label={t(`${E}.presenceOf`, { name: p.name })}
+                  value={p.presence}
+                  disabled={a.state === 'cancelled'}
+                  onChange={(e) => presence.mutate({ appointmentId: a.id, clientId: p.clientId, presence: e.target.value as Presence })}
+                  className="w-40"
+                >
+                  {PRESENCES.map((value) => (
+                    <option key={value} value={value}>
+                      {presenceLabel(value)}
+                    </option>
+                  ))}
+                </Select>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {open && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">{t(`${E}.move`)}</h3>
+          <FormRow>
+            <FormField label={t(`${E}.date`)} width="sm">
+              {(field) => <Input {...field} type="date" value={day} onChange={(e) => setDay(e.target.value)} />}
+            </FormField>
+            <FormField label={t(`${E}.time`)} width="sm">
+              {(field) => <Input {...field} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />}
+            </FormField>
+            {!a.isPersonal && (
+              <FormField label={t(`${E}.professional`)} width="md">
+                {(field) => (
+                  <Select {...field} value={professionalId} onChange={(e) => setProfessionalId(e.target.value)}>
+                    {eligible.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </FormField>
+            )}
+          </FormRow>
+          <OverrideFields outside={outside} balance={false} outsideReason={outsideReason} balanceReason="" setOutsideReason={setOutsideReason} setBalanceReason={() => undefined} />
+          <Refusal message={refusal} />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!changed || move.isPending}
+            onClick={() => {
+              setRefusal(null)
+              move.mutate({
+                id: a.id,
+                startsAt: clinicTimeToUTC(day, time),
+                professionalId: professionalId === a.professionalId ? null : professionalId,
+                outsideAvailabilityReason: outside ? outsideReason.trim() || null : null,
+              })
+            }}
+          >
+            {t(move.isPending ? `${E}.moving` : `${E}.moveSubmit`)}
+          </Button>
+        </section>
+      )}
+    </>
+  )
+}
+
+function NotesTab({ appointment: a }: { appointment: AgendaAppointment }) {
+  const detail = useAppointmentDetail(a.id)
+  if (!detail.data) return <Loading />
+  return <NotesForm key={`${detail.data.internalNote}|${detail.data.clientMessage}|${a.mode}`} appointment={a} note={detail.data.internalNote ?? ''} message={detail.data.clientMessage ?? ''} />
+}
+
+function NotesForm({ appointment: a, note: storedNote, message: storedMessage }: { appointment: AgendaAppointment; note: string; message: string }) {
+  const [mode, setMode] = useState<AppointmentMode>(a.mode)
+  const [note, setNote] = useState(storedNote)
+  const [message, setMessage] = useState(storedMessage)
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const save = useSetAppointmentDetails({ onErrorMessage: (msg) => setRefusal(msg) })
+  const dirty = mode !== a.mode || note !== storedNote || message !== storedMessage
+  return (
+    <form
+      noValidate
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        setRefusal(null)
+        save.mutate({ id: a.id, mode, internalNote: note.trim() || null, clientMessage: message.trim() || null })
+      }}
+    >
+      <FormField label={t(`${E}.mode`)} width="sm">
+        {(field) => (
+          <Select {...field} value={mode} onChange={(e) => setMode(e.target.value as AppointmentMode)}>
+            {MODES.map((m) => (
+              <option key={m} value={m}>
+                {modeLabel(m)}
+              </option>
+            ))}
+          </Select>
+        )}
+      </FormField>
+      <FormField label={t(`${E}.internalNote`)} width="full" help={t(`${E}.internalNoteHelp`)}>
+        {(field) => <Textarea {...field} value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={5000} />}
+      </FormField>
+      <FormField label={t(`${E}.clientMessage`)} width="full" help={t(`${E}.clientMessageHelp`)}>
+        {(field) => <Textarea {...field} value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={2000} />}
+      </FormField>
+      <Refusal message={refusal} />
+      <SaveButton pending={save.isPending} disabled={!dirty} />
+    </form>
+  )
+}
+
+function CancelTab({ appointment: a, reference, open, onDone }: { appointment: AgendaAppointment; reference: AgendaReference; open: boolean; onDone: () => void }) {
+  const detail = useAppointmentDetail(a.id)
+  const [reason, setReason] = useState('')
+  const [details, setDetails] = useState('')
+  const [kept, setKept] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const cancel = useCancelAppointment({ onErrorMessage: (msg) => setRefusal(msg) })
+  const reasons = reference.reasons.filter((r) => r.active)
+  if (!open) {
+    const name = reference.reasons.find((r) => r.id === a.cancelReasonId)?.name
+    return (
+      <div className="space-y-1 text-sm">
+        <p>{a.state === 'cancelled' ? t(`${E}.cancelledWith`, { reason: name ?? t(`${E}.noReason`) }) : t(`${E}.notCancellable`)}</p>
+        {detail.data?.cancelDetails && <p className="text-muted-foreground">{detail.data.cancelDetails}</p>}
+      </div>
+    )
+  }
+  return (
+    <form
+      noValidate
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (!reason || cancel.isPending) return
+        setRefusal(null)
+        cancel.mutate({ id: a.id, reasonKey: reason, details: details.trim() || null, keptOnSchedule: kept }, { onSuccess: onDone })
+      }}
+    >
+      <FormField label={t(`${E}.reason`)} width="md" required>
+        {(field) => (
+          <Select {...field} value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t(`${E}.choose`)}>
+            {reasons.map((r) => (
+              <option key={r.id} value={r.key}>
+                {r.name}
+              </option>
+            ))}
+          </Select>
+        )}
+      </FormField>
+      <FormField label={t(`${E}.details`)} width="full">
+        {(field) => <Textarea {...field} value={details} onChange={(e) => setDetails(e.target.value)} rows={2} maxLength={1000} />}
+      </FormField>
+      <CheckboxField label={t(`${E}.keep`)} help={t(`${E}.keepHelp`)} checked={kept} onCheckedChange={(v) => setKept(v === true)} />
+      <Refusal message={refusal} />
+      <Button
+        type="submit"
+        variant="destructive"
+        aria-disabled={!reason || cancel.isPending || undefined}
+        className={cn(softDisabledClasses, 'aria-disabled:hover:bg-destructive')}
+      >
+        {t(cancel.isPending ? `${E}.cancelling` : `${E}.cancelSubmit`)}
+      </Button>
+    </form>
+  )
+}

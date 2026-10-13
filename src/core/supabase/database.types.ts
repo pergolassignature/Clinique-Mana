@@ -162,6 +162,8 @@ export type Database = {
           kept_on_schedule: boolean
           mode: string
           org_id: string
+          outside_availability_by: string | null
+          outside_availability_reason: string | null
           personal_label: string | null
           professional_id: string
           service_id: string | null
@@ -195,6 +197,8 @@ export type Database = {
           kept_on_schedule?: boolean
           mode?: string
           org_id: string
+          outside_availability_by?: string | null
+          outside_availability_reason?: string | null
           personal_label?: string | null
           professional_id: string
           service_id?: string | null
@@ -228,6 +232,8 @@ export type Database = {
           kept_on_schedule?: boolean
           mode?: string
           org_id?: string
+          outside_availability_by?: string | null
+          outside_availability_reason?: string | null
           personal_label?: string | null
           professional_id?: string
           service_id?: string | null
@@ -263,6 +269,13 @@ export type Database = {
           {
             foreignKeyName: "appointments_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_outside_availability_by_fkey"
+            columns: ["outside_availability_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
@@ -9793,6 +9806,7 @@ export type Database = {
           p_client_message?: string
           p_internal_note?: string
           p_mode?: string
+          p_outside_availability_reason?: string
           p_professional_id: string
           p_service_id: string
           p_starts_at: string
@@ -10382,6 +10396,30 @@ export type Database = {
       link_professional_account: {
         Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
         Returns: Json
+      }
+      list_agenda: {
+        Args: { p_from: string; p_professional_ids?: string[]; p_to: string }
+        Returns: {
+          balance_override: boolean
+          blocks_until: string
+          cancel_late: boolean
+          cancel_reason_id: string
+          confirmed_at: string
+          ends_at: string
+          id: string
+          is_personal: boolean
+          kept_on_schedule: boolean
+          mode: string
+          outside_availability: boolean
+          participants: Json
+          personal_label: string
+          professional_id: string
+          service_id: string
+          starts_at: string
+          state: string
+          video_status: string
+          video_url: string
+        }[]
       }
       list_audit_actors: {
         Args: never
@@ -11038,7 +11076,12 @@ export type Database = {
         Returns: boolean
       }
       move_appointment: {
-        Args: { p_id: string; p_professional_id?: string; p_starts_at: string }
+        Args: {
+          p_id: string
+          p_outside_availability_reason?: string
+          p_professional_id?: string
+          p_starts_at: string
+        }
         Returns: undefined
       }
       open_client_consent_for_service: {
@@ -11470,6 +11513,15 @@ export type Database = {
           status: string
           title_label: string
         }[]
+      }
+      set_appointment_details: {
+        Args: {
+          p_client_message: string
+          p_id: string
+          p_internal_note: string
+          p_mode: string
+        }
+        Returns: undefined
       }
       set_appointment_presence: {
         Args: {
