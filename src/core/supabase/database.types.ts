@@ -972,6 +972,48 @@ export type Database = {
           },
         ]
       }
+      billing_payer_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          kind: string
+          org_id: string
+          session_cents: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          kind: string
+          org_id: string
+          session_cents: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          kind?: string
+          org_id?: string
+          session_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_payer_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "billing_payer_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_policies: {
         Row: {
           created_at: string
@@ -2091,57 +2133,131 @@ export type Database = {
           },
         ]
       }
+      client_payer_organisations: {
+        Row: {
+          client_payer_id: string
+          created_at: string
+          created_by: string | null
+          org_id: string
+          organisation_id: string
+        }
+        Insert: {
+          client_payer_id: string
+          created_at?: string
+          created_by?: string | null
+          org_id: string
+          organisation_id: string
+        }
+        Update: {
+          client_payer_id?: string
+          created_at?: string
+          created_by?: string | null
+          org_id?: string
+          organisation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_payer_organisations_client_payer_id_fkey"
+            columns: ["client_payer_id"]
+            isOneToOne: true
+            referencedRelation: "client_payers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_payer_organisations_client_payer_id_fkey"
+            columns: ["client_payer_id"]
+            isOneToOne: true
+            referencedRelation: "client_payers_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_payer_organisations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_payer_organisations_organisation_fkey"
+            columns: ["org_id", "organisation_id"]
+            isOneToOne: false
+            referencedRelation: "payer_organisations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       client_payers: {
         Row: {
           client_id: string
+          coverage_percent: number | null
           created_at: string
           created_by: string | null
           expires_on: string | null
           file_number: string | null
           id: string
           is_active: boolean
+          is_stub: boolean
           kind: string
           max_amount_cents: number | null
           max_sessions: number | null
           note: string | null
           org_id: string
           organisation_name: string | null
+          prior_used_cents: number | null
+          prior_used_on: string | null
+          prior_used_sessions: number | null
+          renewal_day: number | null
+          renewal_month: number | null
           session_amount_cents: number | null
           starts_on: string | null
           updated_at: string
         }
         Insert: {
           client_id: string
+          coverage_percent?: number | null
           created_at?: string
           created_by?: string | null
           expires_on?: string | null
           file_number?: string | null
           id?: string
           is_active?: boolean
+          is_stub?: boolean
           kind: string
           max_amount_cents?: number | null
           max_sessions?: number | null
           note?: string | null
           org_id: string
           organisation_name?: string | null
+          prior_used_cents?: number | null
+          prior_used_on?: string | null
+          prior_used_sessions?: number | null
+          renewal_day?: number | null
+          renewal_month?: number | null
           session_amount_cents?: number | null
           starts_on?: string | null
           updated_at?: string
         }
         Update: {
           client_id?: string
+          coverage_percent?: number | null
           created_at?: string
           created_by?: string | null
           expires_on?: string | null
           file_number?: string | null
           id?: string
           is_active?: boolean
+          is_stub?: boolean
           kind?: string
           max_amount_cents?: number | null
           max_sessions?: number | null
           note?: string | null
           org_id?: string
           organisation_name?: string | null
+          prior_used_cents?: number | null
+          prior_used_on?: string | null
+          prior_used_sessions?: number | null
+          renewal_day?: number | null
+          renewal_month?: number | null
           session_amount_cents?: number | null
           starts_on?: string | null
           updated_at?: string
@@ -4317,6 +4433,7 @@ export type Database = {
       invoice_lines: {
         Row: {
           appointment_id: string | null
+          client_payer_id: string | null
           created_at: string
           credited: boolean
           description: string
@@ -4325,6 +4442,7 @@ export type Database = {
           invoice_id: string
           line_type: string
           org_id: string
+          payer_organisation_id: string | null
           position: number
           price_source: string | null
           professional_id: string | null
@@ -4332,6 +4450,8 @@ export type Database = {
           quantity: number
           service_code: number | null
           service_id: string | null
+          service_on: string | null
+          source_line_id: string | null
           subtotal_cents: number
           tax_rule: string
           total_cents: number
@@ -4339,6 +4459,7 @@ export type Database = {
         }
         Insert: {
           appointment_id?: string | null
+          client_payer_id?: string | null
           created_at?: string
           credited?: boolean
           description: string
@@ -4347,6 +4468,7 @@ export type Database = {
           invoice_id: string
           line_type: string
           org_id: string
+          payer_organisation_id?: string | null
           position: number
           price_source?: string | null
           professional_id?: string | null
@@ -4354,6 +4476,8 @@ export type Database = {
           quantity?: number
           service_code?: number | null
           service_id?: string | null
+          service_on?: string | null
+          source_line_id?: string | null
           subtotal_cents?: number
           tax_rule?: string
           total_cents?: number
@@ -4361,6 +4485,7 @@ export type Database = {
         }
         Update: {
           appointment_id?: string | null
+          client_payer_id?: string | null
           created_at?: string
           credited?: boolean
           description?: string
@@ -4369,6 +4494,7 @@ export type Database = {
           invoice_id?: string
           line_type?: string
           org_id?: string
+          payer_organisation_id?: string | null
           position?: number
           price_source?: string | null
           professional_id?: string | null
@@ -4376,6 +4502,8 @@ export type Database = {
           quantity?: number
           service_code?: number | null
           service_id?: string | null
+          service_on?: string | null
+          source_line_id?: string | null
           subtotal_cents?: number
           tax_rule?: string
           total_cents?: number
@@ -4390,10 +4518,31 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "invoice_lines_client_payer_id_fkey"
+            columns: ["client_payer_id"]
+            isOneToOne: false
+            referencedRelation: "client_payers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_client_payer_id_fkey"
+            columns: ["client_payer_id"]
+            isOneToOne: false
+            referencedRelation: "client_payers_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoice_lines_invoice_fkey"
             columns: ["org_id", "invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_payer_organisation_fkey"
+            columns: ["org_id", "payer_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "payer_organisations"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -4437,6 +4586,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "services_catalog"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_source_line_id_fkey"
+            columns: ["source_line_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_lines"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4495,6 +4651,8 @@ export type Database = {
           paid_cents: number
           payer_client_id: string
           payer_kind: string
+          payer_organisation_id: string | null
+          payer_reference: string | null
           payment_status: string
           pdf_file_id: string | null
           qst_cents: number
@@ -4532,6 +4690,8 @@ export type Database = {
           paid_cents?: number
           payer_client_id: string
           payer_kind?: string
+          payer_organisation_id?: string | null
+          payer_reference?: string | null
           payment_status?: string
           pdf_file_id?: string | null
           qst_cents?: number
@@ -4569,6 +4729,8 @@ export type Database = {
           paid_cents?: number
           payer_client_id?: string
           payer_kind?: string
+          payer_organisation_id?: string | null
+          payer_reference?: string | null
           payment_status?: string
           pdf_file_id?: string | null
           qst_cents?: number
@@ -4625,6 +4787,13 @@ export type Database = {
             columns: ["org_id", "payer_client_id"]
             isOneToOne: false
             referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "invoices_payer_organisation_fkey"
+            columns: ["org_id", "payer_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "payer_organisations"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -6254,6 +6423,78 @@ export type Database = {
             columns: ["signature_file_id"]
             isOneToOne: false
             referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payer_organisations: {
+        Row: {
+          billing_email: string | null
+          cadence: string
+          contact_name: string | null
+          created_at: string
+          created_by: string | null
+          due_days: number
+          id: string
+          is_active: boolean
+          kind: string
+          language: string
+          name: string
+          note: string | null
+          org_id: string
+          provider_number: string | null
+          reminders_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          billing_email?: string | null
+          cadence: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_days?: number
+          id?: string
+          is_active?: boolean
+          kind: string
+          language?: string
+          name: string
+          note?: string | null
+          org_id: string
+          provider_number?: string | null
+          reminders_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          billing_email?: string | null
+          cadence?: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_days?: number
+          id?: string
+          is_active?: boolean
+          kind?: string
+          language?: string
+          name?: string
+          note?: string | null
+          org_id?: string
+          provider_number?: string | null
+          reminders_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_organisations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "payer_organisations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -13601,6 +13842,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_payer_invoice: {
+        Args: { p_client_payer_id: string }
+        Returns: string
+      }
       create_pending_upload: {
         Args: {
           p_mime_type: string
@@ -13964,6 +14209,10 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: Json
       }
+      get_client_payers_billing: {
+        Args: { p_client_id: string }
+        Returns: Json
+      }
       get_client_stripe: { Args: { p_client_id: string }; Returns: Json }
       get_client_summary: { Args: { p_id: string }; Returns: Json }
       get_communications_settings: { Args: never; Returns: Json }
@@ -14060,6 +14309,7 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: string
       }
+      get_payer_settings: { Args: never; Returns: Json }
       get_payout_period: { Args: { p_id: string }; Returns: Json }
       get_pending_upload: {
         Args: { p_file_id: string }
@@ -14224,6 +14474,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_client_payers: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_client_relation: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
@@ -14354,6 +14608,7 @@ export type Database = {
           unread_count: number
         }[]
       }
+      list_client_payers_to_complete: { Args: never; Returns: Json }
       list_client_visits: {
         Args: { p_before?: string; p_client_id: string; p_limit?: number }
         Returns: {
@@ -14776,6 +15031,8 @@ export type Database = {
         }[]
       }
       list_overdue_invoices: { Args: never; Returns: Json }
+      list_payer_organisations: { Args: never; Returns: Json }
+      list_payer_queue: { Args: never; Returns: Json }
       list_payout_export: {
         Args: { p_month: string }
         Returns: {
@@ -15306,6 +15563,10 @@ export type Database = {
         Args: { p_action: string; p_actor: string; p_idempotency_key: string }
         Returns: Json
       }
+      prepare_payer_invoices: {
+        Args: { p_closing?: boolean; p_organisation_id?: string }
+        Returns: string[]
+      }
       prepare_professional_contract: {
         Args: {
           p_action: string
@@ -15801,6 +16062,7 @@ export type Database = {
       save_client_payer: {
         Args: {
           p_client_id: string
+          p_coverage_percent?: number
           p_expires_on: string
           p_file_number: string
           p_id: string
@@ -15809,6 +16071,11 @@ export type Database = {
           p_max_sessions: number
           p_note: string
           p_organisation_name: string
+          p_prior_used_cents?: number
+          p_prior_used_on?: string
+          p_prior_used_sessions?: number
+          p_renewal_day?: number
+          p_renewal_month?: number
           p_session_amount_cents: number
           p_starts_on: string
         }
@@ -15909,6 +16176,23 @@ export type Database = {
           p_sin: string
         }
         Returns: undefined
+      }
+      save_payer_organisation: {
+        Args: {
+          p_billing_email: string
+          p_cadence: string
+          p_contact_name: string
+          p_due_days: number
+          p_id: string
+          p_is_active: boolean
+          p_kind: string
+          p_language: string
+          p_name: string
+          p_note: string
+          p_provider_number: string
+          p_reminders_enabled: boolean
+        }
+        Returns: string
       }
       save_profession_category: {
         Args: { p_id: string; p_name: string }
@@ -16103,6 +16387,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_client_payer_organisation: {
+        Args: { p_client_payer_id: string; p_organisation_id: string }
+        Returns: undefined
+      }
       set_client_relation: {
         Args: {
           p_client_id: string
@@ -16201,6 +16489,10 @@ export type Database = {
       }
       set_invoice_sequence: {
         Args: { p_last_number: number; p_year: number }
+        Returns: undefined
+      }
+      set_ivac_rate: {
+        Args: { p_effective_from: string; p_session_cents: number }
         Returns: undefined
       }
       set_mail_access_token: {

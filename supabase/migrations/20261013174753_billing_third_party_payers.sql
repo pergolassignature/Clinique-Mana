@@ -139,7 +139,7 @@ alter table public.invoices
     (payer_kind in ('client', 'relation') and payer_organisation_id is null and ((payer_kind = 'client') = (payer_client_id = client_id)))
     or (payer_kind = 'organisation' and payer_organisation_id is not null and payer_client_id = client_id)),
   drop constraint invoices_source_check,
-  add constraint invoices_source_check check (source_type in ('appointment', 'manual', 'service', 'import', 'payer'));
+  add constraint invoices_source_check check (source_type in ('appointment', 'manual', 'service', 'import', 'waitlist_fee', 'payer'));
 create index invoices_org_payer_organisation_idx on public.invoices (org_id, payer_organisation_id) where payer_organisation_id is not null;
 
 alter table public.invoice_lines
@@ -823,6 +823,7 @@ as $$
          join public.invoices i on i.org_id = s.org_id
         where s.org_id = p_org and s.dunning_from is not null
           and i.client_id = p_client_id and i.payer_kind <> 'organisation' and i.status = 'issued' and i.total_cents > i.paid_cents
+          and i.source_type <> 'import'
           and i.issued_on >= s.dunning_from
           and i.due_on <= private.billing_today(p_org) - s.block_after_days)
 $$;
@@ -884,6 +885,7 @@ begin
   for i in select inv.*, s.dunning_days, s.block_after_days
              from public.invoices inv join public.billing_settings s on s.org_id = inv.org_id
             where inv.org_id = p_org and s.dunning_from is not null and inv.status = 'issued'
+              and inv.source_type <> 'import'
               and inv.total_cents > inv.paid_cents and inv.issued_on >= s.dunning_from and inv.due_on < p_today
               -- FP-6: an organisation gets reminders only when it is set to.
               and (inv.payer_kind <> 'organisation'
