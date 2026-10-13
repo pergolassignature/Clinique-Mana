@@ -8645,6 +8645,57 @@ export type Database = {
           },
         ]
       }
+      qbo_items: {
+        Row: {
+          active: boolean
+          connection_id: string
+          income_account_id: string | null
+          item_type: string | null
+          name: string
+          org_id: string
+          qbo_id: string
+          sku: string | null
+          synced_at: string
+        }
+        Insert: {
+          active?: boolean
+          connection_id: string
+          income_account_id?: string | null
+          item_type?: string | null
+          name: string
+          org_id: string
+          qbo_id: string
+          sku?: string | null
+          synced_at?: string
+        }
+        Update: {
+          active?: boolean
+          connection_id?: string
+          income_account_id?: string | null
+          item_type?: string | null
+          name?: string
+          org_id?: string
+          qbo_id?: string
+          sku?: string | null
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_items_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       qbo_links: {
         Row: {
           client_id: string | null
@@ -8721,6 +8772,186 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients_directory"
             referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      qbo_pushes: {
+        Row: {
+          amount_mismatch: boolean
+          attempts: number
+          created_at: string
+          entity_id: string
+          event_id: number | null
+          id: string
+          invoice_id: string | null
+          kind: string
+          last_error_code: string | null
+          next_attempt_at: string
+          org_id: string
+          pushed_at: string | null
+          qbo_customer_id: string | null
+          qbo_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_mismatch?: boolean
+          attempts?: number
+          created_at?: string
+          entity_id: string
+          event_id?: number | null
+          id?: string
+          invoice_id?: string | null
+          kind: string
+          last_error_code?: string | null
+          next_attempt_at?: string
+          org_id: string
+          pushed_at?: string | null
+          qbo_customer_id?: string | null
+          qbo_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_mismatch?: boolean
+          attempts?: number
+          created_at?: string
+          entity_id?: string
+          event_id?: number | null
+          id?: string
+          invoice_id?: string | null
+          kind?: string
+          last_error_code?: string | null
+          next_attempt_at?: string
+          org_id?: string
+          pushed_at?: string | null
+          qbo_customer_id?: string | null
+          qbo_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_pushes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qbo_tax_codes: {
+        Row: {
+          active: boolean
+          connection_id: string
+          name: string
+          org_id: string
+          qbo_id: string
+          synced_at: string
+          taxable: boolean | null
+        }
+        Insert: {
+          active?: boolean
+          connection_id: string
+          name: string
+          org_id: string
+          qbo_id: string
+          synced_at?: string
+          taxable?: boolean | null
+        }
+        Update: {
+          active?: boolean
+          connection_id?: string
+          name?: string
+          org_id?: string
+          qbo_id?: string
+          synced_at?: string
+          taxable?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_tax_codes_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_tax_codes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qbo_vendor_links: {
+        Row: {
+          connection_id: string
+          created_at: string
+          id: string
+          org_id: string
+          professional_id: string
+          qbo_vendor_id: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          id?: string
+          org_id: string
+          professional_id: string
+          qbo_vendor_id: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          id?: string
+          org_id?: string
+          professional_id?: string
+          qbo_vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_vendor_links_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "qbo_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_vendor_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qbo_vendor_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_vendor_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_vendor_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "qbo_vendor_links_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
           },
         ]
       }
@@ -13835,6 +14066,10 @@ export type Database = {
           status: string
         }[]
       }
+      list_qbo_pushes: {
+        Args: { p_limit?: number; p_status?: string }
+        Returns: Json
+      }
       list_retention_review: { Args: { p_month: string }; Returns: Json }
       list_scheduled_job_runs: {
         Args: {
@@ -14196,6 +14431,15 @@ export type Database = {
         Args: { p_actor: string; p_period_id: string }
         Returns: Json
       }
+      prepare_qbo_push_for_service: {
+        Args: {
+          p_entity: string
+          p_invoice: string
+          p_kind: string
+          p_org_id: string
+        }
+        Returns: Json
+      }
       prepare_waitlist_followup_for_service: {
         Args: { p_entry_id: string; p_org_id: string; p_token_hash: string }
         Returns: Json
@@ -14237,6 +14481,21 @@ export type Database = {
       }
       publish_consent_version: { Args: { p_id: string }; Returns: undefined }
       publish_template_version: { Args: { p_id: string }; Returns: undefined }
+      qbo_bills_to_push_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          amount_cents: number
+          attempts: number
+          expense_account_id: string
+          invoice_id: string
+          issued_on: string
+          number: string
+          professional_id: string
+          professional_name: string
+          title_name: string
+          vendor_id: string
+        }[]
+      }
       qbo_customer_match_counts: {
         Args: never
         Returns: {
@@ -14244,6 +14503,8 @@ export type Database = {
           status: string
         }[]
       }
+      qbo_invoice_push_status: { Args: { p_invoice_id: string }; Returns: Json }
+      qbo_push_state_for_service: { Args: { p_org_id: string }; Returns: Json }
       queue_email: {
         Args: {
           p_attachment_count: number
@@ -14323,6 +14584,48 @@ export type Database = {
       record_professional_paper_contract: {
         Args: { p_file_id: string; p_id: string; p_signed_on: string }
         Returns: string
+      }
+      record_qbo_item_for_service: {
+        Args: {
+          p_income_account_id: string
+          p_name: string
+          p_org_id: string
+          p_qbo_id: string
+          p_sku: string
+        }
+        Returns: undefined
+      }
+      record_qbo_link_for_service: {
+        Args: {
+          p_client: string
+          p_kind: string
+          p_org_id: string
+          p_payer: string
+          p_qbo_customer_id: string
+        }
+        Returns: undefined
+      }
+      record_qbo_push_for_service: {
+        Args: {
+          p_amount_mismatch?: boolean
+          p_entity: string
+          p_error_code: string
+          p_event_id: number
+          p_invoice: string
+          p_kind: string
+          p_org_id: string
+          p_qbo_customer_id: string
+          p_qbo_id: string
+        }
+        Returns: string
+      }
+      record_qbo_vendor_for_service: {
+        Args: {
+          p_org_id: string
+          p_professional: string
+          p_qbo_vendor_id: string
+        }
+        Returns: undefined
       }
       record_signature_sync: {
         Args: {
@@ -14441,6 +14744,14 @@ export type Database = {
         Args: { p_accounts: Json; p_org_id: string }
         Returns: number
       }
+      replace_qbo_items: {
+        Args: { p_items: Json; p_org_id: string }
+        Returns: number
+      }
+      replace_qbo_tax_codes: {
+        Args: { p_codes: Json; p_org_id: string }
+        Returns: number
+      }
       request_mail_sync: {
         Args: { p_email_address: string; p_org_id: string }
         Returns: string
@@ -14497,6 +14808,7 @@ export type Database = {
         Args: { p_appointment_id: string }
         Returns: undefined
       }
+      retry_qbo_push: { Args: { p_id: string }; Returns: undefined }
       reveal_bank_account_number: { Args: never; Returns: string }
       reveal_professional_private: {
         Args: { p_field: string; p_id: string }
@@ -15034,6 +15346,7 @@ export type Database = {
         Args: { p_org_id: string; p_reason: string; p_status: string }
         Returns: undefined
       }
+      set_qbo_push_paused: { Args: { p_paused: boolean }; Returns: undefined }
       set_qbo_tokens: {
         Args: {
           p_access_token: string

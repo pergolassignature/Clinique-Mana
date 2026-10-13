@@ -30,6 +30,7 @@ export const BILLING_AUDITED_TABLES = [
   'qbo_account_map',
   'qbo_customer_matches',
   'qbo_links',
+  'qbo_vendor_links',
 ] as const
 
 /** The audit source of the per-clinic seed (`private.seed_billing_reference`). */
