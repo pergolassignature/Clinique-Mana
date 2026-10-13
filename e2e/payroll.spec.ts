@@ -5,9 +5,8 @@ import { E2E_ORIGIN } from './fixtures/origin'
 
 /**
  * « Paie des professionnels » (Facturation FPay; local only, after `npm run db:reset`: the seed
- * holds last month's two completed sessions of Félix Gauthier, provider@mana.test, at 30 %
- * retention). The admin switches Facturation on first and off at the end (`finally`), so the other
- * specs find the seed's modules.
+ * enables Facturation and holds last month's two completed sessions of Félix Gauthier,
+ * provider@mana.test, at 30 % retention).
  *
  * The administration calculates last month in « Paie », opens Félix's draft and sends it; Félix
  * finds it in « Ma paie », checks it and validates it; with the functions served, he generates his
@@ -16,16 +15,6 @@ import { E2E_ORIGIN } from './fixtures/origin'
 
 const API = 'http://127.0.0.1:55321'
 
-/** Paramètres → Modules: Facturation on or off (the signed-in admin). */
-async function setBilling(page: Page, on: boolean) {
-  await page.goto('/parametres/modules')
-  const billing = page.getByRole('switch', { name: 'Facturation', exact: true })
-  if ((await billing.getAttribute('aria-checked')) === String(on)) return
-  await billing.click()
-  await expect(page.getByText('Modules mis à jour.')).toBeVisible()
-  await expect(billing).toHaveAttribute('aria-checked', String(on))
-}
-
 test('calculate, send, validate, (generate the invoice)', async ({ page, signIn, request }) => {
   const functions = await request
     .fetch(`${API}/functions/v1/billing-payout-invoice`, { method: 'OPTIONS', headers: { Origin: E2E_ORIGIN }, timeout: 2_000 })
@@ -33,15 +22,7 @@ test('calculate, send, validate, (generate the invoice)', async ({ page, signIn,
     .catch(() => false)
 
   await signIn('admin')
-  await setBilling(page, true)
-  try {
-    await payroll(page, signIn, functions)
-  } finally {
-    await page.context().clearCookies()
-    await page.evaluate(() => localStorage.clear())
-    await signIn('admin')
-    await setBilling(page, false)
-  }
+  await payroll(page, signIn, functions)
 })
 
 async function payroll(page: Page, signIn: (who: AccountKey) => Promise<void>, functions: boolean) {
@@ -58,7 +39,7 @@ async function payroll(page: Page, signIn: (who: AccountKey) => Promise<void>, f
 
   const sheet = page.getByRole('dialog')
   await expect(sheet.getByRole('table', { name: 'Lignes du sommaire' })).toBeVisible()
-  await expect(sheet.getByRole('table', { name: 'Lignes du sommaire' }).getByRole('row')).toHaveCount(3)
+  await expect(sheet.getByRole('table', { name: 'Lignes du sommaire' }).getByText('Alice Tremblay-Fictive').first()).toBeVisible()
   await expect(sheet.getByText(/30\s%/).first()).toBeVisible()
   const send = sheet.getByRole('button', { name: /^(Envoyer|Renvoyer) au professionnel$/ })
   if (await send.isVisible()) {

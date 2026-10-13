@@ -565,10 +565,8 @@ $appointments$;
 
 -- Paie (Facturation FPay; fictional, local only): last month's two completed sessions of Félix
 -- (professional n° 4, provider@mana.test, 30 % retention) with Alice, so « Paie »
--- (`/facturation/paie`) has a month to calculate and « Ma paie » a summary once Facturation is on
--- (e2e/payroll.spec.ts switches it on, then off: an open Facturation, which depends on Rendez-vous,
--- would keep e2e/module-testers.spec.ts from reserving Rendez-vous). Written directly (completed
--- appointments cannot be booked in the past).
+-- (`/facturation/paie`) has a month to calculate and « Ma paie » a summary (e2e/payroll.spec.ts).
+-- Written directly (completed appointments cannot be booked in the past).
 do $payroll$
 declare
   v_org constant uuid := '00000000-0000-0000-0000-000000000001';
