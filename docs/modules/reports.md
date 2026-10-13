@@ -8,7 +8,7 @@ The clinic's reports, read-only: what GOrendezvous's « Revenus », « Annulatio
 | RP2 | Intake KPIs (D6), payouts, IVAC (FP), places, waitlist | planned (lane B, February) |
 
 - **Registry:** `modules.key = 'reports'`, depends on `billing` and `appointments`; starts disabled in every clinic (Paramètres → Modules).
-- **Migrations:** `20261013150015_billing_report_facts` (Facturation's published facts), `20261013150108_appointments_report_facts` (Rendez-vous'), `20261013150151_reports_module` (registry, permissions, the three RPCs).
+- **Migrations:** `20261013160528_billing_report_facts` (Facturation's published facts), `20261013160534_appointments_report_facts` (Rendez-vous'), `20261013160540_reports_module` (registry, permissions, the three RPCs).
 - **Tests:** pgTAP `165_reports` (privileges, registry and roles, the three views and their filters, a credited invoice apart and a draft never, the period's rules, cancellations per reason with a couple's appointment once and never a personal one, the clinic's day bounds, the clients to call back, the permissions, the module off, another clinic); Vitest `src/shared/lib/csv.test.ts` (formula guard, quoting, numbers) and `src/modules/reports/**` (periods, labels, each report's CSV, the pages, the manifest); Playwright `e2e/reports.spec.ts`.
 
 ## Permissions (RP-1)
