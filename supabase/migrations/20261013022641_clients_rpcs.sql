@@ -62,7 +62,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select nullif(pg_catalog.regexp_replace(pg_catalog.btrim(coalesce(p_value, '')), '\s+', ' ', 'g'), '')
+  select nullif(pg_catalog.btrim(pg_catalog.regexp_replace(coalesce(p_value, ''), '\s+', ' ', 'g')), '')
 $$;
 revoke all on function private.clients_text(text) from public, anon, authenticated, service_role;
 
@@ -161,7 +161,9 @@ begin
     raise exception 'La langue est le français ou l''anglais.' using errcode = 'P0001', hint = 'language';
   end if;
   v.time_zone := private.clients_text(p ->> 'time_zone');
-  if v.time_zone is not null and not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = v.time_zone) then
+  if v.time_zone is not null and (v.time_zone !~ '^[A-Za-z]+(/[A-Za-z0-9_+-]+){0,2}$' or pg_catalog.length(v.time_zone) > 64
+                                  or v.time_zone ~ '^posix/' or v.time_zone ~ '^right/'
+                                  or not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = v.time_zone)) then
     raise exception 'Fuseau horaire inconnu.' using errcode = 'P0001', hint = 'time_zone';
   end if;
   v.reminders_by_sms := coalesce((p ->> 'reminders_by_sms')::boolean, true);
@@ -188,6 +190,8 @@ begin
     if v.province not in ('AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT') then
       raise exception 'Choisissez la province.' using errcode = 'P0001', hint = 'province';
     end if;
+  elsif v.province is not null and (pg_catalog.length(v.province) > 100 or not private.is_tidy_text(v.province)) then
+    raise exception 'La province ou l''État compte 100 caractères au plus.' using errcode = 'P0001', hint = 'province';
   end if;
   v.postal_code := pg_catalog.upper(private.clients_text(p ->> 'postal_code'));
   if v.postal_code is not null and v.country = 'CA' then
@@ -196,6 +200,8 @@ begin
       raise exception 'Le code postal a la forme A1A 1A1.' using errcode = 'P0001', hint = 'postal_code';
     end if;
     v.postal_code := pg_catalog.left(v_text, 3) || ' ' || pg_catalog.right(v_text, 3);
+  elsif v.postal_code is not null and (pg_catalog.length(v.postal_code) > 20 or not private.is_tidy_text(v.postal_code)) then
+    raise exception 'Le code postal compte 20 caractères au plus.' using errcode = 'P0001', hint = 'postal_code';
   end if;
   v.referral_source_id := nullif(p ->> 'referral_source_id', '')::uuid;
   if v.referral_source_id is not null and not exists (
@@ -280,6 +286,8 @@ begin
     raise exception 'Permission refusée : clients.manage' using errcode = '42501';
   end if;
   v := private.clients_from_json(v_org, p_client);
+  -- The same transaction lock as the file number's: two creations of one person never both pass.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('clients.client_number:' || v_org::text, 0));
 
   select d.level, c.client_number into v_dup
     from private.clients_find_duplicates(v_org, v.first_name, v.last_name, v.email,
@@ -639,6 +647,8 @@ begin
     select x.id into v_id from public.client_payers x where x.client_id = p_client_id and x.kind = p_kind and x.is_active;
   elsif not exists (select 1 from public.client_payers x where x.client_id = p_client_id and x.id = v_id and x.is_active) then
     raise exception 'Payeur introuvable.' using errcode = 'P0001', hint = 'id';
+  elsif exists (select 1 from public.client_payers x where x.id = v_id and x.kind <> p_kind) then
+    raise exception 'Le type d''un payeur ne change pas : terminez-le et ajoutez-en un autre.' using errcode = 'P0001', hint = 'kind';
   end if;
   if v_id is null then
     insert into public.client_payers (client_id, org_id, kind, organisation_name, file_number, session_amount_cents, max_sessions,
@@ -786,7 +796,7 @@ revoke all on function private.clients_unlink_professional(uuid, uuid, uuid) fro
 -- p_right: 'communications' (receives_communications), 'invoices' (receives_invoices),
 -- 'appointments' (manages_appointments: may book and sign forms for her). The callers decide what
 -- the client's age means (the 14-year consent rule is C5a's).
-create function private.client_contacts_for(p_client_id uuid, p_right text)
+create function private.client_contacts_for(p_org uuid, p_client_id uuid, p_right text)
 returns table (client_id uuid, is_self boolean, relation_type text, first_name text, last_name text, language text,
                email text, mobile_e164 text, reminders_by_sms boolean, reminders_by_email boolean, is_main_contact boolean)
 language plpgsql
@@ -801,7 +811,7 @@ begin
     select c.id, true, null::text, c.first_name, c.last_name, c.language, c.email, c.mobile_e164,
            c.reminders_by_sms, c.reminders_by_email, false
       from public.clients c
-     where c.id = p_client_id and c.merged_into_id is null and c.anonymized_at is null
+     where c.org_id = p_org and c.id = p_client_id and c.merged_into_id is null and c.anonymized_at is null
     union all
     select o.id, false, x.type_to_client, o.first_name, o.last_name, o.language, o.email, o.mobile_e164,
            o.reminders_by_sms, o.reminders_by_email, x.main_contact
@@ -809,18 +819,18 @@ begin
                    case p_right when 'communications' then r.a_receives_communications
                                 when 'invoices' then r.a_receives_invoices
                                 else r.a_manages_appointments end as has_right
-              from public.client_relations r where r.client_b_id = p_client_id
+              from public.client_relations r where r.org_id = p_org and r.client_b_id = p_client_id
             union all
             select r.client_b_id, r.type_b_to_a, r.b_main_contact,
                    case p_right when 'communications' then r.b_receives_communications
                                 when 'invoices' then r.b_receives_invoices
                                 else r.b_manages_appointments end
-              from public.client_relations r where r.client_a_id = p_client_id) x
+              from public.client_relations r where r.org_id = p_org and r.client_a_id = p_client_id) x
       join public.clients o on o.id = x.other_id
      where x.has_right and o.merged_into_id is null and o.anonymized_at is null;
 end;
 $$;
-revoke all on function private.client_contacts_for(uuid, text) from public, anon, authenticated, service_role;
+revoke all on function private.client_contacts_for(uuid, uuid, text) from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- Merge (clients.merge)
@@ -846,14 +856,50 @@ as $$
 declare
   v_count int;
 begin
-  update public.professional_client_agreements a set client_id = p_new where a.client_id = p_old;
-  get diagnostics v_count = row_count;
+  begin
+    update public.professional_client_agreements a set client_id = p_new where a.client_id = p_old;
+    get diagnostics v_count = row_count;
+  exception when exclusion_violation then
+    raise exception 'Les deux dossiers ont une entente particulière en vigueur avec le même professionnel : terminez-en une avant de fusionner.'
+      using errcode = 'P0001', hint = 'agreements';
+  end;
   return v_count;
 end;
 $$;
 revoke all on function private.professionals_reassign_client(uuid, uuid) from public, anon, authenticated, service_role;
 insert into public.client_merge_handlers (module_key, function_name)
 values ('professionals', 'private.professionals_reassign_client')
+on conflict do nothing;
+
+-- The other modules' part of an anonymisation: `private.<module>_anonymize_client(id uuid) → int`
+-- blanks the module's own copies of the person (labels, notes, names typed before the file).
+create table public.client_anonymize_handlers (
+  module_key text primary key references public.modules(key),
+  function_name text not null,
+  constraint client_anonymize_handlers_function_name_check check (function_name ~ '^private\.[a-z][a-z0-9_]{2,62}_anonymize_client$')
+);
+revoke all on public.client_anonymize_handlers from anon, authenticated;
+alter table public.client_anonymize_handlers enable row level security;
+
+-- Professionnels: an agreement's label becomes the file number, its note goes.
+create function private.professionals_anonymize_client(p_id uuid)
+returns int
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_count int;
+begin
+  update public.professional_client_agreements a
+     set client_label = 'CLI-' || (select c.client_number from public.clients c where c.id = p_id), note = null
+   where a.client_id = p_id;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke all on function private.professionals_anonymize_client(uuid) from public, anon, authenticated, service_role;
+insert into public.client_anonymize_handlers (module_key, function_name)
+values ('professionals', 'private.professionals_anonymize_client')
 on conflict do nothing;
 
 -- Merges p_merge into p_keep: the relations (a relation between the two goes; a person related to
@@ -882,6 +928,8 @@ declare
   v_handlers jsonb := '{}';
   v_count int;
   v_id uuid;
+  v_orig_main uuid;
+  v_no_address boolean;
 begin
   if not private.has_permission('clients.merge') then
     raise exception 'Permission refusée : clients.merge' using errcode = '42501';
@@ -894,6 +942,27 @@ begin
   perform private.clients_lock(v_org, greatest(p_keep, p_merge));
   select c.* into v_keep from public.clients c where c.id = p_keep;
   select c.* into v_merge from public.clients c where c.id = p_merge;
+
+  -- The kept file's main contact before the merge: the one it keeps (CL-14).
+  select case when x.client_b_id = p_keep then x.client_a_id else x.client_b_id end into v_orig_main
+    from public.client_relations x
+   where x.org_id = v_org
+     and ((x.client_b_id = p_keep and x.a_main_contact) or (x.client_a_id = p_keep and x.b_main_contact))
+     and p_merge not in (x.client_a_id, x.client_b_id)
+   limit 1;
+  -- Notes: refused when both together are too long (nothing is cut without a word).
+  if (select pg_catalog.length(concat_ws(E'\n\n', k.admin_notes, m.admin_notes))
+        from public.client_notes m left join public.client_notes k on k.client_id = p_keep
+       where m.client_id = p_merge) > 5000 then
+    raise exception 'Les notes administratives des deux dossiers dépassent 5 000 caractères ensemble : raccourcissez-les avant de fusionner.'
+      using errcode = 'P0001', hint = 'admin_notes';
+  end if;
+  if (select pg_catalog.length(concat_ws(E'\n\n', k.special_agreement_note, m.special_agreement_note))
+        from public.client_notes m left join public.client_notes k on k.client_id = p_keep
+       where m.client_id = p_merge) > 1000 then
+    raise exception 'Les notes d''entente particulière des deux dossiers dépassent 1 000 caractères ensemble : raccourcissez-les avant de fusionner.'
+      using errcode = 'P0001', hint = 'special_agreement_note';
+  end if;
 
   -- Relations: the one between the two goes; then each relation of the merged file.
   delete from public.client_relations x
@@ -945,7 +1014,20 @@ begin
     v_relations := v_relations + 1;
   end loop;
 
-  -- Insurance: the kept file's ranks first; the merged file's fill the free ones.
+  -- One main contact for the kept file: its own, else the first moved one (CL-14).
+  select coalesce(v_orig_main,
+                  (select case when x.client_b_id = p_keep then x.client_a_id else x.client_b_id end
+                     from public.client_relations x
+                    where x.org_id = v_org
+                      and ((x.client_b_id = p_keep and x.a_main_contact) or (x.client_a_id = p_keep and x.b_main_contact))
+                    order by x.created_at limit 1)) into v_orig_main;
+  update public.client_relations x set a_main_contact = false
+   where x.org_id = v_org and x.client_b_id = p_keep and x.a_main_contact and x.client_a_id is distinct from v_orig_main;
+  update public.client_relations x set b_main_contact = false
+   where x.org_id = v_org and x.client_a_id = p_keep and x.b_main_contact and x.client_b_id is distinct from v_orig_main;
+
+  -- Insurance: the kept file's ranks first; the merged file's fill the free ones; the rest stays
+  -- on the archived file.
   for r in select i.* from public.client_insurances i where i.client_id = p_merge order by i.rank loop
     if not exists (select 1 from public.client_insurances k where k.client_id = p_keep and k.rank = 1) then
       update public.client_insurances i set client_id = p_keep, rank = 1 where i.client_id = p_merge and i.rank = r.rank;
@@ -953,8 +1035,6 @@ begin
     elsif not exists (select 1 from public.client_insurances k where k.client_id = p_keep and k.rank = 2) then
       update public.client_insurances i set client_id = p_keep, rank = 2 where i.client_id = p_merge and i.rank = r.rank;
       v_insurances := v_insurances + 1;
-    else
-      delete from public.client_insurances i where i.client_id = p_merge and i.rank = r.rank;
     end if;
   end loop;
 
@@ -991,8 +1071,8 @@ begin
   select p_keep, v_org, n.admin_notes, n.special_agreement_note, auth.uid()
     from public.client_notes n where n.client_id = p_merge
   on conflict (client_id) do update
-    set admin_notes = nullif(pg_catalog.left(concat_ws(E'\n\n', client_notes.admin_notes, excluded.admin_notes), 5000), ''),
-        special_agreement_note = nullif(pg_catalog.left(concat_ws(E'\n\n', client_notes.special_agreement_note, excluded.special_agreement_note), 1000), ''),
+    set admin_notes = nullif(concat_ws(E'\n\n', client_notes.admin_notes, excluded.admin_notes), ''),
+        special_agreement_note = nullif(concat_ws(E'\n\n', client_notes.special_agreement_note, excluded.special_agreement_note), ''),
         updated_by = excluded.updated_by;
   delete from public.client_notes n where n.client_id = p_merge;
 
@@ -1002,7 +1082,9 @@ begin
     v_handlers := v_handlers || jsonb_build_object(r.module_key, coalesce(v_count, 0));
   end loop;
 
-  -- The kept file's empty fields from the merged one; the merged file archived.
+  -- The kept file's empty fields from the merged one; the merged file archived; files merged into
+  -- it earlier now point at the kept one.
+  v_no_address := coalesce(v_keep.address_line1, v_keep.address_line2, v_keep.city, v_keep.province, v_keep.postal_code) is null;
   update public.clients c
      set birth_first_name = coalesce(c.birth_first_name, v_merge.birth_first_name),
          pronouns = coalesce(c.pronouns, v_merge.pronouns),
@@ -1014,12 +1096,13 @@ begin
          work_e164 = coalesce(c.work_e164, v_merge.work_e164),
          work_ext = case when c.work_e164 is null then coalesce(c.work_ext, v_merge.work_ext) else c.work_ext end,
          time_zone = coalesce(c.time_zone, v_merge.time_zone),
-         address_line1 = case when c.address_line1 is null then v_merge.address_line1 else c.address_line1 end,
-         address_line2 = case when c.address_line1 is null then v_merge.address_line2 else c.address_line2 end,
-         city = case when c.address_line1 is null then v_merge.city else c.city end,
-         province = case when c.address_line1 is null then v_merge.province else c.province end,
-         postal_code = case when c.address_line1 is null then v_merge.postal_code else c.postal_code end,
-         country = case when c.address_line1 is null then v_merge.country else c.country end,
+         -- The address as a block: the merged file's only when the kept one has none at all.
+         address_line1 = case when v_no_address then v_merge.address_line1 else c.address_line1 end,
+         address_line2 = case when v_no_address then v_merge.address_line2 else c.address_line2 end,
+         city = case when v_no_address then v_merge.city else c.city end,
+         province = case when v_no_address then v_merge.province else c.province end,
+         postal_code = case when v_no_address then v_merge.postal_code else c.postal_code end,
+         country = case when v_no_address then v_merge.country else c.country end,
          referral_source_id = coalesce(c.referral_source_id, v_merge.referral_source_id),
          referred_by = coalesce(c.referred_by, v_merge.referred_by),
          custom_field = coalesce(c.custom_field, v_merge.custom_field),
@@ -1033,6 +1116,7 @@ begin
   update public.clients c
      set merged_into_id = p_keep, archived_at = coalesce(c.archived_at, now()), archived_by = coalesce(c.archived_by, auth.uid())
    where c.id = p_merge;
+  update public.clients c set merged_into_id = p_keep where c.org_id = v_org and c.merged_into_id = p_merge;
 
   insert into public.client_merges (org_id, kept_client_id, merged_client_id, moved, merged_by)
   values (v_org, p_keep, p_merge,
@@ -1080,14 +1164,76 @@ begin
        and (v_staff or exists (select 1 from public.client_professional_links l where l.client_id = c.id and l.professional_id = v_pro))
        and not exists (
          select 1 from pg_catalog.unnest(v_words) w
-          where not (private.clients_name_form(c.first_name || ' ' || c.last_name) like '%' || w || '%'
-                     or coalesce(c.email, '') like '%' || w || '%'
+          where not (pg_catalog.strpos(private.clients_name_form(c.first_name || ' ' || c.last_name), w) > 0
+                     or pg_catalog.strpos(coalesce(c.email, ''), w) > 0
                      or c.client_number::text = w
-                     or (w ~ '^[0-9]{3,}$' and pg_catalog.regexp_replace(concat_ws(' ', c.mobile_e164, c.home_e164, c.work_e164), '[^0-9 ]', '', 'g') like '%' || w || '%')))
+                     or (pg_catalog.regexp_replace(w, '[^0-9]', '', 'g') ~ '^[0-9]{3,}$'
+                         and pg_catalog.strpos(pg_catalog.regexp_replace(concat_ws(' ', c.mobile_e164, c.home_e164, c.work_e164), '[^0-9 ]', '', 'g'),
+                                               pg_catalog.regexp_replace(w, '[^0-9]', '', 'g')) > 0)))
      order by (c.archived_at is not null), c.last_name, c.first_name, c.client_number
      limit least(greatest(coalesce(p_limit, 8), 1), 50);
 end;
 $$;
+
+-- The record's bundle, built for the RPCs below (no permission check here): the file, its notes, relations (with the other
+-- person's name and both directions' rights), insurance, payers, tags, the professionals who see
+-- it, the merges. A professional (clients.self, linked) gets the published columns only.
+create function private.clients_summary(p_org uuid, p_id uuid)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_client public.clients;
+begin
+  select c.* into v_client from public.clients c where c.org_id = p_org and c.id = p_id;
+  if v_client.id is null then
+    raise exception 'Dossier client introuvable.' using errcode = 'P0001', hint = 'client_id';
+  end if;
+  return jsonb_build_object(
+    'client', pg_catalog.to_jsonb(v_client),
+    'notes', (select jsonb_build_object('admin_notes', n.admin_notes, 'special_agreement_note', n.special_agreement_note,
+                                        'updated_at', n.updated_at)
+                from public.client_notes n where n.client_id = p_id),
+    'relations', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', x.id, 'related_id', x.other_id, 'related_number', o.client_number,
+               'related_name', o.first_name || ' ' || o.last_name, 'related_archived', o.archived_at is not null,
+               'type', x.type_to_client,
+               'related_rights', jsonb_build_object('main_contact', x.o_main, 'manages_appointments', x.o_manage,
+                                                    'receives_communications', x.o_comm, 'receives_invoices', x.o_inv),
+               'client_rights', jsonb_build_object('main_contact', x.c_main, 'manages_appointments', x.c_manage,
+                                                   'receives_communications', x.c_comm, 'receives_invoices', x.c_inv))
+             order by o.last_name, o.first_name)
+        from (select r.id, r.client_a_id as other_id, r.type_a_to_b as type_to_client,
+                     r.a_main_contact as o_main, r.a_manages_appointments as o_manage, r.a_receives_communications as o_comm, r.a_receives_invoices as o_inv,
+                     r.b_main_contact as c_main, r.b_manages_appointments as c_manage, r.b_receives_communications as c_comm, r.b_receives_invoices as c_inv
+                from public.client_relations r where r.client_b_id = p_id
+              union all
+              select r.id, r.client_b_id, r.type_b_to_a,
+                     r.b_main_contact, r.b_manages_appointments, r.b_receives_communications, r.b_receives_invoices,
+                     r.a_main_contact, r.a_manages_appointments, r.a_receives_communications, r.a_receives_invoices
+                from public.client_relations r where r.client_a_id = p_id) x
+        join public.clients o on o.id = x.other_id), '[]'::jsonb),
+    'insurances', coalesce((select jsonb_agg(pg_catalog.to_jsonb(i) - 'org_id' order by i.rank)
+                              from public.client_insurances i where i.client_id = p_id), '[]'::jsonb),
+    'payers', coalesce((select jsonb_agg(pg_catalog.to_jsonb(x) - 'org_id' order by x.is_active desc, x.created_at desc)
+                          from public.client_payers x where x.client_id = p_id), '[]'::jsonb),
+    'tags', coalesce((select jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name) order by t.sort_order, t.name)
+                        from public.client_tag_links l join public.client_tags t on t.id = l.tag_id
+                       where l.client_id = p_id), '[]'::jsonb),
+    'professionals', coalesce((select jsonb_agg(jsonb_build_object('professional_id', l.professional_id, 'reason', l.reason,
+                                                                   'first_linked_at', l.first_linked_at, 'last_linked_at', l.last_linked_at)
+                                                order by l.first_linked_at)
+                                 from public.client_professional_links l where l.client_id = p_id), '[]'::jsonb),
+    'merges', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'kept_client_id', m.kept_client_id,
+                                                            'merged_client_id', m.merged_client_id, 'merged_at', m.merged_at,
+                                                            'moved', m.moved) order by m.merged_at)
+                          from public.client_merges m where m.kept_client_id = p_id or m.merged_client_id = p_id), '[]'::jsonb));
+end;
+$$;
+revoke all on function private.clients_summary(uuid, uuid) from public, anon, authenticated, service_role;
 
 -- The record's bundle (staff, clients.view): the file, its notes, relations (with the other
 -- person's name and both directions' rights), insurance, payers, tags, the professionals who see
@@ -1101,57 +1247,17 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.current_user_org_id();
-  v_pro uuid := private.current_professional_id();
-  v_client public.clients;
+  v_pro uuid;
 begin
-  select c.* into v_client from public.clients c where c.org_id = v_org and c.id = p_id;
   if private.has_permission('clients.view') then
-    if v_client.id is null then
-      raise exception 'Dossier client introuvable.' using errcode = 'P0001', hint = 'client_id';
-    end if;
-    return jsonb_build_object(
-      'client', pg_catalog.to_jsonb(v_client),
-      'notes', (select jsonb_build_object('admin_notes', n.admin_notes, 'special_agreement_note', n.special_agreement_note,
-                                          'updated_at', n.updated_at)
-                  from public.client_notes n where n.client_id = p_id),
-      'relations', coalesce((
-        select jsonb_agg(jsonb_build_object(
-                 'id', x.id, 'related_id', x.other_id, 'related_number', o.client_number,
-                 'related_name', o.first_name || ' ' || o.last_name, 'related_archived', o.archived_at is not null,
-                 'type', x.type_to_client,
-                 'related_rights', jsonb_build_object('main_contact', x.o_main, 'manages_appointments', x.o_manage,
-                                                      'receives_communications', x.o_comm, 'receives_invoices', x.o_inv),
-                 'client_rights', jsonb_build_object('main_contact', x.c_main, 'manages_appointments', x.c_manage,
-                                                     'receives_communications', x.c_comm, 'receives_invoices', x.c_inv))
-               order by o.last_name, o.first_name)
-          from (select r.id, r.client_a_id as other_id, r.type_a_to_b as type_to_client,
-                       r.a_main_contact as o_main, r.a_manages_appointments as o_manage, r.a_receives_communications as o_comm, r.a_receives_invoices as o_inv,
-                       r.b_main_contact as c_main, r.b_manages_appointments as c_manage, r.b_receives_communications as c_comm, r.b_receives_invoices as c_inv
-                  from public.client_relations r where r.client_b_id = p_id
-                union all
-                select r.id, r.client_b_id, r.type_b_to_a,
-                       r.b_main_contact, r.b_manages_appointments, r.b_receives_communications, r.b_receives_invoices,
-                       r.a_main_contact, r.a_manages_appointments, r.a_receives_communications, r.a_receives_invoices
-                  from public.client_relations r where r.client_a_id = p_id) x
-          join public.clients o on o.id = x.other_id), '[]'::jsonb),
-      'insurances', coalesce((select jsonb_agg(pg_catalog.to_jsonb(i) - 'org_id' order by i.rank)
-                                from public.client_insurances i where i.client_id = p_id), '[]'::jsonb),
-      'payers', coalesce((select jsonb_agg(pg_catalog.to_jsonb(x) - 'org_id' order by x.is_active desc, x.created_at desc)
-                            from public.client_payers x where x.client_id = p_id), '[]'::jsonb),
-      'tags', coalesce((select jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name) order by t.sort_order, t.name)
-                          from public.client_tag_links l join public.client_tags t on t.id = l.tag_id
-                         where l.client_id = p_id), '[]'::jsonb),
-      'professionals', coalesce((select jsonb_agg(jsonb_build_object('professional_id', l.professional_id, 'reason', l.reason,
-                                                                     'first_linked_at', l.first_linked_at, 'last_linked_at', l.last_linked_at)
-                                                  order by l.first_linked_at)
-                                   from public.client_professional_links l where l.client_id = p_id), '[]'::jsonb),
-      'merges', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'kept_client_id', m.kept_client_id,
-                                                              'merged_client_id', m.merged_client_id, 'merged_at', m.merged_at,
-                                                              'moved', m.moved) order by m.merged_at)
-                            from public.client_merges m where m.kept_client_id = p_id or m.merged_client_id = p_id), '[]'::jsonb));
+    return private.clients_summary(v_org, p_id);
   end if;
-  if private.has_permission('clients.self') and v_pro is not null and v_client.id is not null
-     and v_client.anonymized_at is null and private.client_visible_to_professional(p_id, v_pro) then
+  if not private.has_permission('clients.self') then
+    raise exception 'Permission refusée : clients.view' using errcode = '42501';
+  end if;
+  v_pro := private.current_professional_id();
+  if v_pro is not null and private.client_visible_to_professional(p_id, v_pro)
+     and exists (select 1 from public.clients c where c.org_id = v_org and c.id = p_id and c.anonymized_at is null) then
     return jsonb_build_object('client', (select pg_catalog.to_jsonb(m) from public.my_clients m where m.id = p_id));
   end if;
   raise exception 'Permission refusée : clients.view' using errcode = '42501';
@@ -1164,6 +1270,7 @@ select x.id, x.org_id, x.client_id, x.kind, x.organisation_name, x.file_number, 
        x.max_sessions, x.max_amount_cents, x.starts_on, x.expires_on
   from public.client_payers x
  where x.is_active
+   and (x.starts_on is null or x.starts_on <= private.clinic_today())
    and (x.expires_on is null or x.expires_on >= private.clinic_today())
    and (select private.has_permission('clients.view'));
 revoke all on public.client_payers_active from anon, authenticated;
@@ -1188,39 +1295,37 @@ begin
     raise exception 'Permission refusée : clients.privacy' using errcode = '42501';
   end if;
   perform private.clients_lock(v_org, p_id, true);
-  v_summary := public.get_client_summary(p_id);
-  insert into public.audit_log (org_id, table_name, record_id, action, changed_fields, actor_id, source)
+  v_summary := private.clients_summary(v_org, p_id)
+               || jsonb_build_object('merged_files', coalesce((
+                    select jsonb_agg(private.clients_summary(v_org, c.id) order by c.client_number)
+                      from public.clients c where c.org_id = v_org and c.merged_into_id = p_id), '[]'::jsonb));
+  insert into public.audit_log (org_id, table_name, record_id, action, changed_fields, actor_id, actor_role, source)
   values (v_org, 'clients', p_id::text, 'read',
-          jsonb_build_object('fields', jsonb_build_array('client', 'notes', 'relations', 'insurances', 'payers', 'tags', 'professionals', 'merges')),
-          auth.uid(), 'rpc:export_client_privacy');
+          jsonb_build_object('fields', jsonb_build_array('client', 'notes', 'relations', 'insurances', 'payers', 'tags', 'professionals', 'merges', 'merged_files')),
+          auth.uid(), private.current_user_role(), 'rpc:export_client_privacy');
   return v_summary || jsonb_build_object('exported_at', now());
 end;
 $$;
 
 -- Blanks a person's identity for good (the right to be forgotten, where the law allows): the
--- relations, tags, insurance and payers go, the notes go, the file keeps its id, number and
--- links (invoices and appointments stay counted). Archived; never undone (trigger).
-create function public.anonymize_client(p_id uuid)
+-- relations, tags, insurance and notes go; the payers stay for past invoices, their numbers and
+-- notes blanked; the file keeps its id, number and links (invoices and appointments stay counted);
+-- the files merged into it are blanked the same way; every module's own copies through
+-- client_anonymize_handlers. Archived; never undone (trigger).
+create function private.clients_anonymize_one(p_org uuid, p_id uuid)
 returns void
 language plpgsql
-security definer
 set search_path = ''
 as $$
 declare
-  v_org uuid := private.current_user_org_id();
-  v_client public.clients;
+  r record;
 begin
-  if not private.has_permission('clients.privacy') then
-    raise exception 'Permission refusée : clients.privacy' using errcode = '42501';
-  end if;
-  v_client := private.clients_lock(v_org, p_id, true);
-  if v_client.anonymized_at is not null then
-    return;
-  end if;
-  delete from public.client_relations r where r.org_id = v_org and (r.client_a_id = p_id or r.client_b_id = p_id);
+  delete from public.client_relations x where x.org_id = p_org and (x.client_a_id = p_id or x.client_b_id = p_id);
   delete from public.client_tag_links l where l.client_id = p_id;
   delete from public.client_insurances i where i.client_id = p_id;
-  delete from public.client_payers x where x.client_id = p_id;
+  update public.client_payers x
+     set file_number = case when x.kind = 'ivac' then 'anonymisé' end, note = null, is_active = false
+   where x.client_id = p_id;
   delete from public.client_notes n where n.client_id = p_id;
   update public.clients c
      set first_name = 'Client', last_name = 'anonymisé n° ' || c.client_number,
@@ -1232,7 +1337,43 @@ begin
          shared_custody = false, external_ref = null,
          archived_at = coalesce(c.archived_at, now()), archived_by = coalesce(c.archived_by, auth.uid()),
          anonymized_at = now(), anonymized_by = auth.uid()
-   where c.id = p_id;
+   where c.id = p_id and c.anonymized_at is null;
+  for r in select h.function_name from public.client_anonymize_handlers h order by h.module_key loop
+    execute pg_catalog.format('select %s($1)', r.function_name) using p_id;
+  end loop;
+end;
+$$;
+revoke all on function private.clients_anonymize_one(uuid, uuid) from public, anon, authenticated, service_role;
+
+create function public.anonymize_client(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_client public.clients;
+  r record;
+begin
+  if not private.has_permission('clients.privacy') then
+    raise exception 'Permission refusée : clients.privacy' using errcode = '42501';
+  end if;
+  v_client := private.clients_lock(v_org, p_id, true);
+  if v_client.anonymized_at is not null then
+    return;
+  end if;
+  -- The file and every file merged into it, at any depth.
+  for r in
+    with recursive tree(id) as (
+      select p_id
+      union
+      select c.id from public.clients c join tree t on c.merged_into_id = t.id where c.org_id = v_org
+    )
+    select t.id from tree t
+  loop
+    perform private.clients_anonymize_one(v_org, r.id);
+  end loop;
 end;
 $$;
 

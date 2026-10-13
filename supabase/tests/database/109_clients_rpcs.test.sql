@@ -9,7 +9,7 @@
 -- what; the active payers view; Loi 25 export (logged) and anonymisation; the permissions.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(91);
+select plan(99);
 
 select function_privs_are('public', f.name, f.args, 'authenticated', array['EXECUTE'], f.name || ': authenticated may call it')
   from (values
@@ -24,10 +24,19 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array['EXEC
   ) as f(name, args);
 select function_privs_are('public', 'create_client', array['jsonb', 'boolean'], 'anon', array[]::text[], 'anon cannot create a client');
 select function_privs_are('private', f.name, f.args, 'authenticated', array[]::text[], f.name || ': no role')
-  from (values ('client_contacts_for', array['uuid', 'text']), ('clients_unlink_professional', array['uuid', 'uuid', 'uuid']),
+  from (values ('client_contacts_for', array['uuid', 'uuid', 'text']), ('clients_unlink_professional', array['uuid', 'uuid', 'uuid']),
                ('professionals_reassign_client', array['uuid', 'uuid'])) as f(name, args);
 select table_privs_are('public', 'client_payers_active', 'authenticated', array['SELECT'], 'client_payers_active: read only');
 select table_privs_are('public', 'client_merge_handlers', 'authenticated', array[]::text[], 'client_merge_handlers: no client access');
+select is_empty($$ select h.function_name from public.client_merge_handlers h
+                    where to_regprocedure(h.function_name || '(uuid, uuid)') is null
+                       or (select p.prorettype from pg_proc p where p.oid = to_regprocedure(h.function_name || '(uuid, uuid)')) <> 'integer'::regtype $$,
+  'every merge handler is a function (uuid, uuid) → int');
+select is_empty($$ select h.function_name from public.client_anonymize_handlers h
+                    where to_regprocedure(h.function_name || '(uuid)') is null
+                       or (select p.prorettype from pg_proc p where p.oid = to_regprocedure(h.function_name || '(uuid)')) <> 'integer'::regtype $$,
+  'every anonymisation handler is a function (uuid) → int');
+select results_eq($$ select module_key from public.client_merge_handlers order by 1 $$, array['demandes', 'professionals'], 'merge handlers: Demandes and Professionnels');
 
 -- Fixtures: clinic A (admin, adjointe, conseillère, provider linked to P1), clinic B (admin).
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -118,6 +127,9 @@ select results_eq($$ select x.type, (x.related_rights ->> 'manages_appointments'
   $$ values ('parent', true, false) $$, 'the summary reads it from the child''s side');
 select results_eq($$ select x.type from jsonb_to_recordset(public.get_client_summary(current_setting('test.paul')::uuid) -> 'relations') as x(type text) $$,
   array['child'], '… and its inverse from the parent''s side');
+select results_eq($$ select (x.client_rights ->> 'manages_appointments')::boolean, (x.related_rights ->> 'manages_appointments')::boolean
+                       from jsonb_to_recordset(public.get_client_summary(current_setting('test.paul')::uuid) -> 'relations') as x(client_rights jsonb, related_rights jsonb) $$,
+  $$ values (true, false) $$, '… the parent''s rights are the client''s side there');
 select public.set_client_relation(current_setting('test.lea')::uuid, current_setting('test.marc')::uuid, 'parent', '{"main_contact": true, "receives_communications": true}', '{}');
 select results_eq($$ select x.related_name, (x.related_rights ->> 'main_contact')::boolean
                        from jsonb_to_recordset(public.get_client_summary(current_setting('test.lea')::uuid) -> 'relations') as x(related_name text, related_rights jsonb)
@@ -125,9 +137,9 @@ select results_eq($$ select x.related_name, (x.related_rights ->> 'main_contact'
   $$ values ('Marc Tremblay', true), ('Paul Gagnon', false) $$, 'one main contact per client: the new one clears the other');
 -- private helpers are called as their definer callers would, never as a role without EXECUTE.
 reset role;
-select results_eq($$ select first_name, is_self, reminders_by_email from private.client_contacts_for(current_setting('test.lea')::uuid, 'communications') order by is_self desc, first_name $$,
+select results_eq($$ select first_name, is_self, reminders_by_email from private.client_contacts_for('b0000000-0000-0000-0000-00000000000a', current_setting('test.lea')::uuid, 'communications') order by is_self desc, first_name $$,
   $$ values ('Léa', true, true), ('Marc', false, true), ('Paul', false, false) $$, 'who receives her communications, with their own channels');
-select results_eq($$ select first_name from private.client_contacts_for(current_setting('test.lea')::uuid, 'appointments') where not is_self $$,
+select results_eq($$ select first_name from private.client_contacts_for('b0000000-0000-0000-0000-00000000000a', current_setting('test.lea')::uuid, 'appointments') where not is_self $$,
   array['Paul'], '… who may book and sign for her');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
@@ -190,6 +202,8 @@ select throws_ok($$ select public.merge_clients(current_setting('test.alice')::u
   '42501', 'Permission refusée : clients.merge', 'the conseillère cannot merge');
 -- Marc is a duplicate of Paul: both parents of Léa; Marc also related to Paul (spouse); links, notes.
 select public.set_client_relation(current_setting('test.paul')::uuid, current_setting('test.marc')::uuid, 'spouse', '{}', '{}');
+select public.set_client_relation(current_setting('test.paul')::uuid, current_setting('test.ines')::uuid, 'sibling', '{"main_contact": true}', '{}');
+select public.set_client_relation(current_setting('test.marc')::uuid, current_setting('test.alice')::uuid, 'other', '{"main_contact": true}', '{}');
 select public.set_client_notes(current_setting('test.marc')::uuid, 'Note de Marc.', null);
 select public.save_client_payer(current_setting('test.marc')::uuid, null, 'pae', 'PAE Fictif', 'P-1', 8000, 10, null, null, null, null);
 reset role;
@@ -204,7 +218,11 @@ select results_eq($$ select x.related_name, (x.related_rights ->> 'main_contact'
                        from jsonb_to_recordset(public.get_client_summary(current_setting('test.lea')::uuid) -> 'relations')
                          as x(related_name text, related_rights jsonb) $$,
   $$ values ('Paul Gagnon', true, true, true, true) $$, 'merge: one parent left for Léa, with the rights of both');
-select is(jsonb_array_length(public.get_client_summary(current_setting('test.paul')::uuid) -> 'relations'), 1, '… the relation between the two is gone');
+select is_empty($$ select 1 from jsonb_to_recordset(public.get_client_summary(current_setting('test.paul')::uuid) -> 'relations') as x(related_id uuid)
+                    where x.related_id = current_setting('test.marc')::uuid $$, '… the relation between the two is gone');
+select results_eq($$ select x.related_name from jsonb_to_recordset(public.get_client_summary(current_setting('test.paul')::uuid) -> 'relations') as x(related_name text, related_rights jsonb)
+                      where (x.related_rights ->> 'main_contact')::boolean $$,
+  array['Inès Roy'], '… one main contact left: the kept file''s own');
 select is((select count(*)::int from public.client_payers where client_id = current_setting('test.paul')::uuid), 1, '… the payer moved');
 select is((select count(*)::int from public.client_tag_links where client_id = current_setting('test.paul')::uuid), 2, '… the tags moved');
 select is((select count(*)::int from public.client_professional_links where client_id = current_setting('test.paul')::uuid), 1, '… the links moved');
@@ -235,10 +253,11 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select public.anonymize_client(current_setting('test.alice')::uuid);
 select results_eq($$ select first_name, last_name, email, mobile_e164, birthday, anonymized_at is not null, archived_at is not null from public.clients where id = current_setting('test.alice')::uuid $$,
   $$ values ('Client', 'anonymisé n° 1', null::text, null::text, null::date, true, true) $$, 'anonymised: the identity blanked, archived');
-select is((select count(*)::int from public.client_payers where client_id = current_setting('test.alice')::uuid)
-        + (select count(*)::int from public.client_insurances where client_id = current_setting('test.alice')::uuid)
+select results_eq($$ select file_number, is_active from public.client_payers where client_id = current_setting('test.alice')::uuid $$,
+  $$ values ('anonymisé', false) $$, '… the payer kept for past invoices, its number blanked');
+select is((select count(*)::int from public.client_insurances where client_id = current_setting('test.alice')::uuid)
         + (select count(*)::int from public.client_tag_links where client_id = current_setting('test.alice')::uuid)
-        + (select count(*)::int from public.client_notes where client_id = current_setting('test.alice')::uuid), 0, '… payers, insurance, tags and notes gone');
+        + (select count(*)::int from public.client_notes where client_id = current_setting('test.alice')::uuid), 0, '… insurance, tags and notes gone');
 select is((select count(*)::int from public.client_professional_links where client_id = current_setting('test.alice')::uuid), 2, '… the links kept (ids only)');
 select throws_ok($$ select public.update_client(current_setting('test.alice')::uuid, '{"first_name": "Alice", "last_name": "T"}') $$,
   'P0001', 'Ce dossier a été anonymisé : il ne se modifie plus.', '… and it never changes again');
@@ -250,6 +269,15 @@ select is((select count(*)::int from public.client_professional_links where clie
 select private.clients_unlink_professional('b0000000-0000-0000-0000-00000000000a', current_setting('test.alice')::uuid, 'c0000000-0000-0000-0000-000000000002');
 select is((select count(*)::int from public.client_professional_links where client_id = current_setting('test.alice')::uuid and professional_id = 'c0000000-0000-0000-0000-000000000002'), 1,
   '… the primary professional''s stays');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select public.anonymize_client(current_setting('test.paul')::uuid);
+reset role;
+select results_eq($$ select first_name, email from public.clients where id = current_setting('test.marc')::uuid $$,
+  $$ values ('Client', null::text) $$, 'anonymising a file blanks the files merged into it');
+select is((select client_label from public.professional_client_agreements where client_id = current_setting('test.paul')::uuid), 'CLI-4',
+  '… and the agreement''s label becomes the file number (Professionnels'' handler)');
 
 select * from finish();
 rollback;

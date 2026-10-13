@@ -145,6 +145,29 @@ export type Database = {
           },
         ]
       }
+      client_anonymize_handlers: {
+        Row: {
+          function_name: string
+          module_key: string
+        }
+        Insert: {
+          function_name: string
+          module_key: string
+        }
+        Update: {
+          function_name?: string
+          module_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_anonymize_handlers_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: true
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       client_insurances: {
         Row: {
           certificate_number: string | null

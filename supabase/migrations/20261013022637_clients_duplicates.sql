@@ -130,13 +130,15 @@ begin
   -- Placeholders: a contact already on c_crowded files never pairs anyone.
   if v_email is not null and (select count(*) from public.clients c
                                where c.org_id = p_org and c.email = v_email
-                                 and c.merged_into_id is null and c.anonymized_at is null) >= c_crowded then
+                                 and c.merged_into_id is null and c.anonymized_at is null
+                                 and (p_exclude is null or c.id <> p_exclude)) >= c_crowded then
     v_email := null;
   end if;
   select coalesce(array_agg(p), '{}') into v_phones
     from pg_catalog.unnest(v_phones) p
    where (select count(*) from public.clients c
            where c.org_id = p_org and c.merged_into_id is null and c.anonymized_at is null
+             and (p_exclude is null or c.id <> p_exclude)
              and p in (private.clients_phone_key(c.mobile_e164), private.clients_phone_key(c.home_e164), private.clients_phone_key(c.work_e164))) < c_crowded;
   select coalesce(array_agg(distinct pg_catalog.right(p, 7)), '{}') into v_phones7 from pg_catalog.unnest(v_phones) p;
 
