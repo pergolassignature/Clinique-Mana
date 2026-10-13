@@ -26,12 +26,13 @@ export function useOpenSlots(professionalId: string | null, serviceId: string | 
   })
 }
 
-/** After a proposal or a withdrawal: the proposals, the request (its state), the inbox. */
+/** After a proposal or a withdrawal: the proposals, the request (its state), the inbox, the waiting list (its offers). */
 function useAfterPropositionWrite() {
   const queryClient = useQueryClient()
   return (demandeId: string) =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: demandesKeys.propositions() }),
+      queryClient.invalidateQueries({ queryKey: demandesKeys.waitlist() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.record(demandeId) }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.lists() }),
       queryClient.invalidateQueries({ queryKey: demandesKeys.counts() }),

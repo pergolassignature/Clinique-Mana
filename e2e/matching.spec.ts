@@ -30,3 +30,18 @@ test('the counselor reads the matching panel of a request: criteria, suggestions
   // The seed's files are not complete yet (no account, no approved questionnaire): left out, and why.
   await expect(page.getByText(/Dossier incomplet/).first()).toBeVisible()
 })
+
+/**
+ * The waiting list meets the matching (D4 part 2): a professional's list shows who she could be
+ * offered (the seed's files are not complete yet, so nobody: said plainly).
+ */
+test('a professional’s waiting list says who she could be offered', async ({ page, signIn }) => {
+  await signIn('counselor')
+  await page.getByRole('link', { name: "Liste d'attente" }).first().click()
+  const list = page.getByRole('combobox', { name: 'Liste' })
+  const value = await list.locator('option', { hasText: 'Félix Gauthier' }).first().getAttribute('value')
+  await list.selectOption(value!)
+  await expect(page).toHaveURL(/liste=p-/)
+  await expect(page.getByRole('heading', { name: 'Personnes compatibles avec Félix Gauthier' })).toBeVisible()
+  await expect(page.getByText(/Aucune personne compatible n'attend Félix Gauthier/)).toBeVisible()
+})
