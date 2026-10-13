@@ -1,4 +1,5 @@
 import type { ProfessionalsPageQuery } from '../api/list'
+import { documentTemplateKeys } from '@/core/signing/templates/hooks'
 
 /**
  * React Query keys of the module, three roots so a change refetches only what it touched
@@ -148,9 +149,12 @@ export const compensationTermsKeys = {
 export const isContractKey = (queryKey: readonly unknown[]) =>
   queryKey.length === 4 && queryKey[0] === professionalKeys.all[0] && queryKey[1] === 'record' && (queryKey[3] === 'contract' || queryKey[3] === 'image-consent')
 
-/** « Paramètres → Contrats et formulaires » (Task 4d.3): the module's document templates and each one's versions. */
+/**
+ * « Paramètres → Contrats et formulaires » (Task 4d.3): the module's document templates and each
+ * one's versions, under the shared editor's keys (core, CC-12).
+ */
 export const contractTemplateKeys = {
-  all: ['contract-templates'] as const,
-  list: () => [...contractTemplateKeys.all, 'list'] as const,
-  versions: (templateId: string) => [...contractTemplateKeys.all, 'versions', templateId] as const,
+  all: documentTemplateKeys.all,
+  list: () => documentTemplateKeys.list('professionals'),
+  versions: documentTemplateKeys.versions,
 }

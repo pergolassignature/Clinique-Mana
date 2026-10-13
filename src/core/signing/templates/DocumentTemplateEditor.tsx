@@ -24,24 +24,39 @@ import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
-import type { ContractTemplate, TemplateVersion } from '../../api/contracts'
-import { useTemplateMutations, useTemplateVersions } from '../../hooks/use-contracts'
-import {
-  ANNEXE_PLACEHOLDER,
-  asBody,
-  bodyToMarkup,
-  hasAnnexePlaceholder,
-  hasValidationBanner,
-  markupToBody,
-  previewHtml,
-  unknownPlaceholders,
-  VALIDATION_BANNER,
-  type PdfBody,
-  type PreviewText,
-} from '../../lib/contract-markup'
-import { RefusalAlert } from '../compensation/DatedRowParts'
+import { RefusalAlert } from '@/shared/components/RefusalAlert'
+import type { DocumentTemplateSummary, TemplateVersion } from './api'
+import { useTemplateMutations, useTemplateVersions, type TemplateMutationHandlers } from './hooks'
+import { asBody, bodyToMarkup, hasBanner, hasBlockPlaceholder, markupToBody, previewHtml, unknownPlaceholders, type PdfBody, type PreviewText } from './markup'
 
-const N = 'modules.professionals.settings.contracts.editor'
+const N = 'signing.templates.editor'
+
+/**
+ * What a module tells the shared editor (CC-12) about its templates. Professionnels: the
+ * professional's initials, Annexe A, the « à faire valider » line, publishing here. Clients'
+ * consents: the clauses' table, the « Texte provisoire » line, publishing from Paramètres →
+ * Consentements (who must sign again, R-49).
+ */
+export interface TemplateEditorOptions {
+  /** A signer whose initials the header may carry on every page, with the switch's words. */
+  initials?: { role: string; label: string; help: string } | null
+  /** A block placeholder the sending function fills with tables, its words and the preview's sample. */
+  block?: {
+    placeholder: string
+    /** Publishing is refused without it alone on a line (when the template declares its variable). */
+    required: boolean
+    note: string
+    missing: string
+    blocked: string
+    sample: { caption: string; columns: string[]; rows: string[][] }
+  } | null
+  /** A line the draft must lose before publishing (a validation or provisional line). */
+  banner?: { text: string; notice: string; blocked: string } | null
+  /** « Publier » here (core's publish). False when the module publishes its own way. */
+  canPublish?: boolean
+  /** The module's error handling and what it refreshes after a publication (`useTemplateMutations`). */
+  handlers?: Pick<TemplateMutationHandlers, 'onError' | 'onChanged'>
+}
 
 interface Draft {
   title: string
@@ -53,12 +68,12 @@ interface Draft {
   emailMessage: string
 }
 
-function draftOf(version: TemplateVersion, body: PdfBody): Draft {
+function draftOf(version: TemplateVersion, body: PdfBody, initialsRole: string | null): Draft {
   return {
     title: body.title,
     header: body.header?.text ?? '',
     footer: body.footer.text,
-    initials: (body.header?.initialsFor ?? []).includes('professional'),
+    initials: initialsRole !== null && (body.header?.initialsFor ?? []).includes(initialsRole),
     markup: bodyToMarkup(body),
     emailSubject: version.emailSubject,
     emailMessage: version.emailMessage,
@@ -66,9 +81,9 @@ function draftOf(version: TemplateVersion, body: PdfBody): Draft {
 }
 
 /** The body a draft makes: the markup's blocks, the fields, and the base's signature page. */
-function bodyOf(draft: Draft, base: PdfBody): PdfBody {
-  const others = (base.header?.initialsFor ?? []).filter((role) => role !== 'professional')
-  const initialsFor = draft.initials ? ['professional', ...others] : others
+function bodyOf(draft: Draft, base: PdfBody, initialsRole: string | null): PdfBody {
+  const others = (base.header?.initialsFor ?? []).filter((role) => role !== initialsRole)
+  const initialsFor = draft.initials && initialsRole !== null ? [initialsRole, ...others] : others
   return markupToBody(draft.markup, {
     ...base,
     title: draft.title,
@@ -77,18 +92,10 @@ function bodyOf(draft: Draft, base: PdfBody): PdfBody {
   })
 }
 
-/** The preview's fixed words; the sample Annexe A stands for the professional's grid. */
-function previewText(): PreviewText {
+/** The preview's fixed words, and the module's sample for its block placeholder. */
+function previewText(block: TemplateEditorOptions['block']): PreviewText {
   return {
-    annexeSample: {
-      caption: t(`${N}.preview.annexeCaption`),
-      columns: [t(`${N}.preview.annexeColumns.sessions`), t(`${N}.preview.annexeColumns.d60`), t(`${N}.preview.annexeColumns.d50`), t(`${N}.preview.annexeColumns.d30`)],
-      rows: [
-        [t(`${N}.preview.annexeRows.first`), '144 $', '126 $', '93,60 $'],
-        [t(`${N}.preview.annexeRows.second`), '145 $', '126,88 $', '94,25 $'],
-        [t(`${N}.preview.annexeRows.last`), '150 $', '131,25 $', '97,50 $'],
-      ],
-    },
+    ...(block && { blockSample: { placeholder: block.placeholder, ...block.sample } }),
     initials: t(`${N}.preview.initials`),
     signature: t(`${N}.preview.signature`),
     date: t(`${N}.preview.date`),
@@ -111,15 +118,23 @@ function versionLabel(version: TemplateVersion): string {
 }
 
 /**
- * One template's versions (Task 4d.3, A5.7; core RPCs): the draft is edited here (title, header and
+ * One template's versions, the shared editor of every module's document templates (CC-12; moved
+ * from Professionnels' Task 4d.3, A5.7; core RPCs): the draft is edited here (title, header and
  * its initials, footer, the body as markup, Documenso's subject and message), with the variables
  * and a live preview; « Publier » (confirmed: « Les prochains envois utiliseront cette
- * version. ») is offered once the draft is saved, without the validation line and, for a template
- * that declares Annexe A (`pricing.annexe_a`: the service contract; the image consent has none,
- * P4-481), with Annexe A's table. Without a draft, « Nouvelle version » copies the published one. Read-only without the
- * template's edit permission.
+ * version. ») is offered once the draft is saved, without the module's banner line and, when the
+ * module declares a required block placeholder (Annexe A), with it. Without a draft, « Nouvelle
+ * version » copies the published one. Read-only without the template's edit permission.
  */
-export function TemplateEditor({ template, readOnly }: { template: ContractTemplate; readOnly: boolean }) {
+export function DocumentTemplateEditor({
+  template,
+  readOnly,
+  options = {},
+}: {
+  template: DocumentTemplateSummary
+  readOnly: boolean
+  options?: TemplateEditorOptions
+}) {
   const versions = useTemplateVersions(template.id)
   if (versions.isPending) return <Loading />
   if (versions.data === undefined) {
@@ -146,18 +161,26 @@ export function TemplateEditor({ template, readOnly }: { template: ContractTempl
             </li>
           ))}
         </ul>
-        {!readOnly && draft === null && <NewVersionButton templateId={template.id} published={published} />}
+        {!readOnly && draft === null && <NewVersionButton templateId={template.id} published={published} handlers={options.handlers} />}
       </SettingsCard>
       {shown && (
-        <VersionForm key={`${shown.id}:${shown.updatedAt}`} version={shown} editable={!readOnly && shown.status === 'draft'} published={published} />
+        <VersionForm key={`${shown.id}:${shown.updatedAt}`} version={shown} editable={!readOnly && shown.status === 'draft'} published={published} options={options} />
       )}
     </div>
   )
 }
 
-function NewVersionButton({ templateId, published }: { templateId: string; published: TemplateVersion | null }) {
+function NewVersionButton({
+  templateId,
+  published,
+  handlers,
+}: {
+  templateId: string
+  published: TemplateVersion | null
+  handlers: TemplateEditorOptions['handlers']
+}) {
   const [refusal, setRefusal] = useState<string | null>(null)
-  const { create } = useTemplateMutations({ onErrorMessage: (message) => setRefusal(message) })
+  const { create } = useTemplateMutations({ ...handlers, onErrorMessage: (message) => setRefusal(message) })
   return (
     <div className="space-y-2">
       <Button
@@ -177,35 +200,57 @@ function NewVersionButton({ templateId, published }: { templateId: string; publi
   )
 }
 
-function VersionForm({ version, editable, published }: { version: TemplateVersion; editable: boolean; published: TemplateVersion | null }) {
+function VersionForm({
+  version,
+  editable,
+  published,
+  options,
+}: {
+  version: TemplateVersion
+  editable: boolean
+  published: TemplateVersion | null
+  options: TemplateEditorOptions
+}) {
+  const initialsRole = options.initials?.role ?? null
+  const block = options.block ?? null
+  const canPublish = options.canPublish ?? true
   const base = useMemo(() => asBody(version.body), [version.body])
-  const initial = useMemo(() => (base ? draftOf(version, base) : null), [base, version])
+  const initial = useMemo(() => (base ? draftOf(version, base, initialsRole) : null), [base, version, initialsRole])
   const [draft, setDraft] = useState<Draft | null>(initial)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<'publish' | 'discard' | null>(null)
   const publishRef = useRef<HTMLButtonElement>(null)
-  const { save, publish, archive } = useTemplateMutations({ onErrorMessage: (message) => setRefusal(message) })
+  const { save, publish, archive } = useTemplateMutations({ ...options.handlers, onErrorMessage: (message) => setRefusal(message) })
   const dirty = editable && draft !== null && initial !== null && JSON.stringify(draft) !== JSON.stringify(initial)
   useUnsavedChanges(dirty)
   // The preview follows the typing at React's pace: a keystroke never waits for the whole page.
   const deferred = useDeferredValue(draft)
   const preview = useMemo(
-    () => (base && deferred ? previewHtml(bodyOf(deferred, base), Object.fromEntries(version.variables.map((v) => [v.path, sampleText(v)])), previewText()) : ''),
-    [base, deferred, version.variables],
+    () =>
+      base && deferred
+        ? previewHtml(bodyOf(deferred, base, initialsRole), Object.fromEntries(version.variables.map((v) => [v.path, sampleText(v)])), previewText(block))
+        : '',
+    [base, deferred, version.variables, initialsRole, block],
   )
 
   if (base === null || draft === null) return <RefusalAlert message={t(`${N}.unreadable`)} />
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => (d ? { ...d, [key]: value } : d))
-  const body = bodyOf(draft, base)
+  const body = bodyOf(draft, base, initialsRole)
   const paths = version.variables.map((v) => v.path)
   const unknown = unknownPlaceholders([draft.title, draft.header, draft.footer, draft.markup, draft.emailSubject, draft.emailMessage], paths)
-  const banner = hasValidationBanner(draft.markup)
-  // Only a template that declares Annexe A must print it (the contract; not the image consent).
-  const needsAnnexe = paths.includes('pricing.annexe_a')
-  const annexe = !needsAnnexe || hasAnnexePlaceholder(draft.markup)
+  const banner = options.banner ? hasBanner(draft.markup, options.banner.text) : false
+  // Only a template that declares the block's variable must print it (the contract; not the image consent).
+  const needsBlock = block !== null && block.required && paths.includes(block.placeholder.replace(/^\{\{|\}\}$/g, ''))
+  const blockPresent = !needsBlock || (block !== null && hasBlockPlaceholder(draft.markup, block.placeholder))
   const pending = save.isPending || publish.isPending || archive.isPending
-  const publishBlocked = dirty ? t(`${N}.publishBlocked.unsaved`) : banner ? t(`${N}.publishBlocked.banner`) : !annexe ? t(`${N}.publishBlocked.annexe`, { placeholder: ANNEXE_PLACEHOLDER }) : null
+  const publishBlocked = dirty
+    ? t(`${N}.publishBlocked.unsaved`)
+    : banner && options.banner
+      ? options.banner.blocked
+      : !blockPresent && block
+        ? block.blocked
+        : null
 
   const onSave = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -237,16 +282,19 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
         onSubmit={onSave}
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-disabled={pending || undefined}
-              className={cn(softDisabledClasses, 'mr-auto')}
-              onClick={ignoreWhenInactive(pending, () => setConfirming('discard'))}
-            >
-              {t(`${N}.discard`, { version: String(version.version) })}
-            </Button>
+            {/* Only beside a published version: without one, « Nouvelle version » would have nothing to copy. */}
+            {published !== null && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-disabled={pending || undefined}
+                className={cn(softDisabledClasses, 'mr-auto')}
+                onClick={ignoreWhenInactive(pending, () => setConfirming('discard'))}
+              >
+                {t(`${N}.discard`, { version: String(version.version) })}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -260,31 +308,33 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
             <Button type="submit" size="sm" variant={dirty ? 'default' : 'outline'} aria-disabled={pending || !dirty || undefined} className={cn(softDisabledClasses)}>
               {save.isPending ? t(`${N}.saving`) : t(`${N}.save`)}
             </Button>
-            <Button
-              ref={publishRef}
-              type="button"
-              size="sm"
-              variant="ink"
-              aria-disabled={pending || publishBlocked !== null || undefined}
-              aria-describedby={publishBlocked ? `publish-blocked-${version.id}` : undefined}
-              className={cn(softDisabledClasses)}
-              onClick={ignoreWhenInactive(pending || publishBlocked !== null, () => {
-                setRefusal(null)
-                setConfirming('publish')
-              })}
-            >
-              {t(`${N}.publish`, { version: String(version.version) })}
-            </Button>
+            {canPublish && (
+              <Button
+                ref={publishRef}
+                type="button"
+                size="sm"
+                variant="ink"
+                aria-disabled={pending || publishBlocked !== null || undefined}
+                aria-describedby={publishBlocked ? `publish-blocked-${version.id}` : undefined}
+                className={cn(softDisabledClasses)}
+                onClick={ignoreWhenInactive(pending || publishBlocked !== null, () => {
+                  setRefusal(null)
+                  setConfirming('publish')
+                })}
+              >
+                {t(`${N}.publish`, { version: String(version.version) })}
+              </Button>
+            )}
           </div>
         }
       >
-        {banner && editable && (
+        {banner && editable && options.banner && (
           <Alert variant="warning">
             <TriangleAlert aria-hidden />
-            <AlertDescription className="text-foreground">{t(`${N}.bannerNotice`, { banner: VALIDATION_BANNER })}</AlertDescription>
+            <AlertDescription className="text-foreground">{options.banner.notice}</AlertDescription>
           </Alert>
         )}
-        {editable && publishBlocked && (
+        {editable && canPublish && publishBlocked && (
           <p id={`publish-blocked-${version.id}`} className="text-xs text-muted-foreground">
             {publishBlocked}
           </p>
@@ -300,20 +350,21 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
             {(props) => <Input {...props} value={draft.footer} maxLength={120} onChange={(e) => set('footer', e.target.value)} />}
           </FormField>
         </div>
-        {editable ? (
-          <SwitchField label={t(`${N}.form.initials`)} help={t(`${N}.form.initialsHelp`)} checked={draft.initials} onCheckedChange={(checked) => set('initials', checked)} />
-        ) : (
-          <p className="text-sm">
-            <span className="text-muted-foreground">{t(`${N}.form.initials`)} : </span>
-            {draft.initials ? t(`${N}.form.initialsOn`) : t(`${N}.form.initialsOff`)}
-          </p>
-        )}
+        {options.initials &&
+          (editable ? (
+            <SwitchField label={options.initials.label} help={options.initials.help} checked={draft.initials} onCheckedChange={(checked) => set('initials', checked)} />
+          ) : (
+            <p className="text-sm">
+              <span className="text-muted-foreground">{options.initials.label} : </span>
+              {draft.initials ? t(`${N}.form.initialsOn`) : t(`${N}.form.initialsOff`)}
+            </p>
+          ))}
         <FormField label={t(`${N}.form.body`)} required help={t(`${N}.form.bodyHelp`)}>
           {(props) => (
             <Textarea {...props} value={draft.markup} rows={18} spellCheck lang="fr-CA" className="font-mono text-xs" onChange={(e) => set('markup', e.target.value)} />
           )}
         </FormField>
-        {!annexe && <p className="text-xs text-destructive">{t(`${N}.annexeMissing`, { placeholder: ANNEXE_PLACEHOLDER })}</p>}
+        {!blockPresent && block && <p className="text-xs text-destructive">{block.missing}</p>}
         <FormField label={t(`${N}.form.emailSubject`)} required help={t(`${N}.form.emailSubjectHelp`)}>
           {(props) => <Input {...props} value={draft.emailSubject} maxLength={200} onChange={(e) => set('emailSubject', e.target.value)} />}
         </FormField>
@@ -330,7 +381,7 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
               <dt className="break-all font-mono text-xs text-foreground">{`{{${v.path}}}`}</dt>
               <dd className="text-muted-foreground">
                 {v.label}
-                {v.path === 'pricing.annexe_a' && <span className="block text-xs">{t(`${N}.variables.annexe`)}</span>}
+                {block && `{{${v.path}}}` === block.placeholder && <span className="block text-xs">{block.note}</span>}
               </dd>
             </div>
           ))}

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { documentTemplateKeys } from '@/core/signing/templates/hooks'
 import { toast } from '@/shared/ui/sonner'
 import {
   cancelConsentRequest,
@@ -76,7 +77,8 @@ export function usePublishConsentVersion() {
     mutationFn: ({ versionId, population }: { versionId: string; population: Population }) => publishConsentVersion(versionId, population),
     onSuccess: (flagged) => {
       toast.success(flagged > 0 ? t(`${S}.settings.texts.publishedFlagged`, { count: String(flagged) }) : t(`${S}.settings.texts.published`))
-      return queryClient.invalidateQueries({ queryKey: consentKeys.all })
+      // The shared editor's versions too (CC-12): the published one is now the one in force.
+      return Promise.all([queryClient.invalidateQueries({ queryKey: consentKeys.all }), queryClient.invalidateQueries({ queryKey: documentTemplateKeys.all })])
     },
     onError: (error) => toast.error(moduleErrorMessage(error, t(`${S}.settings.saveError`), 'clients')),
   })
