@@ -193,6 +193,7 @@ export type QboEntity =
   | 'vendor'
   | 'bill'
   | 'item'
+  | 'journalentry'
 const ENTITY_KEYS: Record<QboEntity, string> = {
   invoice: 'Invoice',
   creditmemo: 'CreditMemo',
@@ -200,6 +201,7 @@ const ENTITY_KEYS: Record<QboEntity, string> = {
   vendor: 'Vendor',
   bill: 'Bill',
   item: 'Item',
+  journalentry: 'JournalEntry',
 }
 const createdSchema = z.looseObject({
   Id: z.string().regex(/^[0-9]{1,32}$/),

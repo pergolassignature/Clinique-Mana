@@ -785,6 +785,8 @@ The QuickBooks Online connection ([module doc](../modules/billing.md#quickbooks-
 | FQ-8 | Never twice, retried | One `qbo_pushes` row per document; Intuit's `requestid` derived from the entity on every create; a refusal retried after 5 min doubling to 12 h, `failed` after 8 tries until « Réessayer »; a missing map line sends nothing. | A network failure after Intuit created a document must not make a second one in the books. |
 | FQ-9 | Totals | QuickBooks computes the taxes; a total that differs from the app's is kept and marked « à vérifier » rather than overridden. | Overriding QuickBooks' tax lines is fragile; the accountant sees the rare rounding gap. |
 | FQ-10 | Shown | « Envoi à QuickBooks » (counts, waiting and refused documents in plain words, « Réessayer ») and one line on an invoice's page (billing.view). | « il faut toujours être clair »: an adjointe sees whether an invoice is in QuickBooks. |
+| FQ-11 | Refunds | A refund (F3's `payment_refunded`) is a JournalEntry dated its day: debit Accounts Receivable for the payment's customer, credit the mode's deposit account; it waits for its payment's push; no receivable account in the chart names `receivable`. | In the app a refund reopens the invoice's balance until it is paid or credited; QuickBooks has no negative Payment, and a RefundReceipt would lower the income (then a credit note would lower it twice). |
+| FQ-12 | Cancellation fees | A `cancellation_fee` line goes on the item of its code (`70300` / `70360`), else one made on « Services », with the line's own text (percent, day). | GOrendezvous's items already carry those codes; the accountant sees which session the fee is for. |
 
 ## Payroll (batch FPay, lane C, 2026-10-13)
 

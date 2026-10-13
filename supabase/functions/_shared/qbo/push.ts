@@ -4,7 +4,9 @@
  * oldest first) gives what to send; `prepare_qbo_push_for_service` says, per
  * event, whether it is done, waits (its invoice first, a backoff), lacks a
  * line of the map, or what to push; `record_qbo_push_for_service` keeps the
- * outcome. Then the professionals' bills (FPay).
+ * outcome. Then the professionals' bills (FPay). A refund (F3) is a
+ * JournalEntry (FQ-11): debit Accounts Receivable for the payment's customer,
+ * credit the account the payment was deposited to.
  *
  * Idempotent: a document already pushed is only closed in the outbox; every
  * create carries a `requestid` derived from the entity (`requestIdFor`), so an
@@ -88,6 +90,14 @@ const paymentSchema = z.looseObject({
   external_ref: z.string().nullable().optional(),
 })
 
+const refundSchema = z.looseObject({
+  id: z.string(),
+  payment_id: z.string(),
+  invoice_number: z.string().nullable(),
+  amount_cents: z.number(),
+  refunded_on: z.string(),
+})
+
 const prepareSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('done'),
@@ -99,7 +109,7 @@ const prepareSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('missing_map'), keys: z.array(z.string()) }),
   z.object({
     action: z.literal('push'),
-    push_kind: z.enum(['invoice', 'credit_memo', 'payment']),
+    push_kind: z.enum(['invoice', 'credit_memo', 'payment', 'refund']),
     invoice: invoiceSchema,
     lines: z.array(lineSchema),
     payment: paymentSchema.nullable(),
@@ -112,6 +122,8 @@ const prepareSchema = z.discriminatedUnion('action', [
     tax_taxable: z.string().nullable(),
     tax_exempt: z.string().nullable(),
     deposit_account_id: z.string().nullable(),
+    refund: refundSchema.nullable().optional(),
+    receivable_account_id: z.string().nullable().optional(),
   }),
 ])
 export type Prepared = Extract<
@@ -298,6 +310,8 @@ export async function runQboPush(
         case 'missing_map': {
           const kind = event.kind === 'payment_recorded'
             ? 'payment'
+            : event.kind === 'payment_refunded'
+            ? 'refund'
             : event.kind === 'invoice_credited'
             ? 'credit_memo'
             : 'invoice'
@@ -390,7 +404,7 @@ function errorCode(error: unknown): string {
   return 'push_failed'
 }
 
-/** One outbox document (an Invoice, a CreditMemo, a Payment); its QuickBooks id. */
+/** One outbox document (an Invoice, a CreditMemo, a Payment, a refund's JournalEntry); its QuickBooks id. */
 async function pushOne(
   qbo: QboClient,
   client: SupabaseClient,
@@ -398,6 +412,58 @@ async function pushOne(
   prep: Prepared,
   event: { kind: string; entity_id: string },
 ): Promise<{ qboId: string; customerId: string | null; mismatch: boolean }> {
+  if (prep.push_kind === 'refund') {
+    const refund = prep.refund
+    if (
+      !refund || !prep.invoice_customer_id || !prep.deposit_account_id ||
+      !prep.receivable_account_id
+    ) {
+      throw new PushFailure('refund_incomplete')
+    }
+    const amount = money(refund.amount_cents)
+    const text = cleanName(
+      `Remboursement${
+        refund.invoice_number ? ` · facture ${refund.invoice_number}` : ''
+      }`,
+    )
+    const created = await qbo.create('journalentry', {
+      TxnDate: refund.refunded_on,
+      ...(refund.invoice_number
+        ? { DocNumber: docNumber(`R-${refund.invoice_number}`) }
+        : {}),
+      PrivateNote: text,
+      Line: [
+        {
+          DetailType: 'JournalEntryLineDetail',
+          Amount: amount,
+          Description: text,
+          JournalEntryLineDetail: {
+            PostingType: 'Debit',
+            AccountRef: { value: prep.receivable_account_id },
+            Entity: {
+              Type: 'Customer',
+              EntityRef: { value: prep.invoice_customer_id },
+            },
+          },
+        },
+        {
+          DetailType: 'JournalEntryLineDetail',
+          Amount: amount,
+          Description: text,
+          JournalEntryLineDetail: {
+            PostingType: 'Credit',
+            AccountRef: { value: prep.deposit_account_id },
+          },
+        },
+      ],
+    }, await requestIdFor('refund', event.entity_id))
+    return {
+      qboId: created.id,
+      customerId: prep.invoice_customer_id,
+      mismatch: false,
+    }
+  }
+
   if (prep.push_kind === 'payment') {
     const payment = prep.payment
     if (
