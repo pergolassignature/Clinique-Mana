@@ -87,6 +87,30 @@ node scripts/import-gorendezvous.mjs factures --invoices ~/Clinique-MANA-import/
 
 **After:** the invoices « payées par un tiers » (IVAC, PAE…) are counted in the report. They are billed to the client; complete their payer by hand.
 
+## Rehearsal on the local stack (synthetic exports)
+`scripts/import-gorendezvous/synthetic-exports.mjs <directory outside the repo>` writes made-up exports shaped like the real ones:
+- the clients, the relations, the employees and services files;
+- the three « Revenus » files, consistent with each other: homonyms, an archived file, every payment mode, a refund, partial payments, a taxable line, an invoice for a person not in the export, one without lines.
+
+Its employees file names the local seed's professionals (Félix Gauthier, Julie Morin). With the local stack reset (`npm run db:reset`), run `clients`, then `factures`, each as a dry run then with `--commit`, signed in as `admin@mana.test`.
+
+Done on 2026-10-13 (lane A):
+- **Clients:** 18 created, 1 relation.
+- **Invoices:** 37 of 40 imported; the 3 others listed by reason (homonyms, a person not in the export, an invoice without lines). The month totals match the export for what goes in.
+- **Payments and refunds:** every mode mapped; the refund recorded; paid amounts net of it.
+- **Numbering:** continues at 2026-1237.
+- **Nothing triggered:** no delivery, no QuickBooks event.
+- **A re-run:** everything « déjà importée ».
+
+**What only the real exports can confirm** (first dry run, before any `--commit`):
+1. **The headers** of the three « Revenus » exports and of the client export: the readers use the labels GOrendezvous shows on screen (decision I-2). A missing column refuses the file with its name.
+2. **How a client is named** in « Revenus » (« Prénom Nom » or « Nom, Prénom ») and how many invoices match no file or several. The rest goes through `--clients-map`.
+3. **Whether the lines make each invoice's total** (discounts, rounding, a line deleted after the invoice). A difference refuses the invoice with its line number.
+4. **The payment methods' labels** actually used (each one unknown is listed by name), refunds as negative amounts, and payments without an invoice number (deposits?).
+5. **« Payé par »:** what it holds (IVAC, PAE, a parent), to complete the payers by hand.
+6. **The volume:** one call per invoice for the dry run, and again for the import. Thousands of invoices take a while; Ctrl-C stops between two invoices, and a re-run resumes.
+7. **The numbering per year:** the last GOrendezvous number of each year against « Numérotation » after the import.
+
 ## After
 - **Duplicates:** merge them in the app (« Fusionner », `clients.merge`). The import never merges.
 - **Payers to complete:** the IVAC, PAE and external payer tags. I3 creates the payers from the invoices; until then the tag stays on the file.
