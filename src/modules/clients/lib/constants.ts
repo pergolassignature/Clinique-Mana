@@ -33,7 +33,7 @@ export const CLIENT_STATUSES = ['active', 'archived', 'all'] as const
 export type ClientStatusFilter = (typeof CLIENT_STATUSES)[number]
 
 /** The record's tabs, in order: the URL's last segment (`/clients/:id/:onglet`). */
-export const RECORD_TABS = ['apercu', 'informations', 'proches', 'assurance-et-payeurs', 'consentements', 'visites-et-paiements'] as const
+export const RECORD_TABS = ['apercu', 'informations', 'proches', 'assurance-et-payeurs', 'consentements', 'visites-et-paiements', 'historique'] as const
 export type ClientRecordTab = (typeof RECORD_TABS)[number]
 
 /** A record's path, on a tab (Aperçu by default). */

@@ -4,6 +4,8 @@ import type { Database, Json } from '@/core/supabase/database.types'
 import type { ClientStatusFilter, HolderRelation, PayerKind, RelationRights, RelationType } from '../lib/constants'
 import {
   duplicatePayload,
+  exportExtraPayload,
+  historyEntryPayload,
   listRowPayload,
   myClientPayload,
   optionPayload,
@@ -11,6 +13,8 @@ import {
   searchRowPayload,
   summaryPayload,
   type ClientDuplicate,
+  type ClientExport,
+  type ClientHistoryEntry,
   type ClientListRow,
   type ClientOption,
   type ClientSearchRow,
@@ -280,4 +284,43 @@ export async function fetchMyClients(): Promise<MyClient[]> {
     .limit(LIST_MAX * 4)
   if (error) throw error
   return parseRpc(z.array(myClientPayload), data)
+}
+
+// --- Merge, Loi 25, history (C4) -----------------------------------------------------------------
+
+/**
+ * Merges `mergeId` into `keepId` (clients.merge): `fields` are the merged file's values chosen
+ * over the kept one's (RPC keys; empty when the kept file's are all kept). The kept file's empty
+ * fields are then filled from the other, and everything else moves (CL-15).
+ */
+export async function mergeClients(keepId: string, mergeId: string, fields: ClientFields): Promise<void> {
+  const { error } = await supabase.rpc('merge_clients', { p_keep: keepId, p_merge: mergeId, p_fields: fields as Json })
+  if (error) throw error
+}
+
+/** Everything the clinic holds on the person (clients.privacy); the read is logged. */
+export async function exportClientPrivacy(id: string): Promise<ClientExport> {
+  const { data, error } = await supabase.rpc('export_client_privacy', { p_id: id })
+  if (error) throw error
+  return { summary: parseRpc(summaryPayload, data), ...parseRpc(exportExtraPayload, data) }
+}
+
+/** Blanks the person's identity for good (clients.privacy, CL-17). */
+export async function anonymizeClient(id: string): Promise<void> {
+  const { error } = await supabase.rpc('anonymize_client', { p_id: id })
+  if (error) throw error
+}
+
+/** Rows per page of the record's history (the RPC clamps to 1–200). */
+export const CLIENT_HISTORY_PAGE_SIZE = 50
+
+/** One page of the file's history, newest first, before `beforeId` (the previous page's last id). */
+export async function fetchClientHistory(id: string, beforeId: number | null): Promise<ClientHistoryEntry[]> {
+  const { data, error } = await supabase.rpc('list_client_history', {
+    p_id: id,
+    ...(beforeId !== null && { p_before_id: beforeId }),
+    p_limit: CLIENT_HISTORY_PAGE_SIZE,
+  })
+  if (error) throw error
+  return parseRpc(z.array(historyEntryPayload), data)
 }

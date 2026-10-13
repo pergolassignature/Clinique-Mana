@@ -67,6 +67,7 @@ describe('ClientRecordPage', () => {
       'Assurance et payeurs',
       'Consentements',
       'Visites et paiements',
+      'Historique',
     ])
     expect(within(tabs).getByRole('tab', { name: 'Aperçu' })).toHaveAttribute('aria-selected', 'true')
     expect(mocks.api.fetchClientSummary).toHaveBeenCalledWith(CIDS.alice)

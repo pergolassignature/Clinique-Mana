@@ -4,15 +4,19 @@ import { accessKeys } from '@/core/access/access-context'
 import { moduleErrorMessage, rpcErrorCode } from '@/core/modules/errors'
 import { toast } from '@/shared/ui/sonner'
 import {
+  anonymizeClient,
+  CLIENT_HISTORY_PAGE_SIZE,
   CLIENTS_PAGE_SIZE,
   createClient,
   deleteClientInsurance,
   endClientPayer,
+  fetchClientHistory,
   fetchClientsPage,
   fetchClientsReference,
   fetchClientSummary,
   fetchMyClients,
   findClientDuplicates,
+  mergeClients,
   removeClientRelation,
   saveClientPayer,
   searchClients,
@@ -35,9 +39,10 @@ import { clientsKeys } from './keys'
 const S = 'modules.clients.saved'
 
 /** The list, one page at a time (keyset), the previous pages kept while a filter changes. */
-export function useClientsList(query: ClientsPageQuery) {
+export function useClientsList(query: ClientsPageQuery, enabled = true) {
   return useInfiniteQuery({
     queryKey: clientsKeys.list(query),
+    enabled,
     queryFn: ({ pageParam }) => fetchClientsPage(query, pageParam),
     initialPageParam: null as ClientListRow['cursor'] | null,
     getNextPageParam: (lastPage) => (lastPage.length === CLIENTS_PAGE_SIZE ? lastPage.at(-1)?.cursor : undefined),
@@ -162,3 +167,23 @@ export const useEndClientPayer = (feedback?: MutationFeedback) => useClientsMuta
 
 export const useSetClientTags = (feedback?: MutationFeedback) =>
   useClientsMutation(({ clientId, tagIds }: { clientId: string; tagIds: string[] }) => setClientTags(clientId, tagIds), `${S}.tags`, feedback)
+
+/** « Fusionner »: the kept file's id on success (the page then opens it). */
+export const useMergeClients = (feedback?: MutationFeedback) =>
+  useClientsMutation(
+    ({ keepId, mergeId, fields }: { keepId: string; mergeId: string; fields: ClientFields }) => mergeClients(keepId, mergeId, fields),
+    `${S}.merged`,
+    feedback,
+  )
+
+export const useAnonymizeClient = (feedback?: MutationFeedback) => useClientsMutation((id: string) => anonymizeClient(id), `${S}.anonymized`, feedback)
+
+/** The record's « Historique », 50 rows a page (keyset on the audit id), read when the tab opens. */
+export function useClientHistory(id: string) {
+  return useInfiniteQuery({
+    queryKey: clientsKeys.history(id),
+    queryFn: ({ pageParam }) => fetchClientHistory(id, pageParam),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.length < CLIENT_HISTORY_PAGE_SIZE ? undefined : (last.at(-1)?.id ?? undefined)),
+  })
+}

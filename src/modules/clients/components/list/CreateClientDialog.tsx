@@ -39,7 +39,7 @@ import { Textarea } from '@/shared/ui/textarea'
 import type { ClientDuplicate } from '../../api/parse'
 import { useClientDuplicates, useClientsReference, useCreateClient } from '../../hooks/use-clients'
 import { LANGUAGES, SEXES, clientPath } from '../../lib/constants'
-import { choices, clientNumberLabel, languageLabel, phoneLabel, sexLabel } from '../../lib/display'
+import { choices, clientNumberLabel, duplicateReasonLabel as reasonLabel, languageLabel, phoneLabel, sexLabel } from '../../lib/display'
 import { ALL_CLIENT_FIELDS, clientCardSchema, emptyClientForm, fieldOfHint, toClientFields, type ClientFieldOutput, type ClientFormValues } from '../../schemas/client'
 
 const C = 'modules.clients.create'
@@ -52,25 +52,37 @@ const ADDRESS_FIELDS = { line1: 'addressLine1', line2: 'addressLine2', city: 'ci
  * clinic's possible duplicates (the rules of the import, I-5), 400 ms after the last keystroke,
  * each with « Ouvrir le dossier existant ». A HIGH duplicate refuses the creation; a MEDIUM one
  * needs « C'est une autre personne » ticked. Closing with changes asks first; the record opens
- * once created.
+ * once created, unless the caller takes the new file's id (`onCreated`, the client picker of other
+ * modules), which may also take an existing file from the panel (`onPickExisting`).
  */
-export function CreateClientDialog() {
+export interface CreateClientDialogProps {
+  /** The new file's id; without it the record opens. */
+  onCreated?: (clientId: string) => void
+  /** Offers « Choisir ce dossier » on each similar file: its id instead of a new file. */
+  onPickExisting?: (clientId: string) => void
+  /** The form's first values (a name typed in the picker's search…). */
+  initialValues?: Partial<Pick<ClientFormValues, 'firstName' | 'lastName' | 'email' | 'mobile'>>
+  /** The trigger's look: the page's primary button, or an outline one inside a form. */
+  variant?: 'default' | 'outline'
+}
+
+export function CreateClientDialog({ onCreated, onPickExisting, initialValues, variant = 'default' }: CreateClientDialogProps = {}) {
   const [open, setOpen] = useState(false)
   const addRef = useRef<HTMLButtonElement>(null)
   return (
     <Sheet open={open} onOpenChange={() => undefined}>
       <SheetTrigger asChild>
-        <Button ref={addRef} onClick={() => setOpen(true)}>
+        <Button ref={addRef} type="button" variant={variant} onClick={() => setOpen(true)}>
           <Plus aria-hidden />
           {t(`${C}.add`)}
         </Button>
       </SheetTrigger>
-      {open && <CreatePanel onClose={() => setOpen(false)} />}
+      {open && <CreatePanel onClose={() => setOpen(false)} onCreated={onCreated} onPickExisting={onPickExisting} initialValues={initialValues} />}
     </Sheet>
   )
 }
 
-function CreatePanel({ onClose }: { onClose: () => void }) {
+function CreatePanel({ onClose, onCreated, onPickExisting, initialValues }: { onClose: () => void } & Omit<CreateClientDialogProps, 'variant'>) {
   const navigate = useNavigate()
   const reference = useClientsReference()
   const [confirming, setConfirming] = useState(false)
@@ -83,9 +95,11 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
   const [adminNotes, setAdminNotes] = useState('')
   const firstName = useRef<HTMLInputElement | null>(null)
   const schema = useMemo(() => clientCardSchema(ALL_CLIENT_FIELDS), [])
-  const form = useForm<ClientFormValues, unknown, ClientFieldOutput>({ resolver: zodResolver(schema), defaultValues: emptyClientForm() })
+  const form = useForm<ClientFormValues, unknown, ClientFieldOutput>({ resolver: zodResolver(schema), defaultValues: { ...emptyClientForm(), ...initialValues } })
   const { errors } = form.formState
   const isDirty = form.formState.isDirty || adminNotes.trim() !== ''
+  // A caller's values (the picker) are enough to create: the person may not have typed anything.
+  const ready = isDirty || Object.values(initialValues ?? {}).some((value) => Boolean(value?.trim()))
   useUnsavedChanges(isDirty)
   const create = useCreateClient({
     onErrorMessage: (message, error) => {
@@ -136,6 +150,8 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
     else onClose()
   }
   const submit = (event: FormEvent<HTMLFormElement>) => {
+    // The sheet is a portal: its submit must not reach a form the picker sits in (React bubbles through portals).
+    event.stopPropagation()
     void form.handleSubmit((output) => {
       setRefusal(null)
       const fields = toClientFields(output)
@@ -145,7 +161,8 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
         {
           onSuccess: (id) => {
             onClose()
-            navigate(clientPath(id))
+            if (onCreated) onCreated(id)
+            else navigate(clientPath(id))
           },
         },
       )
@@ -247,7 +264,17 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
             </FormField>
           </section>
 
-          <DuplicatePanel duplicates={found} loading={probe !== null && duplicates.isFetching} />
+          <DuplicatePanel
+            duplicates={found}
+            loading={probe !== null && duplicates.isFetching}
+            onPick={
+              onPickExisting &&
+              ((id) => {
+                onClose()
+                onPickExisting(id)
+              })
+            }
+          />
 
           <section className="space-y-3">
             <SectionHeading as="h3">{t(`${C}.sections.contact`)}</SectionHeading>
@@ -390,7 +417,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
           >
             {t('common.cancel')}
           </Button>
-          <SaveButton pending={create.isPending} disabled={!isDirty || high} variant={isDirty && !high ? 'default' : 'outline'} label={t(`${C}.submit`)} pendingLabel={t(`${C}.submitting`)} />
+          <SaveButton pending={create.isPending} disabled={!ready || high} variant={ready && !high ? 'default' : 'outline'} label={t(`${C}.submit`)} pendingLabel={t(`${C}.submitting`)} />
         </SheetFooter>
       </form>
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
@@ -409,19 +436,6 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
   )
 }
 
-/** The words of a duplicate's reasons (the codes of find_client_duplicates). */
-const REASONS = {
-  email: `${C}.reasons.email`,
-  phone: `${C}.reasons.phone`,
-  same_name: `${C}.reasons.same_name`,
-  similar_name: `${C}.reasons.similar_name`,
-  birthday: `${C}.reasons.birthday`,
-  birthday_differs: `${C}.reasons.birthday_differs`,
-  shared_contact: `${C}.reasons.shared_contact`,
-  partial_email: `${C}.reasons.partial_email`,
-  partial_phone: `${C}.reasons.partial_phone`,
-} as const
-const reasonLabel = (reason: string): string => (reason in REASONS ? t(REASONS[reason as keyof typeof REASONS]) : '')
 
 /**
  * « Dossiers semblables »: the possible duplicates while the person is typed, HIGH first (« Ce
@@ -429,7 +443,7 @@ const reasonLabel = (reason: string): string => (reason in REASONS ? t(REASONS[r
  * existant ». Only a short line is a live region (how many were found), so a screen reader is not
  * read the whole list at each keystroke.
  */
-function DuplicatePanel({ duplicates, loading }: { duplicates: readonly ClientDuplicate[]; loading: boolean }) {
+function DuplicatePanel({ duplicates, loading, onPick }: { duplicates: readonly ClientDuplicate[]; loading: boolean; onPick?: (clientId: string) => void }) {
   const high = duplicates.some((d) => d.level === 'high')
   return (
     <div>
@@ -454,9 +468,16 @@ function DuplicatePanel({ duplicates, loading }: { duplicates: readonly ClientDu
                     {(d.email || d.mobile) && <span className="block text-xs text-muted-foreground">{[d.email, phoneLabel(d.mobile)].filter(Boolean).join(' · ')}</span>}
                     <span className="block text-xs text-muted-foreground">{d.reasons.map(reasonLabel).filter(Boolean).join(', ')}</span>
                   </span>
-                  <Link to={clientPath(d.clientId)} target="_blank" rel="noreferrer" className="text-link text-sm underline-offset-2 hover:underline">
-                    {t(`${C}.duplicates.open`)}
-                  </Link>
+                  <span className="flex items-center gap-2">
+                    {onPick && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => onPick(d.clientId)}>
+                        {t(`${C}.duplicates.pick`)}
+                      </Button>
+                    )}
+                    <Link to={clientPath(d.clientId)} target="_blank" rel="noreferrer" className="text-link text-sm underline-offset-2 hover:underline">
+                      {t(`${C}.duplicates.open`)}
+                    </Link>
+                  </span>
                 </li>
               ))}
             </ul>

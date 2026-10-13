@@ -43,6 +43,18 @@ export const clientsManifest: ModuleManifest = {
     { path: 'clients/:id/:onglet?', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientRecordPage'), 'ClientRecordPage') },
     { path: 'mes-clients', permission: 'clients.self', component: lazyPage(() => import('./pages/MyClientsPage'), 'MyClientsPage') },
   ],
+  // The global search (⌘K, C4): name, email, number, phone. Staff who read the files only: a
+  // professional (clients.self) has « Mes clients », never a record.
+  search: [
+    {
+      id: 'clients',
+      labelKey: 'modules.clients.name',
+      icon: UsersRound,
+      permission: 'clients.view',
+      minChars: 2,
+      load: () => import('./search').then((m) => m.searchClientFiles),
+    },
+  ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.clientsAuditLabels),
   settingsSections: [

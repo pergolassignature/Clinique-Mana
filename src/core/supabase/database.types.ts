@@ -1425,6 +1425,13 @@ export type Database = {
             referencedRelation: "referral_sources"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "clients_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       compensation_kinds: {
@@ -2259,6 +2266,13 @@ export type Database = {
             columns: ["org_id", "referral_source_id"]
             isOneToOne: false
             referencedRelation: "referral_sources"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "demandes_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
             referencedColumns: ["org_id", "id"]
           },
         ]
@@ -8601,6 +8615,13 @@ export type Database = {
             referencedRelation: "referral_sources"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "clients_referral_source_fkey"
+            columns: ["org_id", "referral_source_id"]
+            isOneToOne: false
+            referencedRelation: "referral_sources_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
         ]
       }
       languages_catalog: {
@@ -8910,6 +8931,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "professionals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_sources_catalog: {
+        Row: {
+          id: string | null
+          name: string | null
+          org_id: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          id?: string | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          id?: string | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_sources_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -9680,6 +9730,21 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_client_history: {
+        Args: { p_before_id?: number; p_id: string; p_limit?: number }
+        Returns: {
+          action: string
+          actor_id: string
+          actor_name: string
+          actor_role: string
+          changed_fields: Json
+          created_at: string
+          id: number
+          record_id: string
+          source: string
+          table_name: string
+        }[]
+      }
       list_clients: {
         Args: {
           p_after_first?: string
@@ -10240,7 +10305,7 @@ export type Database = {
         Returns: undefined
       }
       merge_clients: {
-        Args: { p_keep: string; p_merge: string }
+        Args: { p_fields?: Json; p_keep: string; p_merge: string }
         Returns: string
       }
       module_enabled: { Args: { p_key: string }; Returns: boolean }

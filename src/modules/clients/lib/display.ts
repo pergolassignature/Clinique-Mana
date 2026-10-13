@@ -47,3 +47,18 @@ export const phoneLabel = (e164: string | null): string => formatPhone(e164)
 /** « 94,50 $ » from cents. */
 const money = new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 export const centsLabel = (cents: number): string => `${money.format(cents / 100)}\u00A0$`
+
+const DR = 'modules.clients.create.reasons'
+/** The words of a duplicate's reasons (the codes of find_client_duplicates); '' for an unknown one. */
+const REASONS = {
+  email: `${DR}.email`,
+  phone: `${DR}.phone`,
+  same_name: `${DR}.same_name`,
+  similar_name: `${DR}.similar_name`,
+  birthday: `${DR}.birthday`,
+  birthday_differs: `${DR}.birthday_differs`,
+  shared_contact: `${DR}.shared_contact`,
+  partial_email: `${DR}.partial_email`,
+  partial_phone: `${DR}.partial_phone`,
+} as const
+export const duplicateReasonLabel = (reason: string): string => (Object.hasOwn(REASONS, reason) ? t(REASONS[reason as keyof typeof REASONS]) : '')

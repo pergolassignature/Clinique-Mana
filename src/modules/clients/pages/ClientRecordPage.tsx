@@ -16,6 +16,7 @@ import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { ClientRecordContext, type ClientRecordData } from '../components/record/record-context'
+import { RecordMenu } from '../components/record/RecordMenu'
 import { useClientRecord, useClientsReference, useSetClientArchived } from '../hooks/use-clients'
 import { RECORD_TABS, clientPath, type ClientRecordTab } from '../lib/constants'
 import { ageOf, clientNumberLabel, fullName, rateVariantLabel } from '../lib/display'
@@ -33,6 +34,7 @@ const PANELS: Record<ClientRecordTab, ReturnType<typeof lazyPage>> = {
   'assurance-et-payeurs': lazyPage(() => import('../components/record/tabs/CoverageTab'), 'CoverageTab'),
   consentements: lazyPage(() => import('../components/record/tabs/ConsentsTab'), 'ConsentsTab'),
   'visites-et-paiements': lazyPage(() => import('../components/record/tabs/VisitsTab'), 'VisitsTab'),
+  historique: lazyPage(() => import('../components/record/tabs/HistoryTab'), 'HistoryTab'),
 }
 
 /**
@@ -117,18 +119,21 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
                 </p>
               )}
             </div>
-            {value.canEdit && (
-              <Button
-                type="button"
-                variant="outline"
-                aria-disabled={archive.isPending || undefined}
-                onClick={ignoreWhenInactive(archive.isPending, () => archive.mutate({ id, archived: !archived }))}
-                className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
-              >
-                {archived ? <ArchiveRestore aria-hidden /> : <Archive aria-hidden />}
-                {t(archived ? `${R}.restore` : `${R}.archive`)}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {value.canEdit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-disabled={archive.isPending || undefined}
+                  onClick={ignoreWhenInactive(archive.isPending, () => archive.mutate({ id, archived: !archived }))}
+                  className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+                >
+                  {archived ? <ArchiveRestore aria-hidden /> : <Archive aria-hidden />}
+                  {t(archived ? `${R}.restore` : `${R}.archive`)}
+                </Button>
+              )}
+              <RecordMenu />
+            </div>
           </header>
           <TabsList aria-label={t(`${R}.tabs.label`)}>
             {RECORD_TABS.map((tab) => (
