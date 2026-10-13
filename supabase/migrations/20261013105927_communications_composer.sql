@@ -893,7 +893,8 @@ grant execute on function public.prepare_mail_send(uuid, uuid, jsonb) to service
 
 -- Closes the send p_send_id once Gmail answered: `sent` with Gmail's ids (after the message was
 -- mirrored) or `failed` with a code. Sent: the draft goes, the composer's uploads are kept with
--- the send (no expiry), and the thread is linked to the file when it was not linked yet.
+-- the send (no expiry), and the thread is linked to the file when it was not linked yet. Returns
+-- the mirror's thread id (null when the message is not mirrored yet, or failed).
 create function public.complete_mail_send(
   p_org_id uuid,
   p_send_id uuid,
@@ -902,7 +903,7 @@ create function public.complete_mail_send(
   p_gmail_thread_id text default null,
   p_error_code text default null
 )
-returns void
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
@@ -921,7 +922,7 @@ begin
   perform pg_catalog.set_config('app.audit_source', 'fn:gmail-send', true);
   if p_status = 'failed' then
     update public.mail_sends s set status = 'failed', error_code = coalesce(p_error_code, 'failed') where s.id = v.id;
-    return;
+    return null;
   end if;
   if p_gmail_message_id is null or p_gmail_message_id !~ '^[A-Za-z0-9_-]{1,64}$'
      or (p_gmail_thread_id is not null and p_gmail_thread_id !~ '^[A-Za-z0-9_-]{1,64}$') then
@@ -949,6 +950,7 @@ begin
           linked_by = excluded.linked_by, linked_at = excluded.linked_at
       where l.status <> 'linked';
   end if;
+  return v_thread;
 end;
 $$;
 revoke all on function public.complete_mail_send(uuid, uuid, text, text, text, text) from public, anon, authenticated;
