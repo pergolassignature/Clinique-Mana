@@ -13,7 +13,7 @@
 --   adjointe@mana.test     role admin_assistant
 --   provider@mana.test     role provider
 --
--- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes` and `appointments` enabled.
+-- Organization: « Clinique MANA (local) », modules `professionals`, `services`, `clients`, `demandes`, `appointments` and `billing` enabled.
 
 select set_config('app.audit_source', 'seed', false);
 
@@ -71,7 +71,8 @@ insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'services', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'clients', true, '11111111-1111-1111-1111-111111111111'),
   ('00000000-0000-0000-0000-000000000001', 'demandes', true, '11111111-1111-1111-1111-111111111111'),
-  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111');
+  ('00000000-0000-0000-0000-000000000001', 'appointments', true, '11111111-1111-1111-1111-111111111111'),
+  ('00000000-0000-0000-0000-000000000001', 'billing', true, '11111111-1111-1111-1111-111111111111');
 
 -- Local discovery-call booking (Demandes D3c): open, every day 8 h – 20 h, 30-minute calls, two at
 -- once, an hour's notice, two weeks ahead, so /appel-decouverte?clinique=00000000-0000-0000-0000-000000000001
@@ -536,7 +537,7 @@ declare
   v_pro constant uuid := '5eed0000-0000-0000-0000-000000000004';
   v_monday date := (date_trunc('week', now() at time zone 'America/Toronto'))::date + 7;
   v_service uuid;
-  v_alice uuid; v_lea uuid; v_marc uuid;
+  v_alice uuid; v_lea uuid; v_marc uuid; v_past uuid;
   d int;
 begin
   perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
@@ -555,6 +556,9 @@ begin
   perform public.book_appointment(v_pro, v_service, (v_monday + 1 + time '14:00') at time zone 'America/Toronto', array[v_lea, v_marc],
                                   'video', null, 'Léa vient avec son père.');
   perform public.book_appointment(v_pro, v_service, (v_monday + 3 + time '09:00') at time zone 'America/Toronto', array[v_marc], 'phone');
+  -- Last week's Wednesday: Alice's completed session, to invoice (Facturation F1).
+  v_past := public.book_appointment(v_pro, v_service, (v_monday - 12 + time '10:00') at time zone 'America/Toronto', array[v_alice]);
+  update public.appointments set state = 'completed', completed_at = ends_at where id = v_past;
   perform set_config('request.jwt.claims', '', false);
 end;
 $appointments$;
