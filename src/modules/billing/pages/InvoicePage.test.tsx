@@ -20,10 +20,12 @@ const mocks = vi.hoisted(() => ({
     issueCreditNote: vi.fn(),
   },
   queue: { sendInvoices: vi.fn(), recordPayment: vi.fn(), releaseDraft: vi.fn(), resendDocument: vi.fn(), deliverNow: vi.fn() },
+  followUp: { refundPayment: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/invoices', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
 vi.mock('../api/queue', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.queue }))
+vi.mock('../api/follow-up', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.followUp }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -83,6 +85,7 @@ const bundle = (overrides: Partial<InvoiceBundle['invoice']> = {}): InvoiceBundl
     { code: 'interac', name: 'Virement Interac' },
     { code: 'cheque', name: 'Chèque' },
   ],
+  reminders: [],
 })
 
 function open(role: FixtureRole = 'admin_assistant') {
@@ -113,6 +116,7 @@ beforeEach(() => {
   mocks.queue.releaseDraft.mockResolvedValue(undefined)
   mocks.queue.resendDocument.mockResolvedValue(undefined)
   mocks.queue.deliverNow.mockResolvedValue({ done: 1, failed: 0 })
+  mocks.followUp.refundPayment.mockResolvedValue('f1')
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -209,7 +213,7 @@ describe('InvoicePage', () => {
       payments: [
         {
           id: 'p1', modeCode: 'interac', mode: 'Virement Interac', amountCents: 5000, paidOn: '2026-10-13', reference: 'CA1234',
-          receiptId: 'r1', receiptNumber: 'R-2026-1', receiptFileId: null, receiptDeliveries: [],
+          receiptId: 'r1', receiptNumber: 'R-2026-1', receiptFileId: null, receiptDeliveries: [], refunds: [], refundableCents: 5000,
         },
       ],
     })
@@ -226,5 +230,12 @@ describe('InvoicePage', () => {
     await waitFor(() =>
       expect(mocks.queue.recordPayment).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: 'i1', modeCode: 'cheque', amountCents: 12349, reference: '0042' })),
     )
+    // « Rembourser » (F3): what is left of the payment by default, a reason.
+    await user.click(within(list).getByRole('button', { name: t(`${I}.payments.refund`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${I}.payments.refundTitle`) })
+    expect(within(dialog).getByLabelText(/^Montant à rembourser/)).toHaveValue('50,00')
+    await user.type(within(dialog).getByLabelText(/^Raison/), 'Erreur de montant')
+    await user.click(within(dialog).getByRole('button', { name: t(`${I}.payments.refundSubmit`) }))
+    await waitFor(() => expect(mocks.followUp.refundPayment).toHaveBeenCalledWith('p1', 5000, 'Erreur de montant'))
   })
 })

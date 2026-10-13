@@ -25,6 +25,8 @@ async function reopen(page: Page) {
   const reserved = page.getByRole('switch', { name: RESERVED })
   if ((await reserved.getAttribute('aria-checked')) === 'true') {
     await reserved.click()
+    // The switch turns at once (optimistic): wait for the save itself before leaving the page.
+    await expect(page.getByText('Accès au module mis à jour.')).toBeVisible()
     await expect(reserved).not.toBeChecked()
   }
 }

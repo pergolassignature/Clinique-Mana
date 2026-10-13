@@ -53,8 +53,9 @@ export interface ModuleHomeCard {
  * The slots a module may fill in another module's screen. The host renders each panel where the
  * slot is; a panel reads what it needs from the route (`client.visits`: the record's `:id`).
  *   `client.visits`: Clients' record, tab « Visites et paiements » (Rendez-vous R5, Facturation F2).
+ *   `agenda.mine`: Rendez-vous' « Mon agenda », below the agenda (Facturation F3: the fees to decide).
  */
-export type ModuleSlotName = 'client.visits'
+export type ModuleSlotName = 'client.visits' | 'agenda.mine'
 
 /** A panel a module adds to a slot, for whoever holds one of its permissions. */
 export interface ModuleSlotItem {
