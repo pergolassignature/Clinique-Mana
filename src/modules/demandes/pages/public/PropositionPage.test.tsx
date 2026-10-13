@@ -90,3 +90,18 @@ describe('PropositionPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${A}.invalid`))
   })
 })
+
+describe('PropositionPage in English', () => {
+  it('an English person: the page, the times and the reasons in English; <html lang> follows', async () => {
+    const user = userEvent.setup()
+    mocks.resolvePropositionLink.mockResolvedValue({ ...display, language: 'en' })
+    const view = open()
+    expect(await screen.findByText(/Clinique MANA offers you a first appointment with Pro Un, Psychologue/)).toBeInTheDocument()
+    expect(document.documentElement.lang).toBe('en-CA')
+    expect(screen.getByRole('radio', { name: /Tuesday, October 20 at 9:00 a\.m\./i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t('modules.demandes.propositions.pageEn.none') }))
+    expect(screen.getByRole('option', { name: t('modules.demandes.propositions.reasonsEn.changed_mind') })).toBeInTheDocument()
+    view.unmount()
+    expect(document.documentElement.lang).not.toBe('en-CA')
+  })
+})

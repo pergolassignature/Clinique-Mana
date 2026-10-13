@@ -14347,6 +14347,10 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
+      import_invoice: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_professional: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
@@ -16163,6 +16167,19 @@ export type Database = {
           p_weekday: number
         }
         Returns: string
+      }
+      set_availability_window: {
+        Args: {
+          p_end_time: string
+          p_id: string
+          p_professional_id: string
+          p_start_time: string
+          p_valid_from: string
+          p_valid_until: string
+          p_week?: string
+          p_weekday: number
+        }
+        Returns: Json
       }
       set_bank_details: {
         Args: {

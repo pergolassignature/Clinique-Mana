@@ -7,14 +7,14 @@ import logoUrl from '@/assets/logo-header.svg'
 import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { Loading } from '@/shared/components/LoadState'
-import { formatDateOnly } from '@/shared/lib/timezone'
+import { asPublicLanguage, formatDateOnlyIn, formatMoneyIn, usePageLanguage, type PublicLanguage } from '@/shared/lib/public-language'
 import { useNoIndex, usePageTitle } from '@/shared/lib/use-page-title'
 import { Button } from '@/shared/ui/button'
 import { openCheckout, resolveCardLink, resolvePayLink, type CardLinkDisplay, type PayLinkDisplay } from '../../api/stripe'
 import { leaveFor } from '../../lib/leave-for'
-import { formatPay } from '../../lib/payroll'
 
-const P = 'modules.billing.stripe.public'
+/** The page's text in the payer's language (the link's; back from Stripe, `&lang=en`). */
+const P = (lang: PublicLanguage) => (lang === 'en' ? 'modules.billing.stripe.publicEn' : 'modules.billing.stripe.public') as 'modules.billing.stripe.public'
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
 const GONE = ['link_invalid', 'link_expired', 'link_used']
 
@@ -71,11 +71,12 @@ function useLinkToken(): string | null {
   return token
 }
 
-/** Back from Stripe: `?etat=merci` or `?etat=annule`. */
-function useReturnState(): 'merci' | 'annule' | null {
+/** Back from Stripe: `?etat=merci` or `?etat=annule` (`&lang=en` for an English payer). */
+function useReturnState(): { back: 'merci' | 'annule' | null; lang: PublicLanguage } {
   const { search } = useLocation()
-  const value = new URLSearchParams(search).get('etat')
-  return value === 'merci' || value === 'annule' ? value : null
+  const params = new URLSearchParams(search)
+  const value = params.get('etat')
+  return { back: value === 'merci' || value === 'annule' ? value : null, lang: asPublicLanguage(params.get('lang')) }
 }
 
 type Kind = 'card' | 'pay'
@@ -105,7 +106,8 @@ function useCheckout(token: string) {
  * `/carte#t=…` (FS): « Enregistrer ma carte », from the card email. The page says what the clinic
  * will do with the card (the authorization the payer gives), then leaves for Stripe Checkout,
  * which collects the card (the clinic never sees its number). Back with `?etat=merci` (the card
- * arrives by Stripe's webhook) or `?etat=annule`. Never indexed.
+ * arrives by Stripe's webhook) or `?etat=annule`. In the payer's language (French or English).
+ * Never indexed.
  */
 export function CardSetupPage() {
   return <StripeLinkPage kind="card" />
@@ -122,10 +124,7 @@ export function PayPage() {
 
 function StripeLinkPage({ kind }: { kind: Kind }) {
   useNoIndex()
-  const K = kind === 'card' ? (`${P}.card` as const) : (`${P}.pay` as const)
-  const title = t(`${K}.title`)
-  usePageTitle(title)
-  const back = useReturnState()
+  const { back, lang: backLang } = useReturnState()
   const token = useLinkToken()
   const [opening] = useState(() => ++openings)
   const link = useQuery({
@@ -141,11 +140,17 @@ function StripeLinkPage({ kind }: { kind: Kind }) {
     if (link.error) report(link.error)
   }, [link.error])
   const checkout = useCheckout(token ?? '')
+  const lang = back !== null ? backLang : asPublicLanguage(link.data?.language)
+  const T = P(lang)
+  const K = kind === 'card' ? (`${T}.card` as const) : (`${T}.pay` as const)
+  const title = t(`${K}.title`)
+  usePageTitle(title)
+  usePageLanguage(lang)
 
   if (back === 'merci') return <Notice title={title} text={t(`${K}.thanks`)} done />
   if (back === 'annule') return <Notice title={title} text={t(`${K}.cancelled`)} />
-  if (token === null || checkout.state === 'gone') return <Notice title={title} text={t(`${P}.invalid`)} />
-  if (checkout.state === 'paid') return <Notice title={title} text={t(`${P}.pay.alreadyPaid`)} done />
+  if (token === null || checkout.state === 'gone') return <Notice title={title} text={t(`${T}.invalid`)} />
+  if (checkout.state === 'paid') return <Notice title={title} text={t(`${T}.pay.alreadyPaid`)} done />
   if (link.isPending) {
     return (
       <Frame title={title}>
@@ -154,29 +159,29 @@ function StripeLinkPage({ kind }: { kind: Kind }) {
     )
   }
   if (link.isError) {
-    return <Notice title={title} text={link.error instanceof FunctionCallError && GONE.includes(link.error.code) ? t(`${P}.invalid`) : t(`${P}.error`)} />
+    return <Notice title={title} text={link.error instanceof FunctionCallError && GONE.includes(link.error.code) ? t(`${T}.invalid`) : t(`${T}.error`)} />
   }
   const d = link.data
   let body: ReactNode
   if ('first_name' in d) {
-    if (d.has_card) return <Notice title={title} text={t(`${P}.card.already`)} done />
+    if (d.has_card) return <Notice title={title} text={t(`${T}.card.already`)} done />
     body = (
       <>
-        <p className="text-sm text-foreground">{t(`${P}.card.intro`, { name: d.first_name, clinic: d.clinic_name })}</p>
-        <p className="rounded-md bg-muted p-3 text-sm text-foreground">{t(`${P}.card.authorization`, { clinic: d.clinic_name })}</p>
-        <p className="text-sm text-muted-foreground">{t(`${P}.card.stripe`)}</p>
+        <p className="text-sm text-foreground">{t(`${T}.card.intro`, { name: d.first_name, clinic: d.clinic_name })}</p>
+        <p className="rounded-md bg-muted p-3 text-sm text-foreground">{t(`${T}.card.authorization`, { clinic: d.clinic_name })}</p>
+        <p className="text-sm text-muted-foreground">{t(`${T}.card.stripe`)}</p>
       </>
     )
   } else {
-    if (d.balance_cents <= 0) return <Notice title={title} text={t(`${P}.pay.alreadyPaid`)} done />
-    if (!d.available) return <Notice title={title} text={t(`${P}.unavailable`)} />
+    if (d.balance_cents <= 0) return <Notice title={title} text={t(`${T}.pay.alreadyPaid`)} done />
+    if (!d.available) return <Notice title={title} text={t(`${T}.unavailable`)} />
     body = (
       <>
         <p className="text-sm text-foreground">
-          {t(`${P}.pay.intro`, { number: d.invoice_number ?? '', date: d.issued_on ? formatDateOnly(d.issued_on) : '', clinic: d.clinic_name })}
+          {t(`${T}.pay.intro`, { number: d.invoice_number ?? '', date: d.issued_on ? formatDateOnlyIn(lang, d.issued_on) : '', clinic: d.clinic_name })}
         </p>
-        <p className="text-base font-semibold">{t(`${P}.pay.balance`, { amount: formatPay(d.balance_cents) })}</p>
-        <p className="text-sm text-muted-foreground">{t(`${P}.pay.stripe`)}</p>
+        <p className="text-base font-semibold">{t(`${T}.pay.balance`, { amount: formatMoneyIn(lang, d.balance_cents) })}</p>
+        <p className="text-sm text-muted-foreground">{t(`${T}.pay.stripe`)}</p>
       </>
     )
   }
@@ -186,11 +191,11 @@ function StripeLinkPage({ kind }: { kind: Kind }) {
         {body}
         {checkout.state === 'error' && (
           <p role="alert" className="text-sm text-destructive">
-            {t(`${P}.error`)}
+            {t(`${T}.error`)}
           </p>
         )}
         <Button type="button" onClick={() => void checkout.go()} aria-disabled={checkout.state === 'pending' || undefined}>
-          {checkout.state === 'pending' ? t(`${P}.opening`) : t(`${K}.button`)}
+          {checkout.state === 'pending' ? t(`${T}.opening`) : t(`${K}.button`)}
         </Button>
       </div>
     </Frame>

@@ -226,6 +226,20 @@ Stripe (card on file, the next-day charge, « Payer en ligne ») and Interac « 
 - **Refunds (FS-9):** « Rembourser » a Stripe payment: `billing-stripe` (`refund`) refunds the card at Stripe once (`_shared/stripe/refunds.ts`), settled through `settle_stripe_refund_for_service` (F3's `finish_refund_for_service`); `stripe-webhook` settles the pending ones (`charge.refunded`, `refund.updated`, `refund.failed`); the job `billing.stripe_refunds` (`billing-stripe-refunds`, every 10 minutes, off until switched on) takes what is left (`stripe_refunds_due_for_service`, P3-40). Service RPCs: `stripe_refunds_due_for_service`, `stripe_refund_for_service`, `settle_stripe_refund_for_service`.
 - **Open:** Interac notices from administration@ (CM1b, once real examples exist); CLAUDE.md §7 to name the five functions.
 
+## The GOrendezvous import (I3, BI-20)
+- **RPC:** `import_invoice(row, dry_run)` (`billing.manage`, audit source `import`), called by `scripts/import-gorendezvous.mjs factures` (the runbook `docs/runbooks/import-gorendezvous.md`).
+- **One invoice, all or nothing:**
+  - `external_ref` « gorendezvous:<GOrendezvous number> »: a re-run answers `skipped`;
+  - the number without its zeros, and `invoice_sequences` raised to it;
+  - issued, due and finalised on its date, billed to the client;
+  - the lines and totals as exported (Σ lines = total); a line's service by code (`private.service_id_by_code`), else an `adjustment` line;
+  - the payments (`external_ref` « <invoice ref>:<n> »), and the refunds `recorded` on the latest payment that covers them.
+- **The dossier:** `private.clients_import_match` (Clients). Not found or several → `unmatched`.
+- **History:**
+  - no delivery, receipt or QuickBooks event (`billing_queue_sync` already skips `import`);
+  - `billing_run_dunning` and `client_has_balance` skip `source_type = 'import'`.
+- **Tests:** pgTAP `144_billing_import`; Vitest `scripts/import-gorendezvous/import-i3.test.mjs`.
+
 ## Keep / Change / Drop
 
 From plan §8's summary and the legacy inventory (§F). Keep: per-line TPS / TVQ, statuses, the file-opening fee, numbering, several lines per invoice, payment modes ↔ QuickBooks accounts. Change: credit notes instead of cancelling an invoice; one payer per invoice, chosen among the authorised relations (no split); numbering `AAAA-N` continuing GOrendezvous's; the server computes every amount. Drop (confirmed by the data): TELUS eRéclamations, gift / loyalty / visit cards, Square, PayPal, Accès D, « seulement TPS », per-service Stripe deposits.

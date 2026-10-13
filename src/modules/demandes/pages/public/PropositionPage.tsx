@@ -6,6 +6,7 @@ import { CircleAlert, CircleCheck } from 'lucide-react'
 import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { Loading } from '@/shared/components/LoadState'
+import { asPublicLanguage, usePageLanguage, type PublicLanguage } from '@/shared/lib/public-language'
 import { formatInClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
 import { useNoIndex, usePageTitle } from '@/shared/lib/use-page-title'
 import { Button } from '@/shared/ui/button'
@@ -13,7 +14,10 @@ import { Select } from '@/shared/ui/select'
 import { answerProposition, DECLINE_REASONS, resolvePropositionLink, type DeclineReason } from '../../api/propositions'
 import { PublicFrame } from './PublicFrame'
 
-const A = 'modules.demandes.propositions.page'
+/** The page's text in the person's language (the demande's). */
+const TEXT = (lang: PublicLanguage) => (lang === 'en' ? 'modules.demandes.propositions.pageEn' : 'modules.demandes.propositions.page') as 'modules.demandes.propositions.page'
+const REASON_TEXT = (lang: PublicLanguage) =>
+  (lang === 'en' ? 'modules.demandes.propositions.reasonsEn' : 'modules.demandes.propositions.reasons') as 'modules.demandes.propositions.reasons'
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
 const GONE = ['link_invalid', 'link_expired', 'link_used']
 /** R1b's HINTs, in plain words (D-23). */
@@ -30,19 +34,22 @@ function report(error: unknown) {
   Sentry.captureException(failure, { tags: { area: 'demandes', code } })
 }
 
-const when = (iso: string) =>
-  t(`${A}.when`, { day: formatInClinicTimezone(iso, 'EEEE d MMMM'), time: formatInClinicTimezone(iso, "H 'h' mm") })
+/** « mardi 3 novembre à 10 h 00 » / « Tuesday, November 3 at 10:00 a.m. », in the clinic's time zone. */
+const whenIn = (lang: PublicLanguage, iso: string) =>
+  lang === 'en'
+    ? t(`${TEXT('en')}.when`, { day: formatInClinicTimezone(iso, 'EEEE, MMMM d', 'en'), time: formatInClinicTimezone(iso, 'h:mm aaaa', 'en') })
+    : t(`${TEXT('fr')}.when`, { day: formatInClinicTimezone(iso, 'EEEE d MMMM'), time: formatInClinicTimezone(iso, "H 'h' mm") })
 
 /**
  * `/proposition#t=…` (Demandes D3b, D-22): the proposal's link. The token leaves the address bar
  * before any request (never in a log, the history or a query key); `resolve-link` shows the clinic,
  * the professional, the service, the mode and the slots held for the person; « Choisir cette
  * plage » books it once (Rendez-vous checks every rule again: a slot no longer possible says why
- * and the others stay); « Aucune ne me convient » declines, with an optional reason. Never indexed.
+ * and the others stay); « Aucune ne me convient » declines, with an optional reason. In the
+ * person's language (French or English). Never indexed.
  */
 export function PropositionPage() {
   useNoIndex()
-  usePageTitle(t(`${A}.title`))
   const { hash } = useLocation()
   const [token] = useState(() => {
     const value = new URLSearchParams(hash.slice(1)).get('t')
@@ -64,6 +71,11 @@ export function PropositionPage() {
   useEffect(() => {
     if (link.error) report(link.error)
   }, [link.error])
+  const lang = asPublicLanguage(link.data?.language)
+  const A = TEXT(lang)
+  const when = (iso: string) => whenIn(lang, iso)
+  usePageTitle(t(`${A}.title`))
+  usePageLanguage(lang)
   const [choice, setChoice] = useState<string | null>(null)
   const [declining, setDeclining] = useState(false)
   const [reason, setReason] = useState<DeclineReason | ''>('')
@@ -181,7 +193,7 @@ export function PropositionPage() {
               <option value="">{t(`${A}.reasonNone`)}</option>
               {DECLINE_REASONS.map((r) => (
                 <option key={r} value={r}>
-                  {t(`modules.demandes.propositions.reasons.${r}`)}
+                  {t(`${REASON_TEXT(lang)}.${r}`)}
                 </option>
               ))}
             </Select>

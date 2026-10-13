@@ -4,7 +4,7 @@
 // The clinic operates in a specific timezone (default: America/Toronto for EST/EDT)
 
 import { format, isValid, parseISO } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { enCA, fr } from 'date-fns/locale'
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { getClinicTimezone } from './clinic-timezone'
 
@@ -29,15 +29,18 @@ function toValidDate(date: DateInput): Date | null {
  *
  * @param date - Date object or ISO string (assumed UTC)
  * @param formatStr - date-fns format string
+ * @param language - The words' language: French (default), or English for a client's English
+ *   public page (its own pattern too: `'EEEE, MMMM d'`, `'h:mm aaaa'`)
  * @returns Formatted string in clinic timezone, or '—' if missing/invalid
  */
 export function formatInClinicTimezone(
   date: DateInput,
-  formatStr: string
+  formatStr: string,
+  language: 'fr' | 'en' = 'fr'
 ): string {
   const dateObj = toValidDate(date)
   if (!dateObj) return EMPTY_DATE
-  return formatInTimeZone(dateObj, getClinicTimezone(), formatStr, { locale: fr })
+  return formatInTimeZone(dateObj, getClinicTimezone(), formatStr, { locale: language === 'en' ? enCA : fr })
 }
 
 /**

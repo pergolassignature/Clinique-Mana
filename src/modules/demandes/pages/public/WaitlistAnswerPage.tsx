@@ -7,11 +7,13 @@ import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { Loading } from '@/shared/components/LoadState'
 import { Button } from '@/shared/ui/button'
+import { asPublicLanguage, usePageLanguage, type PublicLanguage } from '@/shared/lib/public-language'
 import { useNoIndex, usePageTitle } from '@/shared/lib/use-page-title'
 import { answerFollowup, resolveFollowupLink } from '../../api/waitlist'
 import { PublicFrame } from './PublicFrame'
 
-const A = 'modules.demandes.waitlist.answer'
+/** The page's text in the person's language (the demande's). */
+const TEXT = (lang: PublicLanguage) => (lang === 'en' ? 'modules.demandes.waitlist.answerEn' : 'modules.demandes.waitlist.answer') as 'modules.demandes.waitlist.answer'
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
 const GONE = ['link_invalid', 'link_expired', 'link_used']
 
@@ -30,11 +32,11 @@ function report(error: unknown) {
  * `/liste-attente/reponse#t=…` (Demandes D3, D-17): the « Souhaitez-vous rester sur la liste
  * d'attente ? » email's link. The token leaves the address bar before any request (never in a log,
  * the history or a query key); `resolve-link` shows the clinic and the list; « Oui, je reste » or
- * « Non, retirez-moi » answers once (`demandes-waitlist-answer`). Never indexed.
+ * « Non, retirez-moi » answers once (`demandes-waitlist-answer`). In the person's language (French or
+ * English). Never indexed.
  */
 export function WaitlistAnswerPage() {
   useNoIndex()
-  usePageTitle(t(`${A}.title`))
   const { hash } = useLocation()
   const [token] = useState(() => {
     const value = new URLSearchParams(hash.slice(1)).get('t')
@@ -56,6 +58,10 @@ export function WaitlistAnswerPage() {
   useEffect(() => {
     if (link.error) report(link.error)
   }, [link.error])
+  const lang = asPublicLanguage(link.data?.language)
+  const A = TEXT(lang)
+  usePageTitle(t(`${A}.title`))
+  usePageLanguage(lang)
   const [state, setState] = useState<'idle' | 'pending' | 'stay' | 'leave' | 'error' | 'gone'>('idle')
 
   const notice = (title: string, text: string, done = false) => (

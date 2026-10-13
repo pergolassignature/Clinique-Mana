@@ -81,3 +81,21 @@ describe('the public Stripe pages (FS)', () => {
     expect(await screen.findByText(t(`${P}.invalid`))).toBeInTheDocument()
   })
 })
+
+describe('the public Stripe pages in English', () => {
+  it('/payer for an English payer: the invoice, the date and the amount in English', async () => {
+    mocks.api.resolvePayLink.mockResolvedValue({
+      clinic_name: 'Clinique MANA', language: 'en', invoice_number: '2026-3', issued_on: '2026-11-02',
+      total_cents: 20000, balance_cents: 20000, available: true,
+    })
+    renderAt(`/payer#t=${TOKEN}`)
+    expect(await screen.findByText('Invoice 2026-3 of November 2, 2026, Clinique MANA.')).toBeInTheDocument()
+    expect(screen.getByText('Balance due: $200.00')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('modules.billing.stripe.publicEn.pay.button') })).toBeInTheDocument()
+  })
+
+  it('back from Stripe with &lang=en: thanks in English', () => {
+    renderAt('/carte?etat=merci&lang=en')
+    expect(screen.getByText(t('modules.billing.stripe.publicEn.card.thanks'))).toBeInTheDocument()
+  })
+})

@@ -172,7 +172,7 @@ Migration `20261013064427_demandes_waitlist`; pgTAP `123_demandes_waitlist`; fun
 
 ## D4: the matching panel
 
-Migration `20261013171452_demandes_matching` (pgTAP `164`, with Professionnels' published facts as a fixture); Professionnels' `20261013171254_professionals_matching_exclusions` (pgTAP `163`); decisions D-27 … D-30, P4-551, P4-552, R-66.
+Migration `20261013181604_demandes_matching` (pgTAP `164`, with Professionnels' published facts as a fixture); Professionnels' `20261013181559_professionals_matching_exclusions` (pgTAP `163`); decisions D-27 … D-30, P4-551, P4-552, R-66.
 
 - **`match_professionals_for_demande(demande)`** (definer; `demandes.view` and `professionals.view`, both first): the request's criteria and every professional of the clinic, in the documented order, each with why. It reads:
   - Professionnels only through `private.professional_matching_facts` (active reference rows only, rule 7);

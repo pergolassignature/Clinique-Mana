@@ -21,8 +21,13 @@ const mocks = vi.hoisted(() => ({
     previewSeries: vi.fn(),
     createSeries: vi.fn(),
     cancelSeriesFrom: vi.fn(),
+    setAvailabilityWindow: vi.fn(),
+    undoAvailabilityWindow: vi.fn(),
+    deleteAvailabilityRule: vi.fn(),
+    restoreAvailabilityRule: vi.fn(),
+    addAvailabilityException: vi.fn(),
   },
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../api/agenda', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/agenda')>()), ...mocks.api }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
@@ -36,7 +41,9 @@ vi.mock('@/modules/clients', () => ({
 }))
 
 const A = 'modules.appointments.agenda'
+const D = 'modules.appointments.availability'
 const E = 'modules.appointments.editor'
+const AVAILABILITY = '/agenda?date=2027-03-15&mode=disponibilites&professionnel=p1'
 
 const REFERENCE: AgendaReference = {
   professionals: [{ id: 'p1', name: 'Félix Gauthier', active: true, titleIds: ['t1'] }],
@@ -86,6 +93,21 @@ beforeEach(() => {
   ])
   mocks.api.createSeries.mockResolvedValue('series')
   mocks.api.cancelSeriesFrom.mockResolvedValue(2)
+  mocks.api.setAvailabilityWindow.mockImplementation(async (input: { id: string | null; weekday: number; start: number; end: number; validUntil: string | null }) => ({
+    id: input.id ?? 'w2',
+    weekday: input.weekday,
+    start: input.start,
+    end: input.end,
+    validFrom: '2027-03-15',
+    validUntil: input.validUntil,
+    previous: null,
+    absorbed: [],
+    outsideCount: 0,
+  }))
+  mocks.api.undoAvailabilityWindow.mockResolvedValue(undefined)
+  mocks.api.deleteAvailabilityRule.mockResolvedValue(undefined)
+  mocks.api.restoreAvailabilityRule.mockResolvedValue('w1b')
+  mocks.api.addAvailabilityException.mockResolvedValue('x1')
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -212,11 +234,115 @@ describe('AgendaPage', () => {
     expect(await screen.findByText(t(`${A}.choosePro`))).toBeInTheDocument()
   })
 
-  it('… with the professional chosen, a window opens « Modifier la plage »', async () => {
+  it('… with the professional chosen, a click on a window offers its choices; « Plus d’options… » opens « Modifier la plage »', async () => {
     const user = userEvent.setup()
-    renderPage({ path: '/agenda?date=2027-03-15&mode=disponibilites&professionnel=p1' })
+    renderPage({ path: AVAILABILITY })
     await user.click(await screen.findByRole('button', { name: t(`${A}.windowLabel`, { start: '09:00', end: '17:00' }) }))
-    expect(await screen.findByRole('dialog', { name: t('modules.appointments.availability.editTitle') })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: t(`${D}.remove`) })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${D}.more`) }))
+    expect(await screen.findByRole('dialog', { name: t(`${D}.editTitle`) })).toBeInTheDocument()
+  })
+
+  it('a drag on an empty part of a day draws a window, saved at once with the defaults, then told with « Annuler »', async () => {
+    renderPage({ path: AVAILABILITY })
+    await screen.findByRole('button', { name: t(`${A}.windowLabel`, { start: '09:00', end: '17:00' }) })
+    // Tuesday from 9:00 (2 h below 7:00 at 48 px an hour) to 12:00 (5 h).
+    const column = screen.getByTestId('agenda-column-2027-03-16')
+    fireEvent.pointerDown(column, { clientY: 2 * 48 + 1, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(column, { clientY: 5 * 48, pointerId: 1 })
+    expect(screen.getByTestId('availability-ghost')).toHaveTextContent('9 h – 12 h')
+    fireEvent.pointerUp(column, { clientY: 5 * 48, pointerId: 1 })
+    await waitFor(() =>
+      expect(mocks.api.setAvailabilityWindow).toHaveBeenCalledWith({
+        id: null,
+        professionalId: 'p1',
+        weekday: 2,
+        start: 9 * 60,
+        end: 12 * 60,
+        validFrom: '2027-03-15',
+        validUntil: null,
+        week: '2027-03-15',
+      }),
+    )
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled())
+    const [message, options] = mocks.toast.success.mock.calls[0]!
+    expect(message).toBe('Disponible le mardi 9 h – 12 h, chaque semaine')
+    expect(options.action.label).toBe(t(`${D}.onlyThisWeek`))
+    expect(options.cancel.label).toBe(t(`${D}.undo`))
+    // « Seulement cette semaine »: the same window, Monday to Sunday.
+    options.action.onClick()
+    await waitFor(() =>
+      expect(mocks.api.setAvailabilityWindow).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'w2', validFrom: '2027-03-15', validUntil: '2027-03-21' })),
+    )
+    // « Annuler »: the drop undone.
+    options.cancel.onClick()
+    await waitFor(() => expect(mocks.api.undoAvailabilityWindow).toHaveBeenCalledWith(expect.objectContaining({ id: 'w2' })))
+  })
+
+  it('a window dragged down moves it; its bottom edge resizes it; appointments left outside are warned of', async () => {
+    mocks.api.setAvailabilityWindow.mockResolvedValueOnce({
+      id: 'w1', weekday: 1, start: 9 * 60, end: 16 * 60, validFrom: '2026-01-01', validUntil: null, previous: null, absorbed: [], outsideCount: 2,
+    })
+    renderPage({ path: AVAILABILITY })
+    const block = await screen.findByRole('button', { name: t(`${A}.windowLabel`, { start: '09:00', end: '17:00' }) })
+    const bottom = block.querySelector('[data-edge="end"]')!
+    fireEvent.pointerDown(bottom, { clientY: 500, button: 0, pointerId: 2 })
+    fireEvent.pointerMove(bottom, { clientY: 500 - 48, pointerId: 2 })
+    fireEvent.pointerUp(bottom, { clientY: 500 - 48, pointerId: 2 })
+    await waitFor(() =>
+      expect(mocks.api.setAvailabilityWindow).toHaveBeenCalledWith(expect.objectContaining({ id: 'w1', weekday: 1, start: 9 * 60, end: 16 * 60, validFrom: '2026-01-01', validUntil: null })),
+    )
+    await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalled())
+    expect(mocks.toast.warning.mock.calls[0]![1].description).toBe(t(`${D}.outsideOther`, { count: '2' }))
+
+    fireEvent.pointerDown(block, { clientY: 300, button: 0, pointerId: 3 })
+    fireEvent.pointerMove(block, { clientY: 300 + 24, pointerId: 3 })
+    fireEvent.pointerUp(block, { clientY: 300 + 24, pointerId: 3 })
+    await waitFor(() => expect(mocks.api.setAvailabilityWindow).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'w1', start: 9 * 60 + 30, end: 17 * 60 + 30 })))
+  })
+
+  it('« Supprimer » deletes the window, with « Annuler »; « Seulement cette semaine » limits it to the week', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: AVAILABILITY })
+    const block = await screen.findByRole('button', { name: t(`${A}.windowLabel`, { start: '09:00', end: '17:00' }) })
+    await user.click(block)
+    await user.click(await screen.findByRole('button', { name: t(`${D}.onlyThisWeek`) }))
+    await waitFor(() =>
+      expect(mocks.api.setAvailabilityWindow).toHaveBeenCalledWith(expect.objectContaining({ id: 'w1', validFrom: '2027-03-15', validUntil: '2027-03-21' })),
+    )
+    await user.click(block)
+    await user.click(await screen.findByRole('button', { name: t(`${D}.remove`) }))
+    await waitFor(() => expect(mocks.api.deleteAvailabilityRule).toHaveBeenCalledWith('w1'))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Plage supprimée : lundi 9 h – 17 h', expect.anything()))
+    const options = mocks.toast.success.mock.calls.find(([m]) => m === 'Plage supprimée : lundi 9 h – 17 h')![1]
+    options.action.onClick()
+    await waitFor(() => expect(mocks.api.restoreAvailabilityRule).toHaveBeenCalledWith(expect.objectContaining({ id: 'w1' })))
+  })
+
+  it('« Bloquer »: a drag takes the time off (an exception); « En vacances toute la semaine »', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: AVAILABILITY })
+    await screen.findByRole('button', { name: t(`${A}.windowLabel`, { start: '09:00', end: '17:00' }) })
+    await user.click(screen.getByRole('button', { name: t(`${D}.toolBlock`) }))
+    const column = screen.getByTestId('agenda-column-2027-03-17')
+    fireEvent.pointerDown(column, { clientY: 3 * 48, button: 0, pointerId: 4 })
+    fireEvent.pointerMove(column, { clientY: 4 * 48, pointerId: 4 })
+    fireEvent.pointerUp(column, { clientY: 4 * 48, pointerId: 4 })
+    // Wednesday 10:00–11:00 in Montréal (EDT).
+    await waitFor(() =>
+      expect(mocks.api.addAvailabilityException).toHaveBeenCalledWith({
+        professionalId: 'p1', kind: 'other', startsAt: '2027-03-17T14:00:00.000Z', endsAt: '2027-03-17T15:00:00.000Z', label: null,
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: t(`${D}.vacationWeek`) }))
+    await waitFor(() => expect(mocks.api.addAvailabilityException).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'vacation', startsAt: '2027-03-15T04:00:00.000Z' })))
+  })
+
+  it('« Ajouter une plage »: the keyboard way, the full editor', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: AVAILABILITY })
+    await user.click(await screen.findByRole('button', { name: t(`${D}.addWindow`) }))
+    expect(await screen.findByRole('dialog', { name: t(`${D}.newTitle`) })).toBeInTheDocument()
   })
 
   it('the adjointe books too', async () => {

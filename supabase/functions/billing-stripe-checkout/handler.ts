@@ -146,6 +146,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         )
       }
       const locale = l.language === 'en' ? 'en' : 'fr-CA'
+      // Back from Stripe, the page speaks the payer's language.
+      const back = l.language === 'en' ? '&lang=en' : ''
       let params: Params
       if (l.mode === 'setup') {
         let customer = l.customer_id
@@ -174,8 +176,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           currency: CURRENCY,
           payment_method_types: ['card'],
           locale,
-          success_url: `${origin}${CARD_PATH}?etat=merci`,
-          cancel_url: `${origin}${CARD_PATH}?etat=annule`,
+          success_url: `${origin}${CARD_PATH}?etat=merci${back}`,
+          cancel_url: `${origin}${CARD_PATH}?etat=annule${back}`,
           metadata,
           setup_intent_data: { metadata },
           custom_text: {
@@ -212,8 +214,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           payment_method_types: ['card'],
           locale,
           client_reference_id: l.invoice_id,
-          success_url: `${origin}${PAY_PATH}?etat=merci`,
-          cancel_url: `${origin}${PAY_PATH}?etat=annule`,
+          success_url: `${origin}${PAY_PATH}?etat=merci${back}`,
+          cancel_url: `${origin}${PAY_PATH}?etat=annule${back}`,
           metadata,
           payment_intent_data: { metadata },
         }
