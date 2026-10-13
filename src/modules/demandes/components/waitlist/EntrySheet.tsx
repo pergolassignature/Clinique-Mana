@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
+import { useReadyAccess } from '@/core/access/access-context'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import {
   clinicTimeToUTC,
@@ -429,8 +430,16 @@ function FeeBlock({
       }
     )
   }
-  // Invoiced: Facturation follows the fee (F1); nothing to mark here.
+  // Invoiced: Facturation follows the fee (paid, refunded, credited); nothing to mark here.
   const editable = canEdit && e.fee_status !== 'invoiced'
+  const billing = useReadyAccess().modules.includes('billing')
+  const invoice = () => {
+    if (actions.invoice.isPending) return
+    actions.invoice.mutate(undefined, {
+      onSuccess: (number) => toast.success(t(`${E}.invoiced`, { number })),
+      onError: (failure) => toast.error(demandesError(failure)),
+    })
+  }
   return (
     <div className="space-y-2 text-sm">
       <p className="inline-flex items-center gap-1.5">
@@ -450,8 +459,20 @@ function FeeBlock({
           )}
         </p>
       )}
+      {e.fee_status === 'invoiced' && <p className="text-xs text-muted-foreground">{t(`${E}.invoicedHelp`)}</p>}
       {editable && !waiving && (
         <div className="flex flex-wrap gap-2">
+          {billing && e.fee_status === 'to_invoice' && e.client_id && (
+            <Button
+              type="button"
+              size="sm"
+              aria-disabled={actions.invoice.isPending || undefined}
+              onClick={invoice}
+              className="max-sm:h-11"
+            >
+              {t(`${E}.invoice`)}
+            </Button>
+          )}
           {e.fee_status !== 'paid' && (
             <Button
               type="button"

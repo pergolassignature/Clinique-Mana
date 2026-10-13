@@ -148,6 +148,7 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 
 ## What the module publishes
 
+- **For Demandes' waiting list (BI-19, migration `20261013152313_billing_source_hooks`):** `private.billing_create_waitlist_fee_invoice(org, client, entry, actor)` → (invoice id, number): the `waitlist_registration` service to the dossier's default payer, issued and sent (P3-40), never twice while one stands (source `waitlist_fee`). **`billing_source_hooks`** (source type → `private.<name>_billing_changed(org, source_id, invoice_id, state)`, like Clients' handler catalogues): an invoice of that source moving between `issued`, `paid` and `credited` calls its module's hook (trigger `invoices_source_hooks`), when that module is enabled.
 - **`private.billing_create_service_invoice(org, client, service, source_id, actor)`** → draft id: a service outside the agenda (Demandes' waiting-list fee, a report), priced today. Granted to no role.
 - **For Clients:** `private.billing_reassign_client(old, new)` and `private.billing_anonymize_client(id)` in the handler catalogues (a merge moves invoices and default payers; an anonymisation keeps the invoices and their amounts, blanks their notes, drops the default payers). Lane B's FQ adds its QuickBooks part to these two functions (`create or replace`).
 - **Coming:** `client_balance(client)`, `private.client_has_balance` (F3, replacing Rendez-vous' stub).
