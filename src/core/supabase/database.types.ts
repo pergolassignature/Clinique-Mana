@@ -9483,6 +9483,16 @@ export type Database = {
           status: string
         }[]
       }
+      get_mail_thread: { Args: { p_thread_id: string }; Returns: Json }
+      get_mail_threads_for_action: {
+        Args: { p_actor: string; p_org_id: string; p_thread_ids: string[] }
+        Returns: {
+          connection_id: string
+          gmail_thread_id: string
+          messages: Json
+          thread_id: string
+        }[]
+      }
       get_my_access: { Args: never; Returns: Json }
       get_my_image_consent: { Args: never; Returns: Json }
       get_my_professional_private: {
@@ -9807,6 +9817,32 @@ export type Database = {
           status: string
           sync_requested_at: string
           watch_expires_at: string
+        }[]
+      }
+      list_mail_threads: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_connection_id: string
+          p_label_id?: string
+          p_limit?: number
+          p_search?: string
+          p_view?: string
+        }
+        Returns: {
+          connection_id: string
+          gmail_thread_id: string
+          has_attachments: boolean
+          id: string
+          label_ids: string[]
+          last_from_address: string
+          last_from_name: string
+          last_message_at: string
+          link_status: string
+          message_count: number
+          snippet: string
+          subject: string
+          unread_count: number
         }[]
       }
       list_module_testers: {

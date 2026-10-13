@@ -85,7 +85,11 @@ export function useSyncMailConnection() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ connectionId, full }: { connectionId: string; full?: boolean }) => syncMailConnection(connectionId, full),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: mailKeys.connections() }),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: mailKeys.connections() }),
+        queryClient.invalidateQueries({ queryKey: mailKeys.threads() }),
+      ]),
   })
 }
 

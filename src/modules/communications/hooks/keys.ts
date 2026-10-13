@@ -1,11 +1,18 @@
+import type { ThreadListQuery } from '../api/inbox'
+
 /**
- * React Query keys of the Gmail side of the module (CM1):
+ * React Query keys of the Gmail side of the module (CM1, CM2):
  *
  * | Change                                          | Invalidated                                    |
  * |-------------------------------------------------|------------------------------------------------|
- * | a mailbox connected, synchronised, disconnected | `connections()`                                |
+ * | a mailbox connected, synchronised, disconnected | `connections()`, `threads()` (a sync brings    |
+ * |                                                 | new threads)                                   |
  * | the module settings (the Pub/Sub topic and the  | none: the RPC returns the effective settings,  |
  * | push's service account)                         | written into `settings()` as is                |
+ * | an action on threads (read, archive, star, a    | written into `threadLists()` and `thread(id)`  |
+ * | label: `gmail-modify`)                          | at once (optimistic), then `threadLists()`,    |
+ * |                                                 | each `thread(id)` and `connections()` (unread  |
+ * |                                                 | counts) once Gmail answered                    |
  *
  * The SMS side keeps its own root (`smsKeys`), so neither invalidates the other.
  */
@@ -13,6 +20,13 @@ export const mailKeys = {
   all: ['communications', 'mail'] as const,
   connections: () => [...mailKeys.all, 'connections'] as const,
   settings: () => [...mailKeys.all, 'settings'] as const,
+  /** Every thread list and thread. */
+  threads: () => [...mailKeys.all, 'threads'] as const,
+  threadLists: () => [...mailKeys.threads(), 'list'] as const,
+  threadList: (query: ThreadListQuery) =>
+    [...mailKeys.threadLists(), query.connectionId, query.view, query.labelId ?? null, query.search?.trim() || null] as const,
+  thread: (id: string) => [...mailKeys.threads(), 'one', id] as const,
+  labels: (connectionId: string) => [...mailKeys.all, 'labels', connectionId] as const,
 }
 
 /**

@@ -343,6 +343,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     oauthStateNonce: ['oauth.state_nonce', 1, 600],
     gmailCallbackUser: ['gmail.callback_user', 20, 3_600],
     gmailSyncUser: ['gmail.sync_user', 60, 3_600],
+    gmailModifyUser: ['gmail.modify_user', 600, 3_600],
     yeastarWebhookIp: ['webhooks.yeastar_ip', 600, 60],
     smsSendUser: ['sms.send_user', 60, 3_600],
     smsTestUser: ['sms.test_user', 5, 3_600],
