@@ -8369,6 +8369,16 @@
           "book": "Réserver {count} rendez-vous",
           "cancelRest": "Annuler aussi les rendez-vous suivants de la série",
           "cancelRestHelp": "Ce rendez-vous et ceux qui le suivent dans la série, avec la même raison."
+        },
+        "video": {
+          "title": "Vidéo",
+          "start": "Démarrer",
+          "zoom": "Réunion Zoom du rendez-vous",
+          "fixed": "Lien fixe du professionnel",
+          "pending": "Le lien Zoom se prépare : il sera envoyé au client dès qu'il est prêt.",
+          "failed": "La création de la réunion Zoom a échoué.",
+          "retry": "Réessayer",
+          "none": "Aucun lien vidéo : ce professionnel n'a ni Zoom connecté ni lien fixe."
         }
       },
       "availability": {

@@ -38,6 +38,7 @@ import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVari
 import { isoWeekday } from '../lib/time'
 import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
 import { SeriesFields } from './SeriesFields'
+import { VideoSection } from './VideoSection'
 
 const E = 'modules.appointments.editor'
 
@@ -416,6 +417,7 @@ function AppointmentTab({
   return (
     <>
       {a.state === 'held' && <p className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-sm">{t(`${E}.heldNotice`)}</p>}
+      {a.mode === 'video' && !a.isPersonal && a.state !== 'cancelled' && a.state !== 'held' && <VideoSection appointmentId={a.id} />}
       {detail.data?.outsideAvailabilityReason && (
         <p className="text-sm">
           <span className="text-muted-foreground">{t(`${E}.outsideBadge`)} : </span>
