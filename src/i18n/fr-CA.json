@@ -7379,7 +7379,8 @@
           "action": "Je la prends"
         },
         "stale": "Quelqu'un d'autre a modifié cette demande pendant que vous la changiez.",
-        "reload": "Recharger (vos changements seront perdus)"
+        "reload": "Recharger (vos changements seront perdus)",
+        "waitlistPermission": "Inscrire sur la liste d'attente demande la permission « Gérer la liste d'attente »."
       },
       "intake": {
         "file": {
@@ -7618,6 +7619,238 @@
         "referrer": "Page d’origine",
         "landing": "Page d’arrivée",
         "none": "Non indiquée"
+      },
+      "waitlist": {
+        "name": "Liste d'attente",
+        "states": {
+          "incomplete": "Incomplète",
+          "active": "Active",
+          "to_call": "À rappeler",
+          "offered": "Offre en cours",
+          "closed": "Sortie de la liste"
+        },
+        "fee": {
+          "status": {
+            "to_invoice": "Frais à facturer",
+            "invoiced": "Frais facturés",
+            "paid": "Frais payés",
+            "waived": "Frais exonérés"
+          }
+        },
+        "consent": {
+          "signed": "Consentement signé",
+          "resign": "Consentement signé (nouvelle version à signer)",
+          "pending": "Consentement envoyé, en attente de signature",
+          "missing": "Consentement à envoyer",
+          "not_required": "Consentement non exigé",
+          "none": "Consentement : sans objet"
+        },
+        "exit": {
+          "reasons": {
+            "placed": "Placée à la clinique",
+            "referred_elsewhere": "Orientée ailleurs",
+            "withdrew": "Ne souhaite plus",
+            "no_answer": "Sans réponse",
+            "other": "Autre raison"
+          }
+        },
+        "priority": {
+          "normal": "Normale",
+          "priority": "Prioritaire"
+        },
+        "rank": "{rank}e sur {size}",
+        "rankFirst": "1re sur {size}",
+        "waited": {
+          "today": "Inscrite aujourd'hui",
+          "one": "En attente depuis 1 jour",
+          "many": "En attente depuis {days} jours"
+        },
+        "followupUnanswered": "Sans réponse au courriel de suivi",
+        "contactLine": "{kind} : {outcome}",
+        "contactKinds": {
+          "call": "Appel",
+          "email": "Courriel",
+          "sms": "Texto",
+          "followup_email": "Courriel de suivi"
+        },
+        "outcomes": {
+          "reached": "Personne jointe",
+          "voicemail": "Message laissé",
+          "no_answer": "Pas de réponse",
+          "message_sent": "Message envoyé",
+          "wants_to_stay": "Souhaite rester sur la liste",
+          "wants_to_leave": "Ne souhaite plus attendre"
+        },
+        "offerResponses": {
+          "accepted": "acceptée",
+          "declined": "refusée",
+          "expired": "expirée",
+          "withdrawn": "retirée"
+        },
+        "register": {
+          "open": "Inscrire sur la liste d'attente",
+          "title": "Inscrire sur la liste d'attente",
+          "description": "Choisissez une profession, un professionnel, ou les deux. Les critères (disponibilités, mode, langue, motifs) viennent de l'onglet Accueil.",
+          "fileNeeded": "Rattachez d'abord le dossier du client (onglet Accueil) : l'inscription s'y rattache.",
+          "profession": "Profession",
+          "titleHelp": "Par exemple Psychologie : la personne prend la première place qui se libère dans cette profession.",
+          "professional": "Professionnel",
+          "professionalHelp": "Si la personne attend un professionnel précis.",
+          "none": "Aucun",
+          "optionCount": "{name} ({count} en attente)",
+          "priority": "Priorité",
+          "reason": "Pourquoi est-ce prioritaire ?",
+          "reasonHelp": "Visible des conseillères et de l'adjointe. Pas de renseignement clinique.",
+          "targetNeeded": "Choisissez une profession, un professionnel, ou les deux.",
+          "reasonNeeded": "Indiquez pourquoi l'inscription est prioritaire.",
+          "save": "Inscrire",
+          "saving": "Inscription…",
+          "done": "La demande est sur la liste d'attente."
+        },
+        "sheet": {
+          "title": "Inscription",
+          "subtitle": "{list} · {reference}",
+          "loadError": "L'inscription n'a pas pu être chargée. Fermez et réessayez.",
+          "state": "État",
+          "rank": "Rang",
+          "registered": "Inscrite le",
+          "criteria": "Critères",
+          "file": "Dossiers",
+          "openDemande": "Ouvrir la demande",
+          "openFile": "Consentements du dossier n° {number}",
+          "priorityTitle": "Priorité et professionnel « pont »",
+          "bridgeIs": "Suivie en attendant par {name}",
+          "completeTitle": "Inscription complète ?",
+          "completeHelp": "Elle devient « Active » quand le consentement « liste d'attente » est signé (s'il est exigé) et que les frais sont payés ou exonérés.",
+          "consentHelp": "Le consentement s'envoie depuis le dossier du client, onglet Consentements.",
+          "followUpTitle": "Suivi",
+          "nextContact": "Rappel prévu le {date}",
+          "noContact": "Aucun suivi noté.",
+          "contacts": "Suivis notés",
+          "offersTitle": "Offres de plage",
+          "exitTitle": "Sortir de la liste",
+          "saved": "Inscription enregistrée.",
+          "bridge": "Professionnel « pont »",
+          "bridgeHelp": "Un professionnel qui voit la personne en attendant sa place.",
+          "noBridge": "Aucun",
+          "feeSaved": "{status}.",
+          "feePrice": "{name} : {price}",
+          "feePriceTaxes": "{name} : {price} plus taxes",
+          "markPaid": "Frais payés",
+          "waive": "Exonérer les frais…",
+          "backToInvoice": "Remettre « à facturer »",
+          "waiveReason": "Raison de l'exonération",
+          "waiveHelp": "Par exemple PAE, IVAC ou une entente.",
+          "waiveSave": "Exonérer",
+          "contactSaved": "Suivi noté.",
+          "logContact": "Noter le suivi",
+          "kind": "Comment",
+          "outcome": "Résultat",
+          "callAgain": "Prévoir un rappel",
+          "nextDate": "Rappeler le",
+          "nextTime": "À",
+          "offerProNeeded": "Choisissez le professionnel.",
+          "offerSaved": "Offre notée : la personne est « Offre en cours ».",
+          "pendingOffer": "Offre de {name} du {date}, en attente de réponse",
+          "placed": "La personne est placée : la demande est jumelée.",
+          "accepted": "Acceptée (placer)",
+          "declined": "Refusée",
+          "withdrawn": "Retirée",
+          "addOffer": "Noter une offre faite par téléphone",
+          "offerIncomplete": "Une offre se note une fois l'inscription complète.",
+          "offerPro": "Professionnel qui offre la plage",
+          "choosePro": "Choisir un professionnel",
+          "slot": "Plage {n}",
+          "slotDate": "Plage {n} : date",
+          "slotStart": "Plage {n} : début",
+          "slotEnd": "Plage {n} : fin",
+          "addSlot": "Ajouter une plage (3 au plus)",
+          "saveOffer": "Noter l'offre",
+          "pastOffers": "Offres passées",
+          "pastOffer": "{date} · {name} · {response}",
+          "noOffer": "Aucune offre.",
+          "exited": "Sortie de la liste : {reason}.",
+          "exitHelp": "La personne quitte cette liste. Si c'était sa dernière inscription, la demande se ferme avec la même raison (ou est jumelée si elle est placée).",
+          "exitReason": "Raison",
+          "placedWith": "Placée avec",
+          "exit": "Sortir de la liste"
+        },
+        "page": {
+          "description": "Les personnes qui attendent une place, par profession ou par professionnel, dans l'ordre : les prioritaires d'abord, puis les plus anciennes.",
+          "label": "Inscriptions",
+          "list": "Liste",
+          "allLists": "Toutes les listes",
+          "professions": "Professions",
+          "professionals": "Professionnels",
+          "listOption": "{name} ({count})",
+          "noAverage": "Pas encore d'attente moyenne (aucune personne placée depuis 12 mois).",
+          "average": "Attente moyenne avant une place : {days} jours (12 derniers mois). Une estimation, jamais une promesse.",
+          "statesLabel": "Filtrer par état",
+          "openOnly": "En attente",
+          "filters": {
+            "incomplete": "Incomplètes",
+            "active": "Actives",
+            "to_call": "À rappeler",
+            "offered": "Offres en cours",
+            "closed": "Sorties"
+          },
+          "loadError": "La liste d'attente n'a pas pu être chargée.",
+          "emptyFiltered": "Personne dans cet état.",
+          "empty": "Personne n'attend sur cette liste.",
+          "emptyBody": "On inscrit une demande depuis son dossier (onglet Suivi, ou l'état « Liste d'attente »).",
+          "table": "Liste d'attente",
+          "columns": {
+            "rank": "Rang",
+            "person": "Personne",
+            "list": "Liste",
+            "registered": "Inscrite le",
+            "state": "État",
+            "complete": "Consentement et frais",
+            "actions": "Actions"
+          },
+          "pendingOffer": "Offre en attente de réponse",
+          "openFor": "Ouvrir l'inscription de {person}",
+          "open": "Ouvrir"
+        },
+        "card": {
+          "title": "Liste d'attente",
+          "description": "Les listes où attend cette demande, son rang et ce qui manque pour que l'inscription soit complète.",
+          "loadError": "Les inscriptions n'ont pas pu être chargées.",
+          "none": "Cette demande n'est sur aucune liste d'attente.",
+          "openFor": "Ouvrir l'inscription : {list}",
+          "open": "Ouvrir"
+        },
+        "settings": {
+          "title": "Liste d'attente",
+          "description": "Le suivi des personnes inscrites : quand les rappeler, et le courriel qui leur demande si elles souhaitent rester sur la liste.",
+          "loadError": "Les réglages n'ont pas pu être chargés.",
+          "weeksInvalid": "De 1 à 26 semaines.",
+          "daysInvalid": "De 3 à 30 jours.",
+          "saved": "Réglages de la liste d'attente enregistrés.",
+          "followUp": {
+            "title": "Suivi",
+            "description": "Chaque matin (7 h), la tâche « Suivi de la liste d'attente » marque « À rappeler » les inscriptions sans nouvelles et l'annonce aux conseillères. Activez la tâche dans Paramètres → Tâches planifiées.",
+            "weeks": "Rappeler après (semaines sans nouvelles)",
+            "weeksHelp": "8 semaines par défaut. Un appel où la personne est jointe remet le compteur à zéro.",
+            "email": "Envoyer le courriel « Souhaitez-vous rester sur la liste d'attente ? »",
+            "emailHelp": "Avec un lien « Oui / Non ». « Oui » évite l'appel ; « Non » retire la personne de la liste. Rien n'est envoyé tant que le module est réservé aux testeurs.",
+            "days": "Délai de réponse (jours)",
+            "daysHelp": "Sans réponse dans ce délai, l'inscription est marquée « Sans réponse au courriel de suivi »."
+          }
+        },
+        "answer": {
+          "title": "Liste d'attente",
+          "stayTitle": "Merci !",
+          "stayBody": "Vous restez sur la liste d'attente. Nous vous appelons dès qu'une place se libère.",
+          "leaveTitle": "C'est noté",
+          "leaveBody": "Vous êtes retirée ou retiré de la liste d'attente. Vous pouvez nous rappeler en tout temps.",
+          "invalid": "Ce lien ne peut plus être utilisé : il a déjà servi ou il a expiré. Appelez la clinique au besoin.",
+          "error": "Votre réponse n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique.",
+          "body": "Vous êtes sur la liste d'attente de {clinic} ({list}). Souhaitez-vous y rester ?",
+          "bodyNoList": "Vous êtes sur la liste d'attente de {clinic}. Souhaitez-vous y rester ?",
+          "stay": "Oui, je reste sur la liste",
+          "leave": "Non, retirez-moi de la liste"
+        }
       }
     },
     "appointments": {
