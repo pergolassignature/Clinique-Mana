@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Copy, Plus, X } from 'lucide-react'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
@@ -114,7 +114,14 @@ function SlotsCard({ settings, readOnly }: { settings: BookingSettings; readOnly
   const [draft, setDraft] = useState<Draft>(() => toDraft(settings))
   const [errors, setErrors] = useState<Partial<Record<'noticeHours' | 'horizonDays' | 'capacity' | 'weekly' | 'server', string>>>({})
   const save = useSaveBookingSettings({ onErrorMessage: (message) => setErrors({ server: message }) })
-  useEffect(() => setDraft(toDraft(settings)), [settings])
+  // A save elsewhere (« ouverte ») or a refetch brings new settings: an untouched draft follows them,
+  // an edited one is kept.
+  const previous = useRef(settings)
+  useEffect(() => {
+    const before = JSON.stringify(toDraft(previous.current))
+    previous.current = settings
+    setDraft((d) => (JSON.stringify(d) === before ? toDraft(settings) : d))
+  }, [settings])
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(settings))
   useUnsavedChanges(dirty && !readOnly)
 
