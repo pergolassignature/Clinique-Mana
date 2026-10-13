@@ -178,7 +178,14 @@ select functions_are('public', array[
   'prepare_waitlist_followup_for_service', 'mark_waitlist_followup_sent_for_service', 'resolve_waitlist_followup_link',
   'answer_waitlist_followup_for_service',
   -- Demandes, batch D3b (the discovery calls).
-  'list_discovery_calls', 'reschedule_demande_task', 'assign_demande_task'
+  'list_discovery_calls', 'reschedule_demande_task', 'assign_demande_task',
+  -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
+  'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
+  'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',
+  'disconnect_my_zoom_connection', 'zoom_deauthorized_for_service', 'get_zoom_credentials_for_service',
+  'set_zoom_tokens_for_service', 'mark_zoom_needs_reconnect_for_service', 'list_zoom_connections_to_refresh_for_service',
+  'claim_video_tasks_for_service', 'complete_video_task_for_service', 'video_link_email_for_service',
+  'mark_video_link_emailed_for_service'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

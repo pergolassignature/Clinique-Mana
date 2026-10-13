@@ -230,3 +230,14 @@ verify_jwt = false
 # Job communications.sms_dispatch (runJob verifies X-Job-Signature).
 [functions.sms-dispatch]
 verify_jwt = false
+# Rendez-vous RZ: a professional connects or disconnects her Zoom (verifyAuth, appointments.self).
+[functions.zoom-connect]
+verify_jwt = false
+[functions.zoom-callback]
+verify_jwt = false
+# Zoom's event notifications (app deauthorized): the org's secret token (x-zm-signature, HMAC-SHA256).
+[functions.zoom-deauthorize]
+verify_jwt = false
+# Job appointments.video_sync: X-Job-Signature (runJob).
+[functions.appointments-video-sync]
+verify_jwt = false
