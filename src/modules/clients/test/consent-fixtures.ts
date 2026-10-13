@@ -33,7 +33,7 @@ export const RULES: ConsentRule[] = [
   { id: 'r2', consentKey: 'waitlist', triggerKind: 'situation', target: 'liste d’attente', frequency: 'once', isActive: false },
 ]
 
-export const SETTINGS: ConsentSettings = { dueDays: 1, reminderDays: 7, preAppointmentHours: 48, retentionPolicy: null }
+export const SETTINGS: ConsentSettings = { dueDays: 1, reminderDays: 7, preAppointmentHours: 48, retentionPolicy: null, retentionYears: null }
 
 export const statusOf = (over: Partial<ClientConsentStatus> & Pick<ClientConsentStatus, 'consentKey' | 'state'>): ClientConsentStatus => ({
   versionLabel: null,
@@ -41,6 +41,12 @@ export const statusOf = (over: Partial<ClientConsentStatus> & Pick<ClientConsent
   requestId: null,
   dueAt: null,
   lastSentAt: null,
+  consentId: null,
+  withdrawnAt: null,
+  fileId: null,
+  source: null,
+  copySentAt: null,
+  inForce: false,
   ...over,
 })
 

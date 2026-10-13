@@ -58,12 +58,13 @@ export function ruleTriggerText(rule: Pick<ConsentRule, 'triggerKind' | 'target'
 }
 
 /**
- * The French text of a failed `clients-consent-send`: a refusal as written (no published text, no
- * authorised parent, no address, the module reserved for testers), a limit with its delay, the
- * shared texts of the other codes; anything else is reported (code and message only).
+ * The French text of a failed `clients-consent-send` (a request, or the signed copy with its own
+ * fallback): a refusal as written (no published text, no authorised parent, no address, no PDF,
+ * the module reserved for testers), a limit with its delay, the shared texts of the other codes;
+ * anything else is reported (code and message only).
  */
-export function consentSendErrorMessage(error: unknown): string {
-  if (!(error instanceof FunctionCallError)) return moduleErrorMessage(error, t(`${S}.sendError`), 'clients')
+export function consentSendErrorMessage(error: unknown, fallback: string = t(`${S}.sendError`)): string {
+  if (!(error instanceof FunctionCallError)) return moduleErrorMessage(error, fallback, 'clients')
   const text = functionErrorText(error, { service: 'email' })
   if (text !== null) return text
   if (error.code !== 'conflict') {
@@ -71,5 +72,5 @@ export function consentSendErrorMessage(error: unknown): string {
     report.name = `FunctionCallError ${error.code}`
     Sentry.captureException(report, { tags: { area: 'clients', code: error.code } })
   }
-  return t(`${S}.sendError`)
+  return fallback
 }

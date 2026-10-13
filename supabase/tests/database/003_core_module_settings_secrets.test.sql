@@ -256,8 +256,10 @@ select functions_are('public', array[
   'claim_video_tasks_for_service', 'complete_video_task_for_service', 'video_link_email_for_service',
   'mark_video_link_emailed_for_service',
   -- Clients, CC-13 (each consent text version's clauses).
-  'get_client_consent_clauses', 'set_client_consent_clauses'
-], 'public schema exposes exactly the intended RPCs');
+  'get_client_consent_clauses', 'set_client_consent_clauses',
+  -- Clients, batch C5b (withdrawal and the signed copy).
+  'withdraw_client_consent', 'prepare_client_consent_copy_for_service', 'mark_client_consent_copy_sent_for_service'
+],'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
   '23514', null, 'module settings must be a JSON object');

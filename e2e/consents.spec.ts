@@ -14,13 +14,17 @@ import type { Page } from '@playwright/test'
  *    with `VITE_DOCUMENSO_URL` so the frame is allowed): a request sent through
  *    `clients-consent-send` → listed « En attente » → its email in Mailpit → the public page
  *    (identity, « Oui / Non », the embedded signature) → « Merci ! » → no longer to obtain.
- *    Skipped when a piece is not running (CI).
+ *    Skipped when a piece is not running (CI). Then « Envoyer la copie signée » (C5b): the
+ *    sealed PDF attached to an email in Mailpit, « Copie envoyée le … ».
+ * 3. Always (C5b): « Retirer le consentement » on the seed's imported consent (Amélie Tremblay):
+ *    a note, then « Retiré le … ».
  */
 
 const API = 'http://127.0.0.1:55321'
 const FAKE_DOCUMENSO = 'http://127.0.0.1:55390'
 const CLIENT_ID = 'c11e0000-0000-0000-0000-000000000001'
 const CLIENT_EMAIL = 'camille.exemple@mana.test'
+const AMELIE_ID = 'c11e0000-0000-0000-0000-000000000002'
 
 async function publishGeneralFrench(page: Page) {
   await page.goto('/parametres/consentements')
@@ -134,4 +138,38 @@ test('sent, signed on the public page through the fake Documenso, then no longer
     await expect(page.getByRole('heading', { level: 1, name: 'Consentements à obtenir' })).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'Camille Exemple' })).toHaveCount(0)
   }).toPass({ timeout: 20_000 })
+
+  // C5b: « Envoyer la copie signée » from the record: the sealed PDF attached, the copy recorded.
+  await page.goto(`/clients/${CLIENT_ID}/consentements`)
+  const general = page.getByRole('listitem').filter({ has: page.getByText('Consentement général', { exact: true }) })
+  await general.getByRole('button', { name: 'Envoyer la copie signée' }).click()
+  const confirm = page.getByRole('alertdialog', { name: 'Envoyer la copie signée' })
+  await confirm.getByRole('button', { name: 'Envoyer la copie' }).click()
+  await expect(page.getByText('Copie envoyée.')).toBeVisible()
+  await expect(general.getByText(/^Copie envoyée le /)).toBeVisible()
+  const copy = (await latestMessageTo(CLIENT_EMAIL)) as Awaited<ReturnType<typeof latestMessageTo>> & { Attachments?: { FileName: string; ContentType: string }[] }
+  expect(copy.Subject).toMatch(/^Copie signée\s: Consentement général/)
+  expect(copy.Attachments?.map((a) => [a.FileName, a.ContentType])).toEqual([['Consentement général (signé).pdf', 'application/pdf']])
+})
+
+test('« Retirer le consentement »: a note, then « Retiré le … » (C5b, CC-16)', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto(`/clients/${AMELIE_ID}/consentements`)
+  const general = page.getByRole('listitem').filter({ has: page.getByText('Consentement général', { exact: true }) })
+  await expect(general.getByText('Importé de GOrendezvous')).toBeVisible()
+  // No sealed PDF for an imported signature: no copy to send.
+  await expect(general.getByRole('button', { name: 'Envoyer la copie signée' })).toHaveCount(0)
+  await general.getByRole('button', { name: 'Retirer le consentement' }).click()
+  const dialog = page.getByRole('alertdialog', { name: /^Retirer «\sConsentement général\s»$/ })
+  const note = dialog.getByRole('textbox', { name: /^Note/ })
+  await expect(note).toBeFocused()
+  await dialog.getByRole('button', { name: 'Retirer le consentement' }).click()
+  await expect(dialog.getByText(/^Notez comment le retrait a été reçu/)).toBeVisible()
+  await note.fill('Retrait demandé au téléphone (essai local).')
+  await dialog.getByRole('button', { name: 'Retirer le consentement' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByText('Consentement retiré.')).toBeVisible()
+  await expect(general.getByText('Retiré', { exact: true })).toBeVisible()
+  await expect(general.getByText(/^Retiré le /)).toBeVisible()
+  await expect(general.getByRole('button', { name: 'Retirer le consentement' })).toHaveCount(0)
 })

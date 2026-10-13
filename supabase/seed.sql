@@ -560,6 +560,13 @@ update public.document_template_versions v
    and t.org_id = '00000000-0000-0000-0000-000000000001'
    and t.key in ('clients.consent_general_fr', 'clients.consent_waitlist_fr');
 
+-- Local consent in force (C5b): Amélie Tremblay's « Consentement général », as the GOrendezvous
+-- import writes it (no PDF), so « Retirer le consentement » can be tried locally and in CI
+-- (e2e/consents.spec.ts). Fictitious.
+insert into public.client_consents (org_id, client_id, consent_key, language, version_label, signed_at, signed_by, source)
+values ('00000000-0000-0000-0000-000000000001', 'c11e0000-0000-0000-0000-000000000002', 'general', 'fr', 'GOrendezvous',
+        now() - interval '200 days', '[]', 'import');
+
 -- Rendez-vous (fictional, local only): Félix (professional n° 4, provider@mana.test) is available
 -- Monday to Friday 9:00–17:00; next week holds three appointments with the fictional clients, so
 -- « Agenda » shows something (e2e/appointments.spec.ts), written through the RPCs as the admin.

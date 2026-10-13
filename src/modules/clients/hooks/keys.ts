@@ -24,6 +24,8 @@ export const clientsKeys = {
  * | Change                                          | Invalidated                                  |
  * |-------------------------------------------------|----------------------------------------------|
  * | a consent sent, re-sent or cancelled            | `consentKeys.toObtain()`, `client(id)`       |
+ * | a consent withdrawn (and its file's history)     | `toObtain()`, `client(id)`, `history(id)`    |
+ * | its signed copy sent                            | `consentKeys.toObtain()`, `client(id)`       |
  * | a rule or the settings saved                    | `rules()` / `settings()` (written as is)     |
  * | a text published                                | `templates()`, `consentKeys.all` (flags)     |
  * | the public page                                 | none: component state only (a credential)    |
