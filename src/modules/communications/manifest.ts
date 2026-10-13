@@ -16,10 +16,13 @@ export const communicationsManifest: ModuleManifest = {
   labelKey: 'modules.communications.name',
   dependsOn: [],
   nav: [
+    // « Courriels » (CM2): the clinic's Gmail mailboxes, read in the app.
+    { path: '/courriels', labelKey: 'modules.communications.inbox.menu', icon: Mail, permission: 'communications.inbox', order: 20 },
     // « Textos » (batch SM): the conversations with the clinic's SMS number.
     { path: '/textos', labelKey: 'modules.communications.sms.nav', icon: MessageSquareText, permission: 'communications.sms', order: 21 },
   ],
   routes: [
+    { path: 'courriels', permission: 'communications.inbox', component: lazyPage(() => import('./pages/InboxPage'), 'InboxPage') },
     { path: 'textos', permission: 'communications.sms', component: lazyPage(() => import('./pages/SmsPage'), 'SmsPage') },
     // Where Google sends the browser back after « Connecter une boîte » (CM1): fixed, the
     // functions build the same address from APP_URL (`_shared/gmail/env.ts` RETURN_PATH).

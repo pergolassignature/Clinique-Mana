@@ -6350,7 +6350,8 @@
         "linkExpired": "La connexion a pris plus de 10 minutes. Recommencez la connexion de la boîte.",
         "linkUsed": "Ce retour de Google a déjà servi. Recommencez la connexion de la boîte au besoin.",
         "notFound": "Cette boîte n'est plus connectée. Rechargez la page.",
-        "rateLimited": "Trop de demandes Gmail en peu de temps."
+        "rateLimited": "Trop de demandes Gmail en peu de temps.",
+        "needsReconnect": "Google refuse l'accès à cette boîte : elle doit être reconnectée (Paramètres → Courriels Gmail)."
       },
       "googleReturn": {
         "title": "Connexion de la boîte Gmail",
@@ -6481,6 +6482,77 @@
               "loadError": "L'état des tâches planifiées n'a pas pu être chargé."
             }
           }
+        }
+      },
+      "inbox": {
+        "menu": "Courriels",
+        "title": "Courriels",
+        "description": "Les boîtes Gmail de la clinique, lues ici. Les réponses s'écrivent encore dans Gmail.",
+        "mailboxesLoadError": "Les boîtes n'ont pas pu être chargées.",
+        "noMailboxTitle": "Aucune boîte connectée",
+        "noMailboxBody": "Une personne qui gère les boîtes les connecte dans Paramètres → Courriels Gmail.",
+        "search": "Rechercher dans les courriels",
+        "searchPlaceholder": "Expéditeur, objet ou texte",
+        "actionPartialOne": "1 conversation n'a pas pu être modifiée dans Gmail. Réessayez.",
+        "actionPartialOther": "{count} conversations n'ont pas pu être modifiées dans Gmail. Réessayez.",
+        "messageFrame": "Contenu du courriel",
+        "nav": {
+          "label": "Boîtes et dossiers",
+          "mailbox": "Boîte",
+          "folder": "Dossier",
+          "inboxWithUnreadOne": "Boîte de réception (1 non lu)",
+          "inboxWithUnreadOther": "Boîte de réception ({count} non lus)",
+          "labels": "Libellés",
+          "views": {
+            "inbox": "Boîte de réception",
+            "unread": "Non lus",
+            "starred": "Suivis",
+            "sent": "Envoyés",
+            "all": "Tous les courriels"
+          }
+        },
+        "list": {
+          "label": "Conversations",
+          "loadError": "Les courriels n'ont pas pu être chargés.",
+          "empty": "Aucun courriel ici.",
+          "noResult": "Aucun courriel ne correspond à la recherche.",
+          "more": "Afficher plus de courriels",
+          "unknownSender": "(expéditeur inconnu)",
+          "noSubject": "(sans objet)",
+          "unread": "Non lu :",
+          "starred": "Suivi",
+          "attachments": "Pièces jointes"
+        },
+        "thread": {
+          "select": "Choisissez un courriel pour le lire.",
+          "back": "Retour aux courriels",
+          "loadError": "Ce courriel n'a pas pu être chargé.",
+          "gone": "Ce courriel n'est plus dans la boîte.",
+          "actions": "Actions sur la conversation",
+          "archive": "Archiver",
+          "toInbox": "Remettre dans la boîte de réception",
+          "markUnread": "Marquer comme non lu",
+          "star": "Suivre",
+          "unstar": "Ne plus suivre",
+          "labels": "Libellés",
+          "labelsHint": "Ajouter ou retirer un libellé",
+          "labelOn": "(appliqué)",
+          "labelOff": "(non appliqué)",
+          "openInGmail": "Ouvrir dans Gmail",
+          "openInGmailShort": "Gmail",
+          "messageLabel": "Courriel de {from}",
+          "to": "À : {to}",
+          "cc": "Cc : {cc}",
+          "purged": "Le contenu de ce courriel a été effacé après 24 mois. Il reste lisible dans Gmail.",
+          "noBody": "Ce courriel est vide.",
+          "imagesHeld": "Les images de ce courriel ne sont pas affichées : elles indiqueraient à l'expéditeur que le courriel a été ouvert.",
+          "showImages": "Afficher les images",
+          "attachmentsLabel": "Pièces jointes",
+          "unnamed": "Pièce jointe",
+          "attachmentPending": "copie en cours",
+          "attachmentInGmail": "dans Gmail seulement",
+          "sizeKb": "{size} ko",
+          "sizeMb": "{size} Mo"
         }
       }
     },

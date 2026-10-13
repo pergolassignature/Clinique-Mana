@@ -1,0 +1,11 @@
+import { t } from '@/i18n'
+
+/** Who wrote: the name, else the address, else « (expéditeur inconnu) ». */
+export function senderLabel(name: string | null, address: string | null): string {
+  return name?.trim() || address || t('modules.communications.inbox.list.unknownSender')
+}
+
+/** The thread in Gmail's web app, for what the app does not show (an attachment it did not copy). */
+export function gmailThreadUrl(mailbox: string, gmailThreadId: string): string {
+  return `https://mail.google.com/mail/?authuser=${encodeURIComponent(mailbox)}#all/${encodeURIComponent(gmailThreadId)}`
+}
