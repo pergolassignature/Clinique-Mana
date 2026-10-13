@@ -519,6 +519,26 @@ insert into public.clients (id, org_id, first_name, last_name, birthday, email, 
 values ('c11e0000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Camille', 'Exemple',
         date '1990-04-12', 'camille.exemple@mana.test', 'fr', '11111111-1111-1111-1111-111111111111');
 
+-- Local QuickBooks (Facturation, FQ; the module is on above, F1): the fake Intuit's application
+-- (`npm run fake:qbo`, port 55394; _shared/testing/fake-qbo.ts FAKE_QBO_CLIENT_ID / _SECRET), stored
+-- as set_org_secret stores it, and three fictitious clients the fake company's customers match:
+-- Amélie Tremblay by email (rattachée), Marc-Antoine Côté by phone and name (rattaché), Paul
+-- Bélanger sharing Julie Bélanger's phone under another name (à décider). Only Admin holds
+-- billing.settings (the template).
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'qbo_client_id',
+   vault.create_secret('local-dev-qbo-client-id', 'org:00000000-0000-0000-0000-000000000001:qbo_client_id')),
+  ('00000000-0000-0000-0000-000000000001', 'qbo_client_secret',
+   vault.create_secret('local-dev-qbo-client-secret', 'org:00000000-0000-0000-0000-000000000001:qbo_client_secret'));
+insert into public.clients (id, org_id, first_name, last_name, email, mobile_e164, language, created_by) values
+  ('c11e0000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Amélie', 'Tremblay',
+   'amelie.tremblay@example.test', null, 'fr', '11111111-1111-1111-1111-111111111111'),
+  ('c11e0000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Marc-Antoine', 'Côté',
+   null, '+15145550142', 'fr', '11111111-1111-1111-1111-111111111111'),
+  ('c11e0000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Paul', 'Bélanger',
+   null, '+14385550199', 'fr', '11111111-1111-1111-1111-111111111111');
+
 -- Local consent texts (C5a): the French « Consentement général » and « Liste d'attente » drafts lose
 -- the « Texte provisoire » line (the app never offers to publish a placeholder), so e2e can publish
 -- and sign them locally. Fictitious wording; the clinic's texts come with « Mise en service ».

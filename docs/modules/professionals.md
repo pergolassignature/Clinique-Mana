@@ -170,7 +170,7 @@ Other modules read these, never the raw tables (CLAUDE.md §5):
   - `private.professional_display_names(org, ids[])` → (professional_id, display_name « Prénom Nom »): Rendez-vous' video-link email, R4's reminders;
   - `private.professional_for_profile(org, profile)` → the professional of an account (the Zoom connection's actor);
   - `private.professional_profile_id(org, professional)` → her account (the reconnection notice).
-- **For Facturation's payroll (FPay, migration `20261013111019_professionals_payout_facts`, granted to no role; another clinic's ids answer nothing):**
+- **For Facturation's payroll (FPay, migration `20261013120845_professionals_payout_facts`, granted to no role; another clinic's ids answer nothing):**
   - `private.professional_session_pay(org, professional, client, duration, on)` → `(title_id, title_name, client_price_cents, retention_pct, pay_cents, source)`: an « Entente particulière » for that client and duration first (`agreement`), else the primary title's grid price less the retention in force on that date (`grid`), else why not (`no_title`, `no_price`, `no_rate`, pay null);
   - `private.professional_compensation_rate(org, kind, on)` → the clinic's retention for `workshop`, `late_cancellation` or `other_fees` on that date;
   - `private.professional_payout_facts(org, ids[])` → name, account, email, primary title (name and label), address, GST and QST numbers: what her invoice to the clinic prints; never the SIN nor the bank account.

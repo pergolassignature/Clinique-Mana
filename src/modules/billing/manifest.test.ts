@@ -9,6 +9,22 @@ describe('billingManifest', () => {
     expect(billingManifest.dependsOn).toEqual(['clients', 'services', 'professionals', 'appointments'])
   })
 
+  it('adds QuickBooks (FQ) to Paramètres, for billing.settings, and Intuit’s return route', () => {
+    expect(billingManifest.settingsSections.map((s) => [s.id, s.path, s.permission])).toEqual(
+      expect.arrayContaining([
+        ['quickbooks', 'quickbooks', 'billing.settings'],
+        ['quickbooks_customers', 'quickbooks-clients', 'billing.settings'],
+      ]),
+    )
+    expect(billingManifest.routes.map((r) => r.path)).toContain('facturation/retour-quickbooks')
+  })
+
+  it('names the QuickBooks tables and the map’s keys for the Journal d’audit', async () => {
+    const labels = await billingManifest.audit?.()
+    expect(labels?.tableLabel('qbo_account_map')).toBeTruthy()
+    expect(labels?.value('qbo_account_map', 'map_key', 'deposit.interac')).toBeTruthy()
+  })
+
   it('names its tables for the Journal d’audit', async () => {
     const labels = await billingManifest.audit?.()
     expect(labels?.tables).toContain('invoices')

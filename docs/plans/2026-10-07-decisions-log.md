@@ -743,6 +743,18 @@ The invoices ([coding plan §8](2026-10-11-modules-coding-plan.md), [module doc]
 | BI-5 | Payer | « Facturé à » is the client or a relation holding « recevoir reçus et factures », chosen per invoice (never split, R-61), defaulting to the dossier's dated default; organisations (IVAC, PAE) come with FP. Déléguée — révisable. | Christine's answer 11. |
 | BI-6 | What may be invoiced | Booked, confirmed or completed appointments of one dossier, a session line each, once (a credited invoice frees it); the file-opening fee on the dossier's first invoice; cancellation fees wait for F3 (the professional's decision). Déléguée — révisable. | R-59, plan §8. |
 
+## Facturation — QuickBooks (batch FQ part 1, lane B, 2026-10-13)
+
+The QuickBooks Online connection ([module doc](../modules/billing.md#quickbooks-fq-part-1-lane-b)), on F1's module.
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| FQ-1 | Where it lives | In F1's `billing` module (`billing.settings`): the `qbo_*` tables, two Paramètres sections and the return route. The accounts map is keyed on F1's `payment_modes` codes (`deposit.<code>` for each mode with `is_deposit`; `credit_note` lands no money and has no account). F1's two Clients handlers are replaced with F1's body kept and the QuickBooks part added. | One billing module (coordinator, 2026-10-13); a mode the clinic adds gets its own account row. |
+| FQ-2 | The connection | One QuickBooks company per clinic, its realm fixed once connected (another company is refused until « Déconnecter »); tokens encrypted under the PII key version, read only by a service RPC; the OAuth state signed and single-use, the return path fixed; a daily keep-alive job (`runJob`). | PS Hub keyed the connection by user, kept tokens in plain text and trusted an unsigned state (roadmap §2.6 bis). |
+| FQ-3 | Mirrors | `qbo_accounts` and `qbo_customers` are QuickBooks' data as last read, replaced at each sync, not audited (000_invariants); what a person decides (the map, a match) is audited. | The customers are names, emails and phones QuickBooks holds (Loi 25): auditing the mirror would copy them forever. |
+| FQ-4 | Read before write | Part 1 writes nothing to QuickBooks: it reads the chart and the customers (those GOrendezvous made) and matches them with Clients' own duplicate rules (I-5): HIGH → linked, MEDIUM or several → « à décider », none → nothing. The push of invoices and payments comes with F2's invoices, after the mapping is checked. | No duplicate customers at the cutover; the accountant sees the mapping before anything is sent. |
+| FQ-5 | Account defaults | Each map row is suggested from the clinic's chart (numbers 1075 / 1070 first, then names: « Services », « Ventes », « Fonds non déposés », « Compte courant », the title's name for an expense), marked « Suggéré »; a person's choice is never replaced, a vanished account empties a suggestion only. | Christine's answer 17; the accountant's chart decides. |
+
 ## Payroll (batch FPay, lane C, 2026-10-13)
 
 « Paie des professionnels » ([coding plan §8, FPay](2026-10-11-modules-coding-plan.md), [module doc](../modules/billing.md#paie-des-professionnels-fpay), Christine's answers 9, 14 and 17). Delegated decisions, revisable.
