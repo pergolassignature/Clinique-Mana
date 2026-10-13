@@ -108,6 +108,8 @@ export interface PaymentInput {
   amountCents: number
   paidOn: string
   reference: string | null
+  /** FP-14: optional, 500 characters (« Payé par le conjoint »…). */
+  note: string | null
 }
 
 /** A payment, its receipt sent to the payer at once. Returns the receipt's id. */
@@ -120,6 +122,7 @@ export async function recordPayment(input: PaymentInput): Promise<string> {
       p_amount_cents: input.amountCents,
       p_paid_on: input.paidOn,
       p_reference: input.reference,
+      p_note: input.note,
     }),
   )
   if (error) throw error
