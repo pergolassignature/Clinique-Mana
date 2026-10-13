@@ -39,6 +39,7 @@ Other modules read these, never the raw tables (CLAUDE.md §5):
 - **`get_service_price(p_service_id, p_title_id, p_variant, p_on, p_tax_exempt = false) → (price_cents, tax_rule, source, variant_applied)`** (definer, `services.view` first, the caller's clinic): for clients.
 - **`private.service_price(p_org, p_service_id, p_title_id, p_variant, p_on, p_tax_exempt)`**: the same, for definer callers in Rendez-vous and Facturation, after their own permission check, with the org they verified. Granted to no role. **The one place a price is computed.**
 - **`billing_policy_on(p_on)`**: the cancellation policy in force on a date (no row when none).
+- **`private.service_payout_facts(p_org, p_ids)`** (FPay, migration `20261013120848`): code, key, name, kind, duration, grid duration, active or not, family, for Facturation's payroll (its rules by service; a retired service too); `p_ids` null for every service. Granted to no role.
 - **Journal d'audit:** the manifest's `audit` loader (`lib/audit-labels.ts`): the five tables, their fields and values in French.
 
 ### What Rendez-vous, Facturation and Demandes must do
