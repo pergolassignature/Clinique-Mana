@@ -26,6 +26,8 @@ import {
 import { toast } from '@/shared/ui/sonner'
 import { StatusDot } from '@/shared/ui/status-dot'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
+import { TimeField } from '@/shared/ui/time-field'
 import {
   EXIT_REASONS,
   WAITLIST_CONTACT_KINDS,
@@ -631,22 +633,12 @@ function ContactForm({ actions }: { actions: Actions }) {
         <FormRow>
           <FormField label={t(`${E}.nextDate`)}>
             {(field) => (
-              <Input
-                {...field}
-                type="date"
-                value={date}
-                onChange={(ev) => setDate(ev.target.value)}
-              />
+              <DateField {...field} value={date} onChange={setDate} />
             )}
           </FormField>
           <FormField label={t(`${E}.nextTime`)}>
             {(field) => (
-              <Input
-                {...field}
-                type="time"
-                value={time}
-                onChange={(ev) => setTime(ev.target.value)}
-              />
+              <TimeField {...field} value={time} onChange={setTime} />
             )}
           </FormField>
         </FormRow>
@@ -834,42 +826,27 @@ function OffersBlock({
                 {t(`${E}.slot`, { n: String(i + 1) })}
               </legend>
               <div className="flex flex-wrap gap-2">
-                <Input
-                  type="date"
+                <DateField
                   aria-label={t(`${E}.slotDate`, { n: String(i + 1) })}
                   value={s.date}
-                  onChange={(ev) =>
-                    setSlots(
-                      slots.map((x, j) =>
-                        j === i ? { ...x, date: ev.target.value } : x
-                      )
-                    )
+                  onChange={(date) =>
+                    setSlots((all) => all.map((x, j) => (j === i ? { ...x, date } : x)))
                   }
                   className="w-40"
                 />
-                <Input
-                  type="time"
+                <TimeField
                   aria-label={t(`${E}.slotStart`, { n: String(i + 1) })}
                   value={s.start}
-                  onChange={(ev) =>
-                    setSlots(
-                      slots.map((x, j) =>
-                        j === i ? { ...x, start: ev.target.value } : x
-                      )
-                    )
+                  onChange={(start) =>
+                    setSlots((all) => all.map((x, j) => (j === i ? { ...x, start } : x)))
                   }
                   className="w-28"
                 />
-                <Input
-                  type="time"
+                <TimeField
                   aria-label={t(`${E}.slotEnd`, { n: String(i + 1) })}
                   value={s.end}
-                  onChange={(ev) =>
-                    setSlots(
-                      slots.map((x, j) =>
-                        j === i ? { ...x, end: ev.target.value } : x
-                      )
-                    )
+                  onChange={(end) =>
+                    setSlots((all) => all.map((x, j) => (j === i ? { ...x, end } : x)))
                   }
                   className="w-28"
                 />

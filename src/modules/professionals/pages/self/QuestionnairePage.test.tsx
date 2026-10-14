@@ -709,7 +709,7 @@ describe('QuestionnairePage — files', () => {
     mocks.uploadFile.mockResolvedValue({ fileId: '00000000-0000-4000-8000-0000000f0002' })
     renderPage('assurance')
     await stepTitle('insurance')
-    expect(screen.getByLabelText(new RegExp(t(`${Q}.files.expiry`)))).toHaveValue('2027-03-31')
+    expect(screen.getByLabelText(new RegExp(t(`${Q}.files.expiry`)))).toHaveValue('31 mars 2027')
     chooseFile(new File([new TextEncoder().encode('%PDF-1.7\n')], 'assurance.pdf', { type: 'application/pdf' }))
     await waitFor(() =>
       expect(mocks.self.saveMySubmissionDraft).toHaveBeenCalledWith('insurance', { file_id: '00000000-0000-4000-8000-0000000f0002', expires_on: '2027-03-31' }),

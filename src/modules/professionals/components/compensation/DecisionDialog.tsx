@@ -1,5 +1,5 @@
 import { useMemo, useRef, type RefObject } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { t } from '@/i18n'
 import { rpcErrorHint } from '@/core/modules/errors'
@@ -168,9 +168,8 @@ function DecisionForm({ target, firstFieldRef, pending, refusal, dateError, onSu
   })
   const { errors } = form.formState
   useDateErrorOnField(form.setError, 'effectiveFrom', dateError)
-  const effectiveFrom = useWatch({ control: form.control, name: 'effectiveFrom' })
   const { ref: pctRef, ...pctField } = form.register('pct')
-  const { ref: fromRef, ...fromField } = form.register('effectiveFrom')
+  const { field: from } = useController({ control: form.control, name: 'effectiveFrom' })
 
   return (
     <DialogForm
@@ -199,14 +198,13 @@ function DecisionForm({ target, firstFieldRef, pending, refusal, dateError, onSu
         </FormField>
       )}
       <EffectiveFromField
-        registration={{
-          ...fromField,
+        input={{
+          ...from,
           ref: (element: HTMLInputElement | null) => {
-            fromRef(element)
+            from.ref(element)
             if (!typed) firstFieldRef.current = element
           },
         }}
-        value={effectiveFrom}
         error={errors.effectiveFrom?.message}
         min={target.minDate}
         help={t(`${D}.fromHelp`)}

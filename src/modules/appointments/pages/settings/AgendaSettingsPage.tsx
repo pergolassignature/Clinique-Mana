@@ -13,6 +13,7 @@ import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
+import { TimeField } from '@/shared/ui/time-field'
 import type { AgendaSettings } from '../../api/changes'
 import { useAgendaSettings, useSaveAgendaSettings } from '../../hooks/use-agenda'
 
@@ -138,10 +139,10 @@ function HoursCard({ settings, readOnly }: { settings: AgendaSettings; readOnly:
       </fieldset>
       <FormRow>
         <FormField label={t(`${S}.businessStart`)} width="sm" error={errors.businessStart?.message}>
-          {(field) => <Input {...field} {...form.register('businessStart')} type="time" step={900} readOnly={readOnly} />}
+          {(field) => <Controller control={form.control} name="businessStart" render={({ field: control }) => <TimeField {...field} {...control} readOnly={readOnly} />} />}
         </FormField>
         <FormField label={t(`${S}.businessEnd`)} width="sm" error={errors.businessEnd?.message}>
-          {(field) => <Input {...field} {...form.register('businessEnd')} type="time" step={900} readOnly={readOnly} />}
+          {(field) => <Controller control={form.control} name="businessEnd" render={({ field: control }) => <TimeField {...field} {...control} readOnly={readOnly} />} />}
         </FormField>
       </FormRow>
       <FormRow>

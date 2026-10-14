@@ -21,6 +21,8 @@ import { closeButtonClasses } from '@/shared/ui/overlay-classes'
 import { Select } from '@/shared/ui/select'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
+import { TimeField } from '@/shared/ui/time-field'
 import type { AgendaReference, SeriesRule } from '../api/agenda'
 import { MODES, PRESENCES, type AgendaAppointment, type AppointmentMode, type Presence } from '../api/parse'
 import {
@@ -249,10 +251,10 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
         </FormRow>
         <FormRow>
           <FormField label={t(`${E}.date`)} width="sm" required>
-            {(field) => <Input {...field} type="date" value={day} onChange={(e) => setDay(e.target.value)} />}
+            {(field) => <DateField {...field} value={day} onChange={setDay} />}
           </FormField>
           <FormField label={t(`${E}.time`)} width="sm" required help={service ? t(`${E}.slotHelp`, { duration: String(service.durationMinutes), buffer: String(service.bufferAfterMinutes) }) : undefined}>
-            {(field) => <Input {...field} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />}
+            {(field) => <TimeField {...field} value={time} onChange={setTime} />}
           </FormField>
           <FormField label={t(`${E}.mode`)} width="sm">
             {(field) => (
@@ -562,10 +564,10 @@ function AppointmentTab({
           <h3 className="text-sm font-medium">{t(`${E}.move`)}</h3>
           <FormRow>
             <FormField label={t(`${E}.date`)} width="sm">
-              {(field) => <Input {...field} type="date" value={day} onChange={(e) => setDay(e.target.value)} />}
+              {(field) => <DateField {...field} value={day} onChange={setDay} />}
             </FormField>
             <FormField label={t(`${E}.time`)} width="sm">
-              {(field) => <Input {...field} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />}
+              {(field) => <TimeField {...field} value={time} onChange={setTime} />}
             </FormField>
             {!a.isPersonal && (
               <FormField label={t(`${E}.professional`)} width="md">
