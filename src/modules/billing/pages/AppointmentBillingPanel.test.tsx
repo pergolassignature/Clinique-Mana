@@ -12,9 +12,11 @@ import { AppointmentBillingPanel } from './AppointmentBillingPanel'
 
 const mocks = vi.hoisted(() => ({
   api: { fetchAppointmentBilling: vi.fn(), createInvoice: vi.fn() },
+  followUp: { decideFee: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/invoices', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
+vi.mock('../api/follow-up', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.followUp }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -95,5 +97,20 @@ describe('AppointmentBillingPanel (L10)', () => {
     })
     expect(await screen.findByText('Annulation tardive · À décider')).toBeInTheDocument()
     expect(screen.getByText(/87,50.*\(50 % de la séance\)/)).toBeInTheDocument()
+    expect(screen.getByText(t(`${A}.feeWho`))).toBeInTheDocument()
+  })
+
+  it('a fee to decide: the adjointe decides for the professional here', async () => {
+    mocks.followUp.decideFee.mockResolvedValue(undefined)
+    renderPanel({ ...base, state: 'cancelled', invoiceable: false, preview: null, fee: { kind: 'no_show', status: 'pending', fee_percent: 50, amount_cents: 8750, invoice_id: null, invoice_number: null } })
+    await userEvent.click(await screen.findByRole('button', { name: t('modules.billing.fees.apply') }))
+    await waitFor(() => expect(mocks.followUp.decideFee).toHaveBeenCalledWith('e1', true, null))
+    expect(screen.getByRole('button', { name: t('modules.billing.fees.waive') })).toBeInTheDocument()
+  })
+
+  it('a fee to decide, read only (conseillère): who decides and a link to the list, no button', async () => {
+    renderPanel({ ...base, state: 'cancelled', invoiceable: false, preview: null, fee: { kind: 'late_cancellation', status: 'pending', fee_percent: 50, amount_cents: 8750, invoice_id: null, invoice_number: null } }, 'counselor')
+    expect(await screen.findByRole('link', { name: t(`${A}.feeOpenList`) })).toHaveAttribute('href', '/facturation?vue=frais')
+    expect(screen.queryByRole('button', { name: t('modules.billing.fees.apply') })).not.toBeInTheDocument()
   })
 })

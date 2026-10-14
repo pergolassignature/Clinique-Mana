@@ -9,19 +9,24 @@ import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/sof
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { toast } from '@/shared/ui/sonner'
 import type { AppointmentBilling } from '../api/invoices'
+import { useDecideFee } from '../hooks/use-follow-up'
 import { useAppointmentBilling, useCreateInvoice } from '../hooks/use-invoices'
 import { formatCents, lineTypeLabel, paymentLabel, paymentVariant, statusLabel, statusVariant } from '../lib/money'
 
 const A = 'modules.billing.appointment'
 const FEE = 'modules.billing.audit.values.cancellation_fee_decisions'
+const F = 'modules.billing.fees'
 
 /**
  * « Facturation » in Rendez-vous' appointment sheet (slot `appointment.sheet`, `billing.view`; parity
  * audit L10): the appointment's invoice lines (its session, its cancellation fee) with their
  * invoice's state and payment, each opening its invoice; not invoiced yet, the price
  * `create_invoice` would put (and the file-opening fee of a first invoice) and « Créer la facture »
- * (`billing.manage`); a late cancellation's or an absence's fee and its decision.
+ * (`billing.manage`); a late cancellation's or an absence's fee and its decision. A fee to decide
+ * says who decides (R-59, BI-16: the professional in « Mon agenda », the adjointe for her): with
+ * `billing.manage`, the same two buttons as « Frais d'annulation »; otherwise a link to that tab.
  */
 export function AppointmentBillingPanel() {
   const target = useSlotTarget('appointment.sheet')
@@ -40,6 +45,15 @@ function BillingBody({ b, appointmentId }: { b: AppointmentBilling; appointmentI
   const navigate = useNavigate()
   const [refusal, setRefusal] = useState<string | null>(null)
   const create = useCreateInvoice({ onErrorMessage: setRefusal })
+  const decide = useDecideFee({ onErrorMessage: setRefusal })
+  const decideFee = (apply: boolean) =>
+    ignoreWhenInactive(decide.isPending, () => {
+      setRefusal(null)
+      decide.mutate(
+        { appointmentId, apply, note: null },
+        { onSuccess: () => toast.success(t(apply ? 'modules.billing.saved.feeApplied' : 'modules.billing.saved.feeWaived')) },
+      )
+    })
   const live = b.lines.filter((l) => !l.credited)
   const credited = b.lines.filter((l) => l.credited)
   return (
@@ -121,6 +135,25 @@ function BillingBody({ b, appointmentId }: { b: AppointmentBilling; appointmentI
             <Link to={`/facturation/factures/${b.fee.invoice_id}`} className="text-link underline-offset-2 hover:underline">
               {b.fee.invoice_number ? t(`${A}.invoice`, { number: b.fee.invoice_number }) : t(`${A}.draft`)}
             </Link>
+          )}
+          {b.fee.status === 'pending' && (
+            <>
+              <p className="text-muted-foreground">{t(`${A}.feeWho`)}</p>
+              {can('billing.manage') ? (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button type="button" size="sm" variant="outline" aria-disabled={decide.isPending || undefined} className={cn(softDisabledClasses, 'max-sm:h-11')} onClick={decideFee(false)}>
+                    {t(`${F}.waive`)}
+                  </Button>
+                  <Button type="button" size="sm" aria-disabled={decide.isPending || undefined} className={cn(softDisabledClasses, 'max-sm:h-11')} onClick={decideFee(true)}>
+                    {t(`${F}.apply`)}
+                  </Button>
+                </div>
+              ) : (
+                <Link to="/facturation?vue=frais" className="block text-link underline-offset-2 hover:underline">
+                  {t(`${A}.feeOpenList`)}
+                </Link>
+              )}
+            </>
           )}
         </div>
       )}
