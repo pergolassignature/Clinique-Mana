@@ -19,7 +19,8 @@ const API = 'http://127.0.0.1:55321'
 const FELIX = '5eed0000-0000-0000-0000-000000000004'
 const CAMILLE = 'c11e0000-0000-0000-0000-000000000001'
 const APPTS = ['e2e01600-0000-4000-8000-000000000001', 'e2e01600-0000-4000-8000-000000000002']
-const TOKENS = ['L16change' + 'a'.repeat(34), 'L16cancel' + 'b'.repeat(34)]
+/** Well-formed tokens (43 base64url characters of 32 bytes: the last one ends on zero bits). */
+const TOKENS = ['L16change' + 'a'.repeat(33) + 'A', 'L16cancel' + 'b'.repeat(33) + 'A']
 
 function cleanUp(): void {
   localSql(`
