@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -161,12 +161,21 @@ export function FeeDecisions({ mine = false }: { mine?: boolean }) {
   )
 }
 
-/** « Mon agenda » (slot `agenda.mine`): the professional's fees to decide; nothing when none. */
+/**
+ * « Mon agenda » (slot `agenda.mine`, under the agenda): the professional's fees to decide; nothing
+ * when none. Accueil links here with `#frais`: the panel scrolls into view once it has loaded.
+ */
 export function MyFeesPanel() {
   const fees = useFeeDecisions('pending')
-  if (!fees.data || fees.data.length === 0) return null
+  const { hash } = useLocation()
+  const section = useRef<HTMLElement>(null)
+  const shown = !!fees.data && fees.data.length > 0
+  useEffect(() => {
+    if (shown && hash === '#frais') section.current?.scrollIntoView({ block: 'start' })
+  }, [shown, hash])
+  if (!shown) return null
   return (
-    <section className="space-y-2" aria-labelledby="my-fees">
+    <section ref={section} id="frais" className="scroll-mt-4 space-y-2" aria-labelledby="my-fees">
       <h2 id="my-fees" className="text-base font-semibold">
         {t(`${F}.mineTitle`)}
       </h2>

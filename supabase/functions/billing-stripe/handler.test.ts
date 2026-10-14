@@ -91,6 +91,29 @@ Deno.test('billing-stripe: card_link makes the customer once, issues the link an
     )
   }))
 
+Deno.test('billing-stripe: « Renvoyer le lien » is an explicit resend; a refused email is a 429 with its delay', () =>
+  run(async () => {
+    const buckets: string[] = []
+    const { handler } = setup({
+      rpc: {
+        consume_rate_limit: (args: Record<string, unknown>) => {
+          buckets.push(String(args.p_bucket))
+          return args.p_bucket === 'emails.repeat_guard'
+            ? { data: [{ allowed: false, hits: 2, retry_after_seconds: 4 }] }
+            : { data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }] }
+        },
+      },
+    })
+    const res = await handler(
+      post({ action: 'card_link', payer_client_id: PAYER }),
+    )
+    assertEquals(res.status, 429)
+    assertEquals(res.headers.get('Retry-After'), '4')
+    assertEquals((await res.json()).error.code, 'rate_limited')
+    assert(buckets.includes('emails.repeat_guard'), 'the double-click guard')
+    assert(!buckets.includes('emails.same_address'), 'not the 60 s limit')
+  }))
+
 Deno.test('billing-stripe: an existing customer is reused; English payers get the English template', () =>
   run(async () => {
     const { handler, service, stripe } = setup({

@@ -222,9 +222,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
             },
             actionUrl: linkUrl(deps.env('APP_URL') ?? '', CARD_PATH, token),
             sentBy: actor,
+            // A person's click (« Envoyer le lien », « Renvoyer le lien »): the 5 s double-click
+            // guard, not the 60 s same-address limit, as every « Renvoyer » of the app.
+            explicitResend: true,
           },
         )
         if (result.ok) return jsonResponse({ sent: true }, 200, req)
+        if (result.code === 'rate_limited') {
+          // « Trop de demandes en peu de temps. Réessayez dans … », not a failure to report.
+          const res = errorResponse('rate_limited', 'Too many emails', 429, req)
+          res.headers.set('Retry-After', String(result.retryAfter))
+          return res
+        }
         if (result.code === 'module_reserved') {
           return errorResponse(
             'conflict',
