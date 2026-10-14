@@ -51,6 +51,13 @@ export const billingManifest: ModuleManifest = {
   // Accueil « Facturation à traiter » (L29): the morning queue, the unpaid, Interac to match, payers to invoice.
   homeCards: [
     { id: 'billing-queue', permission: 'billing.view', component: lazyPage(() => import('./components/BillingHomeCard'), 'BillingHomeCard') },
+    // A professional's fees to decide (R-59), linking to the panel under « Mon agenda ».
+    {
+      id: 'billing-my-fees',
+      permission: 'billing.self',
+      shownWhen: (access) => access.has_professional_file,
+      component: lazyPage(() => import('./components/MyFeesHomeCard'), 'MyFeesHomeCard'),
+    },
   ],
   routes: [
     { path: 'facturation', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage') },
