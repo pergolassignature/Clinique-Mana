@@ -6779,7 +6779,7 @@
           "none": "Aucun consentement",
           "record": "Enregistrer le consentement",
           "withdraw": "Retirer le consentement",
-          "newNumber": "Nouveau numéro",
+          "newNumber": "Ajouter un numéro (consentement)",
           "dialogTitle": "Consentement aux textos",
           "dialogDescription": "Notez le consentement que la personne a donné (au téléphone, en personne). Un texto lui est envoyé aussitôt avec le texte de consentement de la clinique, qui dit comment se désabonner (ARRÊT).",
           "withdrawTitle": "Retirer le consentement aux textos",
