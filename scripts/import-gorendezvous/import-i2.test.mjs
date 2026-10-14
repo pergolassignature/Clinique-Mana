@@ -143,6 +143,18 @@ const EMPLOYEES = 'Employé;Professionnel;Exclure\nPro Alpha;Pro Alpha;non\nPro 
 const LINES = `Date;Facture;Client;Professionnel;Service;Code;Quantité;Prix;TPS;TVQ;Total
 2026-08-02;2026-0000009;Client Fictif Cinq;Pro Alpha;Inscription – Liste attente;50100;1;18,91 $;0,95 $;1,89 $;21,75 $
 `
+// The clients export: each name held by one ClientId (no homonym).
+const CLIENTS = `ClientId;FirstName;LastName
+77;Client;Fictif Un
+78;Client;Fictif Deux
+79;Client;Fictif Trois
+80;Client;Fictif Quatre
+81;Client;Fictif Cinq
+82;Parent;Fictif
+`
+// … and with a homonym: two ClientIds named « Client Fictif Deux ».
+const HOMONYMS = `${CLIENTS}83;CLIENT;fictif deux
+`
 function setup({ answers = [], results = {}, texts = {} } = {}) {
   const output = []
   const report = { path: 'rapport.txt', text: '', write: vi.fn((t) => (report.text += t)), close: vi.fn() }
@@ -156,7 +168,7 @@ function setup({ answers = [], results = {}, texts = {} } = {}) {
     from: vi.fn((view) => ({ select: async () => ({ data: view === 'professionals_directory' ? directory : view === 'services_catalog' ? [{ code: 10150 }, { code: 20170 }] : [], error: null }) })),
     rpc: vi.fn(async (fn, { p_row, p_dry_run }) => ({ data: results[p_row.external_ref ?? p_row.consent_key ?? p_row.client_name] ?? { status: 'ok', dry_run: p_dry_run }, error: null })),
   }
-  const files = { 'rdv.csv': APPOINTMENTS, 'emp.csv': EMPLOYEES, 'l.csv': LINES, ...texts }
+  const files = { 'rdv.csv': APPOINTMENTS, 'emp.csv': EMPLOYEES, 'l.csv': LINES, 'cl.csv': CLIENTS, ...texts }
   const deps = {
     env: { VITE_SUPABASE_ANON_KEY: 'anon' },
     out: (line) => output.push(line),
@@ -175,13 +187,16 @@ const CLEAN = `Id;Date;Heure;Client;ClientId;Professionnel;Service;Code;Statut
 603;2026-11-20;9:30;Client Fictif Deux;;Pro Alpha;Psychothérapie individuelle 50 min;10150;
 604;2026-08-01;8:00;Client Fictif Quatre;;conseillère;Inscription – Liste attente;;
 `
-const RDV = ['rendez-vous', '--appointments', 'rdv.csv', '--employees', 'emp.csv', '--lines', 'l.csv', '--report', 'rapport.txt']
+const RDV = ['rendez-vous', '--appointments', 'rdv.csv', '--employees', 'emp.csv', '--lines', 'l.csv', '--clients', 'cl.csv', '--report', 'rapport.txt']
 
 describe('import-gorendezvous rendez-vous, consentements, payeurs', () => {
   it('the command line', () => {
     expect(() => parseCli(['rendez-vous', '--appointments', 'a.csv'])).toThrow(/--employees/)
     expect(() => parseCli(['consentements'])).toThrow(/--consents/)
     expect(() => parseCli(['payeurs'])).toThrow(/--invoices/)
+    expect(() => parseCli(['consentements', '--consents', 'c.csv'])).toThrow(/--clients <csv> \(l’export des clients\)/)
+    expect(() => parseCli(['payeurs', '--invoices', 'f.csv'])).toThrow(/--clients/)
+    expect(() => parseCli(['rendez-vous', '--appointments', 'a.csv', '--employees', 'e.csv'])).toThrow(/--clients/)
     expect(() => parseCli([...RDV, '--waitlist-profession', 'Psy chologue'])).toThrow(/clé d’une profession/)
     expect(parseCli(RDV).waitlistProfession).toBe('psychologue')
   })
@@ -224,7 +239,7 @@ describe('import-gorendezvous rendez-vous, consentements, payeurs', () => {
   it('consentements: dry run then import after « importer »; already in force counted', async () => {
     const consents = 'ClientId;Client;Formulaire;Signé le\n77;Client Fictif Un;Consentement général;2024-05-06\n78;Client Fictif Deux;Coaching;2024-06-01\n'
     const { deps, client, output } = setup({ answers: ['adjointe@mana.test', 'importer'], results: { coaching: { status: 'skipped', reason: 'Déjà en vigueur' } }, texts: { 'c.csv': consents } })
-    expect(await run(['consentements', '--consents', 'c.csv', '--commit'], deps)).toBe(0)
+    expect(await run(['consentements', '--consents', 'c.csv', '--clients', 'cl.csv', '--commit'], deps)).toBe(0)
     expect(client.rpc.mock.calls.filter(([fn, a]) => fn === 'import_client_consent' && a.p_dry_run === false)).toHaveLength(2)
     expect(output).toContain('Importés : 1 ; déjà importés : 1 ; en erreur : 0')
     expect(output.join('\n')).not.toMatch(personal)
@@ -233,8 +248,59 @@ describe('import-gorendezvous rendez-vous, consentements, payeurs', () => {
   it('payeurs: a payer without the right is listed', async () => {
     const invoices = 'Date;Facture;Client;Total;Payé par\n2026-09-01;2026-0000002;Client Fictif Un;100,00 $;Parent Fictif\n2026-09-01;2026-0000003;Client Fictif Deux;100,00 $;IVAC\n'
     const { deps, output } = setup({ answers: ['adjointe@mana.test'], results: { 'Client Fictif Un': { status: 'unmatched', reason: 'payer_not_allowed' } }, texts: { 'f.csv': invoices } })
-    expect(await run(['payeurs', '--invoices', 'f.csv'], deps)).toBe(0)
+    expect(await run(['payeurs', '--invoices', 'f.csv', '--clients', 'cl.csv'], deps)).toBe(0)
     expect(output.some((l) => l.includes('« recevoir reçus et factures »') && l.includes('lignes 2'))).toBe(true)
     expect(output.join('\n')).not.toMatch(personal)
+  })
+
+  it('homonyms: a row naming one without its ClientId stops the run before the database (rendez-vous, consentements)', async () => {
+    const rdv = setup({ answers: ['adjointe@mana.test'], texts: { 'cl.csv': HOMONYMS, 'rdv.csv': CLEAN } })
+    expect(await run(RDV, rdv.deps)).toBe(2)
+    expect(rdv.client.rpc).not.toHaveBeenCalled()
+    expect(rdv.output).toContain('== Clients homonymes dans l’export des clients : 1 ligne(s) de l’export des rendez-vous sans ClientId')
+    expect(rdv.output).toContain('  - lignes 4')
+    expect(rdv.output.at(-2)).toMatch(/l’export doit donner son ClientId \(colonne ClientId\), puis relancez : rien n’a été fait\.$/)
+    expect(rdv.output.join('\n')).not.toMatch(personal)
+
+    const consents = 'ClientId;Client;Formulaire;Signé le\n;Client Fictif Deux;Coaching;2024-06-01\n78;Client Fictif Deux;Consentement général;2024-06-01\n'
+    const c = setup({ answers: ['adjointe@mana.test'], texts: { 'cl.csv': HOMONYMS, 'c.csv': consents } })
+    expect(await run(['consentements', '--consents', 'c.csv', '--clients', 'cl.csv'], c.deps)).toBe(2)
+    expect(c.client.rpc).not.toHaveBeenCalled()
+    expect(c.output).toContain('  - lignes 2')
+  })
+
+  it('homonyms: a ClientId the clients import refuses (none, or seen twice) makes its name unsure', async () => {
+    const unsure = `${CLIENTS};Client;Fictif Un\n`
+    const consents = 'ClientId;Client;Formulaire;Signé le\n;Client Fictif Un;Coaching;2024-06-01\n'
+    const c = setup({ answers: ['adjointe@mana.test'], texts: { 'cl.csv': unsure, 'c.csv': consents } })
+    expect(await run(['consentements', '--consents', 'c.csv', '--clients', 'cl.csv'], c.deps)).toBe(2)
+    expect(c.client.rpc).not.toHaveBeenCalled()
+  })
+
+  it('payeurs: a client homonym needs --clients-map; a payer homonym is left out', async () => {
+    const invoices = 'Date;Facture;Client;Total;Payé par\n2026-09-01;2026-0000002;Client Fictif Un;100,00 $;Client Fictif Deux\n2026-09-01;2026-0000003;Client Fictif Deux;100,00 $;Parent Fictif\n'
+    const blocked = setup({ answers: ['adjointe@mana.test'], texts: { 'f.csv': invoices, 'cl.csv': HOMONYMS } })
+    expect(await run(['payeurs', '--invoices', 'f.csv', '--clients', 'cl.csv'], blocked.deps)).toBe(2)
+    expect(blocked.client.rpc).not.toHaveBeenCalled()
+    expect(blocked.output.some((l) => l.includes('payeur nommé comme plusieurs dossiers') && l.includes('lignes 2'))).toBe(true)
+    expect(blocked.output.at(-1)).toMatch(/--clients-map \(« Facture ; ClientId »\)/)
+
+    const mapped = setup({ answers: ['adjointe@mana.test'], texts: { 'f.csv': invoices, 'cl.csv': HOMONYMS, 'm.csv': 'Facture;ClientId\n2026-0000003;78\n' } })
+    expect(await run(['payeurs', '--invoices', 'f.csv', '--clients', 'cl.csv', '--clients-map', 'm.csv'], mapped.deps)).toBe(0)
+    expect(mapped.client.rpc.mock.calls.map(([, a]) => a.p_row.client_ref)).toEqual(['gorendezvous:78'])
+  })
+
+  it('a database error: its code only; a refusal (P0001) as written', async () => {
+    const consents = 'ClientId;Client;Formulaire;Signé le\n77;Client Fictif Un;Coaching;2024-06-01\n'
+    const failing = setup({ answers: ['adjointe@mana.test'], texts: { 'c.csv': consents } })
+    failing.client.rpc.mockResolvedValue({ data: null, error: { code: '23514', message: 'valeur « Client Fictif Un » refusée', details: 'x' } })
+    expect(await run(['consentements', '--consents', 'c.csv', '--clients', 'cl.csv'], failing.deps)).toBe(2)
+    expect(failing.output.at(-1)).toBe('Erreur de la base (23514) : l’import s’arrête. Relancez la même commande ; si l’erreur revient, transmettez ce code.')
+    expect(failing.output.join('\n')).not.toMatch(personal)
+
+    const closed = setup({ answers: ['adjointe@mana.test'], texts: { 'c.csv': consents } })
+    closed.client.rpc.mockResolvedValue({ data: null, error: { code: 'P0001', message: 'Les imports sont fermés pour cette clinique.' } })
+    expect(await run(['consentements', '--consents', 'c.csv', '--clients', 'cl.csv'], closed.deps)).toBe(2)
+    expect(closed.output.at(-1)).toBe('Refusé par la base : Les imports sont fermés pour cette clinique.')
   })
 })

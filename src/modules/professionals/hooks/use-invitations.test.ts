@@ -17,7 +17,7 @@ describe('emailProblemText', () => {
       "Adresse invalide. Corrigez l'adresse dans l'onglet « Identité et permis », puis utilisez « Envoyer l'invitation ».",
     )
     expect(emailProblemText({ code: 'not_configured', retryAfter: null }, { kind: 'invitation' })).toBe(
-      `Envoi de courriels non configuré (Paramètres → Courriels). ${copy}`,
+      `Envoi de courriels non configuré (Paramètres, section « Courriels »). ${copy}`,
     )
     expect(emailProblemText({ code: 'rate_limited', retryAfter: 2700 }, { kind: 'invitation' })).toBe(
       `Limite d'envoi atteinte. Réessayez dans environ 45 minutes. ${copy}`,
