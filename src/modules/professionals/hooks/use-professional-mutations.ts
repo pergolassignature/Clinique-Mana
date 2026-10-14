@@ -14,8 +14,10 @@ import {
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
+  setSignature,
   setSupervisor,
   syncProfessionalSignin,
+  uploadSignature,
   updateMatchingProfile,
   updateProfessional,
   updatePublicProfile,
@@ -24,6 +26,7 @@ import {
   type ProfessionalPatch,
   type ProfessionInput,
   type PublicProfilePatch,
+  type SignatureUpload,
 } from '../api/record'
 import type { ProfessionalRecord, SpecializedRef, StatusChange } from '../api/parse'
 import type { PayerType } from '../lib/constants'
@@ -264,6 +267,43 @@ export function useSetSupervisor(feedback?: MutationFeedback) {
       apply: (record, _, { supervisorId }) => ({ ...record, professional: { ...record.professional, supervisorId } }),
       touchesUsage: false,
       touchesList: never,
+    },
+    feedback,
+  )
+}
+
+/** The record with her signature image set (R-86): not shown in the list. */
+const withSignature = (record: ProfessionalRecord, signatureFileId: string | null): ProfessionalRecord => ({
+  ...record,
+  professional: { ...record.professional, signatureFileId },
+})
+
+/**
+ * R-86: a new signature image (upload, then `set_professional_signature`). Its errors are not
+ * toasted: the upload zone shows them where the file was chosen. On success, as every record
+ * change (the record and its history refetched), then « Signature enregistrée. ».
+ */
+export function useUploadSignature() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: SignatureUpload) => uploadSignature(input),
+    onSuccess: async (fileId, { id }) => {
+      queryClient.setQueryData<ProfessionalRecord | null>(professionalKeys.record(id), (record) => (record ? withSignature(record, fileId) : record))
+      await Promise.all([queryClient.invalidateQueries({ queryKey: professionalKeys.record(id) }), refreshProfessionalHistory(queryClient, id)])
+      toast.success(t('modules.professionals.record.identity.signature.saved'))
+    },
+  })
+}
+
+/** R-86: « Retirer » the signature image. */
+export function useRemoveSignature(feedback?: MutationFeedback) {
+  return useRecordMutation(
+    {
+      mutationFn: ({ id }: { id: string }) => setSignature(id, null),
+      apply: (record) => withSignature(record, null),
+      touchesUsage: false,
+      touchesList: never,
+      successMessage: t('modules.professionals.record.identity.signature.removed'),
     },
     feedback,
   )

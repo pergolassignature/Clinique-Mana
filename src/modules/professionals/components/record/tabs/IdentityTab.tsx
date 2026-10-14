@@ -36,6 +36,7 @@ import { editingHelp } from '../editing-help'
 import { ProfessionalCard } from '../ProfessionalCard'
 import { ProfessionsEditor } from '../ProfessionsEditor'
 import { useRecordData } from '../record-context'
+import { SignatureCard } from '../SignatureCard'
 
 const I = 'modules.professionals.record.identity'
 /** The home address fields, for the Google suggestions' autofill (P4-222). */
@@ -234,6 +235,7 @@ export function IdentityTab() {
       </ProfessionalCard>
 
       <SupervisorCard readOnly={readOnly} />
+      <SignatureCard readOnly={readOnly} />
       </SectionSurface>
     </div>
   )
@@ -329,6 +331,10 @@ function IdentityReadOnly() {
       {section(t(`${I}.experience.title`), t(`${I}.experience.description`), [
         { label: t(`${I}.experience.years`), value: professional.yearsExperience === null ? null : String(professional.yearsExperience) },
         { label: t(`${I}.payers.ivac`), value: ivac },
+      ])}
+      {/* R-86: the image is read with professionals.manage only; here, whether there is one. */}
+      {section(t(`${I}.signature.title`), t(`${I}.signature.description`), [
+        { label: t(`${I}.signature.label`), value: t(professional.signatureFileId ? `${I}.signature.onFile` : `${I}.signature.none`) },
       ])}
     </SectionSurface>
   )

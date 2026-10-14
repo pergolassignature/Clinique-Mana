@@ -151,6 +151,40 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     expect(content.body.header).toEqual({ text: 'Contrat de service' })
   })
 
+  describe('the image-rights mark (P4-557)', () => {
+    const ARTICLE = { type: 'heading', level: 3, text: '6.2 Promotion des services professionnels' }
+    const marked = (withArticle: boolean) => {
+      const body = bodyJson({ banner: false }) as { blocks: unknown[] }
+      return { ...body, grantsImageRights: true, blocks: withArticle ? [ARTICLE, ...body.blocks] : body.blocks }
+    }
+
+    it('shown on, and said in the publish confirmation', async () => {
+      mocks.contracts.fetchTemplateVersions.mockResolvedValue([parsedVersion(versionJson({}, marked(true)))])
+      render()
+      await bodyField()
+      expect(screen.getByRole('switch', { name: t(`${E}.imageRights.label`) })).toBeChecked()
+      expect(screen.queryByText(t(`${E}.imageRights.missing`, { article: 'Promotion des services professionnels' }))).not.toBeInTheDocument()
+      await userEvent.click(publishButton())
+      const dialog = await screen.findByRole('alertdialog', { name: t(`${G}.confirm.publish.title`, { version: '1' }) })
+      expect(dialog).toHaveTextContent(t(`${E}.imageRights.confirm`))
+    })
+
+    it('the article gone: publishing is refused until it is back or the switch is off, which drops the mark', async () => {
+      mocks.contracts.fetchTemplateVersions.mockResolvedValue([parsedVersion(versionJson({}, marked(false)))])
+      render()
+      await bodyField()
+      const article = 'Promotion des services professionnels'
+      expect(screen.getByText(t(`${E}.imageRights.missing`, { article }))).toBeInTheDocument()
+      expect(publishButton()).toHaveAccessibleDescription(t(`${E}.imageRights.blocked`, { article }))
+      await userEvent.click(screen.getByRole('switch', { name: t(`${E}.imageRights.label`) }))
+      expect(screen.queryByText(t(`${E}.imageRights.missing`, { article }))).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: t(`${G}.save`) }))
+      await waitFor(() => expect(mocks.contracts.updateTemplateVersion).toHaveBeenCalledOnce())
+      const [, content] = mocks.contracts.updateTemplateVersion.mock.calls[0] as [string, { body: Record<string, unknown> }]
+      expect(content.body).not.toHaveProperty('grantsImageRights')
+    })
+  })
+
   it('previews in a sandboxed frame, with the samples and no script', async () => {
     render()
     await bodyField()

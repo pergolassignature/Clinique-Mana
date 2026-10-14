@@ -8184,6 +8184,75 @@ export type Database = {
           },
         ]
       }
+      professional_image_rights_withdrawals: {
+        Row: {
+          created_at: string
+          org_id: string
+          professional_id: string
+          updated_at: string
+          withdrawal_note: string | null
+          withdrawn_at: string
+          withdrawn_by: string | null
+          withdrawn_on: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          professional_id: string
+          updated_at?: string
+          withdrawal_note?: string | null
+          withdrawn_at?: string
+          withdrawn_by?: string | null
+          withdrawn_on: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          professional_id?: string
+          updated_at?: string
+          withdrawal_note?: string | null
+          withdrawn_at?: string
+          withdrawn_by?: string | null
+          withdrawn_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       professional_invitation_deliveries: {
         Row: {
           created_at: string
@@ -9577,6 +9646,7 @@ export type Database = {
           postal_code: string | null
           profile_id: string | null
           province: string
+          signature_file_id: string | null
           status: string
           status_changed_at: string
           status_changed_by: string | null
@@ -9606,6 +9676,7 @@ export type Database = {
           postal_code?: string | null
           profile_id?: string | null
           province?: string
+          signature_file_id?: string | null
           status?: string
           status_changed_at?: string
           status_changed_by?: string | null
@@ -9635,6 +9706,7 @@ export type Database = {
           postal_code?: string | null
           profile_id?: string | null
           province?: string
+          signature_file_id?: string | null
           status?: string
           status_changed_at?: string
           status_changed_by?: string | null
@@ -9670,6 +9742,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "professionals_signature_file_id_fkey"
+            columns: ["signature_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "professionals_status_changed_by_fkey"
@@ -14676,6 +14755,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      billing_receipt_signatures_for_service: {
+        Args: { p_org_id: string; p_receipt_id: string }
+        Returns: Json
+      }
       billing_sync_events_for_service: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
@@ -18080,6 +18163,10 @@ export type Database = {
       set_professional_service_exclusions: {
         Args: { p_professional_id: string; p_service_ids: string[] }
         Returns: number
+      }
+      set_professional_signature: {
+        Args: { p_file_id: string; p_professional_id: string }
+        Returns: undefined
       }
       set_professional_sin: {
         Args: { p_expected_updated_at: string; p_id: string; p_sin: string }

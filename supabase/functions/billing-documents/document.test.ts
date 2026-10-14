@@ -4,6 +4,7 @@ import { renderPdf } from '../_shared/pdf/render.ts'
 import {
   CLINIC,
   invoiceDoc,
+  PEOPLE_IDS,
   PROFESSIONALS,
   receiptDoc,
   statementDoc,
@@ -15,6 +16,7 @@ import {
   billingReminderEmail,
   day,
   money,
+  signatureAssets,
 } from './document.ts'
 
 const parse = (value: unknown) => billingDocumentSchema.parse(value)
@@ -275,4 +277,88 @@ Deno.test('the reminder\u2019s email: the days since the due date and the balanc
     amount: '43,49\u00A0$',
     days: '12',
   })
+})
+
+Deno.test('R-87: a couple’s session prints one receipt naming both people, the file’s client first; the invoice keeps the file’s client', () => {
+  const lines = receiptDoc().lines.map((line) =>
+    line.line_type === 'service'
+      ? {
+        ...line,
+        served: [
+          { id: PEOPLE_IDS.lea, name: 'Léa Essai', client_number: 12 },
+          { id: PEOPLE_IDS.marc, name: 'Marc Essai', client_number: 14 },
+        ],
+      }
+      : line
+  )
+  const receipt = texts(
+    billingPdf(parse(receiptDoc({ lines })), { logo: false }),
+  )
+  assertStringIncludes(
+    receipt,
+    'Services rendus à\u00A0: Léa Essai (dossier n°\u00A012) et Marc Essai (dossier n°\u00A014)',
+  )
+  const invoice = texts(
+    billingPdf(parse(invoiceDoc({ lines })), { logo: false }),
+  )
+  assertStringIncludes(
+    invoice,
+    'Services rendus à\u00A0: Léa Essai (dossier n°\u00A012)\n',
+  )
+  // An individual session (no `served`): one name.
+  const alone = texts(billingPdf(parse(receiptDoc()), { logo: false }))
+  assert(!alone.includes(' et '))
+})
+
+Deno.test('R-86: the professional’s signature prints above her name on a receipt, never on an invoice; without its image, the list as before', async () => {
+  const signatures = [{
+    professional_id: PROFESSIONALS[0].professional_id,
+    bucket: 'documents',
+    object_path: 'org/professionals/p/s.png',
+  }]
+  const professionals = PROFESSIONALS
+  const receipt = parse(receiptDoc())
+  assertEquals(signatureAssets(receipt, signatures), [{
+    key: 'signature_0',
+    bucket: 'documents',
+    path: 'org/professionals/p/s.png',
+  }])
+  assertEquals(signatureAssets(parse(invoiceDoc()), signatures), [])
+  assertEquals(signatureAssets(receipt, []), [])
+  assertEquals(
+    signatureAssets(receipt, [{ ...signatures[0], professional_id: 'other' }]),
+    [],
+  )
+
+  const doc = billingPdf(receipt, {
+    logo: false,
+    signatures: new Set(['signature_0']),
+  })
+  assertEquals(checkDocument(doc).ok, true)
+  const at = doc.blocks.findIndex((b) =>
+    b.type === 'image' && b.assetKey === 'signature_0'
+  )
+  assert(at > 0, 'the signature is printed')
+  const next = doc.blocks[at + 1]
+  assert(
+    next?.type === 'paragraph' &&
+      next.runs[0]?.text.startsWith('Simon Stagiaire, stagiaire'),
+    'her name and the intern’s supervisor follow it (R-60)',
+  )
+  // Not loaded: the list, no image.
+  const without = billingPdf(receipt, { logo: false })
+  assert(!without.blocks.some((b) => b.type === 'image'))
+  assert(without.blocks.some((b) => b.type === 'list'))
+  // An invoice never prints it, even when passed.
+  const invoice = billingPdf(parse(invoiceDoc({ professionals })), {
+    logo: false,
+    signatures: new Set(['signature_0']),
+  })
+  assert(!invoice.blocks.some((b) => b.type === 'image'))
+
+  const png = await Deno.readFile(
+    new URL('../_shared/pdf/fixtures/logo.png', import.meta.url),
+  )
+  const pdf = await renderPdf(doc, { signature_0: png })
+  assertEquals(pdf.pageCount, 1)
 })

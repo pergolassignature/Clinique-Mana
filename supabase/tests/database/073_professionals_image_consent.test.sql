@@ -317,7 +317,12 @@ select results_eq($$ select p ->> 'idempotency_key', p -> 'cancel'
   $$ values ('professionals.image_consent:c0000000-0000-0000-0000-000000000003:n2'::text, 'null'::jsonb) $$,
   'after a signature, « Envoyer » prepares a renewal');
 
--- A signed service contract creates no document.
+-- A signed service contract creates no document. (An older contract's text: since
+-- *_professionals_contract_image_rights.sql a version marked `grantsImageRights`, as the seeded
+-- 2026 text, counts as the consent, which 201 covers; this file keeps the separate form's rules.)
+update public.document_template_versions v set body = v.body - 'grantsImageRights'
+  from public.document_templates t
+ where t.id = v.template_id and t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'professionals.service_contract';
 insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, view_permission,
                                  original_name, mime_type, ext, size_bytes, sha256, status, confirmed_at)
 values ('f0000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-00000000000a', 'signed-documents',

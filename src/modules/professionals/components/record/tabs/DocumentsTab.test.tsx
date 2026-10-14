@@ -281,6 +281,15 @@ describe('SubmissionReviewSheet', () => {
     expect(within(sheet).getByText(`(${t(`${V}.consentAlreadyOnFile`)})`, { exact: false })).toBeInTheDocument()
   })
 
+  it('a consent carried by her signed service contract (P4-558): « Accordé par le contrat de service signé le … »', async () => {
+    mocks.submissions.fetchSubmissionReview.mockResolvedValue(
+      submissionReviewWithFields({ consent: { current: { source: 'contract', signed_at: '2026-09-01T14:00:00+00:00' }, submitted: null } }),
+    )
+    const { sheet } = await openSheet()
+    await userEvent.click(within(sheet).getAllByRole('button', { name: /^Voir les champs inchangés/ }).at(-1) as HTMLElement)
+    expect(within(sheet).getByText(t(`${V}.consentContract`, { date: '1 sept. 2026' }), { exact: false })).toBeInTheDocument()
+  })
+
   it('never shows a private value: « Modifié », and the file’s mask only for whoever reads the masks', async () => {
     const { sheet } = await openSheet()
     const account = within(sheet).getByRole('checkbox', { name: t(`${F}.bank_account`) }).closest('li') as HTMLElement

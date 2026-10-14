@@ -30,7 +30,7 @@ import type { DocumentTemplateSummary, TemplateVersion } from './api'
 import { diffLines, hasChanges } from './diff'
 import { useTemplateMutations, useTemplateVersions, type TemplateMutationHandlers } from './hooks'
 import { htmlToMarkup } from './paste'
-import { asBody, bodyToMarkup, hasBanner, hasBlockPlaceholder, markupToBody, previewHtml, unknownPlaceholders, type PdfBody, type PreviewText } from './markup'
+import { asBody, bodyToMarkup, hasBanner, hasBlockPlaceholder, hasHeadingWith, markupToBody, previewHtml, unknownPlaceholders, type PdfBody, type PreviewText } from './markup'
 
 const N = 'signing.templates.editor'
 
@@ -55,6 +55,12 @@ export interface TemplateEditorOptions {
   } | null
   /** A line the draft must lose before publishing (a validation or provisional line). */
   banner?: { text: string; notice: string; blocked: string } | null
+  /**
+   * The body's `grantsImageRights` mark (Professionnels' service contract, P4-557): shown, a switch
+   * on a draft, said in the publish confirmation; publishing is refused while it is on and no heading
+   * holds `article` (the database refuses it too).
+   */
+  imageRights?: { article: string; label: string; help: string; on: string; off: string; missing: string; blocked: string; confirm: string } | null
   /** « Publier » here (core's publish). False when the module publishes its own way. */
   canPublish?: boolean
   /** The module's error handling and what it refreshes after a publication (`useTemplateMutations`). */
@@ -85,6 +91,7 @@ interface Draft {
   header: string
   footer: string
   initials: boolean
+  imageRights: boolean
   markup: string
   emailSubject: string
   emailMessage: string
@@ -96,6 +103,7 @@ function draftOf(version: TemplateVersion, body: PdfBody, initialsRole: string |
     header: body.header?.text ?? '',
     footer: body.footer.text,
     initials: initialsRole !== null && (body.header?.initialsFor ?? []).includes(initialsRole),
+    imageRights: body.grantsImageRights === true,
     markup: bodyToMarkup(body),
     emailSubject: version.emailSubject,
     emailMessage: version.emailMessage,
@@ -103,11 +111,15 @@ function draftOf(version: TemplateVersion, body: PdfBody, initialsRole: string |
 }
 
 /** The body a draft makes: the markup's blocks, the fields, and the base's signature page. */
-function bodyOf(draft: Draft, base: PdfBody, initialsRole: string | null): PdfBody {
+function bodyOf(draft: Draft, base: PdfBody, initialsRole: string | null, imageRights = false): PdfBody {
   const others = (base.header?.initialsFor ?? []).filter((role) => role !== initialsRole)
   const initialsFor = draft.initials && initialsRole !== null ? [initialsRole, ...others] : others
+  // The image-rights mark follows the switch when the module shows it; otherwise the base's stays.
+  const { grantsImageRights, ...rest } = base
+  const mark = imageRights ? draft.imageRights : grantsImageRights === true
   return markupToBody(draft.markup, {
-    ...base,
+    ...rest,
+    ...(mark && { grantsImageRights: true }),
     title: draft.title,
     header: { text: draft.header, ...(initialsFor.length > 0 && { initialsFor }) },
     footer: { text: draft.footer },
@@ -265,6 +277,7 @@ function VersionForm({
 }) {
   const initialsRole = options.initials?.role ?? null
   const block = options.block ?? null
+  const rights = options.imageRights ?? null
   const canPublish = options.canPublish ?? true
   const base = useMemo(() => asBody(version.body), [version.body])
   const initial = useMemo(() => (base ? draftOf(version, base, initialsRole) : null), [base, version, initialsRole])
@@ -291,9 +304,9 @@ function VersionForm({
   const preview = useMemo(
     () =>
       base && deferred
-        ? previewHtml(bodyOf(deferred, base, initialsRole), Object.fromEntries(version.variables.map((v) => [v.path, sampleText(v)])), previewText(block))
+        ? previewHtml(bodyOf(deferred, base, initialsRole, rights !== null), Object.fromEntries(version.variables.map((v) => [v.path, sampleText(v)])), previewText(block))
         : '',
-    [base, deferred, version.variables, initialsRole, block],
+    [base, deferred, version.variables, initialsRole, block, rights],
   )
   const paths = version.variables.map((v) => v.path)
   const unknown = draft ? unknownPlaceholders([draft.title, draft.header, draft.footer, draft.markup, draft.emailSubject, draft.emailMessage], paths) : []
@@ -311,7 +324,8 @@ function VersionForm({
       {
         versionId: version.id,
         content: {
-          body: bodyOf(snapshot, base, initialsRole) as unknown as Record<string, unknown>,
+          // The image-rights mark kept or dropped as the switch says (P4-557); never lost by an autosave.
+          body: bodyOf(snapshot, base, initialsRole, rights !== null) as unknown as Record<string, unknown>,
           variables: version.variables,
           signers: version.signers,
           emailSubject: snapshot.emailSubject,
@@ -345,13 +359,17 @@ function VersionForm({
   // Only a template that declares the block's variable must print it (the contract; not the image consent).
   const needsBlock = block !== null && block.required && paths.includes(block.placeholder.replace(/^\{\{|\}\}$/g, ''))
   const blockPresent = !needsBlock || (block !== null && hasBlockPlaceholder(draft.markup, block.placeholder))
+  // A marked contract must still hold its image-rights article (P4-557).
+  const rightsArticleMissing = rights !== null && draft.imageRights && !hasHeadingWith(draft.markup, rights.article)
   const publishBlocked = dirty
     ? t(`${N}.publishBlocked.unsaved`)
     : banner && options.banner
       ? options.banner.blocked
       : !blockPresent && block
         ? block.blocked
-        : (options.publishBlocked ?? null)
+        : rightsArticleMissing && rights
+          ? rights.blocked
+          : (options.publishBlocked ?? null)
 
   const onSave = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -517,6 +535,7 @@ function VersionForm({
           refusal={refusal}
           onConfirm={(kind) => (kind === 'publish' ? publish : archive).mutate(version.id, { onSuccess: () => setConfirming(null) })}
           returnFocus={publishRef}
+          publishNote={rights && draft.imageRights ? rights.confirm : null}
         />
       </div>
     )
@@ -612,6 +631,13 @@ function VersionForm({
               {draft.initials ? t(`${N}.form.initialsOn`) : t(`${N}.form.initialsOff`)}
             </p>
           ))}
+        {rights &&
+          (editable ? (
+            <SwitchField label={rights.label} help={rights.help} checked={draft.imageRights} onCheckedChange={(checked) => set('imageRights', checked)} />
+          ) : (
+            <p className="text-sm">{draft.imageRights ? rights.on : rights.off}</p>
+          ))}
+        {rightsArticleMissing && rights && editable && <p className="text-xs text-destructive">{rights.missing}</p>}
         <FormField label={t(`${N}.form.body`)} required help={t(`${N}.form.bodyHelp`)}>
           {(props) => (
             <Textarea {...props} value={draft.markup} rows={18} spellCheck lang="fr-CA" className="font-mono text-xs" onPaste={onPaste} onChange={(e) => set('markup', e.target.value)} />
@@ -660,6 +686,7 @@ function VersionForm({
         refusal={refusal}
         onConfirm={(kind) => (kind === 'publish' ? publish : archive).mutate(version.id, { onSuccess: () => setConfirming(null) })}
         returnFocus={publishRef}
+        publishNote={rights && draft.imageRights ? rights.confirm : null}
       />
     </>
   )
@@ -681,6 +708,7 @@ function ConfirmDialog({
   refusal,
   onConfirm,
   returnFocus,
+  publishNote = null,
 }: {
   confirming: 'publish' | 'discard' | null
   setConfirming: (value: 'publish' | 'discard' | null) => void
@@ -690,6 +718,8 @@ function ConfirmDialog({
   refusal: string | null
   onConfirm: (kind: 'publish' | 'discard') => void
   returnFocus: RefObject<HTMLButtonElement | null>
+  /** What publishing this version also means (Professionnels: the contract grants the image rights, P4-557). */
+  publishNote?: string | null
 }) {
   return (
     <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && !pending && setConfirming(null)}>
@@ -706,6 +736,7 @@ function ConfirmDialog({
               <AlertDialogDescription>
                 {t(`${N}.confirm.${confirming}.body`, { version: String(version.version), previous: String(published?.version ?? '') })}
               </AlertDialogDescription>
+              {confirming === 'publish' && publishNote && <p className="text-sm text-foreground">{publishNote}</p>}
             </AlertDialogHeader>
             {refusal && <RefusalAlert message={refusal} />}
             <AlertDialogFooter>

@@ -119,9 +119,15 @@ const consentVersion = {
 const annexe = {
   title_label: 'Psychologue',
   prices: [{ duration: 50, client_price_cents: 17500 }],
-  tiers: [{ from: 0, to: 50, pay: [{ duration: 50, cents: 12600 }] }, {
+  tiers: [{
+    from: 0,
+    to: 50,
+    retention_pct: 28,
+    pay: [{ duration: 50, cents: 12600 }],
+  }, {
     from: 51,
     to: null,
+    retention_pct: 27.5,
     pay: [{ duration: 50, cents: 12688 }],
   }],
   sessions_total: 12,

@@ -1581,6 +1581,7 @@
           "professional_submissions": "Profils envoyés par les professionnels",
           "professional_submission_private": "Données privées des profils envoyés",
           "professional_documents": "Documents des professionnels",
+          "professional_image_rights_withdrawals": "Retraits du droit à l'image",
           "professional_consents": "Consentements des professionnels",
           "professional_contract_snapshots": "Contrats de service préparés",
           "professional_paper_contracts": "Contrats signés hors application",
@@ -1625,7 +1626,8 @@
             "deactivation_disabled_account": "Compte désactivé avec le dossier",
             "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
             "fiche_generated_at": "Fiche PDF générée le",
-            "supervisor_professional_id": "Superviseur"
+            "supervisor_professional_id": "Superviseur",
+            "signature_file_id": "Signature des reçus"
           },
           "professional_professions": {
             "professional_id": "Professionnel",
@@ -1737,6 +1739,13 @@
             "submission_id": "Profil envoyé",
             "signature_request_id": "Signature électronique",
             "withdrawn_on": "Consentement retiré à partir du",
+            "withdrawal_note": "Note du retrait",
+            "withdrawn_at": "Retrait enregistré le",
+            "withdrawn_by": "Retrait enregistré par"
+          },
+          "professional_image_rights_withdrawals": {
+            "professional_id": "Professionnel",
+            "withdrawn_on": "Droit à l'image retiré à partir du",
             "withdrawal_note": "Note du retrait",
             "withdrawn_at": "Retrait enregistré le",
             "withdrawn_by": "Retrait enregistré par"
@@ -2623,6 +2632,7 @@
             "none": "Aucune photo vérifiée : la fiche montre les initiales.",
             "manage": "Gérer dans Documents",
             "consentOnFile": "Consentement au droit à l'image au dossier : la fiche montre la photo.",
+            "consentByContract": "Droit à l'image accordé par le contrat de service : la fiche montre la photo.",
             "noConsent": "Aucun consentement au droit à l'image en vigueur : la fiche montre les initiales.",
             "preview": "Aperçu de la fiche"
           },
@@ -2707,6 +2717,25 @@
             "saved": "Superviseur enregistré.",
             "loadError": "La liste des professionnels ne se charge pas.",
             "inactive": "Un professionnel inactif"
+          },
+          "signature": {
+            "title": "Signature des reçus",
+            "description": "L’image de la signature du professionnel, imprimée au-dessus de son nom sur ses reçus d’assurance. Pour un stagiaire : sa propre signature, à côté du nom de son superviseur.",
+            "label": "Signature",
+            "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
+            "alt": "Signature de {name}",
+            "empty": "Aucune signature : les reçus s’impriment sans signature.",
+            "onFile": "Signature enregistrée",
+            "none": "Aucune signature",
+            "replace": "Remplacer",
+            "remove": "Retirer",
+            "saved": "Signature enregistrée.",
+            "removed": "Signature retirée.",
+            "removeConfirm": {
+              "title": "Retirer la signature ?",
+              "body": "Les prochains reçus de {name} s’imprimeront sans signature. Les reçus déjà envoyés ne changent pas.",
+              "confirm": "Retirer"
+            }
           }
         }
       },
@@ -2862,7 +2891,10 @@
           "agreementChanged": "a modifié une entente particulière",
           "sessionsSet": "a saisi les séances de {month}",
           "sessionsChanged": "a modifié les séances d’un mois",
-          "sessionsDeleted": "a retiré les séances de {month}"
+          "sessionsDeleted": "a retiré les séances de {month}",
+          "imageRights": {
+            "withdrawn": "a enregistré le retrait du droit à l'image (contrat de service compris), à partir du {date}"
+          }
         },
         "sets": {
           "professional_motifs": {
@@ -2922,7 +2954,8 @@
             "deactivation_note": "la note de désactivation",
             "deactivation_disabled_account": "le compte désactivé avec le dossier",
             "activation_override_reason": "la raison de l'activation d'un dossier incomplet",
-            "supervisor_professional_id": "le superviseur"
+            "supervisor_professional_id": "le superviseur",
+            "signature_file_id": "la signature des reçus"
           },
           "professional_public_profiles": {
             "bio": "la présentation",
@@ -3565,7 +3598,7 @@
           "consentNoExpiryHelp": "Le consentement au droit à l'image n'expire pas : une fois signé, il reste valide.",
           "consentText": {
             "title": "Consentement au droit à l'image",
-            "body": "Le texte que signent les professionnels est le modèle « Consentement au droit à l'image ». Il se modifie et se publie dans Contrats et formulaires.",
+            "body": "Le contrat de service 2026 inclut l'autorisation d'utiliser l'image du professionnel (article 6.2) : signé, il compte comme son consentement, et un nouveau professionnel n'a pas de formulaire séparé à signer. Le formulaire séparé, pour un professionnel sous un ancien contrat, est le modèle « Consentement au droit à l'image ». Les deux se modifient et se publient dans Contrats et formulaires.",
             "open": "Ouvrir Contrats et formulaires"
           },
           "job": {
@@ -3771,21 +3804,30 @@
               "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page."
             },
             "variables": {
-              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel."
+              "annexe": "Seule sur une ligne, elle devient le tableau du partage des honoraires du professionnel."
             },
             "preview": {
-              "annexeCaption": "Exemple : les tableaux réels viennent de la grille de rémunération du professionnel.",
+              "annexeCaption": "Exemple : le tableau réel vient de la grille de rémunération du professionnel (premier palier) et des taux de Paramètres → Rémunération.",
               "annexeColumns": {
-                "sessions": "Séances cumulées",
-                "d60": "Rencontre 60 min (couple ou famille)",
-                "d50": "Rencontre 50 min",
-                "d30": "Rencontre 30 min"
+                "service": "Nature du service",
+                "professional": "Part du Professionnel",
+                "clinic": "Part de la Clinique MANA"
               },
               "annexeRows": {
-                "first": "0 à 50 séances",
-                "second": "51 à 100 séances",
-                "last": "301 séances et plus"
+                "consultation": "Consultation (individuelles, de couple et familiales)",
+                "workshop": "Ateliers, conférences et formations",
+                "lateCancellation": "Annulation tardive ou absence non motivée*",
+                "otherFees": "Autres frais administratifs"
               }
+            },
+            "imageRights": {
+              "label": "Accorde le droit à l'image",
+              "help": "Signé, ce contrat compte comme le consentement du professionnel au droit à l'image (l'article « {article} »). Désactivez si vous retirez cet article du texte.",
+              "on": "Ce contrat accorde le droit à l'image (article 6.2).",
+              "off": "Ce contrat n'accorde pas le droit à l'image : un consentement séparé est demandé.",
+              "missing": "« Accorde le droit à l'image » est activé, mais aucun titre ne contient « {article} » : remettez l'article ou désactivez l'option.",
+              "blocked": "Remettez l'article « {article} » ou désactivez « Accorde le droit à l'image » avant de publier.",
+              "confirm": "Ce contrat accorde le droit à l'image (article 6.2) : signé, il comptera comme le consentement du professionnel."
             }
           }
         },
@@ -4029,6 +4071,7 @@
           "consentUnsigned": "Pas encore signé.",
           "consentSignedElectronically": "Signé électroniquement le {date} (Documenso).",
           "consentPaper": "Consentement papier au dossier, téléversé le {date}.",
+          "consentContract": "Accordé par le contrat de service signé le {date} (article 6.2).",
           "consentSignedHere": "signé avec ce questionnaire",
           "consentAlreadyOnFile": "déjà au dossier"
         },
@@ -4160,6 +4203,10 @@
         "state": {
           "validUntil": "Valide jusqu'au {date}",
           "signedOn": "Signé le {date}",
+          "byContract": "Accordé par le contrat de service (article 6.2)",
+          "byContractOn": "Accordé par le contrat de service signé le {date} (article 6.2)",
+          "byNextContract": "Inclus dans le contrat de service à signer (article 6.2)",
+          "byNextContractSelf": "Inclus dans votre contrat de service : vous le signerez avec lui (article 6.2)",
           "verified": "Vérifié",
           "expiring": "Expire bientôt : valide jusqu'au {date}",
           "expiredOn": "Expiré : valide jusqu'au {date}",
@@ -4255,7 +4302,7 @@
         },
         "withdraw": {
           "title": "Retrait du consentement au droit à l'image",
-          "body": "{name} retire son consentement. À partir de la date indiquée, la fiche n'affiche plus sa photo et le consentement manque au dossier. Le document signé reste au dossier : il prouve ce qui a été consenti jusque-là.",
+          "body": "{name} retire son consentement, y compris celui de son contrat de service (article 6.2). À partir de la date indiquée, la fiche n'affiche plus sa photo et le consentement manque au dossier, même après un nouveau contrat. Le document signé reste au dossier : il prouve ce qui a été consenti jusque-là.",
           "date": "Retrait en vigueur le",
           "dateHelp": "Le premier jour sans consentement : aujourd'hui, une date passée ou, pour un préavis, une date à venir (au plus dans un an).",
           "note": "Note",
@@ -4514,6 +4561,10 @@
         "retry": "Réessayer",
         "signedOn": "Signé le {date}",
         "onFile": "Consentement au dossier",
+        "byContract": "Inclus dans votre contrat de service signé (article 6.2)",
+        "nextContract": "Votre contrat de service inclut cette autorisation (article 6.2) : vous la donnerez en le signant. Rien à signer ici, vous pouvez continuer.",
+        "nextContractDocuments": "Votre contrat de service inclut cette autorisation (article 6.2) : vous la donnerez en le signant.",
+        "nextContractShort": "Incluse dans votre contrat de service, à signer avec lui.",
         "notSignedYet": "Pas encore signé.",
         "notPublished": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard. Vous pouvez envoyer votre profil sans attendre.",
         "notPublishedDocuments": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard.",

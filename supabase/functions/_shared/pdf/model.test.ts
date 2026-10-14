@@ -91,6 +91,15 @@ Deno.test('checkDocument: an unknown block type or property is refused', () => {
   assertEquals(refused({ ...doc([p]), script: 'x' }), '')
 })
 
+Deno.test('checkDocument: the image-rights mark is an optional boolean (P4-557)', () => {
+  assert(checkDocument(doc([p], { grantsImageRights: true })).ok)
+  assert(checkDocument(doc([p], { grantsImageRights: false })).ok)
+  assertEquals(
+    refused(doc([p], { grantsImageRights: 'oui' })),
+    'grantsImageRights',
+  )
+})
+
 Deno.test('checkDocument: a table row needs one cell per column', () => {
   const short = { ...table(2), rows: [['a', 'b'], ['a']] }
   assertEquals(refused(doc([short])), 'blocks.0.rows.1')

@@ -5,7 +5,7 @@ import { SettingsCard } from '@/shared/components/SettingsCard'
 import { Button } from '@/shared/ui/button'
 import { useProfessionalDocuments } from '../../hooks/use-documents'
 import { preloadFicheRenderer } from '../../hooks/use-fiche'
-import { imageConsentOnFile } from '../../lib/documents'
+import { imageConsentSource } from '../../lib/documents'
 import { ficheTitles } from '../../lib/fiche'
 import { ProfessionalPhoto } from '../ProfessionalPhoto'
 import { FichePreviewDialog } from './FichePreviewDialog'
@@ -17,7 +17,7 @@ const P = 'modules.professionals.record.publicProfile.photo'
 /**
  * Profil public's first section (gap audit V1 and H3): the photo the fiche prints (the newest
  * verified one, `record.photoFileId`, the `card` copy at 128 px), where it is managed (Documents),
- * whether the fiche may show it (an image consent in force, P4-512, not withdrawn, P4-549: from the documents' read, the
+ * whether the fiche may show it (an image consent in force, P4-512, not withdrawn, P4-549, or the service contract's, P4-558: from the documents' read, the
  * one the fiche uses), and « Aperçu de la fiche ». The same for every reader of the tab.
  */
 export function PublicPhotoSection() {
@@ -27,7 +27,8 @@ export function PublicPhotoSection() {
   const [previewing, setPreviewing] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const name = `${record.professional.firstName} ${record.professional.lastName}`
-  const consent = documents.data ? imageConsentOnFile(documents.data.documents, documents.data.today) : null
+  // A separate consent, or the service contract's article on image rights (P4-558); undefined while not read.
+  const consent = documents.data ? imageConsentSource(documents.data) : undefined
   const hasPhoto = record.photoFileId !== null
 
   return (
@@ -41,8 +42,10 @@ export function PublicPhotoSection() {
               {t(`${P}.manage`)}
             </TabLink>
           </p>
-          {hasPhoto && consent !== null && (
-            <p className="text-muted-foreground">{t(consent ? `${P}.consentOnFile` : `${P}.noConsent`)}</p>
+          {hasPhoto && consent !== undefined && (
+            <p className="text-muted-foreground">
+              {t(consent === 'document' ? `${P}.consentOnFile` : consent === 'contract' ? `${P}.consentByContract` : `${P}.noConsent`)}
+            </p>
           )}
           <Button
             ref={button}

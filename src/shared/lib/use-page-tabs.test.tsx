@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
@@ -64,12 +64,13 @@ describe('usePageTabs', () => {
   it('a click or the arrow keys write the tab in the address; back to the first clears it', async () => {
     const user = userEvent.setup()
     renderAt('/parametres/services?vue=x')
+    // The address is written once the switch commits: wait for it rather than read it at once.
     await user.click(screen.getByRole('tab', { name: 'annulation' }))
-    expect(screen.getByTestId('search')).toHaveTextContent('?vue=x&onglet=annulation')
+    await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?vue=x&onglet=annulation'))
     expect(screen.getByText('panel annulation')).toBeInTheDocument()
     await user.keyboard('{ArrowLeft}')
-    expect(screen.getByTestId('search')).toHaveTextContent('?vue=x&onglet=prix')
+    await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?vue=x&onglet=prix'))
     await user.click(screen.getByRole('tab', { name: 'catalogue' }))
-    expect(screen.getByTestId('search')).toHaveTextContent(/^\?vue=x$/)
+    await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent(/^\?vue=x$/))
   })
 })

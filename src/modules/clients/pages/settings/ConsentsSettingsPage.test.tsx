@@ -311,6 +311,23 @@ describe('ConsentsSettingsPage', () => {
     await waitFor(() => expect(mocks.api.fetchConsentTemplates).toHaveBeenCalled())
   })
 
+  it('the autosave keeps a body mark it does not show (`grantsImageRights`, P4-557)', async () => {
+    const original = VERSIONS['tw-en']!
+    const marked = versionOf({ id: 'vwe1' })
+    VERSIONS['tw-en'] = [{ ...marked, body: { ...marked.body, grantsImageRights: true } }]
+    try {
+      renderPage({ path: '/parametres/consentements?texte=waitlist' })
+      await userEvent.click(await screen.findByRole('tab', { name: t(`${S}.texts.english`) }))
+      const body = (await screen.findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })) as HTMLTextAreaElement
+      fireEvent.change(body, { target: { value: `${body.value}\n\nOne more line.` } })
+      await waitFor(() => expect(mocks.templates.updateTemplateVersion).toHaveBeenCalledTimes(1), { timeout: 4000 })
+      const [, content] = mocks.templates.updateTemplateVersion.mock.calls[0]!
+      expect((content as { body: Record<string, unknown> }).body.grantsImageRights).toBe(true)
+    } finally {
+      VERSIONS['tw-en'] = original
+    }
+  })
+
   it('a text pasted from Word keeps its paragraphs, bold and lists', async () => {
     renderPage({ path: '/parametres/consentements?texte=waitlist' })
     const body = (await screen.findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })) as HTMLTextAreaElement

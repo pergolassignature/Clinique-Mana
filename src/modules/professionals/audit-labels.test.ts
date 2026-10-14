@@ -23,7 +23,7 @@ const COLUMNS = {
     'id', 'org_id', 'profile_id', 'first_name', 'last_name', 'email', 'personal_phone', 'address_line1', 'address_line2', 'city', 'province',
     'postal_code', 'country', 'years_experience', 'gender', 'status', 'status_changed_at', 'status_changed_by', 'deactivation_reason_id',
     'deactivation_note', 'deactivation_disabled_account', 'activation_override_reason', 'created_at', 'created_by', 'updated_at',
-    'fiche_generated_at', 'supervisor_professional_id',
+    'fiche_generated_at', 'supervisor_professional_id', 'signature_file_id',
   ],
   professional_public_profiles: ['org_id', 'professional_id', 'bio', 'approach', 'public_email', 'public_phone', 'photo_document_id', 'created_at', 'updated_at'],
   professional_matching_profiles: [
@@ -69,6 +69,10 @@ const COLUMNS = {
     'id', 'org_id', 'professional_id', 'document_type_id', 'stored_file_id', 'status', 'expires_on', 'metadata', 'uploaded_by', 'uploaded_at',
     'reviewed_by', 'reviewed_at', 'rejection_reason', 'submission_id', 'signature_request_id', 'created_at', 'updated_at',
     'withdrawn_on', 'withdrawal_note', 'withdrawn_at', 'withdrawn_by',
+  ],
+  // The image-rights withdrawal on the professional (P4-559).
+  professional_image_rights_withdrawals: [
+    'professional_id', 'org_id', 'withdrawn_on', 'withdrawal_note', 'withdrawn_at', 'withdrawn_by', 'created_at', 'updated_at',
   ],
   // 4b: the questionnaire, its private data, the invitation deliveries; 4c–4d: consents and contracts.
   professional_submissions: [

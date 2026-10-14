@@ -47,7 +47,8 @@ function ProfessionsValue({ value, ctx }: { value: unknown; ctx: ValueContext })
 /**
  * The consent, in words, as the Documents tab says it (P4-505): « Signé électroniquement le …
  * (Documenso). » for a signature through Documenso, « Consentement papier au dossier, téléversé le
- * … » for a paper one; no end date (P4-504). Nothing: « Aucun consentement au dossier. » on the
+ * … » for a paper one, « Accordé par le contrat de service signé le … » for her contract's (P4-558);
+ * no end date (P4-504). Nothing: « Aucun consentement au dossier. » on the
  * record, « Pas encore signé. » in the answer.
  */
 function ConsentValue({ value, side }: { value: unknown; side: 'current' | 'submitted' }) {
@@ -56,6 +57,8 @@ function ConsentValue({ value, side }: { value: unknown; side: 'current' | 'subm
   const uploadedAt = text(value, 'uploaded_at')
   if (source === 'signature' && signedAt) return <>{t(`${V}.consentSignedElectronically`, { date: formatClinicDateShort(signedAt) })}</>
   if (source === 'document' && uploadedAt) return <>{t(`${V}.consentPaper`, { date: formatClinicDateShort(uploadedAt) })}</>
+  // Her signed service contract's article 6.2 (P4-558).
+  if (source === 'contract' && signedAt) return <>{t(`${V}.consentContract`, { date: formatClinicDateShort(signedAt) })}</>
   return <span className="text-muted-foreground">{t(side === 'current' ? `${V}.consentNone` : `${V}.consentUnsigned`)}</span>
 }
 

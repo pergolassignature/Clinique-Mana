@@ -121,15 +121,15 @@ describe('a withdrawn image consent (gap audit V5, P4-549)', () => {
     expect(entry).toMatchObject({ kind: 'withdrawn', withdrawnOn: '2026-10-09' })
     expect(typeStateLabel(entry)).toBe('Retiré depuis le 9 octobre 2026')
     expect(typeCardTone(entry)).toBe('error')
-    expect(imageConsentOnFile(data.documents, data.today)).toBe(false)
+    expect(imageConsentOnFile(data)).toBe(false)
     expect(entry.current?.withdrawal).toEqual({ on: '2026-10-09', note: 'Par courriel.', recordedAt: '2026-10-09T15:00:00+00:00', recordedByName: 'Julie Adjointe' })
 
     const later = documentsFixture({ documents: [withdrawn('2026-11-01')] })
     const scheduled = typeDocuments(consent, later)
     expect(scheduled.kind).toBe('valid')
     expect(scheduledWithdrawal(scheduled, later.today)).toBe('2026-11-01')
-    expect(imageConsentOnFile(later.documents, later.today)).toBe(true)
-    expect(imageConsentOnFile(later.documents, '2026-11-01')).toBe(false)
+    expect(imageConsentOnFile(later)).toBe(true)
+    expect(imageConsentOnFile({ ...later, today: '2026-11-01' })).toBe(false)
   })
 
   it('a new consent signed later is in force again', () => {
@@ -137,7 +137,7 @@ describe('a withdrawn image consent (gap audit V5, P4-549)', () => {
     const data = documentsFixture({ today: '2026-10-11', documents: [fresh, withdrawn('2026-10-09')] })
     expect(typeDocuments(consent, data)).toMatchObject({ kind: 'valid' })
     expect(typeDocuments(consent, data).current?.id).toBe(DOC_IDS.cv)
-    expect(imageConsentOnFile(data.documents, data.today)).toBe(true)
+    expect(imageConsentOnFile(data)).toBe(true)
   })
 
   it('« Retrait du consentement »: staff who review, on a consent in force; the date from 2000 to a year ahead', () => {
@@ -152,6 +152,58 @@ describe('a withdrawn image consent (gap audit V5, P4-549)', () => {
     expect(withdrawalDateError('2027-10-11', '2026-10-09')).toBe(t('modules.professionals.documents.withdraw.dateTooFar'))
     expect(withdrawalDateError('2027-10-10', '2026-10-09')).toBeNull()
     expect(withdrawalDateError('2026-01-15', '2026-10-09')).toBeNull()
+  })
+})
+
+describe('the image consent carried by the service contract (P4-558 – P4-560)', () => {
+  const consent = type('image_consent')
+  const D = 'modules.professionals.documents'
+  const SIGNED = '2026-10-01T14:00:00+00:00'
+  const contract = (inForce: boolean) => ({ signed_at: SIGNED, in_force: inForce })
+  const withdrawal = (on: string) => ({ withdrawn_on: on, withdrawal_note: 'Par courriel.', withdrawn_at: '2026-10-09T15:00:00+00:00', withdrawn_by_name: 'Julie Adjointe' })
+
+  it('her signed contract in force, no separate consent: « Accordé par le contrat de service signé le … », the fiche shows the photo', () => {
+    const data = documentsFixture({ documents: [], image_rights_contract: contract(true) })
+    const entry = typeDocuments(consent, data)
+    expect(entry).toMatchObject({ kind: 'valid', byContract: { signedAt: SIGNED }, until: null })
+    expect(typeStateLabel(entry)).toBe(t(`${D}.state.byContractOn`, { date: formatClinicDateShort(SIGNED) }))
+    expect(typeCardTone(entry)).toBe('success')
+    expect(imageConsentOnFile(data)).toBe(true)
+    // Staff who review may record its withdrawal.
+    expect(withdrawalOffered(entry, 'staff', ALL)).toBe(true)
+    expect(requiredSummary(groupDocuments(types, data).required).done).toBe(1)
+  })
+
+  it('a separate consent in force keeps its own words', () => {
+    const data = documentsFixture({ image_rights_contract: contract(true) })
+    const entry = typeDocuments(consent, data)
+    expect(entry.kind).toBe('valid')
+    expect(entry.byContract).toBeNull()
+  })
+
+  it('withdrawn: « Retiré depuis le … » from the withdrawal on the professional; a notice period is scheduled', () => {
+    const data = documentsFixture({ documents: [], image_rights_contract: contract(false), image_rights_withdrawal: withdrawal('2026-10-09') })
+    const entry = typeDocuments(consent, data)
+    expect(entry).toMatchObject({ kind: 'withdrawn', withdrawnOn: '2026-10-09' })
+    expect(entry.contractWithdrawal?.note).toBe('Par courriel.')
+    expect(imageConsentOnFile(data)).toBe(false)
+
+    const later = documentsFixture({ documents: [], image_rights_contract: contract(true), image_rights_withdrawal: withdrawal('2026-11-01') })
+    const scheduled = typeDocuments(consent, later)
+    expect(scheduled.kind).toBe('valid')
+    expect(scheduledWithdrawal(scheduled, later.today)).toBe('2026-11-01')
+  })
+
+  it('her next contract will carry it: « Inclus dans le contrat de service à signer », nothing to chase', () => {
+    const data = documentsFixture({ documents: [], image_rights_next_contract: true })
+    const entry = typeDocuments(consent, data)
+    expect(entry).toMatchObject({ kind: 'missing', byNextContract: true })
+    expect(typeStateLabel(entry)).toBe(t(`${D}.state.byNextContract`))
+    expect(typeStateLabel(entry, true)).toBe(t(`${D}.state.byNextContractSelf`))
+    expect(typeCardTone(entry)).toBe('neutral')
+    expect(imageConsentOnFile(data)).toBe(false)
+    // Another type is never concerned.
+    expect(typeDocuments(type('photo'), data).byNextContract).toBe(false)
   })
 })
 

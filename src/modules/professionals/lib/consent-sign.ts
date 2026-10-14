@@ -8,13 +8,14 @@ const S = 'modules.professionals.consentSign'
 export const SIGNED_PARAM = 'consentement'
 
 /**
- * « Signé le 9 oct. 2026 » (signed through Documenso), or « Consentement au dossier » (a paper one
- * the clinic attached); null when none is in force. Never an end date: the consent does not expire
- * (P4-504).
+ * « Signé le 9 oct. 2026 » (signed through Documenso), « Inclus dans votre contrat de service signé »
+ * (her contract's article 6.2, P4-558), or « Consentement au dossier » (a paper one the clinic
+ * attached); null when none is in force. Never an end date: the consent does not expire (P4-504).
  */
 export function consentInForceText(consent: MyImageConsent): string | null {
   if (!consent.validUntil) return null
   const request = consent.request
   const signedAt = request?.status === 'signed' ? (request.signedAt ?? request.completedAt) : null
-  return signedAt ? t(`${S}.signedOn`, { date: formatClinicDateShort(signedAt) }) : t(`${S}.onFile`)
+  if (signedAt) return t(`${S}.signedOn`, { date: formatClinicDateShort(signedAt) })
+  return consent.byContract ? t(`${S}.byContract`) : t(`${S}.onFile`)
 }

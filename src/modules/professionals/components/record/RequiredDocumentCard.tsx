@@ -44,7 +44,8 @@ interface RequiredDocumentCardProps {
  * jusqu'au 31 mars 2027 », « Expire le … » within the type's reminder window, « Expiré : … »,
  * « À vérifier », « Refusé », « Manquant »), then the documents that make it: a renewal waiting
  * for review (« Nouveau document »), the one that counts, the latest refusal with its reason. The
- * image consent signed through Documenso reads « Signé le … », with no end date (P4-504). Older
+ * image consent signed through Documenso reads « Signé le … », with no end date (P4-504); one carried by
+ * the service contract « Accordé par le contrat de service signé le … » (P4-558). Older
  * documents fold under « Voir les documents précédents (n) ». « Téléverser » (« Remplacer » once a
  * document counts) for whoever may upload. While the open questionnaire holds the type (P4-495):
  * « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » (her side)
@@ -73,14 +74,17 @@ export function RequiredDocumentCard({
   const self = viewer === 'self'
   // The questionnaire holds it: its state line says so, not « Aucun document pour l'instant ».
   const inQuestionnaire = kind === 'submitted' || (self && stagedInDraft(entry))
-  const empty = !current && !pending && !rejected && !inQuestionnaire
+  // Carried by the service contract (signed, or to sign): its state line says it all (P4-558, P4-560).
+  const byContract = Boolean(entry.byContract) || Boolean(entry.byNextContract)
+  const empty = !current && !pending && !rejected && !inQuestionnaire && !byContract
   // A consent signed through Documenso: one line, « Signé le … », never an end date (P4-504; its
   // row and the signing block below do not repeat it).
-  const eSigned = current !== null && current.signatureRequestId !== null && kind === 'valid'
+  const eSigned = current !== null && current.signatureRequestId !== null && kind === 'valid' && !entry.byContract
   const stateText = eSigned ? t(`${D}.state.signedOn`, { date: formatClinicDateShort(current.uploadedAt) }) : typeStateLabel(entry, self)
   // An image consent's withdrawal (P4-549): to come (a notice period), or done; its note and who recorded it.
   const scheduled = scheduledWithdrawal(entry, today)
-  const withdrawal = (kind === 'withdrawn' || scheduled) && current ? current.withdrawal : null
+  // Through the contract (P4-559), the withdrawal recorded on the professional.
+  const withdrawal = kind === 'withdrawn' || scheduled ? ((entry.byContract ? entry.contractWithdrawal : current?.withdrawal) ?? entry.contractWithdrawal ?? null) : null
 
   return (
     <section aria-labelledby={titleId} className="min-w-0 p-4">
