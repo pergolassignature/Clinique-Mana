@@ -50,9 +50,7 @@ describe('BankSettingsPage', () => {
     await renderPage()
     expect(screen.getByRole('heading', { level: 1, name: t('settings.sections.bank') })).toBeInTheDocument()
     expect(
-      screen.getByText(
-        "Visibles par les administrateurs seulement. Chaque affichage du numéro de compte est inscrit au journal d'audit.",
-      ),
+      screen.getByText(/^Visibles par les administrateurs seulement\. Chaque affichage du numéro de compte est inscrit au journal d'audit\. Le courriel Interac paraît sur les factures/),
     ).toBeInTheDocument()
   })
 
