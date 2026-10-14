@@ -289,7 +289,7 @@ Migrations `20261013210942_clients_primary_from_match` (Clients) and `2026101321
 
 ## D6: the intake indicators
 
-Migrations `20261013233833_demandes_report_facts` (Demandes), `20261013233844_appointments_first_after` (Rendez-vous), `20261013233851_reports_demandes` (Rapports), then `20261014033043_demandes_received_index` (every state by date received, for the report and the closed or all views; pgTAP `184`); pgTAP `172_reports_demandes`; decisions **D-42 … D-45**; the workbook's KPIs ([intake workbook §8.3](../research/2026-10-08-intake-workbook.md)).
+Migrations `20261013233833_demandes_report_facts` (Demandes), `20261013233844_appointments_first_after` (Rendez-vous), `20261013233851_reports_demandes` (Rapports), then `20261014035807_demandes_received_index` (every state by date received, for the report and the closed or all views; pgTAP `186`); pgTAP `172_reports_demandes`; decisions **D-42 … D-45**; the workbook's KPIs ([intake workbook §8.3](../research/2026-10-08-intake-workbook.md)).
 
 - **Where (D-42):** Rapports « Indicateurs des demandes » (`/rapports/demandes`, `reports.view`, admin by default), listed only while Demandes is enabled; `report_demandes` refuses in French otherwise. Demandes publishes the facts and computes nothing for the screen ([Rapports doc](reports.md)).
 - **Published facts** (granted to no role, for definer code that checked its own permission):
