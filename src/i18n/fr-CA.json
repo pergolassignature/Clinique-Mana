@@ -1013,7 +1013,7 @@
       "loadError": "Impossible de charger les renseignements de la clinique."
     },
     "identity": {
-      "description": "Le nom, l'adresse et les coordonnées figurent au bas des courriels de la clinique, les coordonnées sur la fiche PDF des professionnels, la raison sociale et l'adresse dans le contrat de service. Le NEQ n'est repris dans aucun document pour l'instant.",
+      "description": "Où ces renseignements paraissent : au bas de chaque courriel de la clinique (nom affiché, adresse, téléphone, site web) ; en tête des factures, reçus, notes de crédit et relevés, aussi ceux des organismes IVAC et PAE (raison sociale, adresse, téléphone, courriel, site web) ; sur la fiche PDF des professionnels (téléphone, courriel, site web) ; dans le contrat de service (raison sociale et adresse) ; sur la facture qu'un professionnel génère pour sa paie (raison sociale et adresse). Les pages de paiement et de carte en ligne affichent la raison sociale. Le NEQ ne paraît sur aucun document.",
       "clinic": {
         "title": "Clinique",
         "saved": "Identité enregistrée."
@@ -1028,7 +1028,7 @@
       },
       "fields": {
         "name": "Nom affiché",
-        "nameHelp": "Le nom qui apparaît dans l'application.",
+        "nameHelp": "Le nom courant de la clinique : dans l'application, dans le texte et au bas des courriels, et sur les documents quand la raison sociale est vide.",
         "legalName": "Raison sociale",
         "neq": "NEQ",
         "neqHelp": "Numéro d'entreprise du Québec, 10 chiffres.",
@@ -1045,7 +1045,7 @@
       },
       "logo": {
         "title": "Logo",
-        "description": "Il figure sur la fiche PDF des professionnels. Les courriels et les contrats ne l'affichent pas pour l'instant.",
+        "description": "En tête des factures, reçus, notes de crédit et relevés, et sur la fiche PDF des professionnels. Les courriels gardent leur en-tête fixe. Un document à signer ne l'affiche que si son modèle l'ajoute (section « Signature électronique »).",
         "hint": "PNG ou JPEG, {size} Mo et {side} pixels de côté au plus.",
         "alt": "Logo de la clinique",
         "empty": "Aucun logo.",
@@ -1055,7 +1055,7 @@
         "removed": "Logo retiré.",
         "removeConfirm": {
           "title": "Retirer le logo ?",
-          "body": "La fiche PDF des professionnels affichera le logo de Clinique MANA à la place.",
+          "body": "Les factures, reçus et relevés n'auront plus de logo, et la fiche PDF des professionnels affichera celui de Clinique MANA.",
           "confirm": "Retirer"
         }
       }
@@ -1075,7 +1075,7 @@
       },
       "signature": {
         "title": "Image de signature",
-        "description": "Réservée aux documents à venir : aucun modèle ne l'affiche pour l'instant, et la clinique signe ses contrats dans Documenso.",
+        "description": "Aucun modèle de document ne l'affiche ; un modèle peut l'ajouter (section « Signature électronique »). La clinique signe ses contrats dans Documenso.",
         "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
         "alt": "Signature de la clinique",
         "empty": "Aucune image de signature.",
@@ -1085,7 +1085,7 @@
         "removed": "Image de signature retirée.",
         "removeConfirm": {
           "title": "Retirer l'image de signature ?",
-          "body": "Aucun document ne l'affiche pour l'instant.",
+          "body": "Aucun modèle de document ne l'affiche.",
           "confirm": "Retirer"
         }
       }
@@ -1384,7 +1384,7 @@
       }
     },
     "tax": {
-      "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ qui seront appliqués à la facturation, à venir. Aucun document ne les reprend pour l'instant.",
+      "description": "Les numéros de TPS et de TVQ paraissent sur les factures, reçus, notes de crédit et relevés, à côté de chaque taxe et au bas de la page. Les taux sont ceux que les factures appliquent aux lignes taxables.",
       "numbers": {
         "title": "Numéros d'inscription",
         "saved": "Numéros d'inscription enregistrés."
@@ -1434,7 +1434,7 @@
         "rate": "Taux (%)",
         "from": "À partir du",
         "fromHelp": "Le taux actuel se terminera la veille de cette date.",
-        "backdated": "Cette date est passée : la facturation, à venir, appliquera ce taux à partir de cette date.",
+        "backdated": "Cette date est passée : une facture déjà émise garde ses taux ; les autres appliqueront celui-ci à partir de cette date.",
         "submit": "Ajouter",
         "submitting": "Ajout…",
         "added": "Nouveau taux enregistré."
@@ -1446,7 +1446,7 @@
       }
     },
     "bank": {
-      "description": "Visibles par les administrateurs seulement. Chaque affichage du numéro de compte est inscrit au journal d'audit.",
+      "description": "Visibles par les administrateurs seulement. Chaque affichage du numéro de compte est inscrit au journal d'audit. Le courriel Interac paraît sur les factures, dans la façon de payer ; les numéros du compte ne paraissent sur aucun document.",
       "loadError": "Impossible de charger les coordonnées bancaires.",
       "title": "Compte de la clinique",
       "empty": {
