@@ -9211,6 +9211,24 @@
           "role": "Rôle",
           "professional": "Professionnel jumelé"
         }
+      },
+      "mine": {
+        "title": "Mes demandes",
+        "nav": "Mes demandes",
+        "description": "Les demandes jumelées avec vous, avec tout ce que la personne a dit à l'accueil. Ses coordonnées sont dans « Mes clients ».",
+        "loadError": "Impossible de charger vos demandes.",
+        "empty": {
+          "title": "Aucune demande jumelée",
+          "body": "Une demande paraît ici dès qu'elle est jumelée avec vous, avec tout ce que la personne a dit à l'accueil."
+        },
+        "cardTitle": "{reference} · {name}",
+        "received": "Reçue le {date}",
+        "matched": "jumelée le {date}",
+        "separator": ", ",
+        "people": "Personnes",
+        "participant": "{name} ({relationship})",
+        "motifCategory": "{category} : {motifs}",
+        "yesWith": "Oui : {items}"
       }
     },
     "appointments": {

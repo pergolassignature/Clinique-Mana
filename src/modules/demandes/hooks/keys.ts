@@ -40,6 +40,8 @@ export const demandesKeys = {
   /** The consents of the request's files (D-39): under its request, read again with it. */
   consents: (id: string) => [...demandesKeys.record(id), 'consents'] as const,
   reference: () => [...demandesKeys.all, 'reference'] as const,
+  /** « Mes demandes » (R-80): the professional's matched requests, whole. */
+  mine: () => [...demandesKeys.all, 'mine'] as const,
   /** The availability board (D5): read again after a change of places; the matching panels too (`all`). */
   capacity: () => [...demandesKeys.all, 'capacity'] as const,
   waitlist: () => [...demandesKeys.all, 'waitlist'] as const,
