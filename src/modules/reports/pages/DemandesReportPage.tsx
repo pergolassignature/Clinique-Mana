@@ -44,7 +44,7 @@ const C = `${D}.columns`
 const TAB_PARAMS: Record<DemandesTab, string | null> = { activity: null, sources: 'provenance', delays: 'delais', waitlist: 'liste-attente' }
 
 /**
- * Rapports « Indicateurs des demandes » (`/rapports/demandes`, reports.view, Demandes enabled;
+ * Rapports « Indicateurs des demandes » (`/rapports/demandes`, reports.demandes_indicators or reports.view (R-81), Demandes enabled;
  * Demandes D6): the intake indicators of the counselors' workbook (§8.3) on a period. Real tabs
  * (`?onglet=`): « Activité » (received, the two match rates, the promise of 2 business days, per
  * week and month, channel, conseillère, outcome, professional, clientèle), « Provenance » (D3c's

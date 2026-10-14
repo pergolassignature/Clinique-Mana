@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { SettingsSection } from '@/core/modules/types'
-import { canAny } from './visible-sections'
+import { canAny } from '@/core/access/can-any'
 
 interface SettingsSectionState {
   section: SettingsSection

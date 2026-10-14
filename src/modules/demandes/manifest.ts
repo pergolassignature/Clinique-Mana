@@ -1,4 +1,5 @@
-import { Gauge, Inbox, ListOrdered, PhoneCall, PhoneOutgoing } from 'lucide-react'
+import { ClipboardList, Gauge, Inbox, ListOrdered, PhoneCall, PhoneOutgoing } from 'lucide-react'
+import type { Access } from '@/core/access/access'
 import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -15,6 +16,9 @@ const SETTINGS_AREA: SettingsArea = { key: 'clients', labelKey: 'modules.clients
  */
 export const bookingPublicPage = lazyPage(() => import('./pages/public/BookingPage'), 'BookingPage')
 export const bookingCancelPublicPage = lazyPage(() => import('./pages/public/BookingCancelPage'), 'BookingCancelPage')
+/** « Mes demandes » (R-80): an account linked to a professional file (an admin holds demandes.self without one). */
+const hasProfessionalFile = (access: Access) => access.has_professional_file
+
 /** `/liste-attente/reponse#t=…` (D3): the answer to the « still on the waiting list? » email. Public. */
 export const waitlistAnswerPublicPage = lazyPage(() => import('./pages/public/WaitlistAnswerPage'), 'WaitlistAnswerPage')
 /** `/proposition#t=…` (D3b): the person chooses one of the slots proposed, or none. Public. */
@@ -27,7 +31,8 @@ export const propositionPublicPage = lazyPage(() => import('./pages/public/Propo
  * counselors; D3b « Appels découverte » (the counselors' day of calls) and the proposals (Suivi,
  * the public `/proposition`); D3 the waiting list (« Liste d'attente », its follow-up, Paramètres → Liste
  * d'attente); D3c the public booking page and Paramètres → Appels découverte. Depends on Clients (the person's file, the participants) and
- * Professionnels (the match, the catalogues).
+ * Professionnels (the match, the catalogues). R-80: « Mes demandes », the professional's matched
+ * requests, whole (`my_demandes`, demandes.self).
  */
 export const demandesManifest: ModuleManifest = {
   key: 'demandes',
@@ -48,6 +53,16 @@ export const demandesManifest: ModuleManifest = {
       order: 12.7,
     },
     { path: '/liste-attente', labelKey: 'modules.demandes.waitlist.name', icon: ListOrdered, permission: 'demandes.view', group: 'intake', order: 13 },
+    // R-80: the professional's matched requests, whole (read-only), after « Mes clients ».
+    {
+      path: '/mes-demandes',
+      labelKey: 'modules.demandes.mine.nav',
+      icon: ClipboardList,
+      permission: 'demandes.self',
+      shownWhen: hasProfessionalFile,
+      group: 'main',
+      order: 7.5,
+    },
   ],
   // Accueil « Demandes à traiter » (L29): the counselors' work queue, each figure a filtered inbox.
   // Clients' record, tab « Demandes » (L18): the file's requests.
@@ -72,6 +87,7 @@ export const demandesManifest: ModuleManifest = {
       component: lazyPage(() => import('./pages/DemandeRecordPage'), 'DemandeRecordPage'),
     },
     { path: 'liste-attente', permission: 'demandes.view', component: lazyPage(() => import('./pages/WaitlistPage'), 'WaitlistPage') },
+    { path: 'mes-demandes', permission: 'demandes.self', component: lazyPage(() => import('./pages/MyDemandesPage'), 'MyDemandesPage') },
   ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.demandesAuditLabels),

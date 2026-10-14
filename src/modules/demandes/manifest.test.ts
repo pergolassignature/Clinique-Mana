@@ -12,6 +12,7 @@ describe('demandesManifest', () => {
       ['/demandes/appels', 'demandes.view', 'Appels découverte'],
       ['/demandes/places', 'demandes.view', 'Places restantes'],
       ['/liste-attente', 'demandes.view', "Liste d'attente"],
+      ['/mes-demandes', 'demandes.self', 'Mes demandes'],
     ])
     expect(demandesManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['demandes', 'demandes.view'],
@@ -19,7 +20,15 @@ describe('demandesManifest', () => {
       ['demandes/places', 'demandes.view'],
       ['demandes/:id/:onglet?', 'demandes.view'],
       ['liste-attente', 'demandes.view'],
+      ['mes-demandes', 'demandes.self'],
     ])
+  })
+
+  it('« Mes demandes » (R-80): for an account linked to a professional file, in her own pages', () => {
+    const item = [demandesManifest.nav ?? []].flat().find((n) => n.path === '/mes-demandes')!
+    expect(item.group).toBe('main')
+    expect(item.shownWhen?.({ has_professional_file: true } as never)).toBe(true)
+    expect(item.shownWhen?.({ has_professional_file: false } as never)).toBe(false)
   })
 
   it('Paramètres → Appels découverte (D3c) and → Liste d’attente (D3); the public pages are lazy', () => {

@@ -307,6 +307,14 @@ Migration `*_appointments_security_fixes.sql`, pgTAP `190_appointments_security_
 - **Published facts:** `get_booking_consents` reads the file's existence from Clients' `private.clients_booking_facts`, no longer Clients' table.
 - **Google busy times:** `google-calendar-callback` revokes the grant when Google returns no refresh token (as when the free/busy scope is missing).
 
+## Services a professional does not offer (R-83)
+
+Migration `20261014162811_appointments_service_exclusions` (pgTAP `223_services_professional_exclusions`). Services et tarifs keeps, per professional, the services of her titles she does not offer ([services doc](services.md), R-83).
+
+- **The guard:** a trigger on `appointments` (BEFORE INSERT, and UPDATE OF `service_id` or `professional_id`; `private.appointments_check_service_offered`, definer) refuses « Ce professionnel n'offre pas ce service. » (P0001, HINT `service_id`) a booking, hold, series, proposal's appointment or move to another professional or service she does not offer, whoever writes. A personal appointment, a move in time and an imported appointment (`external_ref` on insert) are untouched.
+- **Open slots:** `get_open_slots(professional, service, …)` refuses a service she does not offer as it refuses one her titles do not offer (P0001, HINT `service_id`): no slot is ever proposed for it.
+- **The pickers:** `servicesFor(reference, professional)` (`lib/display.ts`: the booking form, the availability windows' services, the agenda's service filter) leaves out a service whose `excluded_professional_ids` (from `services_catalog`) names her; « Mon agenda »'s `get_my_agenda_reference()` leaves them out on the server.
+
 ## Rules for the other lanes
 
 - Never book by inserting: `book_appointment` holds every rule; the import (I1) will get its own service-role entry that keeps `external_ref`.

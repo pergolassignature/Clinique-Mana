@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 
 /*
- * Rapports « Indicateurs des demandes » (Demandes D6): `report_demandes(from, to)` (reports.view;
+ * Rapports « Indicateurs des demandes » (Demandes D6): `report_demandes(from, to)` (reports.demandes_indicators or reports.view, R-81;
  * Demandes enabled), the intake indicators of the workbook (§8.3), the sources of D3c, the
  * waiting list and D5's photos. One answer for the whole page; each tab shows part of it.
  */

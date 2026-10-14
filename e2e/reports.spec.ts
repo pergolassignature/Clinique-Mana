@@ -16,6 +16,7 @@ import { E2E_ORIGIN } from './fixtures/origin'
  * 4. « Consentements » (Clients C5b): today's states per consent, per month.
  * 5. « Indicateurs des demandes » (Demandes D6; the seed enables Demandes): this year's totals, then
  *    « Provenance » and « Liste d'attente et places » (the tabs in the address).
+ * 5b. R-81: the conseillère has « Indicateurs des demandes » alone, « Annulations » refused.
  * 6. RP2: « IVAC » (the state filter in the address) and « Paie des professionnels » (admin only), in the « Rapports » section (NAV-2).
  */
 
@@ -97,6 +98,31 @@ test('the adjointe has « Revenus », not « Annulations »', async ({ page, sig
       const nav = adjointe.getByRole('navigation', { name: 'Menu principal' })
       await expect(nav.getByRole('link', { name: 'Revenus' })).toBeVisible()
       await expect(nav.getByRole('link', { name: 'Annulations' })).toHaveCount(0)
+    } finally {
+      await other.close()
+    }
+  })
+})
+
+// R-81: the conseillère opens « Indicateurs des demandes » (its own permission), no other report.
+test('the conseillère has « Indicateurs des demandes » alone under Rapports', async ({ page, signIn, browser }) => {
+  await withReports(page, signIn, async () => {
+    const other = await browser.newContext({ baseURL: E2E_ORIGIN, locale: 'fr-CA' })
+    try {
+      const counselor = await other.newPage()
+      await counselor.goto('/connexion')
+      await counselor.getByLabel('Courriel').fill(ACCOUNTS.counselor.email)
+      await counselor.getByLabel('Mot de passe').fill(SEED_PASSWORD)
+      await counselor.getByRole('button', { name: 'Se connecter' }).click()
+      await expect(counselor).toHaveURL(/\/accueil$/)
+      const nav = counselor.getByRole('navigation', { name: 'Menu principal' })
+      const reports = nav.getByRole('group', { name: 'Rapports' })
+      await expect(reports.getByRole('link')).toHaveText(['Indicateurs des demandes'])
+      await reports.getByRole('link', { name: 'Indicateurs des demandes' }).click()
+      await expect(counselor.getByRole('heading', { level: 1, name: 'Indicateurs des demandes' })).toBeVisible()
+      await expect(counselor.getByRole('tablist', { name: 'Vues des indicateurs' })).toBeVisible()
+      await counselor.goto('/rapports/annulations')
+      await expect(counselor.getByRole('heading', { level: 1, name: 'Accès refusé' })).toBeVisible()
     } finally {
       await other.close()
     }

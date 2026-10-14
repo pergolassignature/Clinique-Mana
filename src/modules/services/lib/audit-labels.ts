@@ -7,7 +7,14 @@ import { formatCents, formatPercent } from './format'
  * catalogue, then what hangs off it. `src/app/audit-labels.test.ts` checks it against the
  * migrations' audit triggers.
  */
-export const SERVICES_AUDITED_TABLES = ['service_families', 'services', 'service_titles', 'service_rate_variants', 'billing_policies'] as const
+export const SERVICES_AUDITED_TABLES = [
+  'service_families',
+  'services',
+  'service_titles',
+  'service_rate_variants',
+  'billing_policies',
+  'service_professional_exclusions',
+] as const
 
 const MONEY_COLUMNS = new Set(['fixed_price_cents', 'amount_cents'])
 const PERCENT_COLUMNS = new Set(['percent', 'first_fee_percent', 'next_fee_percent'])

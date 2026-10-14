@@ -155,8 +155,11 @@ describe('ConsentsSettingsPage', () => {
     expect(within(general).getByText(/^Publié · version 1 · le /)).toBeInTheDocument()
     expect(within(general).getByText(t(`${S}.overview.chips.changed`))).toBeInTheDocument()
     expect(within(general).getByText(t(`${S}.overview.chips.draft`))).toBeInTheDocument()
+    // R-75: the English general text is not published but the French one is: said on its line.
+    expect(within(general).getByText(t(`${S}.texts.englishFallback`))).toBeInTheDocument()
     const waitlist = within(texts).getByText('Liste d’attente').closest('li')!
     expect(within(waitlist).getByText(t(`${S}.overview.chips.placeholder`))).toBeInTheDocument()
+    expect(within(waitlist).queryByText(t(`${S}.texts.englishFallback`))).not.toBeInTheDocument()
     // The provisional texts said once, above, by name.
     expect(screen.getByText(t(`${S}.overview.placeholderTitle`, { count: '1' }))).toBeInTheDocument()
     expect(screen.getByText(t(`${S}.overview.placeholderBody`, { names: 'Liste d’attente' }))).toBeInTheDocument()

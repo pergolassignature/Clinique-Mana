@@ -341,6 +341,28 @@ describe('AuthenticatedApp', () => {
     expect(section('nav.groups.team')).toEqual([t('modules.professionals.name')])
   })
 
+  // R-81: a nav item (and its route) may name several permissions, any of them.
+  it('shows the conseillère only « Indicateurs des demandes » under Rapports, and refuses the other reports', () => {
+    render(appAt('/rapports/annulations', accessForRole('counselor', { modules: ALL_MODULES.map((m) => m.key) })))
+    const nav = screen.getByRole('navigation', { name: t('nav.label') })
+    const reports = within(within(nav).getByRole('group', { name: t('nav.groups.reports') }))
+      .getAllByRole('link')
+      .map((link) => [link.textContent, link.getAttribute('href')])
+    expect(reports).toEqual([[t('modules.reports.demandes.nav'), '/rapports/demandes']])
+    expect(screen.getByRole('heading', { level: 1, name: t('access.forbidden.title') })).toBeInTheDocument()
+  })
+
+  it('keeps « Indicateurs des demandes » for a role holding reports.view without the new permission', () => {
+    const access = accessForRole('counselor', { modules: ALL_MODULES.map((m) => m.key) })
+    render(appAt('/introuvable', { ...access, permissions: [...access.permissions.filter((p) => p !== 'reports.demandes_indicators'), 'reports.view'] }))
+    const nav = screen.getByRole('navigation', { name: t('nav.label') })
+    expect(
+      within(within(nav).getByRole('group', { name: t('nav.groups.reports') }))
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([t('modules.reports.cancellations.nav'), t('modules.reports.demandes.nav'), t('modules.reports.consents.nav')])
+  })
+
   it('shows a professional her own pages after Accueil with no section heading', () => {
     render(appAt('/introuvable', accessForRole('provider', { modules: ALL_MODULES.map((m) => m.key) })))
     const nav = screen.getByRole('navigation', { name: t('nav.label') })

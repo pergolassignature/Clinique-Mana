@@ -1,13 +1,10 @@
+import { canAny } from '@/core/access/can-any'
 import type { TranslationKey } from '@/i18n'
 import type { SettingsArea, SettingsGroup, SettingsSection } from '@/core/modules/types'
 
 /** Menu order of the settings groups. */
 export const SETTINGS_GROUP_ORDER: SettingsGroup[] = ['clinique', 'plateforme', 'modules', 'compte']
 
-/** Whether the user holds the permission, or any one of the permissions (none: false). */
-export function canAny(permission: string | readonly string[], can: (permission: string) => boolean): boolean {
-  return typeof permission === 'string' ? can(permission) : permission.some((p) => can(p))
-}
 
 /** Whether the user may open the section: its permission, or any one of its permissions. */
 export function canOpenSection(section: Pick<SettingsSection, 'permission'>, can: (permission: string) => boolean): boolean {

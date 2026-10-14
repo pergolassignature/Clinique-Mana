@@ -88,7 +88,11 @@ test('the counselor takes a request from the first call to its closing', async (
   await expect(page.getByText('Fermée : En double').first()).toBeVisible()
 })
 
-test('the professional has no « Demandes »', async ({ page, signIn }) => {
+test('the professional has no « Demandes », only « Mes demandes » (R-80)', async ({ page, signIn }) => {
   await signIn('provider')
-  await expect(page.getByRole('link', { name: 'Demandes' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Demandes', exact: true })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Mes demandes', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Mes demandes' })).toBeVisible()
+  await page.goto('/demandes')
+  await expect(page.getByRole('heading', { level: 1, name: 'Accès refusé' })).toBeVisible()
 })
