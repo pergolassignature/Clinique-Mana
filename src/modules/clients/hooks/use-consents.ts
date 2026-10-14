@@ -11,6 +11,7 @@ import {
   fetchClientConsentStatus,
   fetchConsentClauses,
   fetchConsentRules,
+  fetchServiceNames,
   fetchConsentSettings,
   fetchConsentTemplates,
   fetchConsentsToObtain,
@@ -34,6 +35,7 @@ const S = 'modules.clients.consents'
 
 export const useConsentTypes = () => useQuery({ queryKey: consentKeys.types(), queryFn: fetchConsentTypes })
 export const useConsentRules = () => useQuery({ queryKey: consentKeys.rules(), queryFn: fetchConsentRules })
+export const useServiceNames = () => useQuery({ queryKey: consentKeys.serviceNames(), queryFn: fetchServiceNames, staleTime: 5 * 60_000 })
 export const useConsentSettings = () => useQuery({ queryKey: consentKeys.settings(), queryFn: fetchConsentSettings })
 export const useConsentTemplates = () => useQuery({ queryKey: consentKeys.templates(), queryFn: fetchConsentTemplates })
 export const useConsentsToObtain = () => useQuery({ queryKey: consentKeys.toObtain(), queryFn: fetchConsentsToObtain, staleTime: 0 })
