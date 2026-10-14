@@ -75,7 +75,7 @@ export function ClientsListPage() {
   // Remembered filters (C4): on arrival with no filter in the URL, the person's saved ones are
   // written into it; each filter she chooses is saved (debounced); a link with filters wins.
   const preference = useUserPreference(CLIENTS_FILTERS_PREFERENCE)
-  const { schedule } = usePreferenceWriter(CLIENTS_FILTERS_PREFERENCE)
+  const { schedule, flush } = usePreferenceWriter(CLIENTS_FILTERS_PREFERENCE)
   // The URL update is a transition: until it lands (« applying »), the list waits rather than
   // showing every file for a moment.
   const [phase, setPhase] = useState<'waiting' | 'applying' | 'done'>('waiting')
@@ -100,8 +100,14 @@ export function ClientsListPage() {
 
   // From the latest parameters, not this render's: two quick changes in a row (before the URL's
   // re-render) must not undo each other (react-router's functional setter reads the render's too).
+  // A render while the navigation is still pending (the list's data arriving) carries the old
+  // parameters: only a new URL replaces them.
   const latest = useRef(params)
-  latest.current = params
+  const seen = useRef(params)
+  if (seen.current !== params) {
+    seen.current = params
+    latest.current = params
+  }
   const update = (patch: Record<string, string | null>, q: string = filters.query) => {
     const previous = latest.current
     const next = new URLSearchParams(previous)
@@ -208,8 +214,12 @@ export function ClientsListPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setParams(new URLSearchParams(), { replace: true })
+                    // Both at once: the URL, and the remembered filters forgotten now (no debounce
+                    // left pending that could bring them back on the next visit).
+                    latest.current = new URLSearchParams()
+                    setParams(latest.current, { replace: true })
                     schedule(null)
+                    flush()
                   }}
                 >
                   {t(`${L}.reset`)}
