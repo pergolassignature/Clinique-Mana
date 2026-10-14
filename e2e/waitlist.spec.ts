@@ -24,9 +24,12 @@ test('a request registered on the waiting list, followed, then out of it', async
   await dialog.getByRole('button', { name: 'Créer la demande' }).click()
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
 
-  // Without a file, the registration says so.
+  // Without a file, the registration says so. Chosen right after the record opens, « Liste
+  // d'attente » waits for the request's registrations (« Lecture des inscriptions… »), then the
+  // dialog opens: the spec waits on the dialog, never on time.
   await page.getByRole('combobox', { name: "Changer l'état" }).selectOption('waitlist')
   const register = page.getByRole('dialog', { name: "Inscrire sur la liste d'attente" })
+  await expect(register).toBeVisible()
   await expect(register.getByRole('alert')).toContainText("Rattachez d'abord le dossier du client")
   await page.keyboard.press('Escape')
 
@@ -36,6 +39,7 @@ test('a request registered on the waiting list, followed, then out of it', async
   await page.getByRole('dialog', { name: 'Nouveau client' }).getByRole('button', { name: 'Créer le dossier' }).click()
   await expect(page.getByText('Le dossier est rattaché.')).toBeVisible()
   await page.getByRole('combobox', { name: "Changer l'état" }).selectOption('waitlist')
+  await expect(register).toBeVisible()
   await register.getByRole('combobox', { name: 'Profession', exact: true }).selectOption({ index: 1 })
   const list = (await register.getByRole('combobox', { name: 'Profession', exact: true }).locator('option:checked').textContent())!.replace(/ \(\d+ en attente\)$/, '')
   await register.getByRole('button', { name: 'Prioritaire' }).click()
