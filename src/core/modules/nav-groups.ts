@@ -13,6 +13,8 @@ export const NAV_GROUPS = [
   { id: 'followUp', labelKey: 'nav.groups.followUp' },
   { id: 'billing', labelKey: 'nav.groups.billing' },
   { id: 'communications', labelKey: 'nav.groups.communications' },
+  // NAV-2: every report in one section, after the day's work.
+  { id: 'reports', labelKey: 'nav.groups.reports' },
   { id: 'team', labelKey: 'nav.groups.team' },
   { id: 'other', labelKey: 'nav.groups.other' },
   { id: 'settings', labelKey: null },
