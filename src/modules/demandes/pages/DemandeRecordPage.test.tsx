@@ -236,7 +236,7 @@ describe('DemandeRecordPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Alice Tremblay' })).toBeInTheDocument()
     expect(screen.getByText('DEM-2026-0007')).toBeInTheDocument()
     expect(screen.getByText(t('modules.demandes.promise.met'))).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: t(`${R}.openFile`, { number: '42' }) })).toHaveAttribute('href', '/clients/c1')
+    expect(screen.getByRole('link', { name: t(`${R}.openFile`, { number: 'CLI-000042' }) })).toHaveAttribute('href', '/clients/c1')
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Accueil', 'Participants', 'Suivi1', 'Jumelage', 'Historique'])
   })
 
@@ -460,7 +460,7 @@ describe('DemandeRecordPage', () => {
   it('Participants: the file of the request added as the main person', async () => {
     const user = userEvent.setup()
     renderPage('participants')
-    await user.click(await screen.findByRole('button', { name: t('modules.demandes.participants.addFile', { file: 'N° 42 · Alice Tremblay' }) }))
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.participants.addFile', { file: 'CLI-000042 · Alice Tremblay' }) }))
     await user.click(screen.getByRole('button', { name: t('common.save') }))
     await waitFor(() => expect(mocks.api.saveParticipants).toHaveBeenCalledTimes(1))
     expect(mocks.api.saveParticipants.mock.calls[0]![1]).toEqual([
@@ -508,7 +508,7 @@ describe('DemandeRecordPage', () => {
     renderPage('participants')
     expect(await screen.findByText(t(`${P}.consents.toSettle`))).toBeInTheDocument()
     const missing = t(`${P}.consents.state.missing`, { name: 'Consentement général' })
-    expect(screen.getByText(t(`${P}.consents.fileLine`, { file: 'N° 43 · Bruno Tremblay', status: missing }))).toBeInTheDocument()
+    expect(screen.getByText(t(`${P}.consents.fileLine`, { file: 'CLI-000043 · Bruno Tremblay', status: missing }))).toBeInTheDocument()
     expect(screen.getByText(t(`${P}.consents.valid`))).toBeInTheDocument()
     expect(screen.getAllByText(missing)).toHaveLength(1)
   })
@@ -556,7 +556,7 @@ describe('DemandeRecordPage', () => {
     renderPage()
     expect(await screen.findByRole('heading', { name: t('modules.demandes.sources.title') })).toBeInTheDocument()
     expect(screen.getByText('automne')).toBeInTheDocument()
-    expect(screen.getByText('https://cliniquemana.com/psy')).toBeInTheDocument()
+    expect(screen.getByText('/psy')).toBeInTheDocument()
   })
 
   it('« Liste d\'attente » without an entry registers the request: a profession, a priority with its reason', async () => {
