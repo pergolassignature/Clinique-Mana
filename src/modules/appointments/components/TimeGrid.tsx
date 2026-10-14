@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Ban, Phone, Repeat, TriangleAlert } from 'lucide-react'
+import { Ban, Bell, BellOff, CircleCheck, Phone, Repeat, TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import { formatClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
@@ -7,7 +7,7 @@ import type { ExternalBusy } from '../api/calendar'
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
 import { busyOn, exceptionsOn, placeAppointments, verticalBox, windowsOn } from '../lib/layout'
 import { DEFAULT_GRID, SNAP, gridRangeFor, hhmm, instantOf, minutesOnDay, snap, type GridRange } from '../lib/time'
-import { appointmentTitle, blockClasses, isBusyOnly, stateLabel } from '../lib/display'
+import { appointmentTitle, blockClasses, isBusyOnly, reminderMarks, stateLabel } from '../lib/display'
 
 /** Pixels per hour of the grid (16 hours by default: 6:00 to 22:00). */
 export const HOUR_HEIGHT = 48
@@ -240,7 +240,10 @@ function Column({ column, height, range, ...props }: TimeGridProps & { column: G
                   drag?.id === a.id && 'z-10 opacity-80 ring-2 ring-primary',
                 )}
                 style={position}
-                aria-label={t(`${A}.blockLabel`, { time: formatClinicTime(a.startsAt), title: appointmentTitle(a) })}
+                aria-label={[
+                  t(`${A}.blockLabel`, { time: formatClinicTime(a.startsAt), title: appointmentTitle(a) }),
+                  ...reminderMarks(a).map((mark) => t(`${A}.marks.${mark}`)),
+                ].join(', ')}
                 // The professional on hover when the block is too short to write her name.
                 title={props.showProfessional ? props.professionalName(a.professionalId) : undefined}
               >
@@ -251,6 +254,10 @@ function Column({ column, height, range, ...props }: TimeGridProps & { column: G
                   {a.state === 'cancelled' && <Ban aria-hidden className="size-3 shrink-0" />}
                   {a.state === 'cancelled' && <span className="truncate font-normal">{stateLabel(a.state)}</span>}
                   {a.seriesId && <Repeat aria-hidden className="size-3" />}
+                  {reminderMarks(a).map((mark) => {
+                    const Icon = mark === 'confirmed' ? CircleCheck : mark === 'reminded' ? Bell : BellOff
+                    return <Icon key={mark} aria-hidden className={cn('size-3 shrink-0', mark === 'unreachable' && 'text-warning')} />
+                  })}
                 </span>
                 <span className="block truncate">{appointmentTitle(a)}</span>
                 {a.state === 'held' && <span className="block truncate text-muted-foreground">{stateLabel(a.state)}</span>}
