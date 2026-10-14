@@ -5140,7 +5140,7 @@
       },
       "display": {
         "minutes": "{minutes} min",
-        "withBuffer": "{base} + {buffer}",
+        "withBuffer": "{base} + {buffer} min de pause",
         "grid60": "60 min (couple ou famille)",
         "gridMinutes": "{minutes} min",
         "gridPrice": "Grille, {duration}",
@@ -6352,7 +6352,7 @@
           "provider": "Fournisseur du PAE",
           "fileNumber": "Numéro de dossier",
           "sessionAmount": "Montant par séance ($)",
-          "maxSessions": "Séances au plus",
+          "maxSessions": "Nombre maximal de séances",
           "maxAmount": "Montant au plus ($)",
           "period": "Période",
           "startsOn": "Début",
@@ -6779,7 +6779,7 @@
           "none": "Aucun consentement",
           "record": "Enregistrer le consentement",
           "withdraw": "Retirer le consentement",
-          "newNumber": "Nouveau numéro",
+          "newNumber": "Ajouter un numéro (consentement)",
           "dialogTitle": "Consentement aux textos",
           "dialogDescription": "Notez le consentement que la personne a donné (au téléphone, en personne). Un texto lui est envoyé aussitôt avec le texte de consentement de la clinique, qui dit comment se désabonner (ARRÊT).",
           "withdrawTitle": "Retirer le consentement aux textos",
@@ -9608,6 +9608,7 @@
           "appointment": "Rendez-vous",
           "notes": "Notes",
           "cancel": "Annulation",
+          "messages": "Messages",
           "history": "Historique",
           "billing": "Facturation"
         },
@@ -9694,6 +9695,45 @@
           "arrow": " → ",
           "loadMore": "Charger plus",
           "loadingMore": "Chargement…"
+        },
+        "messages": {
+          "label": "Messages envoyés aux clients",
+          "loadError": "Les messages du rendez-vous ne se chargent pas.",
+          "empty": "Aucun message pour ce rendez-vous.",
+          "emptyBody": "Les confirmations, rappels, modifications et annulations envoyés aux clients s'affichent ici.",
+          "resend": "Renvoyer la notification",
+          "resendHelp": "Renvoie la confirmation du rendez-vous au client (texto tout de suite, courriel avec la prochaine tâche des messages).",
+          "resendCancelled": "Renvoie l'avis d'annulation au client.",
+          "resent": "Notification renvoyée ({count} message(s)).",
+          "nobody": "Aucun message envoyé : personne ne peut être joint (pas de courriel ni de cellulaire avec rappels).",
+          "queuedAt": "Créé le {when}",
+          "kind": {
+            "confirmation": "Confirmation",
+            "reminder": "Rappel",
+            "changed": "Modification",
+            "cancelled": "Annulation"
+          },
+          "channel": {
+            "email": "Courriel",
+            "sms": "Texto"
+          },
+          "status": {
+            "pending": "En attente d'envoi",
+            "sent": "Envoyé",
+            "sentAt": "Envoyé le {when}",
+            "failed": "Échec après {attempts} essai(s)",
+            "skipped": "Non envoyé : {reason}"
+          },
+          "skip": {
+            "no_consent": "pas de consentement aux textos",
+            "sms_off": "textos non activés",
+            "cancelled": "rendez-vous annulé",
+            "past": "rendez-vous passé",
+            "superseded": "remplacé par un message plus récent",
+            "unreachable": "aucun moyen de joindre la personne",
+            "reserved": "module réservé aux testeurs",
+            "other": "raison inconnue"
+          }
         }
       },
       "availability": {
@@ -10711,7 +10751,9 @@
           "title": "Relances",
           "step": "Relance du jour {step} : {date}",
           "stepMissed": "Jour {step} : passé sans envoi"
-        }
+        },
+        "serviceCode": "code {code}",
+        "quantityAndTaxes": "Quantité {quantity} · Taxes : {taxes}"
       },
       "client": {
         "title": "Factures",
@@ -11291,7 +11333,7 @@
           "exportFileName": "Factures des professionnels {month}.csv",
           "previousMonth": "Mois précédent",
           "nextMonth": "Mois suivant",
-          "summary": "{periods} sommaire(s), {total} · {unpriced} à compléter · {validated} validé(s) · {paid} versé(s)",
+          "summary": "Sommaires : {periods} · Total : {total} · À compléter : {unpriced} · Validés : {validated} · Versés : {paid}",
           "unknownProfessional": "Professionnel",
           "noSpecialty": "Profession à confirmer",
           "noInvoice": "Aucune",
@@ -11539,7 +11581,7 @@
       "interac": {
         "nav": "Virements Interac",
         "title": "Virements Interac",
-        "description": "Les avis de virement reçus à administration@, à rapprocher d’une facture : le paiement et son reçu sont enregistrés d’un clic.",
+        "description": "Les avis de virement reçus dans la boîte « administration » de la clinique, à rapprocher d’une facture : le paiement et son reçu sont enregistrés d’un clic.",
         "loadError": "Les avis de virement n’ont pas pu être chargés.",
         "filterLabel": "Avis à afficher",
         "states": {
@@ -11553,7 +11595,7 @@
           "ignored": "Aucun virement ignoré"
         },
         "receivedOn": "Reçu le {date}",
-        "fromMailbox": "lu dans administration@",
+        "fromMailbox": "lu dans la boîte « administration »",
         "reference": "Référence : {reference}",
         "suggestions": "Factures suggérées",
         "noSuggestion": "Aucune facture émise n’a ce solde ni ce nom : enregistrez le paiement depuis la facture, puis ignorez l’avis.",
@@ -11573,7 +11615,7 @@
         },
         "add": {
           "title": "Ajouter un avis de virement",
-          "description": "Recopiez l’avis reçu à administration@ (montant, expéditeur, message).",
+          "description": "Recopiez l’avis reçu dans la boîte « administration » (montant, expéditeur, message).",
           "date": "Reçu le",
           "amount": "Montant ($)",
           "amountInvalid": "Entrez le montant du virement (par exemple 130 ou 130,00).",
@@ -12222,8 +12264,8 @@
         },
         "sort": {
           "label": "Trier par",
-          "date_desc": "Date : les plus récentes d’abord",
-          "date_asc": "Date : les plus anciennes d’abord",
+          "date_desc": "Date : récentes d’abord",
+          "date_asc": "Date : anciennes d’abord",
           "client": "Client",
           "professional": "Professionnel"
         },
