@@ -260,6 +260,7 @@ Migration `20261014000122_appointments_google_busy`; pgTAP `177_appointments_goo
 - **Coming:** `booked` or `confirmed`, with its pause; a GOrendezvous video link is kept (`video_status` `ready`) and no Zoom task replaces it (`appointments_video_queue` skips an imported appointment with its own link and no meeting of ours); without a link, the usual meeting.
 - **Never billed twice:** `appointments_for_billing`, `client_billable_appointments` and `appointments_fee_candidates` leave out an appointment imported after it started (`external_ref` and `starts_at < created_at`); one imported before it happens is ordinary.
 - **Overlaps:** `conflict` (never an error), for the tool's report. Notes are never imported (D8).
+- **Reminders at the cutover (I-19):** an imported coming appointment gets its reminder, never a confirmation. `private.appointments_reminder_window(org, at)` gives the dates reminded at an instant (the rule of `appointments_queue_reminders`, unchanged): never today's (no catch-up), Friday covers Saturday to Monday. pgTAP `182_appointments_reminder_window` checks it at the cutover's dates (Monday November 30, 2026).
 
 ## Rules for the other lanes
 
