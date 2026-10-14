@@ -4,10 +4,10 @@
 -- professional and tag filters; the keyset pages in name order, case and accents ignored.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(18);
 
-select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer', 'text', 'text', 'timestamp with time zone'], 'anon', array[]::text[], 'anon cannot call it');
-select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer', 'text', 'text', 'timestamp with time zone'], 'authenticated', array['EXECUTE'], 'authenticated may call it');
+select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer', 'text', 'text', 'timestamp with time zone', 'integer', 'timestamp with time zone'], 'anon', array[]::text[], 'anon cannot call it');
+select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer', 'text', 'text', 'timestamp with time zone', 'integer', 'timestamp with time zone'], 'authenticated', array['EXECUTE'], 'authenticated may call it');
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -55,6 +55,22 @@ select results_eq($$ select first_name, tag_ids from public.list_clients(p_tag_i
 select results_eq($$ select first_name from public.list_clients(p_limit => 2) $$, array['Anne', 'Émile'], 'a page of two');
 select results_eq($$ select first_name from public.list_clients(p_after_last => 'berube', p_after_first => 'emile', p_after_id => 'd0000000-0000-0000-0000-000000000001') $$,
   array['Zoé'], 'the next page after the cursor');
+-- A-3 (CL-32): by file number, by newest file; neither needs appointments.view (Rendez-vous is off here).
+select results_eq($$ select first_name from public.list_clients(p_sort => 'number') $$,
+  $$ select first_name from public.list_clients() order by client_number $$, 'by file number');
+select results_eq($$ select first_name from public.list_clients(p_sort => 'number',
+                       p_after_number => (select min(client_number) from public.list_clients()), p_after_id => 'd0000000-0000-0000-0000-000000000001') $$,
+  $$ select first_name from public.list_clients() order by client_number offset 1 $$, '… its next page after the cursor');
+reset role;
+update public.clients set created_at = now() - case id when 'd0000000-0000-0000-0000-000000000001' then interval '1 day'
+                                                        when 'd0000000-0000-0000-0000-000000000002' then interval '3 days' else interval '2 days' end
+ where org_id = 'b0000000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select results_eq($$ select first_name, now() - created_at from public.list_clients(p_sort => 'created_recent') $$,
+  $$ values ('Émile', interval '1 day'), ('Zoé', interval '2 days'), ('Anne', interval '3 days') $$, 'the newest files first, with their date');
+select results_eq($$ select first_name from public.list_clients(p_sort => 'created_recent', p_after_created => now() - interval '1 day',
+                       p_after_id => 'd0000000-0000-0000-0000-000000000001') $$, array['Zoé', 'Anne'], '… the next page after the cursor');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select throws_ok($$ select * from public.list_clients() $$, '42501', 'Permission refusée : clients.view', 'a professional has no list of every client');
 select throws_ok($$ select * from public.list_clients(p_status => 'nope') $$, '42501', null, '… even with a bad state (permission first)');

@@ -72,6 +72,8 @@ export async function fetchClientsPage(
       p_sort: query.sort,
       p_last_visit: query.lastVisit,
       p_after_visit: after?.visit ?? null,
+      p_after_number: after?.number ?? null,
+      p_after_created: after?.created ?? null,
     }),
   )
   if (error) throw error
