@@ -254,6 +254,13 @@ Migration `20261014000122_appointments_google_busy`; pgTAP `177_appointments_goo
   - Paramètres → Agenda, « Agendas Google des professionnels » (`GoogleCalendarAppCard`): the application's client id and secret (write-only, `settings.integrations_manage`), the return address to give Google, the job's state.
   - The agenda (`TimeGrid`, `busy` prop; `useExternalBusy`, keys under `['appointments', 'calendar']`): « Occupé » under the appointments where a column has one professional (day view, a week of one professional, « Mon agenda »). Not drawn in a week of every professional, the month or « Prochains jours ».
 
+## The sheet's « Messages » (AP-47, parity audit L12)
+
+Migration `20261014035625_appointments_messages_sheet`; pgTAP `184_appointments_messages_sheet`.
+
+- **« Messages »** (a tab of the sheet, after « Annulation »): `list_appointment_messages(id)` (`appointments.view`; or `appointments.self` for her own appointment): every message to the appointment's clients and their relations, newest first: the kind (Confirmation, Rappel, Modification, Annulation), the channel, the recipient's name (Clients' `clients_display_names`), the state in words (« En attente d'envoi », « Envoyé le … », « Échec après N essais », « Non envoyé : <raison> ») and when it was created. Never an address, a number or a text.
+- **« Renvoyer la notification »** (`appointments.manage`; a coming appointment, booked, confirmed or cancelled): `resend_appointment_notification(id)` queues its confirmation (or its cancellation) again for every recipient and channel, through `appointments_queue_message(org, id, kind, again => true)` (a new message past the one-per-start key). Refused for a past, held or personal appointment, and within 2 minutes of the last one of that kind. Returns how many were queued: 0 says « personne ne peut être joint » (or Rendez-vous is reserved for testers, P3-40). A text leaves at once; an email with the messages job.
+
 ## The GOrendezvous import (I2, I-15)
 
 `import_appointment(row, dry_run)` (`appointments.manage`, `clients.manage`, `clients.merge`; migration `*_appointments_import.sql`, pgTAP `178_appointments_import`): one appointment by `external_ref` « gorendezvous:… » (a re-run `skipped`), its professional, service code and one or two clients (by reference or name, Clients' `clients_import_match`: `unmatched`), each linked « import » to the professional.

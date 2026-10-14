@@ -18,6 +18,8 @@ export const appointmentsKeys = {
   bookingConsents: (serviceId: string, clientIds: readonly string[]) => [...appointmentsKeys.all, 'booking-consents', serviceId, clientIds] as const,
   /** An appointment's « Historique » (AP-33). */
   history: (appointmentId: string) => [...appointmentsKeys.all, 'history', appointmentId] as const,
+  /** An appointment's « Messages » (AP-47); « Renvoyer la notification » refreshes this one only. */
+  messages: (appointmentId: string) => [...appointmentsKeys.all, 'messages', appointmentId] as const,
   /** Paramètres → Agenda (AP-31). */
   settings: () => [...appointmentsKeys.all, 'settings'] as const,
 }
