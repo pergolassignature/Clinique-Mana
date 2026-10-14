@@ -19,11 +19,13 @@ const listRow = {
   special_agreement: false,
   sort_last: 'tremblay',
   sort_first: 'alice',
+  last_visit_at: '2026-10-02T14:00:00Z',
+  sort_visit: null,
 }
 
 describe('clients payloads', () => {
   it('maps a list row with its keyset cursor', () => {
-    expect(parseRpc(listRowPayload, listRow)).toMatchObject({ clientNumber: 12, mobile: '+15145550101', fileIncomplete: true, cursor: { last: 'tremblay', first: 'alice', id: 'c1' } })
+    expect(parseRpc(listRowPayload, listRow)).toMatchObject({ clientNumber: 12, mobile: '+15145550101', fileIncomplete: true, lastVisitAt: '2026-10-02T14:00:00Z', cursor: { last: 'tremblay', first: 'alice', id: 'c1', visit: null } })
   })
 
   it('refuses an unexpected shape without quoting a value', () => {

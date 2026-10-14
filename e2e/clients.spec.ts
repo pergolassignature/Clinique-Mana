@@ -157,3 +157,28 @@ test('C4: ⌘K finds a file by name', async ({ page, signIn }) => {
   await palette.getByRole('option', { name: /Alice Tremblay-Fictive/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: /Alice Tremblay-Fictive/ })).toBeVisible()
 })
+
+test('A-2: « Dernier rendez-vous » on the list: Alice’s last session, the filter and the order', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto('/clients')
+  const table = page.getByRole('table', { name: 'Clients' })
+  await expect(table.getByRole('columnheader', { name: 'Dernier rendez-vous' })).toBeVisible()
+  // The seed's completed session last week: a date, never « Aucun ».
+  const alice = table.getByRole('row').filter({ has: page.getByRole('link', { name: /Alice Tremblay-Fictive/ }) })
+  await expect(alice).toBeVisible()
+  await expect(alice).not.toContainText('Aucun')
+  const lastVisit = page.getByRole('combobox', { name: 'Dernier rendez-vous' })
+  const sort = page.getByRole('combobox', { name: 'Trier par' })
+  await lastVisit.selectOption({ label: 'Dans les 30 derniers jours' })
+  await expect(page).toHaveURL(/dernier=30-jours/)
+  await expect(alice).toBeVisible()
+  await sort.selectOption({ label: "Dernier rendez-vous, le plus récent d'abord" })
+  await expect(page).toHaveURL(/tri=recents/)
+  await lastVisit.selectOption({ label: 'Aucun rendez-vous' })
+  await expect(page).toHaveURL(/dernier=jamais/)
+  await expect(alice).toHaveCount(0)
+  // Back to the defaults (the filters are remembered for the next runs).
+  await lastVisit.selectOption({ label: 'Tout dernier rendez-vous' })
+  await sort.selectOption({ label: 'Nom' })
+  await expect(page).not.toHaveURL(/tri=|dernier=/)
+})
