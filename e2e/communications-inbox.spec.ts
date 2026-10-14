@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/auth'
+import { forgetDisconnectedMailboxes } from './fixtures/db'
 import { E2E_ORIGIN } from './fixtures/origin'
 
 /**
@@ -11,13 +12,19 @@ import { E2E_ORIGIN } from './fixtures/origin'
  *    serve --env-file supabase/functions/.env`): the admin connects the fake mailbox (its first
  *    read brings the fictional messages), reads a thread with its attachment, links it to a client
  *    file and unlinks it (CM2b), follows and archives
- *    it, finds it with the search, puts everything back, then disconnects the mailbox so the next
- *    run starts as the first. Skipped when the fake does not answer (CI).
+ *    it, finds it with the search, puts everything back, then disconnects the mailbox; the spec
+ *    then removes it (local database), so every other spec starts with no mailbox. Skipped when
+ *    the fake does not answer (CI).
  */
 
 const FAKE_GOOGLE = 'http://127.0.0.1:55392'
 /** The functions' APP_URL (supabase/functions/.env): where Google sends the browser back. */
 const APP_ORIGIN = 'http://localhost:5173'
+
+// Each test starts from the seed's state (no mailbox) and the run leaves it so: a mailbox left
+// disconnected by an earlier run is removed before, and the one this spec connects after.
+test.beforeEach(() => forgetDisconnectedMailboxes())
+test.afterAll(() => forgetDisconnectedMailboxes())
 
 test('the admin finds « Courriels »; without a mailbox the page says who connects one', async ({ page, signIn }) => {
   await signIn('admin')

@@ -278,7 +278,9 @@ select functions_are('public', array[
   'report_consents',
   -- Clients C5b.4 (the re-sign campaign).
   'start_client_consent_campaign', 'cancel_client_consent_campaign', 'client_consent_campaign_batch_for_service',
-  'finish_client_consent_campaign_item_for_service'
+  'finish_client_consent_campaign_item_for_service',
+  -- The GOrendezvous import I2 (appointments, waiting list, « Payé par », consents).
+  'import_appointment', 'import_waitlist_entry', 'import_default_payer', 'import_client_consent'
 ],'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

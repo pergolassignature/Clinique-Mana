@@ -259,6 +259,7 @@ Stripe (card on file, the next-day charge, « Payer en ligne ») and Interac « 
   - no delivery, receipt or QuickBooks event (`billing_queue_sync` already skips `import`);
   - `billing_run_dunning` and `client_has_balance` skip `source_type = 'import'`.
 - **Tests:** pgTAP `144_billing_import`; Vitest `scripts/import-gorendezvous/import-i3.test.mjs`.
+- **« Payé par » (I2 prep, I-17):** `import_default_payer(row, dry_run)` (`billing.manage`; migration `*_billing_payer_import.sql`, pgTAP `180_billing_payer_import`): the client's dated default payer (`billing_payer_defaults`) from GOrendezvous's « Payé par »; the client herself or already the default `skipped`; a payer without « recevoir reçus et factures » `unmatched` (`payer_not_allowed`).
 
 ## Keep / Change / Drop
 

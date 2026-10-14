@@ -315,9 +315,13 @@ Migrations `20261013233833_demandes_report_facts` (Demandes), `20261013233844_ap
 
 `homeCards` `demandes-queue` (`demandes.manage`, `components/DemandesHomeCard.tsx`): the inbox's counts (`demandes_counts`, its cache), each figure that is not zero a link to the inbox filtered on it: « en retard (plus de 2 jours ouvrables sans contact) » (`?filtres=en-retard`), « sans réponse au dernier essai » (`sans-reponse`), « à rappeler maintenant » (`a-rappeler`), « sans conseillère » (`?pour=personne`), then « à moi » (`?pour=moi`). Nothing when the queue is clear (« à moi » alone is not work to flag).
 
+## The GOrendezvous import of the waiting list (I2 prep, I-16)
+
+`import_waitlist_entry(row, dry_run)` (`demandes.manage`, `demandes.waitlist`, `clients.manage`, `clients.merge`; migration `*_demandes_waitlist_import.sql`, pgTAP `179_demandes_waitlist_import`): one person on one list (`profession_key` or `professional_id`), `external_ref` « gorendezvous:… ». A client's imported entries share one request (`external_ref` « gorendezvous:waitlist:<client id> », channel « Autre », « Liste d'attente »); the entry keeps its GOrendezvous date and fee (`fee_paid` → « payée »), and `waitlist_promote` makes it active as any entry. The same list again, or a request matched or closed since: `skipped`.
+
 ## After the cutover audit: the file's requests, the inbox's order, the slots (A-1, A-4, A-7, A-8)
 
-Migration `20261014010723_demandes_audit_followups` (pgTAP `178`); decisions **D-46 … D-49**; [parity audit](../plans/2026-10-13-parity-audit.md) L17 (Demandes' part), L18, L20.
+Migration `20261014010723_demandes_audit_followups` (pgTAP `182`); decisions **D-46 … D-49**; [parity audit](../plans/2026-10-13-parity-audit.md) L17 (Demandes' part), L18, L20.
 
 - **The client's « Demandes » tab (L18, D-46):** Clients' record shows a « Demandes » tab after « Consentements » only when a module fills the core slot `client.demandes`. Demandes adds `demandes.client` (`demandes.view`, `pages/ClientDemandesPanel.tsx`): the file's requests and those it is a participant of, newest first, each with its number (a link to the record), received date, state (with the closing reason), « Son dossier » or « Participante ou participant », and the matched professional. `list_client_demandes(client)` (definer, `demandes.view` first) returns only those columns.
 - **The inbox's order and columns (L17, D-47):**
