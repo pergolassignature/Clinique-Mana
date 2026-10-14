@@ -9,7 +9,7 @@
 -- contract grants; an older draft's consent section complete); history; the backfill.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(42);
 
 -- =============================================================================
 -- Privileges
@@ -23,6 +23,8 @@ select function_privs_are('private', 'contract_image_rights', array['uuid'], 'au
   'no client calls the per-clinic helper');
 select function_privs_are('private', 'service_contract_grants_image_rights', array['uuid'], 'authenticated', array[]::text[],
   'no client calls the published-contract helper');
+select function_privs_are('private', 'image_rights_by_next_contract', array['uuid', 'uuid'], 'authenticated', array[]::text[],
+  'no client calls the next-contract helper');
 select function_privs_are('private', 'professionals_image_rights_backfill', array[]::text[], 'authenticated', array[]::text[],
   'no client runs the backfill');
 
@@ -134,16 +136,17 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is((select r.consent_ok from public.professionals_readiness r where r.professional_id = 'c0000000-0000-0000-0000-000000000001'),
   true, 'the same for the conseillère (who cannot read the contract itself)');
 select results_eq($$ select (d -> 'image_rights_contract' ->> 'in_force')::boolean, d -> 'image_rights_contract' ? 'signed_at',
-                            (d ->> 'contract_grants_image_rights')::boolean, d -> 'image_rights_withdrawal'
+                            (d ->> 'image_rights_next_contract')::boolean, d -> 'image_rights_withdrawal'
                        from (select public.get_professional_documents('c0000000-0000-0000-0000-000000000001') d) x $$,
-  $$ values (true, true, true, 'null'::jsonb) $$, 'the Documents tab reads the contract''s rights (in force, signed when)');
-select is(public.get_professional_documents('c0000000-0000-0000-0000-000000000002') -> 'image_rights_contract', 'null'::jsonb,
-  'Paul: no contract, no rights');
+  $$ values (true, true, false, 'null'::jsonb) $$, 'the Documents tab reads the contract''s rights (in force, signed when)');
+select results_eq($$ select d -> 'image_rights_contract', (d ->> 'image_rights_next_contract')::boolean
+                       from (select public.get_professional_documents('c0000000-0000-0000-0000-000000000002') d) x $$,
+  $$ values ('null'::jsonb, true) $$, 'Paul: no contract yet, so his next one will carry them');
 -- Nora, on her own file.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select results_eq($$ select (c ->> 'by_contract')::boolean, (c ->> 'contract_grants')::boolean, c ->> 'valid_until'
+select results_eq($$ select (c ->> 'by_contract')::boolean, (c ->> 'next_contract_grants')::boolean, c ->> 'valid_until'
                        from (select public.get_my_image_consent() c) x $$,
-  $$ values (true, true, '2100-12-31'::text) $$, 'her « Consentement » step: carried by her contract');
+  $$ values (true, false, '2100-12-31'::text) $$, 'her « Consentement » step: carried by her signed contract');
 select is((public.get_professional_documents() -> 'image_rights_contract' ->> 'in_force')::boolean, true,
   '« Mes documents » reads it too');
 reset role;
@@ -171,6 +174,9 @@ values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000
         current_date - 1, now());
 select is(private.professional_image_consent_valid_until('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000004'),
   null, 'a newer paper contract is the contract in force: no image rights through it');
+select ok((select private.submission_gaps(s) @> array['consent'] from public.professional_submissions s
+            where s.id = current_setting('test.sub4')::uuid),
+  '… so her consent step is to complete again (her next contract is not the one that will carry it)');
 
 -- =============================================================================
 -- The withdrawal wins over the contract

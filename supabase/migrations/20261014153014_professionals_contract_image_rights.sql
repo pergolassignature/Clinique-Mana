@@ -41,13 +41,14 @@
 --   (P4-549). A withdrawal still to come may be corrected; one that took effect stays. The table is
 --   closed (definer RPCs only), audited (Historique), and backfilled from the withdrawals already
 --   recorded on documents (before its audit trigger: those are already in Historique).
--- * Asking (P4-560): once the clinic's published « Contrat de service » has the mark
---   (private.service_contract_grants_image_rights), an invitation's questionnaire has no
---   « Consentement » step (create_professional_submission drops it for `onboarding`), a draft that
---   has one counts it complete (submission_gaps), and the app says the contract carries it
---   (`contract_grants_image_rights`, `contract_grants`). Staff can still send the separate form,
---   e.g. to a professional under an older contract.
--- * Additive: one table, four helpers, one view and seven functions replaced with the same
+-- * Asking (P4-560): when her NEXT contract carries the rights (the clinic's published « Contrat de
+--   service » has the mark and no contract is in force for her yet:
+--   private.image_rights_by_next_contract), an invitation's questionnaire has no « Consentement »
+--   step (create_professional_submission drops it for `onboarding`), a draft that has one counts it
+--   complete (submission_gaps), and the app says the contract will carry it
+--   (`image_rights_next_contract`, `next_contract_grants`). A professional under an older contract
+--   still signs the separate form, which staff can always send.
+-- * Additive: one table, five helpers, one view and seven functions replaced with the same
 --   signatures and grants.
 -- =============================================================================
 
@@ -138,6 +139,25 @@ as $$
                     where t.org_id = p_org and t.key = 'professionals.service_contract' and t.is_active), false)
 $$;
 revoke all on function private.service_contract_grants_image_rights(uuid) from public, anon, authenticated, service_role;
+
+-- Whether the professional's NEXT contract carries the image rights (P4-560): the clinic's published
+-- contract grants them and no contract is in force for her yet (no signed request, no paper
+-- contract). A professional under an older contract still signs the separate form.
+create function private.image_rights_by_next_contract(p_org uuid, p_pid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select private.service_contract_grants_image_rights(p_org)
+     and not exists (select 1 from public.signature_requests r
+                      where r.org_id = p_org and r.subject_type = 'professional' and r.subject_id = p_pid
+                        and r.purpose = 'professionals.service_contract' and r.status = 'signed')
+     and not exists (select 1 from public.professional_paper_contracts c
+                      where c.org_id = p_org and c.professional_id = p_pid)
+$$;
+revoke all on function private.image_rights_by_next_contract(uuid, uuid) from public, anon, authenticated, service_role;
 
 -- The professionals of p_org (every clinic when null: the weekly job reads the readiness view
 -- with no user) whose contract in force (P4-522) is a signed request on a version that grants the
@@ -337,7 +357,8 @@ select r.professional_id, r.org_id, r.has_profession, r.licences_ok, r.restricte
 
 -- -----------------------------------------------------------------------------
 -- The Documents tab and « Mes documents »: *_professionals_consent_withdrawal_invitation_restore.sql's,
--- with the contract's rights, the withdrawal on the professional and the published contract's mark
+-- with the contract's rights, the withdrawal on the professional and whether her next contract
+-- carries them
 -- -----------------------------------------------------------------------------
 create or replace function public.get_professional_documents(p_id uuid default null)
 returns jsonb
@@ -403,8 +424,9 @@ begin
         from public.professional_image_rights_withdrawals x
         left join public.profiles wb on v_staff and wb.user_id = x.withdrawn_by and wb.org_id = v_org
        where x.professional_id = v_pid and x.org_id = v_org),
-    -- P4-560: the clinic's published contract grants them (a new professional signs no separate form).
-    'contract_grants_image_rights', private.service_contract_grants_image_rights(v_org),
+    -- P4-560: her next contract carries them (the clinic's published one grants them and none is in
+    -- force for her yet): no separate form to sign.
+    'image_rights_next_contract', private.image_rights_by_next_contract(v_org, v_pid),
     'staged', coalesce((
       select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
                'type_key', x.type_key, 'kind', x.kind, 'submission_id', s.id, 'status', s.status,
@@ -561,10 +583,10 @@ as $$
        -- P4-487, P4-507: a consent on file (signed through Documenso, or a paper one staff
        -- attached), or nothing to sign yet (no published form: the clinic sends it later, never a
        -- block). A draft's old e-consent answer no longer counts.
-       -- P4-560: or the clinic's published contract carries it (nothing to sign here).
+       -- P4-560: or her next contract carries it (nothing to sign here).
        when 'consent' then private.professional_image_consent_valid_until(p_sub.org_id, p_sub.professional_id) is not null
                            or private.published_image_consent_version(p_sub.org_id) is null
-                           or private.service_contract_grants_image_rights(p_sub.org_id)
+                           or private.image_rights_by_next_contract(p_sub.org_id, p_sub.professional_id)
      end, false)
 $$;
 
@@ -693,7 +715,7 @@ $$;
 
 -- -----------------------------------------------------------------------------
 -- The « Consentement » step: *_professionals_image_consent.sql's, with `by_contract` and
--- `contract_grants`
+-- `next_contract_grants`
 -- -----------------------------------------------------------------------------
 create or replace function public.get_my_image_consent()
 returns jsonb
@@ -716,8 +738,8 @@ begin
     -- P4-558: in force through her signed contract (no separate form needed).
     'by_contract', exists (select 1 from private.contract_image_rights(v_org) c
                             where c.professional_id = v_pid and c.in_force),
-    -- P4-560: the clinic's published contract carries it.
-    'contract_grants', private.service_contract_grants_image_rights(v_org),
+    -- P4-560: her next contract carries it (no separate form to sign).
+    'next_contract_grants', private.image_rights_by_next_contract(v_org, v_pid),
     'request', (select pg_catalog.jsonb_build_object(
                          'status', r.status, 'last_error', r.last_error, 'sent_at', r.sent_at,
                          'completed_at', r.completed_at,
@@ -749,9 +771,9 @@ declare
   v_snapshot jsonb := private.professional_submission_snapshot(p_org, p_id);
   v_id uuid;
 begin
-  -- P4-560: once the clinic's published contract carries the image rights, an invitation's
-  -- questionnaire has no « Consentement » step (an update staff ask for keeps it).
-  if p_kind = 'onboarding' and private.service_contract_grants_image_rights(p_org) then
+  -- P4-560: when her next contract carries the image rights, an invitation's questionnaire has no
+  -- « Consentement » step (an update staff ask for keeps it).
+  if p_kind = 'onboarding' and private.image_rights_by_next_contract(p_org, p_id) then
     p_sections := pg_catalog.array_remove(p_sections, 'consent');
   end if;
   insert into public.professional_submissions (org_id, professional_id, kind, requested_sections, prefill, secure_link_id, requested_by)
