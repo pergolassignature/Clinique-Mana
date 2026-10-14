@@ -102,7 +102,8 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const canWrite = can(mine ? 'appointments.self' : 'appointments.manage')
   const [personal, setPersonal] = useState<{ day: string; time: string } | null>(null)
   const [params, setParams] = useSearchParams()
-  const [unreachable, setUnreachable] = useState(false)
+  // « Clients sans rappel » opens with `?sans-rappel=1` (Accueil's card, L29).
+  const [unreachable, setUnreachable] = useState(() => params.get('sans-rappel') === '1')
   const today = getClinicDateString(new Date())
   const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : 'semaine'
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : today
@@ -243,7 +244,14 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
       {unreachable && (
         <WithoutReminderSheet
           professionalName={(id) => reference.professionals.find((p) => p.id === id)?.name ?? ''}
-          onClose={() => setUnreachable(false)}
+          onClose={() => {
+            setUnreachable(false)
+            if (params.has('sans-rappel')) {
+              const next = new URLSearchParams(params)
+              next.delete('sans-rappel')
+              setParams(next, { replace: true })
+            }
+          }}
         />
       )}
       <div className="mb-3 flex flex-wrap items-end gap-3">

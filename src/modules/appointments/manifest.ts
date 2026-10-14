@@ -59,6 +59,10 @@ export const appointmentsManifest: ModuleManifest = {
       order: 8,
     },
   ],
+  // Accueil « Rendez-vous à surveiller » (L29): today's appointments not confirmed yet, the coming ones without a reminder.
+  homeCards: [
+    { id: 'appointments-watch', permission: 'appointments.view', component: lazyPage(() => import('./components/AppointmentsHomeCard'), 'AppointmentsHomeCard') },
+  ],
   routes: [
     { path: 'agenda', permission: 'appointments.view', component: lazyPage(() => import('./pages/AgendaPage'), 'AgendaPage') },
     { path: 'mon-agenda', permission: 'appointments.self', component: lazyPage(() => import('./pages/AgendaPage'), 'MyAgendaPage') },

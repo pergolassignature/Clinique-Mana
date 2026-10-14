@@ -48,6 +48,10 @@ export const billingManifest: ModuleManifest = {
       order: 8,
     },
   ],
+  // Accueil « Facturation à traiter » (L29): the morning queue, the unpaid, Interac to match, payers to invoice.
+  homeCards: [
+    { id: 'billing-queue', permission: 'billing.view', component: lazyPage(() => import('./components/BillingHomeCard'), 'BillingHomeCard') },
+  ],
   routes: [
     { path: 'facturation', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicesPage'), 'InvoicesPage') },
     { path: 'facturation/factures/:id', permission: 'billing.view', component: lazyPage(() => import('./pages/InvoicePage'), 'InvoicePage') },

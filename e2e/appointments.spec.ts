@@ -264,3 +264,14 @@ test('« Disponibilités » by direct manipulation: draw, undo, move, resize, un
   await expect(toast('Plage supprimée : samedi 10 h – 13 h')).toBeVisible()
   await expect(moved).toHaveCount(0)
 })
+
+/** Accueil's « sans moyen de rappel » figure (L29) opens the agenda with « Clients sans rappel » shown; closing it clears the address. */
+test('the agenda opens « Clients sans rappel » from its address (Accueil, L29)', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto('/agenda?sans-rappel=1')
+  const sheet = page.getByRole('dialog', { name: 'Clients sans rappel' })
+  await expect(sheet).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await expect(page).not.toHaveURL(/sans-rappel/)
+})

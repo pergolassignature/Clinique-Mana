@@ -5988,6 +5988,13 @@
           "sentPartly": "La copie est partie, mais un courriel n’est pas parti. Réessayez plus tard.",
           "notSent": "La copie n’est pas partie. Réessayez plus tard.",
           "error": "Impossible d’envoyer la copie."
+        },
+        "home": {
+          "title": "Consentements à obtenir",
+          "items": {
+            "overdue": "demandes de signature en retard",
+            "waiting": "demandes de signature en attente"
+          }
         }
       },
       "saved": {
@@ -7304,6 +7311,10 @@
         "messagesNone": "Aucun texto",
         "open": "Ouvrir la conversation avec le {phone}",
         "close": "Fermer la conversation"
+      },
+      "home": {
+        "title": "Courriels non lus",
+        "unreadIn": "non lus dans {mailbox}"
       }
     },
     "demandes": {
@@ -9713,6 +9724,13 @@
         "lateNoticeHelp": "Les jours non ouvrables ne comptent pas : avec 24 h de préavis, un rendez-vous du lundi 10 h s’annule au plus tard le vendredi 10 h. Sinon, les heures du calendrier.",
         "daysRequired": "Choisissez au moins un jour ouvrable.",
         "invalid": "Indiquez un nombre entier dans les limites."
+      },
+      "home": {
+        "title": "Rendez-vous à surveiller",
+        "items": {
+          "unconfirmed": "rendez-vous d'aujourd'hui pas encore confirmés",
+          "withoutReminder": "rendez-vous des 7 prochains jours sans moyen de rappel"
+        }
       }
     },
     "billing": {
@@ -11608,6 +11626,16 @@
             "ivacDescription": "L'IVAC de la clinique : il reste toujours actif.",
             "dueDaysInvalid": "Le délai de paiement va de 0 à 120 jours."
           }
+        }
+      },
+      "home": {
+        "title": "Facturation à traiter",
+        "items": {
+          "ready": "brouillons prêts dans la file du matin",
+          "held": "brouillons mis en attente",
+          "overdue": "factures impayées en retard",
+          "interac": "virements Interac à rapprocher",
+          "payers": "payeurs tiers à facturer"
         }
       }
     },
