@@ -9,11 +9,12 @@ import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { FormField, FormRow } from '@/shared/ui/form-field'
-import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
 import { toast } from '@/shared/ui/sonner'
 import { StatusDot } from '@/shared/ui/status-dot'
+import { DateField } from '@/shared/ui/date-field'
+import { TimeField } from '@/shared/ui/time-field'
 import { TASK_KINDS, TASK_OUTCOMES, type DemandeTask, type TaskKind, type TaskOutcome } from '../../api/demandes'
 import { useAddTask, useCancelTask, useCompleteTask, useSaveNote } from '../../hooks/use-demandes'
 import { optionLabel, personLabel } from '../../lib/display'
@@ -198,8 +199,8 @@ function AddTaskForm() {
             </Select>
           )}
         </FormField>
-        <FormField label={t(`${F}.tasks.date`)}>{(field) => <Input {...field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}</FormField>
-        <FormField label={t(`${F}.tasks.time`)}>{(field) => <Input {...field} type="time" value={time} onChange={(e) => setTime(e.target.value)} />}</FormField>
+        <FormField label={t(`${F}.tasks.date`)}>{(field) => <DateField {...field} value={date} onChange={setDate} />}</FormField>
+        <FormField label={t(`${F}.tasks.time`)}>{(field) => <TimeField {...field} value={time} onChange={setTime} />}</FormField>
         <FormField label={t(`${F}.tasks.assignee`)}>
           {(field) => (
             <Select {...field} value={assignee} onChange={(e) => setAssignee(e.target.value)}>

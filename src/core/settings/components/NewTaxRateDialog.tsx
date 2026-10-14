@@ -1,5 +1,5 @@
 import { forwardRef, useRef, useState, type RefObject } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { CircleAlert, Plus, TriangleAlert } from 'lucide-react'
@@ -27,6 +27,7 @@ import {
 } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
+import { DateField } from '@/shared/ui/date-field'
 
 type FormValues = z.input<typeof newTaxRateSchema>
 
@@ -160,7 +161,9 @@ function NewTaxRateForm({ tax, minDate, rateRef, pending, error, onSubmit }: New
           required
           error={errors.effective_from?.message}
         >
-          {(field) => <Input {...field} {...form.register('effective_from')} type="date" min={minDate ?? undefined} />}
+          {(field) => (
+            <Controller control={form.control} name="effective_from" render={({ field: control }) => <DateField {...field} {...control} min={minDate} />} />
+          )}
         </FormField>
       </div>
       {/* Always rendered, so screen readers announce the warning when it appears. */}

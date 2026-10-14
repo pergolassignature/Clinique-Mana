@@ -402,7 +402,7 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
     expect(dialog).toHaveTextContent('La retenue de la clinique passe de 28 % à 27,5 % : le cumul est dans le palier de 51 à 100 séances.')
     expect(dialog).toHaveTextContent('Rencontre 50 min : versé 126,00 $ → devient 126,88 $ (+0,88 $)')
     expect(dialog).toHaveTextContent('Rencontre 30 min : versé 93,60 $ → devient 94,25 $ (+0,65 $)')
-    expect(within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))).toHaveValue('2026-11-01')
+    expect(within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))).toHaveValue('1 nov. 2026')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
     await waitFor(() =>
       // The record's count runs through the current month; the open decision is the one read.
@@ -493,8 +493,6 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
     await userEvent.click(within(card).getByRole('button', { name: 'Maintenir 28\u00A0%' }))
     const dialog = screen.getByRole('dialog', { name: 'Maintenir 28\u00A0%' })
     const date = within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))
-    // The open rate started on 2026-07-01: the next one from the 2nd.
-    expect(date).toHaveAttribute('min', '2026-07-02')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
     await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('Le nouveau taux doit commencer après le 1 nov. 2026.')))
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()

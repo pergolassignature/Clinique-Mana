@@ -36,6 +36,7 @@ import { closeButtonClasses } from '@/shared/ui/overlay-classes'
 import { Select } from '@/shared/ui/select'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/ui/sheet'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
 import type { ClientDuplicate } from '../../api/parse'
 import { useClientDuplicates, useClientsReference, useCreateClient } from '../../hooks/use-clients'
 import { LANGUAGES, SEXES, clientPath } from '../../lib/constants'
@@ -228,7 +229,7 @@ function CreatePanel({ onClose, onCreated, onPickExisting, excludeIds = [], init
             </FormRow>
             <FormRow columns={3}>
               <FormField label={t('modules.clients.fields.birthday')} error={errors.birthday?.message}>
-                {(field) => <Input {...field} {...form.register('birthday')} type="date" min="1900-01-01" autoComplete="off" />}
+                {(field) => <Controller control={form.control} name="birthday" render={({ field: control }) => <DateField {...field} {...control} min="1900-01-01" />} />}
               </FormField>
               <FormField label={t('modules.clients.fields.sex')} error={errors.sex?.message}>
                 {(field) => (

@@ -1,5 +1,5 @@
 import { forwardRef, useMemo, useRef, useState, type RefObject } from 'react'
-import { Controller, useForm, useWatch } from 'react-hook-form'
+import { Controller, useController, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus } from 'lucide-react'
 import { t } from '@/i18n'
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { DateField } from '@/shared/ui/date-field'
 import type { VariantInput } from '../../api/catalogue'
 import type { ProfessionTitle, RateVariantRow, Service } from '../../api/parse'
 import { useAddRateVariant, useEndRateVariant } from '../../hooks/use-services'
@@ -105,7 +106,8 @@ function VariantForm({ services, titles, variants, firstFieldRef, pending, refus
   })
   const { errors, isDirty } = form.formState
   useRefusalOnField(form.setError, fieldRefusal)
-  const [serviceId, variant, titleId, discountKind, effectiveFrom] = useWatch({ control: form.control, name: ['serviceId', 'variant', 'titleId', 'discountKind', 'effectiveFrom'] })
+  const [serviceId, variant, titleId, discountKind] = useWatch({ control: form.control, name: ['serviceId', 'variant', 'titleId', 'discountKind'] })
+  const { field: from } = useController({ control: form.control, name: 'effectiveFrom' })
 
   return (
     <DialogForm onSubmit={(event) => void form.handleSubmit(onSubmit)(event)} pending={pending} dirty={isDirty} refusal={refusal}>
@@ -195,8 +197,7 @@ function VariantForm({ services, titles, variants, firstFieldRef, pending, refus
         </FormField>
       </FormRow>
       <EffectiveFromField
-        registration={form.register('effectiveFrom')}
-        value={effectiveFrom}
+        input={from}
         error={errors.effectiveFrom?.message}
         min={minDateFor(serviceId, variant, titleId === '' ? null : titleId)}
         help={t(`${V}.dialog.fromHelp`)}
@@ -284,7 +285,15 @@ function EndVariantForm({
       pendingLabel={t(`${V}.endDialog.confirming`)}
     >
       <FormField label={t(`${V}.endDialog.lastDay`)} width="sm" required error={errors.lastDay?.message}>
-        {(field) => <Input {...field} {...form.register('lastDay')} type="date" min={row.effectiveFrom > FIRST_DATE ? row.effectiveFrom : FIRST_DATE} max={LAST_END_DAY} autoFocus />}
+        {(field) => (
+          <Controller
+            control={form.control}
+            name="lastDay"
+            render={({ field: control }) => (
+              <DateField {...field} {...control} min={row.effectiveFrom > FIRST_DATE ? row.effectiveFrom : FIRST_DATE} max={LAST_END_DAY} autoFocus />
+            )}
+          />
+        )}
       </FormField>
     </DialogForm>
   )

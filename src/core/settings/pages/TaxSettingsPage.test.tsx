@@ -62,7 +62,7 @@ async function openAddDialog(tax: 'gst' | 'qst') {
   return dialog()
 }
 
-/** A date input takes its value whole (typing it character by character is not portable). */
+/** The date field takes a whole `yyyy-MM-dd` value at once, as the native input did. */
 const setDate = (value: string) => fireEvent.change(dateField(), { target: { value } })
 
 describe('TaxSettingsPage', () => {
@@ -237,7 +237,7 @@ describe('TaxSettingsPage', () => {
       const opened = await openAddDialog('qst')
       expect(within(opened).getByRole('heading', { name: t('settings.tax.dialog.title', { tax: 'TVQ' }) })).toBeInTheDocument()
       expect(rateField()).toHaveFocus()
-      expect(dateField()).toHaveAttribute('type', 'date')
+      expect(dateField()).toHaveAttribute('role', 'combobox')
       expect(dateField()).toHaveAccessibleDescription(t('settings.tax.dialog.fromHelp'))
       setDate('2027-04-01')
       await userEvent.type(rateField(), '10{Enter}')
@@ -346,7 +346,6 @@ describe('TaxSettingsPage', () => {
       await renderPage()
       await openAddDialog('qst')
       // The open QST rate starts on 2027-01-01.
-      expect(dateField()).toHaveAttribute('min', '2027-01-02')
       setDate('2027-01-01')
       await userEvent.type(rateField(), '11{Enter}')
       expect(await within(dialog()).findByText(t('settings.tax.validation.afterOpen', { date: '1 janv. 2027' }))).toBeInTheDocument()

@@ -109,6 +109,22 @@
     },
     "backHome": "Retour à l'accueil",
     "notProvided": "Non indiqué",
+    "timeField": {
+      "placeholder": "hh:mm",
+      "open": "Choisir une heure",
+      "list": "Liste des heures"
+    },
+    "dateField": {
+      "placeholder": "jj/mm/aaaa",
+      "open": "Ouvrir le calendrier",
+      "dialog": "Choisir une date",
+      "previousMonth": "Mois précédent",
+      "nextMonth": "Mois suivant",
+      "month": "Mois",
+      "year": "Année",
+      "today": "Aujourd'hui",
+      "clear": "Effacer"
+    },
     "moduleError": {
       "title": "Cette section a rencontré un problème",
       "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard."

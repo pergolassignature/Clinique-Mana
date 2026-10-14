@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Controller, type UseFormReturn } from 'react-hook-form'
 import { CheckboxField } from '@/shared/components/CheckboxField'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
+import { DateField } from '@/shared/ui/date-field'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
@@ -17,7 +18,7 @@ interface TextProps {
   width?: 'xs' | 'sm' | 'md' | 'full'
   required?: boolean
   help?: string
-  type?: 'text' | 'email' | 'tel' | 'date'
+  type?: 'text' | 'email' | 'tel'
   /** Regroups the value once the field is left (phones, postal codes). */
   regroup?: (value: string) => string
 }
@@ -33,6 +34,22 @@ export function TextField({ form, name, label, width = 'md', required, help, typ
           type={type}
           autoComplete="off"
           spellCheck={type === 'email' ? false : undefined}
+        />
+      )}
+    </FormField>
+  )
+}
+
+/** A calendar date (birthday): `yyyy-MM-dd`, clearable, as the native date input was. */
+export function DateInputField({ form, name, label, width = 'sm', required, help }: Omit<TextProps, 'type' | 'regroup'>) {
+  const error = form.formState.errors[name]?.message
+  return (
+    <FormField label={label} width={width} required={required} help={help} error={error}>
+      {(field) => (
+        <Controller
+          control={form.control}
+          name={name}
+          render={({ field: f }) => <DateField {...field} value={f.value as string} onChange={f.onChange} onBlur={f.onBlur} ref={f.ref} min="1900-01-01" clearable={!required} />}
         />
       )}
     </FormField>

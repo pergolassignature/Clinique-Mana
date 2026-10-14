@@ -1,5 +1,4 @@
 import type { FormEvent, ReactNode, RefObject } from 'react'
-import type { UseFormRegisterReturn } from 'react-hook-form'
 import { CircleAlert, TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import { SaveButton } from '@/shared/components/SaveButton'
@@ -18,9 +17,9 @@ import {
 } from '@/shared/ui/alert-dialog'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { DateField, type DateFieldBinding } from '@/shared/ui/date-field'
 import { DialogClose, DialogFooter } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
-import { Input } from '@/shared/ui/input'
 import type { DatedStatus } from '../../lib/dated'
 import { FIRST_DATE, LAST_DATE } from '../../schemas/dated'
 
@@ -101,9 +100,8 @@ export function DialogForm({ onSubmit, pending, dirty, refusal, submitLabel, pen
 }
 
 interface EffectiveFromFieldProps {
-  registration: UseFormRegisterReturn
-  /** The typed value (`useWatch`), for the backdated warning. */
-  value: string
+  /** The form's field (`useController`), its `ref` merged with the dialog's first-field ref when needed. */
+  input: DateFieldBinding
   error?: string
   /** The earliest start the RPC accepts (the day after the open row's), or null. */
   min: string | null
@@ -112,17 +110,18 @@ interface EffectiveFromFieldProps {
 }
 
 /**
- * « À partir du »: a native date input (a `yyyy-MM-dd` string, sent as typed), within the RPCs'
+ * « À partir du »: a DateField (a `yyyy-MM-dd` string, sent as typed), within the RPCs'
  * 2000–2100 and from the day after the open row's start. A date already past in the clinic is
  * allowed (corrections) but said first, in a polite status.
  */
-export function EffectiveFromField({ registration, value, error, min, help, label }: EffectiveFromFieldProps) {
+export function EffectiveFromField({ input, error, min, help, label }: EffectiveFromFieldProps) {
   const today = useClinicDate()
+  const value = input.value ?? ''
   const backdated = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value) && value < today
   return (
     <>
       <FormField label={label ?? t(`${D}.from`)} width="sm" help={help} required error={error}>
-        {(field) => <Input {...field} {...registration} type="date" min={min ?? FIRST_DATE} max={LAST_DATE} />}
+        {(field) => <DateField {...field} {...input} min={min ?? FIRST_DATE} max={LAST_DATE} />}
       </FormField>
       <div role="status" className="empty:hidden">
         {backdated && (
