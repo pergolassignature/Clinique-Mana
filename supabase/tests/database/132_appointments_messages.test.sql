@@ -45,9 +45,10 @@ values ('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-0000000
 insert into public.sms_consents (org_id, phone_e164, status, source, granted_at)
 values ('b0000000-0000-0000-0000-00000000000a', '+15145550101', 'opted_in', 'staff', now());
 select set_config('test.s50', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 10150), true);
--- Every day 8:00–20:00; the reminders every day from midnight (so « now » is always in the window).
+-- Every day a business day, the whole day (to 23:59:59.999999: with « 23:59 » the last minute before
+-- midnight was outside), the reminders from midnight: « now » is in the window at any hour CI runs.
 insert into public.appointment_settings (org_id, business_days, business_start, business_end, reminder_business_days, reminder_local_hour)
-values ('b0000000-0000-0000-0000-00000000000a', '{1,2,3,4,5,6,7}', '00:00', '23:59', 1, 0)
+values ('b0000000-0000-0000-0000-00000000000a', '{1,2,3,4,5,6,7}', '00:00', '23:59:59.999999', 1, 0)
 on conflict (org_id) do update set business_days = excluded.business_days, business_start = excluded.business_start,
   business_end = excluded.business_end, reminder_business_days = 1, reminder_local_hour = 0;
 -- Three days ahead at 10:00 and 11:00 local, tomorrow at 10:00.

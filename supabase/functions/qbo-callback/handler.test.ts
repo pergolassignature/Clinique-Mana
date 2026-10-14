@@ -68,7 +68,7 @@ Deno.test('qbo-callback: a good return stores the company, its tokens never answ
     assertFalse(JSON.stringify(body).includes(String(store.p_access_token)))
   }))
 
-Deno.test("qbo-callback: forged, expired, someone else's or replayed states are refused", () =>
+Deno.test("qbo-callback: forged, expired or someone else's states are refused and spend nothing", () =>
   run(async () => {
     const h = qboHarness()
     const call = (state: string) =>
@@ -101,30 +101,61 @@ Deno.test("qbo-callback: forged, expired, someone else's or replayed states are 
       'link_invalid',
     ])
 
-    const replay = qboHarness({
-      rpc: {
-        consume_rate_limit: (args) => ({
-          data: [
-            args.p_bucket === 'oauth.state_nonce'
-              ? { allowed: false, hits: 2, retry_after_seconds: 500 }
-              : { allowed: true, hits: 1, retry_after_seconds: 0 },
-          ],
-          error: null,
+    assertFalse(h.rpcNames().includes('store_qbo_connection'))
+    assertFalse(h.rpcNames().includes('spend_oauth_state_nonce_for_service'))
+  }))
+
+Deno.test('qbo-callback: a state used once is refused when replayed, even minutes later; the check unavailable → 503', () =>
+  run(async () => {
+    const h = qboHarness()
+    const handler = createHandler(h.deps)
+    const state = await signed(h)
+    const call = () =>
+      handler(
+        post({
+          code: h.intuit.issueCode(REDIRECT),
+          state,
+          realm_id: h.intuit.realmId,
         }),
+      )
+    let res = await call()
+    assertEquals(res.status, 200)
+    for (const minutes of [0, 9]) {
+      h.advance(minutes * 60_000)
+      res = await call()
+      assertEquals([res.status, (await res.json()).error.code], [
+        410,
+        'link_used',
+      ])
+    }
+    assertEquals(
+      h.rpcNames().filter((n) => n === 'store_qbo_connection').length,
+      1,
+    )
+
+    const down = qboHarness({
+      rpc: {
+        spend_oauth_state_nonce_for_service: {
+          error: { code: '22023', message: 'Arguments invalides.' },
+        },
       },
     })
-    res = await createHandler(replay.deps)(
-      post({
-        code: replay.intuit.issueCode(REDIRECT),
-        state: await signed(replay),
-        realm_id: replay.intuit.realmId,
-      }),
-    )
+    await withEnv({ SENTRY_DSN: undefined }, async () => {
+      await captureConsole('error', async () => {
+        res = await createHandler(down.deps)(
+          post({
+            code: down.intuit.issueCode(REDIRECT),
+            state: await signed(down),
+            realm_id: down.intuit.realmId,
+          }),
+        )
+      })
+    })
     assertEquals([res.status, (await res.json()).error.code], [
-      410,
-      'link_used',
+      503,
+      'not_configured',
     ])
-    assertFalse(h.rpcNames().includes('store_qbo_connection'))
+    assertFalse(down.rpcNames().includes('store_qbo_connection'))
   }))
 
 Deno.test('qbo-callback: a used code is a French refusal; a realm the token does not open is refused and revoked', () =>
