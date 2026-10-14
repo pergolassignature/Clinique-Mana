@@ -43,31 +43,47 @@ const ED = `${S}.editor`
 /** The shared editor's own words (core, CC-12). */
 const G = 'signing.templates.editor'
 
-/** « Liste d'attente » in English, as core lists it: a draft, never published. */
-const SUMMARY: DocumentTemplateSummary = {
-  id: 'tw-en',
-  key: 'clients.consent_waitlist_en',
-  title: 'Waitlist (anglais)',
+/** The four texts as core lists them (CC-12): each one editable. */
+const summary = (id: string, key: string, title: string, draftVersionId: string | null, published: number | null): DocumentTemplateSummary => ({
+  id,
+  key,
+  title,
   description: null,
   isActive: true,
   canEdit: true,
-  publishedVersion: null,
-  publishedAt: null,
-  draftVersionId: 'vwe1',
-}
+  publishedVersion: published,
+  publishedAt: published ? '2026-10-01T14:00:00Z' : null,
+  draftVersionId,
+})
+const SUMMARIES = [
+  summary('tg-fr', 'clients.consent_general_fr', 'Consentement général', 'vg2', 1),
+  summary('tg-en', 'clients.consent_general_en', 'General consent', 'vge1', null),
+  summary('tw-fr', 'clients.consent_waitlist_fr', 'Liste d’attente', 'vw1', null),
+  summary('tw-en', 'clients.consent_waitlist_en', 'Waitlist (anglais)', 'vwe1', null),
+]
 
-/** The seeded placeholder's shape (migration clients_consents): the provisional line, the clauses, the signature page. */
-function placeholderVersion({ provisional = true } = {}): TemplateVersion {
+/** A version of a consent text: its words, the clauses' line, the signature page (the seeded shape, migration clients_consents). */
+function versionOf({
+  id,
+  version = 1,
+  status = 'draft',
+  lines = ['Texte provisoire — Provisional text.'],
+}: {
+  id: string
+  version?: number
+  status?: TemplateVersion['status']
+  lines?: string[]
+}): TemplateVersion {
   return {
-    id: 'vwe1',
-    version: 1,
-    status: 'draft',
+    id,
+    version,
+    status,
     body: {
-      title: 'Waitlist',
-      footer: { text: '{{clinic.name}} — Waitlist' },
+      title: 'Consentement',
+      footer: { text: '{{clinic.name}} — Consentement' },
       blocks: [
-        ...(provisional ? [{ type: 'paragraph', runs: [{ text: 'Texte provisoire — Provisional text.', bold: true }] }] : []),
-        { type: 'heading', level: 1, text: 'Waitlist' },
+        ...lines.map((text) => ({ type: 'paragraph', runs: [{ text, bold: text.startsWith('Texte provisoire') }] })),
+        { type: 'heading', level: 1, text: 'Consentement' },
         { type: 'paragraph', runs: [{ text: '{{consent.clauses}}' }] },
         { type: 'signaturePage', signers: [{ role: 'client', label: '{{signer.full_name}}' }] },
       ],
@@ -78,13 +94,22 @@ function placeholderVersion({ provisional = true } = {}): TemplateVersion {
       { path: 'consent.clauses', label: 'Réponses aux clauses (Oui / Non)', sample: 'Oui', required: false, kind: 'text' },
     ],
     signers: [{ role: 'client', label: 'Client, ou parent ou tuteur', order: 1, required: true }],
-    emailSubject: 'Waitlist — {{clinic.name}}',
+    emailSubject: 'Consentement — {{clinic.name}}',
     emailMessage: '',
     createdAt: '2026-10-12T12:00:00Z',
     updatedAt: '2026-10-12T12:00:00Z',
-    publishedAt: null,
+    publishedAt: status === 'published' ? '2026-10-01T14:00:00Z' : null,
     archivedAt: null,
   }
+}
+const VERSIONS: Record<string, TemplateVersion[]> = {
+  'tg-fr': [
+    versionOf({ id: 'vg2', version: 2, lines: ['Le nouveau texte validé.'] }),
+    versionOf({ id: 'vg1', version: 1, status: 'published', lines: ['L’ancien texte.'] }),
+  ],
+  'tg-en': [versionOf({ id: 'vge1', lines: ['The general consent.'] })],
+  'tw-fr': [versionOf({ id: 'vw1', lines: ['La liste d’attente.'] })],
+  'tw-en': [versionOf({ id: 'vwe1' })],
 }
 
 beforeEach(() => {
@@ -103,70 +128,91 @@ beforeEach(() => {
   mocks.api.fetchConsentCampaigns.mockResolvedValue([])
   mocks.api.startConsentCampaign.mockResolvedValue(340)
   mocks.api.cancelConsentCampaign.mockResolvedValue(undefined)
-  mocks.templates.listModuleTemplates.mockResolvedValue([SUMMARY])
-  mocks.templates.fetchTemplateVersions.mockResolvedValue([placeholderVersion()])
+  mocks.templates.listModuleTemplates.mockResolvedValue(SUMMARIES)
+  mocks.templates.fetchTemplateVersions.mockImplementation(async (id: string) => VERSIONS[id] ?? [])
   mocks.templates.updateTemplateVersion.mockResolvedValue(undefined)
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage({ readOnly = false }: { readOnly?: boolean } = {}) {
+function renderPage({ readOnly = false, path = '/parametres/consentements' }: { readOnly?: boolean; path?: string } = {}) {
   const section = clientsManifest.settingsSections.find((s) => s.id === 'consents')!
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const access = accessForRole('admin', { modules: ['professionals', 'clients'] })
   render(
     <QueryClientProvider client={queryClient}>
-      {renderInSettingsSection(<ConsentsSettingsPage />, { readOnly, section, access: { access }, path: '/parametres/consentements' })}
+      {renderInSettingsSection(<ConsentsSettingsPage />, { readOnly, section, access: { access }, path })}
     </QueryClientProvider>,
   )
 }
 
 describe('ConsentsSettingsPage', () => {
-  it('lists each text per language: the version in force, or « Brouillon (pas encore publié) »; the placeholder cannot be published', async () => {
+  it('one row per consent: when it is asked, the French and English states as chips, one « Modifier »; one banner for the provisional texts (CC-21)', async () => {
     renderPage()
     const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    expect(within(texts).getByText(/Version 1 publiée le .* · Brouillon de la version 2 prêt/)).toBeInTheDocument()
-    expect(within(texts).getAllByText(/Brouillon \(pas encore publié\)/)).toHaveLength(3)
-    // « Liste d'attente » in English is still the seeded placeholder: said, and no « Publier ».
-    expect(within(texts).getByText(/^Anglais : Brouillon \(pas encore publié\) · Texte provisoire/)).toBeInTheDocument()
-    expect(within(texts).getByText(t(`${S}.texts.editNote`))).toBeInTheDocument()
-    expect(within(texts).getAllByRole('button', { name: t(`${S}.texts.publish`) })).toHaveLength(3)
+    expect(within(texts).getAllByRole('button', { name: new RegExp(`^${t(`${S}.texts.edit`)} «`) })).toHaveLength(3)
+    const general = within(texts).getByText('Consentement général').closest('li')!
+    expect(within(general).getByText(t(`${S}.overview.purpose.off`, { triggers: 'Tous les clients' }))).toBeInTheDocument()
+    expect(within(general).getByText(/^Publié · version 1 · le /)).toBeInTheDocument()
+    expect(within(general).getByText(t(`${S}.overview.chips.changed`))).toBeInTheDocument()
+    expect(within(general).getByText(t(`${S}.overview.chips.draft`))).toBeInTheDocument()
+    const waitlist = within(texts).getByText('Liste d’attente').closest('li')!
+    expect(within(waitlist).getByText(t(`${S}.overview.chips.placeholder`))).toBeInTheDocument()
+    // The provisional texts said once, above, by name.
+    expect(screen.getByText(t(`${S}.overview.placeholderTitle`, { count: '1' }))).toBeInTheDocument()
+    expect(screen.getByText(t(`${S}.overview.placeholderBody`, { names: 'Liste d’attente' }))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Publier/ })).not.toBeInTheDocument()
   })
 
-  it('the dialog opens on « nouveaux clients seulement » every time, never on a choice left from before', async () => {
+  it('« Modifier » opens the consent\'s page: its name focused, French and English as tabs; « Tous les consentements » goes back', async () => {
+    const user = userEvent.setup()
     renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    const publishFirst = () => userEvent.click(within(texts).getAllByRole('button', { name: t(`${S}.texts.publish`) })[0]!)
-    await publishFirst()
-    let dialog = await screen.findByRole('dialog')
-    await userEvent.click(within(dialog).getByRole('radio', { name: new RegExp(t(`${S}.texts.allActive`)) }))
-    await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    await publishFirst()
-    dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('radio', { name: new RegExp(t(`${S}.texts.newClients`)) })).toBeChecked()
-    expect(mocks.api.publishConsentVersion).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Consentement général' }) }))
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Consentement général' })
+    await waitFor(() => expect(heading).toHaveFocus())
+    expect(screen.getByRole('tab', { name: t(`${S}.texts.french`) })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: t(`${S}.texts.english`) })).toBeInTheDocument()
+    expect(mocks.templates.fetchTemplateVersions).toHaveBeenCalledWith('tg-fr')
+    await user.click(screen.getByRole('button', { name: t(`${S}.editorPage.back`) }))
+    expect(await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).toBeInTheDocument()
   })
 
-  it('« Publier » a new version: « Tous les clients actifs » flags the signed consents', async () => {
-    renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    await userEvent.click(within(texts).getAllByRole('button', { name: t(`${S}.texts.publish`) })[0]!)
-    const dialog = await screen.findByRole('dialog')
+  it('« Publier la version 2 »: said before it happens, « nouveaux clients seulement » by default; « Tous les clients actifs » flags the signed consents', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: '/parametres/consentements?texte=general' })
+    await user.click(await screen.findByRole('button', { name: t(`${G}.publish`, { version: '2' }) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${S}.texts.publishTitle`, { version: '2', name: 'Consentement général', language: 'français' }) })
+    expect(within(dialog).getByText(t(`${S}.texts.publishHelp`))).toBeInTheDocument()
+    expect(within(dialog).getByText(t(`${S}.texts.testersNote`))).toBeInTheDocument()
     expect(within(dialog).getByRole('radio', { name: new RegExp(t(`${S}.texts.newClients`)) })).toBeChecked()
-    await userEvent.click(within(dialog).getByRole('radio', { name: new RegExp(t(`${S}.texts.allActive`)) }))
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.texts.confirm`) }))
+    expect(within(dialog).queryByText(t(`${S}.texts.campaignNote`))).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('radio', { name: new RegExp(t(`${S}.texts.allActive`)) }))
+    expect(within(dialog).getByText(t(`${S}.texts.campaignNote`))).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: t(`${S}.texts.confirm`, { version: '2' }) }))
     await waitFor(() => expect(mocks.api.publishConsentVersion).toHaveBeenCalledExactlyOnceWith('vg2', 'all_active'))
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.texts.publishedFlagged`, { count: '3' }))
   })
 
-  it('a first publication has nobody to flag: « nouveaux clients » only', async () => {
-    renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    await userEvent.click(within(texts).getAllByRole('button', { name: t(`${S}.texts.publish`) })[1]!)
+  it('a first publication has nobody to ask again: no choice, « nouveaux clients » only', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: '/parametres/consentements?texte=general' })
+    await user.click(await screen.findByRole('tab', { name: t(`${S}.texts.english`) }))
+    await user.click(await screen.findByRole('button', { name: t(`${G}.publish`, { version: '1' }) }))
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('radio', { name: new RegExp(t(`${S}.texts.allActive`)) })).toBeDisabled()
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${S}.texts.confirm`) }))
+    expect(within(dialog).getByText(t(`${S}.texts.publishFirst`))).toBeInTheDocument()
+    expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: t(`${S}.texts.confirm`, { version: '1' }) }))
     await waitFor(() => expect(mocks.api.publishConsentVersion).toHaveBeenCalledExactlyOnceWith('vge1', 'new_clients'))
+  })
+
+  it('« Comparer avec la version publiée »: the lines removed and added', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: '/parametres/consentements?texte=general' })
+    await user.click(await screen.findByRole('button', { name: t(`${G}.focused.compare`, { version: '1' }) }))
+    const diff = screen.getByRole('list', { name: t(`${G}.focused.compareTitle`) })
+    expect(within(diff).getByText('L’ancien texte.').closest('li')).toHaveTextContent(`${t(`${G}.focused.removed`)}`)
+    expect(within(diff).getByText('Le nouveau texte validé.').closest('li')).toHaveTextContent(`${t(`${G}.focused.added`)}`)
+    await user.click(screen.getByRole('button', { name: t(`${G}.focused.compareHide`) }))
+    expect(screen.queryByRole('list', { name: t(`${G}.focused.compareTitle`) })).not.toBeInTheDocument()
   })
 
   it('a rule switches on only once its text is published', async () => {
@@ -225,59 +271,68 @@ describe('ConsentsSettingsPage', () => {
     await waitFor(() => expect(mocks.api.saveConsentSettings).toHaveBeenCalledExactlyOnceWith({ retentionPolicy: null, retentionYears: 7 }))
   })
 
-  it('« Modifier le texte » opens the text in the shared editor: the provisional line said, the answers\' table shown, no « Publier » there (CC-11, CC-12)', async () => {
-    renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    expect(within(texts).getAllByRole('button', { name: new RegExp(`^${t(`${S}.texts.editLabel`, { name: '' })}`) })).toHaveLength(4)
-    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
-    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
-    await waitFor(() => expect(within(editor).getByRole('heading', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })).toHaveFocus())
-    expect(mocks.templates.fetchTemplateVersions).toHaveBeenCalledWith('tw-en')
-    expect(await within(editor).findByText(t(`${ED}.bannerNotice`, { banner: 'Texte provisoire' }))).toBeInTheDocument()
-    expect(within(editor).getByText(t(`${ED}.clausesNote`))).toBeInTheDocument()
-    expect(within(editor).queryByRole('button', { name: t(`${G}.publish`, { version: '1' }) })).not.toBeInTheDocument()
+  it('the provisional English text: said once, « Publier » waits; the client\'s view shows its questions, the document its answers\' table (CC-11, CC-21)', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: '/parametres/consentements?texte=waitlist' })
+    await user.click(await screen.findByRole('tab', { name: t(`${S}.texts.english`) }))
+    // Said once on screen (the button's description repeats it for a screen reader).
+    const said = await screen.findAllByText(t(`${ED}.bannerNotice`, { banner: 'Texte provisoire' }))
+    expect(said.filter((el) => !el.classList.contains('sr-only'))).toHaveLength(1)
+    const publish = screen.getByRole('button', { name: t(`${G}.publish`, { version: '1' }) })
+    expect(publish).toHaveAttribute('aria-disabled', 'true')
+    expect(publish).toHaveAccessibleDescription(t(`${ED}.bannerNotice`, { banner: 'Texte provisoire' }))
     // Never published: discarding the draft would leave nothing to copy.
-    expect(within(editor).queryByRole('button', { name: t(`${G}.discard`, { version: '1' }) })).not.toBeInTheDocument()
-    const frame = within(editor).getByTitle(t(`${G}.preview.frameTitle`))
-    expect(frame.getAttribute('srcdoc')).toContain('accord requis')
+    expect(screen.queryByRole('button', { name: t(`${G}.discard`, { version: '1' }) })).not.toBeInTheDocument()
+    const view = screen.getByRole('heading', { name: t(`${ED}.clientView.title`) }).closest('section')!
+    expect(await within(view).findByRole('radiogroup', { name: /Provisional clause: I agree\./ })).toBeInTheDocument()
+    expect(within(view).getByTitle(t(`${ED}.clientView.frameTitle`)).getAttribute('srcdoc')).toContain('Provisional clause: I agree.')
   })
 
-  it('saving the text replaces the provisional line and refreshes « Textes » (where « Publier » then shows)', async () => {
-    renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
-    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
-    const body = await within(editor).findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })
-    const markup = (body as HTMLTextAreaElement).value
-    expect(markup).toContain('Texte provisoire')
+  it('the text autosaves (no toast), keeps what is typed, and refreshes the overview; the provisional line gone, « Publier » is offered', async () => {
+    renderPage({ path: '/parametres/consentements?texte=waitlist' })
+    await userEvent.click(await screen.findByRole('tab', { name: t(`${S}.texts.english`) }))
+    const body = (await screen.findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })) as HTMLTextAreaElement
+    expect(body.value).toContain('Texte provisoire')
     mocks.api.fetchConsentTemplates.mockClear()
-    fireEvent.change(body, { target: { value: markup.replace(/^\*\*Texte provisoire[^\n]*\n\n/, '') } })
-    expect(within(editor).queryByText(t(`${ED}.bannerNotice`, { banner: 'Texte provisoire' }))).not.toBeInTheDocument()
-    await userEvent.click(within(editor).getByRole('button', { name: t(`${G}.save`) }))
-    await waitFor(() => expect(mocks.templates.updateTemplateVersion).toHaveBeenCalledTimes(1))
+    const next = body.value.replace(/^\*\*Texte provisoire[^\n]*\n\n/, 'The approved text.\n\n')
+    fireEvent.change(body, { target: { value: next } })
+    expect(screen.queryByText(t(`${ED}.bannerNotice`, { banner: 'Texte provisoire' }))).not.toBeInTheDocument()
+    await waitFor(() => expect(mocks.templates.updateTemplateVersion).toHaveBeenCalledTimes(1), { timeout: 4000 })
     const [versionId, content] = mocks.templates.updateTemplateVersion.mock.calls[0]!
     expect(versionId).toBe('vwe1')
     expect(JSON.stringify(content)).not.toContain('Texte provisoire')
     expect(JSON.stringify(content)).toContain('{{consent.clauses}}')
+    expect(await screen.findByText(/^Brouillon enregistré à /)).toBeInTheDocument()
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(body.value).toBe(next)
     await waitFor(() => expect(mocks.api.fetchConsentTemplates).toHaveBeenCalled())
   })
 
-  it('the draft\'s « Oui / Non » clauses: added, reworded, reordered, then saved (CC-13)', async () => {
-    renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
+  it('a text pasted from Word keeps its paragraphs, bold and lists', async () => {
+    renderPage({ path: '/parametres/consentements?texte=waitlist' })
+    const body = (await screen.findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })) as HTMLTextAreaElement
+    body.setSelectionRange(0, 0)
+    const html = "<p class=MsoNormal><b>Objet</b> du consentement</p><p class=MsoListParagraph style='mso-list:l0 level1 lfo1'><span style='mso-list:Ignore'>·</span>Le suivi</p>"
+    fireEvent.paste(body, { clipboardData: { getData: (type: string) => (type === 'text/html' ? html : 'Objet du consentement Le suivi') } })
+    expect(body.value.startsWith('**Objet** du consentement\n\n- Le suivi\n\n')).toBe(true)
+  })
+
+  it('the draft\'s « Oui / Non » questions under the text: added, reworded, reordered, then saved; unsaved, they hold « Publier » (CC-13)', async () => {
+    renderPage({ path: '/parametres/consentements?texte=general' })
     const card = (await screen.findByRole('heading', { name: t(`${S}.clauses.title`) })).closest('form')!
-    expect(mocks.api.fetchConsentClauses).toHaveBeenCalledWith('vwe1')
-    const first = within(card).getByRole('textbox', { name: new RegExp(`^${t(`${S}.clauses.text`, { n: '1' })}`) })
+    await waitFor(() => expect(mocks.api.fetchConsentClauses).toHaveBeenCalledWith('vg2'))
+    const first = await within(card).findByRole('textbox', { name: new RegExp(`^${t(`${S}.clauses.text`, { n: '1' })}`) })
     expect(first).toHaveValue('Provisional clause: I agree.')
     fireEvent.change(first, { target: { value: 'I have read this consent.' } })
+    expect(await screen.findByText(t(`${ED}.clausesUnsaved`))).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t(`${G}.publish`, { version: '2' }) })).toHaveAttribute('aria-disabled', 'true')
     await userEvent.click(within(card).getByRole('button', { name: t(`${S}.clauses.add`) }))
     const second = within(card).getByRole('textbox', { name: new RegExp(`^${t(`${S}.clauses.text`, { n: '2' })}`) })
     fireEvent.change(second, { target: { value: 'Reminders by email?' } })
-    await userEvent.click(within(card).getByRole('button', { name: t(`${S}.clauses.up`, { n: '2' })}))
+    await userEvent.click(within(card).getByRole('button', { name: t(`${S}.clauses.up`, { n: '2' }) }))
     await userEvent.click(within(card).getByRole('button', { name: t('common.save') }))
     await waitFor(() =>
-      expect(mocks.api.saveConsentClauses).toHaveBeenCalledExactlyOnceWith('vwe1', [
+      expect(mocks.api.saveConsentClauses).toHaveBeenCalledExactlyOnceWith('vg2', [
         { key: 'clause_2', kind: 'yes_no', text: 'Reminders by email?' },
         { key: 'accord', kind: 'agree', text: 'I have read this consent.' },
       ]),
@@ -285,49 +340,40 @@ describe('ConsentsSettingsPage', () => {
   })
 
   it('a clause without text is refused before any call', async () => {
-    renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
+    renderPage({ path: '/parametres/consentements?texte=general' })
     const card = (await screen.findByRole('heading', { name: t(`${S}.clauses.title`) })).closest('form')!
-    await userEvent.click(within(card).getByRole('button', { name: t(`${S}.clauses.add`) }))
+    await userEvent.click(await within(card).findByRole('button', { name: t(`${S}.clauses.add`) }))
     await userEvent.click(within(card).getByRole('button', { name: t('common.save') }))
     expect(await within(card).findByText(t(`${S}.clauses.emptyText`))).toBeInTheDocument()
     expect(mocks.api.saveConsentClauses).not.toHaveBeenCalled()
   })
 
-  it('« Fermer le texte » closes the editor', async () => {
-    renderPage()
-    const texts = (await screen.findByRole('heading', { name: t(`${S}.texts.title`) })).closest('section')!
-    await userEvent.click(within(texts).getByRole('button', { name: t(`${S}.texts.editLabel`, { name: 'Liste d’attente (anglais)' }) }))
-    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
-    await userEvent.click(within(editor).getByRole('button', { name: t(`${ED}.close`) }))
-    expect(screen.queryByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })).not.toBeInTheDocument()
-  })
-
-  it('read-only: no « Publier », the switches and the frequencies read only (not disabled), no save', async () => {
+  it('read-only: « Voir », no « Publier », no save; the switches and the frequencies read only (not disabled)', async () => {
+    const user = userEvent.setup()
     renderPage({ readOnly: true })
     await screen.findByRole('heading', { name: t(`${S}.texts.title`) })
-    expect(screen.queryByRole('button', { name: t(`${S}.texts.publish`) })).not.toBeInTheDocument()
     const general = screen.getByRole('switch', { name: t(`${S}.rules.toggle`, { name: 'Consentement général' }) })
     expect(general).toHaveAttribute('aria-readonly', 'true')
     expect(general).toBeEnabled()
-    await userEvent.click(general)
+    await user.click(general)
     expect(mocks.api.saveConsentRule).not.toHaveBeenCalled()
     expect(screen.queryByRole('combobox', { name: t(`${S}.rules.frequency`) })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
-    // The texts can still be read: « Voir le texte », in a read-only editor.
-    await userEvent.click(screen.getByRole('button', { name: t(`${S}.texts.viewLabel`, { name: 'Liste d’attente (anglais)' }) }))
-    const editor = await screen.findByRole('region', { name: t(`${ED}.title`, { name: 'Liste d’attente (anglais)' }) })
-    expect(await within(editor).findByText(t(`${ED}.readOnlyHelp`))).toBeInTheDocument()
-    expect(within(editor).queryByRole('button', { name: t(`${G}.save`) })).not.toBeInTheDocument()
+    // The texts can still be read: « Voir », in a read-only editor.
+    await user.click(screen.getByRole('button', { name: t(`${S}.texts.viewLabel`, { name: 'Liste d’attente' }) }))
+    await screen.findByRole('heading', { level: 1, name: 'Liste d’attente' })
+    await screen.findByRole('textbox', { name: new RegExp(`^${t(`${G}.form.body`)}`) })
+    expect(screen.queryByRole('button', { name: t(`${G}.save`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Publier/ })).not.toBeInTheDocument()
   })
 
   it('« Nouvelles signatures » (C5b.4): a published consent offers the campaign, confirmed first; one running says its counts and « Arrêter »', async () => {
     const user = userEvent.setup()
     renderPage()
     const card = (await screen.findByRole('heading', { name: t(`${S}.campaigns.title`) })).closest('section')!
-    // « Liste d'attente » has no published text: nothing to start.
-    expect(await within(card).findByText(t(`${S}.campaigns.noText`))).toBeInTheDocument()
+    // « Liste d'attente » has no published text: not listed at all.
+    await within(card).findByText('Consentement général')
+    expect(within(card).queryByText('Liste d’attente')).not.toBeInTheDocument()
     await user.click(within(card).getByRole('button', { name: t(`${S}.campaigns.startLabel`, { name: 'Consentement général' }) }))
     const dialog = await screen.findByRole('dialog', { name: t(`${S}.campaigns.confirmTitle`, { name: 'Consentement général' }) })
     expect(mocks.api.startConsentCampaign).not.toHaveBeenCalled()

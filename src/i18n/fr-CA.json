@@ -548,7 +548,36 @@
             "action": "Supprimer le brouillon"
           }
         },
-        "saveError": "Impossible d’enregistrer : réessayez."
+        "saveError": "Impossible d’enregistrer : réessayez.",
+        "focused": {
+          "titleDraft": "Brouillon de la version {version}",
+          "descriptionAuto": "Écrivez ou collez le texte (Word est accepté) : le brouillon s’enregistre tout seul. Rien ne change pour les clients avant « Publier ».",
+          "bodyHelp": "Collé depuis Word, le texte garde ses paragraphes, ses titres, son gras et ses listes. Une ligne vide sépare les paragraphes ; ## Titre, - liste, 1. liste numérotée, **gras**.",
+          "toolbar": "Mise en forme",
+          "bold": "Gras",
+          "boldSample": "texte en gras",
+          "heading": "Titre",
+          "subheading": "Sous-titre",
+          "bullets": "Liste à puces",
+          "numbers": "Liste numérotée",
+          "insert": "Insérer une information",
+          "insertBlock": "Insérer les réponses du client",
+          "saving": "Enregistrement…",
+          "unsaved": "Modifications non enregistrées",
+          "unsavedAuto": "Modifications en cours : enregistrées dans un instant",
+          "savedAt": "Brouillon enregistré à {time}",
+          "compare": "Comparer avec la version publiée (version {version})",
+          "compareHide": "Masquer la comparaison",
+          "compareTitle": "Différences avec la version publiée",
+          "noChanges": "Aucune différence avec la version publiée.",
+          "added": "Ajouté : ",
+          "removed": "Retiré : ",
+          "other": "Autres réglages du document",
+          "otherHelp": "Le titre, l’en-tête et le pied de page du PDF, et le courriel de signature (Documenso). On les change rarement.",
+          "publishedOnly": "Ce texte est publié (version {version}). Pour le modifier, créez un brouillon : la version en vigueur reste utilisée jusqu’à la publication du nouveau.",
+          "noDraft": "Ce texte n’a pas encore de brouillon.",
+          "history": "Historique des versions ({count})"
+        }
       },
       "toasts": {
         "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
@@ -5801,36 +5830,33 @@
         "panelLoadError": "Impossible de charger les consentements de ce client.",
         "settings": {
           "title": "Consentements",
-          "description": "Les textes de consentement des clients, quand les demander et les rappels.",
+          "description": "Les textes que les clients signent, quand les demander et les rappels.",
           "saved": "Réglages enregistrés.",
           "saveError": "Impossible d’enregistrer.",
           "loadError": "Impossible de charger les réglages des consentements.",
           "texts": {
-            "title": "Textes",
-            "description": "Un texte par consentement et par langue. Rien ne peut être envoyé avant que le texte soit publié.",
+            "title": "Textes des consentements",
+            "description": "Un consentement par ligne, en français et en anglais. « Modifier » ouvre ses deux textes. Rien n’est envoyé aux clients avant la publication.",
             "published": "Texte publié.",
             "publishedFlagged": "Texte publié : {count} clients devront signer de nouveau.",
-            "version": "Version {version} publiée le {date}",
-            "draftOnly": "Brouillon (pas encore publié)",
-            "draftReady": "Brouillon de la version {version} prêt",
-            "publish": "Publier",
-            "publishTitle": "Publier « {name} »",
-            "publishHelp": "Qui doit signer cette nouvelle version ?",
+            "publishTitle": "Publier la version {version} : {name} ({language})",
+            "publishHelp": "Les prochaines demandes de signature utiliseront cette version. Les consentements déjà signés gardent la leur.",
             "newClients": "Les nouveaux clients seulement",
             "newClientsHelp": "Les consentements déjà signés restent valides.",
             "allActive": "Tous les clients actifs",
             "allActiveHelp": "Chaque consentement signé sur une autre version est marqué « À signer de nouveau ».",
-            "confirm": "Publier",
+            "confirm": "Publier la version {version}",
             "publishing": "Publication…",
             "french": "Français",
             "english": "Anglais",
-            "line": "{language} : {state}",
-            "placeholder": "Texte provisoire : à remplacer par le texte validé avant de publier",
-            "editNote": "Les textes affichés sont provisoires. Remplacez chacun par le texte validé par la direction (« Modifier le texte »), enregistrez, puis publiez-le.",
-            "edit": "Modifier le texte",
-            "view": "Voir le texte",
-            "editLabel": "Modifier le texte : {name}",
-            "viewLabel": "Voir le texte : {name}"
+            "edit": "Modifier",
+            "view": "Voir",
+            "editLabel": "Modifier « {name} »",
+            "viewLabel": "Voir « {name} »",
+            "publishFirst": "Première publication : ce consentement pourra être demandé aux clients (« Quand demander »). Les prochaines demandes utiliseront cette version.",
+            "whoSigns": "Qui doit signer cette version ?",
+            "campaignNote": "Les clients qui ont signé une version précédente passent à « À signer de nouveau ». Pour leur envoyer la demande, lancez ensuite « Nouvelles signatures » (100 clients par jour au plus).",
+            "testersNote": "Tant que le module Clients est réservé aux testeurs, aucune demande ne part vers les clients."
           },
           "rules": {
             "title": "Quand demander",
@@ -5865,27 +5891,33 @@
             "invalid": "Indiquez un nombre entier dans les limites."
           },
           "editor": {
-            "title": "Texte : {name}",
-            "help": "Modifiez le brouillon et enregistrez-le, puis publiez-le dans « Textes » : vous y choisissez qui doit signer de nouveau.",
-            "readOnlyHelp": "Lecture seule : seule une personne qui gère les clients peut modifier ce texte.",
-            "close": "Fermer le texte",
             "loadError": "Impossible de charger ce texte.",
-            "bannerNotice": "Ce brouillon est encore le texte provisoire (« {banner} »). Remplacez-le par le texte validé par la direction et retirez cette ligne : « Publier » apparaîtra ensuite dans « Textes ».",
+            "bannerNotice": "Ce brouillon est encore le texte provisoire (« {banner} »). Remplacez-le par le texte validé par la direction et retirez cette ligne : « Publier » sera ensuite possible.",
             "clausesNote": "Seule sur une ligne, elle devient le tableau des clauses et des réponses du client (Oui / Non).",
             "clausesMissing": "Le tableau des réponses ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : les réponses du client ne seraient pas imprimées.",
             "sample": {
-              "caption": "Exemple : le tableau réel reprend les clauses de ce consentement et les réponses du client.",
+              "caption": "Ici s’imprimeront les questions et les réponses du client.",
               "clause": "Clause",
               "answer": "Réponse",
-              "first": "J'ai lu ce consentement et je l'accepte. (accord requis)",
-              "second": "J'accepte de recevoir les rappels par courriel.",
-              "yes": "Oui",
-              "no": "Non"
+              "yesNo": "Oui ou Non",
+              "yesNoEn": "Yes or No",
+              "untitled": "(question sans texte)",
+              "none": "(aucune question)"
+            },
+            "clausesUnsaved": "Enregistrez les questions « Oui / Non » avant de publier.",
+            "clientView": {
+              "title": "Aperçu comme le client le verra",
+              "description": "La page de signature, en français, avec des valeurs d’exemple. Les réponses données ici ne sont pas enregistrées.",
+              "descriptionEn": "La page de signature, en anglais, avec des valeurs d’exemple. Les réponses données ici ne sont pas enregistrées.",
+              "document": "Puis le document à signer :",
+              "documentEn": "Then the document to sign:",
+              "untitled": "Question {n} (sans texte)",
+              "frameTitle": "Aperçu du document à signer"
             }
           },
           "clauses": {
-            "title": "Clauses « Oui / Non »",
-            "description": "Les questions auxquelles le client répond sur notre page avant de signer, dans la langue de ce texte. « Accord requis » : il doit répondre « Oui » pour signer. Elles sont publiées avec le texte et ne changent plus ensuite.",
+            "title": "Questions « Oui / Non » du client",
+            "description": "Le client y répond sur la page de signature, avant de signer ; ses réponses s’impriment à la ligne des réponses du client dans le texte. « Accord requis » : il doit répondre « Oui » pour signer. Elles sont publiées avec le texte.",
             "readOnlyDescription": "Les questions de cette version, publiées avec elle. Pour les modifier, créez une nouvelle version du texte.",
             "text": "Clause {n}",
             "kind": "Réponse",
@@ -5934,8 +5966,34 @@
             "done": "Terminée le {date} : {sent} envoyée(s) sur {total}, {failed} non envoyée(s)",
             "cancelled": "Arrêtée le {date} : {sent} envoyée(s) sur {total}",
             "none": "Aucune campagne pour le moment.",
-            "noText": "Publiez d’abord le texte de ce consentement.",
-            "loadError": "Les campagnes ne se chargent pas."
+            "loadError": "Les campagnes ne se chargent pas.",
+            "noneYet": "Possible pour un consentement dès que son texte est publié."
+          },
+          "overview": {
+            "unknown": "Ce consentement n’existe pas : voici la liste des consentements.",
+            "placeholderTitle": "Textes provisoires à remplacer ({count})",
+            "placeholderBody": "{names} : ces textes sont encore provisoires. Ouvrez chacun (« Modifier »), collez à leur place le texte validé par la direction, puis publiez-le.",
+            "namesJoiner": ", ",
+            "chips": {
+              "published": "Publié · version {version} · le {date}",
+              "changed": "Modifié depuis la publication",
+              "draft": "Brouillon",
+              "placeholder": "Texte provisoire",
+              "missing": "Pas de texte"
+            },
+            "purpose": {
+              "active": "Demandé : {triggers}",
+              "off": "Demandé : {triggers} (règle désactivée dans « Quand demander »)",
+              "manual": "Demandé seulement à la main, depuis le dossier du client",
+              "joiner": " ; "
+            }
+          },
+          "editorPage": {
+            "back": "Tous les consentements",
+            "languages": "Langue du texte",
+            "stateFr": "Texte français :",
+            "stateEn": "Texte anglais :",
+            "missing": "Ce texte n’existe pas encore."
           }
         },
         "page": {

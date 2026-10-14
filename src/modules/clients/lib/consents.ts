@@ -5,7 +5,7 @@ import { functionErrorText } from '@/core/supabase/function-errors'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import type { StatusTone } from '@/shared/ui/status-dot'
-import type { ConsentRule, ConsentState, ConsentToObtain } from '../api/consents'
+import type { ConsentRule, ConsentState, ConsentTemplate, ConsentToObtain } from '../api/consents'
 
 const S = 'modules.clients.consents'
 
@@ -78,4 +78,34 @@ export function consentSendErrorMessage(error: unknown, fallback: string = t(`${
     Sentry.captureException(report, { tags: { area: 'clients', code: error.code } })
   }
   return fallback
+}
+
+/**
+ * A consent text's state in Paramètres → Consentements (CC-21), as chips: « Publié · version 2 · le
+ * 14 oct. 2026 », then « Modifié depuis la publication » when a draft waits; « Brouillon » before
+ * any publication; « Texte provisoire » while the seeded placeholder is still there.
+ */
+export function textStatuses(template: Pick<ConsentTemplate, 'published' | 'draft'> | undefined): { label: string; tone: StatusTone }[] {
+  const C = `${S}.settings.overview.chips` as const
+  if (!template) return [{ label: t(`${C}.missing`), tone: 'neutral' }]
+  const out: { label: string; tone: StatusTone }[] = []
+  if (template.published) {
+    out.push({
+      label: t(`${C}.published`, { version: String(template.published.version), date: formatClinicDateShort(template.published.publishedAt) }),
+      tone: 'success',
+    })
+  }
+  if (template.draft?.placeholder) out.push({ label: t(`${C}.placeholder`), tone: 'warning' })
+  else if (template.draft) out.push(template.published ? { label: t(`${C}.changed`), tone: 'info' } : { label: t(`${C}.draft`), tone: 'info' })
+  return out
+}
+
+/** When a consent is asked, in one line, from its rules (« Quand demander »): active, switched off, or none. */
+export function consentPurpose(key: string, rules: readonly ConsentRule[], serviceNames?: ReadonlyMap<number, string>): string {
+  const P = `${S}.settings.overview.purpose` as const
+  const own = rules.filter((rule) => rule.consentKey === key)
+  if (own.length === 0) return t(`${P}.manual`)
+  const active = own.filter((rule) => rule.isActive)
+  const triggers = [...new Set((active.length > 0 ? active : own).map((rule) => ruleTriggerText(rule, serviceNames)))].join(t(`${P}.joiner`))
+  return t(active.length > 0 ? `${P}.active` : `${P}.off`, { triggers })
 }
