@@ -94,7 +94,8 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
                     }
                   >
                     <item.icon className="h-4 w-4 shrink-0 text-subtle group-aria-[current=page]:text-foreground" aria-hidden />
-                    <span className={collapsed ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{label}</span>
+                    {/* A long label (« Indicateurs des demandes ») wraps rather than being cut. */}
+                    <span className={collapsed ? 'sr-only' : 'min-w-0 flex-1 text-pretty leading-snug'}>{label}</span>
                   </GuardedNavLink>
                 )
               })}

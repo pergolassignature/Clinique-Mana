@@ -40,7 +40,7 @@ import { INBOX_COLUMNS, INBOX_COLUMNS_PREFERENCE, SORT_PARAM, columnsOf, type In
 import { LogContactDialog } from '../components/LogContactDialog'
 import { NewDemandeDialog } from '../components/NewDemandeDialog'
 import { useDemandesRealtime, useInbox, useInboxCounts } from '../hooks/use-demandes'
-import { demandePath, optionLabel, personLabel, promiseText, stateLabel, stateTone } from '../lib/display'
+import { clientNumber, demandePath, optionLabel, personLabel, promiseText, stateLabel, stateTone } from '../lib/display'
 
 const I = 'modules.demandes.inbox'
 
@@ -165,11 +165,11 @@ export function DemandesInboxPage() {
           />
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
+          <div className="min-w-0 max-w-full space-y-1">
             <label htmlFor={`${searchId}-sort`} className="text-sm font-medium text-foreground">
               {t(`${I}.sort.label`)}
             </label>
-            <Select id={`${searchId}-sort`} value={sort} onChange={(e) => update({ tri: SORT_PARAM[e.target.value as InboxSort] })} className="w-auto">
+            <Select id={`${searchId}-sort`} value={sort} onChange={(e) => update({ tri: SORT_PARAM[e.target.value as InboxSort] })} className="w-auto max-w-full">
               {SORTS.map((s) => (
                 <option key={s} value={s}>
                   {t(`${I}.sort.${s}`)}
@@ -252,7 +252,7 @@ function InboxTable({ rows, canLog, columns }: { rows: readonly InboxRow[] | nul
           {show('state') && <TableHead className="max-sm:hidden">{t(`${I}.columns.state`)}</TableHead>}
           {show('beneficiary') && <TableHead className="max-md:hidden">{t(`${I}.columns.beneficiary`)}</TableHead>}
           {show('motifs') && <TableHead className="max-md:hidden">{t(`${I}.columns.motifs`)}</TableHead>}
-          {show('assigned') && <TableHead className="max-lg:hidden">{t(`${I}.columns.assigned`)}</TableHead>}
+          {show('assigned') && <TableHead className="max-xl:hidden">{t(`${I}.columns.assigned`)}</TableHead>}
           {show('followUp') && <TableHead className="max-md:hidden">{t(`${I}.columns.followUp`)}</TableHead>}
           <TableHead>
             <span className="sr-only">{t(`${I}.columns.actions`)}</span>
@@ -288,13 +288,13 @@ function InboxRowView({ row, canLog, show }: { row: InboxRow; canLog: boolean; s
         </Link>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
           <span className="tabular">{row.reference}</span>
-          {row.client_number !== null && <span className="tabular">{t(`${I}.fileNumber`, { number: String(row.client_number) })}</span>}
+          {row.client_number !== null && <span className="tabular">{t(`${I}.fileNumber`, { number: clientNumber(row.client_number) })}</span>}
           {row.is_urgent && <Badge variant="error">{t(`${I}.urgent`)}</Badge>}
         </p>
         {row.handled_by_name && <p className="text-xs text-foreground">{t(`${I}.handledBy`, { name: row.handled_by_name })}</p>}
       </TableCell>
-      <TableCell className="whitespace-nowrap">
-        <p className="tabular text-sm">{formatClinicDateTime(row.received_at)}</p>
+      <TableCell className="min-w-40">
+        <p className="tabular whitespace-nowrap text-sm">{formatClinicDateTime(row.received_at)}</p>
         {open && (
           <p className="inline-flex items-center gap-1.5 text-xs text-foreground">
             <StatusDot tone={promise.tone} />
@@ -324,7 +324,7 @@ function InboxRowView({ row, canLog, show }: { row: InboxRow; canLog: boolean; s
         </TableCell>
       )}
       {show('assigned') && (
-        <TableCell className="max-lg:hidden text-sm">{row.assigned_name ?? <span className="text-muted-foreground">{t(`${I}.unassigned`)}</span>}</TableCell>
+        <TableCell className="max-xl:hidden text-sm">{row.assigned_name ?? <span className="text-muted-foreground">{t(`${I}.unassigned`)}</span>}</TableCell>
       )}
       {show('followUp') && (
       <TableCell className="max-md:hidden text-xs">

@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
@@ -20,6 +21,7 @@ import { Dialog } from '@/shared/ui/dialog'
 import { toast } from '@/shared/ui/sonner'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { useUrlParams } from '@/shared/lib/use-url-params'
+import { cn } from '@/shared/lib/utils'
 import type { MatchCriteria, MatchedProfessional, NextSlot } from '../../api/matching'
 import { useDemandeMatch, useNextSlots } from '../../hooks/use-matching'
 import { usePropositions } from '../../hooks/use-propositions'
@@ -122,6 +124,8 @@ export function MatchingTab() {
             onClick={() => setShowOthers((v) => !v)}
             className="max-sm:h-11"
           >
+            {/* A chevron says it opens: it read as plain text. */}
+            <ChevronRight aria-hidden className={cn('size-4 transition-transform duration-120', showOthers && 'rotate-90')} />
             {t(`${M}.others`, { count: String(others.length) })}
           </Button>
           {showOthers && (
