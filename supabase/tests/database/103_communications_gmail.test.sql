@@ -405,7 +405,7 @@ $$, $$ values ('disconnected', 'a0000000-0000-0000-0000-000000000001', 0, 0) $$,
 -- =============================================================================
 reset role;
 update public.mail_messages set sent_at = now() - interval '25 months' where gmail_message_id = 'm1' and connection_id = current_setting('test.c1')::uuid;
-select is(private.job_mail_bodies_purge(), 'purged=1 files=1', 'one old message purged with its file');
+select is(private.job_mail_bodies_purge(), 'purged=1 files=1 threads=1 drafts=0 ai_requests=0', 'one old message purged with its file');
 select results_eq($$
   select m.body_html, m.body_text, m.snippet, m.body_purged_at is not null, m.subject,
          (select a.status from public.mail_attachments a where a.id = current_setting('test.a1')::uuid),
@@ -413,7 +413,7 @@ select results_eq($$
     from public.mail_messages m where m.gmail_message_id = 'm1' and m.connection_id = current_setting('test.c1')::uuid
 $$, $$ values (null::text, null::text, null::text, true, 'Demande de rendez-vous', 'purged', 'deleted') $$,
   'bodies and snippet nulled, the subject kept, the attachment purged and its file soft-deleted');
-select is(private.job_mail_bodies_purge(), 'purged=0 files=0', 'nothing left to purge');
+select is(private.job_mail_bodies_purge(), 'purged=0 files=0 threads=0 drafts=0 ai_requests=0', 'nothing left to purge');
 
 select * from finish();
 rollback;

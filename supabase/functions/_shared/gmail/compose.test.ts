@@ -73,6 +73,50 @@ Deno.test('hardenHtml: no script, no handler, no javascript: link; the rest kept
   assert(out.includes('Texte'))
 })
 
+Deno.test('hardenHtml: an encoded javascript: (entities, controls, no semicolon) is caught; only http(s), mailto, tel, cid or relative kept', () => {
+  for (
+    const href of [
+      'javascript&colon;alert(1)',
+      '&#106;avascript:alert(1)',
+      '&#106avascript:alert(1)',
+      '&#x6A;avascript:alert(1)',
+      'java&#x09;script:alert(1)',
+      'java&Tab;script:alert(1)',
+      '&#x20;javascript:alert(1)',
+      ' JaVaScRiPt:alert(1)',
+      'vbscript:msgbox(1)',
+      'data:text/html;base64,PHNjcmlwdD4=',
+      'file:///etc/passwd',
+    ]
+  ) {
+    for (const quoted of [`"${href}"`, `'${href}'`]) {
+      const out = hardenHtml(`<a href=${quoted}>lien</a>`)
+      assertEquals(out, '<a>lien</a>', href)
+    }
+  }
+  assertEquals(
+    hardenHtml('<a href=javascript&colon;alert(1)>x</a>'),
+    '<a>x</a>',
+  )
+  assertEquals(
+    hardenHtml('<img src="&#99;id:logo@mana">'),
+    '<img src="&#99;id:logo@mana">',
+  )
+  for (
+    const kept of [
+      '<a href="https://ok.test/?a=1&amp;b=2">ok</a>',
+      '<a href="http://ok.test">ok</a>',
+      '<a href="mailto:info@ok.test">ok</a>',
+      '<a href="tel:+15145550000">ok</a>',
+      '<img src="cid:logo@mana">',
+      '<a href="#haut">ok</a>',
+      '<a href="/chemin">ok</a>',
+    ]
+  ) {
+    assertEquals(hardenHtml(kept), kept)
+  }
+})
+
 Deno.test('htmlToText: paragraphs, breaks, lists and links in plain words', () => {
   assertEquals(
     htmlToText(

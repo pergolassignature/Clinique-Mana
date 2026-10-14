@@ -95,11 +95,15 @@ function SmsSecret({ secretKey, label, help, readOnly }: { secretKey: string; la
   )
 }
 
-/** « Centrale téléphonique »: the address, the client id and the number in one form; the client secret under it. */
+/**
+ * « Centrale téléphonique »: the address, the client id and the number in one form; the client secret under it.
+ * They decide where the client secret is sent: read-only without `settings.integrations_manage` (the database refuses too).
+ */
 function PbxCard({ settings, readOnly }: { settings: SmsSettings } & CardProps) {
+  const { can } = useAccess()
   return (
     <SettingsCard as="section" layout="section" title={t(`${S}.pbx.title`)} description={t(`${S}.pbx.description`)}>
-      <PbxForm settings={settings} readOnly={readOnly} />
+      <PbxForm settings={settings} readOnly={readOnly || !can('settings.integrations_manage')} />
       <SmsSecret secretKey="yeastar_client_secret" label={t(`${S}.pbx.clientSecret`)} help={t(`${S}.pbx.clientSecretHelp`)} readOnly={readOnly} />
     </SettingsCard>
   )
