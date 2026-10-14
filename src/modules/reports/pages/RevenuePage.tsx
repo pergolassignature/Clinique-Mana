@@ -153,7 +153,7 @@ function RevenueBody({ report }: { report: RevenueReport }) {
           <Table aria-label={t(`${V}.viewLabels.invoice`)} scrollLabel={t(`${V}.viewLabels.invoice`)}>
             <TableHeader>
               <TableRow className="[&>th]:whitespace-nowrap">
-                <TableHead>{t(`${V}.columns.date`)}</TableHead>
+                <TableHead className="max-sm:hidden">{t(`${V}.columns.date`)}</TableHead>
                 <TableHead>{t(`${V}.columns.number`)}</TableHead>
                 <TableHead>{t(`${V}.columns.client`)}</TableHead>
                 <TableHead className="max-md:hidden">{t(`${V}.columns.professional`)}</TableHead>
@@ -165,8 +165,12 @@ function RevenueBody({ report }: { report: RevenueReport }) {
             <TableBody>
               {report.rows.map((r) => (
                 <TableRow key={r.invoice_id}>
-                  <TableCell className="tabular whitespace-nowrap">{formatDateOnlyShort(r.issued_on)}</TableCell>
-                  <TableCell className="tabular whitespace-nowrap">{invoiceLink(r.invoice_id, r.number)}</TableCell>
+                  <TableCell className="tabular whitespace-nowrap max-sm:hidden">{formatDateOnlyShort(r.issued_on)}</TableCell>
+                  <TableCell className="tabular whitespace-nowrap">
+                    {invoiceLink(r.invoice_id, r.number)}
+                    {/* On a phone the date goes under the number (the table fits). */}
+                    <span className="block text-xs text-muted-foreground sm:hidden">{formatDateOnlyShort(r.issued_on)}</span>
+                  </TableCell>
                   <TableCell>
                     {r.client_name}
                     {r.payer_name && <span className="block text-xs text-muted-foreground">{t(`${V}.billedTo`, { name: r.payer_name })}</span>}
@@ -229,7 +233,7 @@ function RevenueBody({ report }: { report: RevenueReport }) {
             <Table aria-label={t(`${V}.lines`)} scrollLabel={t(`${V}.lines`)}>
               <TableHeader>
                 <TableRow className="[&>th]:whitespace-nowrap">
-                  <TableHead>{t(`${V}.columns.date`)}</TableHead>
+                  <TableHead className="max-sm:hidden">{t(`${V}.columns.date`)}</TableHead>
                   <TableHead>{t(`${V}.columns.number`)}</TableHead>
                   <TableHead>{t(`${V}.columns.client`)}</TableHead>
                   <TableHead className="max-md:hidden">{t(`${V}.columns.professional`)}</TableHead>
@@ -240,8 +244,12 @@ function RevenueBody({ report }: { report: RevenueReport }) {
               <TableBody>
                 {report.rows.map((r) => (
                   <TableRow key={r.line_id}>
-                    <TableCell className="tabular whitespace-nowrap">{formatDateOnlyShort(r.issued_on)}</TableCell>
-                    <TableCell className="tabular whitespace-nowrap">{invoiceLink(r.invoice_id, r.number)}</TableCell>
+                    <TableCell className="tabular whitespace-nowrap max-sm:hidden">{formatDateOnlyShort(r.issued_on)}</TableCell>
+                    <TableCell className="tabular whitespace-nowrap">
+                      {invoiceLink(r.invoice_id, r.number)}
+                      {/* On a phone the date goes under the number (the table fits). */}
+                      <span className="block text-xs text-muted-foreground sm:hidden">{formatDateOnlyShort(r.issued_on)}</span>
+                    </TableCell>
                     <TableCell>{r.client_name}</TableCell>
                     <TableCell className="max-md:hidden">{r.professional_name}</TableCell>
                     <TableCell>
@@ -283,7 +291,7 @@ function RevenueBody({ report }: { report: RevenueReport }) {
         <Table aria-label={t(`${V}.viewLabels.payment`)} scrollLabel={t(`${V}.viewLabels.payment`)}>
           <TableHeader>
             <TableRow className="[&>th]:whitespace-nowrap">
-              <TableHead>{t(`${V}.columns.date`)}</TableHead>
+              <TableHead className="max-sm:hidden">{t(`${V}.columns.date`)}</TableHead>
               <TableHead>{t(`${V}.columns.number`)}</TableHead>
               <TableHead>{t(`${V}.columns.client`)}</TableHead>
               <TableHead>{t(`${V}.columns.mode`)}</TableHead>
@@ -294,8 +302,12 @@ function RevenueBody({ report }: { report: RevenueReport }) {
           <TableBody>
             {report.rows.map((r) => (
               <TableRow key={r.row_id ?? r.payment_id}>
-                <TableCell className="tabular whitespace-nowrap">{formatDateOnlyShort(r.paid_on)}</TableCell>
-                <TableCell className="tabular whitespace-nowrap">{invoiceLink(r.invoice_id, r.number)}</TableCell>
+                <TableCell className="tabular whitespace-nowrap max-sm:hidden">{formatDateOnlyShort(r.paid_on)}</TableCell>
+                <TableCell className="tabular whitespace-nowrap">
+                  {invoiceLink(r.invoice_id, r.number)}
+                  {/* On a phone the date goes under the number (the table fits). */}
+                  <span className="block text-xs text-muted-foreground sm:hidden">{formatDateOnlyShort(r.paid_on)}</span>
+                </TableCell>
                 <TableCell>
                   {r.client_name}
                   {r.payer_name && <span className="block text-xs text-muted-foreground">{t(`${V}.paidBy`, { name: r.payer_name })}</span>}

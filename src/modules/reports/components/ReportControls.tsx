@@ -82,7 +82,7 @@ export function FilterSelect({ label, value, allLabel, options, onChange }: Filt
 /** The report's totals, as figures with their labels. */
 export function Totals({ label, items }: { label: string; items: readonly { label: string; value: string }[] }) {
   return (
-    <dl aria-label={label} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <dl aria-label={label} className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
       {items.map((item) => (
         <div key={item.label} className="rounded-lg border border-border-light bg-card px-3 py-2">
           <dt className="text-xs text-muted-foreground">{item.label}</dt>
