@@ -110,7 +110,8 @@ test('the admin reads « Indicateurs des demandes »: activity, sources, waiting
     await page.getByRole('button', { name: 'Cette année' }).click()
     const tabs = page.getByRole('tablist', { name: 'Vues des indicateurs' })
     await expect(tabs.getByRole('tab', { name: 'Activité' })).toHaveAttribute('aria-selected', 'true')
-    await expect(page.getByLabel('Totaux de la période')).toBeVisible()
+    // Alone on a fresh seed, no request this year: the tab says so.
+    await expect(page.getByLabel('Totaux de la période').or(page.getByText('Aucune demande reçue ni jumelée dans cette période.')).first()).toBeVisible()
     await tabs.getByRole('tab', { name: 'Provenance' }).click()
     await expect(page).toHaveURL(/onglet=provenance/)
     // The seed may hold no request this year (the spec runs on its own): the tab then says so.
