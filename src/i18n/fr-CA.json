@@ -5140,7 +5140,7 @@
       },
       "display": {
         "minutes": "{minutes} min",
-        "withBuffer": "{base} + {buffer}",
+        "withBuffer": "{base} + {buffer} min de pause",
         "grid60": "60 min (couple ou famille)",
         "gridMinutes": "{minutes} min",
         "gridPrice": "Grille, {duration}",
