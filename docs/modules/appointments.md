@@ -276,7 +276,7 @@ Migration `20261014035625_appointments_messages_sheet`; pgTAP `184_appointments_
 
 ## Security review (2026-10-14)
 
-Migration `*_appointments_security_fixes.sql`, pgTAP `189_appointments_security_fixes`; decision AP-49.
+Migration `*_appointments_security_fixes.sql`, pgTAP `190_appointments_security_fixes`; decision AP-49.
 
 - **A professional books her own clients only:** `book_appointment` (and so `create_series`, which books each date through it) refuses, for a caller without `appointments.manage`, a client not already visible to her (Clients' `private.client_visible_to_professional`), before any rule reads the clients' facts: P0001 « Ce client n'est pas encore dans vos dossiers : demandez à la clinique de le jumeler. » (hint `client_ids`). Booking would have linked her (`clients_link_professional`) and opened the file. The staff are unchanged.
 - **« Votre lien de rencontre »:** `video_link_email_for_service` keeps only contacts with `reminders_by_email`, and returns nothing while the module is reserved for testers (P3-40); the sync job then marks the link as handled, as when nobody has an address.
