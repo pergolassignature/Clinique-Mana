@@ -11973,8 +11973,12 @@
           "held": "brouillons mis en attente",
           "overdue": "factures impayées en retard",
           "interac": "virements Interac à rapprocher",
-          "payers": "payeurs tiers à facturer"
-        }
+          "payers": "payeurs tiers à facturer",
+          "fees": "frais d'annulation à décider pour un professionnel",
+          "myFees": "à décider"
+        },
+        "mineTitle": "Frais d'annulation à décider",
+        "mineBody": "Vos annulations tardives et absences : appliquez les frais ou non, sous votre agenda."
       },
       "appointment": {
         "title": "Facturation du rendez-vous",
