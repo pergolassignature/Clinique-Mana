@@ -1,6 +1,9 @@
 import { Gauge, Inbox, ListOrdered, PhoneCall, PhoneOutgoing } from 'lucide-react'
-import type { ModuleManifest } from '@/core/modules/types'
+import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
+
+// The settings menu's heading for this module's sections (NAV-3), shared with Clients (same key, label and order).
+const SETTINGS_AREA: SettingsArea = { key: 'clients', labelKey: 'modules.clients.settingsArea', order: 30 }
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
@@ -81,6 +84,7 @@ export const demandesManifest: ModuleManifest = {
       permission: 'demandes.view',
       editPermission: 'demandes.manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/BookingSettingsPage'), 'BookingSettingsPage'),
     },
     {
@@ -91,6 +95,7 @@ export const demandesManifest: ModuleManifest = {
       permission: 'demandes.view',
       editPermission: 'demandes.waitlist',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/WaitlistSettingsPage'), 'WaitlistSettingsPage'),
     },
   ],

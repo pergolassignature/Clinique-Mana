@@ -1,11 +1,13 @@
-import { CircleUser, Compass, FileCheck, FileSignature, FileText, FolderOpen, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import { CircleUser, FileCheck, FileSignature, FileText, FolderOpen, HandCoins, ListChecks, Send, Users } from 'lucide-react'
 import type { Access } from '@/core/access/access'
-import type { ModuleManifest } from '@/core/modules/types'
+import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
+
+// The settings menu's heading for this module's sections (NAV-3).
+const SETTINGS_AREA: SettingsArea = { key: 'professionals', labelKey: 'modules.professionals.settingsArea', order: 10 }
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
-
 
 /** « Mon profil » and Accueil's card: an account linked to a professional file (P4-376). */
 const hasProfessionalFile = (access: Access) => access.has_professional_file
@@ -21,6 +23,7 @@ const LIST_SECTION = {
   permission: ['professionals.manage', 'professionals.settings'],
   editPermission: 'professionals.settings',
   group: 'modules',
+  area: SETTINGS_AREA,
 } as const
 
 export const professionalsManifest: ModuleManifest = {
@@ -100,45 +103,21 @@ export const professionalsManifest: ModuleManifest = {
   audit: () => import('./lib/audit-labels').then((m) => m.professionalsAuditLabels),
   settingsSections: [
     {
-      id: 'professions',
-      path: 'professions',
-      labelKey: 'modules.professionals.settings.professions.title',
-      icon: GraduationCap,
+      // The five reference lists in one section (NAV-3), one real tab each (decision #35); their
+      // former sections' paths open the right tab.
+      id: 'lists',
+      path: 'listes',
+      labelKey: 'modules.professionals.settings.lists.title',
+      icon: ListChecks,
       ...LIST_SECTION,
-      component: lazyPage(() => import('./pages/settings/ProfessionsSettingsPage'), 'ProfessionsSettingsPage'),
-    },
-    {
-      // « Spécialités » until P4-240 removed the approaches: only the clientèles are left.
-      id: 'clienteles',
-      path: 'clienteles',
-      labelKey: 'modules.professionals.settings.clienteles.title',
-      icon: Compass,
-      ...LIST_SECTION,
-      component: lazyPage(() => import('./pages/settings/ClientelesSettingsPage'), 'ClientelesSettingsPage'),
-    },
-    {
-      id: 'motifs',
-      path: 'motifs',
-      labelKey: 'modules.professionals.settings.motifs.title',
-      icon: Tags,
-      ...LIST_SECTION,
-      component: lazyPage(() => import('./pages/settings/MotifsSettingsPage'), 'MotifsSettingsPage'),
-    },
-    {
-      id: 'languages',
-      path: 'langues',
-      labelKey: 'modules.professionals.settings.languages.title',
-      icon: Languages,
-      ...LIST_SECTION,
-      component: lazyPage(() => import('./pages/settings/LanguagesSettingsPage'), 'LanguagesSettingsPage'),
-    },
-    {
-      id: 'deactivation-reasons',
-      path: 'raisons-desactivation',
-      labelKey: 'modules.professionals.settings.deactivationReasons.title',
-      icon: UserMinus,
-      ...LIST_SECTION,
-      component: lazyPage(() => import('./pages/settings/DeactivationReasonsSettingsPage'), 'DeactivationReasonsSettingsPage'),
+      redirects: [
+        { path: 'professions', search: '' },
+        { path: 'clienteles', search: '?onglet=clienteles' },
+        { path: 'motifs', search: '?onglet=motifs' },
+        { path: 'langues', search: '?onglet=langues' },
+        { path: 'raisons-desactivation', search: '?onglet=raisons-desactivation' },
+      ],
+      component: lazyPage(() => import('./pages/settings/ListsSettingsPage'), 'ListsSettingsPage'),
     },
     {
       // The document types a file holds (Task 4c.3): read like the lists, changed with `professionals.settings`.
@@ -178,6 +157,7 @@ export const professionalsManifest: ModuleManifest = {
       permission: ['professionals.invite', 'professionals.settings'],
       editPermission: 'professionals.settings',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/InvitationsSettingsPage'), 'InvitationsSettingsPage'),
     },
     {
@@ -189,6 +169,7 @@ export const professionalsManifest: ModuleManifest = {
       icon: HandCoins,
       permission: 'professionals.compensation',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/CompensationSettingsPage'), 'CompensationSettingsPage'),
     },
   ],

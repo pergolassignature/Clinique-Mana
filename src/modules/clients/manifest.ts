@@ -1,7 +1,10 @@
 import { Contact, FileCheck, UsersRound } from 'lucide-react'
 import type { Access } from '@/core/access/access'
-import type { ModuleManifest } from '@/core/modules/types'
+import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
+
+// The settings menu's heading for this module's sections (NAV-3).
+const SETTINGS_AREA: SettingsArea = { key: 'clients', labelKey: 'modules.clients.settingsArea', order: 30 }
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
@@ -76,6 +79,7 @@ export const clientsManifest: ModuleManifest = {
       permission: 'clients.view',
       editPermission: 'clients.manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/ConsentsSettingsPage'), 'ConsentsSettingsPage'),
     },
   ],

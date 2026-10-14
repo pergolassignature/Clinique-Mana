@@ -131,6 +131,20 @@ export interface ModuleAuditLabels {
 
 export type SettingsGroup = 'clinique' | 'plateforme' | 'modules' | 'compte'
 
+/**
+ * A module section's heading in the settings menu (NAV-3): « Professionnels », « Facturation »… The
+ * module names it; sections of several modules share one by `key` (Clients' and Demandes' « Clients
+ * et demandes »), with the same `labelKey` and `order`. Headings follow `order`, then the sections
+ * their registration order.
+ */
+export interface SettingsArea {
+  /** Stable English identifier: 'billing'. */
+  key: string
+  labelKey: TranslationKey
+  /** Lower comes first among the modules' headings. */
+  order: number
+}
+
 export interface SettingsSection {
   /** Stable English identifier, unique across core and modules (error scopes, React keys): 'identity'. */
   id: string
@@ -147,6 +161,13 @@ export interface SettingsSection {
    */
   editPermission?: string | readonly string[]
   group: SettingsGroup
+  /** A `modules` section's heading (NAV-3); without one it is listed under « Modules ». */
+  area?: SettingsArea
+  /**
+   * Former paths of this section (a section merged into another): each one opens it, with its
+   * `search` (`?onglet=…`), so no link breaks.
+   */
+  redirects?: readonly { path: string; search: string }[]
   /** A lazyPage(), as for ModuleRoute. */
   component: LazyPage
   /**

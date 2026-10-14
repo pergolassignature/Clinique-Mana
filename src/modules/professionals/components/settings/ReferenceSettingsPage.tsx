@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
 import { t } from '@/i18n'
 import { useSettingsSection } from '@/core/settings/section-context'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -6,6 +6,7 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
 import { useProfessionalsCatalog, useReferenceUsage } from '../../hooks/use-catalog'
 import type { CatalogView } from '../../lib/catalog-view'
+import { ReferenceListTabContext } from './reference-list-tab'
 
 /** What a list section's cards are built from, once both have loaded. */
 export interface ReferenceSettingsData {
@@ -34,6 +35,7 @@ interface ReferenceSettingsPageProps {
  */
 export function ReferenceSettingsPage({ title, description, actions, children }: ReferenceSettingsPageProps) {
   const { readOnly } = useSettingsSection()
+  const inTab = useContext(ReferenceListTabContext)
   const catalog = useProfessionalsCatalog()
   const usage = useReferenceUsage()
   const data: ReferenceSettingsData | null = catalog.data && usage.data ? { catalog: catalog.data, usage: usage.data, canEdit: !readOnly } : null
@@ -58,8 +60,8 @@ export function ReferenceSettingsPage({ title, description, actions, children }:
 
   return (
     <div className="max-w-content space-y-5">
-      <PageHeader level={1} title={title} description={description} actions={data && actions?.(data)} />
-      {readOnly && <ReadOnlyNotice />}
+      <PageHeader level={inTab ? 2 : 1} title={title} description={description} actions={data && actions?.(data)} />
+      {readOnly && !inTab && <ReadOnlyNotice />}
       {content}
     </div>
   )

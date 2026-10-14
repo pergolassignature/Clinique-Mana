@@ -1,7 +1,10 @@
 import { CalendarClock, CalendarCog, CalendarDays, CalendarRange, Video } from 'lucide-react'
 import type { Access } from '@/core/access/access'
-import type { ModuleManifest } from '@/core/modules/types'
+import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
+
+// The settings menu's heading for this module's sections (NAV-3).
+const SETTINGS_AREA: SettingsArea = { key: 'agenda', labelKey: 'modules.appointments.settingsArea', order: 40 }
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only.
 
@@ -99,6 +102,7 @@ export const appointmentsManifest: ModuleManifest = {
       permission: 'appointments.view',
       editPermission: 'appointments.settings',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/AgendaSettingsPage'), 'AgendaSettingsPage'),
     },
     {
@@ -110,6 +114,7 @@ export const appointmentsManifest: ModuleManifest = {
       permission: 'appointments.view',
       editPermission: 'appointments.manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/VideoSettingsPage'), 'VideoSettingsPage'),
     },
   ],

@@ -15,7 +15,9 @@ export function renderProfessionalsSettingsPage(
   ui: ReactNode,
   { sectionId, readOnly = false, permissions }: { sectionId: string; readOnly?: boolean; permissions?: string[] },
 ) {
-  const section = professionalsManifest.settingsSections.find((s) => s.id === sectionId)
+  // The five lists are tabs of one section since NAV-3: their pages render in « Listes ».
+  const id = ['professions', 'clienteles', 'motifs', 'languages', 'deactivation-reasons'].includes(sectionId) ? 'lists' : sectionId
+  const section = professionalsManifest.settingsSections.find((s) => s.id === id)
   if (!section) throw new Error(`no section ${sectionId}`)
   const client = setupQueryClient()
   const access = accessForRole(readOnly ? 'admin_assistant' : 'admin', permissions ? { permissions } : {})

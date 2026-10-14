@@ -1523,6 +1523,13 @@
       "controlChar": "Caractère invalide.",
       "retention": "Entre 1 et 50 ans.",
       "timezone": "Choisissez un fuseau horaire."
+    },
+    "search": {
+      "label": "Rechercher un réglage",
+      "clear": "Effacer la recherche",
+      "none": "Aucun réglage ne correspond.",
+      "one": "1 réglage trouvé.",
+      "other": "{count} réglages trouvés."
     }
   },
   "modules": {
@@ -3820,6 +3827,11 @@
             "confirm": "Restaurer",
             "pending": "Restauration…"
           }
+        },
+        "lists": {
+          "title": "Listes",
+          "description": "Les listes de référence des professionnels : professions et ordres, clientèles, motifs, langues et raisons de désactivation.",
+          "tabs": "Listes de référence"
         }
       },
       "review": {
@@ -4932,7 +4944,8 @@
           "accountRequired": "Saisissez votre numéro de compte.",
           "sinRequired": "Saisissez votre NAS."
         }
-      }
+      },
+      "settingsArea": "Professionnels"
     },
     "services": {
       "name": "Services et tarifs",
@@ -5331,7 +5344,8 @@
         "sources": {
           "seed:services_catalogue": "Catalogue initial"
         }
-      }
+      },
+      "settingsArea": "Services"
     },
     "clients": {
       "name": "Clients",
@@ -6643,7 +6657,8 @@
           "coverage": "Montant ou part couverte"
         },
         "checkTerms": "Vérifiez le payeur, puis enregistrez-le"
-      }
+      },
+      "settingsArea": "Clients et demandes"
     },
     "communications": {
       "name": "Communications",
@@ -7431,7 +7446,8 @@
       "home": {
         "title": "Courriels non lus",
         "unreadIn": "non lus dans {mailbox}"
-      }
+      },
+      "settingsArea": "Communications"
     },
     "demandes": {
       "name": "Demandes",
@@ -10052,7 +10068,8 @@
           "unconfirmed": "rendez-vous d'aujourd'hui pas encore confirmés",
           "withoutReminder": "rendez-vous des 7 prochains jours sans moyen de rappel"
         }
-      }
+      },
+      "settingsArea": "Agenda"
     },
     "billing": {
       "name": "Facturation",
@@ -12056,7 +12073,8 @@
         "credited": "Créditée : {numbers}.",
         "feeWho": "Le professionnel décide s’il applique les frais, dans « Mon agenda ». L’adjointe peut décider pour lui.",
         "feeOpenList": "Voir les frais d’annulation à décider"
-      }
+      },
+      "settingsArea": "Facturation"
     },
     "reports": {
       "name": "Rapports",
