@@ -230,11 +230,11 @@ function PeriodsTable({ rows, onOpen }: { rows: readonly PayoutPeriodRow[]; onOp
       <TableHeader>
         <TableRow className="[&>th]:whitespace-nowrap">
           <TableHead>{t(`${A}.columns.professional`)}</TableHead>
-          <TableHead>{t(`${A}.columns.specialty`)}</TableHead>
+          <TableHead className="max-md:hidden">{t(`${A}.columns.specialty`)}</TableHead>
           <TableHead>{t(`${A}.columns.state`)}</TableHead>
-          <TableHead align="right">{t(`${A}.columns.lines`)}</TableHead>
+          <TableHead align="right" className="max-sm:hidden">{t(`${A}.columns.lines`)}</TableHead>
           <TableHead align="right">{t(`${A}.columns.total`)}</TableHead>
-          <TableHead>{t(`${A}.columns.invoice`)}</TableHead>
+          <TableHead className="max-sm:hidden">{t(`${A}.columns.invoice`)}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -245,7 +245,7 @@ function PeriodsTable({ rows, onOpen }: { rows: readonly PayoutPeriodRow[]; onOp
                 {r.professional_name ?? t(`${A}.unknownProfessional`)}
               </button>
             </TableCell>
-            <TableCell className="text-sm">{r.title_name ?? t(`${A}.noSpecialty`)}</TableCell>
+            <TableCell className="text-sm max-md:hidden">{r.title_name ?? t(`${A}.noSpecialty`)}</TableCell>
             <TableCell>
               <Badge variant={stateBadgeVariant(r.state)}>{stateLabel(r.state)}</Badge>
               {r.unpriced_count > 0 && (
@@ -254,9 +254,9 @@ function PeriodsTable({ rows, onOpen }: { rows: readonly PayoutPeriodRow[]; onOp
                 </span>
               )}
             </TableCell>
-            <TableCell align="right">{r.lines_count}</TableCell>
+            <TableCell align="right" className="max-sm:hidden">{r.lines_count}</TableCell>
             <TableCell align="right" className="whitespace-nowrap">{formatPay(r.total_cents)}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">{r.invoice_number ?? t(`${A}.noInvoice`)}</TableCell>
+            <TableCell className="text-sm text-muted-foreground max-sm:hidden">{r.invoice_number ?? t(`${A}.noInvoice`)}</TableCell>
           </TableRow>
         ))}
       </TableBody>
