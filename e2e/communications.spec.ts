@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/auth'
+import { forgetDisconnectedMailboxes } from './fixtures/db'
 
 /**
  * Communications, CM1 (local only, after `npm run db:reset`: the seed enables the module, stores
@@ -9,6 +10,10 @@ import { expect, test } from './fixtures/auth'
  */
 
 const FAKE_CONSENT = 'http://127.0.0.1:55392/o/oauth2/v2/auth'
+
+// Independent of the other specs: the seed's state, no mailbox (`communications-inbox.spec.ts`
+// leaves its fake mailbox disconnected when it runs with the fake Google).
+test.beforeEach(() => forgetDisconnectedMailboxes())
 
 test('the admin sees « Courriels Gmail », saves the topic and leaves for Google with a signed state', async ({ page, signIn }) => {
   await signIn('admin')

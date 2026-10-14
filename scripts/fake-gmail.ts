@@ -38,6 +38,8 @@
 // address, a token or a message.
 
 import {
+  FAKE_CALENDAR_CLIENT_ID,
+  FAKE_CALENDAR_CLIENT_SECRET,
   fakeGmail,
   seedMailbox,
 } from '../supabase/functions/_shared/testing/fake-gmail.ts'
@@ -62,6 +64,11 @@ let pushes = 0
 const fake = fakeGmail({
   emailAddress: mailbox,
   signer,
+  // Paramètres → Agenda may name the calendars' own application (AP-46): this one, locally.
+  otherClients: [{
+    id: FAKE_CALENDAR_CLIENT_ID,
+    secret: FAKE_CALENDAR_CLIENT_SECRET,
+  }],
   onWatchNotification: (payload) => {
     pushes++
     const body = {

@@ -48,6 +48,11 @@ import type { OidcSigner } from './google-oidc-signer.ts'
 export const FAKE_CLIENT_ID =
   'local-dev-google-client-id.apps.googleusercontent.com'
 export const FAKE_CLIENT_SECRET = 'local-dev-google-client-secret'
+/** A second local client: the calendars' own application (R6, AP-46), known to the local fake. */
+export const FAKE_CALENDAR_CLIENT_ID =
+  'local-dev-google-calendar-client-id.apps.googleusercontent.com'
+export const FAKE_CALENDAR_CLIENT_SECRET =
+  'local-dev-google-calendar-client-secret'
 /** Present in every error body the fake sends. */
 export const FAKE_ERROR_MARKER = 'FAKE-GOOGLE-ERROR-BODY'
 /** How many history records are kept: an older start id is a 404. */
@@ -128,6 +133,11 @@ export interface FakeGmailOptions {
   /** The mailbox address Google reports (`users.getProfile`). */
   emailAddress?: string
   clientId?: string
+  /**
+   * More OAuth clients the fake knows (R6's own calendar application, AP-46). A grant answers
+   * only the client that asked for it: another one refreshing it gets 400 `unauthorized_client`.
+   */
+  otherClients?: { id: string; secret: string }[]
   clientSecret?: string
   /** The clock (default: `Date.now`). */
   now?: () => number
@@ -151,7 +161,7 @@ export interface FakeGmail {
   history: HistoryRecord[]
   watch: { topicName: string; expiration: string } | null
   /** The grants: refresh token → revoked. */
-  grants: Map<string, { scopes: string[]; revoked: boolean }>
+  grants: Map<string, { scopes: string[]; revoked: boolean; clientId?: string }>
   /** The access tokens: token → expiry (ms) and its grant's refresh token. */
   tokens: Map<string, { expiresAt: number; refresh: string }>
   /** What `messages.send` received: the metadata's thread and the raw RFC 5322 text. */
@@ -159,7 +169,7 @@ export interface FakeGmail {
   /** Adds an inbound message (a history record, a notification); answers its id. */
   deliver(input: Delivery): FakeMessage
   /** Issues an authorization code (what the consent page does). */
-  issueCode(scope?: string): string
+  issueCode(scope?: string, client?: string): string
   /** The next `messages.send`: sent then a 503 (`after_send`), or refused with a 400 (`refused`). */
   failNextSend(mode: 'after_send' | 'refused'): void
   /** The primary calendar's busy intervals (ISO instants), what FreeBusy answers. */
@@ -199,8 +209,23 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
   const calls: FakeGmail['calls'] = []
   const messages = new Map<string, FakeMessage>()
   const attachments = new Map<string, Uint8Array>()
-  const codes = new Map<string, { scope: string; issuedAt: number }>()
-  const grants = new Map<string, { scopes: string[]; revoked: boolean }>()
+  const codes = new Map<
+    string,
+    { scope: string; issuedAt: number; clientId: string }
+  >()
+  const clients = new Map<string, string>([
+    [clientId, clientSecret],
+    ...(options.otherClients ?? []).map((c) =>
+      [c.id, c.secret] as [
+        string,
+        string,
+      ]
+    ),
+  ])
+  const grants = new Map<
+    string,
+    { scopes: string[]; revoked: boolean; clientId?: string }
+  >()
   const accessTokens = new Map<string, { expiresAt: number; refresh: string }>()
   const history: HistoryRecord[] = []
   const sent: FakeGmail['sent'] = []
@@ -354,9 +379,10 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
   function issueCode(
     scope =
       'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send',
+    client = clientId,
   ): string {
     const code = `4/fake-${crypto.randomUUID()}`
-    codes.set(code, { scope, issuedAt: now() })
+    codes.set(code, { scope, issuedAt: now(), clientId: client })
     return code
   }
 
@@ -436,12 +462,13 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       const redirect = url.searchParams.get('redirect_uri') ?? ''
       const state = url.searchParams.get('state') ?? ''
       const scope = url.searchParams.get('scope') ?? ''
-      if (url.searchParams.get('client_id') !== clientId) {
+      const asking = url.searchParams.get('client_id') ?? ''
+      if (!clients.has(asking)) {
         return new Response(`${FAKE_ERROR_MARKER}: invalid client`, {
           status: 400,
         })
       }
-      const code = issueCode(scope)
+      const code = issueCode(scope, asking)
       const target = new URL(redirect)
       target.searchParams.set('code', code)
       target.searchParams.set('state', state)
@@ -468,9 +495,10 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
     }
     if (path === '/token' && req.method === 'POST') {
       const form = new URLSearchParams(await req.text())
+      const caller = form.get('client_id') ?? ''
       if (
-        form.get('client_id') !== clientId ||
-        form.get('client_secret') !== clientSecret
+        !clients.has(caller) ||
+        form.get('client_secret') !== clients.get(caller)
       ) {
         return json(401, {
           error: 'invalid_client',
@@ -482,7 +510,10 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
         const code = form.get('code') ?? ''
         const entry = codes.get(code)
         codes.delete(code)
-        if (!entry || now() - entry.issuedAt > 600_000) {
+        if (
+          !entry || now() - entry.issuedAt > 600_000 ||
+          entry.clientId !== caller
+        ) {
           return json(400, {
             error: 'invalid_grant',
             error_description: FAKE_ERROR_MARKER,
@@ -493,6 +524,7 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
         grants.set(refresh, {
           scopes: entry.scope.split(' ').filter(Boolean),
           revoked: false,
+          clientId: caller,
         })
         accessTokens.set(access, {
           expiresAt: now() + ACCESS_TOKEN_TTL_S * 1000,
@@ -512,6 +544,12 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
         if (!g || g.revoked) {
           return json(400, {
             error: 'invalid_grant',
+            error_description: FAKE_ERROR_MARKER,
+          })
+        }
+        if ((g.clientId ?? clientId) !== caller) {
+          return json(400, {
+            error: 'unauthorized_client',
             error_description: FAKE_ERROR_MARKER,
           })
         }

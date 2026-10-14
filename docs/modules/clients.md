@@ -200,4 +200,5 @@ Migration `20261013043434_clients_import`; pgTAP `115_clients_import`; decisions
 - **`import_client_relation(row, dry_run)`**: a relation between two imported files by their external refs, through `set_client_relation`.
 - **Tombstone (I-13):** trigger `clients_import_tombstone` keeps « anon: » + SHA-256 of the reference when a file is anonymised; `import_client` skips it.
 - **The script** `scripts/import-gorendezvous.mjs` (`clients`, `prix`) and its readers in `scripts/import-gorendezvous/` (mappings, payloads, price gaps), with synthetic fixtures and tests.
+- **`import_client_consent(row, dry_run)`** (I2 prep, I-18; migration `*_clients_consent_import.sql`, pgTAP `181_clients_consent_import`): a consent GOrendezvous holds as signed, by reference or name, through `import_client_consent_fact_for_service` (the only writer: source `import`, no PDF); already in force `skipped`.
 

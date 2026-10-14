@@ -6,7 +6,13 @@
  */
 import type { Deps } from '../deps.ts'
 import { fakeSupabase, type RpcRoute } from './fake-supabase.ts'
-import { FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, fakeGmail } from './fake-gmail.ts'
+import {
+  FAKE_CALENDAR_CLIENT_ID,
+  FAKE_CALENDAR_CLIENT_SECRET,
+  FAKE_CLIENT_ID,
+  FAKE_CLIENT_SECRET,
+  fakeGmail,
+} from './fake-gmail.ts'
 import { accessFixture, ADMIN_ID, ORG_ID } from './email-fixtures.ts'
 
 export { ADMIN_ID, ORG_ID }
@@ -39,6 +45,12 @@ export interface CalendarDbState {
   due: string[]
 }
 
+/** The calendars' own application's org secrets (AP-46), to add to `state.secrets`. */
+export const CALENDAR_APP_SECRETS = {
+  google_calendar_client_id: FAKE_CALENDAR_CLIENT_ID,
+  google_calendar_client_secret: FAKE_CALENDAR_CLIENT_SECRET,
+}
+
 export function calendarHarness(opts: {
   state?: Partial<CalendarDbState>
   permissions?: string[]
@@ -49,7 +61,14 @@ export function calendarHarness(opts: {
 } = {}) {
   let clock = Date.parse(NOW)
   const now = () => clock
-  const google = fakeGmail({ emailAddress: ACCOUNT, now })
+  const google = fakeGmail({
+    emailAddress: ACCOUNT,
+    now,
+    otherClients: [{
+      id: FAKE_CALENDAR_CLIENT_ID,
+      secret: FAKE_CALENDAR_CLIENT_SECRET,
+    }],
+  })
   const state: CalendarDbState = {
     connection: null,
     secrets: {
@@ -64,11 +83,12 @@ export function calendarHarness(opts: {
     due: [],
     ...opts.state,
   }
-  // The connection's tokens are known to the fake Google.
+  // The connection's tokens are known to the fake Google (issued to Gmail's client).
   if (state.connection) {
     google.grants.set(state.connection.refresh, {
       scopes: state.connection.scopes,
       revoked: false,
+      clientId: FAKE_CLIENT_ID,
     })
     google.tokens.set(state.connection.access, {
       expiresAt: Date.parse(state.connection.expiresAt),

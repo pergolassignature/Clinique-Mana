@@ -9382,6 +9382,30 @@
           "linkUsed": "Cette connexion a déjà été traitée. Recommencez-la au besoin.",
           "notFound": "Aucun agenda Google n’est connecté.",
           "forbidden": "Cette connexion a été commencée par une autre personne. Recommencez-la."
+        },
+        "settings": {
+          "title": "Agendas Google des professionnels",
+          "description": "L’application Google avec laquelle chaque professionnel qui le souhaite connecte son agenda (« Agenda Google »), pour que ses moments occupés paraissent dans l’agenda. Sans ces deux valeurs, l’application de Courriels Gmail est utilisée : elle n’admet que les comptes de la clinique si son écran de consentement est « Interne ».",
+          "clientId": "ID client",
+          "clientIdHelp": "Dans Google Cloud → API et services → Identifiants → le client OAuth « Application Web » des agendas.",
+          "clientSecret": "Code secret du client",
+          "clientSecretHelp": "Au même endroit. Il n’est jamais réaffiché ici. Changer d’application oblige chaque professionnel à reconnecter son agenda.",
+          "redirect": "URI de redirection autorisé",
+          "redirectHelp": "À entrer dans le client OAuth de Google, avec la portée « calendar.freebusy » (les disponibilités seulement).",
+          "readOnly": "Seule une personne qui gère les intégrations peut modifier ces valeurs.",
+          "jobTitle": "Tâche planifiée",
+          "jobUnknown": "L’état des tâches planifiées n’est visible qu’avec la permission de voir les paramètres.",
+          "job": {
+            "on": "La tâche « Plages occupées des agendas Google » est activée : elle lit les agendas connectés toutes les 15 minutes.",
+            "onNoHour": "La tâche « Plages occupées des agendas Google » est activée : elle lit les agendas connectés toutes les 15 minutes.",
+            "off": "La tâche « Plages occupées des agendas Google » est désactivée : les moments occupés ne sont lus qu’à la connexion et avec « Synchroniser ».",
+            "enable": "Activer la tâche planifiée",
+            "enabling": "Activation…",
+            "askAdmin": "Une personne qui gère les tâches planifiées peut l’activer :",
+            "openJobs": "Ouvrir Tâches planifiées",
+            "unknown": "La tâche « Plages occupées des agendas Google » n’est pas disponible pour la clinique.",
+            "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
+          }
         }
       },
       "saved": {
@@ -9692,7 +9716,7 @@
       },
       "settings": {
         "title": "Agenda",
-        "description": "Les heures d’ouverture de la clinique, l’envoi des rappels et le préavis d’annulation.",
+        "description": "Les heures d’ouverture de la clinique, l’envoi des rappels, le préavis d’annulation et l’application des agendas Google des professionnels.",
         "loadError": "Les réglages de l’agenda ne se chargent pas.",
         "hoursTitle": "Heures d’ouverture et rappels",
         "hoursDescription": "Les jours ouvrables comptent pour les rappels (la veille ouvrable) et pour le préavis d’annulation. Ils ne limitent pas les réservations.",
