@@ -86,6 +86,8 @@ test('the admin turns the link on; the client asks for a change, then cancels an
   await client.goto(`/rendez-vous/gerer#t=${TOKENS[0]}`)
   await expect(client.getByText('Ce lien ne peut plus être utilisé. Pour toute question, appelez la clinique.')).toBeVisible()
 
+  // Another page first: a new fragment on the same page would not load it again.
+  await client.goto('/accueil')
   await client.goto(`/rendez-vous/gerer#t=${TOKENS[1]}`)
   await client.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
   await expect(client.getByText(/Voulez-vous vraiment l’annuler/)).toBeVisible()
