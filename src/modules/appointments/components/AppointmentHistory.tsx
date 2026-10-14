@@ -110,7 +110,7 @@ export function AppointmentHistory({ appointment: a, reference }: { appointment:
               <li key={entry.id} className="space-y-1 rounded-md border border-border p-3 text-sm">
                 <p className="flex flex-wrap items-baseline gap-x-2">
                   <span className="tabular text-muted-foreground">{formatClinicTime(entry.created_at)}</span>
-                  <span className="font-medium">{entry.actor_name ?? t(`${H}.system`)}</span>
+                  <span className="font-medium">{entry.actor_name ?? t(entry.source.startsWith('link:') ? `${H}.client` : `${H}.system`)}</span>
                   <span>
                     {actionLabel(entry.action)} · {tableLabel(entry.table_name, MODULE_LABELS)}
                   </span>

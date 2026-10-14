@@ -1,5 +1,5 @@
 import { matchPath } from 'react-router-dom'
-import { confirmAppointmentPublicPage } from '@/modules/appointments'
+import { confirmAppointmentPublicPage, manageAppointmentPublicPage } from '@/modules/appointments'
 import { cardSetupPublicPage, payPublicPage } from '@/modules/billing'
 import { consentPublicPage } from '@/modules/clients'
 import { bookingCancelPublicPage, bookingPublicPage, propositionPublicPage, waitlistAnswerPublicPage } from '@/modules/demandes'
@@ -29,6 +29,9 @@ export const PropositionPage = propositionPublicPage
 /** `/rendez-vous/confirmer`: « Confirmer ma présence » from an appointment email (Rendez-vous R4). Public, code-split. */
 export const ConfirmAppointmentPage = confirmAppointmentPublicPage
 
+/** `/rendez-vous/gerer`: « Annuler » / « Demander un changement » from an appointment email (Rendez-vous L16). Public, code-split. */
+export const ManageAppointmentPage = manageAppointmentPublicPage
+
 /** `/carte`: « Enregistrer ma carte » from the card email (Facturation FS). Public, code-split. */
 export const CardSetupPage = cardSetupPublicPage
 
@@ -45,6 +48,7 @@ const PUBLIC_PAGES: { path: string; component: LazyPage }[] = [
   { path: '/liste-attente/reponse', component: WaitlistAnswerPage },
   { path: '/proposition', component: PropositionPage },
   { path: '/rendez-vous/confirmer', component: ConfirmAppointmentPage },
+  { path: '/rendez-vous/gerer', component: ManageAppointmentPage },
   { path: '/carte', component: CardSetupPage },
   { path: '/payer', component: PayPage },
 ]

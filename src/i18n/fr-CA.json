@@ -9180,7 +9180,8 @@
             "outside_availability_by": "Réservé hors disponibilités par",
             "held_until": "Proposé jusqu'au",
             "hold_reference": "Proposition (demande)",
-            "series_id": "Série"
+            "series_id": "Série",
+            "change_requested_at": "Changement demandé par le client le"
           },
           "appointment_participants": {
             "appointment_id": "Rendez-vous",
@@ -9220,7 +9221,8 @@
             "business_end": "Fermeture",
             "reminder_business_days": "Rappel (jours ouvrables avant)",
             "reminder_local_hour": "Heure d'envoi des rappels",
-            "late_notice_business_hours": "Préavis compté en heures ouvrables"
+            "late_notice_business_hours": "Préavis compté en heures ouvrables",
+            "client_manage_links": "Liens Annuler / Demander un changement dans les courriels"
           },
           "professional_video_links": {
             "professional_id": "Professionnel",
@@ -9373,7 +9375,9 @@
           "seed:appointments_reference": "Réglages initiaux de l’agenda",
           "job:appointments.video_sync": "Tâche « Liens Zoom des rendez-vous »",
           "webhook:zoom": "Zoom",
-          "job:appointments.google_busy_sync": "Tâche « Plages occupées des agendas Google »"
+          "job:appointments.google_busy_sync": "Tâche « Plages occupées des agendas Google »",
+          "link:appointment_confirm": "Le client, avec le lien « Confirmer ma présence »",
+          "link:appointment_manage": "Le client, avec le lien « Annuler ou demander un changement »"
         }
       },
       "video": {
@@ -9596,7 +9600,8 @@
         "serviceChanged": "Service changé.",
         "restored": "Rendez-vous rétabli.",
         "confirmed": "Rendez-vous marqué confirmé.",
-        "settings": "Réglages de l’agenda enregistrés."
+        "settings": "Réglages de l’agenda enregistrés.",
+        "clientLinks": "Réglage des liens enregistré."
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
@@ -9777,6 +9782,7 @@
           "loadError": "L’historique du rendez-vous ne se charge pas.",
           "empty": "Rien à afficher pour ce rendez-vous.",
           "system": "Le système",
+          "client": "Le client (lien du courriel)",
           "arrow": ", maintenant ",
           "loadMore": "Charger plus",
           "loadingMore": "Chargement…"
@@ -9892,6 +9898,27 @@
         "invalid": "Ce lien ne peut plus être utilisé. Pour toute question, appelez la clinique.",
         "error": "La confirmation n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique."
       },
+      "manage": {
+        "title": "Annuler ou changer votre rendez-vous",
+        "bodyVideo": "{clinic} : rendez-vous le {when} avec {professional}, par vidéo.",
+        "bodyPhone": "{clinic} : rendez-vous le {when} avec {professional}, par téléphone.",
+        "lateBusiness": "Il reste moins de {hours} h ouvrables avant ce rendez-vous : une annulation maintenant est tardive et peut vous être facturée selon la politique de la clinique.",
+        "lateCalendar": "Il reste moins de {hours} h avant ce rendez-vous : une annulation maintenant est tardive et peut vous être facturée selon la politique de la clinique.",
+        "onTimeBusiness": "La clinique demande un préavis de {hours} h ouvrables pour annuler. Une annulation plus tardive peut être facturée.",
+        "onTimeCalendar": "La clinique demande un préavis de {hours} h pour annuler. Une annulation plus tardive peut être facturée.",
+        "cancel": "Annuler le rendez-vous",
+        "change": "Demander un changement",
+        "cancelConfirm": "Le rendez-vous sera annulé et un courriel vous le confirmera. Voulez-vous vraiment l’annuler ?",
+        "cancelYes": "Oui, annuler le rendez-vous",
+        "changeConfirm": "La clinique vous appellera pour convenir d’un autre moment. Votre rendez-vous reste réservé d’ici là.",
+        "changeYes": "Envoyer la demande",
+        "back": "Retour",
+        "cancelled": "Votre rendez-vous est annulé. Un courriel vous le confirmera.",
+        "cancelledLate": "Votre rendez-vous est annulé. L’annulation étant tardive, des frais peuvent s’appliquer selon la politique de la clinique. Un courriel vous le confirmera.",
+        "requested": "Votre demande est envoyée : la clinique vous appellera pour convenir d’un autre moment. Votre rendez-vous reste réservé d’ici là.",
+        "invalid": "Ce lien ne peut plus être utilisé. Pour toute question, appelez la clinique.",
+        "error": "Votre demande n’a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique."
+      },
       "print": {
         "open": "Imprimer",
         "title": "Agenda à imprimer",
@@ -9965,9 +9992,30 @@
         "invalid": "This link can no longer be used. For any question, please call the clinic.",
         "error": "The confirmation could not be saved. Please try again in a moment or call the clinic."
       },
+      "manageEn": {
+        "title": "Cancel or change your appointment",
+        "bodyVideo": "{clinic}: appointment on {when} with {professional}, by video.",
+        "bodyPhone": "{clinic}: appointment on {when} with {professional}, by phone.",
+        "lateBusiness": "Less than {hours} business hours remain before this appointment: cancelling now is a late cancellation and may be charged under the clinic’s policy.",
+        "lateCalendar": "Less than {hours} hours remain before this appointment: cancelling now is a late cancellation and may be charged under the clinic’s policy.",
+        "onTimeBusiness": "The clinic asks for {hours} business hours’ notice to cancel. A later cancellation may be charged.",
+        "onTimeCalendar": "The clinic asks for {hours} hours’ notice to cancel. A later cancellation may be charged.",
+        "cancel": "Cancel the appointment",
+        "change": "Ask for a change",
+        "cancelConfirm": "The appointment will be cancelled and an email will confirm it. Do you really want to cancel it?",
+        "cancelYes": "Yes, cancel the appointment",
+        "changeConfirm": "The clinic will call you to find another time. Your appointment stays booked until then.",
+        "changeYes": "Send the request",
+        "back": "Back",
+        "cancelled": "Your appointment is cancelled. An email will confirm it.",
+        "cancelledLate": "Your appointment is cancelled. As it is a late cancellation, a fee may apply under the clinic’s policy. An email will confirm it.",
+        "requested": "Your request is sent: the clinic will call you to find another time. Your appointment stays booked until then.",
+        "invalid": "This link can no longer be used. For any question, please call the clinic.",
+        "error": "Your request could not be saved. Please try again in a moment or call the clinic."
+      },
       "settings": {
         "title": "Agenda",
-        "description": "Les heures d’ouverture de la clinique, l’envoi des rappels, le préavis d’annulation et l’application des agendas Google des professionnels.",
+        "description": "Les heures d’ouverture de la clinique, l’envoi des rappels, le préavis d’annulation, les liens pour annuler ou changer depuis le courriel et l’application des agendas Google des professionnels.",
         "loadError": "Les réglages de l’agenda ne se chargent pas.",
         "hoursTitle": "Heures d’ouverture et rappels",
         "hoursDescription": "Les jours ouvrables comptent pour les rappels (la veille ouvrable) et pour le préavis d’annulation. Ils ne limitent pas les réservations.",
@@ -9989,6 +10037,10 @@
         "reminderHourHelp": "De 0 à 23 h, heure de la clinique.",
         "lateNotice": "Préavis compté en heures ouvrables",
         "lateNoticeHelp": "Les jours non ouvrables ne comptent pas : avec 24 h de préavis, un rendez-vous du lundi 10 h s’annule au plus tard le vendredi 10 h. Sinon, les heures du calendrier.",
+        "linksTitle": "Annuler ou changer depuis le courriel",
+        "linksDescription": "Les courriels de confirmation, de rappel et de modification peuvent porter un lien pour annuler le rendez-vous ou demander un changement. Sans ce lien, le client appelle la clinique.",
+        "links": "Lien « Annuler ou demander un changement » dans les courriels",
+        "linksHelp": "Le client voit si son annulation est tardive (le préavis de la politique d’annulation) et qu’elle peut être facturée. Une demande de changement avertit l’équipe et le professionnel, qui rappellent le client ; le rendez-vous reste réservé. Un modèle de courriel modifié par la clinique porte le lien seulement s’il contient la variable « Annuler ou changer ».",
         "daysRequired": "Choisissez au moins un jour ouvrable.",
         "invalid": "Indiquez un nombre entier dans les limites."
       },

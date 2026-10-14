@@ -16,7 +16,7 @@ import { Input } from '@/shared/ui/input'
 import { TimeField } from '@/shared/ui/time-field'
 import type { AgendaSettings } from '../../api/changes'
 import { GoogleCalendarAppCard } from '../../components/calendar/GoogleCalendarAppCard'
-import { useAgendaSettings, useSaveAgendaSettings } from '../../hooks/use-agenda'
+import { useAgendaSettings, useSaveAgendaSettings, useSaveClientLinks } from '../../hooks/use-agenda'
 
 const S = 'modules.appointments.settings'
 const WEEKDAYS = ['1', '2', '3', '4', '5', '6', '7'] as const
@@ -25,7 +25,8 @@ const WEEKDAYS = ['1', '2', '3', '4', '5', '6', '7'] as const
  * Paramètres → Agenda (seen with `appointments.view`, changed with `appointments.settings`): the
  * clinic's business days and hours, the reminders' day and hour (R-52, R4), and whether the late
  * cancellation notice counts business hours (AP-31, on by default: GOrendezvous's « 24 h ouvrables »);
- * the professionals' Google agendas' application and job (R6, AP-46).
+ * the « Annuler ou demander un changement » link in the client's emails (L16, AP-50, off by default:
+ * AP-20, the client calls); the professionals' Google agendas' application and job (R6, AP-46).
  */
 export function AgendaSettingsPage() {
   const { readOnly } = useSettingsSection()
@@ -39,6 +40,7 @@ export function AgendaSettingsPage() {
     content = (
       <SectionSurface>
         <HoursCard settings={settings.data} readOnly={readOnly} />
+        <ClientLinksCard enabled={settings.data.clientManageLinks} readOnly={readOnly} />
         <GoogleCalendarAppCard />
       </SectionSurface>
     )
@@ -104,7 +106,7 @@ function HoursCard({ settings, readOnly }: { settings: AgendaSettings; readOnly:
       form.setError('root.server', { message: t(`${S}.daysRequired`) })
       return
     }
-    const next: AgendaSettings = {
+    const next: Omit<AgendaSettings, 'clientManageLinks'> = {
       businessDays,
       businessStart: data.businessStart,
       businessEnd: data.businessEnd,
@@ -112,7 +114,7 @@ function HoursCard({ settings, readOnly }: { settings: AgendaSettings; readOnly:
       reminderLocalHour: data.reminderLocalHour,
       lateNoticeBusinessHours: data.lateNoticeBusinessHours,
     }
-    save.mutate(next, { onSuccess: () => onSaved(toValues(next)) })
+    save.mutate(next, { onSuccess: () => onSaved(toValues({ ...next, clientManageLinks: settings.clientManageLinks })) })
   })
   return (
     <SettingsCard
@@ -164,6 +166,52 @@ function HoursCard({ settings, readOnly }: { settings: AgendaSettings; readOnly:
             ref={field.ref}
             label={t(`${S}.lateNotice`)}
             help={t(`${S}.lateNoticeHelp`)}
+            checked={field.value}
+            onCheckedChange={(v) => !readOnly && field.onChange(v)}
+            onBlur={field.onBlur}
+          />
+        )}
+      />
+      {errors.root?.server?.message && (
+        <p role="alert" className="text-sm text-destructive">
+          {errors.root.server.message}
+        </p>
+      )}
+    </SettingsCard>
+  )
+}
+
+const linksSchema = z.object({ enabled: z.boolean() })
+
+/** « Annuler ou changer depuis le courriel » (L16, AP-50): its own card and RPC, off by default. */
+function ClientLinksCard({ enabled, readOnly }: { enabled: boolean; readOnly: boolean }) {
+  const values = useMemo(() => ({ enabled }), [enabled])
+  const { form, cancel, handleSave } = useSettingsForm({ schema: linksSchema, values })
+  const save = useSaveClientLinks({ onErrorMessage: (message) => form.setError('root.server', { message }) })
+  const { errors, isDirty } = form.formState
+  useUnsavedChanges(isDirty && !readOnly)
+  const onSubmit = handleSave((data, onSaved) => {
+    save.mutate(data.enabled, { onSuccess: () => onSaved({ enabled: data.enabled }) })
+  })
+  return (
+    <SettingsCard
+      layout="section"
+      title={t(`${S}.linksTitle`)}
+      description={t(`${S}.linksDescription`)}
+      dirty={isDirty}
+      readOnly={readOnly}
+      pending={save.isPending}
+      onSubmit={(event) => void onSubmit(event)}
+      footer={<FormActions onCancel={cancel} onReset={() => form.setFocus('enabled')} dirty={isDirty} pending={save.isPending} />}
+    >
+      <Controller
+        control={form.control}
+        name="enabled"
+        render={({ field }) => (
+          <CheckboxField
+            ref={field.ref}
+            label={t(`${S}.links`)}
+            help={t(`${S}.linksHelp`)}
             checked={field.value}
             onCheckedChange={(v) => !readOnly && field.onChange(v)}
             onBlur={field.onBlur}

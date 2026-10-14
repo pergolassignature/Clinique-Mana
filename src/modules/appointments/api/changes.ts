@@ -64,6 +64,7 @@ const settingsPayload = z
     reminder_business_days: z.number().int(),
     reminder_local_hour: z.number().int(),
     late_notice_business_hours: z.boolean(),
+    client_manage_links: z.boolean(),
   })
   .transform((r) => ({
     businessDays: r.business_days,
@@ -72,6 +73,7 @@ const settingsPayload = z
     reminderBusinessDays: r.reminder_business_days,
     reminderLocalHour: r.reminder_local_hour,
     lateNoticeBusinessHours: r.late_notice_business_hours,
+    clientManageLinks: r.client_manage_links,
   }))
 export type AgendaSettings = z.output<typeof settingsPayload>
 
@@ -82,20 +84,21 @@ export const DEFAULT_AGENDA_SETTINGS: AgendaSettings = {
   reminderBusinessDays: 1,
   reminderLocalHour: 8,
   lateNoticeBusinessHours: true,
+  clientManageLinks: false,
 }
 
 /** Paramètres → Agenda: the clinic's row (RLS: appointments.view), or the defaults before it exists. */
 export async function fetchAgendaSettings(): Promise<AgendaSettings> {
   const { data, error } = await supabase
     .from('appointment_settings')
-    .select('business_days, business_start, business_end, reminder_business_days, reminder_local_hour, late_notice_business_hours')
+    .select('business_days, business_start, business_end, reminder_business_days, reminder_local_hour, late_notice_business_hours, client_manage_links')
     .maybeSingle()
   if (error) throw error
   return data ? parseRpc(settingsPayload, data) : DEFAULT_AGENDA_SETTINGS
 }
 
-/** `set_appointment_settings` (appointments.settings). */
-export async function saveAgendaSettings(s: AgendaSettings): Promise<void> {
+/** `set_appointment_settings` (appointments.settings): the hours card (the links keep their own RPC). */
+export async function saveAgendaSettings(s: Omit<AgendaSettings, 'clientManageLinks'>): Promise<void> {
   const { error } = await supabase.rpc('set_appointment_settings', {
     p_business_days: s.businessDays,
     p_business_start: s.businessStart,
@@ -104,5 +107,11 @@ export async function saveAgendaSettings(s: AgendaSettings): Promise<void> {
     p_reminder_local_hour: s.reminderLocalHour,
     p_late_notice_business_hours: s.lateNoticeBusinessHours,
   })
+  if (error) throw error
+}
+
+/** « Annuler ou changer depuis le courriel » (L16, AP-50): `set_appointment_client_links` (appointments.settings). */
+export async function saveClientLinks(enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_appointment_client_links', { p_enabled: enabled })
   if (error) throw error
 }

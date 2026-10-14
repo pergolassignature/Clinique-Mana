@@ -366,6 +366,7 @@ export type Database = {
           business_days: number[]
           business_end: string
           business_start: string
+          client_manage_links: boolean
           late_notice_business_hours: boolean
           org_id: string
           reminder_business_days: number
@@ -377,6 +378,7 @@ export type Database = {
           business_days?: number[]
           business_end?: string
           business_start?: string
+          client_manage_links?: boolean
           late_notice_business_hours?: boolean
           org_id: string
           reminder_business_days?: number
@@ -388,6 +390,7 @@ export type Database = {
           business_days?: number[]
           business_end?: string
           business_start?: string
+          client_manage_links?: boolean
           late_notice_business_hours?: boolean
           org_id?: string
           reminder_business_days?: number
@@ -470,6 +473,7 @@ export type Database = {
           cancel_reason_id: string | null
           cancelled_at: string | null
           cancelled_by: string | null
+          change_requested_at: string | null
           client_message: string | null
           completed_at: string | null
           confirmed_at: string | null
@@ -508,6 +512,7 @@ export type Database = {
           cancel_reason_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          change_requested_at?: string | null
           client_message?: string | null
           completed_at?: string | null
           confirmed_at?: string | null
@@ -546,6 +551,7 @@ export type Database = {
           cancel_reason_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          change_requested_at?: string | null
           client_message?: string | null
           completed_at?: string | null
           confirmed_at?: string | null
@@ -16645,6 +16651,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      manage_appointment_by_link_for_service: {
+        Args: { p_action: string; p_token_hash: string }
+        Returns: Json
+      }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_calendar_needs_reconnect_for_service: {
         Args: {
@@ -16773,7 +16783,12 @@ export type Database = {
       }
       pii_health_check: { Args: never; Returns: boolean }
       prepare_appointment_message_for_service: {
-        Args: { p_message_id: string; p_org_id: string; p_token_hash: string }
+        Args: {
+          p_manage_token_hash?: string
+          p_message_id: string
+          p_org_id: string
+          p_token_hash: string
+        }
         Returns: Json
       }
       prepare_client_consent_copy_for_service: {
@@ -17327,6 +17342,10 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: Json
       }
+      resolve_appointment_manage_link: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
       resolve_billing_card_link: { Args: { p_link_id: string }; Returns: Json }
       resolve_billing_pay_link: { Args: { p_link_id: string }; Returns: Json }
       resolve_client_consent_link: {
@@ -17613,6 +17632,10 @@ export type Database = {
           p_monthly_cap_cents: number
           p_output_cents_per_mtok: number
         }
+        Returns: undefined
+      }
+      set_appointment_client_links: {
+        Args: { p_enabled: boolean }
         Returns: undefined
       }
       set_appointment_details: {

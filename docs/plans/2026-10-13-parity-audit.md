@@ -69,7 +69,7 @@ Many items appear in more than one source, so the gaps below are merged.
 | L13 | Deep link to one appointment (`rendez-vous=<id>`); clickable visits on the client's file | Rendez-vous, Clients | S | A | — |
 | L14 | Agenda print view (day or week) | Rendez-vous | S | A | — |
 | L15 | Service colour on the agenda; drag-resize and drag of a service | Rendez-vous: `TimeGrid` | S | A | Jonathan's Drop mark for resize and drag |
-| L16 | Change and cancel links in client emails (24 h rule; disabled by default, AP-20) | Rendez-vous public pages | M | A | Christine (wants them?) |
+| L16 | Change and cancel links in client emails (24 h rule; disabled by default, AP-20) | Rendez-vous public pages | M | A | Built, off by default (AP-50): Christine decides whether to turn it on |
 | L17 | Client's last appointment (published fact, column, filter); list sort and column picker for Clients and Demandes | Rendez-vous, Clients, Demandes | S–M | A | The imported history waits on the I2 export |
 | L18 | « Demandes » list on the client's file (new `client.demandes` slot) | Demandes, core slot | S | B | — |
 | L19 | The match fills the client's primary professional (A-6) | Demandes, through a Clients helper | S | B (A-6) | — |

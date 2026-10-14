@@ -5,7 +5,8 @@ import { parseRpc } from './parse'
 
 /**
  * R4's reads and the public confirmation: « Clients sans rappel » (`list_appointments_without_reminder`),
- * and « Confirmer ma présence » (`resolve-link`, then `appointments-confirm`).
+ * « Confirmer ma présence » (`resolve-link`, then `appointments-confirm`), and « Annuler / Demander un
+ * changement » (`resolve-link`, then `appointments-manage`, L16).
  */
 
 const unreachablePayload = z
@@ -103,4 +104,39 @@ export async function resolveConfirmLink(token: string): Promise<ConfirmLinkDisp
 /** « Confirmer ma présence » (once). */
 export async function confirmByLink(token: string): Promise<void> {
   await invokeFunction('appointments-confirm', { token })
+}
+
+// --- Public: the « Annuler / Demander un changement » link (L16, AP-50) -------------------------
+
+const manageLinkSchema = z.object({
+  purpose: z.literal('appointment_manage'),
+  display: z.object({
+    clinic_name: z.string(),
+    language: z.enum(['fr', 'en']),
+    when: z.string(),
+    professional_name: z.string(),
+    mode: z.enum(['video', 'phone']),
+    /** Cancelling now is late (null: the clinic has no policy). */
+    late: z.boolean().nullable(),
+    notice_hours: z.number().int().nullable(),
+    business_hours: z.boolean(),
+  }),
+})
+export type ManageLinkDisplay = z.infer<typeof manageLinkSchema>['display']
+
+/** What the link opens; another purpose reads as `link_invalid`. */
+export async function resolveManageLink(token: string): Promise<ManageLinkDisplay> {
+  const answer = manageLinkSchema.safeParse(await invokeFunction('resolve-link', { token }))
+  if (!answer.success) throw new FunctionCallError('link_invalid', 200, 'Not an appointment link')
+  return answer.data.display
+}
+
+const manageResultSchema = z.union([z.object({ state: z.literal('cancelled'), late: z.boolean() }), z.object({ state: z.literal('requested') })])
+export type ManageResult = z.infer<typeof manageResultSchema>
+
+/** « Annuler » or « Demander un changement » (once, `appointments-manage`). */
+export async function manageByLink(token: string, action: 'cancel' | 'change_request'): Promise<ManageResult> {
+  const answer = manageResultSchema.safeParse(await invokeFunction('appointments-manage', { token, action }))
+  if (!answer.success) throw new FunctionCallError('internal', 200, 'Unexpected answer')
+  return answer.data
 }

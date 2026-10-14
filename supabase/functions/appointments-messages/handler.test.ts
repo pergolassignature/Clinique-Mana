@@ -1,5 +1,11 @@
 import { assert, assertEquals } from '@std/assert'
-import { BATCH_LIMIT, createHandler, JOB_KEY, sendOrg } from './handler.ts'
+import {
+  BATCH_LIMIT,
+  changeLine,
+  createHandler,
+  JOB_KEY,
+  sendOrg,
+} from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { fakeFetch } from '../_shared/testing/fake-fetch.ts'
 import {
@@ -23,6 +29,7 @@ const rid = (n: number) =>
 const prepared = (
   kind: 'confirmation' | 'reminder' | 'changed' | 'cancelled' = 'reminder',
   language: 'fr' | 'en' = 'fr',
+  withManage = false,
 ) => ({
   message_id: rid(1),
   appointment_id: rid(300),
@@ -36,6 +43,7 @@ const prepared = (
   access: 'Par vidéo : https://zoom.us/j/123',
   clinic_name: 'Clinique MANA',
   with_link: kind !== 'cancelled',
+  with_manage: withManage,
 })
 
 const VARIABLES = [
@@ -57,6 +65,12 @@ const VARIABLES = [
     sample: 'x',
     required: true,
     kind: 'datetime',
+  }, {
+    path: 'appointment.change_line',
+    label: 'Annuler ou changer',
+    sample: 'x',
+    required: false,
+    kind: 'text',
   }])
 
 function harness(opts: {
@@ -88,7 +102,7 @@ function harness(opts: {
             key: String(args.p_template_key),
             subject: 'Rendez-vous — {{clinic.name}}',
             body:
-              'Bonjour {{recipient.first_name}}, {{client.first_name}} voit {{professional.name}} le {{appointment.starts_at}}. {{appointment.access}}',
+              'Bonjour {{recipient.first_name}}, {{client.first_name}} voit {{professional.name}} le {{appointment.starts_at}}. {{appointment.access}}\n\n{{appointment.change_line}}',
             button_label: String(args.p_template_key).startsWith(
                 'appointments.cancelled',
               )
@@ -298,4 +312,56 @@ Deno.test('appointments-messages: module off, an RPC failure → the run fails w
       assertEquals(got, code)
     }
   })
+})
+
+Deno.test('appointments-messages: the links off, the email says to call the clinic; on, it carries the manage link (L16)', async () => {
+  await run(async () => {
+    const off = harness()
+    await off.handler(await jobRequest())
+    const offMail = JSON.stringify(off.http.calls[0])
+    assert(offMail.includes('appelez la clinique'))
+    assert(!offMail.includes('/rendez-vous/gerer'))
+
+    const on = harness({ prepare: { data: prepared('reminder', 'fr', true) } })
+    await on.handler(await jobRequest())
+    const prepares = callsTo(
+      on.service.calls,
+      'prepare_appointment_message_for_service',
+    )
+    assert(
+      prepares.every((p) =>
+        /^\\x[0-9a-f]{64}$/.test(String(p.p_manage_token_hash)) &&
+        p.p_manage_token_hash !== p.p_token_hash
+      ),
+    )
+    const onMail = JSON.stringify(on.http.calls[0])
+    assert(onMail.includes('/rendez-vous/confirmer#t='))
+    assert(onMail.includes('/rendez-vous/gerer#t='))
+    assert(onMail.includes('demander un changement'))
+    assert(!onMail.includes('appelez la clinique'))
+  })
+})
+
+Deno.test('appointments-messages: changeLine, by kind and language', () => {
+  const url = 'https://app.test/rendez-vous/gerer#t=abc'
+  assertEquals(
+    changeLine('reminder', 'fr', url),
+    `Pour annuler ce rendez-vous ou demander un changement\u202F: ${url}`,
+  )
+  assertEquals(
+    changeLine('changed', 'en', url),
+    `To cancel this appointment or ask for a change: ${url}`,
+  )
+  assertEquals(
+    changeLine('confirmation', 'fr', null),
+    'Pour annuler ou changer ce rendez-vous, appelez la clinique.',
+  )
+  assertEquals(
+    changeLine('changed', 'fr', null),
+    'Pour toute question, appelez la clinique.',
+  )
+  assertEquals(
+    changeLine('reminder', 'en', null),
+    'To cancel or change this appointment, please call the clinic.',
+  )
 })

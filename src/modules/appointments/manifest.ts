@@ -11,6 +11,9 @@ const hasProfessionalFile = (access: Access) => access.has_professional_file
 /** `/rendez-vous/confirmer#t=…` (R4): « Confirmer ma présence », from a confirmation, reminder or change email. Public. */
 export const confirmAppointmentPublicPage = lazyPage(() => import('./pages/public/ConfirmAppointmentPage'), 'ConfirmAppointmentPage')
 
+/** `/rendez-vous/gerer#t=…` (L16, AP-50): « Annuler » / « Demander un changement », from the same emails when the clinic turns the link on. Public. */
+export const manageAppointmentPublicPage = lazyPage(() => import('./pages/public/ManageAppointmentPage'), 'ManageAppointmentPage')
+
 /**
  * Module Rendez-vous (plan §7): the clinic's agenda. R1: the schema and the booking rules in the
  * database; R2: « Agenda » for the staff (Jour, Semaine, Prochains jours, Mois; all
