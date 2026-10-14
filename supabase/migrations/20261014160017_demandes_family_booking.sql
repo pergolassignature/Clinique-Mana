@@ -8,7 +8,8 @@
 --
 -- `private.demandes_booking_clients` (same signature): the request's file then its participants'
 -- other files, all of them, up to Rendez-vous' maximum (6); a couple service still books exactly
--- two (one file asks for the second person's; three or more are refused in plain words). Before, a
+-- two (one file asks for the second person's; three or more are refused in plain words); seven or
+-- more are refused, the words pointing to fewer participants or two appointments. Before, a
 -- request with three files or more was refused (« réservez ce rendez-vous dans l'agenda »).
 -- =============================================================================
 
@@ -44,7 +45,7 @@ begin
       pg_catalog.cardinality(v_ids) using errcode = 'P0001', hint = 'participants';
   end if;
   if pg_catalog.cardinality(v_ids) > v_max then
-    raise exception 'Un rendez-vous compte % clients au plus, et cette demande en a % avec un dossier : réservez ce rendez-vous dans l''agenda.',
+    raise exception 'Un rendez-vous compte % clients au plus, et cette demande en a % avec un dossier : retirez des participants de la demande, ou réservez deux rendez-vous dans l''agenda.',
       v_max, pg_catalog.cardinality(v_ids) using errcode = 'P0001', hint = 'participants';
   end if;
   return v_ids;

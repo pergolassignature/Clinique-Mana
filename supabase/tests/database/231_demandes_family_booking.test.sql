@@ -44,7 +44,7 @@ select is(pg_catalog.cardinality(private.demandes_booking_clients('b0000000-0000
 insert into public.demande_participants (demande_id, org_id, client_id, relationship)
 values ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000007', 'child');
 select throws_ok($$ select private.demandes_booking_clients('b0000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000001', false) $$,
-  'P0001', 'Un rendez-vous compte 6 clients au plus, et cette demande en a 7 avec un dossier : réservez ce rendez-vous dans l''agenda.',
+  'P0001', 'Un rendez-vous compte 6 clients au plus, et cette demande en a 7 avec un dossier : retirez des participants de la demande, ou réservez deux rendez-vous dans l''agenda.',
   'seven: refused in plain words');
 select is(private.appointments_max_clients(), 6, 'the maximum is Rendez-vous'' published one');
 

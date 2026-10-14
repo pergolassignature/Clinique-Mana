@@ -4,13 +4,16 @@
 -- consents at booking; the agenda's participants; adding a participant (her confirmation only, a
 -- duplicate, the maximum, a couple service, a professional's own clients only, another's agenda,
 -- a past appointment); removing one (her cancellation only, not to a relation who still follows
--- another participant; her pending messages set aside and her links revoked; the person seen
--- replaced; never the last one; never from a couple service); a hold for a family (Demandes'
--- path); billing's facts (the person seen first); the anonymisation promoting one participant.
+-- another participant; her pending messages set aside and her links revoked, while a parent who
+-- still follows another child keeps hers; a link of hers that escaped manages nothing and no email
+-- to her is prepared; added back, a new confirmation; the person seen replaced, never when the
+-- appointment is invoiced (Facturation's helper); never the last one; never from a couple service);
+-- a hold for a family (Demandes' path); billing's facts (the person seen first); the anonymisation
+-- promoting one participant and revoking the anonymised client's links.
 -- The deferred messages trigger fires at commit; here `set constraints all immediate` fires it.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(62);
 
 -- =============================================================================
 -- Privileges
@@ -181,13 +184,25 @@ select throws_ok($$ select public.remove_appointment_participant('e0000000-0000-
 -- 3. Removing a participant
 -- =============================================================================
 reset role;
--- A link already sent to client 2 (her confirmation email prepared).
-set local role service_role;
+-- The « Annuler ou changer » links are on (AP-50).
+update public.appointment_settings set client_manage_links = true where org_id = 'b0000000-0000-0000-0000-00000000000a';
 select set_config('test.m2', (select id::text from public.appointment_messages
                                where appointment_id = current_setting('test.fam')::uuid and recipient_client_id = 'd0000000-0000-0000-0000-000000000002'
                                  and kind = 'confirmation' and channel = 'email'), true);
-select ok((public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.m2')::uuid,
-            extensions.digest('c-two', 'sha256')) ->> 'with_link')::boolean, 'client 2''s confirmation carries its link');
+select set_config('test.m8', (select id::text from public.appointment_messages
+                               where appointment_id = current_setting('test.fam')::uuid and recipient_client_id = 'd0000000-0000-0000-0000-000000000008'
+                                 and kind = 'confirmation' and channel = 'email'), true);
+select is((select client_id::text from public.appointment_messages where id = current_setting('test.m8')::uuid),
+  'd0000000-0000-0000-0000-000000000002', 'the parent''s confirmation is filed under the first of her two children (a fixed order)');
+-- Links already sent to client 2 and to the parent (their confirmation emails prepared).
+set local role service_role;
+select results_eq($$ select (r ->> 'with_link')::boolean, (r ->> 'with_manage')::boolean
+                       from public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.m2')::uuid,
+                              extensions.digest('c-two', 'sha256'), extensions.digest('g-two', 'sha256')) r $$,
+  $$ values (true, true) $$, 'client 2''s confirmation carries both links');
+select ok((public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.m8')::uuid,
+            extensions.digest('c-parent', 'sha256'), extensions.digest('g-parent', 'sha256')) ->> 'with_manage')::boolean,
+  '… and so does the parent''s');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
@@ -203,15 +218,52 @@ select results_eq($$ select recipient_client_id::text from public.appointment_me
   '… she gets a cancellation; the parent, who still follows client 3, does not; nobody else does');
 select is((select status || ':' || coalesce(skip_reason, '') from public.appointment_messages where id = current_setting('test.m2')::uuid),
   'skipped:superseded', '… her pending confirmation is set aside');
-select ok((select revoked_at is not null from public.secure_links where token_hash = extensions.digest('c-two', 'sha256')),
-  '… and the link already sent to her is revoked');
+select ok((select bool_and(revoked_at is not null) from public.secure_links
+            where token_hash in (extensions.digest('c-two', 'sha256'), extensions.digest('g-two', 'sha256'))),
+  '… and the links already sent to her (confirm, cancel) are revoked');
+select results_eq($$ select m.status, m.client_id::text, l.revoked_at is null
+                       from public.appointment_messages m
+                       join public.secure_links l on l.subject_id = m.id and l.token_hash = extensions.digest('g-parent', 'sha256')
+                      where m.id = current_setting('test.m8')::uuid $$,
+  $$ values ('pending', 'd0000000-0000-0000-0000-000000000003', true) $$,
+  'the parent, who still follows client 3, keeps her confirmation (now filed under client 3) and her links');
+-- A link of client 2 that would have escaped the revocation still manages nothing, and her email is set aside.
+update public.secure_links set revoked_at = null where token_hash = extensions.digest('g-two', 'sha256');
+update public.appointment_messages set status = 'pending', skip_reason = null where id = current_setting('test.m2')::uuid;
+select set_config('test.l2', (select id::text from public.secure_links where token_hash = extensions.digest('g-two', 'sha256')), true);
+set local role service_role;
+select is(public.resolve_appointment_manage_link(current_setting('test.l2')::uuid),
+  null, 'a removed client''s « Annuler ou changer » page shows nothing');
+select is(public.manage_appointment_by_link_for_service(extensions.digest('g-two', 'sha256'), 'cancel') ->> 'state',
+  'invalid', '… and her link cancels nothing');
+select is(public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.m2')::uuid,
+            extensions.digest('c-two-b', 'sha256')), null, '… nor is an email to her prepared (but her cancellation)');
+reset role;
+select is((select a.state || ':' || m.status || ':' || m.skip_reason from public.appointments a, public.appointment_messages m
+            where a.id = current_setting('test.fam')::uuid and m.id = current_setting('test.m2')::uuid),
+  'booked:skipped:superseded', '… the appointment stays booked, her email set aside');
 select is((select state from public.appointments where id = current_setting('test.fam')::uuid), 'booked', '… the appointment stays booked');
 select ok(exists (select 1 from public.audit_log where table_name = 'appointment_participants' and action = 'delete'
                    and record_id = current_setting('test.fam') || ':d0000000-0000-0000-0000-000000000002'),
   '… audited');
 
+-- Added back: a new confirmation (the one set aside does not hold it back); the parent gets none.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select lives_ok($$ select public.add_appointment_participant(current_setting('test.fam')::uuid, 'd0000000-0000-0000-0000-000000000002') $$,
+  'client 2 is added back');
+reset role;
+select results_eq($$ select recipient_client_id::text, status from public.appointment_messages
+                      where appointment_id = current_setting('test.fam')::uuid and kind = 'confirmation' and channel = 'email'
+                        and recipient_client_id in ('d0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000008')
+                      order by 1, created_at, status $$,
+  $$ values ('d0000000-0000-0000-0000-000000000002', 'pending'), ('d0000000-0000-0000-0000-000000000002', 'skipped'),
+            ('d0000000-0000-0000-0000-000000000008', 'pending') $$,
+  '… she gets a new confirmation; the parent keeps her one');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select lives_ok($$ select public.remove_appointment_participant(current_setting('test.fam')::uuid, 'd0000000-0000-0000-0000-000000000002') $$,
+  '… and taken off again');
 select lives_ok($$ select public.remove_appointment_participant(current_setting('test.fam')::uuid, 'd0000000-0000-0000-0000-000000000001') $$,
   'the person seen is taken off');
 reset role;
@@ -246,12 +298,40 @@ select is((select array_agg(client_id::text order by role = 'second', created_at
 select is((select client_ids[1]::text || ':' || pg_catalog.cardinality(client_ids) from private.appointment_billing_facts(
              'b0000000-0000-0000-0000-00000000000a', array[current_setting('test.six')::uuid])),
   'd0000000-0000-0000-0000-000000000007:6', 'billing reads the six files, the person seen first (one invoice, at her file)');
+-- Invoiced at the person seen's file (a draft with the session's line): she stays until it is credited.
+insert into public.invoices (id, org_id, client_id, payer_client_id)
+values ('f0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a',
+        'd0000000-0000-0000-0000-000000000007', 'd0000000-0000-0000-0000-000000000007');
+insert into public.invoice_lines (org_id, invoice_id, position, line_type, appointment_id, description)
+values ('b0000000-0000-0000-0000-00000000000a', 'f0000000-0000-0000-0000-000000000001', 1, 'service', current_setting('test.six')::uuid, 'Séance');
+select ok(private.billing_appointment_invoiced('b0000000-0000-0000-0000-00000000000a', current_setting('test.six')::uuid),
+  'Facturation says the appointment is invoiced');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select public.remove_appointment_participant(current_setting('test.six')::uuid, 'd0000000-0000-0000-0000-000000000007') $$,
+  'P0001', 'Ce rendez-vous est déjà facturé au dossier de la personne reçue : créditez la facture avant de la retirer.',
+  '… so its person seen is not taken off');
+reset role;
+update public.invoice_lines set credited = true where invoice_id = 'f0000000-0000-0000-0000-000000000001';
+select ok(not private.billing_appointment_invoiced('b0000000-0000-0000-0000-00000000000a', current_setting('test.six')::uuid),
+  '… a credited line no longer counts');
 
 -- =============================================================================
 -- 5. Anonymisation: one participant becomes the person seen
 -- =============================================================================
+set local role service_role;
+select set_config('test.m7', (select id::text from public.appointment_messages
+                               where appointment_id = current_setting('test.six')::uuid and recipient_client_id = 'd0000000-0000-0000-0000-000000000007'
+                                 and kind = 'confirmation' and channel = 'email'), true);
+select ok((public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.m7')::uuid,
+            extensions.digest('c-seven', 'sha256'), extensions.digest('g-seven', 'sha256')) ->> 'with_manage')::boolean,
+  'client 7 holds her links');
+reset role;
 select lives_ok($$ select private.appointments_anonymize_client('d0000000-0000-0000-0000-000000000007') $$,
   'the person seen of the six is anonymised');
+select ok((select bool_and(revoked_at is not null) from public.secure_links
+            where token_hash in (extensions.digest('c-seven', 'sha256'), extensions.digest('g-seven', 'sha256'))),
+  '… her links are revoked as she leaves the appointment');
 select results_eq($$ select client_id::text, role from public.appointment_participants
                       where appointment_id = current_setting('test.six')::uuid order by role = 'second', created_at $$,
   $$ values ('d0000000-0000-0000-0000-000000000006', 'client'), ('d0000000-0000-0000-0000-000000000005', 'second'),
