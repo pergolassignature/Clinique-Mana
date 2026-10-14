@@ -42,7 +42,7 @@ import {
   useWaitlistEntry,
   useWaitlistLists,
 } from '../../hooks/use-waitlist'
-import { demandePath, optionLabel, personLabel } from '../../lib/display'
+import { clientNumber, demandePath, optionLabel, personLabel } from '../../lib/display'
 import { demandesError } from '../../lib/errors'
 import {
   consentLabel,
@@ -193,7 +193,7 @@ function EntryDetail({
               onClick={onClose}
               className="text-link underline-offset-2 hover:underline"
             >
-              {t(`${E}.openFile`, { number: String(e.client_number ?? '') })}
+              {t(`${E}.openFile`, { number: e.client_number === null ? '' : clientNumber(e.client_number) })}
             </Link>
           )}
         </dd>

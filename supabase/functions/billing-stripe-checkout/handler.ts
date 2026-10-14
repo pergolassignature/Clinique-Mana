@@ -17,6 +17,12 @@
  *    card or the payment.
  * 6. 200 `{ state: 'valid', url }`: Stripe's page only (`isCheckoutUrl`).
  *
+ * One payment session per invoice and balance (BI-26, security review
+ * 2026-10-14): a payment checkout carries an idempotency key from the invoice,
+ * its balance and the half hour (`paymentWindow`), and expires at a time fixed
+ * by that half hour, so two links opened together get the same Stripe session
+ * (one payment) instead of two. A new balance is a new session.
+ *
  * Status codes: 200; 400 `invalid_request`; 405; 410; 413; 429; 502
  * `provider_error`; 503 `not_configured`; 500 `internal`. Nothing logs or
  * reports a token, an address or an amount.
@@ -76,6 +82,29 @@ export function consentText(clinic: string, language: string): string {
   return language === 'en'
     ? `I authorize ${clinic} to charge this card for my invoices, the day after each appointment, until I ask for it to be removed.`
     : `J’autorise ${clinic} à prélever sur cette carte le montant de mes factures, le lendemain de chaque rendez-vous, jusqu’à ce que je demande de la retirer.`
+}
+
+/** Seconds in a payment window (the half hour a payment session is shared). */
+const WINDOW_SECONDS = 30 * 60
+/** Stripe wants a session to live 30 minutes at least: one more. */
+const MIN_LIFE_SECONDS = 31 * 60
+
+/**
+ * The payment window of a moment: its idempotency key (the invoice, its
+ * balance, the half hour) and the session's expiry, fixed by the half hour
+ * (31 to 61 minutes from now), so the same key always carries the same
+ * parameters.
+ */
+export function paymentWindow(
+  invoiceId: string,
+  amountCents: number,
+  now: Date,
+): { key: string; expiresAt: number } {
+  const window = Math.floor(now.getTime() / 1000 / WINDOW_SECONDS)
+  return {
+    key: `checkout:${invoiceId}:${amountCents}:${window}`,
+    expiresAt: (window + 1) * WINDOW_SECONDS + MIN_LIFE_SECONDS,
+  }
 }
 
 /** The handler; see the module comment. */
@@ -149,6 +178,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       // Back from Stripe, the page speaks the payer's language.
       const back = l.language === 'en' ? '&lang=en' : ''
       let params: Params
+      let idempotencyKey: string | undefined
       if (l.mode === 'setup') {
         let customer = l.customer_id
         if (!customer) {
@@ -185,6 +215,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
               message: consentText(l.clinic_name, l.language).slice(0, 1200),
             },
           },
+          // Saved within the half hour (Stripe's minimum is 30 minutes).
+          expires_at: Math.floor(deps.now().getTime() / 1000) +
+            MIN_LIFE_SECONDS,
         }
       } else {
         if (!l.invoice_id || !l.amount_cents || l.amount_cents < 1) {
@@ -219,11 +252,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           metadata,
           payment_intent_data: { metadata },
         }
+        // At the balance of the moment, one session per invoice, balance and
+        // half hour (BI-26): opened twice, the same session.
+        const w = paymentWindow(l.invoice_id, l.amount_cents, deps.now())
+        params.expires_at = w.expiresAt
+        idempotencyKey = w.key
       }
-      // Paid within the half hour, at the balance of the moment (Stripe's
-      // minimum is 30 minutes).
-      params.expires_at = Math.floor(deps.now().getTime() / 1000) + 31 * 60
-      const session = await stripe.createCheckoutSession(params)
+      const session = await stripe.createCheckoutSession(
+        params,
+        idempotencyKey,
+      )
       if (!isCheckoutUrl(session.url, deps.env)) {
         return await fail('checkout_url_invalid', 502, 'provider_error')
       }
