@@ -78,13 +78,18 @@ const DialogHeader = ({
 )
 DialogHeader.displayName = 'DialogHeader'
 
+/**
+ * The dialog's buttons. A long dialog scrolls (`DialogContent` caps its height): the footer stays
+ * pinned at the bottom of the window, so « Enregistrer » is never below the fold. Its box takes the
+ * dialog's bottom padding (`-mb-5 pb-5`), so a short dialog looks the same.
+ */
 const DialogFooter = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+      'sticky bottom-0 z-10 -mb-5 flex flex-col-reverse gap-2 bg-card pb-5 sm:flex-row sm:justify-end',
       className
     )}
     {...props}
