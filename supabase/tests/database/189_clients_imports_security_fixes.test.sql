@@ -2,8 +2,8 @@
 -- Covers: (1) a re-run of the consents import never brings back a withdrawn consent nor one the app
 -- holds at the same or a later date; (2) the name match answers `ambiguous` when a homonym's file
 -- was merged into a file anonymised since; (3) the imports switch: modules.manage only, audited,
--- every import_* RPC refused once closed, open again works; import_invoice refuses a « Note de
--- crédit » payment, an inactive mode, a future payment and more than 200 lines; (6) the signed
+-- every import_* RPC refused once closed, open again works; import_invoice refuses an inactive mode (a « Note de
+-- crédit » payment is accepted since BI-27, 195), a future payment and more than 200 lines; (6) the signed
 -- copy is recorded only for an active member with clients.manage; (7) report_demandes respects
 -- « Réservé aux testeurs »; (9) the bounded inputs. (4, the public consent page: 108.)
 begin;
@@ -133,8 +133,8 @@ select set_config('test.invoice', $${
 }$$, true);
 select is(public.import_invoice(current_setting('test.invoice')::jsonb, true) ->> 'status', 'ok', 'an invoice paid by Interac: ok');
 select is(public.import_invoice(current_setting('test.invoice')::jsonb
-            || '{"payments": [{"paid_on": "2025-03-04", "mode_code": "credit_note", "amount_cents": 10000}]}', true) -> 'errors' -> 0 ->> 'message',
-  'Paiement 1 : une note de crédit ne s''importe pas comme un paiement.', 'a « Note de crédit » payment: refused');
+            || '{"payments": [{"paid_on": "2025-03-04", "mode_code": "credit_note", "amount_cents": 10000}]}', true) ->> 'status',
+  'ok', 'a « Note de crédit » payment: an imported credit since BI-27 (195)');
 select is(public.import_invoice(current_setting('test.invoice')::jsonb
             || '{"payments": [{"paid_on": "2099-03-04", "mode_code": "interac", "amount_cents": 10000}]}', true) -> 'errors' -> 0 ->> 'message',
   'Paiement 1 : la date de paiement est dans le futur.', 'a payment in the future: refused');

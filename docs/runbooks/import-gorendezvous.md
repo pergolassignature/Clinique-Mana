@@ -66,7 +66,8 @@ node scripts/import-gorendezvous.mjs prix --lines ~/Clinique-MANA-import/revenus
    - `services.csv` (the legacy services get their code);
    - a `--clients-map` file `Facture;ClientId`, for the invoices whose name the dry run could not settle (homonyms, a name changed since). **Required** for an invoice naming a homonym of the clients export: the run stops until it is given.
 4. **Permission:** the operator holds `billing.manage`, and Facturation is enabled.
-5. **Refused by the database** (security review 2026-10-14): a payment in « Note de crédit » (a credit note is a document, not money received: decide by hand what such an invoice owes), a payment in a mode the clinic has deactivated, a payment or refund dated in the future, and more than 200 lines, payments or refunds on one invoice. Each refusal blocks `--commit` with its line.
+5. **« Note de crédit » payments** are imported as **credits** on their invoice (BI-27): they count in what is paid (the balance matches GOrendezvous), are never sent to QuickBooks, never refunded (« Rembourser » is not offered) and get no receipt. The report counts them: « Paiements par note de crédit à importer : N », then « … importés : N ». A negative « Note de crédit » (a refund) goes on the invoice's credit first.
+6. **Refused by the database** (security review 2026-10-14): a payment in a mode the clinic has deactivated (« Note de crédit » included), a payment or refund dated in the future, and more than 200 lines, payments or refunds on one invoice. Each refusal blocks `--commit` with its line.
 
 **Run:**
 ```bash

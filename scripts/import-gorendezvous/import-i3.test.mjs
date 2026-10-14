@@ -48,7 +48,7 @@ describe('assembleInvoices', () => {
       refunds: [],
     })
     expect(rows[2].row.payments).toEqual([{ paid_on: '2026-10-01', mode_code: 'bank_transfer', amount_cents: 7500 }])
-    expect(rows[2].row.refunds).toEqual([{ paid_on: '2026-10-09', amount_cents: 2500 }])
+    expect(rows[2].row.refunds).toEqual([{ paid_on: '2026-10-09', mode_code: 'interac', amount_cents: 2500 }])
   })
 
   it('the clients map names a dossier; an excluded agenda gives no professional', () => {
@@ -172,6 +172,28 @@ describe('import-gorendezvous factures', () => {
     const mapped = setup({ answers: ['adjointe@mana.test'], extra: { 'cl.csv': homonyms, 'm.csv': 'Facture;ClientId\n2026-0000101;77\n2026-0000103;80\n' } })
     expect(await run([...ARGS, '--clients-map', 'm.csv'], mapped.deps)).toBe(0)
     expect(mapped.client.rpc.mock.calls.map(([, a]) => a.p_row.client_ref)).toEqual(['gorendezvous:77', null, 'gorendezvous:80'])
+  })
+
+  it('« Note de crédit » payments: imported as credits (BI-27), counted in the report, never an error', async () => {
+    // Invoice 102 settled by a credit note; a negative one on 103 is a refund of that mode.
+    const payments = `${PAYMENTS}2026-09-03;2026-0000102;Client Fictif Deux;Note de crédit;130,00 $\n2026-10-12;2026-0000103;Client Fictif Un;Note de crédit;(5,00 $)\n`
+    const { rows } = assembleInvoices({ ...read(), payments: readPayments(payments).payments })
+    expect(rows[1].row.payments).toEqual([{ paid_on: '2026-09-03', mode_code: 'credit_note', amount_cents: 13000 }])
+    expect(rows[2].row.refunds).toContainEqual({ paid_on: '2026-10-12', mode_code: 'credit_note', amount_cents: 500 })
+
+    const { deps, client, output } = setup({ answers: ['adjointe@mana.test', 'importer'], extra: { 'p.csv': payments } })
+    expect(await run([...ARGS, '--commit'], deps)).toBe(0)
+    expect(output).toContain('Paiements par note de crédit à importer : 1')
+    expect(output).toContain('Paiements par note de crédit importés : 1')
+    expect(output).toContain('Importées : 3 ; déjà importées : 0 ; sans dossier : 0 ; en erreur : 0')
+    expect(client.rpc.mock.calls.filter(([, a]) => a.p_dry_run === false)).toHaveLength(3)
+    expect(output.join('\n')).not.toMatch(personal)
+  })
+
+  it('without any « Note de crédit »: the count says 0', async () => {
+    const { deps, output } = setup({ answers: ['adjointe@mana.test'] })
+    expect(await run(ARGS, deps)).toBe(0)
+    expect(output).toContain('Paiements par note de crédit à importer : 0')
   })
 
   it('an invoice the database refuses: nothing imported, its line and French reason', async () => {
