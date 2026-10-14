@@ -47,6 +47,12 @@ export const demandesManifest: ModuleManifest = {
     { path: '/liste-attente', labelKey: 'modules.demandes.waitlist.name', icon: ListOrdered, permission: 'demandes.view', group: 'intake', order: 13 },
   ],
   // Accueil « Demandes à traiter » (L29): the counselors' work queue, each figure a filtered inbox.
+  // Clients' record, tab « Demandes » (L18): the file's requests.
+  slots: {
+    'client.demandes': [
+      { id: 'demandes.client', permissions: ['demandes.view'], component: lazyPage(() => import('./pages/ClientDemandesPanel'), 'ClientDemandesPanel') },
+    ],
+  },
   homeCards: [
     { id: 'demandes-queue', permission: 'demandes.manage', component: lazyPage(() => import('./components/DemandesHomeCard'), 'DemandesHomeCard') },
   ],

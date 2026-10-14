@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArchiveRestore } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { useModuleSlot } from '@/core/modules/slots'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
@@ -33,6 +34,7 @@ const PANELS: Record<ClientRecordTab, ReturnType<typeof lazyPage>> = {
   proches: lazyPage(() => import('../components/record/tabs/RelationsTab'), 'RelationsTab'),
   'assurance-et-payeurs': lazyPage(() => import('../components/record/tabs/CoverageTab'), 'CoverageTab'),
   consentements: lazyPage(() => import('../components/record/tabs/ConsentsTab'), 'ConsentsTab'),
+  demandes: lazyPage(() => import('../components/record/tabs/DemandesTab'), 'DemandesTab'),
   'visites-et-paiements': lazyPage(() => import('../components/record/tabs/VisitsTab'), 'VisitsTab'),
   courriels: lazyPage(() => import('../components/record/tabs/MessagesTab'), 'MessagesTab'),
   historique: lazyPage(() => import('../components/record/tabs/HistoryTab'), 'HistoryTab'),
@@ -56,9 +58,12 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   const reference = useClientsReference()
   const archive = useSetClientArchived()
   const summary = record.data
+  // « Demandes » shows only when a module fills it (Demandes enabled, the user reading requests).
+  const demandesPanels = useModuleSlot('client.demandes')
+  const tabs = useMemo(() => RECORD_TABS.filter((tab) => tab !== 'demandes' || demandesPanels.length > 0), [demandesPanels.length])
   usePageTitle(summary ? fullName(summary.client) : t(summary === null ? `${R}.notFound.title` : 'modules.clients.name'), { crumb: Boolean(summary) })
-  const current = RECORD_TABS.find((tab) => tab === onglet)
-  const isTab = useCallback((value: string): value is ClientRecordTab => (RECORD_TABS as readonly string[]).includes(value), [])
+  const current = tabs.find((tab) => tab === onglet)
+  const isTab = useCallback((value: string): value is ClientRecordTab => (tabs as readonly string[]).includes(value), [tabs])
   const { onValueChange, triggerProps } = useGuardedTabs(current ?? 'apercu', isTab, (tab) => navigate(clientPath(id, tab), { replace: true }))
   const value = useMemo<ClientRecordData | null>(
     () =>
@@ -137,7 +142,7 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
             </div>
           </header>
           <TabsList aria-label={t(`${R}.tabs.label`)}>
-            {RECORD_TABS.map((tab) => (
+            {tabs.map((tab) => (
               <TabsTrigger key={tab} value={tab} {...triggerProps(tab)} onPointerEnter={() => void PANELS[tab].preload().catch(() => undefined)}>
                 {t(`${R}.tabs.${tab}`)}
               </TabsTrigger>

@@ -6209,7 +6209,8 @@
           "consentements": "Consentements",
           "visites-et-paiements": "Visites et paiements",
           "historique": "Historique",
-          "courriels": "Courriels"
+          "courriels": "Courriels",
+          "demandes": "Demandes"
         },
         "overview": {
           "person": "La personne",
@@ -7935,7 +7936,9 @@
           "state": "État",
           "assigned": "Conseillère",
           "followUp": "Suivi",
-          "actions": "Actions"
+          "actions": "Actions",
+          "beneficiary": "Pour qui",
+          "motifs": "Motifs"
         },
         "fileNumber": "Dossier N° {number}",
         "urgent": "Urgente",
@@ -7944,7 +7947,22 @@
         "noAnswer": "Sans réponse ({count} essais)",
         "lastContact": "Dernier essai : {date} · {outcome}",
         "nextContact": "Prochain essai : {date}",
-        "neverContacted": "Pas encore appelée"
+        "neverContacted": "Pas encore appelée",
+        "sort": {
+          "label": "Trier par",
+          "priority": "Priorité (urgentes, en retard, puis les plus anciennes)",
+          "received_desc": "Reçues : les plus récentes d'abord",
+          "received_asc": "Reçues : les plus anciennes d'abord",
+          "waiting_desc": "Attente la plus longue d'abord",
+          "state": "État"
+        },
+        "columnPicker": {
+          "label": "Colonnes",
+          "title": "Colonnes affichées",
+          "motifCount": "{count} motifs",
+          "motifOne": "1 motif",
+          "noMotif": "Aucun motif"
+        }
       },
       "new": {
         "open": "Nouvelle demande",
@@ -8758,7 +8776,15 @@
           "send": "Envoyer la proposition ({count} plages)",
           "sending": "Envoi…",
           "insuranceConfirm": "L'assurance de ce professionnel est expirée : je confirme vouloir lui proposer ce nouveau client.",
-          "insuranceUnconfirmed": "Son assurance est expirée : cochez la confirmation avant d'envoyer."
+          "insuranceUnconfirmed": "Son assurance est expirée : cochez la confirmation avant d'envoyer.",
+          "onlyPeriods": "Seulement aux moments indiqués par la personne ({periods})",
+          "periodOf": {
+            "am": "Matin",
+            "pm": "Après-midi",
+            "end_of_day": "Fin de journée",
+            "evening": "Soir"
+          },
+          "noSlotInPeriods": "Aucune plage libre aux moments indiqués : décochez le filtre pour voir les autres."
         },
         "page": {
           "title": "Votre premier rendez-vous",
@@ -8909,7 +8935,11 @@
           "notAllowed": "Vous ne pouvez pas proposer de professionnel pour cette demande (il faut aussi l'accès à l'agenda)."
         },
         "match": "Jumeler",
-        "matchTo": "Jumeler la demande à {name}"
+        "matchTo": "Jumeler la demande à {name}",
+        "nextSlot": {
+          "label": "Prochaine plage libre : {when} ({service})",
+          "none": "Aucune plage libre dans les 4 prochaines semaines ({service})"
+        }
       },
       "capacity": {
         "nav": "Places restantes",
@@ -8975,6 +9005,23 @@
           "due": "à rappeler maintenant",
           "unassigned": "sans conseillère",
           "mine": "à moi"
+        }
+      },
+      "clientPanel": {
+        "title": "Demandes du dossier",
+        "empty": "Aucune demande pour ce dossier.",
+        "loadError": "Les demandes du dossier ne se chargent pas.",
+        "closedBecause": "Fermée : {reason}",
+        "role": {
+          "file": "Son dossier",
+          "participant": "Participante ou participant"
+        },
+        "columns": {
+          "reference": "Numéro",
+          "received": "Reçue le",
+          "state": "État",
+          "role": "Rôle",
+          "professional": "Professionnel jumelé"
         }
       }
     },
