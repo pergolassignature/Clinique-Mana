@@ -274,7 +274,7 @@ Stripe (card on file, the next-day charge, « Payer en ligne ») and Interac « 
 - **« Payé par » (I2 prep, I-17):** `import_default_payer(row, dry_run)` (`billing.manage`; migration `*_billing_payer_import.sql`, pgTAP `180_billing_payer_import`): the client's dated default payer (`billing_payer_defaults`) from GOrendezvous's « Payé par »; the client herself or already the default `skipped`; a payer without « recevoir reçus et factures » `unmatched` (`payer_not_allowed`).
 
 ## Security review (2026-10-14)
-Migration `*_billing_security_fixes.sql` (pgTAP `186_billing_security_fixes`) and `billing-stripe-checkout`:
+Migration `*_billing_security_fixes.sql` (pgTAP `187_billing_security_fixes`) and `billing-stripe-checkout`:
 - **QuickBooks, another company (BI-23):** `store_qbo_connection` on a new realm or environment (after « Déconnecter ») also drops the old company's `qbo_vendor_links`, `qbo_organisation_links`, `qbo_items`, `qbo_tax_codes` and `qbo_pushes`, and clears `professional_invoices.qbo_bill_id` / `exported_at`: the new company receives the professionals' bills again.
 - **One Bill per professional's invoice (BI-23):** `payroll_record_invoice` (replace) and `reopen_payout_period` (detach) refuse (P0001) when the period's invoice is in QuickBooks (`private.payroll_invoice_in_qbo`: its Bill id, or its `bill` push `pending` or `pushed`); the correction goes through an adjustment on the next month.
 - **Audit redaction:** `invoices` + `hold_note`, `payer_reference`; `interac_notices` `message`, `sender_name`, `reference`, `ignored_reason`; `stripe_customers` the `cus_` / `pm_` ids and the card's brand, last four and expiry; `payer_organisations` + `contact_name`, `billing_email`.
