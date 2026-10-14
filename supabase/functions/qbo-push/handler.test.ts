@@ -547,3 +547,39 @@ Deno.test('qbo-push: a token Intuit refuses fails the run (needs_reconnect), not
     })
     assertEquals(h.intuit.documents.length, 0)
   }))
+
+Deno.test('qbo-push: a forgotten Bill (BI-28) is pushed again under a new requestid', () =>
+  run(async () => {
+    const m = model({ withBill: true })
+    let generation = 0
+    m.routes.qbo_bills_to_push_for_service = () => ({
+      data: [{
+        invoice_id: PRO_INVOICE,
+        professional_id: PRO,
+        professional_name: 'Hélène Psy',
+        number: 'HP-2026-09',
+        issued_on: '2026-10-01',
+        amount_cents: 345000,
+        vendor_id: m.vendors[PRO] ?? null,
+        expense_account_id: '9',
+        title_name: 'Psychologue',
+        attempts: 0,
+        generation,
+      }],
+    })
+    const h = qboHarness({ connected: true, rpc: m.routes })
+    const pass = () =>
+      pushOrg(h.deps)(ORG_ID, h.service.client, new AbortController().signal)
+    const bills = () => h.intuit.documents.filter((d) => d.entity === 'bill')
+    await pass()
+    // The same generation: Intuit answers the first Bill (never a second one).
+    await pass()
+    assertEquals(bills().length, 1)
+    // Deleted in QuickBooks and forgotten (generation 1): a new Bill, a new requestid.
+    h.intuit.deleteBill(bills()[0].id)
+    generation = 1
+    await pass()
+    assertEquals(bills().length, 2)
+    assert(bills()[0].requestId !== bills()[1].requestId)
+    assertEquals(m.bill(), bills()[1].id)
+  }))

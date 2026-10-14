@@ -101,6 +101,23 @@ export async function reopenPayoutPeriod(id: string, reason: string): Promise<vo
   if (error) throw error
 }
 
+const billClearedSchema = z.object({ status: z.literal('cleared'), qbo: z.enum(['deleted', 'voided']) })
+export type BillCleared = z.infer<typeof billClearedSchema>
+
+/**
+ * « Bill annulé dans QuickBooks » (BI-28, `billing.payroll`): `qbo-bill-check` asks QuickBooks for
+ * the period's Bill and forgets it only when QuickBooks no longer has it (deleted, or voided).
+ */
+export async function checkQboBillVoided(periodId: string): Promise<BillCleared> {
+  return billClearedSchema.parse(await invokeFunction('qbo-bill-check', { period_id: periodId }))
+}
+
+/** « Forcer le retrait » (BI-28, `billing.payroll` and `billing.settings`): forgets the Bill without asking QuickBooks. */
+export async function forceClearQboBill(periodId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('force_clear_qbo_bill', { p_period_id: periodId, p_reason: reason })
+  if (error) throw error
+}
+
 export async function markPeriodPaid(id: string, paidOn: string, note: string): Promise<void> {
   const { error } = await supabase.rpc('mark_period_paid', { p_id: id, p_paid_on: paidOn, p_note: note.trim() === '' ? undefined : note })
   if (error) throw error
@@ -192,6 +209,8 @@ const periodSchema = z.object({
       issued_on: z.string(),
       amount_cents: z.number().int(),
       created_at: z.string(),
+      /** Its Bill in QuickBooks (the administration only; BI-23, BI-28). */
+      qbo_bill_id: z.string().nullable().optional(),
     })
     .nullable(),
 })

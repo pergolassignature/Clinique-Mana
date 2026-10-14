@@ -21,6 +21,7 @@ const KNOWN = [
   'invoice_not_pushed',
   'client_gone',
   'not_supported',
+  'bill_voided',
 ] as const
 type KnownCode = (typeof KNOWN)[number]
 

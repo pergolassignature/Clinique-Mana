@@ -22,3 +22,21 @@ export function payrollErrorMessage(error: unknown): string {
   Sentry.captureException(report, { tags: { area: 'billing', code: error.code } })
   return fallback
 }
+
+/**
+ * « Bill annulé dans QuickBooks » (`qbo-bill-check`, BI-28): the refusals as written (« Le Bill
+ * existe toujours dans QuickBooks : supprimez-le d'abord. »), then what keeps QuickBooks from
+ * answering, in plain words; anything else as `payrollErrorMessage`.
+ */
+export function qboBillErrorMessage(error: unknown): string {
+  if (!(error instanceof FunctionCallError)) return payrollErrorMessage(error)
+  const text = functionErrorText(error, {
+    overrides: {
+      not_found: () => t(`${E}.qboBill.notConnected`),
+      conflict: () => t(`${E}.qboBill.reconnect`),
+      not_configured: () => t(`${E}.qboBill.notConfigured`),
+      provider_error: () => t(`${E}.qboBill.unreachable`),
+    },
+  })
+  return text ?? payrollErrorMessage(error)
+}

@@ -208,6 +208,24 @@ const createdSchema = z.looseObject({
   TotalAmt: z.number().optional(),
 })
 
+/** A Bill as read (`billState`): only what says whether it still stands. */
+const billReadSchema = z.looseObject({
+  Bill: z.looseObject({
+    Id: z.string().optional(),
+    status: z.string().optional(),
+    TotalAmt: z.number().optional(),
+  }),
+})
+
+/**
+ * Where a Bill stands in QuickBooks: `present`, `deleted` (Intuit answers a
+ * read of a deleted or unknown transaction with its fault 610 « Object Not
+ * Found »; a bare 404 without it is a failure, never taken as a deletion; a
+ * change-data read says `status: Deleted`) or `voided` (voided in
+ * QuickBooks: its total is zero, nothing left to pay).
+ */
+export type QboBillState = 'present' | 'deleted' | 'voided'
+
 const companyInfoSchema = z.looseObject({
   CompanyInfo: z.looseObject({
     CompanyName: z.string().optional(),
@@ -399,6 +417,27 @@ export class QboClient {
   /** Every tax code (the map's « taxable » and « exempt »). */
   taxCodes(): Promise<QboTaxCode[]> {
     return this.queryAll('TaxCode', '', taxCodeSchema)
+  }
+
+  /**
+   * Reads one Bill (« Bill annulé dans QuickBooks », BI-28): `deleted` when
+   * QuickBooks no longer has it, `voided` when its total is zero, else
+   * `present`. Any other failure throws its `QboError`.
+   */
+  async billState(id: string): Promise<QboBillState> {
+    if (!/^[0-9]{1,32}$/.test(id)) throw new QboError('validation')
+    try {
+      const answer = await this.#call('GET', `bill/${id}`, billReadSchema)
+      if (answer.Bill.status?.toLowerCase() === 'deleted') return 'deleted'
+      if (answer.Bill.TotalAmt === 0) return 'voided'
+      return 'present'
+    } catch (error) {
+      if (
+        error instanceof QboError && error.faultCode === '610' &&
+        (error.code === 'validation' || error.code === 'not_found')
+      ) return 'deleted'
+      throw error
+    }
   }
 
   /**
