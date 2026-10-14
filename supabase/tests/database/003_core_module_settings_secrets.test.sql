@@ -284,7 +284,9 @@ select functions_are('public', array[
   -- Rapports RP2 (« IVAC », « Paie »).
   'report_ivac', 'report_payouts',
   -- OAuth state nonces, single use (security review 2026-10-14).
-  'spend_oauth_state_nonce_for_service'
+  'spend_oauth_state_nonce_for_service',
+  -- Core: the imports switch (security review 2026-10-14).
+  'set_imports_open'
 ],'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

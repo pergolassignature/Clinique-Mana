@@ -12462,7 +12462,9 @@
         "currency": "Devise",
         "signatory_email": "Courriel du signataire",
         "logo_file_id": "Logo",
-        "signature_file_id": "Image de la signature"
+        "signature_file_id": "Image de la signature",
+        "imports_open": "Imports GOrendezvous ouverts",
+        "imports_closed_at": "Imports fermés le"
       },
       "profiles": {
         "display_name": "Nom",

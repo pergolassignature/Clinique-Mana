@@ -1,12 +1,12 @@
 // Runs in Node: vitest.config.ts's « scripts » project. Fixtures are synthetic (invented names,
 // 555 numbers, exemple.test addresses): never real client data.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { readClients } from './clients.mjs'
-import { buildReport, checkOutsideRepo, run } from './dry-run.mjs'
+import { buildReport, checkOutsideRepo, checkReportOutsideRepo, run } from './dry-run.mjs'
 import { findDuplicates, similarity } from './duplicates.mjs'
 import { readCancellations, readWaitlist } from './lists.mjs'
 import {
@@ -336,6 +336,17 @@ describe('the dry-run report', () => {
 describe('the dry-run command', () => {
   it('refuses an export inside the repository', () => {
     expect(() => checkOutsideRepo(path.join(here, 'fixtures', 'clients.csv'))).toThrow(/hors du dépôt/)
+  })
+
+  it('refuses a report inside the repository (its directory checked); a report elsewhere keeps its name', () => {
+    expect(() => checkReportOutsideRepo(path.join(here, 'rapport-nouveau.txt'))).toThrow(/rapport reste hors du dépôt/)
+    expect(() => checkReportOutsideRepo(path.join(here, 'dossier-absent', 'rapport.txt'))).toThrow(/Dossier du rapport introuvable/)
+    const dir = mkdtempSync(path.join(tmpdir(), 'gor-report-'))
+    try {
+      expect(checkReportOutsideRepo(path.join(dir, 'rapport.txt'))).toBe(path.join(realpathSync(dir), 'rapport.txt'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('reads files outside the repository, prints the report, writes it once (never over a file)', () => {

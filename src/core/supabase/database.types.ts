@@ -6947,6 +6947,8 @@ export type Database = {
           email: string | null
           gst_number: string | null
           id: string
+          imports_closed_at: string | null
+          imports_open: boolean
           legal_name: string | null
           logo_file_id: string | null
           name: string
@@ -6978,6 +6980,8 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           id?: string
+          imports_closed_at?: string | null
+          imports_open?: boolean
           legal_name?: string | null
           logo_file_id?: string | null
           name: string
@@ -7009,6 +7013,8 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           id?: string
+          imports_closed_at?: string | null
+          imports_open?: boolean
           legal_name?: string | null
           logo_file_id?: string | null
           name?: string
@@ -17706,6 +17712,7 @@ export type Database = {
         Args: { p_domain: string }
         Returns: undefined
       }
+      set_imports_open: { Args: { p_open: boolean }; Returns: Json }
       set_invoice_line_price: {
         Args: { p_line_id: string; p_unit_price_cents: number }
         Returns: undefined
