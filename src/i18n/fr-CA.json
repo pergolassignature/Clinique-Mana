@@ -80,11 +80,11 @@
       "rateLimited": "Trop de demandes en peu de temps.",
       "notConfigured": {
         "email": {
-          "staff": "L'envoi de courriels n'est pas encore configuré (Paramètres → Courriels).",
+          "staff": "L'envoi de courriels n'est pas encore configuré (Paramètres, section « Courriels »).",
           "professional": "L'envoi de courriels n'est pas encore configuré par la clinique."
         },
         "signing": {
-          "staff": "La signature électronique n'est pas encore configurée (Paramètres → Signature électronique).",
+          "staff": "La signature électronique n'est pas encore configurée (Paramètres, section « Signature électronique »).",
           "professional": "La signature électronique n'est pas encore configurée par la clinique."
         }
       },
@@ -407,7 +407,7 @@
       "invalidRecipient": "Adresse invalide",
       "rejected": "Refusé par le service d'envoi",
       "rateLimited": "Limite d'envoi atteinte",
-      "notConfigured": "Envoi de courriels non configuré (Paramètres → Courriels)",
+      "notConfigured": "Envoi de courriels non configuré (Paramètres, section « Courriels »)",
       "moduleDisabled": "Module désactivé pour la clinique",
       "providerError": "Pas de réponse du service d'envoi",
       "unexpected": "Raison inconnue"
@@ -2247,7 +2247,7 @@
             "title": "Rétention",
             "description": "La part de la clinique sur les consultations. Elle baisse avec le nombre de séances cumulées, selon la grille de la profession. Interne : elle n’est jamais transmise au professionnel.",
             "grid": "Grille : {title}",
-            "noGrid": "Aucune grille pour la profession principale de ce professionnel : ajoutez-en une dans Paramètres → Rémunération.",
+            "noGrid": "Aucune grille pour la profession principale de ce professionnel : ajoutez-en une dans Paramètres, section « Rémunération ».",
             "sessions": "Séances cumulées",
             "applied": "Taux appliqué",
             "suggested": "Taux suggéré",
@@ -2687,18 +2687,18 @@
             "removed": "a retiré « À prioriser »"
           },
           "changedOne": "a modifié {field}",
-          "changedValue": "a modifié {field} : {before} → {after}",
+          "changedValue": "a modifié {field} : {before}, maintenant {after}",
           "activated": "a activé le dossier",
           "activatedOverride": "a activé le dossier incomplet",
           "reactivated": "a réactivé le dossier",
           "deactivated": "a désactivé le dossier (raison : {reason})",
-          "statusChanged": "a changé le statut : {before} → {after}",
+          "statusChanged": "a changé le statut : {before}, maintenant {after}",
           "titleAdded": "a ajouté le titre {title}",
           "titleRemoved": "a retiré le titre {title}",
-          "licenceChanged": "a modifié le numéro de permis ({title}) : {before} → {after}",
+          "licenceChanged": "a modifié le numéro de permis ({title}) : {before}, maintenant {after}",
           "primaryTitle": "a choisi {title} comme titre principal",
           "payerAdded": "a ajouté le numéro {payer} {number}",
-          "payerChanged": "a modifié le numéro {payer} : {before} → {after}",
+          "payerChanged": "a modifié le numéro {payer} : {before}, maintenant {after}",
           "payerRemoved": "a retiré le numéro {payer} {number}",
           "privateChanged": "a modifié les coordonnées fiscales ou bancaires",
           "privateRead": "a affiché {fields}",
@@ -3073,7 +3073,7 @@
           "invalidRecipient": "Ce courriel ne peut pas recevoir la fiche. Vérifiez l'adresse.",
           "rateLimited": "Trop de fiches envoyées en peu de temps.",
           "uploadGone": "La fiche préparée n'est plus disponible. Réessayez.",
-          "template": "Le modèle de courriel « Fiche d'un professionnel » demande une valeur que l'envoi ne fournit pas. Vérifiez-le dans Paramètres → Courriels."
+          "template": "Le modèle de courriel « Fiche d'un professionnel » demande une valeur que l'envoi ne fournit pas. Vérifiez-le dans Paramètres, section « Courriels »."
         },
         "pdf": {
           "documentTitle": "Fiche de {name}",
@@ -3513,9 +3513,9 @@
             "off": "Aucun rappel ne part pour l'instant : la tâche planifiée « Échéances des assurances » est désactivée. Les assurances expirées ne sont ni signalées ni rappelées aux professionnels.",
             "enable": "Activer la tâche planifiée",
             "enabling": "Activation…",
-            "askAdmin": "Un administrateur peut l'activer dans Paramètres → Tâches planifiées.",
+            "askAdmin": "Un administrateur peut l'activer dans Paramètres, section « Tâches planifiées ».",
             "openJobs": "Ouvrir Tâches planifiées",
-            "unknown": "Les rappels partent seulement si la tâche planifiée « Échéances des assurances » est activée (Paramètres → Tâches planifiées).",
+            "unknown": "Les rappels partent seulement si la tâche planifiée « Échéances des assurances » est activée (Paramètres, section « Tâches planifiées »).",
             "loadError": "L'état de la tâche planifiée n'a pas pu être chargé."
           },
           "files": "Fichiers acceptés",
@@ -3552,9 +3552,9 @@
             "off": "Aucun rappel ne part pour l'instant : la tâche planifiée « Rappels d'invitation » est désactivée.",
             "enable": "Activer la tâche planifiée",
             "enabling": "Activation…",
-            "askAdmin": "Un administrateur peut l'activer dans Paramètres → Tâches planifiées.",
+            "askAdmin": "Un administrateur peut l'activer dans Paramètres, section « Tâches planifiées ».",
             "openJobs": "Ouvrir Tâches planifiées",
-            "unknown": "Les rappels partent seulement si la tâche planifiée « Rappels d'invitation » est activée (Paramètres → Tâches planifiées).",
+            "unknown": "Les rappels partent seulement si la tâche planifiée « Rappels d'invitation » est activée (Paramètres, section « Tâches planifiées »).",
             "loadError": "L'état de la tâche planifiée n'a pas pu être chargé.",
             "disabledReminder": "Le rappel automatique est désactivé : aucun rappel ne part."
           },
@@ -3654,7 +3654,7 @@
           "showProContact": "Coordonnées du professionnel",
           "showProContactHelp": "Le courriel et le téléphone publics du professionnel (Profil public), sous son nom. Désactivé, le client passe par la clinique.",
           "showClinicFooter": "Coordonnées de la clinique au bas des pages",
-          "showClinicFooterHelp": "Le téléphone et le site Web de la clinique (Paramètres → Identité légale), à côté du logo, au bas de chaque page.",
+          "showClinicFooterHelp": "Le téléphone et le site Web de la clinique (Paramètres, section « Identité légale »), à côté du logo, au bas de chaque page.",
           "showClosing": "Bloc « Prochaine étape »",
           "showClosingHelp": "À la fin de la fiche, une invitation à communiquer avec une conseillère pour planifier une première rencontre, avec le téléphone, le courriel et le site Web de la clinique."
         },
@@ -3691,7 +3691,7 @@
             "loadError": "Le signataire n'a pas pu être chargé.",
             "signsSecond": "Signe en deuxième, à l'adresse {email}.",
             "none": "Aucun signataire configuré : seul le professionnel signe.",
-            "link": "Modifier dans Paramètres → Signataire"
+            "link": "Modifier dans Paramètres, section « Signataire »"
           },
           "editor": {
             "annexeMissing": "Le tableau de l'Annexe A ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : il ne serait pas imprimé.",
@@ -4306,9 +4306,9 @@
           "other": "Signataire"
         },
         "noTemplate": "Aucun modèle de contrat publié : publiez « Contrat de service » avant d'envoyer.",
-        "noTemplateLink": "Ouvrir Paramètres → Contrats et formulaires",
+        "noTemplateLink": "Ouvrir Paramètres, section « Contrats et formulaires »",
         "failedHelp": "« Réessayer l'envoi » renvoie le contrat tel qu'il a été préparé. Si le dossier a changé depuis (adresse, signataire, rémunération), corrigez-le, puis utilisez « Régénérer ».",
-        "noClinicSigner": "Seul le professionnel signera : aucun signataire de la clinique n'est configuré (Paramètres → Signataire).",
+        "noClinicSigner": "Seul le professionnel signera : aucun signataire de la clinique n'est configuré (Paramètres, section « Signataire »).",
         "restricted": "Le PDF signé est réservé aux personnes qui gèrent la rémunération : il contient les montants versés.",
         "journal": {
           "title": "Journal de signature",
@@ -5097,7 +5097,7 @@
         },
         "prices": {
           "title": "Prix",
-          "description": "Le prix client de chaque service selon la grille de rétention de la profession, aujourd'hui. Les grilles se modifient dans Paramètres → Rémunération.",
+          "description": "Le prix client de chaque service selon la grille de rétention de la profession, aujourd'hui. Les grilles se modifient dans Paramètres, section « Rémunération ».",
           "table": "Prix par profession",
           "columns": {
             "title": "Profession"
@@ -6412,7 +6412,7 @@
           "description": "Qui a changé quoi dans ce dossier, du plus récent au plus ancien. Les renseignements personnels n'y paraissent pas : on voit qu'ils ont changé, pas leur valeur.",
           "empty": "Aucune modification pour le moment",
           "system": "Le système",
-          "arrow": " → ",
+          "arrow": ", maintenant ",
           "loadMore": "Charger plus",
           "loadingMore": "Chargement…",
           "loadMoreError": "Impossible de charger la suite. Réessayez.",
@@ -6836,7 +6836,7 @@
           "token_limit": "La centrale refuse de nouvelles connexions : trop de connexions ouvertes.",
           "token_invalid": "La centrale a refusé la connexion : vérifiez l'identifiant et le secret de l'application.",
           "channel_not_found": "Le numéro de la clinique n'est pas un canal de textos de la centrale.",
-          "not_configured": "Les textos ne sont pas encore réglés (Paramètres → Textos).",
+          "not_configured": "Les textos ne sont pas encore réglés (Paramètres, section « Textos »).",
           "module_disabled": "Le module Communications est désactivé.",
           "lock_timeout": "La centrale était occupée. Réessayez dans un instant.",
           "provider_unavailable": "L'envoi a été interrompu avant d'être confirmé.",
@@ -6857,7 +6857,7 @@
           "failed": "Le texto n'est pas parti. {reason}",
           "error": "Impossible d'envoyer le texto.",
           "rateLimited": "Trop de textos envoyés en peu de temps.",
-          "notConfigured": "Les textos ne sont pas encore réglés (Paramètres → Textos)."
+          "notConfigured": "Les textos ne sont pas encore réglés (Paramètres, section « Textos »)."
         },
         "settings": {
           "title": "Textos",
@@ -6868,7 +6868,7 @@
           "saveError": "Impossible d'enregistrer les réglages des textos.",
           "pbx": {
             "title": "Centrale téléphonique",
-            "description": "L'application OpenAPI créée sur la centrale (Intégrations → API) et le numéro de textos de la clinique.",
+            "description": "L’application OpenAPI créée sur la centrale (menu « Intégrations », puis « API ») et le numéro de textos de la clinique.",
             "baseUrl": "Adresse de la centrale",
             "baseUrlHelp": "Par exemple https://pbx.exemple.com, sans chemin.",
             "baseUrlInvalid": "L'adresse doit commencer par https:// et ne contenir que le nom d'hôte.",
@@ -6884,7 +6884,7 @@
             "title": "Textos reçus",
             "description": "Sur la centrale, une entrée « Webhook Event Push » envoie à la clinique les textos reçus et les accusés de livraison.",
             "url": "Adresse à donner à la centrale",
-            "urlHelp": "À coller dans Intégrations → API → Webhook Event Push, avec les événements de messages (30030, 30031, 30032).",
+            "urlHelp": "À coller dans la centrale : menu « Intégrations », « API », puis « Webhook Event Push », avec les événements de messages (30030, 30031, 30032).",
             "secret": "Secret du webhook",
             "secretHelp": "Le même secret que celui de l'entrée sur la centrale : il prouve que les événements viennent d'elle.",
             "lastEvent": "Dernier événement reçu le {date}.",
@@ -6934,14 +6934,14 @@
         }
       },
       "errors": {
-        "notConfigured": "L'application Google n'est pas encore configurée (Paramètres → Courriels Gmail → Application Google).",
+        "notConfigured": "L’application Google n’est pas encore configurée (Paramètres, section « Courriels Gmail », carte « Application Google »).",
         "providerError": "Google n'a pas répondu. Réessayez dans quelques minutes.",
         "linkInvalid": "Le retour de Google n'est pas valide. Recommencez la connexion de la boîte.",
         "linkExpired": "La connexion a pris plus de 10 minutes. Recommencez la connexion de la boîte.",
         "linkUsed": "Ce retour de Google a déjà servi. Recommencez la connexion de la boîte au besoin.",
         "notFound": "Cette boîte n'est plus connectée. Rechargez la page.",
         "rateLimited": "Trop de demandes Gmail en peu de temps.",
-        "needsReconnect": "Google refuse l'accès à cette boîte : elle doit être reconnectée (Paramètres → Courriels Gmail)."
+        "needsReconnect": "Google refuse l'accès à cette boîte : elle doit être reconnectée (Paramètres, section « Courriels Gmail »)."
       },
       "googleReturn": {
         "title": "Connexion de la boîte Gmail",
@@ -7019,7 +7019,7 @@
             "title": "Application Google",
             "description": "Le client OAuth « Interne » du projet Google Cloud de la clinique, qui autorise l'application à lire et à envoyer les courriels des boîtes.",
             "clientId": "Identifiant du client OAuth",
-            "clientIdHelp": "Google Cloud → API et services → Identifiants : se termine par .apps.googleusercontent.com.",
+            "clientIdHelp": "Dans Google Cloud, menu « API et services », puis « Identifiants » : se termine par .apps.googleusercontent.com.",
             "clientSecret": "Secret du client OAuth",
             "clientSecretHelp": "Affiché par Google à la création du client OAuth.",
             "redirect": "URI de redirection autorisé",
@@ -7080,7 +7080,7 @@
         "description": "Les boîtes Gmail de la clinique, lues ici. Les réponses s'écrivent encore dans Gmail.",
         "mailboxesLoadError": "Les boîtes n'ont pas pu être chargées.",
         "noMailboxTitle": "Aucune boîte connectée",
-        "noMailboxBody": "Une personne qui gère les boîtes les connecte dans Paramètres → Courriels Gmail.",
+        "noMailboxBody": "Une personne qui gère les boîtes les connecte dans Paramètres, section « Courriels Gmail ».",
         "search": "Rechercher dans les courriels",
         "searchPlaceholder": "Expéditeur, objet ou texte",
         "actionPartialOne": "1 conversation n'a pas pu être modifiée dans Gmail. Réessayez.",
@@ -7288,7 +7288,7 @@
         "write": "Écrire un courriel",
         "empty": "Aucun courriel rattaché à ce dossier.",
         "loadError": "Les courriels du dossier n'ont pas pu être chargés.",
-        "noMailbox": "Aucune boîte Gmail connectée : une personne qui gère les boîtes la connecte dans Paramètres → Courriels Gmail.",
+        "noMailbox": "Aucune boîte Gmail connectée : une personne qui gère les boîtes la connecte dans Paramètres, section « Courriels Gmail ».",
         "noAddress": "Ce dossier n'a pas d'adresse qui reçoit les communications : ajoutez-en une, ou écrivez l'adresse dans « À ».",
         "messagesOne": "1 message",
         "messagesOther": "{count} messages",
@@ -7316,7 +7316,7 @@
         "restore": "Rétablir",
         "errors": {
           "rateLimited": "Trop de demandes à l'IA en peu de temps.",
-          "notConfigured": "La clé OpenAI de la clinique manque : un administrateur l'entre dans Paramètres → IA.",
+          "notConfigured": "La clé OpenAI de la clinique manque : un administrateur l'entre dans Paramètres, section « IA ».",
           "providerError": "OpenAI n'a pas répondu. Réessayez dans un instant.",
           "failed": "L'IA n'a pas pu rédiger. Réessayez."
         },
@@ -7327,7 +7327,7 @@
           "keyTitle": "Clé OpenAI",
           "keyDescription": "La clé du compte OpenAI de la clinique. Elle reste dans le coffre de la base, jamais dans le navigateur.",
           "key": "Clé API OpenAI",
-          "keyHelp": "Créez-la dans platform.openai.com → API keys, puis collez-la ici.",
+          "keyHelp": "Créez-la sur platform.openai.com, page « API keys », puis collez-la ici.",
           "keyUnknown": "L'état de la clé n'est visible qu'avec la permission de voir les paramètres.",
           "keyLoadError": "Impossible de lire l'état de la clé.",
           "formTitle": "Réglages",
@@ -9408,15 +9408,15 @@
             "title": "Application Zoom",
             "description": "L’application OAuth de la clinique sur le Zoom App Marketplace, qui permet à chaque professionnel de connecter son propre Zoom.",
             "clientId": "Client ID",
-            "clientIdHelp": "Dans Zoom App Marketplace → l’application de la clinique → App Credentials.",
+            "clientIdHelp": "Dans Zoom App Marketplace, ouvrez l’application de la clinique, puis « App Credentials ».",
             "clientSecret": "Client Secret",
             "clientSecretHelp": "Au même endroit. Il n’est jamais réaffiché ici.",
             "webhookSecret": "Secret Token",
-            "webhookSecretHelp": "Dans Features → Access → Secret Token : il signe les avis de Zoom (application retirée par un professionnel).",
+            "webhookSecretHelp": "Dans « Features », puis « Access » : le « Secret Token ». Il signe les avis de Zoom (application retirée par un professionnel).",
             "redirect": "Adresse de retour (Redirect URL for OAuth)",
             "redirectHelp": "À entrer dans l’application Zoom, ainsi que dans « OAuth allow list ».",
             "webhook": "Adresse des avis de Zoom (Event notification endpoint URL)",
-            "webhookHelp": "À entrer dans Features → Event Subscriptions, avec l’événement « App deauthorized ».",
+            "webhookHelp": "À entrer dans « Features », puis « Event Subscriptions », avec l’événement « App deauthorized ».",
             "readOnly": "Seule une personne qui gère les intégrations peut modifier ces valeurs.",
             "secretsUnknown": "L’état de cette valeur n’est visible qu’avec la permission de voir les paramètres.",
             "secretsLoadError": "Impossible de charger l’état des clés."
@@ -9498,7 +9498,7 @@
           "title": "Agendas Google des professionnels",
           "description": "L’application Google avec laquelle chaque professionnel qui le souhaite connecte son agenda (« Agenda Google »), pour que ses moments occupés paraissent dans l’agenda. Sans ces deux valeurs, l’application de Courriels Gmail est utilisée : elle n’admet que les comptes de la clinique si son écran de consentement est « Interne ».",
           "clientId": "ID client",
-          "clientIdHelp": "Dans Google Cloud → API et services → Identifiants → le client OAuth « Application Web » des agendas.",
+          "clientIdHelp": "Dans Google Cloud, menu « API et services », puis « Identifiants » : le client OAuth « Application Web » des agendas.",
           "clientSecret": "Code secret du client",
           "clientSecretHelp": "Au même endroit. Il n’est jamais réaffiché ici. Changer d’application oblige chaque professionnel à reconnecter son agenda.",
           "redirect": "URI de redirection autorisé",
@@ -9699,7 +9699,7 @@
           "loadError": "L’historique du rendez-vous ne se charge pas.",
           "empty": "Rien à afficher pour ce rendez-vous.",
           "system": "Le système",
-          "arrow": " → ",
+          "arrow": ", maintenant ",
           "loadMore": "Charger plus",
           "loadingMore": "Chargement…"
         },
@@ -9811,6 +9811,25 @@
         "already": "Votre présence à ce rendez-vous est déjà confirmée.",
         "invalid": "Ce lien ne peut plus être utilisé. Pour toute question, appelez la clinique.",
         "error": "La confirmation n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique."
+      },
+      "print": {
+        "open": "Imprimer",
+        "title": "Agenda à imprimer",
+        "loadError": "L'agenda à imprimer ne se charge pas.",
+        "back": "Retour à l'agenda",
+        "print": "Imprimer",
+        "week": "Semaine du {date}",
+        "everyone": "Tous les professionnels",
+        "printedAt": "Imprimé le {when}",
+        "none": "Aucun rendez-vous.",
+        "personal": "Personnel : {label}",
+        "keptCancelled": "Annulé (gardé à l'horaire)",
+        "columns": {
+          "time": "Heure",
+          "client": "Client",
+          "service": "Service",
+          "state": "État"
+        }
       },
       "withoutReminder": {
         "title": "Clients sans rappel",
@@ -10554,13 +10573,13 @@
       },
       "errors": {
         "failed": "L'opération n'a pas pu être enregistrée. Réessayez dans un moment.",
-        "notConfigured": "L'application Intuit n'est pas encore configurée (Paramètres → QuickBooks → Application Intuit).",
+        "notConfigured": "L’application Intuit n’est pas encore configurée (Paramètres, section « QuickBooks », carte « Application Intuit »).",
         "providerError": "QuickBooks n'a pas répondu. Réessayez dans quelques minutes.",
         "linkInvalid": "Le retour de QuickBooks n'est pas valide. Recommencez la connexion.",
         "linkExpired": "La connexion a pris plus de 10 minutes. Recommencez la connexion à QuickBooks.",
         "linkUsed": "Ce retour de QuickBooks a déjà servi. Recommencez la connexion au besoin.",
         "notConnected": "QuickBooks n'est pas connecté. Rechargez la page.",
-        "needsReconnect": "QuickBooks refuse l’accès : reconnectez l’entreprise (Paramètres → QuickBooks).",
+        "needsReconnect": "QuickBooks refuse l’accès : reconnectez l’entreprise (Paramètres, section « QuickBooks »).",
         "rateLimited": "Trop de demandes à QuickBooks en peu de temps."
       },
       "saved": {
@@ -10837,8 +10856,8 @@
         "invoiceNote": {
           "title": "Note des factures",
           "description": "Ce que chaque facture et son courriel disent du paiement, en français et en anglais (selon la langue du payeur). Le bouton « Payer en ligne » du courriel reste là quand les paiements en ligne sont actifs.",
-          "interac": "La facture indique aussi : « Paiement par virement Interac à {email} (dépôt automatique). » L’adresse se change dans Paramètres → Coordonnées bancaires.",
-          "noInterac": "Aucune adresse Interac : ajoutez-la dans Paramètres → Coordonnées bancaires pour qu’elle paraisse sur les factures.",
+          "interac": "La facture indique aussi : « Paiement par virement Interac à {email} (dépôt automatique). » L’adresse se change dans Paramètres, section « Coordonnées bancaires ».",
+          "noInterac": "Aucune adresse Interac : ajoutez-la dans Paramètres, section « Coordonnées bancaires », pour qu’elle paraisse sur les factures.",
           "fr": "Note en français",
           "en": "Note en anglais",
           "isDefault": "Texte par défaut de l’application.",
@@ -10904,7 +10923,7 @@
           "title": "Application Intuit",
           "description": "L'application que la clinique crée sur developer.intuit.com. Ses deux valeurs ne s'affichent jamais une fois enregistrées.",
           "clientId": "Identifiant du client (Client ID)",
-          "clientIdHelp": "Intuit → Mon application → Clés et identifiants.",
+          "clientIdHelp": "Chez Intuit, ouvrez « Mon application », puis « Clés et identifiants ».",
           "clientSecret": "Secret du client (Client Secret)",
           "clientSecretHelp": "Même page, à côté de l’identifiant. Production et bac à sable ont chacun leurs clés.",
           "redirect": "Adresse de retour à déclarer chez Intuit",
@@ -11387,7 +11406,7 @@
         },
         "settings": {
           "title": "Paie",
-          "description": "Comment chaque service est payé au professionnel. Les taux viennent de Professionnels (Paramètres → Rémunération).",
+          "description": "Comment chaque service est payé au professionnel. Les taux viennent de Professionnels (Paramètres, section « Rémunération »).",
           "rules": {
             "title": "Règle de paie par service",
             "description": "Chaque choix est enregistré aussitôt et s’applique aux prochains calculs.",
@@ -11472,14 +11491,14 @@
         },
         "errors": {
           "failed": "L’opération de paiement n’a pas pu être faite. Réessayez.",
-          "notConfigured": "Stripe n’est pas configuré : entrez la clé dans Paramètres → Paiements en ligne.",
+          "notConfigured": "Stripe n’est pas configuré : entrez la clé dans Paramètres, section « Paiements en ligne ».",
           "providerError": "Stripe n’a pas répondu. Réessayez dans un instant.",
           "reserved": "Facturation est réservé aux testeurs : aucun courriel ne part vers les clients."
         },
         "panel": {
           "title": "Carte au dossier",
           "loadError": "La carte au dossier n’a pas pu être chargée.",
-          "notConfigured": "Les paiements en ligne ne sont pas configurés (Paramètres → Paiements en ligne).",
+          "notConfigured": "Les paiements en ligne ne sont pas configurés (Paramètres, section « Paiements en ligne »).",
           "self": "Le client",
           "payer": "Payeur par défaut",
           "noCard": "Aucune carte au dossier.",
@@ -11504,13 +11523,13 @@
           "description": "Stripe : les cartes au dossier, le prélèvement du lendemain et le bouton « Payer en ligne » des factures.",
           "keys": {
             "title": "Compte Stripe",
-            "description": "Les clés du compte Stripe de la clinique (Développeurs → Clés API et Webhooks). Elles ne sont jamais affichées.",
+            "description": "Les clés du compte Stripe de la clinique (dans Stripe, menu « Développeurs », pages « Clés API » et « Webhooks »). Elles ne sont jamais affichées.",
             "secret": "Clé secrète",
             "secretHelp": "Commence par sk_live_ (ou sk_test_ pour les essais).",
             "webhook": "Secret de signature du webhook",
             "webhookHelp": "Commence par whsec_ : affiché par Stripe quand vous ajoutez l’adresse ci-dessous.",
             "address": "Adresse du webhook",
-            "addressHelp": "À ajouter dans Stripe (Développeurs → Webhooks) avec les événements checkout.session.completed, payment_intent.succeeded, payment_intent.payment_failed, charge.refunded et refund.updated.",
+            "addressHelp": "À ajouter dans Stripe (menu « Développeurs », page « Webhooks ») avec les événements checkout.session.completed, payment_intent.succeeded, payment_intent.payment_failed, charge.refunded et refund.updated.",
             "readOnly": "Seule une personne qui gère les intégrations peut changer les clés.",
             "secretsUnknown": "L’état des clés n’est visible qu’avec la permission de voir les paramètres.",
             "secretsLoadError": "L’état des clés n’a pas pu être chargé."
@@ -11638,7 +11657,7 @@
       },
       "overdue": {
         "label": "Factures impayées",
-        "description": "Les factures dont l'échéance est passée, des plus anciennes aux plus récentes. Les relances partent seules aux jours choisis dans Paramètres → Facturation.",
+        "description": "Les factures dont l'échéance est passée, des plus anciennes aux plus récentes. Les relances partent seules aux jours choisis dans Paramètres, section « Facturation ».",
         "loadError": "Les factures impayées ne se chargent pas.",
         "empty": "Aucune facture impayée.",
         "number": "Facture",
@@ -11747,7 +11766,7 @@
           "period": "Année de l'entente : du {from} au {to}",
           "pending": "Reste à facturer à l'organisme : {amount}",
           "stubHelp": "Ce payeur vient de l'importation : complétez-le dans le dossier. D'ici là, ses séances attendent dans la file du matin.",
-          "noOrganisationHelp": "Aucun organisme payeur ne correspond : choisissez-le ci-dessous, ou ajoutez le fournisseur dans Paramètres → Payeurs tiers.",
+          "noOrganisationHelp": "Aucun organisme payeur ne correspond : choisissez-le ci-dessous, ou ajoutez le fournisseur dans Paramètres, section « Payeurs tiers ».",
           "openCoverage": "Ouvrir « Assurance et payeurs »",
           "organisation": "Organisme facturé",
           "organisationHelp": "Par défaut, celui trouvé : l'IVAC de la clinique, ou le fournisseur de PAE du même nom.",
@@ -12343,7 +12362,7 @@
         "byProfessionalTitle": "Par professionnel",
         "rowsTitle": "Sommaires",
         "empty": "Aucun sommaire de paie pour ces mois.",
-        "emptyBody": "Les sommaires se calculent dans Facturation → Paie, le 1er de chaque mois.",
+        "emptyBody": "Les sommaires se calculent dans Facturation, page « Paie », le 1er de chaque mois.",
         "unpriced": "{count} à tarifer",
         "paidOn": "le {date}",
         "loadError": "Le rapport de paie ne se charge pas.",
@@ -12735,7 +12754,7 @@
     },
     "details": {
       "record": "Élément : {id}",
-      "change": "{field} : {before} → {after}",
+      "change": "{field} : {before}, maintenant {after}",
       "value": "{field} : {value}",
       "readAccountNumber": "Consultation du numéro de compte",
       "secretRotated": "Secret remplacé",

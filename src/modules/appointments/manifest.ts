@@ -66,6 +66,9 @@ export const appointmentsManifest: ModuleManifest = {
   routes: [
     { path: 'agenda', permission: 'appointments.view', component: lazyPage(() => import('./pages/AgendaPage'), 'AgendaPage') },
     { path: 'mon-agenda', permission: 'appointments.self', component: lazyPage(() => import('./pages/AgendaPage'), 'MyAgendaPage') },
+    // AP-48: the day or week to print, from the agenda's own address.
+    { path: 'agenda/imprimer', permission: 'appointments.view', component: lazyPage(() => import('./pages/AgendaPrintPage'), 'AgendaPrintPage') },
+    { path: 'mon-agenda/imprimer', permission: 'appointments.self', component: lazyPage(() => import('./pages/AgendaPrintPage'), 'MyAgendaPrintPage') },
     // Also where Zoom sends the browser back after « Connecter mon Zoom »: fixed, the functions
     // build the same address from APP_URL (`_shared/zoom/env.ts` RETURN_PATH).
     {

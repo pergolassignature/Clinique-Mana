@@ -89,7 +89,7 @@ export function Topbar({
   }
 
   return (
-    <header className="sticky top-0 z-30 h-12 shrink-0 border-b border-border bg-background px-4 md:px-6">
+    <header data-print="hide" className="sticky top-0 z-30 h-12 shrink-0 border-b border-border bg-background px-4 md:px-6">
       {/* The page's frame (AppShell's `max-w-content`): the breadcrumb starts where the page title does,
           and the search, bell and avatar end where the content ends (audit 2026-10-09 §2.1). */}
       <div className="mx-auto flex h-full w-full max-w-content items-center justify-between gap-4">

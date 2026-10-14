@@ -117,7 +117,7 @@ describe('invitationEmail: never « envoyée » without an email (P4-490)', () =
     ['bounced', 'bounced', null, { kind: 'failed', label: 'Adresse introuvable' }],
     ['address refused by the provider', 'failed', 'invalid_recipient', { kind: 'failed', label: 'Adresse invalide' }],
     ['rejected', 'failed', 'provider_rejected', { kind: 'failed', label: "Refusé par le service d'envoi" }],
-    ['not queued: not configured', null, 'not_configured', { kind: 'failed', label: 'Envoi de courriels non configuré (Paramètres → Courriels)' }],
+    ['not queued: not configured', null, 'not_configured', { kind: 'failed', label: 'Envoi de courriels non configuré (Paramètres, section « Courriels »)' }],
     ['not queued: module off', null, 'module_disabled', { kind: 'failed', label: 'Module désactivé pour la clinique' }],
     ['not queued: address refused', null, 'invalid_recipient', { kind: 'failed', label: 'Adresse invalide' }],
     ['not queued: limit', null, 'rate_limited', { kind: 'failed', label: "Limite d'envoi atteinte" }],

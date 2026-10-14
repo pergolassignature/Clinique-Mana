@@ -177,7 +177,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     const failed = invitation('sent', { emailStatus: null, emailError: 'not_configured' })
     expect(nextAction(onboardingFile(), failed, can(...INVITE), NOW)).toEqual({
       message:
-        "Le courriel d'invitation du 8 oct. 2026 n'est pas parti : Marie n'a pas reçu son lien. Raison : Envoi de courriels non configuré (Paramètres → Courriels).",
+        "Le courriel d'invitation du 8 oct. 2026 n'est pas parti : Marie n'a pas reçu son lien. Raison : Envoi de courriels non configuré (Paramètres, section « Courriels »).",
       action: { kind: 'invite', label: "Renvoyer l'invitation", action: 'resend' },
       secondary: { kind: 'copyLink', label: "Copier le lien d'invitation" },
     })

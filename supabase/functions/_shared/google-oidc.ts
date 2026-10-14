@@ -5,8 +5,9 @@
  * service account the subscription names, with the audience the
  * subscription sets. `verifyGoogleIdToken` checks, in order: the shape and
  * `alg: RS256`; the signature with Google's published keys (`/oauth2/v3/certs`,
- * kept for the answer's `max-age`, read again once when a `kid` is unknown:
- * Google rotates them); the issuer; the audience; the expiry and issue time
+ * kept for the answer's `max-age`, read again when a `kid` is unknown, at
+ * most once a minute: Google rotates them, and a stream of made-up `kid`s
+ * must not make every push fetch them); the issuer; the audience; the expiry and issue time
  * (60 s of skew); the `email` (case-insensitive) with `email_verified`.
  *
  * Anyone can obtain a Google-signed token for any audience with their own
@@ -22,6 +23,8 @@ const ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com'])
 const SKEW_S = 60
 const CERTS_TIMEOUT_MS = 5_000
 const MAX_TOKEN_CHARS = 8_192
+/** The least time between two reads forced by an unknown `kid`. */
+export const UNKNOWN_KID_REFETCH_MS = 60_000
 
 export type OidcFailure =
   | 'malformed'
@@ -78,10 +81,13 @@ interface KeyCache {
   expiresAt: number
 }
 let cache: KeyCache | null = null
+/** When an unknown `kid` last made the keys be read again, per certs origin. */
+const forcedReadAt = new Map<string, number>()
 
 /** Test-only: forgets the keys read (each test starts cold). */
 export function resetGoogleCertsCache(): void {
   cache = null
+  forcedReadAt.clear()
 }
 
 function base64UrlBytes(text: string): Uint8Array<ArrayBuffer> {
@@ -141,7 +147,10 @@ async function readKeys(
   return keys
 }
 
-/** The key of `kid`, reading Google's keys again once when it is unknown (a rotation). */
+/**
+ * The key of `kid`, reading Google's keys again when it is unknown (a
+ * rotation), at most once per `UNKNOWN_KID_REFETCH_MS`.
+ */
 async function keyFor(
   ctx: OidcContext,
   kid: string,
@@ -149,6 +158,10 @@ async function keyFor(
   try {
     const known = (await readKeys(ctx, false)).get(kid)
     if (known) return known
+    const now = ctx.now().getTime()
+    const last = forcedReadAt.get(ctx.certsOrigin)
+    if (last !== undefined && now - last < UNKNOWN_KID_REFETCH_MS) return null
+    forcedReadAt.set(ctx.certsOrigin, now)
     return (await readKeys(ctx, true)).get(kid) ?? null
   } catch {
     return 'unavailable'

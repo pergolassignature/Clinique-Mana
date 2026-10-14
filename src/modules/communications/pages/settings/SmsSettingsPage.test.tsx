@@ -126,6 +126,17 @@ describe('SmsSettingsPage', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${S}.send.testSent`))
   })
 
+  it('without settings.integrations_manage the PBX is read only, the texts still editable', async () => {
+    renderPage({ permissions: ['communications.sms', 'communications.sms_manage', 'settings.view'] })
+    await screen.findByRole('heading', { name: t(`${S}.pbx.title`) })
+    const pbx = field(t(`${S}.pbx.baseUrl`))
+    expect(pbx).toHaveAttribute('readonly')
+    expect(within(pbx.closest('form')!).queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
+    expect(field(t(`${S}.pbx.clientId`))).toHaveAttribute('readonly')
+    expect(field(t(`${S}.pbx.did`))).toHaveAttribute('readonly')
+    expect(screen.getByRole('textbox', { name: new RegExp(`^${t(`${S}.texts.consentText`)}`) })).not.toHaveAttribute('readonly')
+  })
+
   it('read-only: no save, no test', async () => {
     renderPage({ readOnly: true })
     await screen.findByRole('heading', { name: t(`${S}.pbx.title`) })

@@ -1,5 +1,6 @@
 import { Suspense, useMemo, useState } from 'react'
-import { BellOff, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { BellOff, ChevronLeft, ChevronRight, Plus, Printer } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
@@ -265,6 +266,14 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
           <h2 className="ml-1 text-sm font-medium first-letter:uppercase" aria-live="polite">
             {title}
           </h2>
+          {mode === 'rendez-vous' && (effectiveView === 'jour' || effectiveView === 'semaine') && (
+            <Button asChild variant="ghost" size="sm">
+              <Link to={`${mine ? '/mon-agenda' : '/agenda'}/imprimer?${params.toString()}`}>
+                <Printer aria-hidden />
+                {t('modules.appointments.print.open')}
+              </Link>
+            </Button>
+          )}
         </div>
         {!mine && (
           <>
