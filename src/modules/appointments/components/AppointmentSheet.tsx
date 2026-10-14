@@ -396,7 +396,8 @@ function EditPanel({
           ))}
         </NavTabs>
       )}
-      <SheetBody className="space-y-4">
+      {/* Room between the tabs and the tab's content (it touched the tabs' line). */}
+      <SheetBody className="space-y-4 pt-4">
         {tab === 'appointment' && !a.isPersonal && a.state !== 'cancelled' && a.state !== 'completed' && <AppointmentConsents appointment={a} />}
         {tab === 'appointment' && <AppointmentTab key={`${a.startsAt}|${a.serviceId ?? ''}`} appointment={a} move={move} reference={reference} open={open} />}
         {a.isPersonal && open && <PersonalCancel id={a.id} onDone={onClose} />}

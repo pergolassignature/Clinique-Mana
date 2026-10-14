@@ -3636,13 +3636,16 @@
             "saved": "Grille enregistrée.",
             "deleted": "Grille supprimée.",
             "dialog": {
-              "title": "Grille — {title}",
+              "title": "Grille : {title}",
               "description": "La nouvelle version s’applique à partir de la date choisie.",
               "fromHelp": "La version actuelle se terminera la veille de cette date.",
               "tiers": "Paliers",
               "tiersHelp": "À partir du seuil de séances cumulées, la clinique retient ce pourcentage. Le premier palier commence à 0.",
               "threshold": "Seuil du palier {index} (séances)",
               "retention": "Retenue du palier {index} (%)",
+              "thresholdColumn": "Dès (séances cumulées)",
+              "retentionColumn": "Retenue (%)",
+              "tierRow": "Palier {index}",
               "removeTier": "Retirer le palier {index}",
               "addTier": "Ajouter un palier",
               "prices": "Prix client ($)",
@@ -6358,7 +6361,7 @@
             "results": "Dossiers trouvés",
             "noResult": "Aucun dossier trouvé.",
             "change": "Changer",
-            "type": "Ce proche est, pour {client}…",
+            "type": "Lien avec {client}",
             "choose": "Choisir…",
             "relatedRights": "Ce que {name} peut faire pour {client}",
             "clientRights": "Ce que {client} peut faire pour {name}",
@@ -6396,7 +6399,7 @@
           "fileNumber": "Numéro de dossier",
           "sessionAmount": "Montant par séance ($)",
           "maxSessions": "Nombre maximal de séances",
-          "maxAmount": "Montant au plus ($)",
+          "maxAmount": "Montant maximal total ($)",
           "period": "Période",
           "startsOn": "Début",
           "expiresOn": "Échéance",
@@ -8120,7 +8123,7 @@
         "waitlistPermission": "Inscrire sur la liste d'attente demande la permission « Gérer la liste d'attente ».",
         "match": {
           "title": "Jumeler la demande",
-          "description": "Pour une personne jumelée et réservée par téléphone. Choisissez le professionnel.",
+          "description": "Pour une demande déjà réglée par téléphone : choisissez le professionnel retenu.",
           "professional": "Professionnel",
           "choose": "Choisir…",
           "effects": {
@@ -8566,7 +8569,8 @@
           "reasonNeeded": "Indiquez pourquoi l'inscription est prioritaire.",
           "save": "Inscrire",
           "saving": "Inscription…",
-          "done": "La demande est sur la liste d'attente."
+          "done": "La demande est sur la liste d'attente.",
+          "toAccueil": "Aller à l'onglet Accueil"
         },
         "sheet": {
           "title": "Inscription",
@@ -8859,6 +8863,8 @@
           "noSlot": "Aucune plage libre pour ce service ces prochains jours.",
           "incomplete": "Choisissez le professionnel, le service et au moins une plage.",
           "send": "Envoyer la proposition ({count} plages)",
+          "sendOne": "Envoyer la proposition (1 plage)",
+          "chooseSlots": "Choisissez 1 à {max} plages",
           "sending": "Envoi…",
           "insuranceConfirm": "L'assurance de ce professionnel est expirée : je confirme vouloir lui proposer ce nouveau client.",
           "insuranceUnconfirmed": "Son assurance est expirée : cochez la confirmation avant d'envoyer.",
@@ -9615,6 +9621,22 @@
         "busy": "Occupé",
         "noClient": "Sans client",
         "blockLabel": "{time}, {title}",
+        "marks": {
+          "confirmed": "confirmé par le client",
+          "reminded": "rappel envoyé",
+          "unreachable": "personne à qui envoyer le rappel"
+        },
+        "legend": {
+          "open": "Légende",
+          "title": "Légende de l'agenda",
+          "confirmed": "Confirmé par le client (lien du courriel, « OUI » par texto ou « Marquer confirmé »)",
+          "reminded": "Rappel envoyé pour cette heure",
+          "unreachable": "Personne à qui envoyer le rappel : aucun courriel ni cellulaire avec rappels (voir « Clients sans rappel »)",
+          "phone": "Rendez-vous par téléphone",
+          "outside": "Hors des disponibilités",
+          "series": "Rendez-vous d'une série",
+          "cancelled": "Annulé (gardé à l'horaire)"
+        },
         "windowLabel": "Plage de {start} à {end}",
         "windowServices": "Services choisis : {count}",
         "monthDay": "{day} : {count} rendez-vous",
@@ -9623,7 +9645,7 @@
       },
       "editor": {
         "newTitle": "Nouveau rendez-vous",
-        "newDescription": "La base vérifie les disponibilités, les chevauchements et les limites du professionnel.",
+        "newDescription": "L’application vérifie les disponibilités, les chevauchements et les limites du professionnel.",
         "professional": "Professionnel",
         "service": "Service",
         "choose": "Choisir…",
@@ -11249,7 +11271,7 @@
         },
         "period": {
           "unknownProfessional": "Professionnel",
-          "lineCount": "{count} ligne(s)",
+          "lineCount": "Lignes : {count}",
           "paidOn": "Versée le {date}",
           "notSent": "Ce sommaire n’a pas été envoyé : une ligne est à compléter.",
           "invoiceFirst": "La facture du professionnel est requise avant le versement.",
@@ -11898,7 +11920,7 @@
         "draft": "Facture en brouillon",
         "balance": "Solde : {amount}",
         "notInvoiced": "Pas encore facturé.",
-        "price": "Prix prévu : {total}.",
+        "price": "Prix prévu : {total}",
         "priceTaxed": "Prix prévu : {total}, dont {taxes} de taxes.",
         "variant": "Le tarif particulier du client est appliqué.",
         "priceMissing": "Le prix de ce service n’est pas fixé pour ce professionnel à cette date : à confirmer dans Services et tarifs, ou à entrer sur la facture.",

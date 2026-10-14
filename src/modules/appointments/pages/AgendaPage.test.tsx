@@ -88,6 +88,8 @@ const appointment = (overrides: Partial<AgendaAppointment> = {}): AgendaAppointm
   videoStatus: null,
   participants: [{ clientId: 'c1', name: 'Alice Essai', clientNumber: 1, role: 'client', presence: 'expected', confirmedAt: null }],
   seriesId: null,
+  reminderStatus: null,
+  unreachable: false,
   ...overrides,
 })
 
@@ -154,6 +156,21 @@ describe('AgendaPage', () => {
     expect(within(tabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Jour', 'Semaine', 'Prochains jours', 'Mois'])
     expect(await screen.findByRole('button', { name: '10:00, Alice Essai' })).toBeInTheDocument()
     expect(mocks.api.fetchAgenda).toHaveBeenCalledWith('2027-03-15T04:00:00.000Z', '2027-03-22T04:00:00.000Z', ['p1'])
+  })
+
+  it('AP-49: a block says « confirmé par le client », « rappel envoyé » or nobody to remind; « Légende » explains the icons', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchAgenda.mockResolvedValue([
+      appointment({ state: 'confirmed', reminderStatus: 'sent' }),
+      appointment({ id: 'a2', startsAt: '2027-03-16T14:00:00Z', endsAt: '2027-03-16T14:50:00Z', blocksUntil: '2027-03-16T15:00:00Z', unreachable: true }),
+    ])
+    renderPage()
+    expect(await screen.findByRole('button', { name: '10:00, Alice Essai, confirmé par le client, rappel envoyé' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '10:00, Alice Essai, personne à qui envoyer le rappel' })).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: t(`${A}.legend.open`) }))
+    const legend = await screen.findByRole('dialog', { name: t(`${A}.legend.title`) })
+    expect(legend).toHaveTextContent(t(`${A}.legend.reminded`))
+    expect(legend).toHaveTextContent(t(`${A}.legend.confirmed`))
   })
 
   it('on a phone the day is the default view (a week of seven columns does not fit)', async () => {
@@ -415,7 +432,7 @@ describe('AgendaPage', () => {
       const user = userEvent.setup()
       mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'confirmed' })])
       renderPage()
-      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai, confirmé par le client' }))
       const sheet = await screen.findByRole('dialog')
       expect(within(sheet).queryByRole('button', { name: t(`${E}.markConfirmed`) })).not.toBeInTheDocument()
     })

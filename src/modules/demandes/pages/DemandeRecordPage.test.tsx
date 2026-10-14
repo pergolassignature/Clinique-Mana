@@ -346,11 +346,11 @@ describe('DemandeRecordPage', () => {
     await user.click(await within(dialog).findByRole('checkbox', { name: /Seulement aux moments/ }))
     await user.click((await within(dialog).findAllByRole('checkbox'))[1]!)
     const confirm = await within(dialog).findByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })
-    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.sendOne') }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(t('modules.demandes.propositions.form.insuranceUnconfirmed'))
     expect(mocks.propositions.propose).not.toHaveBeenCalled()
     await user.click(confirm)
-    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.sendOne') }))
     await waitFor(() => expect(mocks.propositions.propose).toHaveBeenCalledTimes(1))
   })
 
@@ -653,7 +653,7 @@ describe('DemandeRecordPage', () => {
     // The request asks for evenings; her slots are mornings: the « seulement » filter (on) is lifted (A-8).
     await user.click(await within(dialog).findByRole('checkbox', { name: /Seulement aux moments/ }))
     await user.click((await within(dialog).findAllByRole('checkbox'))[1]!)
-    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
+    await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.sendOne') }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(/réservé aux testeurs/)
   })
 

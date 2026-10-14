@@ -21,6 +21,7 @@ import { toast } from '@/shared/ui/sonner'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { AgendaReference } from '../api/agenda'
 import type { AgendaAppointment } from '../api/parse'
+import { AgendaLegend } from '../components/AgendaLegend'
 import { AppointmentSheet, type SheetTarget } from '../components/AppointmentSheet'
 import { ExceptionsPanel, RuleDialog, type RuleTarget } from '../components/AvailabilityEditors'
 import { AvailabilityGrid, type AvailabilityTool } from '../components/AvailabilityGrid'
@@ -279,6 +280,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
               </Link>
             </Button>
           )}
+          {mode === 'rendez-vous' && <AgendaLegend />}
         </div>
         {!mine && (
           <>
