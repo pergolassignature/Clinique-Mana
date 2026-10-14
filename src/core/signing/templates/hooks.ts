@@ -52,10 +52,12 @@ export interface TemplateMutationHandlers {
    * Professionnels' signing cards after a publication, Clients' consent texts after any write).
    */
   onChanged?: (write: TemplateWrite) => void
+  /** A saved draft says nothing (an autosave, CC-21: its state is shown beside the button). */
+  quietSave?: boolean
 }
 
 /** The editor's writes: « Nouvelle version », « Enregistrer le brouillon », « Publier », « Supprimer le brouillon ». */
-export function useTemplateMutations({ onError, onErrorMessage, onChanged }: TemplateMutationHandlers = {}) {
+export function useTemplateMutations({ onError, onErrorMessage, onChanged, quietSave = false }: TemplateMutationHandlers = {}) {
   const queryClient = useQueryClient()
   const refresh = (write: TemplateWrite) => {
     const done = queryClient.invalidateQueries({ queryKey: documentTemplateKeys.all })
@@ -73,7 +75,9 @@ export function useTemplateMutations({ onError, onErrorMessage, onChanged }: Tem
   })
   const save = useMutation({
     mutationFn: ({ versionId, content }: { versionId: string; content: DraftContent }) => updateTemplateVersion(versionId, content),
-    onSuccess: () => toast.success(t(`${T}.draftSaved`)),
+    onSuccess: () => {
+      if (!quietSave) toast.success(t(`${T}.draftSaved`))
+    },
     onError: handleError,
     onSettled: () => refresh('save'),
   })

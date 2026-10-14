@@ -30,16 +30,19 @@ async function publishGeneralFrench(page: Page) {
   await page.goto('/parametres/consentements')
   await expect(page.getByRole('heading', { level: 1, name: 'Consentements' })).toBeVisible()
   const general = page.getByRole('listitem').filter({ has: page.getByText('Consentement général', { exact: true }) }).first()
-  const french = general.getByText(/^Français\s:/)
-  await expect(french).toBeVisible()
-  if ((await french.textContent())?.includes('Brouillon (pas encore publié)')) {
-    await general.locator('div', { has: page.getByText(/^Français\s:/) }).getByRole('button', { name: 'Publier' }).click()
-    const dialog = page.getByRole('dialog', { name: /^Publier «\sConsentement général\s»$/ })
-    await expect(dialog.getByRole('radio', { name: /Les nouveaux clients seulement/ })).toBeChecked()
-    await dialog.getByRole('button', { name: 'Publier' }).click()
+  await expect(general.getByText('Français', { exact: true })).toBeVisible()
+  if ((await general.getByText(/^Publié · version 1 · le/).count()) === 0) {
+    // CC-21: « Modifier » opens the consent's page; « Publier » is there, said before it happens.
+    await general.getByRole('button', { name: 'Modifier « Consentement général »' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Consentement général' })).toBeVisible()
+    await page.getByRole('button', { name: 'Publier la version 1' }).click()
+    const dialog = page.getByRole('dialog', { name: /^Publier la version 1\s?:\sConsentement général \(français\)$/ })
+    await expect(dialog.getByText(/réservé aux testeurs/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'Publier la version 1' }).click()
     await expect(dialog).toBeHidden()
+    await page.getByRole('button', { name: 'Tous les consentements' }).click()
   }
-  await expect(french).toHaveText(/Version 1 publiée le/)
+  await expect(general.getByText(/^Publié · version 1 · le/)).toBeVisible()
 }
 
 /** The signed-in user's access token, from supabase-js's storage (`AUTH_STORAGE_KEY`), to call a function as that user. */
@@ -60,21 +63,28 @@ test('the admin publishes « Consentement général »: its rule can be switched
   await expect(page.getByRole('heading', { level: 1, name: 'Consentements à obtenir' })).toBeVisible()
 })
 
-test('« Modifier le texte » opens a consent text in the shared editor (CC-12): the provisional line said, no « Publier » there', async ({ page, signIn }) => {
+test('« Modifier » opens a consent\'s page (CC-21): its languages as tabs, the provisional line said, « Publier » waiting, the client\'s view', async ({ page, signIn }) => {
   await signIn('admin')
   await page.goto('/parametres/consentements')
-  await page.getByRole('button', { name: /^Modifier le texte\s: Naturopathie \(français\)$/ }).click()
-  const editor = page.getByRole('region', { name: /^Texte\s: Naturopathie \(français\)$/ })
-  await expect(editor.getByRole('heading', { name: /^Texte\s: Naturopathie \(français\)$/ })).toBeFocused()
-  await expect(editor.getByText(/^Ce brouillon est encore le texte provisoire/)).toBeVisible()
-  await expect(editor.getByRole('textbox', { name: /^Texte du document/ })).toHaveValue(/\{\{consent\.clauses\}\}/)
-  await expect(editor.getByRole('button', { name: /^Publier la version/ })).toHaveCount(0)
-  await expect(editor.getByText(/accord requis/)).toHaveCount(0) // the sample lives in the preview's frame
-  await expect(editor.frameLocator('iframe').getByText(/accord requis/)).toBeVisible()
-  // CC-13: the draft's « Oui / Non » clauses under the text, editable.
-  await expect(editor.getByRole('textbox', { name: /^Clause 1/ })).toHaveValue(/^Clause provisoire/)
-  await editor.getByRole('button', { name: 'Fermer le texte' }).click()
-  await expect(editor).toBeHidden()
+  await page.getByRole('button', { name: 'Modifier « Naturopathie »' }).click()
+  await expect(page).toHaveURL(/\/parametres\/consentements\?texte=/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Naturopathie' })).toBeFocused()
+  const french = page.getByRole('tab', { name: 'Français' })
+  await expect(french).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByText(/^Ce brouillon est encore le texte provisoire/).first()).toBeVisible()
+  await expect(page.getByRole('textbox', { name: /^Texte du document/ })).toHaveValue(/\{\{consent\.clauses\}\}/)
+  await expect(page.getByRole('button', { name: 'Publier la version 1' })).toHaveAttribute('aria-disabled', 'true')
+  // CC-13: the draft's « Oui / Non » questions right under the text, and as the client will see them.
+  await expect(page.getByRole('textbox', { name: /^Clause 1/ })).toHaveValue(/^Clause provisoire/)
+  const view = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Aperçu comme le client le verra' }) })
+  await expect(view.getByRole('radiogroup', { name: /^Clause provisoire/ })).toBeVisible()
+  await expect(view.frameLocator('iframe').getByText(/Clause provisoire/)).toBeVisible()
+  // Real tabs: the arrow key switches to the English text.
+  await french.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('tab', { name: 'Anglais' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: 'Tous les consentements' }).click()
+  await expect(page.getByRole('heading', { name: 'Textes des consentements' })).toBeVisible()
 })
 
 test('sent, signed on the public page through the fake Documenso, then no longer to obtain', async ({ page, signIn, request }) => {

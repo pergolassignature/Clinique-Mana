@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { FormActions } from '@/shared/components/FormActions'
@@ -30,22 +30,65 @@ function newKey(clauses: VersionClause[]): string {
  * (R-46), for one version of one consent text, in its language. A draft's are changed here (add,
  * reword, reorder, « Accord requis » or « Oui ou non », at most 20) and saved with « Enregistrer »; a
  * published version's are read only (« Nouvelle version » in the text's editor makes a draft).
+ * The text's editor hears the questions as they are typed (its preview, CC-21) and whether some are
+ * not saved yet (« Publier » waits for them).
  */
-export function ConsentClausesCard({ versionId, readOnly }: { versionId: string; readOnly: boolean }) {
+export function ConsentClausesCard({
+  versionId,
+  readOnly,
+  onClausesChange,
+  onDirtyChange,
+}: {
+  versionId: string
+  readOnly: boolean
+  onClausesChange?: (clauses: VersionClause[]) => void
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const query = useConsentClauses(versionId)
   if (query.isPending) return <Loading />
   if (!query.data) {
     return <LoadError message={t(`${C}.loadError`)} retrying={query.isFetching} onRetry={() => void query.refetch()} />
   }
-  return <ClausesForm key={`${versionId}:${JSON.stringify(query.data.clauses)}`} versionId={versionId} saved={query.data.clauses} editable={!readOnly && query.data.editable} />
+  return (
+    <ClausesForm
+      key={`${versionId}:${JSON.stringify(query.data.clauses)}`}
+      versionId={versionId}
+      saved={query.data.clauses}
+      editable={!readOnly && query.data.editable}
+      onClausesChange={onClausesChange}
+      onDirtyChange={onDirtyChange}
+    />
+  )
 }
 
-function ClausesForm({ versionId, saved, editable }: { versionId: string; saved: VersionClause[]; editable: boolean }) {
+function ClausesForm({
+  versionId,
+  saved,
+  editable,
+  onClausesChange,
+  onDirtyChange,
+}: {
+  versionId: string
+  saved: VersionClause[]
+  editable: boolean
+  onClausesChange?: (clauses: VersionClause[]) => void
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const [clauses, setClauses] = useState<VersionClause[]>(saved)
   const [refusal, setRefusal] = useState<string | null>(null)
   const save = useSaveConsentClauses({ onErrorMessage: (message) => setRefusal(message) })
   const dirty = editable && JSON.stringify(clauses) !== JSON.stringify(saved)
   useUnsavedChanges(dirty)
+  // The callbacks may be new on each render of the editor: only the questions and the state count.
+  const heard = useRef({ onClausesChange, onDirtyChange })
+  useEffect(() => {
+    heard.current = { onClausesChange, onDirtyChange }
+  })
+  useEffect(() => heard.current.onClausesChange?.(clauses), [clauses])
+  useEffect(() => {
+    heard.current.onDirtyChange?.(dirty)
+    return () => heard.current.onDirtyChange?.(false)
+  }, [dirty])
 
   const set = (index: number, patch: Partial<VersionClause>) => setClauses((list) => list.map((c, i) => (i === index ? { ...c, ...patch } : c)))
   const move = (index: number, by: -1 | 1) =>
