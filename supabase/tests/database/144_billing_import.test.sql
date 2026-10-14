@@ -122,7 +122,7 @@ select is(public.import_invoice(current_setting('test.row')::jsonb || '{"gorende
   'Les lignes ne font pas le total de la facture.', 'lines that do not make the total: refused');
 select is(public.import_invoice(current_setting('test.row')::jsonb || '{"gorendezvous_number": "2025-0001302", "payments": [{"paid_on": "2025-03-04", "mode_code": "bitcoin", "amount_cents": 100}], "refunds": []}', true)
             -> 'errors' -> 0 ->> 'message',
-  'Paiement 1 : mode de paiement inconnu.', 'an unknown mode: refused');
+  'Paiement 1 : mode de paiement inconnu ou inactif.', 'an unknown mode: refused');
 select is(public.import_invoice(current_setting('test.row')::jsonb || '{"gorendezvous_number": "2025-0001303", "payments": [{"paid_on": "2025-03-04", "mode_code": "interac", "amount_cents": 20000}], "refunds": []}', true)
             -> 'errors' -> 0 ->> 'message',
   'Les paiements dépassent le total de la facture.', 'an overpayment: refused');
