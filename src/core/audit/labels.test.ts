@@ -8,6 +8,7 @@ import {
   auditValue,
   fieldLabel,
   formatAuditValue,
+  recordLabel,
   roleNamesFromEntries,
   shortRecordId,
   sourceLabel,
@@ -416,5 +417,19 @@ describe('roleNamesFromEntries', () => {
         row('delete', 'custom_0a1b2c3d', null),
       ]),
     ).toEqual(new Map())
+  })
+})
+
+describe('recordLabel', () => {
+  const id = 'e0000000-0000-0000-0000-000000000001'
+  it('names the row by its number, reference or name, never a redacted value', () => {
+    expect(recordLabel({ action: 'insert', record_id: id, changed_fields: { number: '2026-12', client_id: 'x' } })).toBe('2026-12')
+    expect(recordLabel({ action: 'update', record_id: id, changed_fields: { reference: { before: null, after: 'DEM-2026-0003' } } })).toBe('DEM-2026-0003')
+    expect(recordLabel({ action: 'delete', record_id: id, changed_fields: { name: '[redacted]', code: 10150 } })).toBe('10150')
+  })
+
+  it('else the row cut to its first characters, said as a file', () => {
+    expect(recordLabel({ action: 'update', record_id: id, changed_fields: { neq: { before: null, after: '1' } } })).toBe('Fiche e0000000')
+    expect(recordLabel({ action: 'read', record_id: id, changed_fields: { fields: ['name'] } })).toBe('Fiche e0000000')
   })
 })

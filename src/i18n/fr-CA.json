@@ -10841,7 +10841,8 @@
           "preparing": "en préparation",
           "download": "Télécharger",
           "made": "Relevé demandé : il sera prêt dans un instant."
-        }
+        },
+        "draftOn": "Brouillon du {date}"
       },
       "settings": {
         "title": "Facturation",
@@ -12771,7 +12772,8 @@
     },
     "scrollLabel": "Entrées du journal d'audit",
     "row": {
-      "toggle": "Détails : {action}, {section}"
+      "toggle": "Détails : {action}, {section}",
+      "recordFallback": "Fiche {id}"
     },
     "details": {
       "record": "Élément : {id}",

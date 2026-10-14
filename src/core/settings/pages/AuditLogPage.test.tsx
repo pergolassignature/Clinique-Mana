@@ -152,7 +152,7 @@ describe('AuditLogPage', () => {
     expect(within(first!).getAllByText('Marie Tremblay')[0]).toBeInTheDocument()
     expect(within(first!).getAllByText('Clinique')[0]).toBeInTheDocument()
     expect(within(first!).getAllByText('Modification')[0]).toBeInTheDocument()
-    expect(within(first!).getByText('b0000000…')).toHaveAttribute('title', ORG)
+    expect(within(first!).getByText('Fiche b0000000')).toHaveAttribute('title', ORG)
   })
 
   it('shows the source for rows written without a named person', async () => {
