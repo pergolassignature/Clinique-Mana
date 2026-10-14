@@ -12,16 +12,24 @@ describe('reportsManifest', () => {
       ['rapports/revenus', 'reports.finance'],
       ['rapports/annulations', 'reports.view'],
       ['rapports/consentements', 'reports.view'],
+      ['rapports/demandes', 'reports.view'],
     ])
   })
 
-  it('« Revenus » under Facturation, « Annulations » under Suivi (NAV-1)', () => {
+  it('« Revenus » under Facturation, « Annulations » under Suivi, « Indicateurs des demandes » under Accueil des clients (NAV-1)', () => {
     const nav = [reportsManifest.nav ?? []].flat()
     expect(nav.map((n) => [n.path, n.group, n.permission, t(n.labelKey)])).toEqual([
       ['/rapports/revenus', 'billing', 'reports.finance', 'Revenus'],
       ['/rapports/annulations', 'followUp', 'reports.view', 'Annulations'],
       ['/rapports/consentements', 'followUp', 'reports.view', 'Rapport des consentements'],
+      ['/rapports/demandes', 'intake', 'reports.view', 'Indicateurs des demandes'],
     ])
+  })
+
+  it('« Indicateurs des demandes » only while Demandes is enabled (it reads Demandes)', () => {
+    const item = [reportsManifest.nav ?? []].flat().find((n) => n.path === '/rapports/demandes')!
+    expect(item.shownWhen?.({ modules: ['reports', 'demandes'] } as never)).toBe(true)
+    expect(item.shownWhen?.({ modules: ['reports'] } as never)).toBe(false)
   })
 
   it('the admin both; the adjointe the revenue only; the conseillère and the professional none (RP-1)', () => {

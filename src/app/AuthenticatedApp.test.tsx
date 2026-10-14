@@ -288,6 +288,7 @@ describe('AuthenticatedApp', () => {
       t('modules.demandes.calls.nav'),
       t('modules.demandes.capacity.nav'),
       t('modules.demandes.waitlist.name'),
+      t('modules.reports.demandes.nav'),
       t('modules.appointments.agenda.title'),
       t('modules.clients.name'),
       t('modules.clients.consents.nav'),
