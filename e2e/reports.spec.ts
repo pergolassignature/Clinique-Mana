@@ -111,7 +111,8 @@ test('the admin reads « Indicateurs des demandes »: activity, sources, waiting
     await page.getByRole('button', { name: 'Cette année' }).click()
     const tabs = page.getByRole('tablist', { name: 'Vues des indicateurs' })
     await expect(tabs.getByRole('tab', { name: 'Activité' })).toHaveAttribute('aria-selected', 'true')
-    await expect(page.getByLabel('Totaux de la période')).toBeVisible()
+    // Alone on a fresh seed, no request this year: the tab says so.
+    await expect(page.getByLabel('Totaux de la période').or(page.getByText('Aucune demande reçue ni jumelée dans cette période.')).first()).toBeVisible()
     await tabs.getByRole('tab', { name: 'Provenance' }).click()
     await expect(page).toHaveURL(/onglet=provenance/)
     // The seed may hold no request this year (the spec runs on its own): the tab then says so.
@@ -131,10 +132,10 @@ test('the admin reads « Rapport IVAC » and « Rapport de paie » (RP2)', async
     await expect(page.getByRole('heading', { level: 1, name: 'IVAC' })).toBeVisible()
     await page.getByLabel('État', { exact: true }).selectOption('paid')
     await expect(page).toHaveURL(/etat=paid/)
-    await expect(page.getByLabel('Totaux').or(page.getByText('Aucune séance couverte par l’IVAC dans cette période.'))).toBeVisible()
+    await expect(page.getByLabel('Totaux', { exact: true })).toBeVisible()
     await page.getByRole('link', { name: 'Rapport de paie' }).first().click()
     await expect(page.getByRole('heading', { level: 1, name: 'Paie des professionnels' })).toBeVisible()
     await page.getByRole('button', { name: 'Année dernière' }).click()
-    await expect(page.getByLabel('Totaux').or(page.getByText('Aucun sommaire de paie pour ces mois.'))).toBeVisible()
+    await expect(page.getByLabel('Totaux', { exact: true }).or(page.getByText('Aucun sommaire de paie pour ces mois.')).first()).toBeVisible()
   })
 })
