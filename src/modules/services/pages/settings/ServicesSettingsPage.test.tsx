@@ -69,6 +69,9 @@ async function renderPage({ readOnly = false } = {}) {
 }
 
 const catalogue = () => screen.getByRole('table', { name: t(`${C}.table`) })
+/** Opens one of the page's tabs (NAV-4). */
+const openTab = async (tab: 'catalogue' | 'prix' | 'tarifs-reduits' | 'annulation') =>
+  userEvent.setup().click(screen.getByRole('tab', { name: t(`${S}.tabs.${tab}`) }))
 const rowOf = (name: string) =>
   within(catalogue())
     .getByRole('rowheader', { name: new RegExp(name) })
@@ -98,6 +101,9 @@ describe('ServicesSettingsPage', () => {
 
   it('shows the grid prices per profession today, the student rate, « À confirmer » and the gap with GOrendezvous', async () => {
     await renderPage()
+    // « Prix » loads only once its tab opens.
+    expect(mocks.api.fetchServicePrices).not.toHaveBeenCalled()
+    await openTab('prix')
     const prices = await screen.findByRole('table', {
       name: t(`${S}.prices.table`),
     })
@@ -140,12 +146,32 @@ describe('ServicesSettingsPage', () => {
         name: t(`${C}.menu`, { name: 'Consultation individuelle 50 min' }),
       })
     ).not.toBeInTheDocument()
+    await openTab('tarifs-reduits')
+    expect(await screen.findByRole('heading', { name: t(`${S}.variants.title`) })).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: t(`${S}.variants.add`) })
     ).not.toBeInTheDocument()
+    await openTab('annulation')
+    expect(await screen.findByRole('heading', { name: t(`${S}.policy.title`) })).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: t(`${S}.policy.add`) })
     ).not.toBeInTheDocument()
+  })
+
+  it('four tabs, one tab stop: « Catalogue » by default, each tab its own card (NAV-4)', async () => {
+    await renderPage()
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      t(`${S}.tabs.catalogue`),
+      t(`${S}.tabs.prix`),
+      t(`${S}.tabs.tarifs-reduits`),
+      t(`${S}.tabs.annulation`),
+    ])
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('heading', { name: t(`${S}.policy.title`) })).not.toBeInTheDocument()
+    await openTab('annulation')
+    expect(await screen.findByRole('heading', { name: t(`${S}.policy.title`) })).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: t(`${C}.table`) })).not.toBeInTheDocument()
   })
 
   it('adds a service through the sheet: save_service, then its titles', async () => {
@@ -275,6 +301,7 @@ describe('ServicesSettingsPage', () => {
   it('« Prix »: a taxable price shows its amount with the taxes in force today (L27)', async () => {
     mocks.api.fetchServicePrices.mockResolvedValue(PRICES.map((p) => (p.serviceId === SIDS.session50 && p.titleId === SIDS.psychologue ? { ...p, taxRule: 'taxable' } : p)))
     await renderPage()
+    await openTab('prix')
     const prices = await screen.findByRole('table', { name: t(`${S}.prices.table`) })
     // 175,00 $ + 8,75 $ (TPS 5 %) + 17,46 $ (TVQ 9,975 %), each tax rounded on its own.
     expect(await within(prices).findByText(/^Avec taxes : 201,21/)).toBeInTheDocument()

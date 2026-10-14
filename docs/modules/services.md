@@ -67,7 +67,7 @@ Other modules read these, never the raw tables (CLAUDE.md §5):
 
 ## Screens
 
-Paramètres → **Services et tarifs** (UI-4: the section title is the H1), four `SettingsCard`s:
+Paramètres → **Services et tarifs** (UI-4: the section title is the H1), four tabs (NAV-4, `?onglet=`: `catalogue` by default, `prix`, `tarifs-reduits`, `annulation`), one `SettingsCard` each; « Prix » loads its prices only once opened:
 
 - **Catalogue:** services grouped by family (`10 · Individuel`), code, name (« Pour deux personnes »), duration and pause (« 50 min + 10 »), price and taxes (« Grille, 50 min » / « 37,83 $ » / « Gratuit » / « Montant saisi à la facture », then « Taxable » / « Non taxable »), professions (names up to two, else « 9 professions »); « Actifs · Archivés · Tous », a search on name, code, key and description (a description that matched shows under the name; S-9); « Trier par » Famille (grouped, the default), Code, Nom or Durée (one list; S-9); « Ajouter un service » and a « … » menu per row (Modifier, Archiver / Restaurer). The sheet groups Identité, Durée, Prix et taxes, Professions qui l'offrent; it asks before closing with changes; refusals land under their field.
 - **Tarifs étudiant et réduit:** the dated variants per service (Variante, Profession or « Toutes les professions », Rabais, Du, Au or « Sans fin », Statut), « Nouveau tarif », « Terminer », « Supprimer » where the database allows it.
