@@ -267,7 +267,7 @@ Migration `20261014063905_appointments_agenda_reminders`; pgTAP `193_appointment
 
 ## « Annuler » and « Demander un changement » in the client's emails (AP-50, parity audit L16)
 
-Migration `*_appointments_manage_links.sql`; pgTAP `197_appointments_manage_links`; function `appointments-manage` (public token); page `/rendez-vous/gerer`. **Off by default**: AP-20 stays the rule (the client calls the clinic) until the clinic turns it on.
+Migration `*_appointments_manage_links.sql`; pgTAP `198_appointments_manage_links`; function `appointments-manage` (public token); page `/rendez-vous/gerer`. **Off by default**: AP-20 stays the rule (the client calls the clinic) until the clinic turns it on.
 
 - **The switch:** Paramètres → Agenda, card « Annuler ou changer depuis le courriel » (`appointment_settings.client_manage_links`, `set_appointment_client_links(enabled)`, `appointments.settings`; the hours' RPC is unchanged).
 - **The link:** a core secure link, purpose `appointment_manage` (hashed token, one use, until the start and 30 days at most), issued by `prepare_appointment_message_for_service(org, id, token_hash, manage_token_hash)` with the confirmation link of each confirmation, reminder and change email, only while the switch is on and the module open to all (P3-40); never for a cancellation. The six templates close with `{{appointment.change_line}}` (optional variable « Annuler ou changer »): the job writes « Pour annuler ce rendez-vous ou demander un changement : <lien> » when the link exists, else the sentence the defaults said (« … appelez la clinique. »). A template a clinic changed keeps its text, and so no link, until it adds the variable. The messages' trigger and `finish_appointment_message_for_service` revoke these links with the confirmation links (a move, a cancellation, a restore; a failed or held email).
@@ -277,7 +277,7 @@ Migration `*_appointments_manage_links.sql`; pgTAP `197_appointments_manage_link
   - `change_request`: `appointments.change_requested_at`; the appointment stays booked.
   - Both are audited under `link:appointment_manage` (the sheet's « Historique » says « Le client (lien du courriel) ») and notify the staff (`appointments.manage`) and the professional (`appointments.self`), with the agenda's link to the appointment; a late cancellation is « important ». No client name in the notice.
 - **« Modifier » is a request** (AP-50): no self-rescheduling. Booking again runs every staff rule (availability, holds, consents, balance, the video meeting) that a public page would have to repeat; the staff call the client back.
-- **Tests:** pgTAP 197; deno `appointments-manage/handler.test.ts`, `appointments-messages/handler.test.ts` (`changeLine`); Vitest `ManageAppointmentPage.test.tsx`, `AgendaSettingsPage.test.tsx`; Playwright `appointment-links.spec.ts` (needs the functions served).
+- **Tests:** pgTAP 198; deno `appointments-manage/handler.test.ts`, `appointments-messages/handler.test.ts` (`changeLine`); Vitest `ManageAppointmentPage.test.tsx`, `AgendaSettingsPage.test.tsx`; Playwright `appointment-links.spec.ts` (needs the functions served).
 
 ## Printing the agenda (AP-48, parity audit L14)
 
