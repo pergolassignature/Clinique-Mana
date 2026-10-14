@@ -62,6 +62,12 @@ describe('« Revenus » (RP-2)', () => {
     renderAt('/rapports/revenus?vue=payment&du=2026-09-01&au=2026-09-30')
     expect(await screen.findByText(t(`${R}.truncated`))).toBeInTheDocument()
     expect(screen.getByLabelText(t(`${R}.revenue.filters.mode`))).toBeInTheDocument()
+    // L6: the refund said on its row, the refunded and the net in the totals.
+    expect(screen.getByText(t(`${R}.revenue.refund`))).toBeInTheDocument()
+    const totals = screen.getByLabelText(t(`${R}.revenue.totals`)).textContent ?? ''
+    expect(totals).toContain(t(`${R}.revenue.totalLabels.refunds`, { count: '1' }))
+    expect(totals).toContain(t(`${R}.revenue.totalLabels.net`))
+    expect(totals).toContain('75,00')
     await userEvent.click(screen.getByRole('button', { name: t(`${R}.export`) }))
     expect(mocks.download).toHaveBeenCalledWith('revenus-par-paiement-2026-09-01-au-2026-09-30.csv', expect.stringContaining('Virement Interac'))
   })

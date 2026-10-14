@@ -60,7 +60,10 @@ const lineRow = z.object({
 })
 export type RevenueLineRow = z.infer<typeof lineRow>
 
+/** A payment, or a refund recorded in the period (L6: negative, under its payment's mode). */
 const paymentRow = z.object({
+  kind: z.enum(['payment', 'refund']).default('payment'),
+  row_id: z.string().optional(),
   payment_id: z.string(),
   paid_on: z.string(),
   invoice_id: z.string(),
@@ -113,8 +116,18 @@ const revenueSchema = z.discriminatedUnion('view', [
   z.object({
     view: z.literal('payment'),
     rows: z.array(paymentRow),
-    by_mode: z.array(z.object({ mode_code: z.string(), mode_name: z.string(), count, amount_cents: cents })),
-    totals: z.object({ count, amount_cents: cents }),
+    by_mode: z.array(
+      z.object({
+        mode_code: z.string(),
+        mode_name: z.string(),
+        count,
+        amount_cents: cents,
+        refunds_count: count.default(0),
+        refunds_cents: cents.default(0),
+        net_cents: cents.optional(),
+      }),
+    ),
+    totals: z.object({ count, amount_cents: cents, refunds_count: count.default(0), refunds_cents: cents.default(0), net_cents: cents.optional() }),
     truncated: z.boolean(),
     options,
   }),

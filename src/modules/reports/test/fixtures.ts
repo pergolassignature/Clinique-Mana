@@ -44,12 +44,20 @@ export const paymentReport: Extract<RevenueReport, { view: 'payment' }> = {
   view: 'payment',
   rows: [
     {
-      payment_id: 'y1', paid_on: '2026-09-06', invoice_id: 'f1', number: '2026-1', client_id: 'c1', client_name: 'Alice Essai',
-      client_number: 12, payer_name: null, mode_code: 'interac', mode_name: 'Virement Interac', amount_cents: 10000, reference: '-ref',
+      kind: 'refund', row_id: 'z1', payment_id: 'y1', paid_on: '2026-09-20', invoice_id: 'f1', number: '2026-1', client_id: 'c1',
+      client_name: 'Alice Essai', client_number: 12, payer_name: null, mode_code: 'interac', mode_name: 'Virement Interac',
+      amount_cents: -2500, reference: null,
+    },
+    {
+      kind: 'payment', row_id: 'y1', payment_id: 'y1', paid_on: '2026-09-06', invoice_id: 'f1', number: '2026-1', client_id: 'c1',
+      client_name: 'Alice Essai', client_number: 12, payer_name: null, mode_code: 'interac', mode_name: 'Virement Interac',
+      amount_cents: 10000, reference: '-ref',
     },
   ],
-  by_mode: [{ mode_code: 'interac', mode_name: 'Virement Interac', count: 1, amount_cents: 10000 }],
-  totals: { count: 1, amount_cents: 10000 },
+  by_mode: [
+    { mode_code: 'interac', mode_name: 'Virement Interac', count: 1, amount_cents: 10000, refunds_count: 1, refunds_cents: 2500, net_cents: 7500 },
+  ],
+  totals: { count: 1, amount_cents: 10000, refunds_count: 1, refunds_cents: 2500, net_cents: 7500 },
   truncated: true,
   options,
 }
