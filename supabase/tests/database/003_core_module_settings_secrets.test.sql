@@ -292,7 +292,9 @@ select functions_are('public', array[
   -- Core: the imports switch (security review 2026-10-14) and its card in Paramètres → Modules.
   'set_imports_open', 'get_imports_status',
   -- Rendez-vous: « Annuler » / « Demander un changement » links in the emails (L16, AP-50).
-  'set_appointment_client_links', 'resolve_appointment_manage_link', 'manage_appointment_by_link_for_service'
+  'set_appointment_client_links', 'resolve_appointment_manage_link', 'manage_appointment_by_link_for_service',
+  -- Rendez-vous: an appointment for several people (R-79).
+  'add_appointment_participant', 'remove_appointment_participant'
 ],'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
