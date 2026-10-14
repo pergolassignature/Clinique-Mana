@@ -601,6 +601,8 @@
     "modules": {
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
       "dependsOn": "Requiert :",
+      "on": "Activé",
+      "off": "Désactivé",
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
       "loadError": "Impossible de charger les modules.",

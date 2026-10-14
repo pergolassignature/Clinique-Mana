@@ -57,6 +57,19 @@ const ruleSchema = z
   }))
 export type ConsentRule = z.output<typeof ruleSchema>
 
+const serviceNameSchema = z.object({ code: z.number().int(), name: z.string() })
+
+/**
+ * The catalogue's service names by code, for a rule on a service (Services' published view
+ * `services_catalog`, read under the caller's rights). Empty when Services is off or unreadable:
+ * the rule then says its code alone.
+ */
+export async function fetchServiceNames(): Promise<Map<number, string>> {
+  const { data, error } = await supabase.from('services_catalog').select('code, name')
+  if (error) return new Map()
+  return new Map(parse(z.array(serviceNameSchema), data).map((s) => [s.code, s.name]))
+}
+
 export async function fetchConsentRules(): Promise<ConsentRule[]> {
   const { data, error } = await supabase
     .from('client_consent_rules')

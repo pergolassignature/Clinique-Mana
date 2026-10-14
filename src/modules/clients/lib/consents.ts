@@ -46,9 +46,14 @@ export function signedOnText(signedAt: string, versionLabel: string | null): str
 
 const SITUATIONS = ['waitlist', 'file_transfer', 'coaching'] as const
 
-/** What a rule asks for, in words: « Tous les clients », « Le service 10157 », « Payeur : PAE », « Situation : liste d'attente »… */
-export function ruleTriggerText(rule: Pick<ConsentRule, 'triggerKind' | 'target'>): string {
+/**
+ * What a rule asks for, in words: « Tous les clients », « Le service 10157 · Consultation
+ * naturopathie » (its name when the catalogue is read), « Payeur : PAE », « Situation : liste d'attente »…
+ */
+export function ruleTriggerText(rule: Pick<ConsentRule, 'triggerKind' | 'target'>, serviceNames?: ReadonlyMap<number, string>): string {
   let target = rule.target ?? ''
+  const serviceName = rule.triggerKind === 'service' ? serviceNames?.get(Number(target)) : undefined
+  if (serviceName) target = `${target} · ${serviceName}`
   if (rule.target === 'pae') target = 'PAE'
   else if (rule.target === 'ivac') target = 'IVAC'
   else if (rule.triggerKind === 'situation' && (SITUATIONS as readonly string[]).includes(target)) {

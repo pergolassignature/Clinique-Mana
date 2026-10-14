@@ -23,6 +23,7 @@ import {
   useCancelConsentCampaign,
   useConsentCampaigns,
   useConsentRules,
+  useServiceNames,
   useConsentSettings,
   useConsentTemplates,
   useConsentTypes,
@@ -203,6 +204,7 @@ function PublishDialog({ target, onClose }: { target: { template: ConsentTemplat
 
 function RulesCard({ types, rules, templates, readOnly }: { types: ConsentType[]; rules: ConsentRule[]; templates: ConsentTemplate[]; readOnly: boolean }) {
   const save = useSaveConsentRule()
+  const serviceNames = useServiceNames()
   const nameOf = (key: string) => types.find((type) => type.key === key)?.name ?? key
   const published = (key: string) => templates.some((tpl) => tpl.consentKey === key && tpl.published)
   return (
@@ -213,7 +215,7 @@ function RulesCard({ types, rules, templates, readOnly }: { types: ConsentType[]
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground">{nameOf(rule.consentKey)}</p>
               <p className="text-xs text-muted-foreground">
-                {ruleTriggerText(rule)}
+                {ruleTriggerText(rule, serviceNames.data)}
                 {!published(rule.consentKey) && `${t('modules.clients.consents.separator')}${t('modules.clients.consents.notPublished')}`}
               </p>
             </div>
