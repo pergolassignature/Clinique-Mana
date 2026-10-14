@@ -9,6 +9,8 @@ export const billingKeys = {
   invoices: (status: string | null) => [...billingKeys.all, 'invoices', status] as const,
   invoice: (id: string) => [...billingKeys.all, 'invoice', id] as const,
   client: (clientId: string) => [...billingKeys.all, 'client', clientId] as const,
+  /** L10: an appointment's billing (Rendez-vous' sheet). */
+  appointment: (appointmentId: string) => [...billingKeys.all, 'appointment', appointmentId] as const,
   names: () => [...billingKeys.all, 'names'] as const,
   sequence: (year: number) => [...billingKeys.all, 'sequence', year] as const,
   queue: () => [...billingKeys.all, 'queue'] as const,
