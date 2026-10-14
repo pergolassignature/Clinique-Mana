@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { CircleAlert, CircleCheck, MessageSquareText } from 'lucide-react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
@@ -12,6 +12,7 @@ import { UnsavedChangesContext, useConfirmLeave, useUnsavedChanges } from '@/sha
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import type { MySubmission } from '../../api/self'
 import { AutosaveStatus } from '../../components/questionnaire/AutosaveStatus'
 import { AvailabilityStep } from '../../components/questionnaire/AvailabilityStep'
@@ -216,7 +217,7 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
   const onFile = useOnFilePrivate(submission)
   // The consent step's state (P4-487), only when the consent is requested.
   const imageConsent = useMyImageConsent(submission.requestedSections.includes('consent'))
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const steps = useMemo(() => stepsFor(submission.requestedSections), [submission.requestedSections])
   const completeness = {
@@ -260,11 +261,8 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
   const goTo = (next: QuestionnaireStep) => {
     if (next === step) return
     navigating.current = true
-    setParams((prev) => {
-      const out = new URLSearchParams(prev)
-      out.set(STEP_PARAM, STEP_SLUGS[next])
-      return out
-    })
+    // A step is a history entry (the browser's back goes to the previous step).
+    update({ [STEP_PARAM]: STEP_SLUGS[next] }, { replace: false })
   }
   // The autosaved steps keep their edits when left (memory, then the server); the private step and
   // the consent hold typed values only until « Continuer »: leaving them asks first.
@@ -280,11 +278,7 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
     }
     // The browser's back or forward button: stay on the step (its URL pushed again, so the entry the
     // browser went to stays behind it), then ask; « Quitter » goes there.
-    setParams((prev) => {
-      const out = new URLSearchParams(prev)
-      out.set(STEP_PARAM, STEP_SLUGS[step])
-      return out
-    })
+    update({ [STEP_PARAM]: STEP_SLUGS[step] }, { replace: false })
     confirmLeave(() => goTo(urlStep))
     // Only a change of the URL's step is handled here.
     // eslint-disable-next-line react-hooks/exhaustive-deps

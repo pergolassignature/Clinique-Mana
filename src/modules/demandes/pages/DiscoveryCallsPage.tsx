@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -28,6 +28,7 @@ import { toast } from '@/shared/ui/sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { DateField } from '@/shared/ui/date-field'
 import { TimeField } from '@/shared/ui/time-field'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import type { CallsPeriod, DiscoveryCall } from '../api/calls'
 import type { DemandesReference } from '../api/demandes'
 import { useAssignTask, useDiscoveryCalls, useRescheduleTask } from '../hooks/use-calls'
@@ -58,7 +59,7 @@ export function DiscoveryCallsPage() {
   usePageTitle(t(`${C}.title`))
   useDemandesRealtime(true)
   const { can } = useAccess()
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   const view = (Object.entries(VIEW_PARAM) as [View, string][]).find(([, v]) => v === params.get('vue'))?.[0] ?? 'today'
   const [today] = useState(() => getClinicDateString(new Date()))
   const period = useMemo(() => periodOf(view, today), [view, today])
@@ -69,7 +70,7 @@ export function DiscoveryCallsPage() {
   return (
     <>
       <PageHeader level={1} title={t(`${C}.title`)} description={t(`${C}.description`)} />
-      <Tabs value={view} onValueChange={(next) => setParams(next === 'today' ? {} : { vue: VIEW_PARAM[next as View] }, { replace: true })}>
+      <Tabs value={view} onValueChange={(next) => update({ vue: next === 'today' ? null : VIEW_PARAM[next as View] })}>
         <TabsList aria-label={t(`${C}.views`)}>
           {VIEWS.map((v) => (
             <TabsTrigger key={v} value={v}>

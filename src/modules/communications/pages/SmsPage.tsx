@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -11,6 +10,7 @@ import { cn } from '@/shared/lib/utils'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import { ConsentDialog } from '../components/sms/ConsentDialog'
 import { ThreadList } from '../components/sms/ThreadList'
 import { ThreadView } from '../components/sms/ThreadView'
@@ -38,7 +38,7 @@ export function SmsPage() {
   const threads = useSmsThreads(files ? view : 'all', search)
   // The consent of the thread opened, kept when a filter hides its row.
   const [openedConsent, setOpenedConsent] = useState<SmsConsentStatus | null>(null)
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { params: searchParams, update: updateParams } = useUrlParams()
   const param = searchParams.get('message')
   const messageId = param && UUID.test(param) ? param : null
   const fromNotice = useSmsMessagePhone(messageId)
@@ -52,7 +52,7 @@ export function SmsPage() {
   const select = (phone: string | null) => {
     setSelected(phone)
     setOpenedConsent(threads.data?.find((thread) => thread.phone === phone)?.consent ?? null)
-    if (messageId) setSearchParams({}, { replace: true })
+    if (messageId) updateParams({ message: null })
   }
 
   const rows = threads.data
