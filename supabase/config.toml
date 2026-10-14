@@ -237,6 +237,9 @@ verify_jwt = false
 # Rendez-vous R4. Public token: « Confirmer ma présence » (the single-use link is the credential).
 [functions.appointments-confirm]
 verify_jwt = false
+# Rendez-vous L16. Public token: « Annuler » / « Demander un changement » (the single-use link is the credential).
+[functions.appointments-manage]
+verify_jwt = false
 # Job appointments.messages: X-Job-Signature (runJob).
 [functions.appointments-messages]
 verify_jwt = false

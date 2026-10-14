@@ -366,6 +366,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     googleCalendarCallbackUser: ['google_calendar.callback_user', 20, 3_600],
     googleCalendarSyncUser: ['google_calendar.sync_user', 30, 3_600],
     appointmentConfirmIp: ['appointments.confirm_ip', 20, 600],
+    appointmentManageIp: ['appointments.manage_ip', 20, 600],
     billingPayoutInvoiceUser: ['billing.payout_invoice_user', 20, 3_600],
     billingStripeUser: ['billing.stripe_user', 60, 3_600],
     billingCheckoutIp: ['billing.checkout_ip', 20, 600],

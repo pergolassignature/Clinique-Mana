@@ -38,6 +38,7 @@ import {
   fetchBookingConsents,
   restoreAppointment,
   saveAgendaSettings,
+  saveClientLinks,
   type AgendaSettings,
 } from '../api/changes'
 import { APPOINTMENT_HISTORY_PAGE_SIZE, fetchAppointmentHistory } from '../api/history'
@@ -167,7 +168,9 @@ export const useChangeService = (feedback?: MutationFeedback) =>
   )
 export const useRestoreAppointment = (feedback?: MutationFeedback) => useAgendaMutation((id: string) => restoreAppointment(id), `${S}.restored`, feedback)
 export const useConfirmAppointment = (feedback?: MutationFeedback) => useAgendaMutation((id: string) => confirmAppointment(id), `${S}.confirmed`, feedback)
-export const useSaveAgendaSettings = (feedback?: MutationFeedback) => useAgendaMutation((s: AgendaSettings) => saveAgendaSettings(s), `${S}.settings`, feedback)
+export const useSaveAgendaSettings = (feedback?: MutationFeedback) =>
+  useAgendaMutation((s: Omit<AgendaSettings, 'clientManageLinks'>) => saveAgendaSettings(s), `${S}.settings`, feedback)
+export const useSaveClientLinks = (feedback?: MutationFeedback) => useAgendaMutation((enabled: boolean) => saveClientLinks(enabled), `${S}.clientLinks`, feedback)
 
 /** The consents an appointment requires (shown, never blocking: R-47). */
 export function useAppointmentConsents(appointmentId: string | null) {

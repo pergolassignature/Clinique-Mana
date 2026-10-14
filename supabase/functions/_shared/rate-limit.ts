@@ -482,6 +482,12 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 600,
   },
+  /** `appointments-manage` (« Annuler », « Demander un changement »), per IP, before any lookup: one use per link, a few retries. */
+  appointmentManageIp: {
+    bucket: 'appointments.manage_ip',
+    max: 20,
+    windowSeconds: 600,
+  },
   /** `billing-payout-invoice` (« Générer ma facture »), per caller: each call renders a PDF. */
   billingPayoutInvoiceUser: {
     bucket: 'billing.payout_invoice_user',

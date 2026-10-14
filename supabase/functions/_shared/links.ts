@@ -45,6 +45,7 @@ const LINK_PATHS: ReadonlySet<string> = new Set([
   '/liste-attente/reponse',
   '/proposition',
   '/rendez-vous/confirmer',
+  '/rendez-vous/gerer',
   '/carte',
   '/payer',
 ])
@@ -60,6 +61,7 @@ export type LinkPath =
   | '/liste-attente/reponse'
   | '/proposition'
   | '/rendez-vous/confirmer'
+  | '/rendez-vous/gerer'
   | '/carte'
   | '/payer'
 

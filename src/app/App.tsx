@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { BookingCancelPage, BookingPage, CardSetupPage, ConfirmAppointmentPage, ConfirmPage, ConsentPage, InvitationPage, PayPage, PropositionPage, WaitlistAnswerPage } from './public-pages'
+import { BookingCancelPage, BookingPage, CardSetupPage, ConfirmAppointmentPage, ConfirmPage, ConsentPage, InvitationPage, ManageAppointmentPage, PayPage, PropositionPage, WaitlistAnswerPage } from './public-pages'
 import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
@@ -156,6 +156,15 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <ConfirmAppointmentPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: « Annuler » / « Demander un changement » from an appointment email (Rendez-vous L16); the token is in the fragment. */}
+                <Route
+                  path="/rendez-vous/gerer"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <ManageAppointmentPage />
                     </Suspense>
                   }
                 />

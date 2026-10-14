@@ -45,5 +45,12 @@ export const appointmentsAuditLabels = i18nAuditLabels({
   prefix: 'modules.appointments.audit',
   tables: APPOINTMENTS_AUDITED_TABLES,
   value: appointmentsValue,
-  sources: [APPOINTMENTS_SEED_SOURCE, 'job:appointments.video_sync', 'webhook:zoom', 'job:appointments.google_busy_sync'],
+  sources: [
+    APPOINTMENTS_SEED_SOURCE,
+    'job:appointments.video_sync',
+    'webhook:zoom',
+    'job:appointments.google_busy_sync',
+    'link:appointment_confirm',
+    'link:appointment_manage',
+  ],
 })

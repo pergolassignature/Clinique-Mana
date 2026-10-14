@@ -10,7 +10,7 @@ import { appointmentsManifest } from '../../manifest'
 import { AgendaSettingsPage } from './AgendaSettingsPage'
 
 const mocks = vi.hoisted(() => ({
-  api: { fetchAgendaSettings: vi.fn(), saveAgendaSettings: vi.fn() },
+  api: { fetchAgendaSettings: vi.fn(), saveAgendaSettings: vi.fn(), saveClientLinks: vi.fn() },
   secrets: { listOrgSecretKeys: vi.fn(), setOrgSecret: vi.fn() },
   jobs: { listScheduledJobs: vi.fn(), setScheduledJobEnabled: vi.fn(), listScheduledJobRuns: vi.fn(), runScheduledJobNow: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -26,6 +26,7 @@ const S = 'modules.appointments.settings'
 beforeEach(() => {
   mocks.api.fetchAgendaSettings.mockResolvedValue(DEFAULT_AGENDA_SETTINGS)
   mocks.api.saveAgendaSettings.mockResolvedValue(undefined)
+  mocks.api.saveClientLinks.mockResolvedValue(undefined)
   mocks.secrets.listOrgSecretKeys.mockResolvedValue([{ key: 'google_calendar_client_id', updated_at: '2026-10-13T15:00:00+00:00' }])
   mocks.jobs.listScheduledJobs.mockResolvedValue([
     {
@@ -75,11 +76,28 @@ describe('AgendaSettingsPage', () => {
     await user.click(within(form).getByRole('button', { name: t('common.save') }))
     await waitFor(() =>
       expect(mocks.api.saveAgendaSettings).toHaveBeenCalledExactlyOnceWith({
-        ...DEFAULT_AGENDA_SETTINGS,
         businessDays: [1, 2, 3, 4, 5, 6],
+        businessStart: DEFAULT_AGENDA_SETTINGS.businessStart,
+        businessEnd: DEFAULT_AGENDA_SETTINGS.businessEnd,
+        reminderBusinessDays: DEFAULT_AGENDA_SETTINGS.reminderBusinessDays,
+        reminderLocalHour: DEFAULT_AGENDA_SETTINGS.reminderLocalHour,
         lateNoticeBusinessHours: false,
       }),
     )
+    expect(mocks.api.saveClientLinks).not.toHaveBeenCalled()
+  })
+
+  it('L16 (AP-50): the « Annuler ou demander un changement » link, off by default, its own card and RPC', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const links = await screen.findByRole('checkbox', { name: t(`${S}.links`) })
+    expect(links).not.toBeChecked()
+    await user.click(links)
+    const form = links.closest('form')!
+    expect(form).not.toBe(screen.getByRole('checkbox', { name: t(`${S}.lateNotice`) }).closest('form'))
+    await user.click(within(form).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.saveClientLinks).toHaveBeenCalledExactlyOnceWith(true))
+    expect(mocks.api.saveAgendaSettings).not.toHaveBeenCalled()
   })
 
   it('at least one business day; an hour out of range is refused before saving', async () => {

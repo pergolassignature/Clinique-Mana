@@ -11,10 +11,13 @@
  *    appointments; their texts go through Communications at once), the stale
  *    emails set aside (cancelled, moved, past), and the pending emails listed
  *    (confirmations, reminders, changes, cancellations).
- * 3. Each email: a fresh token, `prepare_appointment_message_for_service` with
- *    its hash (null: it may no longer go, skipped), then the template
+ * 3. Each email: two fresh tokens, `prepare_appointment_message_for_service`
+ *    with their hashes (null: it may no longer go, skipped), then the template
  *    `appointments.<kind>` (`_en` in English) with the confirmation link
- *    `/rendez-vous/confirmer#t=…` (none for a cancellation), then
+ *    `/rendez-vous/confirmer#t=…` (none for a cancellation) and
+ *    `{{appointment.change_line}}`: the « Annuler / Demander un changement »
+ *    link `/rendez-vous/gerer#t=…` when Paramètres → Agenda turns it on
+ *    (`with_manage`, L16), else the « appelez la clinique » sentence; then
  *    `finish_appointment_message_for_service`: sent, or tried again at the next
  *    pass (three tries, then failed; the link revoked); an email core held
  *    (`module_reserved`, P3-40) is set aside (`reserved`), counted skipped. One
@@ -55,7 +58,37 @@ const preparedSchema = z.object({
   access: z.string(),
   clinic_name: z.string(),
   with_link: z.boolean(),
+  with_manage: z.boolean(),
 })
+
+type Kind = z.infer<typeof preparedSchema>['kind']
+
+/** U+202F, the narrow no-break space French puts before « : » (values are not respaced). */
+const NNBSP = '\u202F'
+
+/**
+ * `{{appointment.change_line}}`: the manage link when the clinic turned it on,
+ * else the sentence the default templates said before (AP-20).
+ */
+export function changeLine(
+  kind: Kind,
+  language: 'fr' | 'en',
+  manageUrl: string | null,
+): string {
+  if (manageUrl !== null) {
+    return language === 'en'
+      ? `To cancel this appointment or ask for a change: ${manageUrl}`
+      : `Pour annuler ce rendez-vous ou demander un changement${NNBSP}: ${manageUrl}`
+  }
+  if (kind === 'changed') {
+    return language === 'en'
+      ? 'If you have any question, please call the clinic.'
+      : 'Pour toute question, appelez la clinique.'
+  }
+  return language === 'en'
+    ? 'To cancel or change this appointment, please call the clinic.'
+    : 'Pour annuler ou changer ce rendez-vous, appelez la clinique.'
+}
 
 /** A failure that ends the clinic's run with this code. */
 function stop(code: string): never {
@@ -106,12 +139,14 @@ export async function sendOrg(
         deps.fetch,
       )
     const token = generateToken()
+    const manageToken = generateToken()
     const { data: raw, error: prepareError } = await client.rpc(
       'prepare_appointment_message_for_service',
       {
         p_org_id: orgId,
         p_message_id: messageId,
         p_token_hash: await hashToken(token),
+        p_manage_token_hash: await hashToken(manageToken),
       },
     )
     if (prepareError) {
@@ -133,6 +168,10 @@ export async function sendOrg(
     let sent = false
     let held = false
     try {
+      const appUrl = deps.env('APP_URL') ?? ''
+      const manageUrl = p.with_manage
+        ? linkUrl(appUrl, '/rendez-vous/gerer', manageToken)
+        : null
       const result = await sendTemplatedEmail(
         { fn: FN, client, env: deps.env, fetch: deps.fetch },
         {
@@ -145,16 +184,16 @@ export async function sendOrg(
           values: {
             recipient: { first_name: p.recipient_first_name },
             client: { first_name: p.client_first_name },
-            appointment: { starts_at: p.starts_at, access: p.access },
+            appointment: {
+              starts_at: p.starts_at,
+              access: p.access,
+              change_line: changeLine(p.kind, p.language, manageUrl),
+            },
             professional: { name: p.professional_name },
             clinic: { name: p.clinic_name },
           },
           actionUrl: p.with_link
-            ? linkUrl(
-              deps.env('APP_URL') ?? '',
-              '/rendez-vous/confirmer',
-              token,
-            )
+            ? linkUrl(appUrl, '/rendez-vous/confirmer', token)
             : null,
           sentBy: null,
         },
