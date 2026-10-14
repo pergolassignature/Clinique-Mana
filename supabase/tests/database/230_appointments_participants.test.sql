@@ -9,11 +9,12 @@
 -- to her is prepared; added back, a new confirmation; the person seen replaced, never when the
 -- appointment is invoiced (Facturation's helper); never the last one; never from a couple service);
 -- a hold for a family (Demandes' path); billing's facts (the person seen first); the anonymisation
--- promoting one participant and revoking the anonymised client's links.
+-- promoting one participant and revoking the anonymised client's links; a merge re-pointing the
+-- merged file's messages (her reminder still goes out, to the kept file, and her link still works).
 -- The deferred messages trigger fires at commit; here `set constraints all immediate` fires it.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(69);
 
 -- =============================================================================
 -- Privileges
@@ -36,14 +37,17 @@ select is(private.appointments_max_clients(), 6, 'an appointment holds six clien
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test',    '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'conseillere@a.test', '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'conseillere@a.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',       '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values ('b0000000-0000-0000-0000-00000000000a', 'Org A');
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A',    'provider@a.test',    'active'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'conseillere@a.test', 'active');
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'conseillere@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',       'admin@a.test',       'active');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'counselor');
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin');
 insert into public.org_modules (org_id, module_key, enabled)
 select 'b0000000-0000-0000-0000-00000000000a', m, true
   from (values ('professionals'), ('services'), ('clients'), ('appointments')) as y(m);
@@ -59,6 +63,10 @@ select 'b0000000-0000-0000-0000-00000000000a', x.p, t.id, 'L-' || (row_number() 
 insert into public.clients (id, org_id, first_name, last_name, email, language)
 select ('d0000000-0000-0000-0000-00000000000' || n)::uuid, 'b0000000-0000-0000-0000-00000000000a', 'Client' || n, 'Famille', 'c' || n || '@a.test', 'fr'
   from generate_series(1, 9) n;
+-- Two files of one person, to merge (section 6).
+insert into public.clients (id, org_id, first_name, last_name, email, language) values
+  ('d0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000a', 'Mia', 'Doublon', 'mia@a.test', 'fr'),
+  ('d0000000-0000-0000-0000-00000000000b', 'b0000000-0000-0000-0000-00000000000a', 'Mia', 'Conservée', 'kim@a.test', 'fr');
 -- Client 8 is the parent who manages the appointments of clients 2 and 3.
 insert into public.client_relations (org_id, client_a_id, client_b_id, type_a_to_b, type_b_to_a, b_manages_appointments) values
   ('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000008', 'child', 'parent', true),
@@ -338,6 +346,44 @@ select results_eq($$ select client_id::text, role from public.appointment_partic
             ('d0000000-0000-0000-0000-000000000004', 'second'), ('d0000000-0000-0000-0000-000000000003', 'second'),
             ('d0000000-0000-0000-0000-000000000002', 'second') $$,
   '… she leaves it and only the next one becomes the person seen');
+
+-- =============================================================================
+-- 6. A merge: the merged file's messages follow her to the kept file
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select set_config('test.mrg', public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
+  current_setting('test.d3')::timestamptz + interval '6 hours', array['d0000000-0000-0000-0000-00000000000a'::uuid])::text, true);
+select ok(current_setting('test.mrg') <> '', 'an appointment with the file to be merged away');
+set constraints all immediate;
+set constraints all deferred;
+reset role;
+select set_config('test.mm', (select id::text from public.appointment_messages
+                               where appointment_id = current_setting('test.mrg')::uuid and kind = 'confirmation' and channel = 'email'), true);
+select ok(private.appointments_queue_message('b0000000-0000-0000-0000-00000000000a', current_setting('test.mrg')::uuid, 'reminder', true) >= 1,
+  '… her reminder waits to go out');
+set local role service_role;
+select ok((public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.mm')::uuid,
+            extensions.digest('c-mrg', 'sha256'), extensions.digest('g-mrg', 'sha256')) ->> 'with_manage')::boolean,
+  '… and her confirmation went with its links');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.merge_clients('d0000000-0000-0000-0000-00000000000b', 'd0000000-0000-0000-0000-00000000000a') $$,
+  'the admin merges the file into the kept one');
+reset role;
+select results_eq($$ select recipient_client_id::text, client_id::text, status from public.appointment_messages
+                      where appointment_id = current_setting('test.mrg')::uuid and kind = 'reminder' and channel = 'email' $$,
+  $$ values ('d0000000-0000-0000-0000-00000000000b', 'd0000000-0000-0000-0000-00000000000b', 'pending') $$,
+  '… her pending reminder now belongs to the kept file, still pending');
+select set_config('test.lm', (select id::text from public.secure_links where token_hash = extensions.digest('g-mrg', 'sha256')), true);
+select set_config('test.rm', (select id::text from public.appointment_messages
+                               where appointment_id = current_setting('test.mrg')::uuid and kind = 'reminder' and channel = 'email'), true);
+set local role service_role;
+select isnt(public.resolve_appointment_manage_link(current_setting('test.lm')::uuid), null, '… the link already sent still works');
+select is(public.prepare_appointment_message_for_service('b0000000-0000-0000-0000-00000000000a', current_setting('test.rm')::uuid,
+            extensions.digest('c-mrg-r', 'sha256')) ->> 'email', 'kim@a.test', '… and the reminder goes out, to the kept file''s address');
+reset role;
 
 select * from finish();
 rollback;

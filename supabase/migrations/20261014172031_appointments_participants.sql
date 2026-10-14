@@ -36,6 +36,8 @@
 --   *_appointments_manage_links.sql).
 -- * `appointments_anonymize_client`: one participant (the next) becomes the person seen, not every
 --   other one; the anonymised client leaving an appointment loses her messages and links as above.
+-- * `appointments_reassign_client` (Clients' merge): the merged file's messages are re-pointed to
+--   the kept file with her places, so her reminders still go out and her links still work.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:appointments_participants', true);
@@ -719,6 +721,53 @@ begin
   perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
   return pg_catalog.jsonb_build_object('state', case when p_action = 'cancel' then 'cancelled' else 'requested' end,
                                        'late', coalesce(v_late, false));
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- 7. A merge: the merged file's messages follow her places to the kept file
+-- -----------------------------------------------------------------------------
+-- *_appointments_booking.sql's, re-pointing the messages as it re-points the places: the
+-- participant check above reads the message's file, so a reminder of the merged file still goes
+-- out (to the kept file's address) and the links already sent still work. A pending message the
+-- kept file already has (the same appointment, channel, kind and start) is set aside, its links
+-- revoked; a sent one keeps its recipient (history).
+create or replace function private.appointments_reassign_client(p_old uuid, p_new uuid)
+returns int
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_dropped int;
+  v_moved int;
+begin
+  update public.appointment_messages m set status = 'skipped', skip_reason = 'superseded'
+   where m.recipient_client_id = p_old and m.status = 'pending'
+     and exists (select 1 from public.appointment_messages k
+                  where k.appointment_id = m.appointment_id and k.recipient_client_id = p_new and k.channel = m.channel
+                    and k.kind = m.kind and k.starts_at = m.starts_at and k.event_at is not distinct from m.event_at);
+  perform private.revoke_secure_links(m.org_id, 'appointment_confirm', 'appointment_message', m.id, null),
+          private.revoke_secure_links(m.org_id, 'appointment_manage', 'appointment_message', m.id, null)
+     from public.appointment_messages m
+    where m.recipient_client_id = p_old and m.status = 'skipped' and m.skip_reason = 'superseded' and m.link_id is not null;
+  update public.appointment_messages m set recipient_client_id = p_new
+   where m.recipient_client_id = p_old
+     and not exists (select 1 from public.appointment_messages k
+                      where k.appointment_id = m.appointment_id and k.recipient_client_id = p_new and k.channel = m.channel
+                        and k.kind = m.kind and k.starts_at = m.starts_at and k.event_at is not distinct from m.event_at);
+  update public.appointment_messages m set client_id = p_new where m.client_id = p_old;
+
+  update public.appointment_participants q set role = 'client'
+   where q.client_id = p_new and q.role = 'second'
+     and exists (select 1 from public.appointment_participants p
+                  where p.appointment_id = q.appointment_id and p.client_id = p_old and p.role = 'client');
+  delete from public.appointment_participants p
+   where p.client_id = p_old
+     and exists (select 1 from public.appointment_participants q where q.appointment_id = p.appointment_id and q.client_id = p_new);
+  get diagnostics v_dropped = row_count;
+  update public.appointment_participants p set client_id = p_new where p.client_id = p_old;
+  get diagnostics v_moved = row_count;
+  return v_dropped + v_moved;
 end;
 $$;
 
