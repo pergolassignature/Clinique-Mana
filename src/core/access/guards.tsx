@@ -110,8 +110,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-export function RequireAccess({ permission, children }: { permission: string; children: ReactNode }) {
+/** Renders its children when the user holds the permission, or any one of the permissions; « Accès refusé » otherwise. */
+export function RequireAccess({ permission, children }: { permission: string | readonly string[]; children: ReactNode }) {
   const { can } = useAccess()
-  if (!can(permission)) return <Forbidden />
+  const allowed = typeof permission === 'string' ? can(permission) : permission.some((p) => can(p))
+  if (!allowed) return <Forbidden />
   return <>{children}</>
 }

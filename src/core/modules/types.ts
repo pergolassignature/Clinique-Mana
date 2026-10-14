@@ -13,7 +13,8 @@ export interface ModuleRoute {
    * browser is idle and loads with the access at a reload.
    */
   component: LazyPage
-  permission: string
+  /** Needed to open it: one key, or several meaning any of them (« Indicateurs des demandes », R-81). */
+  permission: string | readonly string[]
 }
 
 export interface ModuleNavItem {
@@ -21,7 +22,8 @@ export interface ModuleNavItem {
   path: string
   labelKey: TranslationKey
   icon: LucideIcon
-  permission: string
+  /** Shown with this key, or with any one of these keys (as its route). */
+  permission: string | readonly string[]
   /**
    * Shown only when this also holds for the signed-in user, beyond the permission: « Mon profil »
    * (`professionals.self`) needs a professional file linked to the account (P4-376), since admins

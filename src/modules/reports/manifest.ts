@@ -9,10 +9,16 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 const demandesEnabled = (access: Access) => access.modules.includes('demandes')
 
 /**
+ * « Indicateurs des demandes » (R-81): its own permission (the conseillères by default), or
+ * reports.view (every activity report) as before; `report_demandes` accepts either.
+ */
+const DEMANDES_INDICATORS = ['reports.demandes_indicators', 'reports.view'] as const
+
+/**
  * Module Rapports (plan §12). RP1: « Revenus » (by invoice, by service, by payment; reports.finance),
  * « Annulations et absences » with « Clients à relancer » (reports.view); « Consentements des
- * clients » (reports.view, Clients C5b); « Indicateurs des demandes » (Demandes D6, reports.view,
- * while Demandes is enabled); RP2: « IVAC » (reports.finance) and « Paie des professionnels »
+ * clients » (reports.view, Clients C5b); « Indicateurs des demandes » (Demandes D6,
+ * reports.demandes_indicators or reports.view (R-81), while Demandes is enabled); RP2: « IVAC » (reports.finance) and « Paie des professionnels »
  * (reports.payroll). Every report in the menu's « Rapports » section (NAV-2). It has no table: it
  * reads what Facturation, Rendez-vous, Clients and Demandes publish. Depends on Facturation and
  * Rendez-vous.
@@ -31,7 +37,7 @@ export const reportsManifest: ModuleManifest = {
       path: '/rapports/demandes',
       labelKey: 'modules.reports.demandes.nav',
       icon: ChartLine,
-      permission: 'reports.view',
+      permission: DEMANDES_INDICATORS,
       shownWhen: demandesEnabled,
       group: 'reports',
       order: 5,
@@ -42,7 +48,7 @@ export const reportsManifest: ModuleManifest = {
     { path: 'rapports/revenus', permission: 'reports.finance', component: lazyPage(() => import('./pages/RevenuePage'), 'RevenuePage') },
     { path: 'rapports/annulations', permission: 'reports.view', component: lazyPage(() => import('./pages/CancellationsPage'), 'CancellationsPage') },
     { path: 'rapports/consentements', permission: 'reports.view', component: lazyPage(() => import('./pages/ConsentsReportPage'), 'ConsentsReportPage') },
-    { path: 'rapports/demandes', permission: 'reports.view', component: lazyPage(() => import('./pages/DemandesReportPage'), 'DemandesReportPage') },
+    { path: 'rapports/demandes', permission: DEMANDES_INDICATORS, component: lazyPage(() => import('./pages/DemandesReportPage'), 'DemandesReportPage') },
     { path: 'rapports/ivac', permission: 'reports.finance', component: lazyPage(() => import('./pages/IvacReportPage'), 'IvacReportPage') },
     { path: 'rapports/paie', permission: 'reports.payroll', component: lazyPage(() => import('./pages/PayoutsReportPage'), 'PayoutsReportPage') },
   ],

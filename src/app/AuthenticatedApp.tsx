@@ -14,7 +14,7 @@ import type { ModuleSlotItem, ModuleSlotName, SettingsSection } from '@/core/mod
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
 import { isUnder, SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
 import { coreSettingsSections } from '@/core/settings/sections'
-import { visibleSettingsSections } from '@/core/settings/visible-sections'
+import { canAny, visibleSettingsSections } from '@/core/settings/visible-sections'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
@@ -41,9 +41,11 @@ export function AuthenticatedApp() {
   const access = useReadyAccess()
   const { modules: enabledKeys, org_timezone } = access
   const { can } = useAccess()
-  // A nav item or Accueil card may add a condition on the user beyond its permission (`shownWhen`).
+  // A nav item or Accueil card may add a condition on the user beyond its permission (`shownWhen`);
+  // a nav item's permission may be several keys, any of them (as its route's).
   const shown = useCallback(
-    (item: { permission: string; shownWhen?: (a: Access) => boolean }) => can(item.permission) && (item.shownWhen?.(access) ?? true),
+    (item: { permission: string | readonly string[]; shownWhen?: (a: Access) => boolean }) =>
+      canAny(item.permission, can) && (item.shownWhen?.(access) ?? true),
     [can, access],
   )
 
@@ -63,7 +65,7 @@ export function AuthenticatedApp() {
   // chunks only, the same for everyone: no data is fetched before the page itself mounts. Skipped
   // with Data Saver or on 2G (preloadWhenIdle).
   const routeComponents = useMemo(
-    () => modules.flatMap((m) => m.routes.filter((r) => can(r.permission)).map((r) => r.component)),
+    () => modules.flatMap((m) => m.routes.filter((r) => canAny(r.permission, can)).map((r) => r.component)),
     [modules, can],
   )
   useEffect(() => {
