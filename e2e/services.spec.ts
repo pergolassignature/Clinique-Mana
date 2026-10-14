@@ -5,7 +5,7 @@ import { expect, test } from './fixtures/auth'
  * and holds the retention grids, so a psychologist's 50 min is 175 $). The admin adds a grid
  * service offered by psychologists, gives it a student rate, reads both prices in « Prix », then
  * archives it, so a second run on the same database passes too. A professional never sees the
- * section (S-8).
+ * section (S-8). The page has four tabs (NAV-4), named in the address (`?onglet=`).
  */
 
 const SECTION_URL = '/parametres/services-et-tarifs'
@@ -40,6 +40,8 @@ test('the admin adds a service with a student rate and reads its prices', async 
   await expect(catalogue.getByRole('rowheader', { name })).toBeVisible()
 
   // « Nouveau tarif »: student, psychologists, 25 $ off from today.
+  await page.getByRole('tab', { name: 'Tarifs étudiant et réduit' }).click()
+  await expect(page).toHaveURL(/\?onglet=tarifs-reduits$/)
   await page.getByRole('button', { name: 'Nouveau tarif' }).click()
   const dialog = page.getByRole('dialog', { name: 'Nouveau tarif' })
   await dialog.getByLabel('Service').selectOption({ label: `${code} · ${name}` })
@@ -52,7 +54,10 @@ test('the admin adds a service with a student rate and reads its prices', async 
   await expect(page.getByText('Tarif enregistré.')).toBeVisible()
 
   // « Prix »: the grid's 175 $ for a psychologist, and the student rate under it.
+  await page.getByRole('tab', { name: 'Prix', exact: true }).click()
   const prices = page.getByRole('table', { name: 'Prix par profession' })
+  // The tab loads its prices once opened: wait for the new service's column before reading them.
+  await expect(prices.getByRole('columnheader', { name: new RegExp(`^${code}\\s`) })).toBeVisible()
   const headers = await prices.getByRole('columnheader').allTextContents()
   const column = headers.findIndex((header) => header.startsWith(String(code)))
   expect(column).toBeGreaterThan(0)
@@ -60,6 +65,8 @@ test('the admin adds a service with a student rate and reads its prices', async 
   await expect(cell).toHaveText(/^175,00\s\$Étudiant 150,00\s\$$/)
 
   // Archived: it leaves the active list (and « Prix »).
+  await page.getByRole('tab', { name: 'Catalogue' }).click()
+  await expect(page).toHaveURL(new RegExp(`${SECTION_URL}$`))
   await catalogue.getByRole('button', { name: `Actions pour « ${name} »` }).click()
   await page.getByRole('menuitem', { name: 'Archiver' }).click()
   await expect(page.getByText('Service archivé.')).toBeVisible()
@@ -77,6 +84,17 @@ test('« Trier par »: the catalogue by name in one list; back by family (L27, S
   await expect(catalogue.getByText('10150', { exact: true })).toBeVisible()
   await page.getByRole('combobox', { name: 'Trier par' }).selectOption({ label: 'Famille' })
   await expect(catalogue.getByText(/^10 · /)).toBeVisible()
+})
+
+test('a tab opens from its address, and the arrow keys switch tabs (NAV-4)', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto(`${SECTION_URL}?onglet=annulation`)
+  await expect(page.getByRole('tab', { name: "Politique d'annulation" })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('heading', { name: "Politique d'annulation", level: 3 })).toBeVisible()
+  await page.getByRole('tab', { name: "Politique d'annulation" }).focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.getByRole('tab', { name: 'Tarifs étudiant et réduit' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page).toHaveURL(/\?onglet=tarifs-reduits$/)
 })
 
 test('a professional never sees the clinic’s price settings', async ({ page, signIn }) => {

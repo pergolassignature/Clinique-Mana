@@ -4951,7 +4951,14 @@
       },
       "settings": {
         "title": "Services et tarifs",
-        "description": "Le catalogue des services de la clinique, codé par famille comme dans GOrendezvous : durée, taxes et source du prix (la grille de rétention de la profession, un prix fixe, gratuit, ou un montant saisi à la facture). Rendez-vous et Facturation le lisent.",
+        "description": "Les services de la clinique, leurs prix et la politique d’annulation. Rendez-vous et Facturation les lisent ; les grilles de rétention se modifient dans « Rémunération ».",
+        "tabs": {
+          "list": "Sections de Services et tarifs",
+          "catalogue": "Catalogue",
+          "prix": "Prix",
+          "tarifs-reduits": "Tarifs étudiant et réduit",
+          "annulation": "Politique d'annulation"
+        },
         "loadError": "Les services et les tarifs n'ont pas pu être chargés.",
         "catalogue": {
           "title": "Catalogue",
