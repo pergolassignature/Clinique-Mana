@@ -3,9 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { ExportCsvButton } from '@/shared/components/ExportCsvButton'
 import { LoadError } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
-import { formatClinicDateShort } from '@/shared/lib/timezone'
+import { formatClinicDateShort, getClinicDateString } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
@@ -20,6 +21,7 @@ import { EntrySheet } from '../components/waitlist/EntrySheet'
 import { useDemandesRealtime } from '../hooks/use-demandes'
 import { useWaitlist, useWaitlistLists } from '../hooks/use-waitlist'
 import { demandePath, personLabel } from '../lib/display'
+import { waitlistCsv } from '../lib/waitlist-csv'
 import {
   STATE_PARAM,
   consentLabel,
@@ -94,6 +96,10 @@ export function WaitlistPage() {
                 ? t(`${P}.noAverage`)
                 : t(`${P}.average`, { days: String(selected.average_wait_days) })}
             </p>
+          )}
+          {/* L7: the entries shown (the list and the state chosen), in their order. */}
+          {entries.data && entries.data.length > 0 && (
+            <ExportCsvButton className="ml-auto" build={() => Promise.resolve(waitlistCsv(entries.data ?? [], getClinicDateString(new Date())))} />
           )}
         </div>
         <div role="group" aria-label={t(`${P}.statesLabel`)} className="flex flex-wrap gap-2">

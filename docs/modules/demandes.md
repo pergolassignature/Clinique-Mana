@@ -318,6 +318,10 @@ Migrations `20261013233833_demandes_report_facts` (Demandes), `20261013233844_ap
 
 `import_waitlist_entry(row, dry_run)` (`demandes.manage`, `demandes.waitlist`, `clients.manage`, `clients.merge`; migration `*_demandes_waitlist_import.sql`, pgTAP `179_demandes_waitlist_import`): one person on one list (`profession_key` or `professional_id`), `external_ref` « gorendezvous:… ». A client's imported entries share one request (`external_ref` « gorendezvous:waitlist:<client id> », channel « Autre », « Liste d'attente »); the entry keeps its GOrendezvous date and fee (`fee_paid` → « payée »), and `waitlist_promote` makes it active as any entry. The same list again, or a request matched or closed since: `skipped`.
 
+## « Exporter (CSV) » on the waiting list (parity audit L7)
+
+« Liste d'attente » exports the entries shown (the list and the state chosen), in their order: rank, reference, person, file number, list, priority, registration day, days waited, state, exit reason, consent, fee, last and next contact. Never a free text (the priority's reason stays in the app). Built in the browser (`lib/waitlist-csv.ts`), nothing stored.
+
 ## What the module publishes
 
 For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional); for Rapports, D6's `private.demandes_report_requests`, `_matches`, `_waitlist`, `_capacity` (above). The view `demandes_sources` (D3c, below).

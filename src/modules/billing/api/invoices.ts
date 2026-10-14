@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
+import { collectPages } from '@/shared/lib/csv'
 import type { Database } from '@/core/supabase/database.types'
 
 /**
@@ -282,13 +283,18 @@ export type InvoiceRow = z.output<typeof listRow>
 
 export const INVOICES_PAGE = 50
 
-export async function fetchInvoices(status: InvoiceStatus | null, before: string | null): Promise<InvoiceRow[]> {
+export async function fetchInvoices(status: InvoiceStatus | null, before: string | null, limit: number = INVOICES_PAGE): Promise<InvoiceRow[]> {
   const { data, error } = await supabase.rpc(
     'list_invoices',
-    sqlArgs<'list_invoices'>({ p_status: status, p_client_id: null, p_before: before, p_limit: INVOICES_PAGE }),
+    sqlArgs<'list_invoices'>({ p_status: status, p_client_id: null, p_before: before, p_limit: limit }),
   )
   if (error) throw error
   return parse(z.array(listRow), data)
+}
+
+/** Every invoice of a tab, for its export (L7): 200 a page, newest first, 5 000 at most. */
+export function fetchAllInvoices(status: InvoiceStatus | null): Promise<{ rows: InvoiceRow[]; truncated: boolean }> {
+  return collectPages((before: string | null) => fetchInvoices(status, before, 200), 200, (page) => page.at(-1)?.createdAt ?? null)
 }
 
 export async function fetchInvoice(id: string): Promise<InvoiceBundle | null> {

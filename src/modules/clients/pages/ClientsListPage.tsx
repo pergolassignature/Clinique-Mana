@@ -5,6 +5,7 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { usePreferenceWriter, useUserPreference } from '@/core/preferences/hooks'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { ExportCsvButton } from '@/shared/components/ExportCsvButton'
 import { LoadError } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
@@ -17,12 +18,13 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { formatDateOnlyShort } from '@/shared/lib/timezone'
-import type { ClientsPageQuery } from '../api/clients'
+import { formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
+import { fetchAllClients, type ClientsPageQuery } from '../api/clients'
 import type { ClientListRow } from '../api/parse'
 import { CreateClientDialog } from '../components/list/CreateClientDialog'
 import { useClientsList, useClientsReference } from '../hooks/use-clients'
 import { CLIENT_STATUSES, clientPath, type ClientStatusFilter } from '../lib/constants'
+import { clientsCsv } from '../lib/clients-csv'
 import { CLIENTS_FILTERS_PREFERENCE, filterQuery, fromRememberedFilters, toRememberedFilters } from '../lib/remembered-filters'
 import { ageOf, choices, clientNumberLabel, phoneLabel, rateVariantLabel } from '../lib/display'
 
@@ -147,6 +149,14 @@ export function ClientsListPage() {
               </Select>
             </div>
           )}
+          {/* L7: the files these filters select, every page. */}
+          <ExportCsvButton
+            className="ml-auto"
+            build={async () => {
+              const all = await fetchAllClients(query)
+              return { ...clientsCsv(all.rows, reference.data ?? {}, getClinicDateString(new Date())), truncated: all.truncated }
+            }}
+          />
         </div>
         {list.isError && !list.data ? (
           <LoadError message={t(`${L}.loadError`)} onRetry={() => void list.refetch()} retrying={list.isFetching} />

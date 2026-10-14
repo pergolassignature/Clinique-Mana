@@ -136,6 +136,12 @@
       "minutesOther": "Please try again in about {count} minutes.",
       "hourOne": "Please try again in about 1 hour.",
       "hoursOther": "Please try again in about {count} hours."
+    },
+    "exportCsv": {
+      "label": "Exporter (CSV)",
+      "preparing": "Préparation du fichier…",
+      "truncated": "Le fichier contient les 5 000 premières lignes : précisez les filtres pour le reste.",
+      "failed": "Le fichier n’a pas pu être préparé. Réessayez."
     }
   },
   "auth": {
@@ -6122,7 +6128,22 @@
           "taxExempt": "Sans taxes"
         },
         "loadMore": "Afficher plus de clients",
-        "loadingMore": "Chargement…"
+        "loadingMore": "Chargement…",
+        "csv": {
+          "fileName": "clients-{date}.csv",
+          "number": "N° de dossier",
+          "lastName": "Nom",
+          "firstName": "Prénom",
+          "birthday": "Date de naissance",
+          "email": "Courriel",
+          "mobile": "Cellulaire",
+          "professional": "Professionnel principal",
+          "flags": "Indications",
+          "tags": "Étiquettes",
+          "state": "État",
+          "active": "Actif",
+          "archived": "Archivé"
+        }
       },
       "create": {
         "add": "Nouveau client",
@@ -8550,7 +8571,24 @@
           },
           "pendingOffer": "Offre en attente de réponse",
           "openFor": "Ouvrir l'inscription de {person}",
-          "open": "Ouvrir"
+          "open": "Ouvrir",
+          "csv": {
+            "fileName": "liste-attente-{date}.csv",
+            "rank": "Rang",
+            "reference": "Référence",
+            "person": "Personne",
+            "fileNumber": "N° de dossier",
+            "list": "Liste",
+            "priority": "Priorité",
+            "registered": "Inscrite le",
+            "waitedDays": "Jours d’attente",
+            "state": "État",
+            "exitReason": "Raison de la sortie",
+            "consent": "Consentement",
+            "fee": "Frais d’inscription",
+            "lastContact": "Dernier contact",
+            "nextContact": "Prochain contact"
+          }
         },
         "card": {
           "title": "Liste d'attente",
@@ -10453,7 +10491,26 @@
         "status": "État",
         "draft": "Brouillon",
         "more": "Afficher plus",
-        "payment": "Paiement"
+        "payment": "Paiement",
+        "csv": {
+          "fileName": "factures-{view}-{date}.csv",
+          "views": {
+            "brouillons": "brouillons",
+            "emises": "emises",
+            "creditees": "creditees",
+            "toutes": "toutes"
+          },
+          "number": "Numéro",
+          "issuedOn": "Émise le",
+          "fileNumber": "N° de dossier",
+          "client": "Client",
+          "payer": "Facturé à",
+          "total": "Total",
+          "paid": "Payé",
+          "balance": "Solde",
+          "status": "État",
+          "payment": "Paiement"
+        }
       },
       "invoice": {
         "title": "Facture {number}",
