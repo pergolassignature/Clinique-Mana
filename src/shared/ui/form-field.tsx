@@ -55,6 +55,11 @@ interface FormFieldProps {
    * SettingsCard). Hides the required marker: there is nothing to fill in.
    */
   readOnly?: boolean
+  /**
+   * The label is read by screen readers only: for fields under a visible column header (a grid's
+   * rows), where repeating the label on every row would only wrap it.
+   */
+  hideLabel?: boolean
   children: (props: FieldControlProps) => ReactNode
 }
 
@@ -63,15 +68,24 @@ interface FormFieldProps {
  * The error is read through `aria-describedby`, not announced as an alert: react-hook-form focuses
  * the first invalid field, and an alert per field would announce every error at once.
  */
-export function FormField({ label, width, className, help, error, required, readOnly: readOnlyProp, children }: FormFieldProps) {
+export function FormField({ label, width, className, help, error, required, readOnly: readOnlyProp, hideLabel = false, children }: FormFieldProps) {
   const id = useId()
   const readOnly = useFieldReadOnly(readOnlyProp)
   const helpId = help ? `${id}-help` : undefined
   const errorId = error ? `${id}-error` : undefined
   const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined
   return (
-    <div className={cn('space-y-1', width && ['min-w-0 max-w-full', FIELD_WIDTH[width]], className)}>
-      <Label htmlFor={id}>
+    <div
+      className={cn(
+        'space-y-1',
+        width && ['min-w-0 max-w-full', FIELD_WIDTH[width]],
+        // A short field is at least as wide as its label (« Délai de paiement (jours) » no longer wraps
+        // on three lines, beside its neighbour or alone on a phone's row).
+        (width === 'xs' || width === 'sm') && 'min-w-fit',
+        className,
+      )}
+    >
+      <Label htmlFor={id} className={cn(hideLabel && 'sr-only', !hideLabel && (width === 'xs' || width === 'sm') && 'whitespace-nowrap')}>
         {label}
         {required && !readOnly && (
           <>
