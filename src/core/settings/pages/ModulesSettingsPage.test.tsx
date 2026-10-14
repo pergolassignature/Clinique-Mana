@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/core/modules/api', () => ({ fetchModules: mocks.fetchModules, setModuleEnabled: mocks.setModuleEnabled }))
 vi.mock('@/core/modules/testers-api', () => mocks.testers)
+vi.mock('@/core/settings/imports/api', () => ({
+  fetchImportsStatus: vi.fn().mockResolvedValue({ open: true, closedAt: null, changedAt: null, changedByName: null }),
+  setImportsOpen: vi.fn(),
+}))
 vi.mock('@/core/users/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/users/api')>()), fetchOrgUsers: mocks.fetchOrgUsers }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))

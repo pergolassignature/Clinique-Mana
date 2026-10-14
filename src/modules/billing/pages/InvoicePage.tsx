@@ -720,8 +720,10 @@ function Payments({
                     label={t(`${P}.receiptPdf`, { number: p.receiptNumber })}
                   />
                 )}
+                {/* An imported « Note de crédit » is a credit, never refunded (BI-27). */}
                 {manage &&
                   invoice.status === 'issued' &&
+                  p.modeCode !== 'credit_note' &&
                   p.refundableCents > 0 && <RefundButton payment={p} />}
               </span>
             </li>

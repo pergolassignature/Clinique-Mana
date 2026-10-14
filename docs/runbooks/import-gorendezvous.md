@@ -15,7 +15,7 @@
 5. **Module and permissions:**
    - Clients is enabled for the clinic;
    - the operator holds `clients.manage` and `clients.merge`, and for `prix` also `professionals.view` and `services.view`.
-6. **The imports are open** (`organizations.imports_open`, true until the admin closes them after the cutover, « After »). Closed, every import RPC refuses: « Les imports sont fermés pour cette clinique. »
+6. **The imports are open** (Paramètres → Modules → « Importation GOrendezvous » reads « Importations ouvertes »; true until the admin closes them after the cutover, « After »). Closed, every import RPC refuses: « Les imports sont fermés pour cette clinique. »
 
 ## Run
 ```bash
@@ -66,7 +66,8 @@ node scripts/import-gorendezvous.mjs prix --lines ~/Clinique-MANA-import/revenus
    - `services.csv` (the legacy services get their code);
    - a `--clients-map` file `Facture;ClientId`, for the invoices whose name the dry run could not settle (homonyms, a name changed since). **Required** for an invoice naming a homonym of the clients export: the run stops until it is given.
 4. **Permission:** the operator holds `billing.manage`, and Facturation is enabled.
-5. **Refused by the database** (security review 2026-10-14): a payment in « Note de crédit » (a credit note is a document, not money received: decide by hand what such an invoice owes), a payment in a mode the clinic has deactivated, a payment or refund dated in the future, and more than 200 lines, payments or refunds on one invoice. Each refusal blocks `--commit` with its line.
+5. **« Note de crédit » payments** are imported as **credits** on their invoice (BI-27): they count in what is paid (the balance matches GOrendezvous), are never sent to QuickBooks, never refunded (« Rembourser » is not offered) and get no receipt. The report counts them: « Paiements par note de crédit à importer : N », then « … importés : N ». A negative « Note de crédit » (a refund) goes on the invoice's credit first.
+6. **Refused by the database** (security review 2026-10-14): a payment in a mode the clinic has deactivated (« Note de crédit » included), a payment or refund dated in the future, and more than 200 lines, payments or refunds on one invoice. Each refusal blocks `--commit` with its line.
 
 **Run:**
 ```bash
@@ -193,10 +194,5 @@ Done for I2 on 2026-10-13 (lane A), after the clients and invoices:
 
 ### After the cutover: close the imports, delete the exports (security review 2026-10-14)
 Once every step is imported and checked (the clients, the invoices, the consents, the appointments, the payers), the admin (`modules.manage`) **closes the imports** for the clinic: every `import_*` RPC then refuses, whatever the permissions of who calls it.
-1. **Close them** from a terminal, signed in as the admin (no service key): in the browser's console of the app, or with the Supabase client in Node, call the RPC as the signed-in admin:
-   ```js
-   await supabase.rpc('set_imports_open', { p_open: false })
-   // → { imports_open: false, imports_closed_at: '…' }
-   ```
-   The change is audited (`organizations`, who and when). `set_imports_open(true)` opens them again for a late run (then close them again).
+1. **Close them** in the app, signed in as the admin: **Paramètres → Modules → « Importation GOrendezvous » → « Fermer les importations »**, then confirm. The card then reads « Importations fermées », with when and by whom. The change is audited (`organizations`, who and when). « Rouvrir les importations » on the same card opens them again for a late run (then close them again). Behind the card: `set_imports_open(p_open)` and `get_imports_status()` (`modules.manage`).
 2. **Delete the raw exports** (`~/Clinique-MANA-import/*.csv`, the Excel files they came from, and the copies in Downloads or in an email): they hold every client's name, contacts and history. Delete the reports too once read. Empty the trash. Keep nothing on another computer or in a shared folder.

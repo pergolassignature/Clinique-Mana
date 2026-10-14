@@ -28,7 +28,9 @@
 // - « factures » the same way through import_invoice(row, dry_run) (billing.manage): an invoice
 //   whose client is not found, or has homonyms, is listed and left out (--clients-map, « Facture ;
 //   ClientId », settles them on a re-run); a row the database refuses stops the import. Imported
-//   invoices are history: nothing is sent, nothing goes to QuickBooks, nothing is reminded.
+//   invoices are history: nothing is sent, nothing goes to QuickBooks, nothing is reminded. A
+//   « Note de crédit » payment is an imported credit (BI-27): counted in what is paid, never in
+//   QuickBooks, never refunded; the report counts them (« Paiements par note de crédit … »).
 // - « rendez-vous » (I-15, I-16) through import_appointment, then import_waitlist_entry for the
 //   fake « Inscription – Liste attente » appointments GOrendezvous used as its waiting list (on a
 //   professional's agenda: her list; on the conseillère's or « Bureau administratif »: the
@@ -53,7 +55,7 @@
 //   a client whose name several ClientIds hold (homonyms.mjs) stops the run before the database
 //   (fail closed): its ClientId goes in --clients-map (invoices) or the export's ClientId column.
 //   A payer named after homonyms is left out. The admin closes the imports after the cutover
-//   (`set_imports_open(false)`: every import RPC then refuses).
+//   (Paramètres → Modules, « Importation GOrendezvous »: every import RPC then refuses).
 // - A database error other than a refusal (P0001) prints its code only, never its message.
 import { closeSync, fsyncSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -67,7 +69,7 @@ import { MAPPING_REASON_LABELS, readEmployees, readServiceCodes } from './import
 import { PAYLOAD_REASON_LABELS, RELATION_REASON_LABELS, clientPayload, readRelations } from './import-gorendezvous/payloads.mjs'
 import { priceGapReport, priceGaps } from './import-gorendezvous/price-gaps.mjs'
 import { clientsReport } from './import-gorendezvous/report.mjs'
-import { INVOICE_REASON_LABELS, assembleInvoices, byMonth, lastNumbers, readClientsMap } from './import-gorendezvous/invoices.mjs'
+import { CREDIT_NOTE_MODE, INVOICE_REASON_LABELS, assembleInvoices, byMonth, lastNumbers, readClientsMap } from './import-gorendezvous/invoices.mjs'
 import { fmtMoney } from './import-gorendezvous/report.mjs'
 import { REVENUE_REASON_LABELS, readInvoiceLines, readInvoices, readPayments } from './import-gorendezvous/revenue.mjs'
 import { decodeUtf8 } from './import-gorendezvous/table.mjs'
@@ -548,6 +550,8 @@ export function invoicePassReport(entries, dryRun) {
   const count = (status) => entries.filter((e) => e.status === status).length
   const out = [
     `${dryRun ? 'À importer' : 'Importées'} : ${fmt(count('ok'))} ; déjà importées : ${fmt(count('skipped'))} ; sans dossier : ${fmt(count('unmatched'))} ; en erreur : ${fmt(count('error'))}`,
+    // « Note de crédit »: an imported credit on its invoice (BI-27), counted apart.
+    `Paiements par note de crédit ${dryRun ? 'à importer' : 'importés'} : ${fmt(entries.filter((e) => e.status === 'ok').reduce((sum, e) => sum + e.creditNotes, 0))}`,
   ]
   const unmatched = entries.filter((e) => e.status === 'unmatched').map((e) => ({ line: e.line, reasons: [e.reason] }))
   if (unmatched.length > 0) out.push('Laissées de côté (lignes de « par facture ») :', ...byReason(unmatched))
@@ -566,6 +570,7 @@ const invoiceEntry = (item, result) => ({
   status: result.status,
   reason: result.reason ?? null,
   errors: result.errors ?? [],
+  creditNotes: item.row.payments.filter((p) => p.mode_code === CREDIT_NOTE_MODE).length,
 })
 
 const exportedMonths = (parsedInvoices) => parsedInvoices.invoices.map((i) => ({ month: i.date.slice(0, 7), total_cents: i.total_cents }))

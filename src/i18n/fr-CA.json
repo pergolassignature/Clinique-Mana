@@ -630,7 +630,31 @@
         "moduleOff": "Le module est désactivé : activez-le pour que les testeurs le voient.",
         "visibleTo": "Visible seulement par : {names}"
       },
-      "dependencyOff": "{name} (désactivé)"
+      "dependencyOff": "{name} (désactivé)",
+      "imports": {
+        "title": "Importation GOrendezvous",
+        "description": "Les outils d'importation de GOrendezvous (clients, rendez-vous, factures, professionnels) ne fonctionnent que tant que les importations sont ouvertes. Fermez-les après la bascule.",
+        "open": "Importations ouvertes",
+        "closedState": "Importations fermées",
+        "changed": "Modifié le {date} par {name}",
+        "changedNoName": "Modifié le {date}",
+        "neverChanged": "Ouvertes depuis la mise en place : jamais fermées.",
+        "lastClosed": "Dernière fermeture le {date}",
+        "loadError": "Impossible de charger l'état des importations.",
+        "close": "Fermer les importations",
+        "reopen": "Rouvrir les importations",
+        "closeConfirm": {
+          "title": "Fermer les importations ?",
+          "body": "Les outils d'importation de GOrendezvous seront refusés pour toute la clinique : plus aucun client, rendez-vous, facture ou professionnel ne pourra être importé. À faire après la bascule, une fois la dernière importation vérifiée. Vous pourrez les rouvrir ici pour une importation tardive."
+        },
+        "reopenConfirm": {
+          "title": "Rouvrir les importations ?",
+          "body": "Les outils d'importation de GOrendezvous fonctionneront de nouveau pour toute la clinique. Refermez-les dès que l'importation tardive est terminée et vérifiée."
+        },
+        "closed": "Importations fermées.",
+        "reopened": "Importations rouvertes.",
+        "error": "Impossible de modifier les importations."
+      }
     },
     "jobs": {
       "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
@@ -4912,6 +4936,19 @@
     },
     "services": {
       "name": "Services et tarifs",
+      "offered": {
+        "title": "Services offerts",
+        "description": "Les services que ses titres professionnels permettent, avec son prix d'aujourd'hui (Paramètres → Services et tarifs).",
+        "loadError": "Les services offerts ne se chargent pas.",
+        "empty": "Aucun service du catalogue pour ses titres.",
+        "toConfirm": "À confirmer",
+        "forTwo": "Pour deux personnes",
+        "columns": {
+          "service": "Service",
+          "duration": "Durée",
+          "price": "Prix aujourd'hui"
+        }
+      },
       "settings": {
         "title": "Services et tarifs",
         "description": "Le catalogue des services de la clinique, codé par famille comme dans GOrendezvous : durée, taxes et source du prix (la grille de rétention de la profession, un prix fixe, gratuit, ou un montant saisi à la facture). Rendez-vous et Facturation le lisent.",

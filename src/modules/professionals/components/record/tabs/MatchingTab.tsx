@@ -1,9 +1,12 @@
-import { useMemo, useRef, type ReactNode } from 'react'
+import { Suspense, useMemo, useRef, type ReactNode } from 'react'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { z } from 'zod'
 import { useAccess } from '@/core/access/access-context'
+import { useModuleSlot } from '@/core/modules/slots'
 import { t } from '@/i18n'
+import { Loading } from '@/shared/components/LoadState'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
+import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { Button } from '@/shared/ui/button'
 import type { SpecializedRef } from '../../../api/parse'
@@ -42,6 +45,7 @@ export function MatchingTab() {
   const canEdit = useAccess().can('professionals.matching')
   const digest = useMemo(() => matchingDigest(record, catalog), [record, catalog])
   const pickers = useMatchingPickers(canEdit)
+  const servicePanels = useModuleSlot('professional.services')
   const refused = useMemo(() => summarizeMotifs(record.refusedMotifIds, catalog), [record.refusedMotifIds, catalog])
   return (
     <div className="container-inline space-y-5">
@@ -78,6 +82,14 @@ export function MatchingTab() {
             <HeldChips items={digest.languages} empty={t(`${M}.languages.empty`)} />
           </SetCard>
           <AvailabilityCard readOnly={!canEdit} />
+          {/* L26: the services her titles allow (Services' panel, read-only). */}
+          {servicePanels.map(({ id, component: Panel }) => (
+            <RouteBoundary key={id} scope={`professional.services:${id}`} compact>
+              <Suspense fallback={<Loading />}>
+                <Panel />
+              </Suspense>
+            </RouteBoundary>
+          ))}
         </div>
       </div>
     </div>

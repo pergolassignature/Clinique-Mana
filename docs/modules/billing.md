@@ -52,7 +52,7 @@ All per clinic, RLS on (`billing.view`; `payment_modes` also `billing.self`), `s
 | `billing_settings` | per clinic: `queue_from` (« File du matin à partir du ») | null: the queue is off |
 | `special_agreements` | a dossier's « entente particulière » (a note), one active | its sessions stop in the queue |
 | `billing_queue_items` | per appointment: the draft the queue built (or the refusal's text) | once per appointment; a deleted draft is not rebuilt |
-| `payments` | one invoice, the payer, the mode (`payment_modes.code`), the amount, the day, a reference | ≤ the balance; not « Note de crédit »; `external_ref` for the import and FS |
+| `payments` | one invoice, the payer, the mode (`payment_modes.code`), the amount, the day, a reference | ≤ the balance; not « Note de crédit » (except an imported credit, BI-27: `payments_credit_note_imported_check` ties the mode to an `external_ref` « gorendezvous:… »); `external_ref` for the import and FS |
 | `receipts` | one per payment, `R-AAAA-N` (sequence kind `receipt`) | |
 | `statements` | a dossier's year for one payer | |
 | `billing_deliveries` | a document to render and maybe email: kind, `send_email`, `explicit` (« Renvoyer »), status `pending` / `sending` / `done` / `failed`, the email's outcome (`sent`, `skipped` with `not_requested` / `no_email` / `reserved` / `module_disabled`, `failed`), tries | claimed by `billing-documents`; three tries (the per-address limit is none) |
@@ -270,6 +270,7 @@ Stripe (card on file, the next-day charge, « Payer en ligne ») and Interac « 
 - **History:**
   - no delivery, receipt or QuickBooks event (`billing_queue_sync` already skips `import`);
   - `billing_run_dunning` and `client_has_balance` skip `source_type = 'import'`.
+- **« Note de crédit » payments (BI-27, migration `*_billing_import_credit_notes.sql`, pgTAP `195_billing_import_credit_notes`):** an **imported credit**, a payment in mode `credit_note` that only `import_invoice` writes (`record_payment`, Stripe, Interac and the payers' payments refuse the mode; the check above refuses it without the import's ref). It counts in `paid_cents`; `billing_payment_for_sync` never returns it (a QuickBooks payment or refund push of one is `gone`); `refund_payment` refuses it (« Un crédit importé de GOrendezvous (note de crédit) ne se rembourse pas. ») and the invoice page shows no « Rembourser » for it; no receipt. A refund row carries its `mode_code` (from the tool): it goes on a payment of that mode first, then on the latest payment that covers it. The #171 guards hold for it (an active mode, no future date, the caps, never more than the invoice). The tool's report: « Paiements par note de crédit à importer / importés : N ».
 - **Tests:** pgTAP `144_billing_import`; Vitest `scripts/import-gorendezvous/import-i3.test.mjs`.
 - **« Payé par » (I2 prep, I-17):** `import_default_payer(row, dry_run)` (`billing.manage`; migration `*_billing_payer_import.sql`, pgTAP `180_billing_payer_import`): the client's dated default payer (`billing_payer_defaults`) from GOrendezvous's « Payé par »; the client herself or already the default `skipped`; a payer without « recevoir reçus et factures » `unmatched` (`payer_not_allowed`).
 
