@@ -119,10 +119,10 @@ Deno.test('google-calendar-sync: a busy answer never stores more than start and 
   run(async () => {
     const h = calendarHarness({ state: { connection: connected() } })
     const base = h.deps.fetch
-    h.deps.fetch = async (input, init) => {
+    h.deps.fetch = (input, init) => {
       const url = new Request(input, init).url
       if (!url.includes('/calendar/v3/freeBusy')) return base(input, init)
-      return Response.json({
+      return Promise.resolve(Response.json({
         calendars: {
           primary: {
             busy: [{ ...BUSY, summary: 'Rendez-vous privé' }, {
@@ -131,7 +131,7 @@ Deno.test('google-calendar-sync: a busy answer never stores more than start and 
             }],
           },
         },
-      })
+      }))
     }
     await createHandler(h.deps)(post({ action: 'sync' }))
     assertEquals(h.state.replaced[0].blocks, [BUSY])

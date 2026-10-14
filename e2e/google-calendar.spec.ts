@@ -70,7 +70,7 @@ test('« Connecter mon agenda Google » through the fake Google, « Occupé » i
   await expect(page).toHaveURL(`${E2E_ORIGIN}/mon-agenda/agenda-google`, { timeout: 15_000 })
   await expect(page.getByText('Agenda Google connecté', { exact: true })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(/^Compte .+, connecté le/)).toBeVisible()
-  await expect(page.getByText(/^Lu le .+ : 1 moment occupé dans les 62 prochains jours\.$/)).toBeVisible()
+  await expect(page.getByText(/^Lu le .+\s:\s1 moment occupé dans les 62 prochains jours\.$/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Synchroniser' }).click()
   await expect(page.getByText('Vos moments occupés sont à jour.')).toBeVisible()
