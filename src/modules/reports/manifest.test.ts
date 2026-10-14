@@ -18,16 +18,17 @@ describe('reportsManifest', () => {
     ])
   })
 
-  it('« Revenus » under Facturation, « Annulations » under Suivi, « Indicateurs des demandes » under Accueil des clients (NAV-1)', () => {
+  it('every report in the « Rapports » section, in order (NAV-2)', () => {
     const nav = [reportsManifest.nav ?? []].flat()
     expect(nav.map((n) => [n.path, n.group, n.permission, t(n.labelKey)])).toEqual([
-      ['/rapports/revenus', 'billing', 'reports.finance', 'Revenus'],
-      ['/rapports/ivac', 'billing', 'reports.finance', 'Rapport IVAC'],
-      ['/rapports/paie', 'billing', 'reports.payroll', 'Rapport de paie'],
-      ['/rapports/annulations', 'followUp', 'reports.view', 'Annulations'],
-      ['/rapports/consentements', 'followUp', 'reports.view', 'Rapport des consentements'],
-      ['/rapports/demandes', 'intake', 'reports.view', 'Indicateurs des demandes'],
+      ['/rapports/revenus', 'reports', 'reports.finance', 'Revenus'],
+      ['/rapports/paie', 'reports', 'reports.payroll', 'Paie des professionnels'],
+      ['/rapports/ivac', 'reports', 'reports.finance', 'IVAC'],
+      ['/rapports/annulations', 'reports', 'reports.view', 'Annulations'],
+      ['/rapports/demandes', 'reports', 'reports.view', 'Indicateurs des demandes'],
+      ['/rapports/consentements', 'reports', 'reports.view', 'Consentements des clients'],
     ])
+    expect(nav.map((n) => n.order)).toEqual([1, 2, 3, 4, 5, 6])
   })
 
   it('« Indicateurs des demandes » only while Demandes is enabled (it reads Demandes)', () => {

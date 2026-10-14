@@ -19,6 +19,7 @@
       "followUp": "Suivi",
       "billing": "Facturation",
       "communications": "Communications",
+      "reports": "Rapports",
       "team": "Équipe",
       "other": "Autres"
     },
@@ -12042,8 +12043,8 @@
         }
       },
       "consents": {
-        "nav": "Rapport des consentements",
-        "title": "Consentements",
+        "nav": "Consentements des clients",
+        "title": "Consentements des clients",
         "description": "L’état des consentements des clients actifs aujourd’hui, par consentement et par professionnel ; les signatures et les retraits de la période ; le délai entre l’envoi et la signature.",
         "filters": {
           "professional": "Professionnel principal",
@@ -12279,7 +12280,7 @@
         "others": "Autres valeurs (au-delà des 50 plus fréquentes)"
       },
       "ivac": {
-        "nav": "Rapport IVAC",
+        "nav": "IVAC",
         "title": "IVAC",
         "description": "Ce que l’IVAC paie pour chaque séance de la période (par la date de la séance) et ce qui lui est facturé à la main, avec où chaque montant en est : à facturer, en préparation, facturé, payé.",
         "filters": {
@@ -12335,7 +12336,7 @@
         }
       },
       "payouts": {
-        "nav": "Rapport de paie",
+        "nav": "Paie des professionnels",
         "title": "Paie des professionnels",
         "description": "Les sommaires de paie des mois de la période : ce qui est dû, payé, validé et encore à payer, par mois et par professionnel.",
         "filters": {
