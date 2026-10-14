@@ -27,7 +27,7 @@ select results_eq($$ select depends_on from public.module_dependencies where mod
   $$ values ('appointments'::text), ('billing') $$, 'reports depends on appointments and billing');
 select results_eq($$ select role, pg_catalog.array_agg(permission_key order by permission_key) from public.role_permissions
                       where permission_key like 'reports.%' group by role order by role $$,
-  $$ values ('admin'::text, array['reports.finance', 'reports.view']), ('admin_assistant', array['reports.finance']) $$,
+  $$ values ('admin'::text, array['reports.finance', 'reports.payroll', 'reports.view']), ('admin_assistant', array['reports.finance']) $$,
   'role defaults: the admin both, the adjointe the revenue');
 
 -- Org A: an admin, an adjointe, a conseillère. Org B: an admin.

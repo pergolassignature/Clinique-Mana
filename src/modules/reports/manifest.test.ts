@@ -13,6 +13,8 @@ describe('reportsManifest', () => {
       ['rapports/annulations', 'reports.view'],
       ['rapports/consentements', 'reports.view'],
       ['rapports/demandes', 'reports.view'],
+      ['rapports/ivac', 'reports.finance'],
+      ['rapports/paie', 'reports.payroll'],
     ])
   })
 
@@ -20,6 +22,8 @@ describe('reportsManifest', () => {
     const nav = [reportsManifest.nav ?? []].flat()
     expect(nav.map((n) => [n.path, n.group, n.permission, t(n.labelKey)])).toEqual([
       ['/rapports/revenus', 'billing', 'reports.finance', 'Revenus'],
+      ['/rapports/ivac', 'billing', 'reports.finance', 'Rapport IVAC'],
+      ['/rapports/paie', 'billing', 'reports.payroll', 'Rapport de paie'],
       ['/rapports/annulations', 'followUp', 'reports.view', 'Annulations'],
       ['/rapports/consentements', 'followUp', 'reports.view', 'Rapport des consentements'],
       ['/rapports/demandes', 'intake', 'reports.view', 'Indicateurs des demandes'],
@@ -37,5 +41,7 @@ describe('reportsManifest', () => {
     expect(has('admin', 'reports.view') && has('admin', 'reports.finance')).toBe(true)
     expect([has('admin_assistant', 'reports.finance'), has('admin_assistant', 'reports.view')]).toEqual([true, false])
     expect(has('counselor', 'reports.view') || has('provider', 'reports.finance')).toBe(false)
+    // RP-8: the payroll report is the admin's only.
+    expect([has('admin', 'reports.payroll'), has('admin_assistant', 'reports.payroll')]).toEqual([true, false])
   })
 })

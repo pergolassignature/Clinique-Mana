@@ -10,6 +10,7 @@ import {
   type RevenueFilters,
 } from '../api/reports'
 import { fetchDemandesReport, type DemandesReportFilters } from '../api/demandes-report'
+import { fetchIvacReport, fetchPayoutsReport, type IvacFilters, type PayoutsFilters } from '../api/rp2'
 import { reportsKeys } from './keys'
 
 // The previous answer stays on screen while a new filter loads (no flash of « Chargement »).
@@ -32,4 +33,14 @@ export function useDemandesReport(f: DemandesReportFilters, enabled = true) {
 
 export function useConsentsReport(f: ConsentsFilters, enabled = true) {
   return useQuery({ queryKey: reportsKeys.consents(f), queryFn: () => fetchConsentsReport(f), placeholderData: keepPreviousData, enabled })
+}
+
+/** Rapports « IVAC » (RP-7). */
+export function useIvacReport(f: IvacFilters, enabled = true) {
+  return useQuery({ queryKey: reportsKeys.ivac(f), queryFn: () => fetchIvacReport(f), placeholderData: keepPreviousData, enabled })
+}
+
+/** Rapports « Paie » (RP-8). */
+export function usePayoutsReport(f: PayoutsFilters, enabled = true) {
+  return useQuery({ queryKey: reportsKeys.payouts(f), queryFn: () => fetchPayoutsReport(f), placeholderData: keepPreviousData, enabled })
 }

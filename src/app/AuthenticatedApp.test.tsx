@@ -298,6 +298,8 @@ describe('AuthenticatedApp', () => {
       t('modules.billing.interac.nav'),
       t('modules.billing.payers.nav'),
       t('modules.reports.revenue.nav'),
+      t('modules.reports.ivac.nav'),
+      t('modules.reports.payouts.nav'),
       t('modules.communications.inbox.menu'),
       t('modules.communications.sms.nav'),
       t('modules.professionals.name'),
@@ -330,6 +332,8 @@ describe('AuthenticatedApp', () => {
       t('modules.billing.interac.nav'),
       t('modules.billing.payers.nav'),
       t('modules.reports.revenue.nav'),
+      t('modules.reports.ivac.nav'),
+      t('modules.reports.payouts.nav'),
     ])
     expect(section('nav.groups.team')).toEqual([t('modules.professionals.name')])
   })
