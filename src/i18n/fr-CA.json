@@ -5585,7 +5585,9 @@
             "is_stub": "À compléter",
             "prior_used_cents": "Déjà utilisé avant l’application",
             "prior_used_sessions": "Séances déjà utilisées",
-            "prior_used_on": "Déjà utilisé au"
+            "prior_used_on": "Déjà utilisé au",
+            "event_on": "Date de l'évènement",
+            "coverage_tiers": "Paliers de couverture"
           },
           "client_tag_links": {
             "client_id": "Client",
@@ -6595,7 +6597,29 @@
           "priorOn": "En date du",
           "invalidPrior": "Indiquez ce qui a déjà été utilisé (un montant ou des séances) et en date de quel jour, ou rien.",
           "bothKinds": "Ce client a déjà un payeur IVAC et un PAE actifs : modifiez-les, ou terminez-en un pour en ajouter un autre.",
-          "paeFileHelp": "Requis pour facturer le PAE : sans lui, les séances du client attendent dans la file du matin."
+          "paeFileHelp": "Requis pour facturer le PAE : sans lui, les séances du client attendent dans la file du matin.",
+          "eventOn": "Date de l'évènement",
+          "eventOnHelp": "La date de l'évènement visé par le dossier IVAC, imprimée sur les factures à l'IVAC. Facultative pour enregistrer ; tant qu'elle manque, le payeur reste dans « Payeurs à compléter ».",
+          "coverage": "Couverture",
+          "tiers": "Paliers",
+          "tiersHelp": "Facultatif : quand l'entente couvre ses premières séances autrement, par exemple 3 séances à 100 %, puis 50 %. Les séances se comptent dans l'année de l'entente et le maximum s'applique toujours.",
+          "coverModeThen": "Ce que le PAE paie ensuite, après les paliers",
+          "tierLabel": "Palier {n}",
+          "tierSessions": "Séances",
+          "tierMode": "Couverture",
+          "tierAmount": "Montant par séance ($)",
+          "tierPercent": "Part couverte (%)",
+          "addTier": "Ajouter un palier",
+          "removeTier": "Retirer le palier {n}",
+          "invalidTiers": "Chaque palier compte de 1 à 999 séances, et un montant d'au moins 0,01 $ (94,50) ou une part de 1 à 100 %.",
+          "tiersNeedPriorSessions": "Avec des paliers, indiquez aussi le nombre de séances déjà utilisées avant l'application.",
+          "tiersNeedCoverage": "Indiquez aussi ce que le PAE paie après les paliers.",
+          "tiersFirst": "{count} premières séances",
+          "tiersFirstOne": "Première séance",
+          "tiersNext": "{count} séances suivantes",
+          "tiersNextOne": "Séance suivante",
+          "tiersThen": "ensuite",
+          "tierPart": "{span} : {coverage}"
         },
         "visits": {
           "title": "Visites et paiements",
@@ -6773,7 +6797,7 @@
       },
       "payersToComplete": {
         "title": "Payeurs à compléter",
-        "description": "Les payeurs IVAC et PAE auxquels il manque un renseignement pour partager les séances. Tant qu'ils ne sont pas complétés, les factures de ces clients attendent dans la file du matin.",
+        "description": "Les payeurs IVAC et PAE auxquels il manque un renseignement. Tant que le numéro de dossier, le fournisseur ou la couverture manque, les factures de ces clients attendent dans la file du matin ; la date de l'évènement d'un dossier IVAC, elle, ne bloque rien, mais s'imprime sur les factures à l'IVAC.",
         "loadError": "Impossible de charger les payeurs à compléter.",
         "empty": "Aucun payeur à compléter.",
         "columns": {
@@ -6786,7 +6810,8 @@
         "missing": {
           "file_number": "Numéro de dossier",
           "organisation_name": "Fournisseur du PAE",
-          "coverage": "Montant ou part couverte"
+          "coverage": "Montant ou part couverte",
+          "event_on": "Date de l'évènement (IVAC)"
         },
         "checkTerms": "Vérifiez le payeur, puis enregistrez-le"
       },
@@ -10622,7 +10647,8 @@
             "due_days": "Délai de paiement (jours)",
             "reminders_enabled": "Relances",
             "is_active": "Actif",
-            "note": "Note"
+            "note": "Note",
+            "portal_url": "Portail de dépôt"
           },
           "billing_payer_rates": {
             "kind": "Payeur",
@@ -11047,6 +11073,9 @@
         "held": "En attente : {reason}.",
         "release": "Remettre dans la file",
         "noEmail": "Le payeur n’a pas d’adresse courriel : la facture ne partira pas par courriel. Choisissez un autre payeur, ou remettez-la autrement.",
+        "portalNote": "{payer} reçoit ses factures par son portail, pas par courriel : finalisez sans envoyer, puis déposez le PDF sur le portail.",
+        "portalLink": "Déposer sur le portail",
+        "portalLinkLabel": "Déposer sur le portail de {payer} (nouvel onglet)",
         "delivery": {
           "pending": "Envoi en cours : le PDF se prépare.",
           "sent": "Envoyée au payeur par courriel le {date}.",
@@ -12072,6 +12101,7 @@
         "cadence": "Facturation : {cadence}",
         "billingEmail": "Factures à {email}",
         "noBillingEmail": "Pas d'adresse de facturation",
+        "portal": "Dépôt sur le portail",
         "inactive": "Désactivé",
         "nothing": "Rien à facturer pour l'instant.",
         "pendingTitle": "À facturer",
@@ -12167,7 +12197,9 @@
             "remindersHelp": "Désactivées par défaut : un organisme paie à ses propres conditions.",
             "active": "Actif",
             "activeHelp": "Un organisme désactivé ne reçoit plus de nouvelles factures.",
-            "note": "Note"
+            "note": "Note",
+            "portalUrl": "Portail de dépôt",
+            "portalUrlHelp": "Pour un organisme qui reçoit ses factures par un portail plutôt que par courriel (l'IVAC : le portail de la CNESST). L'adresse commence par https://. Ses factures se finalisent sans envoi, puis leur PDF se dépose sur le portail."
           },
           "languages": {
             "fr": "Français",
@@ -12183,7 +12215,8 @@
             "editTitle": "Modifier {name}",
             "description": "Un fournisseur de PAE reçoit les factures des clients dont le PAE porte son nom.",
             "ivacDescription": "L'IVAC de la clinique : il reste toujours actif.",
-            "dueDaysInvalid": "Le délai de paiement va de 0 à 120 jours."
+            "dueDaysInvalid": "Le délai de paiement va de 0 à 120 jours.",
+            "portalUrlInvalid": "L'adresse du portail de dépôt commence par https:// (une seule adresse, sans espace)."
           }
         }
       },

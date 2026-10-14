@@ -17,7 +17,7 @@ select table_privs_are('public', t, 'authenticated', array['SELECT'], t || ': se
   from (values ('payer_organisations'), ('billing_payer_rates'), ('client_payer_organisations')) as x(t);
 select function_privs_are('public', f, a, 'authenticated', array['EXECUTE'], f || ': users')
   from (values ('list_payer_organisations', array[]::text[]),
-               ('save_payer_organisation', array['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'integer', 'boolean', 'boolean', 'text']),
+               ('save_payer_organisation', array['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'integer', 'boolean', 'boolean', 'text', 'text']),
                ('set_client_payer_organisation', array['uuid', 'uuid']), ('get_payer_settings', array[]::text[]),
                ('set_ivac_rate', array['date', 'integer']), ('get_client_payers_billing', array['uuid']),
                ('list_payer_queue', array[]::text[]), ('prepare_payer_invoices', array['uuid', 'boolean']),
@@ -72,6 +72,8 @@ insert into public.client_payers (id, client_id, org_id, kind, organisation_name
   ('f9000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'pae', 'Fournisseur X', 'PX-9', 80, 30000, 3, 31,
    2000, current_setting('test.day')::date, false),
   ('f9000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'pae', null, null, null, null, 3, 31, null, null, true);
+-- Ivan's IVAC file has its event date (R-84: « Payeurs à compléter » lists it otherwise).
+update public.client_payers set event_on = date '2026-01-15' where id = 'f9000000-0000-0000-0000-000000000001';
 -- Sessions in the middle of last month (clinic time): Ivan e1, Paula e2 e3 e4, Sam e5.
 select set_config('test.s50', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 10150), true);
 insert into public.appointments (id, org_id, professional_id, service_id, starts_at, ends_at, blocks_until, state, completed_at)

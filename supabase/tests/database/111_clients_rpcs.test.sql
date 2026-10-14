@@ -17,7 +17,7 @@ select function_privs_are('public', f.name, f.args, 'authenticated', array['EXEC
     ('set_client_notes', array['uuid', 'text', 'text']), ('archive_client', array['uuid']), ('unarchive_client', array['uuid']),
     ('set_client_relation', array['uuid', 'uuid', 'text', 'jsonb', 'jsonb']), ('remove_client_relation', array['uuid', 'uuid']),
     ('upsert_client_insurance', array['uuid', 'integer', 'text', 'text', 'text', 'text', 'text']), ('delete_client_insurance', array['uuid', 'integer']),
-    ('save_client_payer', array['uuid', 'uuid', 'text', 'text', 'text', 'integer', 'integer', 'integer', 'date', 'date', 'text', 'integer', 'integer', 'integer', 'integer', 'integer', 'date']),
+    ('save_client_payer', array['uuid', 'uuid', 'text', 'text', 'text', 'integer', 'integer', 'integer', 'date', 'date', 'text', 'integer', 'integer', 'integer', 'integer', 'integer', 'date', 'date', 'jsonb']),
     ('end_client_payer', array['uuid']), ('set_client_tags', array['uuid', 'uuid[]']), ('save_client_tag', array['uuid', 'text']),
     ('set_client_tag_active', array['uuid', 'boolean']), ('merge_clients', array['uuid', 'uuid', 'text[]']), ('search_clients', array['text', 'integer']),
     ('get_client_summary', array['uuid']), ('export_client_privacy', array['uuid']), ('anonymize_client', array['uuid'])

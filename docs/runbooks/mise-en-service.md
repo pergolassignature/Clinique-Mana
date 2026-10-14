@@ -108,7 +108,7 @@ Les modules Rendez-vous, Facturation et Rapports s'activent **réservés aux tes
 | 41 | **Adresse Interac** de la clinique ; « Note des factures » relue avec Christine | Jonathan, Christine | Paramètres → Coordonnées bancaires ; Paramètres → Facturation | Une facture test montre l'adresse et la note |
 | 42 | **QuickBooks** : application Intuit (identifiants, retour `/facturation/retour-quickbooks`), connexion de la vraie compagnie ; tableau des comptes et des deux taxes vu avec le comptable ; « À décider » des clients réglés. **L'envoi reste en pause** | Jonathan, Christine, comptable | Paramètres → QuickBooks ; Paramètres → Clients QuickBooks | « Connecté » ; rien dans « Envoi à QuickBooks » |
 | 43 | **Stripe** : clé secrète (`sk_test_` d'abord), webhook (5 événements) et son secret ; tâche « Remboursements par Stripe » ; Christine écrit le texte de consentement de la carte au dossier (E7) | Jonathan, Christine | Paramètres → Paiements en ligne | Avec une carte de test : lien de carte, facture, « Prélever maintenant », « Payer en ligne », remboursement |
-| 44 | **IVAC et PAE** : IVAC : numéro de fournisseur, sans courriel (envoi par le portail de la CNESST, R-84), numéro IVAC de chaque professionnel (liste reçue le 14 octobre) ; chaque fournisseur PAE | Adjointe, Christine | Paramètres → Payeurs tiers | Chaque payeur complet |
+| 44 | **IVAC et PAE** : IVAC : numéro de fournisseur, sans courriel, l'adresse du « Portail de dépôt » de la CNESST (https, sans identifiant de session ; R-84), numéro IVAC de chaque professionnel (liste reçue le 14 octobre) ; chaque fournisseur PAE | Adjointe, Christine | Paramètres → Payeurs tiers | Chaque payeur complet |
 | 45 | **Paie** : part du professionnel confirmée : 70 % des frais d'annulation, 85 % des rapports (rétentions 30 % et 15 %, R-59) ; réglages relus | Christine | Paramètres → Paie ; Paramètres → Rémunération | — |
 
 ### 3.4 Rapports et essais
@@ -154,7 +154,7 @@ Pour chaque commande : **l'essai d'abord**, lire le rapport, puis la même comma
 | 59 | `payeurs` (« Payé par ») | Jonathan | Terminal | Les payeurs sans le droit « recevoir reçus et factures » ajoutés dans les proches, puis relance |
 | 60 | La numérotation suit le dernier numéro noté au gel (`set_invoice_sequence` au besoin) | Jonathan | Paramètres → Facturation → « Numérotation » | La prochaine facture suit celle de GOrendezvous |
 | 61 | **Christine vérifie 5 clients pris au hasard** : dossier, proches, rendez-vous à venir, factures et soldes, consentements | Christine | Clients | Les 5 sont justes |
-| 62 | L'adjointe complète les payeurs « à compléter » (IVAC, PAE) | Adjointe | Clients → « Payeurs à compléter » | La liste est vide, ou ce qui reste est noté |
+| 62 | L'adjointe complète les payeurs « à compléter » (IVAC, PAE ; pour l'IVAC, la date de l'évènement de chaque dossier, R-84) | Adjointe | Clients → « Payeurs à compléter » | La liste est vide, ou ce qui reste est noté |
 
 ---
 

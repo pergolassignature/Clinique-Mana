@@ -3,6 +3,7 @@ import { supabase } from '@/core/supabase/client'
 import { collectPages } from '@/shared/lib/csv'
 import type { Database, Json } from '@/core/supabase/database.types'
 import type { ClientSort, ClientStatusFilter, HolderRelation, LastVisitFilter, PayerKind, RelationRights, RelationType } from '../lib/constants'
+import type { CoverageTier } from '../lib/payer-tiers'
 import {
   duplicatePayload,
   exportExtraPayload,
@@ -200,6 +201,10 @@ export interface PayerInput {
   priorUsedCents: number | null
   priorUsedSessions: number | null
   priorUsedOn: string | null
+  /** R-84: an IVAC file's event date (a calendar date). */
+  eventOn: string | null
+  /** R-85: a PAE's tiers before its usual coverage ([] = one coverage). */
+  coverageTiers: readonly CoverageTier[]
 }
 
 export async function saveClientPayer(input: PayerInput): Promise<string> {
@@ -223,6 +228,12 @@ export async function saveClientPayer(input: PayerInput): Promise<string> {
       p_prior_used_cents: input.priorUsedCents,
       p_prior_used_sessions: input.priorUsedSessions,
       p_prior_used_on: input.priorUsedOn,
+      p_event_on: input.eventOn,
+      p_coverage_tiers: input.coverageTiers.map((tier) =>
+        tier.coveragePercent !== null
+          ? { sessions: tier.sessions, coverage_percent: tier.coveragePercent }
+          : { sessions: tier.sessions, session_amount_cents: tier.sessionAmountCents },
+      ),
     }),
   )
   if (error) throw error
@@ -360,7 +371,7 @@ export async function fetchClientHistory(id: string, beforeId: number | null): P
 
 // --- « Payeurs à compléter » (FP-9) ----------------------------------------------------------------
 
-export const PAYER_MISSING = ['file_number', 'organisation_name', 'coverage'] as const
+export const PAYER_MISSING = ['file_number', 'organisation_name', 'coverage', 'event_on'] as const
 export type PayerMissing = (typeof PAYER_MISSING)[number]
 
 const payerToCompletePayload = z
@@ -384,7 +395,7 @@ const payerToCompletePayload = z
   }))
 export type PayerToComplete = z.output<typeof payerToCompletePayload>
 
-/** The active payers the split cannot use yet: the import's stubs, a missing file number, provider or coverage. */
+/** The active payers still to complete: the import's stubs, a missing file number, provider or coverage, an IVAC event date (R-84). */
 export async function fetchPayersToComplete(): Promise<PayerToComplete[]> {
   const { data, error } = await supabase.rpc('list_client_payers_to_complete')
   if (error) throw error

@@ -31,6 +31,7 @@ const IVAC: PayerOrganisation = {
   remindersEnabled: false,
   isActive: true,
   note: null,
+  portalUrl: null,
 }
 
 function open(role: FixtureRole = 'admin') {
@@ -70,6 +71,33 @@ describe('PayersSettingsPage', () => {
         expect.objectContaining({ id: null, name: 'Fournisseur X', billingEmail: 'factures@x.test', cadence: 'threshold', dueDays: 30, remindersEnabled: false, isActive: true }),
       ),
     )
+  })
+
+  it('R-84: IVAC’s upload portal (https only), instead of a billing address', async () => {
+    const user = userEvent.setup()
+    open()
+    expect(await screen.findByText(t(`${S}.organisations.noEmail`))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${S}.organisations.editLabel`, { name: 'IVAC' }) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${S}.dialog.editTitle`, { name: 'IVAC' }) })
+    await user.type(within(dialog).getByLabelText(/^Portail de dépôt/), 'http://portail.exemple.test')
+    await user.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    expect(await within(dialog).findByText(t(`${S}.dialog.portalUrlInvalid`))).toBeInTheDocument()
+    expect(mocks.payers.savePayerOrganisation).not.toHaveBeenCalled()
+    await user.clear(within(dialog).getByLabelText(/^Portail de dépôt/))
+    await user.type(within(dialog).getByLabelText(/^Portail de dépôt/), ' https://portail.exemple.test/depot ')
+    await user.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    await waitFor(() =>
+      expect(mocks.payers.savePayerOrganisation).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'o-ivac', billingEmail: null, portalUrl: 'https://portail.exemple.test/depot' }),
+      ),
+    )
+  })
+
+  it('… an organisation with a portal is not flagged « sans adresse »', async () => {
+    mocks.payers.fetchPayerOrganisations.mockResolvedValue([{ ...IVAC, portalUrl: 'https://portail.exemple.test/depot' }])
+    open()
+    expect(await screen.findByText('https://portail.exemple.test/depot')).toBeInTheDocument()
+    expect(screen.queryByText(t(`${S}.organisations.noEmail`))).not.toBeInTheDocument()
   })
 
   it('the adjointe manages the organisations, not IVAC’s rate', async () => {

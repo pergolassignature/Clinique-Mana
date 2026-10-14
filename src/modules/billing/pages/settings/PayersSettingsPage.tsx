@@ -25,7 +25,7 @@ import { DateField } from '@/shared/ui/date-field'
 import { CADENCES, LANGUAGES, type Cadence, type DocumentLanguage, type PayerOrganisation, type PayerSettings } from '../../api/payers'
 import { usePayerOrganisations, usePayerSettings, useSavePayerOrganisation, useSetIvacRate } from '../../hooks/use-payers'
 import { formatCents, parseDollars } from '../../lib/money'
-import { cadenceLabel, organisationKindLabel } from '../../lib/payers'
+import { cadenceLabel, isPortalUrl, organisationKindLabel } from '../../lib/payers'
 
 const S = 'modules.billing.payers.settings'
 
@@ -157,11 +157,12 @@ function OrganisationsCard({ organisations, manage }: { organisations: readonly 
               {o.name}
               <span className="font-normal text-muted-foreground">· {organisationKindLabel(o.kind)}</span>
               {!o.isActive && <Badge variant="secondary">{t(`${S}.organisations.inactive`)}</Badge>}
-              {!o.billingEmail && <Badge variant="warning">{t(`${S}.organisations.noEmail`)}</Badge>}
+              {!o.billingEmail && !o.portalUrl && <Badge variant="warning">{t(`${S}.organisations.noEmail`)}</Badge>}
             </p>
             <DescriptionList
               items={[
                 { label: t(`${S}.fields.billingEmail`), value: o.billingEmail },
+                { label: t(`${S}.fields.portalUrl`), value: o.portalUrl },
                 { label: t(`${S}.fields.contactName`), value: o.contactName },
                 { label: t(`${S}.fields.language`), value: t(`${S}.languages.${o.language}`) },
                 { label: t(`${S}.fields.providerNumber`), value: o.providerNumber },
@@ -197,6 +198,7 @@ function OrganisationDialog({ row, onClose }: { row: PayerOrganisation | null; o
   const [reminders, setReminders] = useState(row?.remindersEnabled ?? false)
   const [active, setActive] = useState(row?.isActive ?? true)
   const [note, setNote] = useState(row?.note ?? '')
+  const [portalUrl, setPortalUrl] = useState(row?.portalUrl ?? '')
   const [refusal, setRefusal] = useState<string | null>(null)
   const save = useSavePayerOrganisation({ onErrorMessage: setRefusal })
   const ivac = row?.kind === 'ivac'
@@ -215,6 +217,8 @@ function OrganisationDialog({ row, onClose }: { row: PayerOrganisation | null; o
             event.stopPropagation()
             const days = Number(dueDays)
             if (!/^[0-9]{1,3}$/.test(dueDays.trim()) || days > 120) return setRefusal(t(`${S}.dialog.dueDaysInvalid`))
+            // R-84: the upload portal's address, https only (the database checks it again).
+            if (portalUrl.trim() !== '' && !isPortalUrl(portalUrl.trim())) return setRefusal(t(`${S}.dialog.portalUrlInvalid`))
             setRefusal(null)
             save.mutate(
               {
@@ -229,6 +233,7 @@ function OrganisationDialog({ row, onClose }: { row: PayerOrganisation | null; o
                 remindersEnabled: reminders,
                 isActive: ivac ? true : active,
                 note: textOrNull(note),
+                portalUrl: textOrNull(portalUrl),
               },
               { onSuccess: onClose },
             )
@@ -246,6 +251,9 @@ function OrganisationDialog({ row, onClose }: { row: PayerOrganisation | null; o
               {(field) => <Input {...field} value={contactName} onChange={(e) => setContactName(e.target.value)} maxLength={120} autoComplete="off" />}
             </FormField>
           </FormRow>
+          <FormField label={t(`${S}.fields.portalUrl`)} help={t(`${S}.fields.portalUrlHelp`)} width="full">
+            {(field) => <Input {...field} type="url" value={portalUrl} onChange={(e) => setPortalUrl(e.target.value)} maxLength={500} placeholder="https://" autoComplete="off" />}
+          </FormField>
           <FormRow>
             <FormField label={t(`${S}.fields.language`)} width="sm">
               {(field) => (

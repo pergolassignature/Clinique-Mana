@@ -2701,8 +2701,10 @@ export type Database = {
         Row: {
           client_id: string
           coverage_percent: number | null
+          coverage_tiers: Json
           created_at: string
           created_by: string | null
+          event_on: string | null
           expires_on: string | null
           file_number: string | null
           id: string
@@ -2726,8 +2728,10 @@ export type Database = {
         Insert: {
           client_id: string
           coverage_percent?: number | null
+          coverage_tiers?: Json
           created_at?: string
           created_by?: string | null
+          event_on?: string | null
           expires_on?: string | null
           file_number?: string | null
           id?: string
@@ -2751,8 +2755,10 @@ export type Database = {
         Update: {
           client_id?: string
           coverage_percent?: number | null
+          coverage_tiers?: Json
           created_at?: string
           created_by?: string | null
+          event_on?: string | null
           expires_on?: string | null
           file_number?: string | null
           id?: string
@@ -7073,6 +7079,7 @@ export type Database = {
           name: string
           note: string | null
           org_id: string
+          portal_url: string | null
           provider_number: string | null
           reminders_enabled: boolean
           updated_at: string
@@ -7091,6 +7098,7 @@ export type Database = {
           name: string
           note?: string | null
           org_id: string
+          portal_url?: string | null
           provider_number?: string | null
           reminders_enabled?: boolean
           updated_at?: string
@@ -7109,6 +7117,7 @@ export type Database = {
           name?: string
           note?: string | null
           org_id?: string
+          portal_url?: string | null
           provider_number?: string | null
           reminders_enabled?: boolean
           updated_at?: string
@@ -17569,6 +17578,8 @@ export type Database = {
         Args: {
           p_client_id: string
           p_coverage_percent?: number
+          p_coverage_tiers?: Json
+          p_event_on?: string
           p_expires_on: string
           p_file_number: string
           p_id: string
@@ -17695,6 +17706,7 @@ export type Database = {
           p_language: string
           p_name: string
           p_note: string
+          p_portal_url?: string
           p_provider_number: string
           p_reminders_enabled: boolean
         }

@@ -25,7 +25,7 @@ import { toast } from '@/shared/ui/sonner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import type { PayerQueueGroup } from '../api/payers'
 import type { SendResult } from '../api/queue'
-import { usePayerQueue, usePreparePayerInvoices } from '../hooks/use-payers'
+import { usePayerOrganisations, usePayerQueue, usePreparePayerInvoices } from '../hooks/use-payers'
 import { useSendInvoices } from '../hooks/use-queue'
 import { formatCents } from '../lib/money'
 import { cadenceLabel, organisationKindLabel } from '../lib/payers'
@@ -45,6 +45,9 @@ export function PayersPage() {
   const { can } = useAccess()
   const manage = can('billing.manage')
   const queue = usePayerQueue()
+  // R-84: an organisation's upload portal (IVAC: the CNESST's), from Paramètres → Payeurs tiers.
+  const organisations = usePayerOrganisations()
+  const portalOf = (id: string) => organisations.data?.find((o) => o.id === id)?.portalUrl ?? null
   const [error, setError] = useState<string | null>(null)
   const [refusals, setRefusals] = useState<string[]>([])
   const [closing, setClosing] = useState(false)
@@ -88,6 +91,7 @@ export function PayersPage() {
           <OrganisationCard
             key={g.organisation.id}
             group={g}
+            portalUrl={portalOf(g.organisation.id)}
             manage={manage}
             busy={prepare.isPending || send.isPending}
             onPrepare={() => runPrepare([g.organisation.id], false)}
@@ -175,12 +179,14 @@ function report(results: SendResult[], group: PayerQueueGroup, setRefusals: (r: 
 
 function OrganisationCard({
   group,
+  portalUrl,
   manage,
   busy,
   onPrepare,
   onSend,
 }: {
   group: PayerQueueGroup
+  portalUrl: string | null
   manage: boolean
   busy: boolean
   onPrepare: () => void
@@ -199,7 +205,15 @@ function OrganisationCard({
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span>{organisationKindLabel(o.kind)}</span>
             <span>{t(`${P}.cadence`, { cadence: cadenceLabel(o.cadence) })}</span>
-            {o.billingEmail ? <span>{t(`${P}.billingEmail`, { email: o.billingEmail })}</span> : <Badge variant="warning">{t(`${P}.noBillingEmail`)}</Badge>}
+            {o.billingEmail ? (
+              <span>{t(`${P}.billingEmail`, { email: o.billingEmail })}</span>
+            ) : portalUrl ? (
+              <a href={portalUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">
+                {t(`${P}.portal`)}
+              </a>
+            ) : (
+              <Badge variant="warning">{t(`${P}.noBillingEmail`)}</Badge>
+            )}
             {!o.isActive && <Badge variant="secondary">{t(`${P}.inactive`)}</Badge>}
           </p>
         </div>
