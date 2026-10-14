@@ -145,7 +145,7 @@ test('the adjointe invites a professional, who completes the questionnaire, and 
   await continueTo(page, 'Assurance')
   await upload(main, 'insurance.pdf', "Preuve d'assurance reçue.")
   // The expiry is proposed (the next March 31).
-  await expect(main.getByLabel(/^Date d'échéance/)).toHaveValue(/^\d{4}-03-31$/)
+  await expect(main.getByLabel(/^Date d'échéance/)).toHaveValue(/^31 mars \d{4}$/)
   await continueTo(page, 'Fiscalité et banque')
 
   // Fiscalité et banque: saved on « Continuer » only, encrypted at once (no SIN: not collected).

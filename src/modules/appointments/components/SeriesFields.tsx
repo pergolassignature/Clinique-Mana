@@ -6,6 +6,7 @@ import { Badge } from '@/shared/ui/badge'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { DateField } from '@/shared/ui/date-field'
 import type { SeriesDate } from '../api/parse'
 import { weekdayLabel } from '../lib/display'
 import type { SeriesDraft } from '../lib/series'
@@ -65,7 +66,7 @@ export function SeriesFields({
               </FormField>
             ) : (
               <FormField label={t(`${S}.until`)} width="sm">
-                {(field) => <Input {...field} type="date" value={draft.until} onChange={(e) => set({ until: e.target.value })} />}
+                {(field) => <DateField {...field} value={draft.until} onChange={(until) => set({ until })} />}
               </FormField>
             )}
           </FormRow>

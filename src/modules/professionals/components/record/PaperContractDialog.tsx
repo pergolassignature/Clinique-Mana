@@ -8,8 +8,8 @@ import { getClinicDateString } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
-import { Input } from '@/shared/ui/input'
 import { toast } from '@/shared/ui/sonner'
+import { DateField } from '@/shared/ui/date-field'
 import { PAPER_CONTRACT_MAX_BYTES, PAPER_CONTRACT_MIME } from '../../api/contracts'
 import { useRecordPaperContract } from '../../hooks/use-contracts'
 import { PAPER_EARLIEST, paperSignedOnError } from '../../lib/contract'
@@ -76,19 +76,18 @@ export function PaperContractDialog({ professionalId, firstName, replace, onClos
           {replace && <p className="text-sm text-muted-foreground">{t(`${P}.replaceNote`)}</p>}
           <FormField label={t(`${P}.signedOn`)} help={t(`${P}.signedOnHelp`)} required error={error ?? undefined}>
             {(field) => (
-              <Input
+              <DateField
                 {...field}
                 ref={dateInput}
-                type="date"
                 value={signedOn}
                 min={PAPER_EARLIEST}
                 max={today}
-                onChange={(event) => {
-                  setSignedOn(event.target.value)
+                onChange={(value) => {
+                  setSignedOn(value)
                   setError(null)
                 }}
                 readOnly={busy}
-                className="max-w-[12rem] tabular"
+                className="max-w-[12rem]"
               />
             )}
           </FormField>

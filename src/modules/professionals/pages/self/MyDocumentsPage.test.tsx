@@ -183,7 +183,7 @@ describe('MyDocumentsPage — her own documents', () => {
     expect(dialog).toHaveAccessibleDescription(t(`${D}.upload.descriptionSelf`))
     expect(within(dialog).getByText(t(`${D}.upload.reviewedLaterSelf`))).toBeInTheDocument()
     // March 26 → the next period's March 31 (P4-412).
-    expect(within(dialog).getByLabelText(new RegExp(t(`${D}.upload.expiresOn`)))).toHaveValue('2028-03-31')
+    expect(within(dialog).getByLabelText(new RegExp(t(`${D}.upload.expiresOn`)))).toHaveValue('31 mars 2028')
     const file = new File([new TextEncoder().encode('%PDF-1.7\n')], 'assurance.pdf', { type: 'application/pdf' })
     fireEvent.change(dialog.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

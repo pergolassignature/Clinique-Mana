@@ -16,6 +16,7 @@ import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { toast } from '@/shared/ui/sonner'
+import { DateField } from '@/shared/ui/date-field'
 import { NOTICE_STATES, type InteracNotice, type NoticeState } from '../api/stripe'
 import { stripeErrorMessage } from '../api/stripe-errors'
 import { NoteDialog } from '../components/payroll/PayrollDialogs'
@@ -136,7 +137,7 @@ function AddNoticeCard() {
         )}
         <FormField label={t(`${I}.add.date`)} required>
           {(field) => (
-            <Input {...field} type="date" max={today} value={receivedOn} className="max-w-[12rem] tabular" onChange={(e) => setReceivedOn(e.target.value)} />
+            <DateField {...field} max={today} value={receivedOn} className="max-w-[12rem]" onChange={setReceivedOn} />
           )}
         </FormField>
         <FormField label={t(`${I}.add.amount`)} required error={errors.amount}>
