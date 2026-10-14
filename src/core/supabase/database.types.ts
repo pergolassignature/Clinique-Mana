@@ -15576,10 +15576,12 @@ export type Database = {
           participants: Json
           personal_label: string
           professional_id: string
+          reminder_status: string
           series_id: string
           service_id: string
           starts_at: string
           state: string
+          unreachable: boolean
           video_status: string
           video_url: string
         }[]
