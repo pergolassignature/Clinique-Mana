@@ -141,11 +141,13 @@ const paymentPayload = z
           amount_cents: z.number().int(),
           reason: z.string(),
           status: z.enum(['recorded', 'pending_provider', 'failed']),
+          reference: z.string().nullable().default(null),
           created_at: z.string(),
         }),
       )
       .default([]),
     refundable_cents: z.number().int().optional(),
+    imported: z.boolean().default(false),
   })
   .transform((p) => ({
     id: p.id,
@@ -159,8 +161,10 @@ const paymentPayload = z
     receiptNumber: p.receipt_number,
     receiptFileId: p.receipt_file_id,
     receiptDeliveries: p.receipt_deliveries,
-    refunds: p.refunds.map((r) => ({ id: r.id, amountCents: r.amount_cents, reason: r.reason, status: r.status, createdAt: r.created_at })),
+    refunds: p.refunds.map((r) => ({ id: r.id, amountCents: r.amount_cents, reason: r.reason, status: r.status, reference: r.reference, createdAt: r.created_at })),
     refundableCents: p.refundable_cents ?? p.amount_cents,
+    /** From the GOrendezvous import (an imported card payment is refunded outside the app, BI-29). */
+    imported: p.imported,
   }))
 export type Payment = z.output<typeof paymentPayload>
 

@@ -182,7 +182,7 @@ select functions_are('public', array[
   'discard_billing_file_for_service', 'set_professional_supervisor',
   'billing_sync_events_for_service', 'finish_billing_sync_event_for_service',
   -- Facturation, batch F3.
-  'set_billing_dunning', 'set_billing_invoice_note', 'decide_cancellation_fee', 'list_fee_decisions', 'list_overdue_invoices', 'refund_payment',
+  'set_billing_dunning', 'set_billing_invoice_note', 'decide_cancellation_fee', 'list_fee_decisions', 'list_overdue_invoices', 'refund_payment', 'record_refund_outside_app',
   'refunds_for_service', 'finish_refund_for_service',
   -- Demandes × Facturation: the waiting list's fee.
   'invoice_waitlist_fee',

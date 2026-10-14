@@ -53,7 +53,7 @@ import {
   useSetInvoicePayer,
   useSetLinePrice,
 } from '../hooks/use-invoices'
-import { useRefundPayment } from '../hooks/use-follow-up'
+import { useRecordRefundOutsideApp, useRefundPayment } from '../hooks/use-follow-up'
 import {
   useRecordPayment,
   useReleaseDraft,
@@ -699,17 +699,23 @@ function Payments({
                     key={r.id}
                     className="block text-xs text-muted-foreground"
                   >
-                    {t(
-                      r.status === 'recorded'
-                        ? `${P}.refundLine`
-                        : r.status === 'pending_provider'
-                          ? `${P}.refundPending`
-                          : `${P}.refundFailed`,
-                      {
-                        amount: formatCents(r.amountCents),
-                        reason: r.reason,
-                      }
-                    )}
+                    {r.status === 'recorded' && p.imported && r.reference
+                      ? t(`${P}.refundLineOutside`, {
+                          amount: formatCents(r.amountCents),
+                          reason: r.reason,
+                          reference: r.reference,
+                        })
+                      : t(
+                          r.status === 'recorded'
+                            ? `${P}.refundLine`
+                            : r.status === 'pending_provider'
+                              ? `${P}.refundPending`
+                              : `${P}.refundFailed`,
+                          {
+                            amount: formatCents(r.amountCents),
+                            reason: r.reason,
+                          }
+                        )}
                   </span>
                 ))}
               </span>
@@ -758,15 +764,23 @@ function Payments({
 
 const R = 'modules.billing.invoice.reminders'
 
-/** « Rembourser » a payment: an amount (what is left of it by default) and a reason. */
+/**
+ * « Rembourser » a payment: an amount (what is left of it by default) and a reason. A card payment
+ * imported from GOrendezvous has no PaymentIntent of the clinic's Stripe: « Remboursement fait hors
+ * de l'app » instead, with the refund's reference (BI-29).
+ */
 function RefundButton({ payment }: { payment: Payment }) {
+  const outside = payment.imported && payment.modeCode === 'stripe'
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState(
     (payment.refundableCents / 100).toFixed(2).replace('.', ',')
   )
   const [reason, setReason] = useState('')
+  const [reference, setReference] = useState('')
   const [error, setError] = useState<string | null>(null)
   const refund = useRefundPayment({ onErrorMessage: setError })
+  const refundOutside = useRecordRefundOutsideApp({ onErrorMessage: setError })
+  const pending = refund.isPending || refundOutside.isPending
   return (
     <>
       <Button
@@ -775,25 +789,44 @@ function RefundButton({ payment }: { payment: Payment }) {
         variant="outline"
         onClick={() => setOpen(true)}
       >
-        {t(`${P}.refund`)}
+        {t(outside ? `${P}.refundOutside` : `${P}.refund`)}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t(`${P}.refundTitle`)}</DialogTitle>
-            <DialogDescription>{t(`${P}.refundBody`)}</DialogDescription>
+            <DialogTitle>
+              {t(outside ? `${P}.refundOutsideTitle` : `${P}.refundTitle`)}
+            </DialogTitle>
+            <DialogDescription>
+              {t(outside ? `${P}.refundOutsideBody` : `${P}.refundBody`)}
+            </DialogDescription>
           </DialogHeader>
           <form
             noValidate
             className="grid gap-4"
             onSubmit={(event) => {
               event.preventDefault()
-              if (refund.isPending) return
+              if (pending) return
               const cents = parseDollars(amount)
               if (cents === null) return setError(t(`${I}.amountInvalid`))
               if (reason.trim().length < 3)
                 return setError(t(`${P}.reasonInvalid`))
+              const ref = reference.trim()
+              if (outside && (ref.length < 3 || ref.length > 200))
+                return setError(t(`${P}.refundReferenceInvalid`))
               setError(null)
+              if (outside) {
+                refundOutside.mutate(
+                  {
+                    paymentId: payment.id,
+                    amountCents: cents,
+                    reason: reason.trim(),
+                    reference: ref,
+                  },
+                  { onSuccess: () => setOpen(false) }
+                )
+                return
+              }
               refund.mutate(
                 {
                   paymentId: payment.id,
@@ -827,7 +860,7 @@ function RefundButton({ payment }: { payment: Payment }) {
               label={t(`${P}.refundReason`)}
               width="full"
               required
-              error={error ?? undefined}
+              error={outside ? undefined : (error ?? undefined)}
             >
               {(field) => (
                 <Input
@@ -838,17 +871,32 @@ function RefundButton({ payment }: { payment: Payment }) {
                 />
               )}
             </FormField>
+            {outside && (
+              <FormField
+                label={t(`${P}.refundReference`)}
+                help={t(`${P}.refundReferenceHelp`)}
+                width="full"
+                required
+                error={error ?? undefined}
+              >
+                {(field) => (
+                  <Input
+                    {...field}
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                    maxLength={200}
+                  />
+                )}
+              </FormField>
+            )}
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline">
                   {t('common.cancel')}
                 </Button>
               </DialogClose>
-              <Button
-                type="submit"
-                aria-disabled={refund.isPending || undefined}
-              >
-                {t(`${P}.refundSubmit`)}
+              <Button type="submit" aria-disabled={pending || undefined}>
+                {t(outside ? `${P}.refundOutsideSubmit` : `${P}.refundSubmit`)}
               </Button>
             </DialogFooter>
           </form>
