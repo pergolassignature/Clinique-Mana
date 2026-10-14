@@ -17133,6 +17133,19 @@ export type Database = {
         Returns: Json
       }
       report_demandes: { Args: { p_from: string; p_to: string }; Returns: Json }
+      report_ivac: {
+        Args: {
+          p_from: string
+          p_professional_id?: string
+          p_state?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      report_payouts: {
+        Args: { p_from: string; p_professional_id?: string; p_to: string }
+        Returns: Json
+      }
       report_revenue: {
         Args: {
           p_from: string

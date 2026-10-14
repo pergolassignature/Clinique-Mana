@@ -152,6 +152,12 @@
       "minutesOther": "Please try again in about {count} minutes.",
       "hourOne": "Please try again in about 1 hour.",
       "hoursOther": "Please try again in about {count} hours."
+    },
+    "exportCsv": {
+      "label": "Exporter (CSV)",
+      "preparing": "Préparation du fichier…",
+      "truncated": "Le fichier contient les 5 000 premières lignes : précisez les filtres pour le reste.",
+      "failed": "Le fichier n’a pas pu être préparé. Réessayez."
     }
   },
   "auth": {
@@ -6156,7 +6162,23 @@
           "taxExempt": "Sans taxes"
         },
         "loadMore": "Afficher plus de clients",
-        "loadingMore": "Chargement…"
+        "loadingMore": "Chargement…",
+        "csv": {
+          "fileName": "clients-{date}.csv",
+          "number": "N° de dossier",
+          "lastName": "Nom",
+          "firstName": "Prénom",
+          "birthday": "Date de naissance",
+          "email": "Courriel",
+          "mobile": "Cellulaire",
+          "professional": "Professionnel principal",
+          "lastVisit": "Dernier rendez-vous",
+          "flags": "Indications",
+          "tags": "Étiquettes",
+          "state": "État",
+          "active": "Actif",
+          "archived": "Archivé"
+        }
       },
       "create": {
         "add": "Nouveau client",
@@ -8602,7 +8624,24 @@
           },
           "pendingOffer": "Offre en attente de réponse",
           "openFor": "Ouvrir l'inscription de {person}",
-          "open": "Ouvrir"
+          "open": "Ouvrir",
+          "csv": {
+            "fileName": "liste-attente-{date}.csv",
+            "rank": "Rang",
+            "reference": "Référence",
+            "person": "Personne",
+            "fileNumber": "N° de dossier",
+            "list": "Liste",
+            "priority": "Priorité",
+            "registered": "Inscrite le",
+            "waitedDays": "Jours d’attente",
+            "state": "État",
+            "exitReason": "Raison de la sortie",
+            "consent": "Consentement",
+            "fee": "Frais d’inscription",
+            "lastContact": "Dernier contact",
+            "nextContact": "Prochain contact"
+          }
         },
         "card": {
           "title": "Liste d'attente",
@@ -10535,7 +10574,26 @@
         "status": "État",
         "draft": "Brouillon",
         "more": "Afficher plus",
-        "payment": "Paiement"
+        "payment": "Paiement",
+        "csv": {
+          "fileName": "factures-{view}-{date}.csv",
+          "views": {
+            "brouillons": "brouillons",
+            "emises": "emises",
+            "creditees": "creditees",
+            "toutes": "toutes"
+          },
+          "number": "Numéro",
+          "issuedOn": "Émise le",
+          "fileNumber": "N° de dossier",
+          "client": "Client",
+          "payer": "Facturé à",
+          "total": "Total",
+          "paid": "Payé",
+          "balance": "Solde",
+          "status": "État",
+          "payment": "Paiement"
+        }
       },
       "invoice": {
         "title": "Facture {number}",
@@ -12151,6 +12209,117 @@
         "noProfessional": "Professionnel non précisé",
         "noName": "Nom non précisé",
         "others": "Autres valeurs (au-delà des 50 plus fréquentes)"
+      },
+      "ivac": {
+        "nav": "Rapport IVAC",
+        "title": "IVAC",
+        "description": "Ce que l’IVAC paie pour chaque séance de la période (par la date de la séance) et ce qui lui est facturé à la main, avec où chaque montant en est : à facturer, en préparation, facturé, payé.",
+        "filters": {
+          "state": "État",
+          "allStates": "Tous les états",
+          "professional": "Professionnel",
+          "allProfessionals": "Tous les professionnels"
+        },
+        "sort": {
+          "label": "Trier par",
+          "date_desc": "Date : les plus récentes d’abord",
+          "date_asc": "Date : les plus anciennes d’abord",
+          "client": "Client",
+          "professional": "Professionnel"
+        },
+        "states": {
+          "to_claim": "À facturer à l’IVAC",
+          "draft": "Facture IVAC en préparation",
+          "claimed": "Facturée à l’IVAC",
+          "partial": "Payée en partie",
+          "paid": "Payée par l’IVAC"
+        },
+        "totals": "Totaux",
+        "totalLabels": {
+          "all": "Toutes les séances ({count})",
+          "state": "{state} ({count})"
+        },
+        "table": "Séances couvertes par l’IVAC",
+        "empty": "Aucune séance couverte par l’IVAC dans cette période.",
+        "ivacFile": "Dossier IVAC {number}",
+        "noIvacFile": "Dossier IVAC non indiqué",
+        "ivacNumber": "N° IVAC {number}",
+        "noIvacNumber": "N° IVAC à ajouter au profil",
+        "byHand": "Ajouté à la main sur la facture de l’IVAC",
+        "clientInvoice": "Client :",
+        "ivacInvoice": "IVAC :",
+        "draftInvoice": "brouillon",
+        "loadError": "Le rapport IVAC ne se charge pas.",
+        "fileName": "ivac-{from}-au-{to}.csv",
+        "columns": {
+          "date": "Date de la séance",
+          "fileNumber": "N° de dossier",
+          "client": "Client",
+          "ivacFile": "Dossier IVAC",
+          "professional": "Professionnel",
+          "ivacNumber": "N° IVAC du professionnel",
+          "service": "Service",
+          "amount": "Montant IVAC",
+          "state": "État",
+          "invoices": "Factures",
+          "clientInvoice": "Facture du client",
+          "ivacInvoice": "Facture de l’IVAC"
+        }
+      },
+      "payouts": {
+        "nav": "Rapport de paie",
+        "title": "Paie des professionnels",
+        "description": "Les sommaires de paie des mois de la période : ce qui est dû, payé, validé et encore à payer, par mois et par professionnel.",
+        "filters": {
+          "professional": "Professionnel",
+          "allProfessionals": "Tous les professionnels"
+        },
+        "states": {
+          "draft": "Brouillon",
+          "to_validate": "À valider par le professionnel",
+          "correction_requested": "Correction demandée",
+          "validated": "Validé, à payer",
+          "paid": "Payé"
+        },
+        "totals": "Totaux",
+        "totalLabels": {
+          "periods": "Sommaires",
+          "sessions": "Séances",
+          "total": "Total dû",
+          "paid": "Payé",
+          "toPay": "Validé, à payer",
+          "notValidated": "Pas encore validés"
+        },
+        "byMonthTitle": "Par mois",
+        "byProfessionalTitle": "Par professionnel",
+        "rowsTitle": "Sommaires",
+        "empty": "Aucun sommaire de paie pour ces mois.",
+        "emptyBody": "Les sommaires se calculent dans Facturation → Paie, le 1er de chaque mois.",
+        "unpriced": "{count} à tarifer",
+        "paidOn": "le {date}",
+        "loadError": "Le rapport de paie ne se charge pas.",
+        "fileName": "paie-{from}-au-{to}.csv",
+        "columns": {
+          "month": "Mois",
+          "professional": "Professionnel",
+          "professionals": "Professionnels",
+          "title": "Titre",
+          "state": "État",
+          "months": "Mois",
+          "sessions": "Séances",
+          "sessionAmount": "Montant des séances",
+          "lateCancellations": "Annulations tardives",
+          "lateCancellationAmount": "Montant des annulations tardives",
+          "other": "Autres frais",
+          "adjustments": "Ajustements",
+          "otherAndAdjustments": "Autres frais et ajustements",
+          "total": "Total",
+          "paid": "Payé",
+          "toPay": "À payer",
+          "notValidated": "Non validés",
+          "unpriced": "Lignes à tarifer",
+          "paidOn": "Payé le"
+        }
       }
     }
   },
