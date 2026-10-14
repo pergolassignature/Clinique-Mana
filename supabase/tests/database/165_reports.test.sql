@@ -191,7 +191,7 @@ select results_eq($$ select g ->> 'mode_code', (g ->> 'count')::int, (g ->> 'amo
                        from pg_catalog.jsonb_array_elements(public.report_revenue('payment', '2026-09-01', '2026-10-31') -> 'by_mode') g $$,
   $$ values ('stripe'::text, 1, 22000), ('interac', 1, 10000), ('cheque', 1, 3000) $$, '… per mode');
 select is((public.report_revenue('payment', '2026-09-01', '2026-10-31', null, null, 'cheque') -> 'totals'),
-  '{"count": 1, "amount_cents": 3000}'::jsonb, '… by mode');
+  '{"count": 1, "amount_cents": 3000, "refunds_count": 0, "refunds_cents": 0, "net_cents": 3000}'::jsonb, '… by mode');
 select is((public.report_revenue('payment', '2026-09-01', '2026-09-30', 'c0000000-0000-0000-0000-000000000001') -> 'totals' ->> 'amount_cents')::int,
   10000, '… by professional (the invoice''s)');
 

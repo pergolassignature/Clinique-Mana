@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 import type { Database, Json } from '@/core/supabase/database.types'
-import type { ClientStatusFilter, HolderRelation, PayerKind, RelationRights, RelationType } from '../lib/constants'
+import type { ClientSort, ClientStatusFilter, HolderRelation, LastVisitFilter, PayerKind, RelationRights, RelationType } from '../lib/constants'
 import {
   duplicatePayload,
   exportExtraPayload,
@@ -46,9 +46,12 @@ export interface ClientsPageQuery {
   status: ClientStatusFilter
   professionalId: string | null
   tagId: string | null
+  /** By name (the default) or by the last appointment; the visit order needs `appointments.view`. */
+  sort: ClientSort
+  lastVisit: LastVisitFilter | null
 }
 
-/** One page of the list after `after` (the previous page's last row), in name order. */
+/** One page of the list after `after` (the previous page's last row), in the query's order. */
 export async function fetchClientsPage(query: ClientsPageQuery, after: ClientListRow['cursor'] | null): Promise<ClientListRow[]> {
   const { data, error } = await supabase.rpc(
     'list_clients',
@@ -61,6 +64,9 @@ export async function fetchClientsPage(query: ClientsPageQuery, after: ClientLis
       p_after_first: after?.first ?? null,
       p_after_id: after?.id ?? null,
       p_limit: CLIENTS_PAGE_SIZE,
+      p_sort: query.sort,
+      p_last_visit: query.lastVisit,
+      p_after_visit: after?.visit ?? null,
     }),
   )
   if (error) throw error

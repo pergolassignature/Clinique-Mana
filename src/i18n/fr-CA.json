@@ -6108,6 +6108,22 @@
         "allProfessionals": "Tous les professionnels",
         "tagLabel": "Étiquette",
         "allTags": "Toutes les étiquettes",
+        "lastVisitLabel": "Dernier rendez-vous",
+        "lastVisitAny": "Tout dernier rendez-vous",
+        "lastVisit": {
+          "within_30": "Dans les 30 derniers jours",
+          "within_90": "Dans les 90 derniers jours",
+          "over_90": "Il y a plus de 90 jours",
+          "over_180": "Il y a plus de 180 jours",
+          "over_365": "Il y a plus d'un an",
+          "never": "Aucun rendez-vous"
+        },
+        "sortLabel": "Trier par",
+        "sort": {
+          "name": "Nom",
+          "visit_recent": "Dernier rendez-vous, le plus récent d'abord",
+          "visit_oldest": "Dernier rendez-vous, le plus ancien d'abord"
+        },
         "loadError": "Impossible de charger les clients.",
         "noMatch": {
           "title": "Aucun client trouvé",
@@ -6126,9 +6142,11 @@
           "birthday": "Naissance",
           "contact": "Coordonnées",
           "professional": "Professionnel principal",
+          "lastVisit": "Dernier rendez-vous",
           "flags": "Indications"
         },
         "archived": "Archivé",
+        "noVisit": "Aucun",
         "age": "{age} ans",
         "noBirthday": "Non indiquée",
         "flags": {
@@ -11785,7 +11803,9 @@
           "paid": "Payé",
           "balance": "Solde",
           "payments": "Paiements",
-          "received": "Reçu"
+          "received": "Reçu",
+          "refunds": "Remboursements ({count})",
+          "net": "Net"
         },
         "credited": "Factures émises dans la période puis créditées, non comptées : {count} ({amount}).",
         "empty": "Aucune facture émise dans cette période.",
@@ -11815,7 +11835,13 @@
           "unitPrice": "Prix unitaire",
           "mode": "Mode",
           "amount": "Montant",
-          "reference": "Référence"
+          "reference": "Référence",
+          "kind": "Type"
+        },
+        "refund": "Remboursement",
+        "kinds": {
+          "payment": "Paiement",
+          "refund": "Remboursement"
         }
       },
       "cancellations": {
