@@ -759,6 +759,17 @@ describe('QuestionnairePage — consent and review', () => {
     expect(await stepTitle('review')).toBeInTheDocument()
   })
 
+  it('her next service contract carries it (P4-560): nothing to sign here, and the consent is no gap', async () => {
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({ available: true, validUntil: null, request: null, byContract: false, nextContractGrants: true })
+    renderPage('consentement')
+    await stepTitle('consent')
+    expect(await screen.findByText(t('modules.professionals.consentSign.nextContract'))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('modules.professionals.consentSign.sign') })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t(`${Q}.actions.continue`) }))
+    expect(await stepTitle('review')).toBeInTheDocument()
+    expect(await screen.findByText(t('modules.professionals.consentSign.nextContractShort'))).toBeInTheDocument()
+  })
+
   it('back from the signing page (?consentement=signe): synced at once', async () => {
     mocks.consentSign.syncMyConsent.mockResolvedValue('signed')
     renderPage('consentement&consentement=signe')

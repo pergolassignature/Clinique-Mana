@@ -28,7 +28,7 @@ const ANNEXE_PLACEHOLDER = '{{pricing.annexe_a}}'
 
 /**
  * Professionnels' words for the shared editor (CC-12): the professional's initials on every page,
- * Annexe A (required wherever the template declares it, with a sample grid in the preview), the
+ * Annexe A (required wherever the template declares it, with a sample table in the preview), the
  * « à faire valider » line, and « Publier » here.
  */
 function contractEditorOptions(): Omit<TemplateEditorOptions, 'handlers'> {
@@ -42,16 +42,36 @@ function contractEditorOptions(): Omit<TemplateEditorOptions, 'handlers'> {
       blocked: t(`${E}.publishBlocked.annexe`, { placeholder: ANNEXE_PLACEHOLDER }),
       sample: {
         caption: t(`${E}.preview.annexeCaption`),
-        columns: [t(`${E}.preview.annexeColumns.sessions`), t(`${E}.preview.annexeColumns.d60`), t(`${E}.preview.annexeColumns.d50`), t(`${E}.preview.annexeColumns.d30`)],
+        // The contract's « Partage des honoraires » (P4-556); the shares are an example.
+        columns: [t(`${E}.preview.annexeColumns.service`), t(`${E}.preview.annexeColumns.professional`), t(`${E}.preview.annexeColumns.clinic`)],
         rows: [
-          [t(`${E}.preview.annexeRows.first`), '144 $', '126 $', '93,60 $'],
-          [t(`${E}.preview.annexeRows.second`), '145 $', '126,88 $', '94,25 $'],
-          [t(`${E}.preview.annexeRows.last`), '150 $', '131,25 $', '97,50 $'],
+          [t(`${E}.preview.annexeRows.consultation`), '70 %', '30 %'],
+          [t(`${E}.preview.annexeRows.workshop`), '75 %', '25 %'],
+          [t(`${E}.preview.annexeRows.lateCancellation`), '70 %', '30 %'],
+          [t(`${E}.preview.annexeRows.otherFees`), '85 %', '15 %'],
         ],
       },
     },
     banner: { text: VALIDATION_BANNER, notice: t(`${E}.bannerNotice`, { banner: VALIDATION_BANNER }), blocked: t(`${E}.publishBlocked.banner`) },
     canPublish: true,
+  }
+}
+
+/** The image-rights article's title (P4-557): the heading the database looks for too. */
+const IMAGE_RIGHTS_ARTICLE = 'Promotion des services professionnels'
+
+/** The service contract's image-rights mark in the editor (P4-557): shown, a switch, said when publishing. */
+function imageRightsOption(): TemplateEditorOptions['imageRights'] {
+  const R = `${E}.imageRights`
+  return {
+    article: IMAGE_RIGHTS_ARTICLE,
+    label: t(`${R}.label`),
+    help: t(`${R}.help`, { article: IMAGE_RIGHTS_ARTICLE }),
+    on: t(`${R}.on`),
+    off: t(`${R}.off`),
+    missing: t(`${R}.missing`, { article: IMAGE_RIGHTS_ARTICLE }),
+    blocked: t(`${R}.blocked`, { article: IMAGE_RIGHTS_ARTICLE }),
+    confirm: t(`${R}.confirm`),
   }
 }
 
@@ -188,7 +208,12 @@ export function ContractsSettingsPage() {
       </div>
       {open && (
         <section aria-label={t(`${N}.editorLabel`, { title: open.title })} className="max-w-form">
-          <DocumentTemplateEditor template={open} readOnly={readOnly || !open.canEdit} options={{ ...editorOptions, handlers }} />
+          <DocumentTemplateEditor
+            template={open}
+            readOnly={readOnly || !open.canEdit}
+            // Only the service contract carries the image rights (P4-557).
+            options={{ ...editorOptions, ...(open.key === 'professionals.service_contract' && { imageRights: imageRightsOption() }), handlers }}
+          />
         </section>
       )}
     </div>

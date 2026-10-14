@@ -70,6 +70,10 @@ const COLUMNS = {
     'reviewed_by', 'reviewed_at', 'rejection_reason', 'submission_id', 'signature_request_id', 'created_at', 'updated_at',
     'withdrawn_on', 'withdrawal_note', 'withdrawn_at', 'withdrawn_by',
   ],
+  // The image-rights withdrawal on the professional (P4-559).
+  professional_image_rights_withdrawals: [
+    'professional_id', 'org_id', 'withdrawn_on', 'withdrawal_note', 'withdrawn_at', 'withdrawn_by', 'created_at', 'updated_at',
+  ],
   // 4b: the questionnaire, its private data, the invitation deliveries; 4c–4d: consents and contracts.
   professional_submissions: [
     'id', 'org_id', 'professional_id', 'kind', 'status', 'requested_by', 'requested_sections', 'secure_link_id', 'prefill', 'submitted_values',

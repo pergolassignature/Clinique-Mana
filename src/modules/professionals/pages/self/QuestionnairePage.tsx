@@ -227,7 +227,9 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
     onFile: submission.onFile,
     collectSin: submission.collectSin,
     consentId: submission.consent?.id ?? null,
-    imageConsent: imageConsent.data ? { available: imageConsent.data.available, validUntil: imageConsent.data.validUntil } : null,
+    imageConsent: imageConsent.data
+      ? { available: imageConsent.data.available, validUntil: imageConsent.data.validUntil, nextContractGrants: imageConsent.data.nextContractGrants }
+      : null,
     today,
   }
   const incomplete = incompleteSections(submission.requestedSections, completeness)

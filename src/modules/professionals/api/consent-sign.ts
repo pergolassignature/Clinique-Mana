@@ -42,6 +42,9 @@ export const myImageConsentPayload = z
     available: z.boolean(),
     valid_until: z.string().nullable(),
     request: requestPayload.nullable(),
+    // P4-558, P4-560; absent before that migration.
+    by_contract: z.boolean().default(false),
+    next_contract_grants: z.boolean().default(false),
   })
   .transform((c) => ({
     /** The clinic published the form: it can be signed now. */
@@ -50,6 +53,10 @@ export const myImageConsentPayload = z
     validUntil: c.valid_until,
     /** Her latest consent request (no address, no link). */
     request: c.request,
+    /** In force through her signed service contract (its article 6.2, P4-558). */
+    byContract: c.by_contract,
+    /** Her next service contract will carry it: nothing to sign here (P4-560). */
+    nextContractGrants: c.next_contract_grants,
   }))
   .nullable()
 export type MyImageConsent = NonNullable<z.output<typeof myImageConsentPayload>>

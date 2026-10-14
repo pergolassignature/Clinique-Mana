@@ -1,6 +1,6 @@
 -- The service contract (migration *_professionals_contracts.sql, plan Task 4d.1, P4-430 … P4-449).
 -- Covers: privileges; the permission and its default; the template seeded per clinic (draft v1,
--- nothing published, publishable, the banner line, initials, the block placeholder) and for a new
+-- nothing published, publishable, the 2026 text, initials, the block placeholder) and for a new
 -- clinic; the printed terms (values, Annexe A from the retention grid: prices, tiers, the count's
 -- tier, the rate in force, the other kinds; the signers; refusals without a title or a grid);
 -- prepare_professional_contract (actor checks, arguments, no published template, the snapshot
@@ -125,8 +125,9 @@ select results_eq($$ select v.version, v.status from public.document_template_ve
 select is((select count(*)::int from public.document_templates t
             where t.key = 'professionals.service_contract' and t.org_id = 'b0000000-0000-0000-0000-00000000000b'), 1,
   'every clinic gets the template');
-select is((select v.body -> 'blocks' -> 0 -> 'runs' -> 0 ->> 'text' from public.document_template_versions v where v.id = current_setting('test.v1')::uuid),
-  'Texte à faire valider par la direction avant publication', 'the draft opens with the validation banner');
+-- *_professionals_contract_2026.sql: the seeded draft is the final 2026 text (no banner, P4-554).
+select is((select v.body ->> 'title' from public.document_template_versions v where v.id = current_setting('test.v1')::uuid),
+  'Convention de prestation de services professionnels', 'the draft is the 2026 contract');
 select is((select v.body -> 'header' -> 'initialsFor' from public.document_template_versions v where v.id = current_setting('test.v1')::uuid),
   '["professional"]'::jsonb, 'the professional initials every page (P4-17, P4-431)');
 select ok((select exists (select 1 from jsonb_array_elements(v.body -> 'blocks') b
@@ -152,9 +153,9 @@ select is((select count(*)::int from public.document_templates t join public.doc
 select set_config('test.terms', private.professional_contract_terms('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001')::text, true);
 select is(current_setting('test.terms')::jsonb -> 'values' -> 'professional',
   jsonb_build_object('full_name', 'Pia Un', 'first_name', 'Pia', 'email', 'pia@exemple.ca',
-                     'address', '200, avenue Exemple, bureau 3, Lévis (QC) G6V 1A1', 'profession', 'psychologue',
+                     'address', '200, avenue Exemple, bureau 3, Lévis (QC) G6V 1A1', 'phone', null::text, 'profession', 'psychologue',
                      'membership', 'membre de l’Ordre des psychologues du Québec, permis nº 12345-67'),
-  'the professional''s values: one-line address, the title in a sentence, the order and licence');
+  'the professional''s values: one-line address, no phone, the title in a sentence, the order and licence');
 select is(current_setting('test.terms')::jsonb -> 'values' -> 'contract',
   '{"clinic_legal_name": "Clinique A inc.", "clinic_address": "100, rue Principale, Québec (QC) G1A 1A1"}'::jsonb,
   'the clinic''s legal name and one-line address');

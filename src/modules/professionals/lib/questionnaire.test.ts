@@ -149,6 +149,11 @@ describe('completeness (private.submission_gaps, P4-173)', () => {
     expect(sectionComplete('consent', ctx({ answered: { consent: { consent_version_id: 'consent-v1' } } }))).toBe(true)
     expect(sectionComplete('consent', ctx({ answered: { consent: { consent_version_id: 'consent-v0' } } }))).toBe(false)
     expect(sectionComplete('consent', ctx({ consentId: null, answered: { consent: { consent_version_id: 'consent-v1' } } }))).toBe(false)
+    // The Documenso form published, nothing signed: to complete, unless her next service contract carries it (P4-560).
+    expect(sectionComplete('consent', ctx({ imageConsent: { available: true, validUntil: null } }))).toBe(false)
+    expect(sectionComplete('consent', ctx({ imageConsent: { available: true, validUntil: null, nextContractGrants: true } }))).toBe(true)
+    // In force through her signed contract (P4-558): valid_until is set.
+    expect(sectionComplete('consent', ctx({ imageConsent: { available: true, validUntil: '2100-12-31' } }))).toBe(true)
   })
 
   it('lists the requested sections still incomplete, in order', () => {

@@ -516,6 +516,22 @@ function consentRow(entry: HistoryEntry): Described | null {
 }
 
 const DOCUMENTS_TABLE = 'professional_documents'
+/** The image-rights withdrawal recorded on the professional (P4-559): it wins over the service contract too. */
+const IMAGE_RIGHTS_WITHDRAWALS_TABLE = 'professional_image_rights_withdrawals'
+
+/** « a enregistré le retrait du droit à l'image (contrat de service compris), à partir du … », with its note. */
+function imageRightsWithdrawalRow(entry: HistoryEntry): Described | null {
+  if (entry.action !== 'insert' && entry.action !== 'update') return null
+  const fields = fieldsOf(entry)
+  const pair = pairOf(fields.withdrawn_on)
+  const on = pair ? pair.after : fields.withdrawn_on
+  if (typeof on !== 'string' || !DATE_ONLY.test(on)) return null
+  const notePair = pairOf(fields.withdrawal_note)
+  const note = notePair ? notePair.after : fields.withdrawal_note
+  const lines: HistoryLine[] =
+    typeof note === 'string' && note.trim() !== '' && note !== REDACTED ? [{ kind: 'value', field: t(`${H}.sentences.document.withdrawalNote`), value: note }] : []
+  return { kind: 'change', sentence: t(`${H}.sentences.imageRights.withdrawn`, { date: formatDateOnlyShort(on) }), lines }
+}
 
 /** Each document's type, from the rows that carry `document_type_id` (an insert or a delete). */
 function documentTypesByRow(rows: readonly HistoryEntry[]): Map<string, string> {
@@ -675,6 +691,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   }
   if (entry.tableName === CONSENTS_TABLE) return consentRow(entry)
   if (entry.tableName === DOCUMENTS_TABLE && entry.action !== 'read') return documentRow(ctx, entry)
+  if (entry.tableName === IMAGE_RIGHTS_WITHDRAWALS_TABLE) return imageRightsWithdrawalRow(entry)
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   if (entry.tableName === MATCHING_PRIORITY_TABLE) return matchingPriorityRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)

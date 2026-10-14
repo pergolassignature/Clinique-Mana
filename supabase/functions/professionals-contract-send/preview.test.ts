@@ -117,9 +117,15 @@ const consentVersion = {
 const annexe = {
   title_label: 'Psychologue',
   prices: [{ duration: 50, client_price_cents: 17500 }],
-  tiers: [{ from: 0, to: 50, pay: [{ duration: 50, cents: 12600 }] }, {
+  tiers: [{
+    from: 0,
+    to: 50,
+    retention_pct: 30,
+    pay: [{ duration: 50, cents: 12600 }],
+  }, {
     from: 51,
     to: null,
+    retention_pct: 27.5,
     pay: [{ duration: 50, cents: 12688 }],
   }],
   sessions_total: 12,
@@ -255,11 +261,15 @@ Deno.test('preview: the PDF, its pages, the signers by name and Annexe A’s val
       label: 'Profession',
       value: 'Psychologue',
     })
-    assertEquals(
-      answer.summary[1].value,
-      '12 (palier «\u202F0 à 50 séances\u202F»)',
-    )
-    assert(String(answer.summary[2].value).includes('126'), 'the pay today')
+    // P4-556: the contract's table, the consultations at the grid's first tier.
+    assertEquals(answer.summary[1], {
+      label: 'Consultation (individuelles, de couple et familiales)',
+      value: 'Professionnel 70\u00a0% · Clinique 30\u00a0%',
+    })
+    assertEquals(answer.summary[2], {
+      label: 'Ateliers, conférences et formations',
+      value: 'Professionnel 75\u00a0% · Clinique 25\u00a0%',
+    })
     assert(!JSON.stringify(answer).includes('@'), 'no address in the answer')
     assert(!JSON.stringify(answer).includes(CLINIC_EMAIL))
     // The same RPC call a send makes: the snapshot is written under this key.

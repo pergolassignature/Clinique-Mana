@@ -30,6 +30,11 @@ export type Block =
   | { type: 'signaturePage'; signers: { role: string; label: string }[] }
 export interface PdfBody {
   title: string
+  /**
+   * The text grants the use of the signer's image once signed (model.ts; Professionnels' 2026 service
+   * contract, P4-557). Not in the markup: kept with the body, so the next versions keep it.
+   */
+  grantsImageRights?: boolean
   header?: { text: string; initialsFor?: string[] }
   footer: { text: string }
   blocks: Block[]
@@ -174,6 +179,15 @@ export function markupToBody(markup: string, base: PdfBody): PdfBody {
 
 /** The draft still carries a line to remove before publishing (« à faire valider », « Texte provisoire »). */
 export const hasBanner = (markup: string, banner: string) => markup.includes(banner)
+
+/** A heading (any level) whose text contains `text`, letter case ignored (an article's title, e.g. « Promotion des services professionnels »). */
+export const hasHeadingWith = (markup: string, text: string) => {
+  const wanted = text.toLocaleLowerCase('fr-CA')
+  return chunks(markup).some((lines) => {
+    const heading = HEADING.exec((lines[0] ?? '').trim())
+    return heading?.[2] !== undefined && heading[2].toLocaleLowerCase('fr-CA').includes(wanted)
+  })
+}
 
 /** A block placeholder is alone in a paragraph somewhere (otherwise no table is printed). */
 export const hasBlockPlaceholder = (markup: string, placeholder: string) =>

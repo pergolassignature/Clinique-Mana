@@ -1,15 +1,13 @@
 import { assert, assertEquals } from '@std/assert'
-import { NNBSP } from '../_shared/french.ts'
 import { checkDocument } from '../_shared/pdf/model.ts'
 import {
+  ANNEXE_COLUMNS,
   annexeBlocks,
+  annexeSummary,
   type AnnexeTerms,
+  CONSULTATION_LABEL,
   decimal,
-  durationLabel,
-  money,
   percent,
-  TAX_WORDING,
-  tierLabel,
 } from './annexe.ts'
 
 const NBSP = ' '
@@ -22,40 +20,30 @@ const terms: AnnexeTerms = {
     { duration: 50, client_price_cents: 17500 },
     { duration: 30, client_price_cents: 13000 },
   ],
+  // Out of order on purpose: the first tier is the lowest threshold.
   tiers: [
-    {
-      from: 0,
-      to: 50,
-      pay: [{ duration: 60, cents: 14400 }, { duration: 50, cents: 12600 }, {
-        duration: 30,
-        cents: 9360,
-      }],
-    },
     {
       from: 51,
       to: 100,
-      pay: [{ duration: 60, cents: 14500 }, { duration: 50, cents: 12688 }, {
-        duration: 30,
-        cents: 9425,
-      }],
+      retention_pct: 27.5,
+      pay: [{ duration: 50, cents: 12688 }],
+    },
+    {
+      from: 0,
+      to: 50,
+      retention_pct: 28,
+      pay: [{ duration: 50, cents: 12600 }],
     },
     {
       from: 301,
       to: null,
-      pay: [{ duration: 60, cents: 15000 }, { duration: 50, cents: 13125 }, {
-        duration: 30,
-        cents: 9750,
-      }],
+      retention_pct: 25,
+      pay: [{ duration: 50, cents: 13125 }],
     },
   ],
   sessions_total: 78,
   current_tier_from: 51,
-  in_force: {
-    pay: [{ duration: 60, cents: 14500 }, { duration: 50, cents: 12688 }, {
-      duration: 30,
-      cents: 9425,
-    }],
-  },
+  in_force: { pay: [{ duration: 50, cents: 12688 }] },
   other: [
     { kind: 'workshop', name: 'Ateliers et conférences', retention_pct: 25 },
     {
@@ -67,53 +55,35 @@ const terms: AnnexeTerms = {
   ],
 }
 
-const texts = (blocks: ReturnType<typeof annexeBlocks>) =>
-  blocks.flatMap((b) =>
-    b.type === 'paragraph' ? [b.runs.map((r) => r.text).join('')] : []
-  )
-
-Deno.test('annexe: French amounts, percentages and labels', () => {
-  assertEquals(money(12600), `126${NBSP}$`)
-  assertEquals(money(9360), `93,60${NBSP}$`)
-  assertEquals(money(12688), `126,88${NBSP}$`)
-  assertEquals(money(120000), `1${NBSP}200${NBSP}$`)
-  assertEquals(money(5), `0,05${NBSP}$`)
+Deno.test('annexe: French percentages', () => {
   assertEquals(percent(27.5), `27,5${NBSP}%`)
   assertEquals(percent(75), `75${NBSP}%`)
+  assertEquals(percent(100 - 27.5), `72,5${NBSP}%`)
   assertEquals(decimal(78.5), '78,5')
   assertEquals(decimal(1250), `1${NBSP}250`)
-  assertEquals(tierLabel({ from: 0, to: 50 }), '0 à 50 séances')
-  assertEquals(tierLabel({ from: 301, to: null }), '301 séances et plus')
-  assertEquals(durationLabel(60), `Rencontre 60${NBSP}min (couple ou famille)`)
-  assertEquals(durationLabel(30), `Rencontre 30${NBSP}min`)
 })
 
-Deno.test('annexe: the client prices, then the pay per tier, every amount « avant taxes »', () => {
+Deno.test('annexe: one table in the contract’s format, the consultations at the first tier', () => {
   const blocks = annexeBlocks(terms)
-  const tables = blocks.flatMap((b) => b.type === 'table' ? [b] : [])
-  assertEquals(tables.length, 3)
-  assertEquals(tables[0].columns.map((c) => c.label), [
-    durationLabel(60),
-    durationLabel(50),
-    durationLabel(30),
+  assertEquals(blocks.length, 1)
+  const table = blocks[0]
+  assert(table.type === 'table')
+  assertEquals(table.columns.map((c) => c.label), [...ANNEXE_COLUMNS])
+  assertEquals(table.columns.reduce((sum, c) => sum + c.width, 0), 100)
+  assertEquals(table.rows, [
+    [CONSULTATION_LABEL, `72${NBSP}%`, `28${NBSP}%`],
+    ['Ateliers, conférences et formations', `75${NBSP}%`, `25${NBSP}%`],
+    [
+      'Annulation tardive ou absence non motivée*',
+      `70${NBSP}%`,
+      `30${NBSP}%`,
+    ],
+    ['Autres frais administratifs', `85${NBSP}%`, `15${NBSP}%`],
   ])
-  assertEquals(tables[0].rows, [[`200${NBSP}$`, `175${NBSP}$`, `130${NBSP}$`]])
-  assertEquals(tables[1].columns.map((c) => c.label), [
-    'Séances cumulées',
-    durationLabel(60),
-    durationLabel(50),
-    durationLabel(30),
-  ])
-  assertEquals(tables[1].columns.reduce((sum, c) => sum + c.width, 0), 100)
-  assertEquals(tables[1].rows, [
-    ['0 à 50 séances', `144${NBSP}$`, `126${NBSP}$`, `93,60${NBSP}$`],
-    ['51 à 100 séances', `145${NBSP}$`, `126,88${NBSP}$`, `94,25${NBSP}$`],
-    ['301 séances et plus', `150${NBSP}$`, `131,25${NBSP}$`, `97,50${NBSP}$`],
-  ])
-  assert(texts(blocks)[0].includes(TAX_WORDING))
-  assert(texts(blocks)[0].startsWith(`Profession${NNBSP}: Psychologue.`))
-  // What the professional reads is what they are paid: never a margin or a retention as the subject.
-  assert(!JSON.stringify(blocks).includes('marge'))
+  // Neither the higher tiers, nor the client prices, nor the count: the contract's prose says the rest.
+  const json = JSON.stringify(blocks)
+  assert(!json.includes('séances'))
+  assert(!json.includes('$'))
   assertEquals(
     checkDocument({ title: 'Annexe', footer: { text: '' }, blocks }).ok,
     true,
@@ -121,99 +91,52 @@ Deno.test('annexe: the client prices, then the pay per tier, every amount « ava
   )
 })
 
-Deno.test("annexe: where the professional stands, and the rate in force only when it is not the tier's", () => {
-  const same = texts(annexeBlocks(terms))
-  assert(
-    same.some((t) =>
-      t ===
-        `À la date du contrat, le Professionnel compte 78 séances cumulées (palier «${NNBSP}51 à 100 séances${NNBSP}»). La Clinique fait le suivi du palier chaque mois.`
-    ),
-  )
-  assert(
-    !same.some((t) => t.startsWith('Montant versé à la date du contrat')),
-    'the tier already says it',
-  )
-
-  const custom = texts(annexeBlocks({
+Deno.test('annexe: a 30 % first tier prints the contract’s « 70 % / 30 % »', () => {
+  const table = annexeBlocks({
     ...terms,
-    in_force: {
-      pay: [{ duration: 60, cents: 14000 }, { duration: 50, cents: 12250 }, {
-        duration: 30,
-        cents: 9100,
-      }],
-    },
-  }))
-  assert(custom.includes(
-    `Montant versé à la date du contrat, selon l’entente en vigueur${NNBSP}: ${
-      durationLabel(60)
-    }${NNBSP}: 140${NBSP}$ · ${durationLabel(50)}${NNBSP}: 122,50${NBSP}$ · ${
-      durationLabel(30)
-    }${NNBSP}: 91${NBSP}$.`,
-  ))
+    tiers: [{ from: 0, to: null, retention_pct: 30, pay: [] }],
+  })[0]
+  assert(table.type === 'table')
+  assertEquals(table.rows[0], [CONSULTATION_LABEL, `70${NBSP}%`, `30${NBSP}%`])
 })
 
-Deno.test('annexe: the other kinds as the share paid, with what the clinic retains in words', () => {
-  const other =
-    annexeBlocks(terms).flatMap((b) => b.type === 'table' ? [b] : [])[2]
-  assertEquals(other.rows, [
-    [
-      'Ateliers et conférences',
-      `75${NBSP}% des honoraires facturés (la Clinique retient 25${NBSP}%)`,
+Deno.test('annexe: a rate not set yet reads « À confirmer »; another kind reads its name', () => {
+  const table = annexeBlocks({
+    ...terms,
+    other: [
+      {
+        kind: 'workshop',
+        name: 'Ateliers et conférences',
+        retention_pct: null,
+      },
+      { kind: 'supervision', name: 'Supervision', retention_pct: 40 },
     ],
-    [
-      'Annulation tardive ou absence non motivée',
-      `70${NBSP}% des frais payés par le client (la Clinique retient 30${NBSP}%)`,
-    ],
-    [
-      'Autres frais (rapports, échanges avec un intervenant externe)',
-      `85${NBSP}% des montants facturés (la Clinique retient 15${NBSP}%)`,
-    ],
+  })[0]
+  assert(table.type === 'table')
+  assertEquals(table.rows.slice(1), [
+    ['Ateliers, conférences et formations', 'À confirmer', 'À confirmer'],
+    ['Supervision', `60${NBSP}%`, `40${NBSP}%`],
   ])
-  const unknown = annexeBlocks({
-    ...terms,
-    other: [{
-      kind: 'workshop',
-      name: 'Ateliers et conférences',
-      retention_pct: null,
-    }],
-  })
-    .flatMap((b) => b.type === 'table' ? [b] : [])[2]
-  assertEquals(unknown.rows, [['Ateliers et conférences', 'À confirmer']])
 })
 
-Deno.test('annexe: a grid without prices prints a sentence, never a table without columns', () => {
-  const blocks = annexeBlocks({ ...terms, prices: [] })
-  assertEquals(blocks.filter((b) => b.type === 'table').length, 1)
-  assert(
-    texts(blocks).includes(
-      'Les honoraires des consultations restent à confirmer par la Clinique.',
-    ),
-  )
-  assertEquals(
-    checkDocument({ title: 'Annexe', footer: { text: '' }, blocks }).ok,
-    true,
-  )
-})
-
-Deno.test('annexe: « séance cumulée » below 2, « séances cumulées » from 2', () => {
-  const standing = (sessions: number) =>
-    texts(annexeBlocks({ ...terms, sessions_total: sessions })).find((t) =>
-      t.startsWith('À la date du contrat')
-    )
-  assert(
-    standing(0)?.startsWith(
-      'À la date du contrat, le Professionnel compte 0 séance cumulée',
-    ),
-  )
-  assert(
-    standing(1)?.startsWith(
-      'À la date du contrat, le Professionnel compte 1 séance cumulée',
-    ),
-  )
-  assert(standing(1.5)?.includes('1,5 séance cumulée'))
-  assert(
-    standing(2)?.startsWith(
-      'À la date du contrat, le Professionnel compte 2 séances cumulées',
-    ),
-  )
+Deno.test('annexe: the preview’s summary says the same as the table', () => {
+  assertEquals(annexeSummary(terms), [
+    { label: 'Profession', value: 'Psychologue' },
+    {
+      label: CONSULTATION_LABEL,
+      value: `Professionnel 72${NBSP}% · Clinique 28${NBSP}%`,
+    },
+    {
+      label: 'Ateliers, conférences et formations',
+      value: `Professionnel 75${NBSP}% · Clinique 25${NBSP}%`,
+    },
+    {
+      label: 'Annulation tardive ou absence non motivée*',
+      value: `Professionnel 70${NBSP}% · Clinique 30${NBSP}%`,
+    },
+    {
+      label: 'Autres frais administratifs',
+      value: `Professionnel 85${NBSP}% · Clinique 15${NBSP}%`,
+    },
+  ])
 })

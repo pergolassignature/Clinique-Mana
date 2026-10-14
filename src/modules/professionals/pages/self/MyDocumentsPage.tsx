@@ -80,10 +80,15 @@ export function MyDocumentsPage() {
             <ConsentSigning
               back={{ returnTo: 'documents' }}
               variant="documents"
-              // The card's state line says « Signé le … · valide jusqu'au … » once the signed PDF is on file.
-              cardSaysInForce={(documents.data?.documents ?? []).some(
-                (d) => d.typeId === type.id && d.signatureRequestId !== null && d.status === 'verified' && !isWithdrawn(d, documents.data?.today ?? ''),
-              )}
+              // The card's state line says « Signé le … » once the signed PDF is on file, and what her
+              // service contract carries (P4-558, P4-560).
+              cardSaysInForce={
+                (documents.data?.documents ?? []).some(
+                  (d) => d.typeId === type.id && d.signatureRequestId !== null && d.status === 'verified' && !isWithdrawn(d, documents.data?.today ?? ''),
+                ) ||
+                documents.data?.imageRightsContract?.inForce === true ||
+                documents.data?.imageRightsByNextContract === true
+              }
             />
           ) : null
         }

@@ -93,6 +93,13 @@ const blockSchema = z.discriminatedUnion('type', [
 const pdfDocumentSchema = z.strictObject({
   /** PDF metadata title. */
   title: text(200).min(1),
+  /**
+   * What the document grants once signed, read by the module that sends it
+   * and ignored by the renderer: `true` when its text authorises the use of
+   * the signer's image (Professionnels' 2026 service contract, its article
+   * 6.2, P4-557). Kept with the body, so a template's next versions keep it.
+   */
+  grantsImageRights: z.boolean().optional(),
   /** Top of every page; `initialsFor` = the signer roles that initial each page. */
   header: z.strictObject({
     text: text(120),

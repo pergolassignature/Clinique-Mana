@@ -380,6 +380,38 @@ describe('Documents tab — « Retrait du consentement » (gap audit V5, P4-549)
     await openTab({ role: 'counselor' })
     expect(within(card(CONSENT)).queryByRole('button', { name: t(`${D}.actions.withdraw`) })).not.toBeInTheDocument()
   })
+
+  it('carried by her signed service contract (P4-558): its own words, in order, and the withdrawal offered', async () => {
+    await openTab({
+      role: 'admin_assistant',
+      documents: documentsFixture({ documents: [documentJson(), PHOTO_JSON], image_rights_contract: { signed_at: '2026-10-01T14:00:00+00:00', in_force: true } }),
+    })
+    expect(stateOf(CONSENT)).toBe(t(`${D}.state.byContractOn`, { date: '1 oct. 2026' }))
+    expect(within(card(CONSENT)).queryByText(t(`${D}.lines.none`))).not.toBeInTheDocument()
+    expect(within(card(CONSENT)).getByRole('button', { name: t(`${D}.actions.withdraw`) })).toBeInTheDocument()
+    expect(screen.getByText(t(`${D}.required.summary`, { done: '3', total: '3' }))).toBeInTheDocument()
+  })
+
+  it('the contract’s rights withdrawn (P4-559): « Retiré depuis le … », from the withdrawal recorded on the professional', async () => {
+    await openTab({
+      role: 'admin_assistant',
+      documents: documentsFixture({
+        documents: [documentJson(), PHOTO_JSON],
+        image_rights_contract: { signed_at: '2026-10-01T14:00:00+00:00', in_force: false },
+        image_rights_withdrawal: { withdrawn_on: '2026-10-09', withdrawal_note: 'Demande par courriel.', withdrawn_at: '2026-10-09T15:00:00+00:00', withdrawn_by_name: 'Julie Adjointe' },
+      }),
+    })
+    expect(stateOf(CONSENT)).toBe('Retiré depuis le 9 octobre 2026')
+    const consent = within(card(CONSENT))
+    expect(consent.getByText(t(`${D}.lines.withdrawalNote`, { note: 'Demande par courriel.' }))).toBeInTheDocument()
+    expect(consent.getByText(t(`${D}.lines.withdrawalRecorded`, { date: '9 oct. 2026', name: 'Julie Adjointe' }))).toBeInTheDocument()
+    expect(consent.queryByRole('button', { name: t(`${D}.actions.withdraw`) })).not.toBeInTheDocument()
+  })
+
+  it('her next contract will carry it (P4-560): « Inclus dans le contrat de service à signer », not « Manquant »', async () => {
+    await openTab({ documents: documentsFixture({ documents: [documentJson(), PHOTO_JSON], image_rights_next_contract: true }) })
+    expect(stateOf(CONSENT)).toBe(t(`${D}.state.byNextContract`))
+  })
 })
 
 describe('Documents tab — review', () => {
