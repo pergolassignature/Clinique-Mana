@@ -548,7 +548,7 @@ Deno.test('qbo-push: a token Intuit refuses fails the run (needs_reconnect), not
     assertEquals(h.intuit.documents.length, 0)
   }))
 
-Deno.test('qbo-push: a forgotten Bill (BI-27) is pushed again under a new requestid', () =>
+Deno.test('qbo-push: a forgotten Bill (BI-28) is pushed again under a new requestid', () =>
   run(async () => {
     const m = model({ withBill: true })
     let generation = 0

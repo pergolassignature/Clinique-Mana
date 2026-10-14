@@ -67,7 +67,7 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
   const [error, setError] = useState<string | null>(null)
   const editable = staff && ['draft', 'to_validate', 'correction_requested'].includes(period.state)
   const name = period.professional?.display_name ?? t(`${P}.unknownProfessional`)
-  // BI-23 / BI-27: a Bill in QuickBooks locks the invoice and the reopening until it is forgotten.
+  // BI-23 / BI-28: a Bill in QuickBooks locks the invoice and the reopening until it is forgotten.
   const qboBill = staff && period.state === 'validated' ? (period.invoice?.qbo_bill_id ?? null) : null
 
   const run = async (action: () => Promise<unknown>, success: string) => {

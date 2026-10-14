@@ -11,7 +11,7 @@ const P = 'modules.billing.payroll.period'
 interface QboBillDialogProps {
   periodId: string
   billId: string
-  /** `billing.settings` too: may force the removal without asking QuickBooks (BI-27). */
+  /** `billing.settings` too: may force the removal without asking QuickBooks (BI-28). */
   canForce: boolean
   onCleared: () => void
   onForce: () => void
@@ -19,7 +19,7 @@ interface QboBillDialogProps {
 }
 
 /**
- * « Bill annulé dans QuickBooks » (BI-27): once the Bill is deleted in QuickBooks, « Vérifier dans
+ * « Bill annulé dans QuickBooks » (BI-28): once the Bill is deleted in QuickBooks, « Vérifier dans
  * QuickBooks » asks it (`qbo-bill-check`) and the clinic forgets the Bill only when QuickBooks no
  * longer has it. Whoever also manages QuickBooks may force the removal (`onForce`) when QuickBooks
  * cannot be reached.

@@ -420,7 +420,7 @@ export class QboClient {
   }
 
   /**
-   * Reads one Bill (« Bill annulé dans QuickBooks », BI-27): `deleted` when
+   * Reads one Bill (« Bill annulé dans QuickBooks », BI-28): `deleted` when
    * QuickBooks no longer has it, `voided` when its total is zero, else
    * `present`. Any other failure throws its `QboError`.
    */

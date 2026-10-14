@@ -643,6 +643,9 @@ Les questions de la première version, celles de la visite de GOrendezvous (§13
 53. **Centrale Yeastar pour les textos :** une centrale propre à la clinique (données chez elle ; centrale et DID SMS à commander, 1 à 3 semaines) ou un DID dédié sur la centrale de PS (prêt en un jour ; trafic de la clinique sur l'infrastructure de PS, entente de sous-traitance à signer) ? *Reco : DID dédié sur la centrale de PS pour la bascule, avec l'entente ; migration vers une centrale propre plus tard si la clinique le souhaite.*
 52. **Cartes au dossier à la bascule :** Stripe ne transfère pas les cartes enregistrées par GOrendezvous ; les clients concernés recevront un lien sécurisé en décembre pour redonner leur carte (avec le consentement au prélèvement du lendemain). *Reco : ok ; Christine annonce le changement aux clients dans le courriel de décembre.*
 
+**Importation GOrendezvous (2026-10-14)**
+56. **« Note de crédit » de GOrendezvous :** importées comme un **crédit importé** sur leur facture (BI-27) : elles comptent dans le payé (soldes identiques à GOrendezvous), ne vont jamais dans QuickBooks, ne se remboursent pas et n'ont pas de reçu. *Reco : garder ce choix ; sinon, dire ce qu'une facture réglée par note de crédit doit montrer (payée, ou un solde à suivre à la main).*
+
 ## 5. Prochaine étape
 
 - Le [plan de code](2026-10-11-modules-coding-plan.md) détaille chaque module en lots, tâche par tâche pour Services et tarifs et Clients, avec le calendrier à deux voies, le déroulé de la bascule et les décisions à prendre avant chaque module. Il contient aussi le marquage **Keep / Change / Drop** de l'inventaire et de GOrendezvous exigé par CLAUDE.md §5.

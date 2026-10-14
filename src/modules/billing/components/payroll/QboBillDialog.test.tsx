@@ -64,7 +64,7 @@ function renderDetail(value: PayoutPeriod, { audience = 'staff', permissions = [
 
 afterEach(() => vi.clearAllMocks())
 
-describe('« Bill annulé dans QuickBooks » (BI-27)', () => {
+describe('« Bill annulé dans QuickBooks » (BI-28)', () => {
   it('shows only to the administration, on a validated period whose invoice has a Bill', () => {
     renderDetail(period('901'))
     expect(screen.getByRole('button', { name: t(`${P}.actions.billVoided`) })).toBeInTheDocument()

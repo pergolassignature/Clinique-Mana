@@ -1,5 +1,5 @@
 -- =============================================================================
--- Facturation: « Bill annulé dans QuickBooks » (BI-27, déléguée — révisable)
+-- Facturation: « Bill annulé dans QuickBooks » (BI-28, déléguée — révisable)
 -- =============================================================================
 -- Since BI-23 (`*_billing_security_fixes.sql`), a professional's invoice QuickBooks has (its Bill
 -- id, or its push pending or done) is never replaced nor detached by a reopening: one Bill per

@@ -19,7 +19,7 @@
  *   display name is taken (400, fault 6240);
  * - FQ follow-up: `journalentry` (a refund): debits equal credits, an
  *   Accounts Receivable line names a known customer;
- * - BI-27: a Bill read (`GET bill/<id>`: a deleted one is a 400, fault
+ * - BI-28: a Bill read (`GET bill/<id>`: a deleted one is a 400, fault
  *   610, a voided one has a zero total) and deleted (`POST bill?operation=
  *   delete`, or `deleteBill` / `voidBill` as if done in QuickBooks);
  * - FQ part 2: `query` on Item and TaxCode; `invoice`, `creditmemo`,

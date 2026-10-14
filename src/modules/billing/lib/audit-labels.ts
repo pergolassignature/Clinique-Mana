@@ -44,7 +44,7 @@ export const BILLING_AUDITED_TABLES = [
   'qbo_links',
   'qbo_organisation_links',
   'qbo_vendor_links',
-  // BI-27: « Bill annulé dans QuickBooks ».
+  // BI-28: « Bill annulé dans QuickBooks ».
   'qbo_bill_clearances',
 ] as const
 

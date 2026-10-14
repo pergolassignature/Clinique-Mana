@@ -24,7 +24,7 @@ export function payrollErrorMessage(error: unknown): string {
 }
 
 /**
- * « Bill annulé dans QuickBooks » (`qbo-bill-check`, BI-27): the refusals as written (« Le Bill
+ * « Bill annulé dans QuickBooks » (`qbo-bill-check`, BI-28): the refusals as written (« Le Bill
  * existe toujours dans QuickBooks : supprimez-le d'abord. »), then what keeps QuickBooks from
  * answering, in plain words; anything else as `payrollErrorMessage`.
  */

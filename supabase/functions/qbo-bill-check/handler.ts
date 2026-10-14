@@ -1,5 +1,5 @@
 /**
- * `qbo-bill-check` (Facturation, BI-27): « Bill annulé dans QuickBooks » on a
+ * `qbo-bill-check` (Facturation, BI-28): « Bill annulé dans QuickBooks » on a
  * payroll period. Since BI-23 a period whose invoice QuickBooks has is never
  * reopened nor its invoice replaced; once the administration deleted the
  * Bill in QuickBooks, this asks QuickBooks and, only when the Bill is gone,

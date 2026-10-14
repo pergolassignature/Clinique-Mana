@@ -5,7 +5,8 @@
 // A row: the GOrendezvous number, the date, the client's name (Clients finds the imported file;
 // the --clients-map gives the ClientId of homonyms), the totals, its lines (the service by code,
 // the professional when the employees file names her) and its payments (a negative amount is a
-// refund). **The report never prints a value from the files**: line numbers, invoice counts,
+// refund). A « Note de crédit » payment is an imported credit on its invoice (BI-27): it counts
+// in what is paid, never goes to QuickBooks and is never refunded. **The report never prints a value from the files**: line numbers, invoice counts,
 // months, money totals and French reasons only (decision I-6).
 import { readTable } from './table.mjs'
 import { foldText } from './normalize.mjs'
@@ -47,7 +48,8 @@ export function readClientsMap(text) {
 }
 
 /** Payment methods as revenue.mjs maps them → Facturation's `payment_modes.code`. */
-const MODE_CODES = { qbo_payments_card: 'qbo_payments_card', stripe: 'stripe', interac: 'interac', credit_note: 'credit_note', cheque: 'cheque', bank_transfer: 'bank_transfer' }
+export const CREDIT_NOTE_MODE = 'credit_note'
+const MODE_CODES = { qbo_payments_card: 'qbo_payments_card', stripe: 'stripe', interac: 'interac', credit_note: CREDIT_NOTE_MODE, cheque: 'cheque', bank_transfer: 'bank_transfer' }
 
 /**
  * The three exports → `{ rows, rejected, payerDiffers }`. `rows`: `{ line, number, month,
@@ -129,7 +131,9 @@ export function assembleInvoices({ invoices, lines, payments }, { professionalFo
           professional_id: professional(l.professional ?? invoice.professional),
         })),
         payments: paid.filter((p) => p.amount_cents > 0).map((p) => ({ paid_on: p.date, mode_code: MODE_CODES[p.method] ?? p.method, amount_cents: p.amount_cents })),
-        refunds: paid.filter((p) => p.amount_cents < 0).map((p) => ({ paid_on: p.date, amount_cents: -p.amount_cents })),
+        // A refund carries its mode: import_invoice puts it on a payment of that mode first (a
+        // negative « Note de crédit » on the imported credit, BI-27).
+        refunds: paid.filter((p) => p.amount_cents < 0).map((p) => ({ paid_on: p.date, mode_code: MODE_CODES[p.method] ?? p.method, amount_cents: -p.amount_cents })),
       },
     })
   }

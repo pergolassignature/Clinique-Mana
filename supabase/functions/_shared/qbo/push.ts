@@ -160,7 +160,7 @@ const billSchema = z.array(z.object({
   vendor_id: z.string().nullable(),
   expense_account_id: z.string().nullable(),
   title_name: z.string().nullable(),
-  /** How many times its Bill was forgotten (BI-27): a re-push needs a new requestid. */
+  /** How many times its Bill was forgotten (BI-28): a re-push needs a new requestid. */
   generation: z.number().int().min(0).optional(),
 }))
 
@@ -175,7 +175,7 @@ const money = (cents: number) => Math.round(cents) / 100
 
 /**
  * A Bill's `requestid`: the invoice's, as before, until its Bill is forgotten
- * (« Bill annulé dans QuickBooks », BI-27); then one per generation, since
+ * (« Bill annulé dans QuickBooks », BI-28); then one per generation, since
  * Intuit answers a repeated requestid with the first (deleted) Bill.
  */
 export function billRequestId(

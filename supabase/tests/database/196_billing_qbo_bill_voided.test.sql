@@ -1,4 +1,4 @@
--- Facturation: « Bill annulé dans QuickBooks » (migration *_billing_qbo_bill_voided.sql, BI-27).
+-- Facturation: « Bill annulé dans QuickBooks » (migration *_billing_qbo_bill_voided.sql, BI-28).
 -- Covers: the verified path's two service RPCs (the permission first, the caller's org, a
 -- validated period with a Bill, the Bill unchanged), the override (billing.payroll and
 -- billing.settings, a reason of 10 characters at least), what forgetting a Bill does (the
