@@ -197,3 +197,18 @@ export function fakeSupabase(
     tableCalls,
   }
 }
+
+/**
+ * A `spend_oauth_state_nonce_for_service` route with the database's
+ * behaviour: true the first time a hash is spent, false for a replay. One
+ * route per harness, so each test starts with nothing spent.
+ */
+export function nonceSpendRoute(): RpcRoute {
+  const spent = new Set<string>()
+  return (args) => {
+    const hash = String(args.p_nonce_hash)
+    if (spent.has(hash)) return { data: false }
+    spent.add(hash)
+    return { data: true }
+  }
+}

@@ -185,10 +185,10 @@ select is((select count(*)::int from private.appointments_fee_candidates('b00000
   'cancellation fees: never an imported late cancellation');
 
 -- Reminders: an imported coming appointment gets its reminder from the messages job, as any other
--- (no confirmation went out, so nothing holds it back). Every day a business day, from midnight to
--- 23:59, so the job's pass runs now; the appointment is tomorrow at noon.
+-- (no confirmation went out, so nothing holds it back). Every day a business day, the whole day (to
+-- 23:59:59.999999), so the job's pass runs now at any hour; the appointment is tomorrow at noon.
 insert into public.appointment_settings (org_id, business_days, business_start, business_end, reminder_business_days, reminder_local_hour)
-values ('b0000000-0000-0000-0000-00000000000a', '{1,2,3,4,5,6,7}', '00:00', '23:59', 1, 0)
+values ('b0000000-0000-0000-0000-00000000000a', '{1,2,3,4,5,6,7}', '00:00', '23:59:59.999999', 1, 0)
 on conflict (org_id) do update set business_days = excluded.business_days, business_start = excluded.business_start,
   business_end = excluded.business_end, reminder_business_days = 1, reminder_local_hour = 0;
 select set_config('test.t1', (((now() at time zone 'America/Toronto')::date + 1 + time '12:00') at time zone 'America/Toronto')::text, true);

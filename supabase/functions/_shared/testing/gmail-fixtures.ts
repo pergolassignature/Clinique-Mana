@@ -8,6 +8,7 @@
 import {
   type FakeResult,
   fakeSupabase,
+  nonceSpendRoute,
   type RpcRoute,
   type StorageRoute,
 } from './fake-supabase.ts'
@@ -160,6 +161,7 @@ export function mailRpcRoutes(
       hits: 1,
       retry_after_seconds: 0,
     }]),
+    spend_oauth_state_nonce_for_service: nonceSpendRoute(),
     module_enabled_for_org: ok(true),
     get_org_secret: (args) => ok(state.secrets[args.p_key as string] ?? null),
     get_communications_settings_for_org: () => ok(state.settings),
