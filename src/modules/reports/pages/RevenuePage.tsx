@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
@@ -9,7 +10,7 @@ import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { REVENUE_VIEWS, type RevenueReport, type RevenueView } from '../api/reports'
 import { FilterSelect, ReportControls, Totals } from '../components/ReportControls'
 import { useReportParams } from '../hooks/use-report-params'
@@ -46,7 +47,7 @@ export function RevenuePage() {
   const data = error === null ? report.data : undefined
   const options = data?.options
 
-  let body
+  let body: ReactNode
   if (error) body = null
   else if (report.isPending) body = <Loading />
   else if (report.isError && !report.data) {
@@ -62,7 +63,7 @@ export function RevenuePage() {
   return (
     <div className="max-w-content space-y-5">
       <PageHeader level={1} title={t(`${V}.title`)} description={t(`${V}.description`)} />
-      <Tabs value={view} onValueChange={(v) => set({ vue: v === 'invoice' ? null : v, mode: null })}>
+      <Tabs value={view} onValueChange={(v) => set({ vue: v === 'invoice' ? null : v, mode: null })} className="space-y-5">
         <TabsList aria-label={t(`${V}.views`)}>
           {REVENUE_VIEWS.map((v) => (
             <TabsTrigger key={v} value={v}>
@@ -70,42 +71,46 @@ export function RevenuePage() {
             </TabsTrigger>
           ))}
         </TabsList>
+        {REVENUE_VIEWS.map((v) => (
+          <TabsContent key={v} value={v} className="space-y-5">
+            <ReportControls
+              period={period}
+              today={today}
+              periodError={error}
+              onPeriod={(p) => set({ du: p.from, au: p.to })}
+              onExport={data && data.rows.length > 0 ? () => {
+                const file = revenueCsv(data, period)
+                downloadCsv(file.fileName, file.content)
+              } : undefined}
+            >
+              <FilterSelect
+                label={t(`${V}.filters.professional`)}
+                value={filters.professionalId}
+                allLabel={t(`${V}.filters.allProfessionals`)}
+                options={(options?.professionals ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(v) => set({ pro: v })}
+              />
+              <FilterSelect
+                label={t(`${V}.filters.service`)}
+                value={filters.serviceId}
+                allLabel={t(`${V}.filters.allServices`)}
+                options={(options?.services ?? []).map((s) => ({ value: s.id, label: s.code ? `${s.code} · ${s.name}` : s.name }))}
+                onChange={(v) => set({ service: v })}
+              />
+              {view === 'payment' && (
+                <FilterSelect
+                  label={t(`${V}.filters.mode`)}
+                  value={filters.modeCode}
+                  allLabel={t(`${V}.filters.allModes`)}
+                  options={(options?.modes ?? []).map((m) => ({ value: m.code, label: m.name }))}
+                  onChange={(v) => set({ mode: v })}
+                />
+              )}
+            </ReportControls>
+            {body}
+          </TabsContent>
+        ))}
       </Tabs>
-      <ReportControls
-        period={period}
-        today={today}
-        periodError={error}
-        onPeriod={(p) => set({ du: p.from, au: p.to })}
-        onExport={data && data.rows.length > 0 ? () => {
-          const file = revenueCsv(data, period)
-          downloadCsv(file.fileName, file.content)
-        } : undefined}
-      >
-        <FilterSelect
-          label={t(`${V}.filters.professional`)}
-          value={filters.professionalId}
-          allLabel={t(`${V}.filters.allProfessionals`)}
-          options={(options?.professionals ?? []).map((p) => ({ value: p.id, label: p.name }))}
-          onChange={(v) => set({ pro: v })}
-        />
-        <FilterSelect
-          label={t(`${V}.filters.service`)}
-          value={filters.serviceId}
-          allLabel={t(`${V}.filters.allServices`)}
-          options={(options?.services ?? []).map((s) => ({ value: s.id, label: s.code ? `${s.code} · ${s.name}` : s.name }))}
-          onChange={(v) => set({ service: v })}
-        />
-        {view === 'payment' && (
-          <FilterSelect
-            label={t(`${V}.filters.mode`)}
-            value={filters.modeCode}
-            allLabel={t(`${V}.filters.allModes`)}
-            options={(options?.modes ?? []).map((m) => ({ value: m.code, label: m.name }))}
-            onChange={(v) => set({ mode: v })}
-          />
-        )}
-      </ReportControls>
-      {body}
     </div>
   )
 }
