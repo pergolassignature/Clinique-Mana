@@ -47,6 +47,7 @@ import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVari
 import { isoWeekday } from '../lib/time'
 import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
 import { AppointmentHistory } from './AppointmentHistory'
+import { AppointmentMessages } from './AppointmentMessages'
 import { ConsentsNotice } from './ConsentsNotice'
 import { SeriesFields } from './SeriesFields'
 import { VideoSection } from './VideoSection'
@@ -331,7 +332,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   )
 }
 
-type EditTab = 'appointment' | 'notes' | 'cancel' | 'history' | 'billing'
+type EditTab = 'appointment' | 'notes' | 'cancel' | 'messages' | 'history' | 'billing'
 
 /** A personal appointment (AP-17): its professional takes it off her agenda (a cancellation, « Non spécifiée »). */
 function PersonalCancel({ id, onDone }: { id: string; onDone: () => void }) {
@@ -366,7 +367,8 @@ function EditPanel({
   const open = a.state === 'booked' || a.state === 'confirmed'
   // « Facturation » (L10): only when a module fills the slot for this user (Facturation, billing.view).
   const billingPanels = useModuleSlot('appointment.sheet')
-  const tabs: readonly EditTab[] = billingPanels.length > 0 ? ['appointment', 'notes', 'cancel', 'history', 'billing'] : ['appointment', 'notes', 'cancel', 'history']
+  const tabs: readonly EditTab[] =
+    billingPanels.length > 0 ? ['appointment', 'notes', 'cancel', 'messages', 'history', 'billing'] : ['appointment', 'notes', 'cancel', 'messages', 'history']
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
@@ -400,6 +402,7 @@ function EditPanel({
         {a.isPersonal && open && <PersonalCancel id={a.id} onDone={onClose} />}
         {tab === 'notes' && <NotesTab appointment={a} />}
         {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
+        {tab === 'messages' && <AppointmentMessages appointment={a} />}
         {tab === 'history' && <AppointmentHistory appointment={a} reference={reference} />}
         {tab === 'billing' && !a.isPersonal && (
           <ModuleSlotTargetContext.Provider value={{ 'appointment.sheet': { appointmentId: a.id } }}>
