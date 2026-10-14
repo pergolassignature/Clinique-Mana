@@ -15,6 +15,7 @@
 5. **Module and permissions:**
    - Clients is enabled for the clinic;
    - the operator holds `clients.manage` and `clients.merge`, and for `prix` also `professionals.view` and `services.view`.
+6. **The imports are open** (`organizations.imports_open`, true until the admin closes them after the cutover, « After »). Closed, every import RPC refuses: « Les imports sont fermés pour cette clinique. »
 
 ## Run
 ```bash
@@ -50,6 +51,9 @@ node scripts/import-gorendezvous.mjs prix --lines ~/Clinique-MANA-import/revenus
 - **Anonymised files:** a file anonymised after its import is never re-created by a later run (I-13).
 - **Defaults:** reminders are on and the time zone is the clinic's for every imported file. GOrendezvous's notes are not imported (I-14).
 - **Errors before the report:** an argument or file error stops the run before the report is opened. The terminal says what to fix.
+- **Database errors:** a refusal (« Refusé par la base : … », in French) is shown as written. Any other error shows its code only (« Erreur de la base (23514) … »), never its text, which could hold a value: relaunch, and pass the code on if it comes back.
+- **The report** is a new file outside the repository: the script refuses a `--report` whose folder is inside it.
+- **Homonyms** (security review 2026-10-14): `factures`, `rendez-vous`, `consentements` and `payeurs` also read the clients export (`--clients`, required). A row that names a client **without her ClientId**, when that name is held by several ClientIds in the export (or by a row the clients import refuses: no ClientId, a ClientId twice), **stops the run before the database**, with its line numbers: give its ClientId (`--clients-map` for the invoices and the payers, the export's ClientId column for the appointments and the consents), then re-run. A payer named like several dossiers is left out and listed: set it in the app. The database also answers « plusieurs dossiers » when one of the homonyms was merged into a file anonymised since.
 
 ## The invoices (I3)
 **Code:** the `factures` command, `scripts/import-gorendezvous/invoices.mjs`; RPC `import_invoice` (`supabase/migrations/20261013173039_billing_import.sql`, with `*_clients_import_match.sql` and `*_services_code_lookup.sql`); pgTAP `144_billing_import`; decision BI-20.
@@ -60,13 +64,15 @@ node scripts/import-gorendezvous.mjs prix --lines ~/Clinique-MANA-import/revenus
 3. **Optional:**
    - `employes.csv` (the lines get their professional);
    - `services.csv` (the legacy services get their code);
-   - a `--clients-map` file `Facture;ClientId`, for the invoices whose name the dry run could not settle (homonyms, a name changed since).
+   - a `--clients-map` file `Facture;ClientId`, for the invoices whose name the dry run could not settle (homonyms, a name changed since). **Required** for an invoice naming a homonym of the clients export: the run stops until it is given.
 4. **Permission:** the operator holds `billing.manage`, and Facturation is enabled.
+5. **Refused by the database** (security review 2026-10-14): a payment in « Note de crédit » (a credit note is a document, not money received: decide by hand what such an invoice owes), a payment in a mode the clinic has deactivated, a payment or refund dated in the future, and more than 200 lines, payments or refunds on one invoice. Each refusal blocks `--commit` with its line.
 
 **Run:**
 ```bash
 node scripts/import-gorendezvous.mjs factures --invoices ~/Clinique-MANA-import/revenus-factures.csv \
   --lines ~/Clinique-MANA-import/revenus-services.csv --payments ~/Clinique-MANA-import/revenus-paiements.csv \
+  --clients ~/Clinique-MANA-import/clients.csv \
   --employees ~/Clinique-MANA-import/employes.csv --services ~/Clinique-MANA-import/services.csv \
   --url https://<ref>.supabase.co --anon-key <clé anon> --report ~/Clinique-MANA-import/rapport-factures.txt
 ```
@@ -103,7 +109,7 @@ node scripts/import-gorendezvous.mjs factures --invoices ~/Clinique-MANA-import/
 ```bash
 node scripts/import-gorendezvous.mjs rendez-vous --appointments ~/Clinique-MANA-import/rendez-vous.csv \
   --employees ~/Clinique-MANA-import/employes.csv --services ~/Clinique-MANA-import/services.csv \
-  --lines ~/Clinique-MANA-import/revenus-services.csv \
+  --lines ~/Clinique-MANA-import/revenus-services.csv --clients ~/Clinique-MANA-import/clients.csv \
   --url https://<ref>.supabase.co --anon-key <clé anon> --report ~/Clinique-MANA-import/rapport-rendez-vous.txt
 ```
 - **The waiting list:** GOrendezvous kept it as fake « Inscription – Liste attente » appointments. A registration on a professional's agenda puts the client on that professional's list. One on the conseillère's or « Bureau administratif » agenda puts her on the profession's list (`--waitlist-profession`, `psychologue` by default). A cancelled registration is left out. The other rows of the administrative agendas are set aside (not sessions).
@@ -134,13 +140,14 @@ node scripts/import-gorendezvous.mjs rendez-vous --appointments ~/Clinique-MANA-
 ## The signed consents (I2)
 **Code:** the `consentements` command, `scripts/import-gorendezvous/consents.mjs`; RPC `import_client_consent` (`*_clients_consent_import.sql`, through C5a's `import_client_consent_fact_for_service`); pgTAP `181_clients_consent_import`; decision I-18.
 - **The export:** one row per client and form signed (ClientId, client, form, date signed, version, signer). A form is matched to one of the clinic's 7 consents by its name; any other form is listed and left out. The same consent twice keeps the latest signature.
-- **Run:** `node scripts/import-gorendezvous.mjs consentements --consents ~/Clinique-MANA-import/consentements.csv --url … --anon-key … --report …`, as a dry run, then with `--commit` (`clients.manage` and `clients.merge`).
+- **Run:** `node scripts/import-gorendezvous.mjs consentements --consents ~/Clinique-MANA-import/consentements.csv --clients ~/Clinique-MANA-import/clients.csv --url … --anon-key … --report …`, as a dry run, then with `--commit` (`clients.manage` and `clients.merge`).
 - **What an imported consent is:** a fact « signé dans GOrendezvous » (source `import`, its date, version and signer, no PDF). A consent already in force is « déjà importé ».
+- **The app's word stands** (security review 2026-10-14): a re-run never imports a consent the client withdrew in the app, nor one when the app holds a consent of that kind signed in the app or imported with the same or a later date (« déjà importé »).
 
 ## « Payé par »: the default payers (I2)
 **Code:** the `payeurs` command, `scripts/import-gorendezvous/payers.mjs`; RPC `import_default_payer` (`*_billing_payer_import.sql`); pgTAP `180_billing_payer_import`; decision I-17.
 - **From « Revenus par facture »:** per client, her latest invoice decides. If another person paid it, that person becomes her default payer from that date. If she paid it herself, or an organisation did (IVAC, PAE, an insurer: payers « à compléter », I-8), nothing is set.
-- **Run:** `node scripts/import-gorendezvous.mjs payeurs --invoices ~/Clinique-MANA-import/revenus-factures.csv [--clients-map …] --url … --anon-key … --report …`, as a dry run, then with `--commit` (`billing.manage`). Run it after the clients and their relations.
+- **Run:** `node scripts/import-gorendezvous.mjs payeurs --invoices ~/Clinique-MANA-import/revenus-factures.csv --clients ~/Clinique-MANA-import/clients.csv [--clients-map …] --url … --anon-key … --report …`, as a dry run, then with `--commit` (`billing.manage`). Run it after the clients and their relations.
 - **Left out and listed:** a payer without « recevoir reçus et factures » in the client's relations (add the relation, then re-run), and a client or payer not found.
 
 ## Rehearsal on the local stack (synthetic exports)
@@ -183,3 +190,13 @@ Done for I2 on 2026-10-13 (lane A), after the clients and invoices:
 - **Payers to complete:** the IVAC and PAE tags became payers « à compléter » (the tag also stays on the file). The adjointe completes each one from Clients → « Payeurs à compléter »: the IVAC file number; for a PAE, its provider (as in Paramètres → Payeurs tiers), the amount or share per session, the maximum, the renewal day and what was used this agreement year before the app. Until a payer is completed, its client's drafts wait in the morning queue (« Payeur tiers à compléter »), never billed in full by mistake.
 - **Re-running the clients import after the cutover:** the payer step adds a payer for a kind only when the client has no *active* payer of that kind. A completed payer is active, so a re-run leaves it alone. A payer ended since (« Terminer ») is not, so a re-run gives that client a new « à compléter » payer of the same kind. That is fine for the one-time cutover. For a re-run afterwards, end or ignore those stubs in « Payeurs à compléter », or remove the tag from the export first.
 - **The report:** delete it when it is no longer needed. It holds line numbers, file numbers, codes and reasons, never a personal value (I-6), but it describes the clinic's files.
+
+### After the cutover: close the imports, delete the exports (security review 2026-10-14)
+Once every step is imported and checked (the clients, the invoices, the consents, the appointments, the payers), the admin (`modules.manage`) **closes the imports** for the clinic: every `import_*` RPC then refuses, whatever the permissions of who calls it.
+1. **Close them** from a terminal, signed in as the admin (no service key): in the browser's console of the app, or with the Supabase client in Node, call the RPC as the signed-in admin:
+   ```js
+   await supabase.rpc('set_imports_open', { p_open: false })
+   // → { imports_open: false, imports_closed_at: '…' }
+   ```
+   The change is audited (`organizations`, who and when). `set_imports_open(true)` opens them again for a late run (then close them again).
+2. **Delete the raw exports** (`~/Clinique-MANA-import/*.csv`, the Excel files they came from, and the copies in Downloads or in an email): they hold every client's name, contacts and history. Delete the reports too once read. Empty the trash. Keep nothing on another computer or in a shared folder.

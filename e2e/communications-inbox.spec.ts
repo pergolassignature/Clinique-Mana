@@ -31,7 +31,7 @@ test('the admin finds « Courriels »; without a mailbox the page says who conne
   await page.getByRole('link', { name: 'Courriels' }).first().click()
   await expect(page.getByRole('heading', { level: 1, name: 'Courriels' })).toBeVisible()
   await expect(page.getByText('Aucune boîte connectée')).toBeVisible()
-  await expect(page.getByText('Une personne qui gère les boîtes les connecte dans Paramètres → Courriels Gmail.')).toBeVisible()
+  await expect(page.getByText('Une personne qui gère les boîtes les connecte dans Paramètres, section « Courriels Gmail ».')).toBeVisible()
 })
 
 test('with the fake Google: read, follow, archive and search a thread, then put everything back', async ({ page, signIn, request }) => {

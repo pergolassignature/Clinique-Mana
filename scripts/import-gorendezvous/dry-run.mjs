@@ -55,6 +55,24 @@ export function checkOutsideRepo(file, root = REPO_ROOT) {
   return real
 }
 
+/**
+ * Refuses a report inside the repository (it could be committed): the report does not exist yet,
+ * so its directory is the one checked. Returns the report's path in that real directory.
+ */
+export function checkReportOutsideRepo(file, root = REPO_ROOT) {
+  let dir
+  try {
+    dir = realpathSync(path.dirname(path.resolve(file)))
+  } catch {
+    throw new InputError(`Dossier du rapport introuvable : ${path.dirname(file)}`)
+  }
+  const rel = path.relative(realpathSync(root), dir)
+  if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+    throw new InputError('Le rapport reste hors du dépôt git (dans ~/Clinique-MANA-import/) : choisissez un autre --report, puis relancez.')
+  }
+  return path.join(dir, path.basename(file))
+}
+
 /** Today in the clinic's time zone (« YYYY-MM-DD »), for the birthday bound. */
 export const clinicToday = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(now)
 
@@ -119,7 +137,7 @@ export function run(argv, { stdout = process.stdout, readFile = readFileSync, no
   stdout.write(text)
   if (values.report) {
     // A new file only (wx), readable by its owner only.
-    const fd = openSync(values.report, 'wx', 0o600)
+    const fd = openSync(checkReportOutsideRepo(values.report), 'wx', 0o600)
     try {
       writeSync(fd, text)
     } finally {

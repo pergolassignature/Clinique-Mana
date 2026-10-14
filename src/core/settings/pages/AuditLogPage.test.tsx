@@ -168,7 +168,7 @@ describe('AuditLogPage', () => {
     expect(within(rows()[0]!).queryByText('Application')).not.toBeInTheDocument()
   })
 
-  it('expands an update into « Champ : avant → après » with French labels', async () => {
+  it('expands an update into « Champ : avant, maintenant après » with French labels', async () => {
     const user = userEvent.setup()
     await renderPage()
     const button = toggle('7 oct. 2026 à 14:30')
@@ -176,11 +176,11 @@ describe('AuditLogPage', () => {
     await user.click(button)
     expect(button).toHaveAttribute('aria-expanded', 'true')
     const details = document.getElementById(button.getAttribute('aria-controls')!)!
-    expect(within(details).getByText(`NEQ${NB}: (vide) → 1234567890`)).toBeInTheDocument()
+    expect(within(details).getByText(`NEQ${NB}: (vide), maintenant 1234567890`)).toBeInTheDocument()
     expect(within(details).getByText(`Élément${NB}: ${ORG}`)).toBeInTheDocument()
     await user.click(button)
     expect(button).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText(`NEQ${NB}: (vide) → 1234567890`)).not.toBeInTheDocument()
+    expect(screen.queryByText(`NEQ${NB}: (vide), maintenant 1234567890`)).not.toBeInTheDocument()
   })
 
   it('names codes and people in the details, a short id with its full value in title otherwise', async () => {
@@ -195,7 +195,7 @@ describe('AuditLogPage', () => {
     })
     await renderPage({ pages: [[ROLE, MODULE]] })
     await user.click(toggle('7 oct. 2026 à 14:30'))
-    expect(screen.getByText(`Rôle${NB}: Conseillère → Adjointe administrative`)).toBeInTheDocument()
+    expect(screen.getByText(`Rôle${NB}: Conseillère, maintenant Adjointe administrative`)).toBeInTheDocument()
     await user.click(toggle('7 oct. 2026 à 13:00'))
     await waitFor(() => expect(screen.getByText(`Module${NB}: Professionnels`)).toBeInTheDocument())
     expect(screen.getByText(`Activé${NB}: Oui`)).toBeInTheDocument()
@@ -313,7 +313,7 @@ describe('AuditLogPage', () => {
     expect(within(row!).getByText('Demandes')).toBeInTheDocument()
     expect(within(row!).getAllByText('Importation')).not.toHaveLength(0)
     await user.click(toggle('7 oct. 2026 à 14:30'))
-    expect(screen.getByText(`Statut de la demande${NB}: draft → Ouverte`)).toBeInTheDocument()
+    expect(screen.getByText(`Statut de la demande${NB}: draft, maintenant Ouverte`)).toBeInTheDocument()
     await user.selectOptions(filter('Section'), 'Notes des demandes')
     await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, table: 'demande_notes' }, null))
   })
