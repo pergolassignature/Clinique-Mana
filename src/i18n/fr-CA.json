@@ -4912,6 +4912,19 @@
     },
     "services": {
       "name": "Services et tarifs",
+      "offered": {
+        "title": "Services offerts",
+        "description": "Les services que ses titres professionnels permettent, avec son prix d'aujourd'hui (Paramètres → Services et tarifs).",
+        "loadError": "Les services offerts ne se chargent pas.",
+        "empty": "Aucun service du catalogue pour ses titres.",
+        "toConfirm": "À confirmer",
+        "forTwo": "Pour deux personnes",
+        "columns": {
+          "service": "Service",
+          "duration": "Durée",
+          "price": "Prix aujourd'hui"
+        }
+      },
       "settings": {
         "title": "Services et tarifs",
         "description": "Le catalogue des services de la clinique, codé par famille comme dans GOrendezvous : durée, taxes et source du prix (la grille de rétention de la profession, un prix fixe, gratuit, ou un montant saisi à la facture). Rendez-vous et Facturation le lisent.",
