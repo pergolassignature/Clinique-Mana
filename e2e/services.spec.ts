@@ -66,6 +66,19 @@ test('the admin adds a service with a student rate and reads its prices', async 
   await expect(catalogue.getByRole('rowheader', { name })).toBeHidden()
 })
 
+test('« Trier par »: the catalogue by name in one list; back by family (L27, S-9)', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto(SECTION_URL)
+  const catalogue = page.getByRole('table', { name: 'Catalogue des services' })
+  await expect(catalogue.getByText('10150', { exact: true })).toBeVisible()
+  await expect(catalogue.getByText(/^10 · /)).toBeVisible()
+  await page.getByRole('combobox', { name: 'Trier par' }).selectOption({ label: 'Nom' })
+  await expect(catalogue.getByText(/^10 · /)).toHaveCount(0)
+  await expect(catalogue.getByText('10150', { exact: true })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Trier par' }).selectOption({ label: 'Famille' })
+  await expect(catalogue.getByText(/^10 · /)).toBeVisible()
+})
+
 test('a professional never sees the clinic’s price settings', async ({ page, signIn }) => {
   await signIn('provider')
   await page.goto(SECTION_URL)

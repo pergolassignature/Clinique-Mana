@@ -283,6 +283,8 @@ select functions_are('public', array[
   'import_appointment', 'import_waitlist_entry', 'import_default_payer', 'import_client_consent',
   -- Rapports RP2 (« IVAC », « Paie »).
   'report_ivac', 'report_payouts',
+  -- OAuth state nonces, single use (security review 2026-10-14).
+  'spend_oauth_state_nonce_for_service',
   -- Core: the imports switch (security review 2026-10-14).
   'set_imports_open'
 ],'public schema exposes exactly the intended RPCs');

@@ -18,6 +18,8 @@ import {
   type VariantInput,
 } from '../api/catalogue'
 import { serviceKeys } from './keys'
+import { taxRateOn } from '@/core/settings/tax/api'
+import type { TaxRatesOn } from '../lib/taxes'
 
 const S = 'modules.services.settings'
 
@@ -50,6 +52,17 @@ export function useServicesSettings() {
  */
 export function useServicePrices(on: string) {
   return useQuery({ queryKey: serviceKeys.prices(on), queryFn: () => fetchServicePrices(on), staleTime: 0 })
+}
+
+/** The GST and QST in force on `on` (null where none): « Prix »'s after-tax preview. */
+export function useTaxRatesOn(on: string) {
+  return useQuery({
+    queryKey: serviceKeys.taxRates(on),
+    queryFn: async (): Promise<TaxRatesOn> => {
+      const [gst, qst] = await Promise.all([taxRateOn('gst', on), taxRateOn('qst', on)])
+      return { gst, qst }
+    },
+  })
 }
 
 /**
