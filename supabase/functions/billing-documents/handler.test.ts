@@ -63,6 +63,7 @@ function harness(opts: {
   payLink?: boolean
   buttonLabel?: string | null
   download?: StorageRoute
+  signatures?: RpcRoute
 } = {}) {
   const docs = opts.deliveries ?? [delivery(11)]
   const service = fakeSupabase({
@@ -82,6 +83,7 @@ function harness(opts: {
         }],
       }),
       discard_billing_file_for_service: { data: null },
+      billing_receipt_signatures_for_service: opts.signatures ?? { data: [] },
       issue_billing_link_for_service: { data: opts.payLink ?? false },
       finish_billing_delivery_for_service: { data: null },
       consume_rate_limit: {
@@ -486,53 +488,116 @@ Deno.test('billing-documents: no pay link (a card on file, Stripe not set): the 
   })
 })
 
-Deno.test('billing-documents: a receipt prints its professional’s signature image (R-86); one that does not load is left out, the receipt still sent', async () => {
+const PNG = await Deno.readFile(
+  new URL('../_shared/pdf/fixtures/logo.png', import.meta.url),
+)
+const SIGNATURE = `${ORG_ID}/professionals/p/signature.png`
+const SIGNATURES = [{
+  professional_id: receiptDoc().professionals[0].professional_id,
+  bucket: 'documents',
+  object_path: SIGNATURE,
+}]
+const signatureDownload = (loads: boolean): StorageRoute => (_bucket, path) =>
+  path === SIGNATURE
+    ? (loads ? { data: new Blob([PNG]) } : { error: { message: 'not found' } })
+    : { data: new Blob([PDF]) }
+
+Deno.test('billing-documents: a receipt’s delivery prints its professional’s signature, read by the service role (R-86)', async () => {
   await run(async () => {
-    const png = await Deno.readFile(
-      new URL('../_shared/pdf/fixtures/logo.png', import.meta.url),
-    )
-    const SIGNATURE = `${ORG_ID}/professionals/p/signature.png`
-    const document = receiptDoc({
-      professionals: receiptDoc().professionals.map((p) => ({
-        ...p,
-        signature: { bucket: 'documents', object_path: SIGNATURE },
-      })),
+    const { handler, service } = harness({
+      deliveries: [delivery(11, { kind: 'receipt', document: receiptDoc() })],
+      signatures: { data: SIGNATURES },
+      download: signatureDownload(true),
     })
-    const receipt = delivery(11, { kind: 'receipt', document })
-    const sizes: number[] = []
-    for (const loads of [true, false]) {
-      const { handler, service } = harness({
-        deliveries: [receipt],
-        download: (_bucket, path) =>
-          path === SIGNATURE && loads
-            ? { data: new Blob([png]) }
-            : { error: { message: 'not found' } },
+    assertEquals((await handler(await jobRequest())).status, 200)
+    assertEquals(
+      callsTo(service.calls, 'billing_receipt_signatures_for_service'),
+      [{ p_org_id: ORG_ID, p_receipt_id: receiptDoc().id }],
+    )
+    assertEquals(
+      service.storageCalls.filter((c) => c.method === 'download').map((c) =>
+        c.args[0]
+      ),
+      [SIGNATURE],
+    )
+    const [finish] = callsTo(
+      service.calls,
+      'finish_billing_delivery_for_service',
+    )
+    assertEquals([finish.p_email_status, finish.p_error], ['sent', null])
+    // An invoice never asks for signatures.
+    const invoice = harness({ signatures: { data: SIGNATURES } })
+    await invoice.handler(await jobRequest())
+    assertEquals(
+      callsTo(invoice.service.calls, 'billing_receipt_signatures_for_service'),
+      [],
+    )
+  })
+})
+
+Deno.test('billing-documents: a signature that cannot be read or loaded fails the delivery (tried again), never an unsigned receipt stored or sent', async () => {
+  await run(async () => {
+    const cases: [Parameters<typeof harness>[0], string][] = [
+      [{
+        signatures: { data: SIGNATURES },
+        download: signatureDownload(false),
+      }, 'signature_unavailable'],
+      [{ signatures: { error: { code: 'XX000' } } }, 'signatures_read_failed'],
+    ]
+    for (const [opts, code] of cases) {
+      const { handler, service, http } = harness({
+        deliveries: [delivery(11, { kind: 'receipt', document: receiptDoc() })],
+        ...opts,
       })
       let res: Response | undefined
       const logged = await captureConsole('error', async () => {
         res = await handler(await jobRequest())
       })
       assertEquals(res?.status, 200)
-      // The failure reported by code and ids, never a path.
+      assert(!JSON.stringify(logged).includes(SIGNATURE), 'never a path')
+      assertEquals(callsTo(service.calls, 'register_system_file'), [])
       assertEquals(
-        logged.map((args) => String(args[0]).includes('signature_unavailable')),
-        loads ? [] : [true],
+        service.storageCalls.filter((c) => c.method === 'upload'),
+        [],
       )
-      assert(!JSON.stringify(logged).includes(SIGNATURE))
-      assertEquals(
-        service.storageCalls.filter((c) => c.method === 'download').map((
-          c,
-        ) => [c.bucket, c.args[0]]),
-        [['documents', SIGNATURE]],
-      )
+      assertEquals(http.calls.length, 0)
       const [finish] = callsTo(
         service.calls,
         'finish_billing_delivery_for_service',
       )
-      assertEquals([finish.p_email_status, finish.p_error], ['sent', null])
-      const upload = service.storageCalls.find((c) => c.method === 'upload')!
-      sizes.push((upload.args[1] as Uint8Array).length)
+      assertEquals([finish.p_error, finish.p_file_id], [code, null])
     }
-    assert(sizes[0] > sizes[1], 'the image is in the first PDF only')
+  })
+})
+
+Deno.test('billing-documents: the preview of a receipt prints the signature, or goes without it and reports', async () => {
+  await run(async () => {
+    for (const loads of [true, false]) {
+      const { handler, service } = harness({
+        permissions: ['billing.view'],
+        userRpc: {
+          get_billing_document: {
+            data: { document: receiptDoc(), logo: null },
+          },
+        },
+        signatures: { data: SIGNATURES },
+        download: signatureDownload(loads),
+      })
+      let res: Response | undefined
+      const logged = await captureConsole('error', async () => {
+        res = await handler(
+          post({ action: 'preview', kind: 'receipt', id: receiptDoc().id }),
+        )
+      })
+      assertEquals(res?.status, 200)
+      assertEquals(
+        logged.map((args) => String(args[0]).includes('signature_unavailable')),
+        loads ? [] : [true],
+      )
+      assertEquals(
+        callsTo(service.calls, 'billing_receipt_signatures_for_service'),
+        [{ p_org_id: ORG_ID, p_receipt_id: receiptDoc().id }],
+      )
+    }
   })
 })

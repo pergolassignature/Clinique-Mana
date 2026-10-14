@@ -14600,6 +14600,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      billing_receipt_signatures_for_service: {
+        Args: { p_org_id: string; p_receipt_id: string }
+        Returns: Json
+      }
       billing_sync_events_for_service: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {

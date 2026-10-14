@@ -93,10 +93,18 @@ const professionalSchema = z.object({
   supervisor_order_acronym: maybe,
   supervisor_licence_label: maybe,
   supervisor_licence_number: maybe,
-  /** R-86: her signature image, where the renderer downloads it. */
-  signature: z.object({ bucket: z.string(), object_path: z.string() })
-    .nullable().optional(),
 })
+
+/**
+ * R-86: a receipt's signature images as `billing_receipt_signatures_for_service`
+ * returns them (service role only: the document itself carries no path).
+ */
+export const receiptSignaturesSchema = z.array(z.object({
+  professional_id: z.string(),
+  bucket: z.string(),
+  object_path: z.string(),
+})).max(50)
+export type ReceiptSignature = z.infer<typeof receiptSignaturesSchema>[number]
 
 const invoiceDocSchema = z.object({
   kind: z.enum(['invoice', 'credit_note', 'receipt']),
@@ -542,22 +550,21 @@ export function signatureKey(index: number): string {
 }
 
 /**
- * The signature images a document prints (R-86): a receipt's professionals
- * who have one, under `signatureKey(index)`; none on any other document.
+ * The signature images a document prints (R-86): those of a receipt's
+ * professionals among `signatures`, under `signatureKey(index)`; none on any
+ * other document.
  */
 export function signatureAssets(
   doc: BillingDocument,
+  signatures: readonly ReceiptSignature[],
 ): { key: string; bucket: string; path: string }[] {
   if (doc.kind !== 'receipt') return []
-  return doc.professionals.flatMap((p, i) =>
-    p.signature
-      ? [{
-        key: signatureKey(i),
-        bucket: p.signature.bucket,
-        path: p.signature.object_path,
-      }]
+  return doc.professionals.flatMap((p, i) => {
+    const s = signatures.find((x) => x.professional_id === p.professional_id)
+    return s
+      ? [{ key: signatureKey(i), bucket: s.bucket, path: s.object_path }]
       : []
-  )
+  })
 }
 
 /** A signature's width on the receipt, in points. */

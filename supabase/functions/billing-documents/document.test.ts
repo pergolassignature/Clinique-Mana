@@ -311,19 +311,24 @@ Deno.test('R-87: a couple’s session prints one receipt naming both people, the
 })
 
 Deno.test('R-86: the professional’s signature prints above her name on a receipt, never on an invoice; without its image, the list as before', async () => {
-  const signature = {
+  const signatures = [{
+    professional_id: PROFESSIONALS[0].professional_id,
     bucket: 'documents',
     object_path: 'org/professionals/p/s.png',
-  }
-  const professionals = [{ ...PROFESSIONALS[0], signature }]
-  const receipt = parse(receiptDoc({ professionals }))
-  assertEquals(signatureAssets(receipt), [{
+  }]
+  const professionals = PROFESSIONALS
+  const receipt = parse(receiptDoc())
+  assertEquals(signatureAssets(receipt, signatures), [{
     key: 'signature_0',
     bucket: 'documents',
     path: 'org/professionals/p/s.png',
   }])
-  assertEquals(signatureAssets(parse(invoiceDoc({ professionals }))), [])
-  assertEquals(signatureAssets(parse(receiptDoc())), [])
+  assertEquals(signatureAssets(parse(invoiceDoc()), signatures), [])
+  assertEquals(signatureAssets(receipt, []), [])
+  assertEquals(
+    signatureAssets(receipt, [{ ...signatures[0], professional_id: 'other' }]),
+    [],
+  )
 
   const doc = billingPdf(receipt, {
     logo: false,
