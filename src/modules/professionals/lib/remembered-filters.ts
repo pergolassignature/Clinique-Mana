@@ -51,15 +51,19 @@ type RestorePhase = 'waiting' | 'applying' | 'done'
  */
 export function useRememberedProfessionalsFilters() {
   const preference = useUserPreference(LIST_FILTERS_PREFERENCE)
-  const { schedule } = usePreferenceWriter(LIST_FILTERS_PREFERENCE)
+  const { schedule, flush } = usePreferenceWriter(LIST_FILTERS_PREFERENCE)
   const [phase, setPhase] = useState<RestorePhase>('waiting')
   const onChange = useCallback(
     (filters: ProfessionalsFilters) => {
       // The person chose: whatever the restore was waiting for, the list follows their choice now.
       setPhase('done')
-      schedule(toRememberedFilters(filters))
+      const remembered = toRememberedFilters(filters)
+      schedule(remembered)
+      // Every filter cleared (« Réinitialiser »): forgotten now, no debounced write left pending
+      // that could bring them back on the next visit (as the Clients list, #157).
+      if (remembered === null) flush()
     },
-    [schedule],
+    [schedule, flush],
   )
   const state = useProfessionalsFilters({ onChange })
   const { filters, restore } = state

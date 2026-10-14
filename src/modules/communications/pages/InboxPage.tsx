@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -8,6 +7,7 @@ import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { cn } from '@/shared/lib/utils'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import { Input } from '@/shared/ui/input'
 import { MAIL_VIEWS, type MailView } from '../api/inbox'
 import { MailboxNav, type ViewChoice } from '../components/inbox/MailboxNav'
@@ -45,7 +45,7 @@ const viewParam = (choice: ViewChoice) => (choice.view === 'label' ? `libelle:${
 export function InboxPage() {
   usePageTitle(t(`${I}.title`))
   const connections = useMailConnections()
-  const [params, setParams] = useSearchParams()
+  const { params, update: patchUrl } = useUrlParams()
   const mailboxes = useMemo(() => (connections.data ?? []).filter((m) => m.status !== 'disconnected'), [connections.data])
   // The composer sends from a connected mailbox only (CM3).
   const sendable = useMemo(() => mailboxes.filter((m) => m.status === 'connected'), [mailboxes])
@@ -58,19 +58,7 @@ export function InboxPage() {
   const search = params.get('q') ?? ''
   const [typed, setTyped] = useState(search)
 
-  const update = (changes: Record<string, string | null>) => {
-    setParams(
-      (prev) => {
-        const next = new URLSearchParams(prev)
-        for (const [key, value] of Object.entries(changes)) {
-          if (value === null || value === '') next.delete(key)
-          else next.set(key, value)
-        }
-        return next
-      },
-      { replace: true },
-    )
-  }
+  const update = (changes: Record<string, string | null>) => patchUrl(changes)
 
   // The search follows typing, 300 ms after the last key.
   useEffect(() => {
