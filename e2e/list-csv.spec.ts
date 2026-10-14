@@ -15,7 +15,8 @@ async function download(page: Page): Promise<{ name: string; text: string }> {
 
 test('the clients list: the files the filters select', async ({ page, signIn }) => {
   await signIn('admin')
-  await page.goto('/clients')
+  // A filter in the address wins over the person's remembered ones (C4), whatever ran before.
+  await page.goto('/clients?statut=tous')
   await expect(page.getByRole('table', { name: 'Clients' }).getByRole('link', { name: 'Alice Tremblay-Fictive' })).toBeVisible()
   const all = await download(page)
   expect(all.name).toMatch(/^clients-\d{4}-\d{2}-\d{2}\.csv$/)

@@ -1,5 +1,6 @@
 import { t } from '@/i18n'
 import { buildCsv, type CsvCell } from '@/shared/lib/csv'
+import { getClinicDateString } from '@/shared/lib/timezone'
 import type { ClientListRow } from '../api/parse'
 import { clientNumberLabel, phoneLabel, rateVariantLabel } from './display'
 
@@ -8,7 +9,8 @@ const C = `${L}.csv`
 
 /**
  * The clients list as a CSV (parity audit L7): the files the list's filters select, with what the
- * list shows (number, names, birthday, contact, primary professional, indications, tags, state).
+ * list shows (number, names, birthday, contact, primary professional, last appointment, indications,
+ * tags, state).
  * Never a note, an address or a health detail.
  */
 export function clientsCsv(
@@ -26,6 +28,7 @@ export function clientsCsv(
     t(`${C}.email`),
     t(`${C}.mobile`),
     t(`${C}.professional`),
+    t(`${C}.lastVisit`),
     t(`${C}.flags`),
     t(`${C}.tags`),
     t(`${C}.state`),
@@ -38,6 +41,7 @@ export function clientsCsv(
     r.email,
     r.mobile ? phoneLabel(r.mobile) : null,
     pro(r.primaryProfessionalId),
+    r.lastVisitAt ? getClinicDateString(r.lastVisitAt) : null,
     [
       r.isBanned && t(`${L}.flags.banned`),
       r.fileIncomplete && t(`${L}.flags.incomplete`),
