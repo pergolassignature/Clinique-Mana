@@ -227,7 +227,7 @@ Migration `20261013223925_appointments_history`; pgTAP `173_appointments_history
 
 ## Google busy times (batch R6, AP-40 … AP-45)
 
-Migration `20261014000122_appointments_google_busy`; pgTAP `176_appointments_google_busy`; functions `google-calendar-connect`, `google-calendar-callback`, `google-calendar-sync` (`_shared/google-calendar/`); decisions AP-40 … AP-45.
+Migration `20261014000122_appointments_google_busy`; pgTAP `177_appointments_google_busy`; functions `google-calendar-connect`, `google-calendar-callback`, `google-calendar-sync` (`_shared/google-calendar/`); decisions AP-40 … AP-45.
 
 - **Tables:**
   - `calendar_connections`: a professional's Google account (one per professional and clinic; one professional per Google account while connected). State `connected` / `needs_reconnect` / `disconnected`, a reconnect reason (`invalid_grant`, `unauthorized`, `scope_missing`), the account's `sub` and address (redacted in the journal). Staff (`appointments.view`) read every row, a professional (`.self`) hers.
