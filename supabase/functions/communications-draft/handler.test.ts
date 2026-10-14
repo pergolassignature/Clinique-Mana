@@ -51,7 +51,10 @@ function setup(
     rpc: {
       get_my_access: {
         data: {
-          ...accessFixture(options.permissions ?? ['communications.ai_draft']),
+          ...accessFixture(
+            options.permissions ??
+              ['communications.ai_draft', 'communications.inbox'],
+          ),
           modules: ['communications'],
         },
       },
@@ -166,6 +169,54 @@ Deno.test('a reply drafted: names, addresses and numbers never reach OpenAI; the
   assert(body.history[0].content.includes('514 555-1234'))
 })
 
+Deno.test('a thread linked to no file: every correspondent named by the database is masked, and given back', async () => {
+  const s = setup({
+    rpc: {
+      ai_draft_context_for_service: {
+        data: {
+          ...CONTEXT,
+          person: null,
+          correspondent_names: [
+            'Alex Témoin',
+            'Camille Fictive',
+            'Julie Conseillère',
+          ],
+        },
+      },
+    },
+  })
+  const res = await s.handler(post({
+    mode: 'reply',
+    instruction: 'Remerciez Camille et proposez mardi.',
+    original:
+      'Bonjour, ici CAMILLE FICTIVE. Alex Témoin est en copie. Merci, Alex.',
+    subject_empty: false,
+    thread_id: CLIENT_ID,
+  }))
+  assertEquals(res.status, 200)
+  const sent = JSON.stringify(s.openai.requests)
+  for (
+    const secret of [
+      'Camille',
+      'CAMILLE',
+      'Fictive',
+      'FICTIVE',
+      'Alex',
+      'Témoin',
+    ]
+  ) {
+    assertFalse(sent.includes(secret), `OpenAI saw ${secret}`)
+  }
+  assert(sent.includes('[[nom-'))
+  const [context] = s.service.calls.filter((c) =>
+    c.fn === 'ai_draft_context_for_service'
+  )
+  assertEquals(context!.args.p_thread_id, CLIENT_ID)
+  const body = await res.json()
+  assert(body.history[0].content.includes('Alex Témoin'))
+  assert(body.history[0].content.includes('Camille'))
+})
+
 Deno.test('« Raffiner »: the history sent again (masked), no subject line asked', async () => {
   const s = setup()
   const res = await s.handler(post({
@@ -235,6 +286,32 @@ Deno.test("the caller's limit, a missing permission, no key, no instruction", as
     (await forbidden.handler(post({ mode: 'write', instruction: 'x' }))).status,
     403,
   )
+  const noInbox = setup({ permissions: ['communications.ai_draft'] })
+  assertEquals(
+    (await noInbox.handler(post({ mode: 'write', instruction: 'x' }))).status,
+    403,
+  )
+  assertEquals(
+    noInbox.service.calls.length + noInbox.openai.requests.length,
+    0,
+    'without communications.inbox nothing is read nor sent',
+  )
+  const notHers = setup({
+    rpc: {
+      ai_draft_context_for_service: {
+        error: { code: '42501', message: 'Permission refusée' },
+      },
+    },
+  })
+  assertEquals(
+    (await notHers.handler(post({
+      mode: 'reply',
+      instruction: 'x',
+      thread_id: CLIENT_ID,
+    }))).status,
+    403,
+  )
+  assertEquals(notHers.openai.requests.length, 0)
   const noKey = setup({ secret: null })
   const res = await noKey.handler(post({ mode: 'write', instruction: 'x' }))
   assertEquals(res.status, 503)
@@ -293,6 +370,34 @@ Deno.test('the masker: whole words, any case, longest first; tokens given back',
   assertEquals(
     m.unmask('Écrivez à [[courriel-1]] ou au [[téléphone-1]].'),
     'Écrivez à eve@x.ca ou au 819-555-0101 poste 22.',
+  )
+})
+
+Deno.test('the masker: correspondents as tokens, word by word; placeholders and tokens never rewritten', () => {
+  const m = createMasker({
+    firstName: 'Ève',
+    lastName: 'Roy',
+    senderName: 'Julie Tremblay',
+    clinicName: 'Clinique MANA',
+    others: [
+      'Ève Roy',
+      'Marc-André de la Fontaine',
+      'Person Name',
+      'Clinique MANA',
+      'Nom Courriel',
+      '',
+    ],
+  })
+  const masked = m.mask(
+    'Bonjour Ève, Marc-André de la Fontaine et MARC-ANDRÉ sont en copie (marc@x.ca). Fontaine aussi. Person, name, nom, courriel. La clinique.',
+  )
+  assertEquals(
+    masked,
+    'Bonjour {{person.first_name}}, [[nom-1]] et [[nom-2]] sont en copie ([[courriel-1]]). [[nom-3]] aussi. [[nom-5]], [[nom-6]], [[nom-8]], [[nom-9]]. La clinique.',
+  )
+  assertEquals(
+    m.unmask('Merci [[nom-2]] et [[nom-3]].'),
+    'Merci Marc-André et Fontaine.',
   )
 })
 
