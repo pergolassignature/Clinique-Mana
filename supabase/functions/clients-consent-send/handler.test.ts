@@ -268,3 +268,25 @@ Deno.test('clients-consent-send: the body is strict; a context needs its id', as
     assertEquals(s.service.calls, [])
   })
 })
+
+Deno.test('clients-consent-send: the caller is verified before the body is read', async () => {
+  await run(async () => {
+    const s = setup()
+    const anonymous = await s.handler(
+      new Request(URL_, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: APP },
+        body: 'not json',
+      }),
+    )
+    assertEquals(anonymous.status, 401, 'no caller: 401, the body unread')
+    const denied = setup({ permissions: ['clients.view'] })
+    assertEquals(
+      (await denied.handler(post({ action: 'nope' }))).status,
+      403,
+      'no clients.manage: 403 before the body is checked',
+    )
+    assertEquals(s.service.calls, [])
+    assertEquals(denied.service.calls, [])
+  })
+})
