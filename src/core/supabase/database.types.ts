@@ -15723,9 +15723,11 @@ export type Database = {
       }
       list_clients: {
         Args: {
+          p_after_created?: string
           p_after_first?: string
           p_after_id?: string
           p_after_last?: string
+          p_after_number?: number
           p_after_visit?: string
           p_last_visit?: string
           p_limit?: number
@@ -15738,6 +15740,7 @@ export type Database = {
         Returns: {
           birthday: string
           client_number: number
+          created_at: string
           email: string
           file_incomplete: boolean
           first_name: string

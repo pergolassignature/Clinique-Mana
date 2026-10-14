@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Columns3, Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { usePreferenceWriter, useUserPreference } from '@/core/preferences/hooks'
@@ -25,9 +25,12 @@ import type { ClientListRow } from '../api/parse'
 import { CreateClientDialog } from '../components/list/CreateClientDialog'
 import { useClientsList, useClientsReference } from '../hooks/use-clients'
 import { clientsCsv } from '../lib/clients-csv'
-import { CLIENT_SORTS, CLIENT_STATUSES, LAST_VISIT_FILTERS, clientPath, type ClientSort, type ClientStatusFilter, type LastVisitFilter } from '../lib/constants'
+import { CLIENT_SORTS, CLIENT_STATUSES, LAST_VISIT_FILTERS, VISIT_SORTS, clientPath, type ClientSort, type ClientStatusFilter, type LastVisitFilter } from '../lib/constants'
+import { CLIENT_LIST_COLUMNS, CLIENT_LIST_COLUMNS_PREFERENCE, listColumnsOf, type ClientListColumn } from '../lib/list-columns'
 import { CLIENTS_FILTERS_PREFERENCE, filterQuery, fromRememberedFilters, toRememberedFilters } from '../lib/remembered-filters'
 import { ageOf, choices, clientNumberLabel, phoneLabel, rateVariantLabel } from '../lib/display'
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
+import { CheckboxField } from '@/shared/components/CheckboxField'
 
 const L = 'modules.clients.list'
 
@@ -38,7 +41,7 @@ const L = 'modules.clients.list'
  * error report; they live in the history entry's state, so « Retour » from a record finds them.
  */
 const STATUS_PARAM: Record<ClientStatusFilter, string> = { active: 'actifs', archived: 'archives', all: 'tous' }
-const SORT_PARAM: Record<ClientSort, string> = { name: 'nom', visit_recent: 'recents', visit_oldest: 'anciens' }
+const SORT_PARAM: Record<ClientSort, string> = { name: 'nom', number: 'numero', created_recent: 'nouveaux', visit_recent: 'recents', visit_oldest: 'anciens' }
 const LAST_VISIT_PARAM: Record<LastVisitFilter, string> = {
   within_30: '30-jours',
   within_90: '90-jours',
@@ -55,7 +58,8 @@ function searchOf(state: unknown): string {
 /** `visits`: the user may read the appointments (else a visit order or filter in the URL is ignored). */
 function readFilters(params: URLSearchParams, q: string, visits: boolean): ClientsPageQuery {
   const status = (Object.entries(STATUS_PARAM).find(([, value]) => value === params.get('statut'))?.[0] ?? 'active') as ClientStatusFilter
-  const sort = (visits ? Object.entries(SORT_PARAM).find(([, value]) => value === params.get('tri'))?.[0] : undefined) ?? 'name'
+  const named = Object.entries(SORT_PARAM).find(([, value]) => value === params.get('tri'))?.[0] as ClientSort | undefined
+  const sort = named && (visits || !VISIT_SORTS.includes(named)) ? named : 'name'
   const lastVisit = (visits ? Object.entries(LAST_VISIT_PARAM).find(([, value]) => value === params.get('dernier'))?.[0] : undefined) ?? null
   return { query: q, status, professionalId: params.get('professionnel'), tagId: params.get('etiquette'), sort: sort as ClientSort, lastVisit: lastVisit as LastVisitFilter | null }
 }
@@ -111,6 +115,13 @@ export function ClientsListPage() {
     seen.current = params
     latest.current = params
   }
+  // The columns she chose (her preference, A-3), the defaults until it is read.
+  const columnsPreference = useUserPreference(CLIENT_LIST_COLUMNS_PREFERENCE)
+  const writeColumns = usePreferenceWriter(CLIENT_LIST_COLUMNS_PREFERENCE)
+  const columns = listColumnsOf(columnsPreference.data)
+  const toggleColumn = (column: ClientListColumn) =>
+    writeColumns.schedule({ columns: columns.includes(column) ? columns.filter((c) => c !== column) : CLIENT_LIST_COLUMNS.filter((c) => c === column || columns.includes(c)) })
+
   const update = (patch: Record<string, string | null>, q: string = filters.query) => {
     const previous = latest.current
     const next = new URLSearchParams(previous)
@@ -194,17 +205,32 @@ export function ClientsListPage() {
                   ))}
                 </Select>
               </div>
-              <div className="w-field-md max-w-full">
-                <Select aria-label={t(`${L}.sortLabel`)} value={filters.sort} onChange={(event) => update({ tri: event.target.value === 'name' ? null : SORT_PARAM[event.target.value as ClientSort] })}>
-                  {CLIENT_SORTS.map((value) => (
-                    <option key={value} value={value}>
-                      {t(`${L}.sort.${value}`)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
             </>
           )}
+          <div className="w-field-md max-w-full">
+            <Select aria-label={t(`${L}.sortLabel`)} value={filters.sort} onChange={(event) => update({ tri: event.target.value === 'name' ? null : SORT_PARAM[event.target.value as ClientSort] })}>
+              {CLIENT_SORTS.filter((value) => visits || !VISIT_SORTS.includes(value)).map((value) => (
+                <option key={value} value={value}>
+                  {t(`${L}.sort.${value}`)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost">
+                <Columns3 aria-hidden />
+                {t(`${L}.columnPicker.label`)}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" collisionPadding={16} aria-label={t(`${L}.columnPicker.title`)} className="w-64 p-3">
+              <div className="grid gap-2">
+                {CLIENT_LIST_COLUMNS.filter((c) => visits || c !== 'lastVisit').map((c) => (
+                  <CheckboxField key={c} label={t(`${L}.columns.${c}`)} checked={columns.includes(c)} onCheckedChange={() => toggleColumn(c)} />
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
           {/* L7: the files these filters select, every page. */}
           <ExportCsvButton
             className="ml-auto"
@@ -246,6 +272,7 @@ export function ClientsListPage() {
             professionals={reference.data?.professionals}
             tags={reference.data?.tags}
             visits={visits}
+            columns={columns}
             more={list.hasNextPage ? { loading: list.isFetchingNextPage, load: () => void list.fetchNextPage() } : null}
           />
         )}
@@ -261,11 +288,15 @@ interface ClientsTableProps {
   tags: readonly { id: string; name: string }[] | undefined
   /** Show « Dernier rendez-vous » (the user may read the appointments). */
   visits: boolean
+  /** The optional columns she chose (A-3). */
+  columns: readonly ClientListColumn[]
   more: { loading: boolean; load: () => void } | null
 }
 
 /** The files, 50 at a time; « Afficher plus » under the last row while there are more. */
-function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableProps) {
+function ClientsTable({ rows, professionals, tags, visits, columns, more }: ClientsTableProps) {
+  const show = (c: ClientListColumn) => columns.includes(c) && (c !== 'lastVisit' || visits)
+  const shownCount = 1 + CLIENT_LIST_COLUMNS.filter(show).length
   const proName = (id: string | null) => (id ? (professionals?.find((p) => p.id === id)?.name ?? '') : '')
   const tagName = (id: string) => tags?.find((tag) => tag.id === id)?.name
   return (
@@ -274,19 +305,20 @@ function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableP
         <TableHeader>
           <TableRow className="[&>th]:whitespace-nowrap">
             <TableHead>{t(`${L}.columns.name`)}</TableHead>
-            <TableHead className="max-xl:hidden">{t(`${L}.columns.number`)}</TableHead>
-            <TableHead>{t(`${L}.columns.birthday`)}</TableHead>
-            <TableHead className="max-md:hidden">{t(`${L}.columns.contact`)}</TableHead>
+            {show('number') && <TableHead className="max-xl:hidden">{t(`${L}.columns.number`)}</TableHead>}
+            {show('birthday') && <TableHead>{t(`${L}.columns.birthday`)}</TableHead>}
+            {show('contact') && <TableHead className="max-md:hidden">{t(`${L}.columns.contact`)}</TableHead>}
             {/* The menu takes 220 px: from xl only, so « Dernier rendez-vous » and the flags stay in view at 1024. */}
-            <TableHead className="max-xl:hidden">{t(`${L}.columns.professional`)}</TableHead>
-            {visits && <TableHead className="max-md:hidden">{t(`${L}.columns.lastVisit`)}</TableHead>}
-            <TableHead className="max-md:hidden">{t(`${L}.columns.flags`)}</TableHead>
+            {show('professional') && <TableHead className="max-xl:hidden">{t(`${L}.columns.professional`)}</TableHead>}
+            {show('lastVisit') && <TableHead className="max-md:hidden">{t(`${L}.columns.lastVisit`)}</TableHead>}
+            {show('opened') && <TableHead className="max-md:hidden">{t(`${L}.columns.opened`)}</TableHead>}
+            {show('flags') && <TableHead className="max-md:hidden">{t(`${L}.columns.flags`)}</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows === null ? (
             <TableRow>
-              <TableCell colSpan={visits ? 7 : 6}>
+              <TableCell colSpan={shownCount}>
                 <p role="status" className="py-2 text-sm text-muted-foreground">
                   {t('common.loading')}
                 </p>
@@ -302,51 +334,58 @@ function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableP
                       {row.firstName} {row.lastName}
                     </Link>
                     {/* Below xl the number goes under the name: the table clips from lg (sticky header), so it must fit. */}
-                    <span className="block text-xs font-normal tabular text-muted-foreground xl:hidden">{clientNumberLabel(row.clientNumber)}</span>
+                    {show('number') && <span className="block text-xs font-normal tabular text-muted-foreground xl:hidden">{clientNumberLabel(row.clientNumber)}</span>}
                     {row.isArchived && (
                       <Badge variant="secondary" className="ml-2">
                         {t(`${L}.archived`)}
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="tabular whitespace-nowrap max-xl:hidden">{clientNumberLabel(row.clientNumber)}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {row.birthday ? (
-                      <>
-                        {formatDateOnlyShort(row.birthday)}
-                        {age !== null && <span className="block text-xs text-muted-foreground">{t(`${L}.age`, { age: String(age) })}</span>}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">{t(`${L}.noBirthday`)}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-md:hidden">
-                    {row.email && <EmailText value={row.email} className="block" />}
-                    <span className="block tabular text-xs text-muted-foreground">{phoneLabel(row.mobile)}</span>
-                  </TableCell>
-                  <TableCell className="max-xl:hidden">{proName(row.primaryProfessionalId)}</TableCell>
-                  {visits && (
+                  {show('number') && <TableCell className="tabular whitespace-nowrap max-xl:hidden">{clientNumberLabel(row.clientNumber)}</TableCell>}
+                  {show('birthday') && (
+                    <TableCell className="whitespace-nowrap">
+                      {row.birthday ? (
+                        <>
+                          {formatDateOnlyShort(row.birthday)}
+                          {age !== null && <span className="block text-xs text-muted-foreground">{t(`${L}.age`, { age: String(age) })}</span>}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">{t(`${L}.noBirthday`)}</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {show('contact') && (
+                    <TableCell className="max-md:hidden">
+                      {row.email && <EmailText value={row.email} className="block" />}
+                      <span className="block tabular text-xs text-muted-foreground">{phoneLabel(row.mobile)}</span>
+                    </TableCell>
+                  )}
+                  {show('professional') && <TableCell className="max-xl:hidden">{proName(row.primaryProfessionalId)}</TableCell>}
+                  {show('lastVisit') && (
                     <TableCell className="whitespace-nowrap max-md:hidden">
                       {row.lastVisitAt ? formatClinicDateShort(row.lastVisitAt) : <span className="text-muted-foreground">{t(`${L}.noVisit`)}</span>}
                     </TableCell>
                   )}
-                  <TableCell className="max-md:hidden">
-                    <span className="flex flex-wrap gap-1">
-                      {row.isBanned && <Badge variant="error">{t(`${L}.flags.banned`)}</Badge>}
-                      {row.fileIncomplete && <Badge variant="warning">{t(`${L}.flags.incomplete`)}</Badge>}
-                      {row.specialAgreement && <Badge variant="info">{t(`${L}.flags.agreement`)}</Badge>}
-                      {row.taxExempt && <Badge variant="secondary">{t(`${L}.flags.taxExempt`)}</Badge>}
-                      {row.rateVariant && <Badge variant="secondary">{rateVariantLabel(row.rateVariant)}</Badge>}
-                      {row.tagIds.map((id) => {
-                        const name = tagName(id)
-                        return name ? (
-                          <Badge key={id} variant="outline">
-                            {name}
-                          </Badge>
-                        ) : null
-                      })}
-                    </span>
-                  </TableCell>
+                  {show('opened') && <TableCell className="whitespace-nowrap max-md:hidden">{formatClinicDateShort(row.createdAt)}</TableCell>}
+                  {show('flags') && (
+                    <TableCell className="max-md:hidden">
+                      <span className="flex flex-wrap gap-1">
+                        {row.isBanned && <Badge variant="error">{t(`${L}.flags.banned`)}</Badge>}
+                        {row.fileIncomplete && <Badge variant="warning">{t(`${L}.flags.incomplete`)}</Badge>}
+                        {row.specialAgreement && <Badge variant="info">{t(`${L}.flags.agreement`)}</Badge>}
+                        {row.taxExempt && <Badge variant="secondary">{t(`${L}.flags.taxExempt`)}</Badge>}
+                        {row.rateVariant && <Badge variant="secondary">{rateVariantLabel(row.rateVariant)}</Badge>}
+                        {row.tagIds.map((id) => {
+                          const name = tagName(id)
+                          return name ? (
+                            <Badge key={id} variant="outline">
+                              {name}
+                            </Badge>
+                          ) : null
+                        })}
+                      </span>
+                    </TableCell>
+                  )}
                 </TableRow>
               )
             })

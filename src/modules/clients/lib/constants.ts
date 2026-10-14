@@ -32,8 +32,10 @@ export type HolderRelation = (typeof HOLDER_RELATIONS)[number]
 export const CLIENT_STATUSES = ['active', 'archived', 'all'] as const
 export type ClientStatusFilter = (typeof CLIENT_STATUSES)[number]
 
-/** The list's order (`list_clients`' p_sort): by name, or by the last appointment (A-2). */
-export const CLIENT_SORTS = ['name', 'visit_recent', 'visit_oldest'] as const
+/** The list's order (`list_clients`' p_sort): by name, file number, newest file (A-3), or the last appointment (A-2). */
+export const CLIENT_SORTS = ['name', 'number', 'created_recent', 'visit_recent', 'visit_oldest'] as const
+/** The orders that read the appointments (`appointments.view` and Rendez-vous on). */
+export const VISIT_SORTS: readonly ClientSort[] = ['visit_recent', 'visit_oldest']
 export type ClientSort = (typeof CLIENT_SORTS)[number]
 
 /** The list's « Dernier rendez-vous » filter (`list_clients`' p_last_visit, in the clinic's days). */

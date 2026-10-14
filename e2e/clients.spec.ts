@@ -11,7 +11,10 @@ import { forgetRememberedFilters } from './fixtures/db'
  */
 
 // A spec never leaves a remembered list filter behind (another spec opening « Clients » would see a filtered list).
-test.afterEach(() => forgetRememberedFilters('clients.list_filters'))
+test.afterEach(() => {
+  forgetRememberedFilters('clients.list_filters')
+  forgetRememberedFilters('clients.list_columns')
+})
 
 test('the admin is stopped on a duplicate, creates a file and adds a parent with rights', async ({ page, signIn }) => {
   const stamp = Date.now()
@@ -188,4 +191,21 @@ test('A-2: « Dernier rendez-vous » on the list: Alice’s last session, the fi
   await sort.selectOption({ label: 'Nom' })
   await expect(page).not.toHaveURL(/tri=|dernier=/)
   await expect(alice).toBeVisible()
+})
+
+test('A-3: « Trier par » numéro de dossier; « Colonnes » adds « Ouvert le » and hides « Naissance »', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto('/clients')
+  const table = page.getByRole('table', { name: 'Clients' })
+  await expect(table.getByRole('columnheader', { name: 'Naissance' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Trier par' }).selectOption({ label: 'Numéro de dossier' })
+  await expect(page).toHaveURL(/tri=numero/)
+  await expect(table.getByRole('row').nth(1)).toContainText('CLI-000001')
+  await page.getByRole('button', { name: 'Colonnes' }).click()
+  const picker = page.getByRole('dialog', { name: 'Colonnes affichées' })
+  await picker.getByRole('checkbox', { name: 'Ouvert le' }).click()
+  await picker.getByRole('checkbox', { name: 'Naissance' }).click()
+  await page.keyboard.press('Escape')
+  await expect(table.getByRole('columnheader', { name: 'Ouvert le' })).toBeVisible()
+  await expect(table.getByRole('columnheader', { name: 'Naissance' })).toHaveCount(0)
 })

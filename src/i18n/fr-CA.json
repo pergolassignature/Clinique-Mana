@@ -6133,9 +6133,15 @@
           "over_365": "Il y a plus d'un an",
           "never": "Aucun rendez-vous"
         },
+        "columnPicker": {
+          "label": "Colonnes",
+          "title": "Colonnes affichées"
+        },
         "sortLabel": "Trier par",
         "sort": {
           "name": "Nom",
+          "number": "Numéro de dossier",
+          "created_recent": "Dossiers les plus récents d'abord",
           "visit_recent": "Dernier rendez-vous, le plus récent d'abord",
           "visit_oldest": "Dernier rendez-vous, le plus ancien d'abord"
         },
@@ -6158,6 +6164,7 @@
           "contact": "Coordonnées",
           "professional": "Professionnel principal",
           "lastVisit": "Dernier rendez-vous",
+          "opened": "Ouvert le",
           "flags": "Indications"
         },
         "archived": "Archivé",

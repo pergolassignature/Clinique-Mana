@@ -21,11 +21,12 @@ const listRow = {
   sort_first: 'alice',
   last_visit_at: '2026-10-02T14:00:00Z',
   sort_visit: null,
+  created_at: '2026-10-01T14:00:00Z',
 }
 
 describe('clients payloads', () => {
   it('maps a list row with its keyset cursor', () => {
-    expect(parseRpc(listRowPayload, listRow)).toMatchObject({ clientNumber: 12, mobile: '+15145550101', fileIncomplete: true, lastVisitAt: '2026-10-02T14:00:00Z', cursor: { last: 'tremblay', first: 'alice', id: 'c1', visit: null } })
+    expect(parseRpc(listRowPayload, listRow)).toMatchObject({ clientNumber: 12, mobile: '+15145550101', fileIncomplete: true, lastVisitAt: '2026-10-02T14:00:00Z', cursor: { last: 'tremblay', first: 'alice', id: 'c1', visit: null, number: 12, created: '2026-10-01T14:00:00Z' } })
   })
 
   it('refuses an unexpected shape without quoting a value', () => {
