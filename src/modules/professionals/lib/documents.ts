@@ -69,6 +69,15 @@ export interface TypeDocuments {
   staged: StagedDocument | null
   /** `withdrawn`: the first day the image consent was no longer in force (P4-549). */
   withdrawnOn?: string | null
+  /**
+   * The image consent in force through her signed service contract (its article 6.2, P4-558), no
+   * separate consent in force: when the contract was signed.
+   */
+  byContract?: { signedAt: string | null } | null
+  /** The image-rights withdrawal recorded on the professional, when it is what the card says (P4-559). */
+  contractWithdrawal?: ProfessionalDocument['withdrawal']
+  /** Missing, but her next service contract will carry it: no separate consent to sign (P4-560). */
+  byNextContract?: boolean
 }
 
 /** An image consent withdrawn on or before `today` (P4-549): no longer in force. */
@@ -88,7 +97,11 @@ const isValid = (d: ProfessionalDocument, today: string, rule: DocumentExpiryRul
  * nothing waiting), missing. The image consent is a document like the others (signed through
  * Documenso, or a paper one), with no end date (P4-504, P4-507).
  */
-export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocuments, 'documents' | 'today'> & Partial<Pick<ProfessionalDocuments, 'staged'>>): TypeDocuments {
+export function typeDocuments(
+  type: DocumentType,
+  data: Pick<ProfessionalDocuments, 'documents' | 'today'> &
+    Partial<Pick<ProfessionalDocuments, 'staged' | 'imageRightsContract' | 'imageRightsWithdrawal' | 'imageRightsByNextContract'>>,
+): TypeDocuments {
   const { today } = data
   const docs = data.documents.filter((d) => d.typeId === type.id)
   const reviewed = docs.filter((d) => d.status === 'verified' || d.status === 'expired')
@@ -123,23 +136,53 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
   } else {
     kind = 'missing'
   }
+  // The image consent through her service contract (P4-558, P4-559): in force when no separate
+  // consent is, or withdrawn (the withdrawal on the professional says when).
+  let byContract: TypeDocuments['byContract'] = null
+  let contractWithdrawal: TypeDocuments['contractWithdrawal'] = null
+  const contract = type.key === 'image_consent' ? (data.imageRightsContract ?? null) : null
+  if (contract && kind !== 'valid' && kind !== 'expiring') {
+    contractWithdrawal = data.imageRightsWithdrawal ?? null
+    if (contract.inForce) {
+      kind = 'valid'
+      until = null
+      byContract = { signedAt: contract.signedAt }
+    } else if (kind === 'missing' || kind === 'withdrawn') {
+      kind = 'withdrawn'
+      withdrawnOn = contractWithdrawal?.on ?? withdrawnOn
+    }
+  }
+  const byNextContract = type.key === 'image_consent' && kind === 'missing' && (data.imageRightsByNextContract ?? false)
   // Sent with the questionnaire, waiting for review: never « Manquant » (nor « Refusé », « Expiré »).
   if (staged?.status === 'submitted' && (kind === 'missing' || kind === 'rejected' || kind === 'expired' || kind === 'withdrawn')) kind = 'submitted'
-  return { type, kind, current, pending, rejected, until, older, staged, withdrawnOn }
+  return { type, kind, current, pending, rejected, until, older, staged, withdrawnOn, byContract, contractWithdrawal, byNextContract }
 }
 
 /**
- * Whether the file holds an image consent in force on `today` (the clinic's): a verified
+ * Whether the file holds an image consent in force on the clinic's `today`: a verified
  * « Consentement droit à l'image » document (signed through Documenso, or a paper one) not
- * withdrawn by then (P4-549). It never expires (P4-504) and is the only source (P4-507). The fiche
- * prints the photo only then (P4-512).
+ * withdrawn by then (P4-549), or her signed service contract that grants it, not withdrawn
+ * (P4-558; the database says `inForce`). It never expires (P4-504). The fiche prints the photo only
+ * then (P4-512).
  */
-export const imageConsentOnFile = (documents: readonly Pick<ProfessionalDocument, 'typeKey' | 'status' | 'withdrawal'>[], today: string) =>
-  documents.some((d) => d.typeKey === 'image_consent' && d.status === 'verified' && !isWithdrawn(d, today))
+export const imageConsentOnFile = (data: ImageConsentData) => imageConsentSource(data) !== null
+
+type ImageConsentData = {
+  documents: readonly Pick<ProfessionalDocument, 'typeKey' | 'status' | 'withdrawal'>[]
+  today: string
+} & Partial<Pick<ProfessionalDocuments, 'imageRightsContract'>>
+
+/** Where the image consent in force comes from: a separate consent (`document`), else the service contract (`contract`); null when none. */
+export function imageConsentSource(data: ImageConsentData): 'document' | 'contract' | null {
+  if (data.documents.some((d) => d.typeKey === 'image_consent' && d.status === 'verified' && !isWithdrawn(d, data.today))) return 'document'
+  return data.imageRightsContract?.inForce === true ? 'contract' : null
+}
 
 /** The image consent in force whose withdrawal is recorded for a later day (a notice period, P4-549); null otherwise. */
-export const scheduledWithdrawal = (entry: Pick<TypeDocuments, 'type' | 'current'>, today: string): string | null => {
-  const withdrawal = entry.type.key === 'image_consent' ? entry.current?.withdrawal : null
+export const scheduledWithdrawal = (entry: Pick<TypeDocuments, 'type' | 'current'> & Partial<Pick<TypeDocuments, 'byContract' | 'contractWithdrawal'>>, today: string): string | null => {
+  if (entry.type.key !== 'image_consent') return null
+  // Through the contract (P4-559): the withdrawal recorded on the professional.
+  const withdrawal = entry.byContract ? entry.contractWithdrawal : entry.current?.withdrawal
   return withdrawal && withdrawal.on > today ? withdrawal.on : null
 }
 
@@ -167,10 +210,18 @@ export const uploadOffered = (entry: Pick<TypeDocuments, 'staged'>, viewer: Docu
  * day off, P4-413, P4-456, P4-511).
  * `self`: the professional reads it (« En attente de vérification par la clinique », not « À vérifier »).
  */
-export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Partial<Pick<TypeDocuments, 'staged' | 'withdrawnOn'>>, self = false): string {
-  const { kind, until, staged = null, withdrawnOn = null } = entry
+export function typeStateLabel(
+  entry: Pick<TypeDocuments, 'kind' | 'until'> & Partial<Pick<TypeDocuments, 'staged' | 'withdrawnOn' | 'byContract' | 'byNextContract'>>,
+  self = false,
+): string {
+  const { kind, until, staged = null, withdrawnOn = null, byContract = null, byNextContract = false } = entry
   const consent = staged?.kind === 'consent' ? 'Consent' : ''
   if (self && stagedInDraft({ kind, staged })) return t(`${D}.state.inDraftSelf${consent}`)
+  // The image consent carried by the service contract (P4-558, P4-560).
+  if (kind === 'valid' && byContract) {
+    return byContract.signedAt ? t(`${D}.state.byContractOn`, { date: formatClinicDateShort(byContract.signedAt) }) : t(`${D}.state.byContract`)
+  }
+  if (kind === 'missing' && byNextContract) return t(self ? `${D}.state.byNextContractSelf` : `${D}.state.byNextContract`)
   switch (kind) {
     case 'valid':
       return until ? t(`${D}.state.validUntil`, { date: formatDateOnly(until) }) : t(`${D}.state.verified`)
@@ -219,7 +270,9 @@ export function documentStateTone(document: ProfessionalDocument, today: string)
 }
 
 /** The card's dot for the viewer: the professional's own draft holding the type is a warning, not an error (P4-495). */
-export function typeCardTone(entry: Pick<TypeDocuments, 'kind' | 'staged'>, self = false): StatusTone {
+export function typeCardTone(entry: Pick<TypeDocuments, 'kind' | 'staged'> & Partial<Pick<TypeDocuments, 'byNextContract'>>, self = false): StatusTone {
+  // Carried by the contract still to sign (P4-560): nothing to chase on this card.
+  if (entry.kind === 'missing' && entry.byNextContract) return 'neutral'
   return self && stagedInDraft(entry) ? 'warning' : typeStateTone(entry.kind)
 }
 

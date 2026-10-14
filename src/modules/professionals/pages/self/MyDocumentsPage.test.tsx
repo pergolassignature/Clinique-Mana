@@ -248,6 +248,23 @@ describe('MyDocumentsPage — her own documents', () => {
     expect(screen.queryByText(/valide jusqu/)).not.toBeInTheDocument()
   })
 
+  it('the service contract carries it (P4-558, P4-560): said once on the card, nothing to sign', async () => {
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({ available: true, validUntil: null, request: null, byContract: false, nextContractGrants: true })
+    renderPage(documentsFixture({ consent: null, documents: [], image_rights_next_contract: true }))
+    await loaded()
+    const consent = screen.getByRole('region', { name: "Consentement droit à l'image" })
+    expect(await within(consent).findByText(t(`${D}.state.byNextContractSelf`))).toBeInTheDocument()
+    expect(within(consent).queryByRole('button', { name: t('modules.professionals.consentSign.fill') })).not.toBeInTheDocument()
+    expect(within(consent).queryByText(t('modules.professionals.consentSign.nextContractDocuments'))).not.toBeInTheDocument()
+    cleanup()
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({ available: true, validUntil: '2100-12-31', request: null, byContract: true, nextContractGrants: false })
+    renderPage(documentsFixture({ consent: null, documents: [], image_rights_contract: { signed_at: '2026-10-08T14:05:00Z', in_force: true } }))
+    await loaded()
+    const signed = screen.getByRole('region', { name: "Consentement droit à l'image" })
+    expect(await within(signed).findByText(t(`${D}.state.byContractOn`, { date: '8 oct. 2026' }))).toBeInTheDocument()
+    expect(within(signed).queryByText(t('modules.professionals.consentSign.byContract'))).not.toBeInTheDocument()
+  })
+
   it('a consent signed through Documenso and on file says its date once: « Signé le … »', async () => {
     mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
       available: true,

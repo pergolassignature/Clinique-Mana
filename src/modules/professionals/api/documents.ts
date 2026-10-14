@@ -100,6 +100,19 @@ const stagedPayload = z
  */
 export type StagedDocument = z.output<typeof stagedPayload>
 
+const imageRightsContractPayload = z
+  .object({ signed_at: z.string().nullable(), in_force: z.boolean() })
+  .transform((c) => ({ signedAt: c.signed_at, inForce: c.in_force }))
+
+const imageRightsWithdrawalPayload = z
+  .object({
+    withdrawn_on: z.string(),
+    withdrawal_note: z.string().nullable(),
+    withdrawn_at: z.string().nullable(),
+    withdrawn_by_name: z.string().nullable(),
+  })
+  .transform((w) => ({ on: w.withdrawn_on, note: w.withdrawal_note, recordedAt: w.withdrawn_at, recordedByName: w.withdrawn_by_name }))
+
 export const documentsPayload = z
   .object({
     professional_id: z.string(),
@@ -108,6 +121,10 @@ export const documentsPayload = z
     documents: z.array(documentPayload),
     // Absent from a database not yet migrated (the web app and the migration ship together).
     staged: z.array(stagedPayload).default([]),
+    // The service contract's image rights (P4-558 – P4-560); absent before that migration.
+    image_rights_contract: imageRightsContractPayload.nullish(),
+    image_rights_withdrawal: imageRightsWithdrawalPayload.nullish(),
+    image_rights_next_contract: z.boolean().nullish(),
   })
   .transform((p) => ({
     professionalId: p.professional_id,
@@ -119,6 +136,15 @@ export const documentsPayload = z
     documents: p.documents,
     /** The open questionnaire's photo, insurance and image consent, by type key (P4-495). */
     staged: p.staged,
+    /**
+     * Her contract in force grants the image rights (the 2026 contract's article 6.2, P4-558): when
+     * it was signed, and whether they are in force (no withdrawal took effect); null otherwise.
+     */
+    imageRightsContract: p.image_rights_contract ?? null,
+    /** The image-rights withdrawal recorded on the professional (P4-559; the name for staff only). */
+    imageRightsWithdrawal: p.image_rights_withdrawal ?? null,
+    /** Her next contract will carry the image rights: no separate consent to sign (P4-560). */
+    imageRightsByNextContract: p.image_rights_next_contract ?? false,
   }))
   .nullable()
 export type ProfessionalDocuments = NonNullable<z.output<typeof documentsPayload>>

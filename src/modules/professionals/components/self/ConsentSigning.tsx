@@ -17,8 +17,9 @@ const S = 'modules.professionals.consentSign'
 /**
  * The professional's image consent, filled in and signed in the app (P4-487 – P4-489): the
  * questionnaire's « Consentement » step (`variant="step"`) and « Mes documents »' card
- * (`variant="documents"`). In force → « Signé le … » (it never expires, P4-504); the form not
- * published → the clinic sends it later (never a block); otherwise a short summary and « Signer le
+ * (`variant="documents"`). In force → « Signé le … » (it never expires, P4-504), or « Inclus dans votre
+ * contrat de service signé » (P4-558); her next contract carries it → nothing to sign here (P4-560);
+ * the form not published → the clinic sends it later (never a block); otherwise a short summary and « Signer le
  * consentement » (« Remplir et signer » on « Mes documents »), which
  * opens Documenso's page inside this one (`EmbeddedSigning`, with its fallback). Back from the full
  * signing page (`?consentement=signe`), the signature is synced at once.
@@ -81,6 +82,11 @@ export function ConsentSigning({ back, variant, cardSaysInForce = false }: { bac
       </div>
     )
   }
+  // Her next service contract carries it (P4-560): nothing to sign here (« Mes documents »' card
+  // already says so on its state line).
+  if (data.nextContractGrants) {
+    return cardSaysInForce ? null : <p className="text-sm text-foreground">{t(variant === 'step' ? `${S}.nextContract` : `${S}.nextContractDocuments`)}</p>
+  }
   if (!data.available) {
     return <p className="text-sm text-muted-foreground">{t(variant === 'step' ? `${S}.notPublished` : `${S}.notPublishedDocuments`)}</p>
   }
@@ -116,6 +122,8 @@ export function MyConsentSummary() {
   const consent = useMyImageConsent()
   if (consent.isPending) return <Loading />
   const data = consent.data
-  const text = !data ? null : (consentInForceText(data) ?? (data.available ? t(`${S}.notSignedYet`) : t(`${S}.notPublishedShort`)))
+  const text = !data
+    ? null
+    : (consentInForceText(data) ?? (data.nextContractGrants ? t(`${S}.nextContractShort`) : data.available ? t(`${S}.notSignedYet`) : t(`${S}.notPublishedShort`)))
   return text ? <p className="text-sm text-foreground">{text}</p> : null
 }

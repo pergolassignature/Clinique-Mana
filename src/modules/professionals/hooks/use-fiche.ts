@@ -61,7 +61,7 @@ async function renderFiche(queryClient: QueryClient, { record, catalog, titleId 
     // Unreadable, or no consent → no photo: the initials take its place, never a failed fiche.
     queryClient
       .fetchQuery(documentsQuery(record.professional.id))
-      .then((documents) => (documents && imageConsentOnFile(documents.documents, documents.today) ? (documents.photo?.fileId ?? null) : null))
+      .then((documents) => (documents && imageConsentOnFile(documents) ? (documents.photo?.fileId ?? null) : null))
       .catch(() => null),
   ])
   const options = {

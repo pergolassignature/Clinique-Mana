@@ -68,6 +68,14 @@ describe('PublicPhotoSection (gap audit V1, H3)', () => {
     expect(await screen.findByText(t(`${P}.noConsent`))).toBeInTheDocument()
   })
 
+  it('the service contract carries the image rights (P4-558): the fiche shows the photo', async () => {
+    mocks.fetchProfessionalDocuments.mockResolvedValue(
+      documentsFixture({ documents: [documentJson(), PHOTO_JSON], image_rights_contract: { signed_at: '2026-10-08T14:05:00Z', in_force: true } }),
+    )
+    renderRecordTab(<PublicPhotoSection />, { record: withPhoto(), role: 'counselor' })
+    expect(await screen.findByText(t(`${P}.consentByContract`))).toBeInTheDocument()
+  })
+
   it('a withdrawn consent (P4-549): the fiche shows the initials', async () => {
     mocks.fetchProfessionalDocuments.mockResolvedValue(
       documentsFixture({ documents: [documentJson(), PHOTO_JSON, { ...CONSENT_DOC_JSON, withdrawn_on: '2026-10-09', withdrawn_at: '2026-10-09T15:00:00Z' }] }),

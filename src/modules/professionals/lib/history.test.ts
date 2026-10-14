@@ -809,6 +809,18 @@ describe('history — the documents (4c.2)', () => {
     expect(withdrawn.lines).toEqual([{ kind: 'value', field: 'Note', value: 'Par courriel.' }])
   })
 
+  it('the withdrawal recorded on the professional (P4-559): « … (contrat de service compris), à partir du … », its note', () => {
+    const recorded = only([
+      row('professional_image_rights_withdrawals', 'insert', { professional_id: P, org_id: ORG, withdrawn_on: '2026-10-09', withdrawal_note: 'Par courriel.' }, { recordId: P }),
+    ])
+    expect(recorded.sentence).toBe("a enregistré le retrait du droit à l'image (contrat de service compris), à partir du 9 oct. 2026")
+    expect(recorded.lines).toEqual([{ kind: 'value', field: 'Note', value: 'Par courriel.' }])
+    const corrected = only([
+      row('professional_image_rights_withdrawals', 'update', { withdrawn_on: { before: '2026-11-09', after: '2026-10-20' } }, { recordId: P }),
+    ])
+    expect(corrected.sentence).toBe("a enregistré le retrait du droit à l'image (contrat de service compris), à partir du 20 oct. 2026")
+  })
+
   it('an upload: « a téléversé le document « Photo professionnelle » », by staff or by the professional herself', () => {
     expect(only([inserted()]).sentence).toBe('a téléversé le document « Photo professionnelle »')
     const own = only([inserted({ status: 'pending' }, { actorName: 'Aurélie Essai', actorRole: 'provider' })])

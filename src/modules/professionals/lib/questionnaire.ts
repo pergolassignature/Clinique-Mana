@@ -137,7 +137,7 @@ export interface CompletenessContext {
    * The image consent through Documenso (`get_my_image_consent`, P4-487): whether the form is
    * published and the last day of a consent in force; null while not read.
    */
-  imageConsent?: { available: boolean; validUntil: string | null } | null
+  imageConsent?: { available: boolean; validUntil: string | null; nextContractGrants?: boolean } | null
   /** The clinic's today (`yyyy-MM-dd`). */
   today: string
 }
@@ -190,10 +190,11 @@ export function sectionComplete(section: SubmissionSection, ctx: CompletenessCon
     }
     case 'consent':
       // As private.submission_gaps (P4-487): a consent in force on the file (signed through
-      // Documenso), the e-consent of a draft signed before the switch, or no form published yet.
+      // Documenso, or her signed contract's), the e-consent of a draft signed before the switch, no
+      // form published yet, or her next service contract carries it (P4-560).
       return (
         (ctx.consentId !== null && text(values, 'consent_version_id') === ctx.consentId) ||
-        (ctx.imageConsent != null && (ctx.imageConsent.validUntil !== null || !ctx.imageConsent.available))
+        (ctx.imageConsent != null && (ctx.imageConsent.validUntil !== null || !ctx.imageConsent.available || ctx.imageConsent.nextContractGrants === true))
       )
   }
 }

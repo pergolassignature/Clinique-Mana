@@ -1581,6 +1581,7 @@
           "professional_submissions": "Profils envoyés par les professionnels",
           "professional_submission_private": "Données privées des profils envoyés",
           "professional_documents": "Documents des professionnels",
+          "professional_image_rights_withdrawals": "Retraits du droit à l'image",
           "professional_consents": "Consentements des professionnels",
           "professional_contract_snapshots": "Contrats de service préparés",
           "professional_paper_contracts": "Contrats signés hors application",
@@ -1737,6 +1738,13 @@
             "submission_id": "Profil envoyé",
             "signature_request_id": "Signature électronique",
             "withdrawn_on": "Consentement retiré à partir du",
+            "withdrawal_note": "Note du retrait",
+            "withdrawn_at": "Retrait enregistré le",
+            "withdrawn_by": "Retrait enregistré par"
+          },
+          "professional_image_rights_withdrawals": {
+            "professional_id": "Professionnel",
+            "withdrawn_on": "Droit à l'image retiré à partir du",
             "withdrawal_note": "Note du retrait",
             "withdrawn_at": "Retrait enregistré le",
             "withdrawn_by": "Retrait enregistré par"
@@ -2623,6 +2631,7 @@
             "none": "Aucune photo vérifiée : la fiche montre les initiales.",
             "manage": "Gérer dans Documents",
             "consentOnFile": "Consentement au droit à l'image au dossier : la fiche montre la photo.",
+            "consentByContract": "Droit à l'image accordé par le contrat de service : la fiche montre la photo.",
             "noConsent": "Aucun consentement au droit à l'image en vigueur : la fiche montre les initiales.",
             "preview": "Aperçu de la fiche"
           },
@@ -2862,7 +2871,10 @@
           "agreementChanged": "a modifié une entente particulière",
           "sessionsSet": "a saisi les séances de {month}",
           "sessionsChanged": "a modifié les séances d’un mois",
-          "sessionsDeleted": "a retiré les séances de {month}"
+          "sessionsDeleted": "a retiré les séances de {month}",
+          "imageRights": {
+            "withdrawn": "a enregistré le retrait du droit à l'image (contrat de service compris), à partir du {date}"
+          }
         },
         "sets": {
           "professional_motifs": {
@@ -3771,20 +3783,20 @@
               "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page."
             },
             "variables": {
-              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel."
+              "annexe": "Seule sur une ligne, elle devient le tableau du partage des honoraires du professionnel."
             },
             "preview": {
-              "annexeCaption": "Exemple : les tableaux réels viennent de la grille de rémunération du professionnel.",
+              "annexeCaption": "Exemple : le tableau réel vient de la grille de rémunération du professionnel (premier palier) et des taux de Paramètres → Rémunération.",
               "annexeColumns": {
-                "sessions": "Séances cumulées",
-                "d60": "Rencontre 60 min (couple ou famille)",
-                "d50": "Rencontre 50 min",
-                "d30": "Rencontre 30 min"
+                "service": "Nature du service",
+                "professional": "Part du Professionnel",
+                "clinic": "Part de la Clinique MANA"
               },
               "annexeRows": {
-                "first": "0 à 50 séances",
-                "second": "51 à 100 séances",
-                "last": "301 séances et plus"
+                "consultation": "Consultation (individuelles, de couple et familiales)",
+                "workshop": "Ateliers, conférences et formations",
+                "lateCancellation": "Annulation tardive ou absence non motivée*",
+                "otherFees": "Autres frais administratifs"
               }
             }
           }
@@ -4029,6 +4041,7 @@
           "consentUnsigned": "Pas encore signé.",
           "consentSignedElectronically": "Signé électroniquement le {date} (Documenso).",
           "consentPaper": "Consentement papier au dossier, téléversé le {date}.",
+          "consentContract": "Accordé par le contrat de service signé le {date} (article 6.2).",
           "consentSignedHere": "signé avec ce questionnaire",
           "consentAlreadyOnFile": "déjà au dossier"
         },
@@ -4160,6 +4173,10 @@
         "state": {
           "validUntil": "Valide jusqu'au {date}",
           "signedOn": "Signé le {date}",
+          "byContract": "Accordé par le contrat de service (article 6.2)",
+          "byContractOn": "Accordé par le contrat de service signé le {date} (article 6.2)",
+          "byNextContract": "Inclus dans le contrat de service à signer (article 6.2)",
+          "byNextContractSelf": "Inclus dans votre contrat de service : vous le signerez avec lui (article 6.2)",
           "verified": "Vérifié",
           "expiring": "Expire bientôt : valide jusqu'au {date}",
           "expiredOn": "Expiré : valide jusqu'au {date}",
@@ -4514,6 +4531,10 @@
         "retry": "Réessayer",
         "signedOn": "Signé le {date}",
         "onFile": "Consentement au dossier",
+        "byContract": "Inclus dans votre contrat de service signé (article 6.2)",
+        "nextContract": "Votre contrat de service inclut cette autorisation (article 6.2) : vous la donnerez en le signant. Rien à signer ici, vous pouvez continuer.",
+        "nextContractDocuments": "Votre contrat de service inclut cette autorisation (article 6.2) : vous la donnerez en le signant.",
+        "nextContractShort": "Incluse dans votre contrat de service, à signer avec lui.",
         "notSignedYet": "Pas encore signé.",
         "notPublished": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard. Vous pouvez envoyer votre profil sans attendre.",
         "notPublishedDocuments": "La clinique n'a pas encore publié ce formulaire : elle vous l'enverra plus tard.",

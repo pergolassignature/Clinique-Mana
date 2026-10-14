@@ -30,6 +30,11 @@ export type Block =
   | { type: 'signaturePage'; signers: { role: string; label: string }[] }
 export interface PdfBody {
   title: string
+  /**
+   * The text grants the use of the signer's image once signed (model.ts; Professionnels' 2026 service
+   * contract, P4-557). Not in the markup: kept with the body, so the next versions keep it.
+   */
+  grantsImageRights?: boolean
   header?: { text: string; initialsFor?: string[] }
   footer: { text: string }
   blocks: Block[]

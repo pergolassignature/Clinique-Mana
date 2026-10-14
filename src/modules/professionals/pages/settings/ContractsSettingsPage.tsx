@@ -28,7 +28,7 @@ const ANNEXE_PLACEHOLDER = '{{pricing.annexe_a}}'
 
 /**
  * Professionnels' words for the shared editor (CC-12): the professional's initials on every page,
- * Annexe A (required wherever the template declares it, with a sample grid in the preview), the
+ * Annexe A (required wherever the template declares it, with a sample table in the preview), the
  * « à faire valider » line, and « Publier » here.
  */
 function contractEditorOptions(): Omit<TemplateEditorOptions, 'handlers'> {
@@ -42,11 +42,13 @@ function contractEditorOptions(): Omit<TemplateEditorOptions, 'handlers'> {
       blocked: t(`${E}.publishBlocked.annexe`, { placeholder: ANNEXE_PLACEHOLDER }),
       sample: {
         caption: t(`${E}.preview.annexeCaption`),
-        columns: [t(`${E}.preview.annexeColumns.sessions`), t(`${E}.preview.annexeColumns.d60`), t(`${E}.preview.annexeColumns.d50`), t(`${E}.preview.annexeColumns.d30`)],
+        // The contract's « Partage des honoraires » (P4-556); the shares are an example.
+        columns: [t(`${E}.preview.annexeColumns.service`), t(`${E}.preview.annexeColumns.professional`), t(`${E}.preview.annexeColumns.clinic`)],
         rows: [
-          [t(`${E}.preview.annexeRows.first`), '144 $', '126 $', '93,60 $'],
-          [t(`${E}.preview.annexeRows.second`), '145 $', '126,88 $', '94,25 $'],
-          [t(`${E}.preview.annexeRows.last`), '150 $', '131,25 $', '97,50 $'],
+          [t(`${E}.preview.annexeRows.consultation`), '70 %', '30 %'],
+          [t(`${E}.preview.annexeRows.workshop`), '75 %', '25 %'],
+          [t(`${E}.preview.annexeRows.lateCancellation`), '70 %', '30 %'],
+          [t(`${E}.preview.annexeRows.otherFees`), '85 %', '15 %'],
         ],
       },
     },
