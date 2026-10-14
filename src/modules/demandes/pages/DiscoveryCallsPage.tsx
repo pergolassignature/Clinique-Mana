@@ -23,10 +23,11 @@ import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField, FormRow } from '@/shared/ui/form-field'
-import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
+import { DateField } from '@/shared/ui/date-field'
+import { TimeField } from '@/shared/ui/time-field'
 import type { CallsPeriod, DiscoveryCall } from '../api/calls'
 import type { DemandesReference } from '../api/demandes'
 import { useAssignTask, useDiscoveryCalls, useRescheduleTask } from '../hooks/use-calls'
@@ -260,8 +261,8 @@ function MoveForm({ call, person, onDone }: { call: DiscoveryCall; person: strin
       </DialogHeader>
       <form onSubmit={submit} noValidate className="space-y-3">
         <FormRow>
-          <FormField label={t(`${C}.date`)}>{(field) => <Input {...field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}</FormField>
-          <FormField label={t(`${C}.time`)}>{(field) => <Input {...field} type="time" value={time} onChange={(e) => setTime(e.target.value)} step={300} />}</FormField>
+          <FormField label={t(`${C}.date`)}>{(field) => <DateField {...field} value={date} onChange={setDate} />}</FormField>
+          <FormField label={t(`${C}.time`)}>{(field) => <TimeField {...field} value={time} onChange={setTime} />}</FormField>
         </FormRow>
         {error && (
           <p role="alert" className="text-sm text-destructive">

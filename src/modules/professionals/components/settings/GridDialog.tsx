@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type RefObject } from 'react'
-import { useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { useController, useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, X } from 'lucide-react'
 import { t } from '@/i18n'
@@ -115,21 +115,19 @@ function GridForm({ titleId, series, firstFieldRef, pending, refusal, dateError,
   const tiers = useFieldArray({ control: form.control, name: 'tiers' })
   const { errors, isDirty } = form.formState
   useDateErrorOnField(form.setError, 'effectiveFrom', dateError)
-  const effectiveFrom = useWatch({ control: form.control, name: 'effectiveFrom' })
-  const { ref: fromRef, ...fromField } = form.register('effectiveFrom')
+  const { field: from } = useController({ control: form.control, name: 'effectiveFrom' })
   const tiersError = errors.tiers?.root?.message ?? errors.tiers?.message
 
   return (
     <DialogForm onSubmit={(event) => void form.handleSubmit(onSubmit)(event)} pending={pending} dirty={isDirty} refusal={refusal}>
       <EffectiveFromField
-        registration={{
-          ...fromField,
+        input={{
+          ...from,
           ref: (element: HTMLInputElement | null) => {
-            fromRef(element)
+            from.ref(element)
             firstFieldRef.current = element
           },
         }}
-        value={effectiveFrom}
         error={errors.effectiveFrom?.message}
         min={minDate}
         help={t(`${G}.dialog.fromHelp`)}

@@ -14,6 +14,7 @@ import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
+import { DateField } from '@/shared/ui/date-field'
 import { RELATIONSHIPS, type DemandeFileConsents, type DemandeParticipant, type ParticipantInput } from '../../api/demandes'
 import { useDemandeConsents, useSaveParticipants } from '../../hooks/use-demandes'
 import { allConsentsValid, fileConsentStatus } from '../../lib/consents'
@@ -178,7 +179,7 @@ function ParticipantsForm() {
                     <FormField label={t(`${P}.birthday`)}>
                       {(field) =>
                         canEdit ? (
-                          <Input {...field} type="date" value={row.birthday} onChange={(e) => change(row.key, { birthday: e.target.value })} />
+                          <DateField {...field} value={row.birthday} min="1900-01-01" clearable onChange={(birthday) => change(row.key, { birthday })} />
                         ) : (
                           <Input {...field} value={row.birthday ? formatDateOnlyShort(row.birthday) : ''} readOnly />
                         )

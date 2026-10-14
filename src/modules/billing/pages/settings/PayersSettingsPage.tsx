@@ -20,6 +20,7 @@ import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
 import { CADENCES, LANGUAGES, type Cadence, type DocumentLanguage, type PayerOrganisation, type PayerSettings } from '../../api/payers'
 import { usePayerOrganisations, usePayerSettings, useSavePayerOrganisation, useSetIvacRate } from '../../hooks/use-payers'
 import { formatCents, parseDollars } from '../../lib/money'
@@ -120,7 +121,7 @@ function IvacRateCard({ settings, readOnly }: { settings: PayerSettings; readOnl
       {!readOnly && (
         <FormRow>
           <FormField label={t(`${S}.rate.newFrom`)} help={t(`${S}.rate.newFromHelp`)} width="sm" error={errors.form}>
-            {(field) => <Input {...field} type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-44" />}
+            {(field) => <DateField {...field} value={from} onChange={setFrom} className="w-44" />}
           </FormField>
           <FormField label={t(`${S}.rate.newAmount`)} width="sm" error={errors.amount}>
             {(field) => <Input {...field} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" autoComplete="off" className="tabular w-32" />}

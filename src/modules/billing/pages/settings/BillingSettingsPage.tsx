@@ -12,6 +12,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
 import { useSequence, useSetSequence } from '../../hooks/use-invoices'
 import type { BillingSettings } from '../../api/queue'
 import { useSetDunning } from '../../hooks/use-follow-up'
@@ -122,7 +123,7 @@ function QueueCard({ queueFrom, readOnly }: { queueFrom: string | null; readOnly
       footer={<FormActions onCancel={() => setValue(queueFrom ?? '')} dirty={dirty} pending={save.isPending} />}
     >
       <FormField label={t(`${Q}.from`)} help={t(`${Q}.fromHelp`)} error={error ?? undefined}>
-        {(field) => <Input {...field} type="date" value={value} onChange={(e) => setValue(e.target.value)} readOnly={readOnly} className="w-44" />}
+        {(field) => <DateField {...field} value={value} onChange={setValue} readOnly={readOnly} clearable className="w-44" />}
       </FormField>
     </SettingsCard>
   )
@@ -168,7 +169,7 @@ function DunningCard({ settings, readOnly }: { settings: BillingSettings; readOn
       footer={<FormActions onCancel={reset} dirty={dirty} pending={save.isPending} />}
     >
       <FormField label={t(`${D}.from`)} help={t(`${D}.fromHelp`)} error={errors.form}>
-        {(field) => <Input {...field} type="date" value={from} onChange={(e) => setFrom(e.target.value)} readOnly={readOnly} className="w-44" />}
+        {(field) => <DateField {...field} value={from} onChange={setFrom} readOnly={readOnly} className="w-44" />}
       </FormField>
       <FormField label={t(`${D}.days`)} help={t(`${D}.daysHelp`)} error={errors.days}>
         {(field) => <Input {...field} value={days} onChange={(e) => setDays(e.target.value)} readOnly={readOnly} className="tabular w-44" />}

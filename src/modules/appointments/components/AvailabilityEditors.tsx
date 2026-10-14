@@ -11,6 +11,8 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { DateField } from '@/shared/ui/date-field'
+import { TimeField } from '@/shared/ui/time-field'
 import type { AgendaReference } from '../api/agenda'
 import { EXCEPTION_KINDS, type AvailabilityException, type AvailabilityRule, type ExceptionKind } from '../api/parse'
 import { useAddException, useDeleteAvailabilityRule, useRemoveException, useSaveAvailabilityRule } from '../hooks/use-agenda'
@@ -82,7 +84,8 @@ export function RuleDialog({ target, reference, onClose }: { target: RuleTarget;
         </DialogHeader>
         <form noValidate onSubmit={submit} className="grid gap-4">
           <FormRow>
-            <FormField label={t(`${D}.weekday`)} width="sm" required>
+            {/* On a phone, « Jour » takes the line and « Début » | « Fin » share the next one. */}
+            <FormField label={t(`${D}.weekday`)} width="sm" className="max-sm:w-full" required>
               {(field) => (
                 <Select {...field} value={String(weekday)} onChange={(e) => setWeekday(Number(e.target.value))}>
                   {[1, 2, 3, 4, 5, 6, 7].map((d) => (
@@ -94,16 +97,17 @@ export function RuleDialog({ target, reference, onClose }: { target: RuleTarget;
               )}
             </FormField>
             <FormField label={t(`${D}.start`)} width="xs" required>
-              {(field) => <Input {...field} type="time" step={300} value={start} onChange={(e) => setStart(e.target.value)} />}
+              {(field) => <TimeField {...field} value={start} onChange={setStart} />}
             </FormField>
             <FormField label={t(`${D}.end`)} width="xs" required>
-              {(field) => <Input {...field} type="time" step={300} value={end} onChange={(e) => setEnd(e.target.value)} />}
+              {(field) => <TimeField {...field} value={end} onChange={setEnd} />}
             </FormField>
           </FormRow>
           <fieldset className="space-y-1.5">
             <legend className="mb-1 text-sm font-medium">{t(`${D}.services`)}</legend>
             <p className="text-xs text-muted-foreground">{t(`${D}.servicesHelp`)}</p>
-            <div className="max-h-40 space-y-1 overflow-y-auto">
+            {/* A framed list that scrolls on its own; long names wrap, never cut. */}
+            <div className="max-h-52 space-y-2 overflow-y-auto overscroll-contain rounded-md border border-border px-3 py-2.5">
               {services.map((s) => (
                 <CheckboxField
                   key={s.id}
@@ -116,12 +120,12 @@ export function RuleDialog({ target, reference, onClose }: { target: RuleTarget;
           </fieldset>
           <CheckboxField label={t(`${D}.visible`)} checked={visible} onCheckedChange={(v) => setVisible(v === true)} />
           <CheckboxField label={t(`${D}.overflow`)} help={t(`${D}.overflowHelp`)} checked={overflow} onCheckedChange={(v) => setOverflow(v === true)} />
-          <FormRow>
-            <FormField label={t(`${D}.validFrom`)} width="sm" help={t(`${D}.validFromHelp`)}>
-              {(field) => <Input {...field} type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />}
+          <FormRow columns={2}>
+            <FormField label={t(`${D}.validFrom`)} help={t(`${D}.validFromHelp`)}>
+              {(field) => <DateField {...field} value={validFrom} onChange={setValidFrom} clearable />}
             </FormField>
-            <FormField label={t(`${D}.validUntil`)} width="sm">
-              {(field) => <Input {...field} type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />}
+            <FormField label={t(`${D}.validUntil`)}>
+              {(field) => <DateField {...field} value={validUntil} min={validFrom || undefined} onChange={setValidUntil} clearable />}
             </FormField>
           </FormRow>
           <Refusal message={refusal} />
@@ -260,18 +264,18 @@ function ExceptionDialog({ professionalId, weekStart, onClose }: { professionalI
           </FormField>
           <FormRow>
             <FormField label={t(`${D}.from`)} width="sm" required>
-              {(field) => <Input {...field} type="date" value={fromDay} onChange={(e) => setFromDay(e.target.value)} />}
+              {(field) => <DateField {...field} value={fromDay} onChange={setFromDay} />}
             </FormField>
             <FormField label={t(`${D}.fromTime`)} width="xs">
-              {(field) => <Input {...field} type="time" step={300} value={fromTime} onChange={(e) => setFromTime(e.target.value)} />}
+              {(field) => <TimeField {...field} value={fromTime} onChange={setFromTime} />}
             </FormField>
           </FormRow>
           <FormRow>
             <FormField label={t(`${D}.to`)} width="sm" required>
-              {(field) => <Input {...field} type="date" value={toDay} onChange={(e) => setToDay(e.target.value)} />}
+              {(field) => <DateField {...field} value={toDay} onChange={setToDay} />}
             </FormField>
             <FormField label={t(`${D}.toTime`)} width="xs">
-              {(field) => <Input {...field} type="time" step={300} value={toTime} onChange={(e) => setToTime(e.target.value)} />}
+              {(field) => <TimeField {...field} value={toTime} onChange={setToTime} />}
             </FormField>
           </FormRow>
           <FormField label={t(`${D}.label`)} width="full">

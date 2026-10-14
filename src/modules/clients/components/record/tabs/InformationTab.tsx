@@ -18,7 +18,7 @@ import { choices, languageLabel, rateVariantLabel, sexLabel } from '../../../lib
 import type { ClientFieldKey, ClientFieldOutput, ClientFormValues } from '../../../schemas/client'
 import { ReferrerField } from '../../picker/ReferrerField'
 import { ClientCard } from '../ClientCard'
-import { CheckField, CheckGroup, SelectField, TextField } from '../field-parts'
+import { CheckField, CheckGroup, DateInputField, SelectField, TextField } from '../field-parts'
 import { useClientRecordData } from '../record-context'
 
 const I = 'modules.clients.record.information'
@@ -55,7 +55,7 @@ export function InformationTab() {
                 <TextField form={form} name="pronouns" label={t(`${F}.pronouns`)} width="full" help={t(`${F}.pronounsHelp`)} />
               </FormRow>
               <FormRow columns={3}>
-                <TextField form={form} name="birthday" label={t(`${F}.birthday`)} width="full" type="date" />
+                <DateInputField form={form} name="birthday" label={t(`${F}.birthday`)} width="full" />
                 <SelectField form={form} name="sex" label={t(`${F}.sex`)} width="full" placeholder={t(`${F}.notSaid`)} options={SEXES.map((v) => ({ value: v, label: sexLabel(v) }))} />
                 <SelectField form={form} name="language" label={t(`${F}.language`)} width="full" required options={LANGUAGES.map((v) => ({ value: v, label: languageLabel(v) }))} />
               </FormRow>
