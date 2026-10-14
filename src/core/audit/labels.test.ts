@@ -222,7 +222,7 @@ describe('auditDetailLines', () => {
     changed_fields,
   })
   const NB = '\u00a0'
-  /** A line as plain text (« NEQ : (vide) → 1234567890 »); the page renders the same templates. */
+  /** A line as plain text (« NEQ : (vide), maintenant 1234567890 »); the page renders the same templates. */
   const asText = (line: AuditDetailLine): string => {
     switch (line.kind) {
       case 'change':
@@ -235,7 +235,7 @@ describe('auditDetailLines', () => {
   }
   const lines = (e: Parameters<typeof auditDetailLines>[0], lookups?: AuditLookups) => auditDetailLines(e, lookups).map(asText)
 
-  it('lists each change of an update as « Champ : avant → après », in French', () => {
+  it('lists each change of an update as « Champ : avant, maintenant après », in French', () => {
     expect(
       lines(
         entry('update', 'organizations', {
@@ -243,7 +243,7 @@ describe('auditDetailLines', () => {
           legal_name: { before: 'Ancienne inc.', after: 'Nouvelle inc.' },
         }),
       ),
-    ).toEqual([`NEQ${NB}: (vide) → 1234567890`, `Raison sociale${NB}: Ancienne inc. → Nouvelle inc.`])
+    ).toEqual([`NEQ${NB}: (vide), maintenant 1234567890`, `Raison sociale${NB}: Ancienne inc., maintenant Nouvelle inc.`])
   })
 
   it('shows a redacted column of an update as « (masqué) », with no before or after', () => {
@@ -286,9 +286,9 @@ describe('auditDetailLines', () => {
   it('renders date-shaped names as text, without crashing', () => {
     expect(
       lines(entry('update', 'profiles', { display_name: { before: '2026-13-45', after: 'Marie' } })),
-    ).toEqual([`Nom${NB}: 2026-13-45 → Marie`])
+    ).toEqual([`Nom${NB}: 2026-13-45, maintenant Marie`])
     expect(lines(entry('update', 'organizations', { legal_name: { before: null, after: '2026-01-01' } }))).toEqual([
-      `Raison sociale${NB}: (vide) → 2026-01-01`,
+      `Raison sociale${NB}: (vide), maintenant 2026-01-01`,
     ])
     expect(lines(entry('insert', 'tax_rates', { effective_from: '2026-01-01' }))).toEqual([`En vigueur du${NB}: 1 janv. 2026`])
   })
