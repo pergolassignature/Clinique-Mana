@@ -1,6 +1,6 @@
 # Essais de novembre — listes par rôle
 
-**Pour :** Jonathan et l'équipe de la clinique (adjointe, conseillères, un ou deux professionnels). **But :** faire le tour complet de l'app **en production**, avec les modules « Réservé aux testeurs » et des clients fictifs, avant la bascule ([runbook de bascule](gorendezvous-cutover.md)). **Liens :** [statut et « Mise en service »](../plans/2026-10-07-status.md).
+**Pour :** Jonathan et l'équipe de la clinique (adjointe, conseillères, un ou deux professionnels). **But :** faire le tour complet de l'app **en production**, avec les modules « Réservé aux testeurs » et des clients fictifs, avant la bascule ([runbook de bascule](gorendezvous-cutover.md)). **Liens :** [statut et « Mise en service »](../plans/2026-10-07-status.md) ; les guides par rôle : [conseillère](../guides/conseillere.md), [adjointe](../guides/adjointe.md), [professionnel](../guides/professionnel.md), [administrateur](../guides/admin.md).
 
 > **Ces essais se font sur la vraie base de la clinique.** Rien n'y est effacé : un dossier se fusionne, s'archive ou s'anonymise, et une facture se crédite. Aucun vrai client n'est touché si l'on suit les règles ci-dessous.
 
@@ -10,7 +10,7 @@
    - les autres ne le voient pas ;
    - **les envois automatiques du module sont retenus**, même vers une adresse de la clinique (P3-40, CC-14) : confirmations, rappels, propositions, consentements, factures, relances, textos ;
    - le composeur de courriels n'écrit qu'aux adresses de la clinique (les autres sont refusées) ;
-   - pour voir un envoi, on se sert des envois de test : « M'envoyer un test » d'un modèle (Paramètres → Modèles de courriels) et « M'envoyer un texto de test » (Paramètres → Textos).
+   - pour voir un envoi, on se sert des envois de test : « M'envoyer un test » d'un modèle (Paramètres → Courriels) et « Envoyer un texto de test » à votre cellulaire (Paramètres → Textos).
 2. **Les tâches automatiques restent désactivées** (Paramètres → Tâches planifiées), sauf celles qu'un essai demande. Chacune est remise à l'arrêt après l'essai.
 3. **Les comptes :** chaque personne qui teste se connecte avec son propre compte et son propre rôle. On ne prête pas un compte.
 4. **Un canal pour les problèmes** (section 8) est connu de tous.
@@ -31,7 +31,7 @@
 | A2 | Prendre un rendez-vous pour ce client dans l'Agenda : un clic sur une plage libre, le service, le mode vidéo | Le rendez-vous paraît à la bonne heure ; sa confirmation est retenue (module réservé), sans erreur. |
 | A3 | Glisser le rendez-vous une heure plus tard, puis l'annuler avec une raison | Le déplacement est refusé hors des disponibilités, ou demande « Hors disponibilités » et une raison. L'annulation demande une raison. |
 | A4 | Facturation → la file du matin : la séance d'hier d'un client test, « Envoyer » | La facture sort avec son numéro, le bon payeur et les bonnes taxes ; son PDF est dans le dossier, son courriel retenu (module réservé). |
-| A5 | Enregistrer un paiement Interac partiel, puis le solde | Le reçu est créé. Le statut passe « Partiellement payée », puis « Payée ». |
+| A5 | Enregistrer un paiement Interac partiel, puis le solde | Le reçu est créé. Le statut passe « Payée en partie », puis « Payée ». |
 | A6 | Rembourser une partie du paiement, puis créditer la facture | Le remboursement est enregistré, et la note de crédit NC-AAAA-N est créée. |
 | A7 | La liste d'attente : inscrire « Test Adjointe-1 », puis « Facturer l'inscription » | Les frais passent à « Facturés », puis à « Payés » une fois la facture payée, et l'inscription devient active. |
 | A8 | Paramètres → Utilisateurs et accès : donner le rôle « Conseillère » au compte test d'une collègue | Le rôle se donne, même si un module est désactivé (CC-15). |
@@ -44,7 +44,7 @@
 | C2 | Le modèle du courriel de proposition : « M'envoyer un test » | Le courriel de test arrive à la conseillère, avec le bon texte et un lien d'exemple. |
 | C3 | Appels découverte : planifier un appel, le retrouver le jour même, le marquer fait | Il paraît dans la liste du jour, puis « Fait ». |
 | C4 | Courriels : répondre à un courriel qu'une collègue a envoyé à la boîte de la clinique, avec « Rédiger avec l'IA » puis « Raffiner » | La proposition salue avec `{{person.first_name}}` si le fil est rattaché à un dossier. « Utiliser » remplace le texte, et l'envoi à la collègue part après 5 secondes. |
-| C5 | Textos : enregistrer le consentement du client test (cellulaire de la conseillère), puis écrire | Tant que Communications est réservé, le texto est refusé en clair (« suspendus »). Le test réel se fait par « M'envoyer un texto de test » (admin, D6). |
+| C5 | Textos : enregistrer le consentement du client test (cellulaire de la conseillère), puis écrire | Tant que Communications est réservé, le texto est refusé en clair (« suspendus »). Le test réel se fait par « Envoyer un texto de test » (admin, D6). |
 | C6 | Consentements : préparer le consentement général du client test | La demande est créée ; son envoi est retenu (module réservé) et le dossier montre « À obtenir ». |
 
 ## 5. Professionnel
@@ -67,7 +67,7 @@
 | D3 | Rapports : « Revenus » du mois par facture, service et paiement ; « Annulations et absences » | Les totaux concordent avec les factures test. Les exports CSV s'ouvrent dans Excel. |
 | D4 | QuickBooks : connexion, comptes associés ; **l'envoi reste en pause** | La liste « Envoi à QuickBooks » montre ce qui attend, et rien ne part. |
 | D5 | Journal d'audit : retrouver la création de « Test Adjointe-1 » et la note de crédit | Qui, quand et quoi sont écrits en français. |
-| D6 | Une tâche à la fois (par exemple « Courriels et rappels des rendez-vous ») : « Exécuter maintenant », puis la remettre à l'arrêt ; « M'envoyer un texto de test » dans Paramètres → Textos | Le résultat est vert et rien n'est envoyé à un client (module réservé). Le texto de test arrive. |
+| D6 | Une tâche à la fois (par exemple « Courriels et rappels des rendez-vous ») : l'activer, « Exécuter maintenant », puis la remettre à l'arrêt ; « Envoyer un texto de test » dans Paramètres → Textos | Le résultat est vert et rien n'est envoyé à un client (module réservé). Le texto de test arrive. |
 
 ## 7. Nettoyer après les essais
 
