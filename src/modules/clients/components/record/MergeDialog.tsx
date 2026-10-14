@@ -77,6 +77,10 @@ function OtherPicker({ current, onPick }: { current: Client; onPick: (id: string
             {t('common.cancel')}
           </Button>
         </DialogClose>
+        {/* The next step is in view, waiting for the other file. */}
+        <Button type="button" disabled>
+          {t(`${M}.submit`)}
+        </Button>
       </DialogFooter>
     </div>
   )
