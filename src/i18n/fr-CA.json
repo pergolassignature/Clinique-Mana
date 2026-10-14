@@ -8854,6 +8854,17 @@
         "placesOfOther": "{left} places restantes sur {declared}",
         "sinceOne": "Depuis le {date} : {used} prise",
         "sinceOther": "Depuis le {date} : {used} prises"
+      },
+      "home": {
+        "title": "Demandes à traiter",
+        "body": "Demandes ouvertes : {count}. Chaque chiffre ouvre la liste correspondante.",
+        "items": {
+          "late": "en retard (plus de 2 jours ouvrables sans contact)",
+          "no_answer": "sans réponse au dernier essai",
+          "due": "à rappeler maintenant",
+          "unassigned": "sans conseillère",
+          "mine": "à moi"
+        }
       }
     },
     "appointments": {
