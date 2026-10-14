@@ -9,6 +9,8 @@ import { Button } from '@/shared/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
+import { DateField } from '@/shared/ui/date-field'
+import { TimeField } from '@/shared/ui/time-field'
 import { useBookPersonal } from '../hooks/use-agenda'
 import { hhmm, minutesOf } from '../lib/time'
 
@@ -51,13 +53,13 @@ export function PersonalDialog({ day: initialDay, time, onClose }: { day: string
           </FormField>
           <FormRow>
             <FormField label={t(`${P}.day`)} width="sm" required>
-              {(field) => <Input {...field} type="date" value={day} onChange={(e) => setDay(e.target.value)} />}
+              {(field) => <DateField {...field} value={day} onChange={setDay} />}
             </FormField>
             <FormField label={t(`${P}.start`)} width="xs" required>
-              {(field) => <Input {...field} type="time" step={300} value={start} onChange={(e) => setStart(e.target.value)} />}
+              {(field) => <TimeField {...field} value={start} onChange={setStart} />}
             </FormField>
             <FormField label={t(`${P}.end`)} width="xs" required>
-              {(field) => <Input {...field} type="time" step={300} value={end} onChange={(e) => setEnd(e.target.value)} />}
+              {(field) => <TimeField {...field} value={end} onChange={setEnd} />}
             </FormField>
           </FormRow>
           <CheckboxField label={t(`${P}.work`)} help={t(`${P}.workHelp`)} checked={work} onCheckedChange={setWork} />

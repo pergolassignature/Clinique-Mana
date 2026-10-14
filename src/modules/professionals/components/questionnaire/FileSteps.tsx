@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { Controller } from 'react-hook-form'
 import { FileText } from 'lucide-react'
 import { t } from '@/i18n'
 import { uploadFile, UploadSendError } from '@/core/storage/api'
@@ -9,7 +10,7 @@ import { FileDropzone } from '@/shared/components/FileDropzone'
 import type { UploadStep } from '@/shared/lib/files'
 import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
-import { Input } from '@/shared/ui/input'
+import { DateField } from '@/shared/ui/date-field'
 import { useMyProfessionalRecord } from '../../hooks/use-my-profile'
 import { isRefusal } from '../../hooks/use-my-submission'
 import { nextMarch31, sectionFileId } from '../../lib/questionnaire'
@@ -218,7 +219,9 @@ export function InsuranceStep({ ctx }: { ctx: StepContext }) {
         errorMessage={fileErrorMessage}
       />
       <FormField label={t(`${F}.expiry`)} required help={t(`${F}.expiryHelp`)} error={form.formState.errors.expires_on?.message}>
-        {(field) => <Input {...field} {...form.register('expires_on')} type="date" min={ctx.today} max="2100-12-31" className="max-w-[12rem] tabular" />}
+        {(field) => (
+          <Controller control={form.control} name="expires_on" render={({ field: control }) => <DateField {...field} {...control} min={ctx.today} max="2100-12-31" className="max-w-[12rem]" />} />
+        )}
       </FormField>
       <StepAlert message={alert ?? removeError} />
       <StepActions back={ctx.back} pending={pending} />

@@ -6,9 +6,10 @@ import { clinicTimeToUTC, getClinicDateString, shiftCalendarDay } from '@/shared
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { FormField, FormRow } from '@/shared/ui/form-field'
-import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
+import { DateField } from '@/shared/ui/date-field'
+import { TimeField } from '@/shared/ui/time-field'
 import { CONTACT_CHANNELS, CONTACT_OUTCOMES, type ContactChannel, type ContactOutcome } from '../api/demandes'
 import { useLogContact } from '../hooks/use-demandes'
 import { optionLabel } from '../lib/display'
@@ -94,9 +95,9 @@ function LogContactForm({ demandeId, person, onDone }: { demandeId: string; pers
         {retry && (
           <FormRow>
             <FormField label={t(`${L}.nextDate`)} help={t(`${L}.nextHelp`)}>
-              {(field) => <Input {...field} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}
+              {(field) => <DateField {...field} value={date} onChange={setDate} />}
             </FormField>
-            <FormField label={t(`${L}.nextTime`)}>{(field) => <Input {...field} type="time" value={time} onChange={(e) => setTime(e.target.value)} />}</FormField>
+            <FormField label={t(`${L}.nextTime`)}>{(field) => <TimeField {...field} value={time} onChange={setTime} />}</FormField>
           </FormRow>
         )}
         {error && (

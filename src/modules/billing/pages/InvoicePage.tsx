@@ -38,6 +38,7 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
 import type { InvoiceBundle, InvoiceLine, Payment } from '../api/invoices'
 import { PdfLink, PreviewButton } from '../components/documents'
 import { deliveryText } from '../lib/delivery'
@@ -922,13 +923,7 @@ function PaymentForm({
         </FormField>
         <FormField label={t(`${P}.paidOn`)} width="sm" required>
           {(field) => (
-            <Input
-              {...field}
-              type="date"
-              value={paidOn}
-              max={today}
-              onChange={(e) => setPaidOn(e.target.value)}
-            />
+            <DateField {...field} value={paidOn} max={today} onChange={setPaidOn} />
           )}
         </FormField>
       </FormRow>

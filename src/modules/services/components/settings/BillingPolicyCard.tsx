@@ -1,5 +1,5 @@
 import { forwardRef, useMemo, useRef, useState, type RefObject } from 'react'
-import { Controller, useForm, useWatch } from 'react-hook-form'
+import { Controller, useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
@@ -262,7 +262,7 @@ function PolicyForm({ policies, services, firstFieldRef, pending, refusal, field
   })
   const { errors, isDirty } = form.formState
   useRefusalOnField(form.setError, fieldRefusal)
-  const effectiveFrom = useWatch({ control: form.control, name: 'effectiveFrom' })
+  const { field: from } = useController({ control: form.control, name: 'effectiveFrom' })
   const { ref: noticeRef, ...noticeField } = form.register('lateNoticeHours')
 
   return (
@@ -323,7 +323,7 @@ function PolicyForm({ policies, services, firstFieldRef, pending, refusal, field
           />
         )}
       </FormField>
-      <EffectiveFromField registration={form.register('effectiveFrom')} value={effectiveFrom} error={errors.effectiveFrom?.message} min={minDate} help={t(`${P}.dialog.fromHelp`)} />
+      <EffectiveFromField input={from} error={errors.effectiveFrom?.message} min={minDate} help={t(`${P}.dialog.fromHelp`)} />
     </DialogForm>
   )
 }
