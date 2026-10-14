@@ -310,6 +310,10 @@ Migrations `20261013233833_demandes_report_facts` (Demandes), `20261013233844_ap
   - the waiting list counts people (requests), not entries: a request on a profession's list and a professional's counts once; an incomplete registration (consent or fee) is apart; who waits now per list, registered in the period, exits per reason, and the wait of those placed in the period (first registration to placement);
   - places: the period's last photo (places left across the tracked professionals who accept new clients) and the first photo of each week.
 
+## Accueil: « Demandes à traiter » (L29)
+
+`homeCards` `demandes-queue` (`demandes.manage`, `components/DemandesHomeCard.tsx`): the inbox's counts (`demandes_counts`, its cache), each figure that is not zero a link to the inbox filtered on it: « en retard (plus de 2 jours ouvrables sans contact) » (`?filtres=en-retard`), « sans réponse au dernier essai » (`sans-reponse`), « à rappeler maintenant » (`a-rappeler`), « sans conseillère » (`?pour=personne`), then « à moi » (`?pour=moi`). Nothing when the queue is clear (« à moi » alone is not work to flag).
+
 ## What the module publishes
 
 For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional); for Rapports, D6's `private.demandes_report_requests`, `_matches`, `_waitlist`, `_capacity` (above). The view `demandes_sources` (D3c, below).

@@ -25,6 +25,7 @@ test('the counselor takes a request from the first call to its closing', async (
   await dialog.getByRole('button', { name: 'Créer la demande' }).click()
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
   await expect(page).toHaveURL(/\/demandes\/[0-9a-f-]{36}\/accueil$/)
+  const record = page.url()
 
   // Her file: Clients' picker in « Accueil », « Nouveau client » prefilled from the request.
   await page.getByRole('button', { name: 'Rattacher un dossier' }).click()
@@ -52,6 +53,13 @@ test('the counselor takes a request from the first call to its closing', async (
   await call.getByRole('button', { name: "Enregistrer l'essai" }).click()
   await expect(call).toBeHidden()
   await expect(page.getByText('Rappelée dans les délais')).toBeVisible()
+
+  // Accueil « Demandes à traiter » (L29): the call went unanswered; the figure opens that list.
+  await page.goto('/accueil')
+  const queue = page.getByRole('region', { name: 'Demandes à traiter' })
+  await queue.getByRole('link', { name: /sans réponse au dernier essai/ }).click()
+  await expect(page).toHaveURL(/filtres=sans-reponse/)
+  await page.goto(record)
 
   // « Je m'en occupe », then a callback in « Suivi ».
   await page.getByRole('button', { name: "Je m'en occupe" }).click()
