@@ -15,6 +15,9 @@
 -- * « Mon agenda »'s reference (`get_my_agenda_reference`, latest body
 --   20261013100856_appointments_publications.sql): her services leave out the ones she does not
 --   offer. The staff's pickers read `services_catalog.excluded_professional_ids` (the app).
+-- * `get_open_slots` (latest body 20261014000122_appointments_google_busy.sql, otherwise unchanged)
+--   refuses a service she does not offer as it refuses one her titles do not offer (P0001, HINT
+--   `service_id`): no slot is ever proposed for it.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:appointments_service_exclusions', true);
@@ -81,6 +84,70 @@ begin
          and (pg_catalog.cardinality(s.title_ids) = 0 or s.title_ids && coalesce(v_pro.title_ids, '{}'))
          -- R-83: never one she does not offer.
          and not private.service_excluded_for(v_org, v_me, s.id)), '[]'::jsonb));
+end;
+$$;
+
+-- Open slots: never for a service she does not offer.
+create or replace function public.get_open_slots(p_professional_id uuid, p_service_id uuid, p_from date, p_to date)
+returns table (starts_at timestamptz, ends_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_tz text := private.appointments_tz(v_org);
+  v_pro record;
+  v_service record;
+  v_slot interval;
+  v_length interval;
+begin
+  if not (private.has_permission('appointments.view')
+          or (private.has_permission('appointments.self') and p_professional_id = private.current_professional_id())) then
+    raise exception 'Permission refusée : appointments.view' using errcode = '42501';
+  end if;
+  if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 62 then
+    raise exception 'Choisissez une période de 62 jours au plus.' using errcode = 'P0001', hint = 'period';
+  end if;
+  select * into v_pro from private.appointments_professional(v_org, p_professional_id);
+  select * into v_service from private.appointments_service(v_org, p_service_id, v_pro.title_ids, true);
+  -- R-83: a service she does not offer has no slot (as a service her titles do not offer).
+  if private.service_excluded_for(v_org, p_professional_id, p_service_id) then
+    raise exception 'Ce professionnel n''offre pas ce service.' using errcode = 'P0001', hint = 'service_id';
+  end if;
+  v_length := pg_catalog.make_interval(mins => v_service.duration_minutes);
+  v_slot := pg_catalog.make_interval(mins => v_service.duration_minutes + v_service.buffer_after_minutes);
+  return query
+    select s.starts_at, s.starts_at + v_length
+      from (select distinct ((d.day + r.start_time) at time zone v_tz) + k.n * v_slot as starts_at,
+                   r.end_time, r.overflow_allowed, d.day
+              from pg_catalog.generate_series(p_from::timestamp, p_to::timestamp, interval '1 day') as d0(ts)
+             cross join lateral (select d0.ts::date as day) d
+              join public.availability_rules r
+                on r.org_id = v_org and r.professional_id = p_professional_id
+               and r.weekday = extract(isodow from d.day)::smallint
+               and d.day >= r.valid_from and (r.valid_until is null or d.day <= r.valid_until)
+               and (pg_catalog.cardinality(r.service_ids) = 0 or p_service_id = any (r.service_ids))
+             cross join lateral pg_catalog.generate_series(
+                   0, pg_catalog.ceil(extract(epoch from (r.end_time - r.start_time)) / extract(epoch from v_slot))::int) as k(n)) s
+     where ((s.starts_at at time zone v_tz)::date = s.day)
+       and ((s.starts_at + v_length) at time zone v_tz)::date = s.day
+       and (case when s.overflow_allowed then (s.starts_at at time zone v_tz)::time < s.end_time
+                 else ((s.starts_at + v_length) at time zone v_tz)::time <= s.end_time end)
+       and s.starts_at >= now()
+       and not exists (select 1 from public.availability_exceptions e
+                        where e.org_id = v_org and e.professional_id = p_professional_id
+                          and pg_catalog.tstzrange(e.starts_at, e.ends_at, '[)') && pg_catalog.tstzrange(s.starts_at, s.starts_at + v_length, '[)'))
+       -- AP-43: her Google busy times (when she connected her agenda).
+       and not exists (select 1 from public.external_busy_blocks g
+                        where g.org_id = v_org and g.professional_id = p_professional_id
+                          and pg_catalog.tstzrange(g.starts_at, g.ends_at, '[)') && pg_catalog.tstzrange(s.starts_at, s.starts_at + v_length, '[)'))
+       and not exists (select 1 from public.appointments a
+                        where a.org_id = v_org and a.professional_id = p_professional_id
+                          and (a.state <> 'cancelled' or a.kept_on_schedule)
+                          and pg_catalog.tstzrange(a.starts_at, a.blocks_until, '[)') && pg_catalog.tstzrange(s.starts_at, s.starts_at + v_slot, '[)'))
+     order by s.starts_at;
 end;
 $$;
 

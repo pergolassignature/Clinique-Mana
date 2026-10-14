@@ -31,8 +31,9 @@ const list = (values: readonly (string | number)[], group: string) => values.map
 const lines = (items: readonly string[]): ReactNode =>
   items.length === 0 ? null : (
     <ul className="space-y-0.5">
-      {items.map((item) => (
-        <li key={item}>{item}</li>
+      {items.map((item, index) => (
+        // Two lines may read the same (two participants of the same name): keyed by position, a static list.
+        <li key={index}>{item}</li>
       ))}
     </ul>
   )

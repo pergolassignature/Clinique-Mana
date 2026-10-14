@@ -8,7 +8,7 @@
 -- imported appointment is kept; the module off refuses.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(29);
 
 -- =============================================================================
 -- Shape and privileges
@@ -50,6 +50,8 @@ select 'b0000000-0000-0000-0000-00000000000a', p, t.id, 'L-1', true
   join public.profession_titles t on t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'psychotherapeute';
 select set_config('test.s_ind', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 10150), true);
 select set_config('test.s_cpl', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 20160), true);
+select set_config('test.s_cpl30', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 20170), true);
+select set_config('test.s_eapcpl', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 40160), true);
 select set_config('test.s_nat', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 10157), true);
 select set_config('test.s_call', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 50601), true);
 
@@ -102,6 +104,31 @@ select ok(exists (select 1 from public.audit_log l where l.table_name = 'service
   'an exclusion is in the journal, with who made it');
 
 -- =============================================================================
+-- Demandes' « Prochaine disponibilité » and Rendez-vous' open slots
+-- =============================================================================
+select is((select code from public.services
+            where id = private.demandes_default_service('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001', true)),
+  20170, 'a couple request: her default service skips the couple 60 min she does not offer (the next couple session)');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.set_professional_service_exclusions('c0000000-0000-0000-0000-000000000001',
+            array[current_setting('test.s_cpl'), current_setting('test.s_cpl30'), current_setting('test.s_eapcpl')]::uuid[]),
+  3, 'P1 offers no couple session at all');
+reset role;
+select is((select code from public.services
+            where id = private.demandes_default_service('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001', true)),
+  10150, '… then a couple request falls back to her 50-minute session');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok(format($$ select * from public.get_open_slots('c0000000-0000-0000-0000-000000000001', %L, current_date, current_date + 7) $$,
+                        current_setting('test.s_cpl')),
+  'P0001', 'Ce professionnel n''offre pas ce service.', 'get_open_slots: no slot for a service she does not offer (refused as one of another title)');
+select lives_ok(format($$ select * from public.get_open_slots('c0000000-0000-0000-0000-000000000001', %L, current_date, current_date + 7) $$,
+                       current_setting('test.s_ind')),
+  '… her offered service: asked as before');
+reset role;
+
+-- =============================================================================
 -- Booking (Rendez-vous): never an excluded service
 -- =============================================================================
 select throws_ok(format($$ insert into public.appointments (org_id, professional_id, service_id, starts_at, ends_at, blocks_until)
@@ -112,7 +139,7 @@ select lives_ok(format($$ insert into public.appointments (org_id, professional_
                           values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001', %L,
                                   '2026-03-15 13:00Z', '2026-03-15 14:00Z', '2026-03-15 14:00Z', 'gorv-1', 'completed', '2026-03-15 14:00Z') $$,
                          current_setting('test.s_cpl')),
-  'an imported appointment (its history) is kept');
+  'the guard''s import exemption: an appointment inserted with external_ref (GOrendezvous''s history) and a service she does not offer is accepted');
 insert into public.appointments (id, org_id, professional_id, service_id, starts_at, ends_at, blocks_until)
 values ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001',
         current_setting('test.s_ind')::uuid, '2027-03-16 13:00Z', '2027-03-16 13:50Z', '2027-03-16 14:00Z');

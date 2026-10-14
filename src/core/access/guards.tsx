@@ -7,6 +7,7 @@ import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Button } from '@/shared/ui/button'
 import type { AccessProblem } from './access'
 import { useAccess } from './access-context'
+import { canAny } from './can-any'
 
 // Each guard screen titles the browser tab, so it never shows the previous page's title.
 /** The loading screen while access (or the signed-in app's code) loads. */
@@ -113,7 +114,6 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 /** Renders its children when the user holds the permission, or any one of the permissions; « Accès refusé » otherwise. */
 export function RequireAccess({ permission, children }: { permission: string | readonly string[]; children: ReactNode }) {
   const { can } = useAccess()
-  const allowed = typeof permission === 'string' ? can(permission) : permission.some((p) => can(p))
-  if (!allowed) return <Forbidden />
+  if (!canAny(permission, can)) return <Forbidden />
   return <>{children}</>
 }
