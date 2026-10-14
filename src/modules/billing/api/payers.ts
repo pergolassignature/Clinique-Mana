@@ -36,6 +36,8 @@ const organisationPayload = z
     reminders_enabled: z.boolean(),
     is_active: z.boolean(),
     note: z.string().nullable(),
+    /** R-84: where its invoices are uploaded (IVAC: the CNESST's portal), instead of an email. */
+    portal_url: z.string().nullable().default(null),
   })
   .transform((o) => ({
     id: o.id,
@@ -50,6 +52,7 @@ const organisationPayload = z
     remindersEnabled: o.reminders_enabled,
     isActive: o.is_active,
     note: o.note,
+    portalUrl: o.portal_url,
   }))
 export type PayerOrganisation = z.output<typeof organisationPayload>
 
@@ -71,6 +74,7 @@ export interface OrganisationInput {
   remindersEnabled: boolean
   isActive: boolean
   note: string | null
+  portalUrl: string | null
 }
 
 /** A PAE provider added, or an organisation (IVAC too) changed. Returns its id. */
@@ -91,6 +95,7 @@ export async function savePayerOrganisation(input: OrganisationInput): Promise<s
       p_reminders_enabled: input.remindersEnabled,
       p_is_active: input.isActive,
       p_note: input.note,
+      p_portal_url: input.portalUrl,
     }),
   )
   if (error) throw error

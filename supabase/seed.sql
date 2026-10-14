@@ -505,7 +505,8 @@ begin
     'admin_notes', 'Préfère les rendez-vous en soirée (note fictive).'));
   perform public.set_client_relation(v_lea, v_marc, 'parent', '{"main_contact": true, "manages_appointments": true, "receives_communications": true, "receives_invoices": true}', '{}');
   perform public.set_client_relation(v_lea, v_paul, 'parent', '{"manages_appointments": true, "receives_invoices": true}', '{}');
-  perform public.save_client_payer(v_ines, null, 'ivac', null, 'IVAC-FICTIF-001', 9450, 20, null, null, null, null);
+  perform public.save_client_payer(v_ines, null, 'ivac', null, 'IVAC-FICTIF-001', 9450, 20, null, null, null, null,
+    p_event_on => date '2026-01-15');
   perform public.upsert_client_insurance(v_alice, 1, 'Assurances Fictives inc.', 'POL-0001', 'CERT-0001', 'self', null);
   perform public.save_client_tag(null, 'Atelier');
   perform public.save_client_tag(null, 'Visio');
@@ -549,6 +550,12 @@ insert into public.clients (id, org_id, first_name, last_name, email, mobile_e16
    null, '+15145550142', 'fr', '11111111-1111-1111-1111-111111111111'),
   ('c11e0000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Paul', 'Bélanger',
    null, '+14385550199', 'fr', '11111111-1111-1111-1111-111111111111');
+
+-- Local IVAC (R-84): its invoices are uploaded on a portal, not emailed. A fictitious address (the
+-- clinic's real one is entered at « Mise en service »; never a session id in a seed).
+update public.payer_organisations
+   set portal_url = 'https://portail-ivac.exemple.test/depot'
+ where org_id = '00000000-0000-0000-0000-000000000001' and kind = 'ivac';
 
 -- Local consent texts (C5a): the French « Consentement général » and « Liste d'attente » drafts lose
 -- the « Texte provisoire » line (the app never offers to publish a placeholder), so e2e can publish

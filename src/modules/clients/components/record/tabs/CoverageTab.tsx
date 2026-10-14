@@ -30,16 +30,11 @@ import type { ClientInsurance, ClientPayer } from '../../../api/parse'
 import { useDeleteClientInsurance, useEndClientPayer, useSaveClientPayer, useUpsertClientInsurance } from '../../../hooks/use-clients'
 import { HOLDER_RELATIONS, PAYER_KINDS, type HolderRelation, type PayerKind } from '../../../lib/constants'
 import { centsLabel, holderRelationLabel, payerKindLabel } from '../../../lib/display'
+import { dollarsToCents as toCents, MAX_TIERS, parseTierRows, tierRow, tiersText, type TierRow } from '../../../lib/payer-tiers'
 import { useClientRecordData } from '../record-context'
 
 const C = 'modules.clients.record.coverage'
 
-/** Typed dollars (« 94,50 ») → cents; null for empty; NaN for unreadable. */
-function toCents(value: string): number | null {
-  const compact = value.replace(/[\s$]/g, '').replace(',', '.')
-  if (compact === '') return null
-  return /^[0-9]+(\.[0-9]{1,2})?$/.test(compact) ? Math.round(Number(compact) * 100) : Number.NaN
-}
 const centsInput = (cents: number | null) => (cents === null ? '' : (cents / 100).toFixed(2).replace('.', ','))
 const textOrNull = (value: string) => value.trim() || null
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -154,8 +149,15 @@ export function CoverageTab() {
                 <DescriptionList
                   items={[
                     { label: t(`${C}.fileNumber`), value: row.fileNumber },
-                    { label: t(`${C}.sessionAmount`), value: row.sessionAmountCents !== null ? centsLabel(row.sessionAmountCents) : null },
-                    { label: t(`${C}.coveragePercent`), value: row.coveragePercent !== null ? t(`${C}.percent`, { value: String(row.coveragePercent) }) : null },
+                    // R-84: the date of the event an IVAC file is about (a calendar date).
+                    ...(row.kind === 'ivac' ? [{ label: t(`${C}.eventOn`), value: row.eventOn ? formatDateOnly(row.eventOn) : null }] : []),
+                    // R-85: a tiered agreement in one plain line (« 3 premières séances : 100 % ; ensuite : 50 % »).
+                    ...(row.coverageTiers.length > 0
+                      ? [{ label: t(`${C}.coverage`), value: tiersText(row.coverageTiers, row.sessionAmountCents, row.coveragePercent) }]
+                      : [
+                          { label: t(`${C}.sessionAmount`), value: row.sessionAmountCents !== null ? centsLabel(row.sessionAmountCents) : null },
+                          { label: t(`${C}.coveragePercent`), value: row.coveragePercent !== null ? t(`${C}.percent`, { value: String(row.coveragePercent) }) : null },
+                        ]),
                     { label: t(`${C}.maxSessions`), value: row.maxSessions !== null ? String(row.maxSessions) : null },
                     { label: t(`${C}.maxAmount`), value: row.maxAmountCents !== null ? centsLabel(row.maxAmountCents) : null },
                     {
@@ -307,6 +309,10 @@ function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: 
   const [priorAmount, setPriorAmount] = useState(centsInput(row?.priorUsedCents ?? null))
   const [priorSessions, setPriorSessions] = useState(row?.priorUsedSessions != null ? String(row.priorUsedSessions) : '')
   const [priorOn, setPriorOn] = useState(row?.priorUsedOn ?? '')
+  // R-84: an IVAC file's event date; R-85: a PAE's tiers before its usual coverage.
+  const [eventOn, setEventOn] = useState(row?.eventOn ?? '')
+  const [tiers, setTiers] = useState<TierRow[]>(() => (row?.coverageTiers ?? []).map(tierRow))
+  const setTier = (index: number, patch: Partial<TierRow>) => setTiers((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)))
   const [refusal, setRefusal] = useState<string | null>(null)
   const save = useSaveClientPayer({ onErrorMessage: setRefusal })
   const pae = kind === 'pae'
@@ -348,6 +354,15 @@ function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: 
               setRefusal(t(`${C}.invalidPercent`))
               return
             }
+            const coverageTiers = pae ? parseTierRows(tiers) : []
+            if (coverageTiers === null) {
+              setRefusal(t(`${C}.invalidTiers`))
+              return
+            }
+            if (coverageTiers.length > 0 && session === null && coverage === null) {
+              setRefusal(t(`${C}.tiersNeedCoverage`))
+              return
+            }
             const month = pae ? (renewalMonth === '' ? null : Number(renewalMonth)) : (row?.renewalMonth ?? null)
             const day = pae ? (renewalDay.trim() === '' ? null : Number(renewalDay)) : (row?.renewalDay ?? null)
             if ((month === null) !== (day === null) || (day !== null && (!Number.isInteger(day) || day < 1 || day > 31))) {
@@ -375,6 +390,8 @@ function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: 
                 priorUsedCents: prior,
                 priorUsedSessions: priorCount,
                 priorUsedOn: pae ? priorOn || null : (row?.priorUsedOn ?? null),
+                eventOn: kind === 'ivac' ? eventOn || null : null,
+                coverageTiers,
               },
               { onSuccess: onClose },
             )
@@ -399,8 +416,53 @@ function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: 
           <FormField label={t(`${C}.fileNumber`)} help={kind === 'pae' ? t(`${C}.paeFileHelp`) : undefined} width="md" required={kind === 'ivac'}>
             {(field) => <Input {...field} value={fileNumber} onChange={(e) => setFileNumber(e.target.value)} autoComplete="off" />}
           </FormField>
+          {kind === 'ivac' && (
+            <FormField label={t(`${C}.eventOn`)} help={t(`${C}.eventOnHelp`)} width="sm">
+              {(field) => <DateField {...field} value={eventOn} onChange={setEventOn} />}
+            </FormField>
+          )}
           {pae && (
-            <FormField label={t(`${C}.coverMode`)} width="md">
+            <fieldset className="grid gap-3 rounded-md border border-border p-3">
+              <legend className="px-1 text-sm font-medium">{t(`${C}.tiers`)}</legend>
+              <p className="text-sm text-muted-foreground">{t(`${C}.tiersHelp`)}</p>
+              {tiers.map((tier, index) => {
+                const n = String(index + 1)
+                return (
+                  <FormRow key={index}>
+                    <FormField label={`${t(`${C}.tierLabel`, { n })} · ${t(`${C}.tierSessions`)}`} width="xs">
+                      {(field) => <Input {...field} value={tier.sessions} onChange={(e) => setTier(index, { sessions: e.target.value })} inputMode="numeric" maxLength={3} autoComplete="off" />}
+                    </FormField>
+                    <FormField label={`${t(`${C}.tierLabel`, { n })} · ${t(`${C}.tierMode`)}`} width="sm">
+                      {(field) => (
+                        <Select {...field} value={tier.mode} onChange={(e) => setTier(index, { mode: e.target.value as TierRow['mode'] })}>
+                          <option value="percent">{t(`${C}.tierPercent`)}</option>
+                          <option value="amount">{t(`${C}.tierAmount`)}</option>
+                        </Select>
+                      )}
+                    </FormField>
+                    <FormField label={`${t(`${C}.tierLabel`, { n })} · ${t(tier.mode === 'percent' ? `${C}.tierPercent` : `${C}.tierAmount`)}`} width="sm">
+                      {(field) => (
+                        <Input {...field} value={tier.value} onChange={(e) => setTier(index, { value: e.target.value })} inputMode={tier.mode === 'percent' ? 'numeric' : 'decimal'} autoComplete="off" />
+                      )}
+                    </FormField>
+                    <Button type="button" variant="ghost" size="sm" className="self-end" aria-label={t(`${C}.removeTier`, { n })} onClick={() => setTiers((rows) => rows.filter((_, i) => i !== index))}>
+                      {t(`${C}.remove`)}
+                    </Button>
+                  </FormRow>
+                )
+              })}
+              {tiers.length < MAX_TIERS && (
+                <div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setTiers((rows) => [...rows, { sessions: '', mode: 'percent', value: '' }])}>
+                    <Plus aria-hidden />
+                    {t(`${C}.addTier`)}
+                  </Button>
+                </div>
+              )}
+            </fieldset>
+          )}
+          {pae && (
+            <FormField label={t(tiers.length > 0 ? `${C}.coverModeThen` : `${C}.coverMode`)} width="md">
               {(field) => (
                 <Select {...field} value={coverMode} onChange={(e) => setCoverMode(e.target.value as CoverMode)}>
                   <option value="amount">{t(`${C}.coverAmount`)}</option>

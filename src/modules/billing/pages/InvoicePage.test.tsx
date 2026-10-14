@@ -22,12 +22,14 @@ const mocks = vi.hoisted(() => ({
   queue: { sendInvoices: vi.fn(), recordPayment: vi.fn(), releaseDraft: vi.fn(), resendDocument: vi.fn(), deliverNow: vi.fn() },
   followUp: { refundPayment: vi.fn(), recordRefundOutsideApp: vi.fn() },
   stripe: { refundByStripe: vi.fn() },
+  payers: { fetchPayerOrganisations: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/invoices', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
 vi.mock('../api/queue', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.queue }))
 vi.mock('../api/follow-up', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.followUp }))
 vi.mock('../api/stripe', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.stripe }))
+vi.mock('../api/payers', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.payers }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -111,6 +113,7 @@ function open(role: FixtureRole = 'admin_assistant') {
 beforeEach(() => {
   mocks.api.fetchInvoice.mockResolvedValue(bundle())
   mocks.api.finalizeInvoice.mockResolvedValue('2026-601')
+  mocks.payers.fetchPayerOrganisations.mockResolvedValue([])
   mocks.api.setInvoicePayer.mockResolvedValue(undefined)
   mocks.api.setLinePrice.mockResolvedValue(undefined)
   mocks.api.addAdjustment.mockResolvedValue(undefined)
@@ -210,6 +213,48 @@ describe('InvoicePage', () => {
     expect(await screen.findByText('IVAC')).toBeInTheDocument()
     expect(screen.getByText(t(`${I}.payerReference`, { number: 'IV-1' }))).toBeInTheDocument()
     expect(screen.queryByLabelText(/^Facturé à/)).not.toBeInTheDocument()
+  })
+
+  it('R-84: IVAC takes its invoices on its portal: the draft says to finalise without sending; the issued one links to the portal', async () => {
+    const ivac = {
+      id: 'o1', kind: 'ivac', name: 'IVAC', billingEmail: null, contactName: null, language: 'fr', providerNumber: 'F-1', cadence: 'monthly',
+      dueDays: 30, remindersEnabled: false, isActive: true, note: null, portalUrl: 'https://portail.exemple.test/depot',
+    }
+    mocks.payers.fetchPayerOrganisations.mockResolvedValue([ivac])
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...bundle({ payerKind: 'organisation', payerReference: 'IV-1', payerHasEmail: false }),
+      payer: { id: 'o1', name: 'IVAC' },
+      payerOptions: [],
+    })
+    open()
+    expect(await screen.findByText(t(`${I}.portalNote`, { payer: 'IVAC' }))).toBeInTheDocument()
+    expect(screen.queryByText(t(`${I}.noEmail`))).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t(`${I}.finalizeOnly`) })).toBeInTheDocument()
+  })
+
+  it('… issued: « Télécharger le PDF » and « Déposer sur le portail » (a new tab)', async () => {
+    mocks.payers.fetchPayerOrganisations.mockResolvedValue([
+      {
+        id: 'o1', kind: 'ivac', name: 'IVAC', billingEmail: null, contactName: null, language: 'fr', providerNumber: null, cadence: 'monthly',
+        dueDays: 30, remindersEnabled: false, isActive: true, note: null, portalUrl: 'https://portail.exemple.test/depot',
+      },
+    ])
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...bundle({ status: 'issued', number: '2026-9', issuedOn: '2026-10-14', payerKind: 'organisation', payerReference: 'IV-1', payerHasEmail: false }),
+      payer: { id: 'o1', name: 'IVAC' },
+      payerOptions: [],
+    })
+    open()
+    const link = await screen.findByRole('link', { name: t(`${I}.portalLinkLabel`, { payer: 'IVAC' }) })
+    expect(link).toHaveAttribute('href', 'https://portail.exemple.test/depot')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('a client\'s invoice never asks for the organisations', async () => {
+    open()
+    expect(await screen.findByText('Léa Essai', { selector: 'a' })).toBeInTheDocument()
+    expect(mocks.payers.fetchPayerOrganisations).not.toHaveBeenCalled()
   })
 
   it('the conseillère reads, never edits', async () => {

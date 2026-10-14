@@ -28,3 +28,9 @@ export function periodText(p: ClientPayerBilling): string | null {
   if (!p.periodFrom || !p.periodTo) return null
   return t(`${C}.period`, { from: formatDateOnly(p.periodFrom), to: formatDateOnly(p.periodTo) })
 }
+
+/**
+ * R-84: an upload portal's address as the database accepts it (`payer_organisations.portal_url`):
+ * https, a host, then a path without spaces; 500 characters at most.
+ */
+export const isPortalUrl = (value: string): boolean => value.length <= 500 && /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/\S*)?$/.test(value)

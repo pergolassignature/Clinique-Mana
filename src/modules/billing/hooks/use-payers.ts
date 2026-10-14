@@ -20,7 +20,8 @@ import type { MutationFeedback } from './use-invoices'
 import { billingKeys } from './keys'
 
 export const usePayerQueue = () => useQuery({ queryKey: billingKeys.payerQueue(), queryFn: fetchPayerQueue })
-export const usePayerOrganisations = () => useQuery({ queryKey: billingKeys.payerOrganisations(), queryFn: fetchPayerOrganisations })
+export const usePayerOrganisations = (options: { enabled?: boolean } = {}) =>
+  useQuery({ queryKey: billingKeys.payerOrganisations(), queryFn: fetchPayerOrganisations, enabled: options.enabled ?? true })
 export const usePayerSettings = () => useQuery({ queryKey: billingKeys.payerSettings(), queryFn: fetchPayerSettings })
 export const useClientPayersBilling = (clientId: string) =>
   useQuery({ queryKey: billingKeys.clientPayers(clientId), queryFn: () => fetchClientPayersBilling(clientId), enabled: clientId !== '' })
