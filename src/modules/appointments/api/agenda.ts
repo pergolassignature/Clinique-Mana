@@ -72,7 +72,7 @@ export async function fetchAgendaReference(): Promise<AgendaReference> {
     supabase.from('professionals_directory').select('id, display_name, status, professions').eq('status', 'active').order('display_name').limit(LIST_MAX),
     supabase
       .from('services_catalog')
-      .select('id, code, name, duration_minutes, buffer_after_minutes, for_two, colour, title_ids')
+      .select('id, code, name, duration_minutes, buffer_after_minutes, for_two, colour, title_ids, excluded_professional_ids')
       .gt('duration_minutes', 0)
       .order('code')
       .limit(LIST_MAX),

@@ -133,6 +133,8 @@ Migrations `20261013095543_professionals_display_facts` (Professionnels: `privat
 - **Suivi → « Propositions »**: each proposal with its state (« En attente de réponse (jusqu'au …) », « Acceptée : premier rendez-vous le … », « Refusée : … », « Sans réponse en 48 h », « Retirée »), its slots, who proposed; « Retirer la proposition » (asks first). « Proposer un professionnel » (a request « Acceptée » or on the waiting list, nothing pending, `demandes.manage` and `appointments.view`; the slots of another professional or service are never offered while the new ones load, and are read again after a refusal): the professional, the service, video or phone, 1 to 3 of her free slots over 14 days; « Envoyer la proposition (N plages) ».
 - **`/proposition#t=…`** (public, `propositionPublicPage`): the clinic, the professional and her title, the service, the mode, « réservées jusqu'au … »; « Choisir cette plage », « Aucune ne me convient » with an optional reason. A slot no longer possible is said plainly (« vient d'être prise », « solde à régler »…) and the other slots stay. In French (D-11).
 
+- **R-83:** `proposition_services(professional)` leaves out the services she does not offer (Services' `private.service_excluded_for`; migration `20261014162845_demandes_proposition_services_exclusions`).
+
 ## D3: the waiting list, part 1
 
 Migration `20261013064427_demandes_waitlist`; pgTAP `123_demandes_waitlist`; functions `demandes-waitlist-followup` (job) and `demandes-waitlist-answer` (public token); decisions D-15 … D-19 ([roadmap §2.3 bis](../plans/2026-10-11-next-modules-roadmap.md)).

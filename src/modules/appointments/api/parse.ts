@@ -169,6 +169,9 @@ export const serviceOptionPayload = z
     for_two: z.boolean(),
     colour: z.string().nullable(),
     title_ids: z.array(z.string()),
+    // R-83: who does not offer it (Services' `services_catalog`); « Mon agenda »'s reference
+    // already leaves those out for her, without the list.
+    excluded_professional_ids: z.array(z.string()).nullish(),
   })
   .transform((r) => ({
     id: r.id,
@@ -179,6 +182,7 @@ export const serviceOptionPayload = z
     forTwo: r.for_two,
     colour: r.colour,
     titleIds: r.title_ids,
+    excludedProfessionalIds: r.excluded_professional_ids ?? [],
   }))
 export type ServiceOption = z.output<typeof serviceOptionPayload>
 

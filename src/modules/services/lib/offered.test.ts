@@ -11,6 +11,7 @@ const service = (over: Partial<CatalogueService>): CatalogueService => ({
   priceSource: 'grid',
   taxRule: 'exempt',
   titleIds: ['psy'],
+  excludedProfessionalIds: [],
   ...over,
 })
 
@@ -29,7 +30,7 @@ describe('offeredServices (L26)', () => {
   ]
 
   it('the services one of her titles allows, by code; never a clinic service offered by no title', () => {
-    const rows = offeredServices(catalogue, { primaryTitleId: 'psy', titleIds: ['psy'] }, prices)
+    const rows = offeredServices(catalogue, { professionalId: 'p1', primaryTitleId: 'psy', titleIds: ['psy'] }, prices)
     expect(rows.map((r) => [r.code, r.priceCents])).toEqual([
       [10130, 11000],
       [10150, 17500],
@@ -37,11 +38,23 @@ describe('offeredServices (L26)', () => {
   })
 
   it('her price is her primary title’s first, then another of her titles; « À confirmer » (null) without a grid', () => {
-    const rows = offeredServices(catalogue, { primaryTitleId: 'sexo', titleIds: ['psy', 'sexo'] }, prices)
+    const rows = offeredServices(catalogue, { professionalId: 'p1', primaryTitleId: 'sexo', titleIds: ['psy', 'sexo'] }, prices)
     expect(rows.map((r) => [r.code, r.priceCents])).toEqual([
       [10130, 9000],
       [10150, 17500],
       [10160, null],
+    ])
+  })
+
+  it('says which of her titles\' services she does not offer (R-83), another professional\'s list aside', () => {
+    const rows = offeredServices(
+      [service({ excludedProfessionalIds: ['p1'] }), service({ id: 's2', code: 10130, excludedProfessionalIds: ['p2'] })],
+      { professionalId: 'p1', primaryTitleId: 'psy', titleIds: ['psy'] },
+      prices,
+    )
+    expect(rows.map((r) => [r.code, r.offered])).toEqual([
+      [10130, true],
+      [10150, false],
     ])
   })
 })

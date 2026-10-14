@@ -17,7 +17,15 @@ describe('servicesManifest', () => {
 
   it('names its audited tables for the Journal d’audit, in its own chunk', async () => {
     const labels = await servicesManifest.audit?.()
-    expect(labels?.tables).toEqual(['service_families', 'services', 'service_titles', 'service_rate_variants', 'billing_policies'])
+    expect(labels?.tables).toEqual([
+      'service_families',
+      'services',
+      'service_titles',
+      'service_rate_variants',
+      'billing_policies',
+      'service_professional_exclusions',
+    ])
+    expect(labels?.tableLabel('service_professional_exclusions')).toBe('Services non offerts par un professionnel')
     expect(labels?.tableLabel('services')).toBe('Services')
     expect(labels?.fieldLabel('services', 'price_source')).toBe('Source du prix')
     expect(labels?.value('services', 'price_source', 'entered')).toBe('Montant saisi à la facture')

@@ -4980,16 +4980,26 @@
       "name": "Services et tarifs",
       "offered": {
         "title": "Services offerts",
-        "description": "Les services que ses titres professionnels permettent, avec son prix d'aujourd'hui (Paramètres → Services et tarifs).",
+        "description": "Les services que ses titres professionnels permettent et qu'elle offre, avec son prix d'aujourd'hui (Paramètres → Services et tarifs).",
         "loadError": "Les services offerts ne se chargent pas.",
         "empty": "Aucun service du catalogue pour ses titres.",
         "toConfirm": "À confirmer",
         "forTwo": "Pour deux personnes",
         "columns": {
+          "offered": "Offert",
           "service": "Service",
           "duration": "Durée",
           "price": "Prix aujourd'hui"
-        }
+        },
+        "editDescription": "Les services que ses titres professionnels permettent, avec son prix d'aujourd'hui. Décochez ceux qu'elle n'offre pas : l'agenda, ses disponibilités et les propositions des demandes ne les offriront plus pour elle.",
+        "notOffered": "Non offert",
+        "offerLabel": "Offre « {service} »",
+        "allOffered": "Elle offre tous les services de ses titres.",
+        "someNotOffered": {
+          "one": "{count} service de ses titres n'est pas offert.",
+          "other": "{count} services de ses titres ne sont pas offerts."
+        },
+        "saved": "Les services offerts sont enregistrés."
       },
       "settings": {
         "title": "Services et tarifs",
@@ -5289,7 +5299,8 @@
           "services": "Services",
           "service_titles": "Professions offrant un service",
           "service_rate_variants": "Tarifs étudiant et réduit",
-          "billing_policies": "Politiques d'annulation"
+          "billing_policies": "Politiques d'annulation",
+          "service_professional_exclusions": "Services non offerts par un professionnel"
         },
         "fields": {
           "service_families": {
@@ -5337,6 +5348,10 @@
             "next_fee_percent": "Frais les fois suivantes (%)",
             "file_opening_service_id": "Service d'ouverture de dossier",
             "fee_mode": "Mode des frais"
+          },
+          "service_professional_exclusions": {
+            "professional_id": "Professionnel",
+            "service_id": "Service"
           }
         },
         "values": {
