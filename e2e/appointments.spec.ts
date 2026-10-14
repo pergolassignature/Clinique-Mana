@@ -336,3 +336,72 @@ test('the agenda opens « Clients sans rappel » from its address (Accueil, L29)
   await expect(sheet).toBeHidden()
   await expect(page).not.toHaveURL(/sans-rappel/)
 })
+
+test('a family of three: booked together, a fourth added, one taken off, then cancelled (R-79)', async ({ page, signIn }) => {
+  const monday = nextMonday()
+  const wednesday = new Date(`${monday}T12:00:00Z`)
+  wednesday.setUTCDate(wednesday.getUTCDate() + 2)
+  await signIn('admin')
+  await page.goto(`/agenda?professionnel=${FELIX}&date=${wednesday.toISOString().slice(0, 10)}&vue=jour`)
+  await page.getByRole('button', { name: 'Nouveau rendez-vous' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Nouveau rendez-vous' })
+  await sheet.getByLabel(/^Heure/).fill('15:00')
+  await sheet.getByLabel(/^Service/).selectOption({ index: 1 })
+  for (const [query, name] of [
+    ['Tremblay-Fictive', 'Alice Tremblay-Fictive'],
+    ['Gagnon-Fictif', 'Marc Gagnon-Fictif'],
+    ['Roy-Fictive', 'Paule Roy-Fictive'],
+  ] as const) {
+    await sheet.getByRole('searchbox').fill(query)
+    await sheet.getByRole('button', { name: new RegExp(name) }).click()
+  }
+  await expect(sheet.getByText('autre personne', { exact: false }).filter({ hasNotText: 'Une autre' })).toHaveCount(2)
+  await sheet.getByRole('button', { name: 'Réserver' }).click()
+  await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
+
+  await page.getByRole('button', { name: /^15:00, Alice Tremblay-Fictive, Marc Gagnon-Fictif et Paule Roy-Fictive/ }).click()
+  const editor = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Marc Gagnon-Fictif et Paule Roy-Fictive' })
+  await editor.getByRole('searchbox', { name: /^Ajouter une personne/ }).fill('Côté-Fictive')
+  await editor.getByRole('button', { name: /Inès Côté-Fictive/ }).click()
+  await expect(page.getByText('Personne ajoutée au rendez-vous : elle reçoit la confirmation.')).toBeVisible()
+  const four = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Inès Côté-Fictive, Marc Gagnon-Fictif et Paule Roy-Fictive' })
+  await four.getByRole('button', { name: 'Retirer Marc Gagnon-Fictif' }).click()
+  await page.getByRole('alertdialog', { name: 'Retirer Marc Gagnon-Fictif du rendez-vous ?' }).getByRole('button', { name: 'Retirer du rendez-vous' }).click()
+  await expect(page.getByText("Personne retirée du rendez-vous : elle reçoit un avis d'annulation.")).toBeVisible()
+  const three = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Inès Côté-Fictive et Paule Roy-Fictive' })
+  await three.getByRole('tab', { name: 'Messages' }).click()
+  const messages = three.getByRole('list', { name: 'Messages envoyés aux clients' })
+  await expect(messages).toContainText('Courriel · Inès Côté-Fictive')
+  await expect(messages).toContainText('Annulation')
+
+  // Leave the database as found.
+  await three.getByRole('tab', { name: 'Annulation' }).click()
+  await three.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
+  await three.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
+  await expect(page.getByText('Rendez-vous annulé.')).toBeVisible()
+})
+
+test('« Mon agenda »: Félix books his client in the evening, outside his availability, without a reason (R-82)', async ({ page, signIn }) => {
+  const monday = nextMonday()
+  const wednesday = new Date(`${monday}T12:00:00Z`)
+  wednesday.setUTCDate(wednesday.getUTCDate() + 2)
+  await signIn('provider')
+  await page.goto(`/mon-agenda?date=${wednesday.toISOString().slice(0, 10)}&vue=jour`)
+  await page.getByRole('button', { name: 'Rendez-vous avec un client' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Nouveau rendez-vous' })
+  await sheet.getByLabel(/^Heure/).fill('19:00')
+  await sheet.getByLabel(/^Service/).selectOption({ index: 1 })
+  await sheet.getByRole('searchbox').fill('Tremblay-Fictive')
+  await sheet.getByRole('button', { name: /Alice Tremblay-Fictive/ }).click()
+  await sheet.getByRole('button', { name: 'Réserver' }).click()
+  await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
+  await expect(sheet).toBeHidden()
+
+  await page.getByRole('button', { name: /^19:00, Alice Tremblay-Fictive(,|$)/ }).click()
+  const editor = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive' })
+  await expect(editor.getByText('Réservé par le professionnel sur son propre agenda.')).toBeVisible()
+  await editor.getByRole('tab', { name: 'Annulation' }).click()
+  await editor.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
+  await editor.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
+  await expect(page.getByText('Rendez-vous annulé.')).toBeVisible()
+})

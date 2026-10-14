@@ -2,6 +2,7 @@ import { t } from '@/i18n'
 import { getClinicDateString } from '@/shared/lib/timezone'
 import type { AgendaReference } from '../api/agenda'
 import type { AgendaAppointment, AppointmentMode, AppointmentState, ExceptionKind, Presence } from '../api/parse'
+import { joinNames } from './participants'
 
 const V = 'modules.appointments.audit.values'
 
@@ -14,10 +15,10 @@ const WEEKDAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', '
 /** « lundi » for 1 … « dimanche » for 7. */
 export const weekdayLabel = (weekday: number): string => WEEKDAYS[weekday - 1] ?? ''
 
-/** What a block shows first: the clients' names, a personal appointment's label, or « Occupé ». */
+/** What a block shows first: the clients' names (« Alice, Bruno et Chloé »), a personal appointment's label, or « Occupé ». */
 export function appointmentTitle(a: AgendaAppointment): string {
   if (a.isPersonal) return a.personalLabel ?? t('modules.appointments.agenda.busy')
-  return a.participants.map((p) => p.name).filter(Boolean).join(' et ') || t('modules.appointments.agenda.noClient')
+  return joinNames(a.participants.map((p) => p.name)) || t('modules.appointments.agenda.noClient')
 }
 
 /** Whether the appointment still holds its slot on the grid (a cancelled one kept on the schedule does). */

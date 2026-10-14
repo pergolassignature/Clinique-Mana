@@ -21,7 +21,18 @@ const P = 'modules.appointments.personal'
  * blocks her own time (a label, the day, the start and the end; « Rendez-vous de travail »). Any
  * time, never over another appointment; the staff see it as « Occupé ».
  */
-export function PersonalDialog({ day: initialDay, time, onClose }: { day: string; time: string; onClose: () => void }) {
+export function PersonalDialog({
+  day: initialDay,
+  time,
+  onClose,
+  onClient,
+}: {
+  day: string
+  time: string
+  onClose: () => void
+  /** « Plutôt un rendez-vous avec un client » (R-82): the client booking at the same moment. */
+  onClient?: () => void
+}) {
   const [label, setLabel] = useState('')
   const [day, setDay] = useState(initialDay)
   const [start, setStart] = useState(time)
@@ -70,6 +81,11 @@ export function PersonalDialog({ day: initialDay, time, onClose }: { day: string
             </Alert>
           )}
           <DialogFooter>
+            {onClient && (
+              <Button type="button" variant="ghost" className="sm:mr-auto" onClick={onClient}>
+                {t(`${P}.withClient`)}
+              </Button>
+            )}
             <DialogClose asChild>
               <Button type="button" variant="outline">
                 {t('common.cancel')}

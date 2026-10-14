@@ -16,15 +16,26 @@ const mocks = vi.hoisted(() => ({
     fetchAvailability: vi.fn(),
     fetchAppointmentDetail: vi.fn(),
     bookPersonalAppointment: vi.fn(),
+    bookAppointment: vi.fn(),
   },
+  changes: { fetchBookingConsents: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/agenda', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/agenda')>()), ...mocks.api }))
+vi.mock('../api/changes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/changes')>()), ...mocks.changes }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
+vi.mock('@/modules/clients', () => ({
+  ClientPicker: ({ onSelect }: { onSelect: (id: string, client: { id: string; name: string; clientNumber: number }) => void }) => (
+    <button type="button" onClick={() => onSelect('c1', { id: 'c1', name: 'Alice Essai', clientNumber: 1 })}>
+      Choisir Alice
+    </button>
+  ),
+}))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const A = 'modules.appointments.agenda'
 const P = 'modules.appointments.personal'
+const E = 'modules.appointments.editor'
 
 const REFERENCE: AgendaReference = {
   professionals: [{ id: 'p1', name: 'Félix Gauthier', active: true, titleIds: ['t1'] }],
@@ -38,6 +49,8 @@ beforeEach(() => {
   mocks.api.fetchAvailability.mockResolvedValue({ rules: [], exceptions: [] })
   mocks.api.fetchAppointmentDetail.mockResolvedValue(null)
   mocks.api.bookPersonalAppointment.mockResolvedValue('new')
+  mocks.api.bookAppointment.mockResolvedValue('a-new')
+  mocks.changes.fetchBookingConsents.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -81,5 +94,39 @@ describe('MyAgendaPage', () => {
         isWork: false,
       }),
     )
+  })
+
+  it('R-82: « Rendez-vous avec un client » books her own client on her agenda, at any hour, with no reason asked', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: t('modules.appointments.mine.newClient') }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
+    expect(within(sheet).getByLabelText(/^Professionnel/)).toHaveValue('p1')
+    await user.selectOptions(within(sheet).getByLabelText(/^Service/), 's50')
+    const hour = within(sheet).getByLabelText(/^Heure/)
+    await user.clear(hour)
+    await user.type(hour, '19:00')
+    await user.click(within(sheet).getByRole('button', { name: 'Choisir Alice' }))
+    await user.click(within(sheet).getByRole('button', { name: t(`${E}.book`) }))
+    await waitFor(() => expect(mocks.api.bookAppointment).toHaveBeenCalled())
+    expect(mocks.api.bookAppointment.mock.calls[0]?.[0]).toMatchObject({
+      professionalId: 'p1',
+      serviceId: 's50',
+      startsAt: '2027-03-15T23:00:00.000Z',
+      clientIds: ['c1'],
+      outsideAvailabilityReason: null,
+    })
+    expect(within(sheet).queryByText(t(`${E}.outsideTitle`))).not.toBeInTheDocument()
+  })
+
+  it('… and the personal appointment dialog offers it at the same moment', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: t('modules.appointments.mine.title') })
+    fireEvent.click(await screen.findByTestId('agenda-column-2027-03-16'), { clientY: 6 * 48 + 1 })
+    const dialog = await screen.findByRole('dialog', { name: t(`${P}.title`) })
+    await user.click(within(dialog).getByRole('button', { name: t(`${P}.withClient`) }))
+    const sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
+    expect(within(sheet).getByLabelText(/^Heure/)).toHaveValue('12:00')
   })
 })

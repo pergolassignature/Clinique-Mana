@@ -31,11 +31,13 @@ import {
   type SeriesRule,
 } from '../api/agenda'
 import {
+  addAppointmentParticipant,
   changeAppointmentService,
   confirmAppointment,
   fetchAgendaSettings,
   fetchAppointmentConsents,
   fetchBookingConsents,
+  removeAppointmentParticipant,
   restoreAppointment,
   saveAgendaSettings,
   saveClientLinks,
@@ -171,6 +173,21 @@ export const useConfirmAppointment = (feedback?: MutationFeedback) => useAgendaM
 export const useSaveAgendaSettings = (feedback?: MutationFeedback) =>
   useAgendaMutation((s: Omit<AgendaSettings, 'clientManageLinks'>) => saveAgendaSettings(s), `${S}.settings`, feedback)
 export const useSaveClientLinks = (feedback?: MutationFeedback) => useAgendaMutation((enabled: boolean) => saveClientLinks(enabled), `${S}.clientLinks`, feedback)
+
+// --- An appointment for several people (R-79) ------------------------------------------------------
+
+export const useAddParticipant = (feedback?: MutationFeedback) =>
+  useAgendaMutation(
+    ({ appointmentId, clientId }: { appointmentId: string; clientId: string }) => addAppointmentParticipant(appointmentId, clientId),
+    `${S}.participantAdded`,
+    feedback,
+  )
+export const useRemoveParticipant = (feedback?: MutationFeedback) =>
+  useAgendaMutation(
+    ({ appointmentId, clientId }: { appointmentId: string; clientId: string }) => removeAppointmentParticipant(appointmentId, clientId),
+    `${S}.participantRemoved`,
+    feedback,
+  )
 
 /** The consents an appointment requires (shown, never blocking: R-47). */
 export function useAppointmentConsents(appointmentId: string | null) {
