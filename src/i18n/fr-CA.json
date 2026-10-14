@@ -7790,7 +7790,7 @@
         "closed": "Fermée"
       },
       "unnamed": "(sans nom)",
-      "file": "N° {number} · {name}",
+      "file": "{number} · {name}",
       "promise": {
         "ok": "Reçue depuis {hours} h ouvrables",
         "soon": "À rappeler bientôt : {hours} h ouvrables",
@@ -7975,7 +7975,7 @@
           "beneficiary": "Pour qui",
           "motifs": "Motifs"
         },
-        "fileNumber": "Dossier N° {number}",
+        "fileNumber": "Dossier {number}",
         "urgent": "Urgente",
         "handledBy": "{name} s’en occupe",
         "unassigned": "Non assignée",
@@ -7985,7 +7985,7 @@
         "neverContacted": "Pas encore appelée",
         "sort": {
           "label": "Trier par",
-          "priority": "Priorité (urgentes, en retard, puis les plus anciennes)",
+          "priority": "Priorité : urgentes et en retard d’abord",
           "received_desc": "Reçues : les plus récentes d'abord",
           "received_asc": "Reçues : les plus anciennes d'abord",
           "waiting_desc": "Attente la plus longue d'abord",
@@ -8048,7 +8048,7 @@
         },
         "received": "Reçue le {date} · {channel}",
         "urgent": "Urgente",
-        "openFile": "Ouvrir le dossier N° {number}",
+        "openFile": "Ouvrir le dossier {number}",
         "noFile": "Pas encore de dossier client.",
         "closedBecause": "Fermée : {reason}",
         "changeState": "Changer l'état",
@@ -8248,7 +8248,7 @@
         "description": "Ce qui est arrivé à la demande, du plus récent au plus ancien.",
         "empty": "Rien encore.",
         "created": "Demande reçue",
-        "stateChanged": "État : {from} → {to}",
+        "stateChanged": "État passé de « {from} » à « {to} »",
         "closed": "Fermée : {reason}",
         "matched": "Jumelée avec {name}",
         "assigned": "Assignée à {name}",
@@ -8419,6 +8419,13 @@
         "heard": "Provenance déclarée",
         "campaign": "Campagne",
         "utm": "Paramètres de campagne",
+        "utmKeys": {
+          "source": "Source",
+          "medium": "Support",
+          "campaign": "Campagne",
+          "term": "Mot-clé",
+          "content": "Contenu"
+        },
         "referrer": "Page d’origine",
         "landing": "Page d’arrivée",
         "heardQuestion": "Comment la personne a entendu parler de MANA",
@@ -8528,7 +8535,7 @@
           "criteria": "Critères",
           "file": "Dossiers",
           "openDemande": "Ouvrir la demande",
-          "openFile": "Consentements du dossier n° {number}",
+          "openFile": "Consentements du dossier {number}",
           "priorityTitle": "Priorité et professionnel « pont »",
           "bridgeIs": "Suivie en attendant par {name}",
           "completeTitle": "Inscription complète ?",
@@ -8660,7 +8667,7 @@
           "saved": "Réglages de la liste d'attente enregistrés.",
           "followUp": {
             "title": "Suivi",
-            "description": "Chaque matin (7 h), la tâche « Suivi de la liste d'attente » marque « À rappeler » les inscriptions sans nouvelles et l'annonce aux conseillères. Activez la tâche dans Paramètres → Tâches planifiées.",
+            "description": "Chaque matin (7 h), la tâche « Suivi de la liste d'attente » marque « À rappeler » les inscriptions sans nouvelles et l'annonce aux conseillères. Activez la tâche dans Paramètres, section « Tâches planifiées ».",
             "weeks": "Rappeler après (semaines sans nouvelles)",
             "weeksHelp": "8 semaines par défaut. Un appel où la personne est jointe remet le compteur à zéro.",
             "email": "Envoyer le courriel « Souhaitez-vous rester sur la liste d'attente ? »",
@@ -8895,7 +8902,7 @@
       },
       "matching": {
         "title": "Professionnels suggérés",
-        "description": "Selon la demande et les règles de jumelage. Ordre : l'adéquation (les motifs de la demande, une clientèle ★, les disponibilités), puis les places restantes, puis le nom.",
+        "description": "Selon la demande et les règles de jumelage. Ordre : l'adéquation (les motifs de la demande, une clientèle spécialisée (★), les disponibilités), puis les places restantes, puis le nom.",
         "criteriaTitle": "Ce que la demande indique",
         "age": "{age} ans",
         "ageUnknown": "Âge inconnu",

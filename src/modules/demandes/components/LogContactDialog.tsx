@@ -27,7 +27,7 @@ export function LogContactDialog({ demandeId, person, compact = false }: { deman
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm" aria-label={compact ? t(`${L}.openFor`, { person }) : undefined} className="max-sm:h-11">
           <PhoneCall aria-hidden className="size-3.5" />
-          {compact ? <span className="max-md:sr-only">{t(`${L}.open`)}</span> : t(`${L}.open`)}
+          {compact ? <span className="max-xl:sr-only">{t(`${L}.open`)}</span> : t(`${L}.open`)}
         </Button>
       </DialogTrigger>
       {open && <LogContactForm demandeId={demandeId} person={person} onDone={() => setOpen(false)} />}
