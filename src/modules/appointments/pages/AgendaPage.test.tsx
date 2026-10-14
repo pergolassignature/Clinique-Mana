@@ -156,6 +156,20 @@ describe('AgendaPage', () => {
     expect(mocks.api.fetchAgenda).toHaveBeenCalledWith('2027-03-15T04:00:00.000Z', '2027-03-22T04:00:00.000Z', ['p1'])
   })
 
+  it('on a phone the day is the default view (a week of seven columns does not fit)', async () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) =>
+      ({ matches: query === '(max-width: 639px)', media: query, addEventListener: () => undefined, removeEventListener: () => undefined }) as unknown as MediaQueryList) as typeof window.matchMedia
+    try {
+      renderPage()
+      const tabs = await screen.findByRole('tablist', { name: t(`${A}.views`) })
+      expect(within(tabs).getByRole('tab', { name: 'Jour' })).toHaveAttribute('aria-selected', 'true')
+      await waitFor(() => expect(mocks.api.fetchAgenda).toHaveBeenCalledWith('2027-03-15T04:00:00.000Z', '2027-03-16T04:00:00.000Z', ['p1']))
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
   it('a click on a free quarter hour opens « Nouveau rendez-vous » there; the booking goes to the database', async () => {
     const user = userEvent.setup()
     renderPage()
