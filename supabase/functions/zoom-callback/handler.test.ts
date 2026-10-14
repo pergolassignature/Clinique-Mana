@@ -1,7 +1,7 @@
 import { assert, assertEquals } from '@std/assert'
 import { createHandler } from './handler.ts'
 import { signState } from '../_shared/oauth-state.ts'
-import { withEnv } from '../_shared/testing/env.ts'
+import { captureConsole, withEnv } from '../_shared/testing/env.ts'
 import {
   ADMIN_ID,
   NOW,
@@ -53,12 +53,14 @@ Deno.test('zoom-callback: the code is exchanged, the account named, the connecti
       '2026-10-13T16:00:00.000Z',
     )
     assertEquals((store.args.p_scopes as string[]).length, 4)
-    // The nonce was spent before Zoom was asked.
+    // The nonce was spent (its hash only) before Zoom was asked.
     const limits = h.service.calls.filter((c) => c.fn === 'consume_rate_limit')
-    assertEquals(limits.map((c) => c.args.p_bucket), [
-      'zoom.callback_user',
-      'oauth.state_nonce',
-    ])
+    assertEquals(limits.map((c) => c.args.p_bucket), ['zoom.callback_user'])
+    const spend = h.service.calls.filter((c) =>
+      c.fn === 'spend_oauth_state_nonce_for_service'
+    )
+    assertEquals(spend.length, 1)
+    assert(/^\\x[0-9a-f]{64}$/.test(String(spend[0].args.p_nonce_hash)))
   }))
 
 Deno.test('zoom-callback: a state of someone else → 403; a forged one → 410; an expired one → 410 link_expired', () =>
@@ -91,31 +93,46 @@ Deno.test('zoom-callback: a state of someone else → 403; a forged one → 410;
     assertEquals(h.zoom.calls, [])
   }))
 
-Deno.test('zoom-callback: a replayed state → 410 link_used', () =>
+Deno.test('zoom-callback: a replayed state → 410 link_used, even minutes later; the check unavailable → 503', () =>
   run(async () => {
-    let nonceHits = 0
-    const h = zoomHarness({
-      rpc: {
-        consume_rate_limit: (args) => {
-          const allowed = args.p_bucket !== 'oauth.state_nonce' ||
-            ++nonceHits === 1
-          return {
-            data: [{ allowed, hits: 1, retry_after_seconds: allowed ? 0 : 60 }],
-          }
-        },
-      },
-    })
+    const h = zoomHarness()
     const handler = createHandler(h.deps)
     const state = await signed()
     assertEquals(
       (await handler(post(URL_, { code: h.zoom.issueCode(), state }))).status,
       200,
     )
-    const again = await handler(post(URL_, { code: h.zoom.issueCode(), state }))
-    assertEquals([again.status, (await again.json()).error.code], [
-      410,
-      'link_used',
+    const zoomCalls = h.zoom.calls.length
+    for (const minutes of [0, 9]) {
+      h.advance(minutes * 60_000)
+      const again = await handler(
+        post(URL_, { code: h.zoom.issueCode(), state }),
+      )
+      assertEquals([again.status, (await again.json()).error.code], [
+        410,
+        'link_used',
+      ])
+    }
+    assertEquals(h.zoom.calls.length, zoomCalls)
+
+    const down = zoomHarness({
+      rpc: {
+        spend_oauth_state_nonce_for_service: {
+          error: { code: '22023', message: 'Arguments invalides.' },
+        },
+      },
+    })
+    let res: Response | undefined
+    await captureConsole('error', async () => {
+      res = await createHandler(down.deps)(
+        post(URL_, { code: down.zoom.issueCode(), state: await signed() }),
+      )
+    })
+    assertEquals([res!.status, (await res!.json()).error.code], [
+      503,
+      'not_configured',
     ])
+    assertEquals(down.zoom.calls, [])
   }))
 
 Deno.test('zoom-callback: a code Zoom refuses → 400 in French, nothing stored', () =>
