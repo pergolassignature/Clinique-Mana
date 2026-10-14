@@ -15,8 +15,8 @@
  *    refused code → 400 with a French refusal; Google down → 502.
  * 5. The grant must hold `calendar.freebusy` (she may untick it): else a
  *    French refusal, and the grant is revoked.
- * 6. `userinfo` names the account (`sub`, the address); without a refresh
- *    token Google is asked again (a French refusal).
+ * 6. Without a refresh token Google is asked again (a French refusal) and the
+ *    grant is revoked; then `userinfo` names the account (`sub`, the address).
  * 7. `store_calendar_connection` (the actor model: P0001 when this account is
  *    connected for another professional), then a first sync at once (best
  *    effort: the job catches up).
@@ -45,7 +45,7 @@ import {
 } from '../_shared/google-calendar/client.ts'
 import { calendarOrigins, redirectUri } from '../_shared/google-calendar/env.ts'
 import { readJson } from '../_shared/http.ts'
-import { verifyState } from '../_shared/oauth-state.ts'
+import { spendStateNonce, verifyState } from '../_shared/oauth-state.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
@@ -114,11 +114,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (state.orgId !== orgId || state.userId !== auth.user.id) {
       return errorResponse('forbidden', 'Not your connection', 403, req)
     }
-    const nonce = await consume(service, LIMITS.oauthStateNonce, [state.nonce])
-    if (!nonce.allowed) {
-      return nonce.reason === 'unavailable'
-        ? limitResponse(nonce, req)!
-        : errorResponse('link_used', 'State already used', 410, req)
+    const spent = await spendStateNonce(service, state)
+    if (spent === 'unavailable') {
+      return errorResponse(
+        'not_configured',
+        'State check unavailable',
+        503,
+        req,
+      )
+    }
+    if (spent === 'used') {
+      return errorResponse('link_used', 'State already used', 410, req)
     }
 
     let app
@@ -168,6 +174,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
     if (!token.refresh_token) {
+      // The grant is not kept: revoked as when the scope is missing (nothing stored).
+      await revokeToken(deps.fetch, origins, token.access_token)
       return refusalResponse(
         'Google n’a pas donné d’accès durable. Recommencez la connexion de votre agenda Google.',
         req,

@@ -5,7 +5,11 @@
  * signed job request. Test-only: no `index.ts` imports this folder.
  */
 import type { Deps } from '../deps.ts'
-import { fakeSupabase, type RpcRoute } from './fake-supabase.ts'
+import {
+  fakeSupabase,
+  nonceSpendRoute,
+  type RpcRoute,
+} from './fake-supabase.ts'
 import { fakeFetch } from './fake-fetch.ts'
 import {
   FAKE_ZOOM_CLIENT_ID,
@@ -140,6 +144,7 @@ export function zoomHarness(opts: {
       consume_rate_limit: {
         data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }],
       },
+      spend_oauth_state_nonce_for_service: nonceSpendRoute(),
       module_enabled_for_org: { data: opts.moduleEnabled ?? true },
       get_org_secret: (args) => ({
         data: state.secrets[args.p_key as string] ?? null,

@@ -32,7 +32,7 @@ import {
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
-import { verifyState } from '../_shared/oauth-state.ts'
+import { spendStateNonce, verifyState } from '../_shared/oauth-state.ts'
 import { QboClient, QboError } from '../_shared/qbo/client.ts'
 import {
   exchangeCode,
@@ -118,11 +118,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     ) {
       return errorResponse('link_invalid', 'State invalid', 410, req)
     }
-    const nonce = await consume(service, LIMITS.oauthStateNonce, [state.nonce])
-    if (!nonce.allowed) {
-      return nonce.reason === 'unavailable'
-        ? limitResponse(nonce, req)!
-        : errorResponse('link_used', 'State already used', 410, req)
+    const spent = await spendStateNonce(service, state)
+    if (spent === 'unavailable') {
+      return errorResponse(
+        'not_configured',
+        'State check unavailable',
+        503,
+        req,
+      )
+    }
+    if (spent === 'used') {
+      return errorResponse('link_used', 'State already used', 410, req)
     }
 
     let app

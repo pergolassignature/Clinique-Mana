@@ -260,6 +260,63 @@ Deno.test('demandes-book-call: book → the source and a hashed cancel token to 
   })
 })
 
+Deno.test('demandes-book-call: an address that already has a call reads like a booking; the earlier call is confirmed to that address', async () => {
+  await run(async () => {
+    const EARLIER = '2026-10-15T18:00:00.000Z'
+    const s = setup({
+      book: {
+        data: {
+          ...booked,
+          starts_at: EARLIER,
+          requested_starts_at: SLOT,
+          first_name: 'Marie',
+          language: 'en',
+        },
+      },
+    })
+    const { ticket, nonce } = await ticketFrom(s.handler)
+    const res = await s.handler(
+      post(bookBody(ticket, nonce, { first_name: 'Intrus' })),
+    )
+    assertEquals(res.status, 200)
+    assertEquals(
+      await res.json(),
+      { starts_at: SLOT, timezone: 'America/Toronto', emailed: true },
+      'the same answer as a booking: the slot asked for, never the earlier call',
+    )
+    const context = s.service.calls.find((c) => c.fn === 'get_email_context')!
+    assertEquals(
+      context.args.p_template_key,
+      'demandes.discovery_call_booked_en',
+      'the earlier call’s language',
+    )
+    const mail = JSON.parse(s.http.calls[0].body)
+    assertEquals(mail.To[0].Email, 'camille@exemple.test')
+    assert(mail.Text.includes('Marie'), 'the earlier call’s first name')
+    assert(!mail.Text.includes('Intrus'), 'never the name typed this time')
+    assert(
+      /\/appel-decouverte\/annuler#t=[A-Za-z0-9_-]{43}/.test(mail.Text),
+      'with its fresh cancel link',
+    )
+  })
+})
+
+Deno.test('demandes-book-call: a name of 100 characters is refused before the database', async () => {
+  await run(async () => {
+    const s = setup()
+    const { ticket, nonce } = await ticketFrom(s.handler)
+    const res = await s.handler(
+      post(bookBody(ticket, nonce, { last_name: 'x'.repeat(100) })),
+    )
+    assertEquals(res.status, 400)
+    assertEquals(
+      s.service.calls.filter((c) => c.fn === 'book_discovery_call_for_service')
+        .length,
+      0,
+    )
+  })
+})
+
 Deno.test('demandes-book-call: no work, a forged or another clinic’s check → refused before any write', async () => {
   await run(async () => {
     const s = setup()

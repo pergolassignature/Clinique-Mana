@@ -23,8 +23,13 @@
  *    token (the actor model: the token exists only here and in the email).
  *    The confirmation (`demandes.discovery_call_booked` / `_en`) carries the
  *    cancel link `/appel-decouverte/annuler#t=…`. 200 `{ starts_at,
- *    timezone, emailed }`. A refusal (slot taken, already booked, a field,
- *    closed: P3-40) is the database's French sentence, 400 `refusal: true`.
+ *    timezone, emailed }`. A refusal (slot taken, a field, closed: P3-40) is
+ *    the database's French sentence, 400 `refusal: true`. An address that
+ *    already has a call is never told apart (security review 2026-10-14):
+ *    the database answers like a booking for the earlier call (its time,
+ *    first name and language, a fresh cancel link), the confirmation goes
+ *    to that address, and the page shows the slot asked for
+ *    (`requested_starts_at`), the same 200 as any booking.
  * 5. `cancel` {token}: a malformed token → 410 `link_invalid` before any
  *    read; `cancel_discovery_call_for_service` (one use) → 200
  *    `{ state: 'cancelled' }` or 410 `link_invalid`. The page shows the call
@@ -76,8 +81,9 @@ const bodySchema = z.discriminatedUnion('action', [
     ticket: text(2_048),
     nonce: z.string().regex(/^[0-9]{1,12}$/),
     starts_at: text(40),
-    first_name: text(100),
-    last_name: text(100),
+    // 99 each: « first last » fits the request's 200-character contact name.
+    first_name: text(99),
+    last_name: text(99),
     email: text(254),
     phone_e164: text(20),
     language: z.enum(['fr', 'en']),
@@ -102,6 +108,8 @@ const bookedSchema = z.object({
   demande_id: z.string(),
   task_id: z.string(),
   starts_at: z.string(),
+  // The slot the page shows (absent before the security fixes' migration).
+  requested_starts_at: z.string().optional(),
   timezone: z.string(),
   clinic_name: z.string(),
   language: z.enum(['fr', 'en']),
@@ -305,7 +313,11 @@ export function createHandler(
       await report('confirmation_failed', { demande_id: b.demande_id })
     }
     return noStore(
-      { starts_at: b.starts_at, timezone: b.timezone, emailed },
+      {
+        starts_at: b.requested_starts_at ?? b.starts_at,
+        timezone: b.timezone,
+        emailed,
+      },
       req,
     )
   }
