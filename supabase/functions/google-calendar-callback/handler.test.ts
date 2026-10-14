@@ -98,6 +98,35 @@ Deno.test('google-calendar-callback: the free/busy box unticked → a French ref
     assert(!h.rpcNames().includes('store_calendar_connection'))
   }))
 
+Deno.test('google-calendar-callback: no refresh token from Google → a French refusal, the grant revoked, nothing stored', () =>
+  run(async () => {
+    const h = calendarHarness()
+    // Google answers the code without a refresh token (a grant it already gave).
+    const google = h.deps.fetch
+    const fetchWithoutRefresh: typeof fetch = async (input, init) => {
+      const res = await google(input, init)
+      const url = input instanceof Request ? input.url : String(input)
+      if (!new URL(url).pathname.endsWith('/token') || !res.ok) return res
+      const body = await res.json()
+      delete body.refresh_token
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    const code = h.google.issueCode(SCOPES)
+    const res = await createHandler({ ...h.deps, fetch: fetchWithoutRefresh })(
+      post({ code, state: await signed(h) }),
+    )
+    assertEquals(res.status, 400)
+    const body = await res.json()
+    assertEquals(body.error.refusal, true)
+    assert(body.error.message.includes('accès durable'))
+    assert(h.google.grants.size > 0)
+    assert([...h.google.grants.values()].every((g) => g.revoked))
+    assert(!h.rpcNames().includes('store_calendar_connection'))
+  }))
+
 Deno.test('google-calendar-callback: a state for another person → 403, the code never exchanged', () =>
   run(async () => {
     const h = calendarHarness()
