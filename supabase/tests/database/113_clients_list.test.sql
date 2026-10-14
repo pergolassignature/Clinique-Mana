@@ -6,8 +6,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(14);
 
-select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer'], 'anon', array[]::text[], 'anon cannot call it');
-select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer'], 'authenticated', array['EXECUTE'], 'authenticated may call it');
+select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer', 'text', 'text', 'timestamp with time zone'], 'anon', array[]::text[], 'anon cannot call it');
+select function_privs_are('public', 'list_clients', array['text', 'text', 'uuid', 'uuid', 'text', 'text', 'uuid', 'integer', 'text', 'text', 'timestamp with time zone'], 'authenticated', array['EXECUTE'], 'authenticated may call it');
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
