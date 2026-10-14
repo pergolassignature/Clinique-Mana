@@ -41,7 +41,7 @@ All per clinic, RLS on (`billing.view`; `payment_modes` also `billing.self`), `s
 
 **Money (§F):** a line's subtotal is `round(quantity × unit price)`; its TPS and TVQ are each `round(subtotal × rate)` when the line is taxable and the dossier is not « Statut Indien »; the invoice's are the sums. The rates come from core's « Fiscalité » on the day (drafts: today; finalised: the issue date, kept on the invoice).
 
-**Prices:** a session is priced by Services et tarifs' `private.service_price` on its clinic date with the professional's primary title (Professionnels' `professional_booking_facts`, primary first), the client's rate variant and « Statut Indien » (Clients' `clients_billing_facts`); a grid without a rate refuses (« à confirmer », HINT `price_missing`); « montant saisi à la facture » leaves the amount to type before finalising. The file-opening fee (the policy's `file_opening_service_id`) is added to a dossier's first invoice (none issued and not credited), or as asked.
+**Prices:** a session is priced by Services et tarifs' `private.service_price` on its clinic date with the professional's primary title (Professionnels' `professional_booking_facts`, primary first), the client's rate variant and « Statut Indien » (Clients' `clients_billing_facts`); a grid without a rate refuses (« à confirmer », HINT `price_missing`); « montant saisi à la facture » leaves the amount to type before finalising. The file-opening fee (the policy's `file_opening_service_id`) is added to a dossier's first invoice (none issued and not credited), or as asked; since R-78, not when a related file already has a live invoice (`private.billing_file_opening_due`, below).
 
 **« Facturé à » (R-61):** the client, or a relation holding « recevoir reçus et factures » (Clients' `client_contacts_for(…, 'invoices')`); chosen per invoice, never split; the default is the dossier's dated default, else the client.
 
@@ -137,7 +137,7 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 - **The invoice:** a draft has « Aperçu PDF », « Finaliser et envoyer » (primary), « Finaliser sans envoyer », and its hold (« Remettre dans la file »); an issued one has « Télécharger le PDF », what its email did (« Envoyée au payeur par courriel le … », « PDF prêt. Pas envoyé par courriel : … », « Envoi en cours », « Échec »), « Renvoyer au payeur », its payment state, « Paiements » (each with its receipt, its PDF and what its email did) and « Enregistrer un paiement » (mode, amount = the balance, day, reference); the credit note's PDF too.
 - **Clients → « Visites et paiements »:** the dossier's balance, « Entente particulière » (a note; « Terminer l'entente »), the invoices' payment state, « Paiements du dossier » with their receipts, and « Relevés » (a year and a payer: « Préparer le relevé » or « Préparer et envoyer au payeur »; each statement's PDF once ready).
 - **Paramètres → Facturation:** « File du matin »: « À partir du » (empty: off; at most 14 days back).
-- **Professionnels → « Identité et permis » → « Supervision »:** an intern's supervisor (`professionals.manage`).
+- **Professionnels → « Identité et permis » → « Supervision »:** an intern's supervisor (`professionals.manage`); « Signature des reçus » (R-86): her signature image, printed on her receipts.
 
 ## Screens (F3)
 
@@ -169,14 +169,21 @@ Migration `20261014033531_billing_appointment_billing`; pgTAP `184_billing_appoi
 
 ### What this module reads from the others (published only)
 
-- **Clients:** `private.clients_billing_facts(org, ids[])` (number, name, rate variant, « Statut Indien », language, archived, closed), `private.client_contacts_for(…, 'invoices')`, `private.clients_display_names`.
+- **Clients:** `private.clients_billing_facts(org, ids[])` (number, name, rate variant, « Statut Indien », language, archived, closed), `private.client_contacts_for(…, 'invoices')`, `private.clients_display_names`, `private.client_relative_ids(org, client)` (R-78: the files related to one, either side of a relation).
 - **Rendez-vous:** `private.appointment_billing_facts(org, ids[])`, `private.client_billable_appointments(org, client, since)`.
 - **Services et tarifs:** `private.service_price`, `private.service_booking_facts`, `services_catalog`, `billing_policy_on`.
-- **Professionnels:** `private.professional_booking_facts` (titles, primary first); F2: `private.professional_receipt_facts(org, ids[])` (name, primary title, order, licence, and the supervisor's), `private.professional_client_agreement_on(org, professional, client, day)` (the agreement that holds a session in the queue).
+- **Professionnels:** `private.professional_booking_facts` (titles, primary first); F2: `private.professional_receipt_facts(org, ids[])` (name, primary title, order, licence, and the supervisor's), `private.professional_client_agreement_on(org, professional, client, day)` (the agreement that holds a session in the queue); R-86: `private.professional_signature_files(org, ids[])` (each one's ready signature image: file, bucket, path).
 - **Professionnels (payroll):** `private.professional_session_pay`, `private.professional_compensation_rate`, `private.professional_payout_facts`, `private.professional_display_names`, `private.professional_profile_id`, `private.professional_for_profile`.
 - **Rendez-vous (payroll):** `private.appointments_for_billing(org, from, to)`.
 - **Services et tarifs (payroll):** `private.service_payout_facts(org, ids[])`.
 - **Core:** `tax_rates` (« Fiscalité »).
+
+## Christine's second series: the opening fee and the receipts (R-78, R-86, R-87)
+
+- **No opening fee when a relative already has a billed file (R-78, migrations `*_clients_relatives_for_billing` and `*_billing_relatives_opening_fee`, pgTAP `200` and `201`):** one rule, `private.billing_file_opening_due(org, client, except_invoice)`: due when neither the file nor any file related to it (Clients' `private.client_relative_ids`, either side of a relation, whatever its type or rights) has a non-credited invoice (a draft counts), the invoice being built left out. Used by `private.billing_invoice_appointments` (behind `create_invoice` and the morning queue) and `get_appointment_billing`'s preview; an explicit `p_file_opening` still wins. *Default — révisable:* « un proche a déjà un dossier facturé » is any live invoice of the relative, not only one carrying the fee (an imported or older invoice without it still means the family's file was opened).
+- **The professional's signature on receipts (R-86, migrations `*_professionals_receipt_signature` and `*_billing_receipt_signature_couples`, pgTAP `202` and `203`):** `private.billing_professionals` adds each professional's `signature: {bucket, object_path}` (Professionnels' `professional_signature_files`, ready files only; null without one). `billing-documents` loads them for a **receipt only** beside the logo (`signatureAssets`, asset keys `signature_<i>`), each on its own: one that does not load is left out and reported (`signature_unavailable`, ids only), the receipt still sent. The PDF prints each image (150 pt wide) above the professional's line; an intern's own signature, her supervisor's name and licence beside it (R-60). Without any image, the list as before. Invoices, credit notes and statements never print it.
+- **Couple receipts (R-87, same migration):** `private.billing_lines` adds `served: [{id, name, client_number}]` to a line whose appointment brought several clients together (AP-5; the appointment's order, Clients' `clients_billing_facts`), null otherwise. The receipt's « Services rendus à » names the file's client, then every other person served, once each (« Léa Essai (dossier n° 12) et Marc Essai (dossier n° 14) »; « A, B et C » for more); an individual session keeps one name. *Default — révisable:* the invoice and the credit note keep the file's client only (the receipt is what each spouse claims).
+- **Tests:** Deno `billing-documents/document.test.ts` (both names; the signature above her name, never on an invoice, the list without it; renders) and `handler.test.ts` (the image downloaded for a receipt; a failed download left out, reported by code, the receipt sent).
 
 ## Paie des professionnels (FPay)
 
