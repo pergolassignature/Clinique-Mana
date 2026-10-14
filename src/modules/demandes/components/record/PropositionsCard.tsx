@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import { Button } from '@/shared/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
@@ -338,7 +338,7 @@ export function ProposeForm({
                       if (inMoment.length === 0) return null
                       return (
                         <div key={moment} className="flex flex-wrap items-center gap-2">
-                          <span className="w-28 text-xs text-muted-foreground">{t(`${P}.form.periodOf.${moment}`)}</span>
+                          <span className="w-full text-xs text-muted-foreground sm:w-28">{t(`${P}.form.periodOf.${moment}`)}</span>
                           {inMoment.map((slot) => {
                             const on = chosen.includes(slot.starts_at)
                             const full = !on && chosen.length >= MAX_SLOTS
@@ -371,8 +371,20 @@ export function ProposeForm({
           </p>
         )}
         <DialogFooter>
-          <Button type="submit" aria-disabled={proposeMutation.isPending || undefined}>
-            {proposeMutation.isPending ? t(`${P}.form.sending`) : t(`${P}.form.send`, { count: String(chosen.length) })}
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              {t('common.cancel')}
+            </Button>
+          </DialogClose>
+          {/* No proposal of 0 slots: the button says what is missing until one is chosen. */}
+          <Button type="submit" aria-disabled={proposeMutation.isPending || chosen.length === 0 || undefined}>
+            {proposeMutation.isPending
+              ? t(`${P}.form.sending`)
+              : chosen.length === 0
+                ? t(`${P}.form.chooseSlots`, { max: String(MAX_SLOTS) })
+                : chosen.length === 1
+                  ? t(`${P}.form.sendOne`)
+                  : t(`${P}.form.send`, { count: String(chosen.length) })}
           </Button>
         </DialogFooter>
       </form>
