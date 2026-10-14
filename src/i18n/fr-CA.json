@@ -4914,8 +4914,15 @@
           "title": "Catalogue",
           "description": "Un service par ligne, dans sa famille. Le code est l'article QuickBooks : il se choisit une fois.",
           "add": "Ajouter un service",
-          "search": "Rechercher…",
+          "search": "Nom, code ou description…",
           "searchLabel": "Rechercher dans le catalogue",
+          "sortLabel": "Trier par",
+          "sort": {
+            "family": "Famille",
+            "code": "Code",
+            "name": "Nom",
+            "duration": "Durée"
+          },
           "table": "Catalogue des services",
           "columns": {
             "code": "Code",
@@ -5103,6 +5110,8 @@
             "title": "Profession"
           },
           "toConfirm": "À confirmer",
+          "withTaxes": "Avec taxes : {price}",
+          "taxesUnknown": "Taxes : aucun taux en vigueur (Paramètres → Fiscalité)",
           "notOffered": "Non offert",
           "forTwo": "à deux",
           "student": "Étudiant {price}",
