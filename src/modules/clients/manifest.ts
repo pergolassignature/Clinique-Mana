@@ -32,6 +32,10 @@ export const clientsManifest: ModuleManifest = {
     { path: '/clients/consentements', labelKey: 'modules.clients.consents.nav', icon: FileCheck, permission: 'clients.view', group: 'followUp', order: 16 },
     { path: '/mes-clients', labelKey: 'modules.clients.mine.title', icon: Contact, permission: 'clients.self', shownWhen: hasProfessionalFile, group: 'main', order: 7 },
   ],
+  // Accueil « Consentements à obtenir » (L29): the signature requests waiting, the late ones first.
+  homeCards: [
+    { id: 'clients-consents', permission: 'clients.view', component: lazyPage(() => import('./components/ConsentsHomeCard'), 'ConsentsHomeCard') },
+  ],
   routes: [
     { path: 'clients', permission: 'clients.view', component: lazyPage(() => import('./pages/ClientsListPage'), 'ClientsListPage') },
     {

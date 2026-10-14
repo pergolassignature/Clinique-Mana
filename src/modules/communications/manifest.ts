@@ -21,6 +21,10 @@ export const communicationsManifest: ModuleManifest = {
     // « Textos » (batch SM): the conversations with the clinic's SMS number.
     { path: '/textos', labelKey: 'modules.communications.sms.nav', icon: MessageSquareText, permission: 'communications.sms', group: 'communications', order: 21 },
   ],
+  // Accueil « Courriels non lus » (L29): each mailbox's unread threads, from the mailboxes' own counts.
+  homeCards: [
+    { id: 'communications-unread', permission: 'communications.inbox', component: lazyPage(() => import('./components/MailHomeCard'), 'MailHomeCard') },
+  ],
   routes: [
     { path: 'courriels', permission: 'communications.inbox', component: lazyPage(() => import('./pages/InboxPage'), 'InboxPage') },
     { path: 'textos', permission: 'communications.sms', component: lazyPage(() => import('./pages/SmsPage'), 'SmsPage') },
