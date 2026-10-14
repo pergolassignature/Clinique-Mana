@@ -9,7 +9,7 @@ import { foldText, parseYesNo } from './normalize.mjs'
 // --- Employees → professionals --------------------------------------------------------------------
 
 /** GOrendezvous's agendas that are not professionals (plan §9): never mapped, whatever the file says. */
-export const EXCLUDED_EMPLOYEES = ['conseillère', 'Administration', 'Z MATRICE']
+export const EXCLUDED_EMPLOYEES = ['conseillère', 'Administration', 'Bureau administratif', 'Z MATRICE']
 
 export const EMPLOYEE_COLUMNS = {
   employee: ['Employé', 'Employe', 'Employée', 'Employee', 'Professionnel GOrendezvous', 'Nom GOrendezvous', 'GOrendezvous'],
