@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -19,6 +19,7 @@ import { Button } from '@/shared/ui/button'
 import { Dialog } from '@/shared/ui/dialog'
 import { toast } from '@/shared/ui/sonner'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import type { MatchCriteria, MatchedProfessional, NextSlot } from '../../api/matching'
 import { useDemandeMatch, useNextSlots } from '../../hooks/use-matching'
 import { usePropositions } from '../../hooks/use-propositions'
@@ -49,7 +50,7 @@ export function MatchingTab() {
   const [confirming, setConfirming] = useState<MatchedProfessional | null>(null)
   const [proposing, setProposing] = useState<MatchedProfessional | null>(null)
   const [matching, setMatching] = useState<string | null>(null)
-  const [params, setParams] = useSearchParams()
+  const { params, update: patchUrl } = useUrlParams()
   const asked = params.get('proposer')
 
   const data = match.data
@@ -71,9 +72,7 @@ export function MatchingTab() {
     else if (!canPropose) toast.error(t(`${M}.offer.notAllowed`))
     else if (professional.warnings.includes('insurance_expired')) setConfirming(professional)
     else setProposing(professional)
-    const next = new URLSearchParams(params)
-    next.delete('proposer')
-    setParams(next, { replace: true })
+    patchUrl({ proposer: null })
   }, [asked, data, propositions.data, canPropose]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (match.isError && !match.data) {
