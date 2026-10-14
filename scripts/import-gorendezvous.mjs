@@ -9,13 +9,13 @@
 //        [--commit] [--url <api>] [--anon-key <key>] [--report <file>] [--today AAAA-MM-JJ]
 //   node scripts/import-gorendezvous.mjs prix --lines <csv> --employees <csv> [--services <csv>]
 //        [--on AAAA-MM-JJ] [--url <api>] [--anon-key <key>] [--report <file>]
-//   node scripts/import-gorendezvous.mjs factures --invoices <csv> --lines <csv> --payments <csv>
+//   node scripts/import-gorendezvous.mjs factures --invoices <csv> --lines <csv> --payments <csv> --clients <csv>
 //        [--employees <csv>] [--services <csv>] [--clients-map <csv>] [--commit] [--url <api>]
 //        [--anon-key <key>] [--report <file>]
-//   node scripts/import-gorendezvous.mjs rendez-vous --appointments <csv> --employees <csv> [--services <csv>]
+//   node scripts/import-gorendezvous.mjs rendez-vous --appointments <csv> --employees <csv> --clients <csv> [--services <csv>]
 //        [--lines <csv>] [--waitlist-profession <clé>] [--commit] [--url <api>] [--anon-key <key>] [--report <file>]
-//   node scripts/import-gorendezvous.mjs consentements --consents <csv> [--commit] [--url …] [--anon-key …] [--report …]
-//   node scripts/import-gorendezvous.mjs payeurs --invoices <csv> [--clients-map <csv>] [--commit] [--url …] [--anon-key …] [--report …]
+//   node scripts/import-gorendezvous.mjs consentements --consents <csv> --clients <csv> [--commit] [--url …] [--anon-key …] [--report …]
+//   node scripts/import-gorendezvous.mjs payeurs --invoices <csv> --clients <csv> [--clients-map <csv>] [--commit] [--url …] [--anon-key …] [--report …]
 //
 // The safety model of import-professionals.mjs (decision I-7):
 // - A dry run by default: every client goes through import_client(row, true), which does everything
@@ -48,13 +48,20 @@
 //   numbers, file numbers, codes and French reasons: never a name, an email, a phone, a birth date,
 //   an address, a note or a GOrendezvous id (decision I-6).
 // - Ctrl-C stops between two rows; the report keeps what was done; a re-run resumes.
+// - Homonyms (security review 2026-10-14): « factures », « rendez-vous », « consentements » and
+//   « payeurs » also read the clients export (--clients); a row that names, without its ClientId,
+//   a client whose name several ClientIds hold (homonyms.mjs) stops the run before the database
+//   (fail closed): its ClientId goes in --clients-map (invoices) or the export's ClientId column.
+//   A payer named after homonyms is left out. The admin closes the imports after the cutover
+//   (`set_imports_open(false)`: every import RPC then refuses).
+// - A database error other than a refusal (P0001) prints its code only, never its message.
 import { closeSync, fsyncSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Aborted, InputError, LOCAL_URL, checkPublicKey, openTerminal, resolveTarget } from './import-professionals.mjs'
 import { REASON_LABELS, readClients } from './import-gorendezvous/clients.mjs'
-import { checkOutsideRepo, clinicToday } from './import-gorendezvous/dry-run.mjs'
+import { checkOutsideRepo, checkReportOutsideRepo, clinicToday } from './import-gorendezvous/dry-run.mjs'
 import { findDuplicates } from './import-gorendezvous/duplicates.mjs'
 import { MAPPING_REASON_LABELS, readEmployees, readServiceCodes } from './import-gorendezvous/mappings.mjs'
 import { PAYLOAD_REASON_LABELS, RELATION_REASON_LABELS, clientPayload, readRelations } from './import-gorendezvous/payloads.mjs'
@@ -68,17 +75,20 @@ import { APPOINTMENT_REASON_LABELS, buildAppointmentRows, isWaitlistService, rea
 import { CONSENT_REASON_LABELS, readConsents } from './import-gorendezvous/consents.mjs'
 import { PAYER_REASON_LABELS, defaultPayers } from './import-gorendezvous/payers.mjs'
 import { foldText } from './import-gorendezvous/normalize.mjs'
+import { linesNeedingClientId, readHomonyms } from './import-gorendezvous/homonyms.mjs'
 
 const USAGE = `Usage :
   node scripts/import-gorendezvous.mjs clients --clients <csv> [--employees <csv>] [--relations <csv>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>] [--today AAAA-MM-JJ]
   node scripts/import-gorendezvous.mjs prix --lines <csv> --employees <csv> [--services <csv>] [--on AAAA-MM-JJ] [--url <api>] [--anon-key <clé>] [--report <fichier>]
-  node scripts/import-gorendezvous.mjs factures --invoices <csv> --lines <csv> --payments <csv> [--employees <csv>] [--services <csv>] [--clients-map <csv>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
-  node scripts/import-gorendezvous.mjs rendez-vous --appointments <csv> --employees <csv> [--services <csv>] [--lines <csv>] [--waitlist-profession <clé>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
-  node scripts/import-gorendezvous.mjs consentements --consents <csv> [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
-  node scripts/import-gorendezvous.mjs payeurs --invoices <csv> [--clients-map <csv>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
+  node scripts/import-gorendezvous.mjs factures --invoices <csv> --lines <csv> --payments <csv> --clients <csv> [--employees <csv>] [--services <csv>] [--clients-map <csv>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
+  node scripts/import-gorendezvous.mjs rendez-vous --appointments <csv> --employees <csv> --clients <csv> [--services <csv>] [--lines <csv>] [--waitlist-profession <clé>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
+  node scripts/import-gorendezvous.mjs consentements --consents <csv> --clients <csv> [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
+  node scripts/import-gorendezvous.mjs payeurs --invoices <csv> --clients <csv> [--clients-map <csv>] [--commit] [--url <api>] [--anon-key <clé>] [--report <fichier>]
   Sans --commit : essai, rien n'est écrit. Base par défaut : ${LOCAL_URL}.`
 
 const COMMANDS = ['clients', 'prix', 'factures', 'rendez-vous', 'consentements', 'payeurs']
+/** The commands whose rows the database may find by the client's name: they read the clients export too. */
+const BY_NAME = ['factures', 'rendez-vous', 'consentements', 'payeurs']
 const LABELS = { ...REASON_LABELS, ...MAPPING_REASON_LABELS, ...PAYLOAD_REASON_LABELS, ...RELATION_REASON_LABELS, ...REVENUE_REASON_LABELS, ...INVOICE_REASON_LABELS }
 const fmt = (n) => n.toLocaleString('fr-CA')
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
@@ -128,6 +138,9 @@ export function parseCli(argv) {
   }
   if (command === 'consentements' && !values.consents) throw new InputError(`« consentements » demande --consents <csv>.\n${USAGE}`)
   if (command === 'payeurs' && !values.invoices) throw new InputError(`« payeurs » demande --invoices <csv>.\n${USAGE}`)
+  if (BY_NAME.includes(command) && !values.clients) {
+    throw new InputError(`« ${command} » demande aussi --clients <csv> (l’export des clients) : les homonymes y sont repérés.\n${USAGE}`)
+  }
   const profession = values['waitlist-profession']
   if (profession !== undefined && !/^[a-z][a-z0-9_]{1,49}$/.test(profession)) throw new InputError('--waitlist-profession attend la clé d’une profession (ex. psychologue).')
   for (const key of ['today', 'on']) if (values[key] && !DATE.test(values[key])) throw new InputError(`--${key} attend une date AAAA-MM-JJ.`)
@@ -182,17 +195,42 @@ export function passReport(entries, dryRun) {
   return out
 }
 
+/** A database error's code only (a SQLSTATE or PostgREST's), never its message, details or hint. */
+const errorCode = (error) => (/^[A-Za-z0-9_]{1,16}$/.test(String(error?.code ?? '')) ? error.code : 'réseau')
+
+/**
+ * A refusal (P0001) is French and written for the person (« Les imports sont fermés pour cette
+ * clinique. »): shown as is. Any other error by its code and a fixed message: its text could
+ * hold a value of the row.
+ */
+export function databaseError(error, what = 'Erreur de la base') {
+  if (error?.code === 'P0001' && typeof error.message === 'string') return new InputError(`Refusé par la base : ${error.message}`)
+  return new InputError(`${what} (${errorCode(error)}) : l’import s’arrête. Relancez la même commande ; si l’erreur revient, transmettez ce code.`)
+}
+
 async function rpc(client, fn, args) {
   const { data, error } = await client.rpc(fn, args)
-  if (error) throw new InputError(`Erreur de la base (${error.code || 'réseau'}) : ${error.message}`)
+  if (error) throw databaseError(error)
   return data
 }
 
 async function select(client, view, columns) {
   const { data, error } = await client.from(view).select(columns)
-  if (error) throw new InputError(`Lecture de ${view} refusée (${error.code || 'réseau'}) : ${error.message}`)
+  if (error) throw databaseError(error, `Lecture de ${view} refusée`)
   return data
 }
+
+/**
+ * Fail closed on homonyms: the rows naming, without its ClientId, a client several dossiers hold
+ * stop the run before the database, with their lines and what to do.
+ */
+function stopOnHomonyms(say, lines, { label, fix }) {
+  if (lines.length === 0) return
+  say('', `== Clients homonymes dans l’export des clients : ${fmt(lines.length)} ligne(s) de ${label} sans ClientId`, `  - lignes ${lineList(lines)}`)
+  throw new InputError(`Ces lignes nomment un client que plusieurs dossiers portent : ${fix}, puis relancez : rien n’a été fait.`)
+}
+const MAP_FIX = 'donnez son ClientId dans --clients-map (« Facture ; ClientId »)'
+const COLUMN_FIX = 'l’export doit donner son ClientId (colonne ClientId)'
 
 /**
  * Every row through `fn`, in order, stopping between two rows once asked; a progress line every
@@ -280,7 +318,7 @@ export async function run(argv, deps) {
 
     // Everything the files say before any question: a file that cannot be read stops here.
     const today = cli.today ?? clinicToday(deps.now())
-    const parsedClients = texts.clients === undefined ? null : readClients(texts.clients, { today })
+    const parsedClients = texts.clients === undefined || cli.command !== 'clients' ? null : readClients(texts.clients, { today })
     const parsedRelations = texts.relations === undefined ? null : readRelations(texts.relations)
     const parsedLines = texts.lines === undefined ? null : readInvoiceLines(texts.lines)
     const parsedAppointments = texts.appointments === undefined ? null : readAppointments(texts.appointments)
@@ -288,6 +326,7 @@ export async function run(argv, deps) {
     const parsedInvoices = texts.invoices === undefined ? null : readInvoices(texts.invoices)
     const parsedPayments = texts.payments === undefined ? null : readPayments(texts.payments)
     const clientsMap = readClientsMap(texts.clientsMap)
+    const homonyms = BY_NAME.includes(cli.command) ? readHomonyms(texts.clients) : null
     if (clientsMap.rejected.length > 0) {
       say('== Fichier --clients-map : lignes refusées', ...byReason(clientsMap.rejected))
       throw new InputError('Corrigez le fichier --clients-map, puis relancez : rien n’a été fait.')
@@ -314,10 +353,10 @@ export async function run(argv, deps) {
     }
 
     if (cli.command === 'prix') return await prix(ctx, { on: cli.on ?? today, parsedLines, employees, texts, say })
-    if (cli.command === 'factures') return await factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedPayments, clientsMap, employees, texts, say })
-    if (cli.command === 'rendez-vous') return await rendezVous(ctx, { cli, target, parsedAppointments, parsedLines, employees, texts, say, now: deps.now() })
-    if (cli.command === 'consentements') return await consentements(ctx, { cli, target, parsedConsents, say })
-    if (cli.command === 'payeurs') return await payeurs(ctx, { cli, target, parsedInvoices, clientsMap, say })
+    if (cli.command === 'factures') return await factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedPayments, clientsMap, employees, texts, say, homonyms })
+    if (cli.command === 'rendez-vous') return await rendezVous(ctx, { cli, target, parsedAppointments, parsedLines, employees, texts, say, now: deps.now(), homonyms })
+    if (cli.command === 'consentements') return await consentements(ctx, { cli, target, parsedConsents, say, homonyms })
+    if (cli.command === 'payeurs') return await payeurs(ctx, { cli, target, parsedInvoices, clientsMap, say, homonyms })
     return await clients(ctx, { cli, target, parsedClients, parsedRelations, employees, say })
   } catch (error) {
     if (!(error instanceof InputError) && !(error instanceof Aborted)) throw error
@@ -531,7 +570,7 @@ const invoiceEntry = (item, result) => ({
 
 const exportedMonths = (parsedInvoices) => parsedInvoices.invoices.map((i) => ({ month: i.date.slice(0, 7), total_cents: i.total_cents }))
 
-async function factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedPayments, clientsMap, employees, texts, say }) {
+async function factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedPayments, clientsMap, employees, texts, say, homonyms }) {
   ctx.targetUrl = target.url
   const catalogue = texts.services === undefined ? null : await select(ctx.client, 'services_catalog', 'code')
   const services = catalogue ? readServiceCodes(texts.services, catalogue.map((s) => String(s.code))) : null
@@ -561,6 +600,7 @@ async function factures(ctx, { cli, target, parsedInvoices, parsedLines, parsedP
   if (payerDiffers > 0) say(`Factures payées par un tiers (IVAC, PAE…) : ${fmt(payerDiffers)} ; importées au nom du client, le payeur reste à compléter.`)
   if (!employees) say('Sans fichier des employés (--employees) : les lignes n’ont pas de professionnel.')
   if (clientsMap.size > 0) say(`Dossiers donnés par --clients-map : ${fmt(clientsMap.size)}`)
+  stopOnHomonyms(say, linesNeedingClientId(rows.map((r) => ({ line: r.line, clients: [r.row] })), homonyms.isHomonym), { label: '« par facture »', fix: MAP_FIX })
 
   say('', '== Essai dans la base (chaque facture est vérifiée puis annulée)')
   const dry = await pass(ctx, rows, async (r) => invoiceEntry(r, await rpc(ctx.client, 'import_invoice', { p_row: r.row, p_dry_run: true })), 'essai')
@@ -693,7 +733,7 @@ async function importSteps(ctx, { cli, items, fn, label, say, blocked = false, c
   return { code: real.some((e) => e.status === 'error') ? 1 : null, dry, real }
 }
 
-async function rendezVous(ctx, { cli, target, parsedAppointments, parsedLines, employees, texts, say, now }) {
+async function rendezVous(ctx, { cli, target, parsedAppointments, parsedLines, employees, texts, say, now, homonyms }) {
   ctx.targetUrl = target.url
   const catalogue = await select(ctx.client, 'services_catalog', 'code')
   const services = readServiceCodes(texts.services, catalogue.map((s) => String(s.code)))
@@ -721,6 +761,11 @@ async function rendezVous(ctx, { cli, target, parsedAppointments, parsedLines, e
   if (refused.length > 0) say('Refusées (à corriger avant l’import) :', ...byReason(refused, labels))
   if (!parsedLines) say('Sans « par service-produit » (--lines) : les inscriptions à la liste d’attente sont importées « à facturer ».')
   const conflictNote = 'À régler dans l’agenda de GOrendezvous ou de l’app avant la bascule : aucun chevauchement à venir ne doit rester.'
+  stopOnHomonyms(
+    say,
+    linesNeedingClientId([...built.appointments.map((a) => ({ line: a.line, clients: a.row.clients })), ...built.waitlist.map((w) => ({ line: w.line, clients: [w.row] }))], homonyms.isHomonym),
+    { label: 'l’export des rendez-vous', fix: COLUMN_FIX },
+  )
   const appts = await importSteps(ctx, { cli, items: built.appointments, fn: 'import_appointment', label: 'Rendez-vous', say, blocked: refused.length > 0, conflictNote })
   const kept = (entries) => entries.filter((e) => e.status === 'ok' || e.status === 'skipped')
   const months = (entries) => {
@@ -742,7 +787,7 @@ async function rendezVous(ctx, { cli, target, parsedAppointments, parsedLines, e
   return Math.max(appts.code ?? 0, waiting.code ?? 0)
 }
 
-async function consentements(ctx, { cli, target, parsedConsents, say }) {
+async function consentements(ctx, { cli, target, parsedConsents, say, homonyms }) {
   ctx.targetUrl = target.url
   say(`Import GOrendezvous (consentements signés) sur ${target.url} : ${cli.commit ? 'essai, puis import' : 'essai, rien n’est écrit'}.`, '')
   const byKey = new Map()
@@ -752,18 +797,29 @@ async function consentements(ctx, { cli, target, parsedConsents, say }) {
     ...[...byKey].sort().map(([key, n]) => `  - ${key} : ${fmt(n)}`),
   )
   if (parsedConsents.rejected.length > 0) say('Lignes laissées de côté :', ...byReason(parsedConsents.rejected, CONSENT_REASON_LABELS))
+  stopOnHomonyms(say, linesNeedingClientId(parsedConsents.consents.map((c) => ({ line: c.line, clients: [c.row] })), homonyms.isHomonym), {
+    label: 'l’export des consentements',
+    fix: COLUMN_FIX,
+  })
   const step = await importSteps(ctx, { cli, items: parsedConsents.consents, fn: 'import_client_consent', label: 'Consentements', say })
   if (step.refused) say('Rien n’a été importé : corrigez les consentements refusés, puis relancez.')
   return step.code ?? 0
 }
 
-async function payeurs(ctx, { cli, target, parsedInvoices, clientsMap, say }) {
+async function payeurs(ctx, { cli, target, parsedInvoices, clientsMap, say, homonyms }) {
   ctx.targetUrl = target.url
-  const { rows, counts } = defaultPayers(parsedInvoices.invoices, { refFor: clientsMap.refFor })
+  const { rows: all, counts } = defaultPayers(parsedInvoices.invoices, { refFor: clientsMap.refFor })
+  // A payer is named, never given by ClientId: one named after homonyms is left out (no way to tell them apart).
+  const payerHomonyms = all.filter((r) => homonyms.isHomonym(r.row.payer_name))
+  const rows = all.filter((r) => !homonyms.isHomonym(r.row.payer_name))
   say(`Import GOrendezvous (« Payé par » : payeurs par défaut) sur ${target.url} : ${cli.commit ? 'essai, puis import' : 'essai, rien n’est écrit'}.`, '')
   say(
     `Clients d’après leur dernière facture : payeur par défaut à poser ${fmt(rows.length)} ; ${PAYER_REASON_LABELS.self} ${fmt(counts.self)} ; ${PAYER_REASON_LABELS.organisation} ${fmt(counts.organisation)} ; ${PAYER_REASON_LABELS.no_payer} ${fmt(counts.no_payer)}`,
   )
+  if (payerHomonyms.length > 0) {
+    say(`  - payeur nommé comme plusieurs dossiers (homonymes) : laissé de côté, à poser dans l’app (${fmt(payerHomonyms.length)}) : lignes ${lineList(payerHomonyms.map((r) => r.line))}`)
+  }
+  stopOnHomonyms(say, linesNeedingClientId(rows.map((r) => ({ line: r.line, clients: [r.row] })), homonyms.isHomonym), { label: '« par facture »', fix: MAP_FIX })
   const step = await importSteps(ctx, { cli, items: rows, fn: 'import_default_payer', label: 'Payeurs par défaut', say })
   if (step.refused) say('Rien n’a été importé : corrigez les lignes refusées, puis relancez.')
   return step.code ?? 0
@@ -796,7 +852,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       env: process.env,
       out: (line) => process.stdout.write(`${line}\n`),
       readFile: (file) => decodeUtf8(readFileSync(checkOutsideRepo(file))),
-      openReport: (path) => openReportFile(path),
+      openReport: (path) => openReportFile(checkReportOutsideRepo(path)),
       onSignals: (handler) => {
         process.on('SIGINT', handler)
         process.on('SIGTERM', handler)

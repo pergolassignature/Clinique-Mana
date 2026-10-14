@@ -207,3 +207,25 @@ Migration `20261013043434_clients_import`; pgTAP `115_clients_import`; decisions
 - **The script** `scripts/import-gorendezvous.mjs` (`clients`, `prix`) and its readers in `scripts/import-gorendezvous/` (mappings, payloads, price gaps), with synthetic fixtures and tests.
 - **`import_client_consent(row, dry_run)`** (I2 prep, I-18; migration `*_clients_consent_import.sql`, pgTAP `181_clients_consent_import`): a consent GOrendezvous holds as signed, by reference or name, through `import_client_consent_fact_for_service` (the only writer: source `import`, no PDF); already in force `skipped`.
 
+## Security review (2026-10-14)
+
+Pre-cutover review, lane C (Clients, the GOrendezvous imports, Rapports). Migrations
+`*_core_imports_switch.sql` and `*_clients_imports_security_fixes.sql`; pgTAP `186` (and `108`, `003`).
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | A re-run of the consents import brought a withdrawn consent back in force. | `import_client_consent_fact_for_service` skips when the client has a consent of that kind withdrawn, signed in the app, or imported with the same or a later date (I-20). |
+| 2 | The name match could attach a record to a homonym whose other file was merged into a file anonymised since. | `clients_import_match` counts every file kept at the end of the merges, anonymised ones and tombstones included: several → `ambiguous`. The tool reads the clients export and stops (fail closed) on a row naming, without its ClientId, a name several ClientIds hold (I-21). |
+| 3 | The import RPCs stayed callable forever by ordinary permissions. | `organizations.imports_open` and `set_imports_open` (`modules.manage`, audited); every `import_*` RPC refuses once closed. `import_invoice` also refuses « Note de crédit » and inactive modes, future dates, more than 200 lines, payments or refunds (I-22). |
+| 4 | The public consent page opened while Clients was reserved for its testers (P3-40). | `open_client_consent_for_service` and `start_client_consent_signing_for_service` answer `invalid` unless the module is open to all. |
+| 5 | `clients-consent-send` read the body before checking the caller. | `verifyAuth` first. |
+| 6 | `mark_client_consent_copy_sent_for_service` trusted the actor. | It checks the actor again (active member, `clients.manage`). |
+| 7 | `report_demandes` ignored « Réservé aux testeurs ». | The caller-aware `module_enabled('demandes')`. |
+| 8 | The tool printed raw database messages and could write its report in the repository. | Non-P0001 errors by code only; the report's folder checked; `.gitignore` patterns; runbook step to delete the raw exports. |
+| 9 | Unbounded inputs. | `find_client_duplicates` reads 10 phones at most; `search_clients` / `list_clients` cut the query at 200 characters. |
+
+**Deferred** (decisions needed, logged as questions for Jonathan):
+- **The consent page's identity check** (first name and birth year) is weak against someone who knows the client. A stronger one (the full birth date) changes what a parent must type: Jonathan's call, révisable.
+- **An anonymised relative's trace in the history:** a relation removed by an anonymisation leaves the other file's history saying a relation existed (no name). Acceptable under Loi 25 for now; revisit with the history's retention.
+- **The tombstone hash is not keyed** (`anon:` + SHA-256 of « gorendezvous:<ClientId> »): whoever holds both the database and a GOrendezvous export can tell which anonymised file was which ClientId. A keyed hash (a Vault secret) needs a key-management decision; the export is to be deleted after the cutover (runbook « After »), which removes the other half.
+

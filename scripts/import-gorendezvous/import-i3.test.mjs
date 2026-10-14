@@ -2,6 +2,7 @@
 // map, and the « factures » run with a fake terminal and a fake database. Synthetic data only.
 import { describe, expect, it, vi } from 'vitest'
 import { parseCli, run } from '../import-gorendezvous.mjs'
+import { nameKey } from './homonyms.mjs'
 import { assembleInvoices, byMonth, lastNumbers, readClientsMap } from './invoices.mjs'
 import { readInvoiceLines, readInvoices, readPayments } from './revenue.mjs'
 
@@ -90,7 +91,9 @@ describe('the clients map', () => {
 
 // --- run(): « factures » ----------------------------------------------------------------------------
 
-function setup({ answers = [], results = {} } = {}) {
+const CLIENTS = 'ClientId;FirstName;LastName\n77;Client;Fictif Un\n78;Client;Fictif Deux\n79;Client;Fictif Trois\n'
+
+function setup({ answers = [], results = {}, extra = {} } = {}) {
   const output = []
   const report = { path: 'rapport.txt', text: '', write: vi.fn((t) => (report.text += t)), close: vi.fn() }
   const terminal = { ask: vi.fn(async () => answers.shift() ?? ''), askHidden: vi.fn(async () => 'secret'), say: vi.fn(), close: vi.fn() }
@@ -103,7 +106,7 @@ function setup({ answers = [], results = {} } = {}) {
       return { data: results[n] ?? { status: 'ok', dry_run: p_dry_run, id: p_dry_run ? null : `id-${n}`, number }, error: null }
     }),
   }
-  const texts = { 'f.csv': INVOICES, 'l.csv': LINES, 'p.csv': PAYMENTS }
+  const texts = { 'f.csv': INVOICES, 'l.csv': LINES, 'p.csv': PAYMENTS, 'cl.csv': CLIENTS, ...extra }
   const deps = {
     env: { VITE_SUPABASE_ANON_KEY: 'anon' },
     out: (line) => output.push(line),
@@ -116,11 +119,12 @@ function setup({ answers = [], results = {} } = {}) {
   }
   return { deps, client, output, report }
 }
-const ARGS = ['factures', '--invoices', 'f.csv', '--lines', 'l.csv', '--payments', 'p.csv', '--report', 'rapport.txt']
+const ARGS = ['factures', '--invoices', 'f.csv', '--lines', 'l.csv', '--payments', 'p.csv', '--clients', 'cl.csv', '--report', 'rapport.txt']
 
 describe('import-gorendezvous factures', () => {
   it('the command line: its three files', () => {
     expect(() => parseCli(['factures', '--invoices', 'f.csv'])).toThrow(/--lines <csv> et --payments/)
+    expect(() => parseCli(['factures', '--invoices', 'f.csv', '--lines', 'l.csv', '--payments', 'p.csv'])).toThrow(/--clients <csv>/)
     expect(parseCli([...ARGS, '--clients-map', 'm.csv']).clientsMap).toBe('m.csv')
   })
 
@@ -156,6 +160,20 @@ describe('import-gorendezvous factures', () => {
     expect(output).toContain('Rien à importer.')
   })
 
+  it('homonyms in the clients export: the invoices naming one without --clients-map stop the run before the database', async () => {
+    const homonyms = `${CLIENTS}80;Client;Fictif Un\n`
+    const { deps, client, output } = setup({ answers: ['adjointe@mana.test'], extra: { 'cl.csv': homonyms } })
+    expect(await run(ARGS, deps)).toBe(2)
+    expect(client.rpc).not.toHaveBeenCalled()
+    expect(output).toContain('== Clients homonymes dans l’export des clients : 2 ligne(s) de « par facture » sans ClientId')
+    expect(output).toContain('  - lignes 2, 4')
+    expect(output.join('\n')).not.toMatch(personal)
+
+    const mapped = setup({ answers: ['adjointe@mana.test'], extra: { 'cl.csv': homonyms, 'm.csv': 'Facture;ClientId\n2026-0000101;77\n2026-0000103;80\n' } })
+    expect(await run([...ARGS, '--clients-map', 'm.csv'], mapped.deps)).toBe(0)
+    expect(mapped.client.rpc.mock.calls.map(([, a]) => a.p_row.client_ref)).toEqual(['gorendezvous:77', null, 'gorendezvous:80'])
+  })
+
   it('an invoice the database refuses: nothing imported, its line and French reason', async () => {
     const results = { '2026-0000101': { status: 'error', dry_run: true, errors: [{ field: 'lines', message: 'Les lignes ne font pas le total de la facture.' }] } }
     const { deps, client, output } = setup({ answers: ['adjointe@mana.test', 'importer'], results })
@@ -163,5 +181,14 @@ describe('import-gorendezvous factures', () => {
     expect(client.rpc.mock.calls.some(([, a]) => a.p_dry_run === false)).toBe(false)
     expect(output).toContain('  - lines : Les lignes ne font pas le total de la facture. (1) : lignes 2')
     expect(output).toContain('Rien n’a été importé : corrigez les factures refusées, puis relancez.')
+  })
+})
+
+describe('the homonyms key', () => {
+  it('as the database: accents, case, punctuation and order dropped; ligatures spelled out', () => {
+    expect(nameKey('TREMBLAY, Marie-Ève')).toBe('eve marie tremblay')
+    expect(nameKey('marie eve tremblay')).toBe('eve marie tremblay')
+    expect(nameKey('Cœur Lætitia')).toBe('coeur laetitia')
+    expect(nameKey(' - ')).toBeNull()
   })
 })
