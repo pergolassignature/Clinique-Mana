@@ -330,6 +330,10 @@ Migration `20261014010723_demandes_audit_followups` (pgTAP `182`); decisions **D
 - **The next free slot in « Jumelage » (L20, D-48):** each eligible professional (the first 15 in the panel's order) shows « Prochaine plage libre : <date et heure> (<service>) », or none in the coming 4 weeks. `demande_next_slots(demande)` (definer; `demandes.view`, `professionals.view` and `appointments.view`) reads Rendez-vous' `get_open_slots` with her default service for the request (`private.demandes_default_service`): a couple's service for a couple, else the 50-minute session, else the first by code, among the services her title allows. The panel asks only when the user holds `appointments.view` and Rendez-vous is enabled; a professional whose slots cannot be read is left without a line.
 - **The proposal's slots (L20, D-48, D-49):** « Proposer un professionnel » chooses her default service once her services are read (the same rule; the counselor may change it). When the person gave moments (Matin, Après-midi, Fin de journée, Soir, Fin de semaine), « Seulement aux moments indiqués par la personne » is on and the free slots at other moments are hidden until it is unchecked; each day's slots are grouped by moment.
 
+## « Exporter (CSV) » on the waiting list (parity audit L7)
+
+« Liste d'attente » exports the entries shown (the list and the state chosen), in their order: rank, reference, person, file number, list, priority, registration day, days waited, state, exit reason, consent, fee, last and next contact. Never a free text (the priority's reason stays in the app). Built in the browser (`lib/waitlist-csv.ts`), nothing stored.
+
 ## What the module publishes
 
 For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional); for Rapports, D6's `private.demandes_report_requests`, `_matches`, `_waitlist`, `_capacity` (above). The view `demandes_sources` (D3c, below).

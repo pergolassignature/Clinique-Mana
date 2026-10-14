@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
+import { collectPages } from '@/shared/lib/csv'
 import type { Database, Json } from '@/core/supabase/database.types'
 import type { ClientSort, ClientStatusFilter, HolderRelation, LastVisitFilter, PayerKind, RelationRights, RelationType } from '../lib/constants'
 import {
@@ -52,7 +53,11 @@ export interface ClientsPageQuery {
 }
 
 /** One page of the list after `after` (the previous page's last row), in the query's order. */
-export async function fetchClientsPage(query: ClientsPageQuery, after: ClientListRow['cursor'] | null): Promise<ClientListRow[]> {
+export async function fetchClientsPage(
+  query: ClientsPageQuery,
+  after: ClientListRow['cursor'] | null,
+  limit: number = CLIENTS_PAGE_SIZE,
+): Promise<ClientListRow[]> {
   const { data, error } = await supabase.rpc(
     'list_clients',
     sqlArgs<'list_clients'>({
@@ -63,7 +68,7 @@ export async function fetchClientsPage(query: ClientsPageQuery, after: ClientLis
       p_after_last: after?.last ?? null,
       p_after_first: after?.first ?? null,
       p_after_id: after?.id ?? null,
-      p_limit: CLIENTS_PAGE_SIZE,
+      p_limit: limit,
       p_sort: query.sort,
       p_last_visit: query.lastVisit,
       p_after_visit: after?.visit ?? null,
@@ -71,6 +76,11 @@ export async function fetchClientsPage(query: ClientsPageQuery, after: ClientLis
   )
   if (error) throw error
   return parseRpc(z.array(listRowPayload), data)
+}
+
+/** Every file the list's filters select, for its export (L7): 200 a page, 5 000 at most. */
+export function fetchAllClients(query: ClientsPageQuery): Promise<{ rows: ClientListRow[]; truncated: boolean }> {
+  return collectPages((after: ClientListRow['cursor'] | null) => fetchClientsPage(query, after, 200), 200, (page) => page.at(-1)?.cursor ?? null)
 }
 
 // --- A file --------------------------------------------------------------------------------------

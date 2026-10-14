@@ -5,6 +5,7 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { usePreferenceWriter, useUserPreference } from '@/core/preferences/hooks'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { ExportCsvButton } from '@/shared/components/ExportCsvButton'
 import { LoadError } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
@@ -17,11 +18,12 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { formatClinicDateShort, formatDateOnlyShort } from '@/shared/lib/timezone'
-import type { ClientsPageQuery } from '../api/clients'
+import { formatClinicDateShort, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
+import { fetchAllClients, type ClientsPageQuery } from '../api/clients'
 import type { ClientListRow } from '../api/parse'
 import { CreateClientDialog } from '../components/list/CreateClientDialog'
 import { useClientsList, useClientsReference } from '../hooks/use-clients'
+import { clientsCsv } from '../lib/clients-csv'
 import { CLIENT_SORTS, CLIENT_STATUSES, LAST_VISIT_FILTERS, clientPath, type ClientSort, type ClientStatusFilter, type LastVisitFilter } from '../lib/constants'
 import { CLIENTS_FILTERS_PREFERENCE, filterQuery, fromRememberedFilters, toRememberedFilters } from '../lib/remembered-filters'
 import { ageOf, choices, clientNumberLabel, phoneLabel, rateVariantLabel } from '../lib/display'
@@ -75,7 +77,7 @@ export function ClientsListPage() {
   // Remembered filters (C4): on arrival with no filter in the URL, the person's saved ones are
   // written into it; each filter she chooses is saved (debounced); a link with filters wins.
   const preference = useUserPreference(CLIENTS_FILTERS_PREFERENCE)
-  const { schedule } = usePreferenceWriter(CLIENTS_FILTERS_PREFERENCE)
+  const { schedule, flush } = usePreferenceWriter(CLIENTS_FILTERS_PREFERENCE)
   // The URL update is a transition: until it lands (« applying »), the list waits rather than
   // showing every file for a moment.
   const [phase, setPhase] = useState<'waiting' | 'applying' | 'done'>('waiting')
@@ -100,8 +102,14 @@ export function ClientsListPage() {
 
   // From the latest parameters, not this render's: two quick changes in a row (before the URL's
   // re-render) must not undo each other (react-router's functional setter reads the render's too).
+  // A render while the navigation is still pending (the list's data arriving) carries the old
+  // parameters: only a new URL replaces them.
   const latest = useRef(params)
-  latest.current = params
+  const seen = useRef(params)
+  if (seen.current !== params) {
+    seen.current = params
+    latest.current = params
+  }
   const update = (patch: Record<string, string | null>, q: string = filters.query) => {
     const previous = latest.current
     const next = new URLSearchParams(previous)
@@ -196,6 +204,14 @@ export function ClientsListPage() {
               </div>
             </>
           )}
+          {/* L7: the files these filters select, every page. */}
+          <ExportCsvButton
+            className="ml-auto"
+            build={async () => {
+              const all = await fetchAllClients(query)
+              return { ...clientsCsv(all.rows, reference.data ?? {}, getClinicDateString(new Date())), truncated: all.truncated }
+            }}
+          />
         </div>
         {list.isError && !list.data ? (
           <LoadError message={t(`${L}.loadError`)} onRetry={() => void list.refetch()} retrying={list.isFetching} />
@@ -208,8 +224,12 @@ export function ClientsListPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setParams(new URLSearchParams(), { replace: true })
+                    // Both at once: the URL, and the remembered filters forgotten now (no debounce
+                    // left pending that could bring them back on the next visit).
+                    latest.current = new URLSearchParams()
+                    setParams(latest.current, { replace: true })
                     schedule(null)
+                    flush()
                   }}
                 >
                   {t(`${L}.reset`)}
