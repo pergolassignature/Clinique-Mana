@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures/auth'
+import { forgetRememberedFilters } from './fixtures/db'
 
 /**
  * Clients (plan C3.6; local only, after `npm run db:reset`: the seed enables the module and holds
@@ -8,6 +9,9 @@ import { expect, test } from './fixtures/auth'
  * (a stamped name), so a second run on the same database passes too. The provider login (Félix,
  * seed) sees her own clients only, never the clinic list (CL-5).
  */
+
+// A spec never leaves a remembered list filter behind (another spec opening « Clients » would see a filtered list).
+test.afterEach(() => forgetRememberedFilters('clients.list_filters'))
 
 test('the admin is stopped on a duplicate, creates a file and adds a parent with rights', async ({ page, signIn }) => {
   const stamp = Date.now()
@@ -179,6 +183,9 @@ test('A-2: « Dernier rendez-vous » on the list: Alice’s last session, the fi
   await expect(alice).toHaveCount(0)
   // Back to the defaults (the filters are remembered for the next runs).
   await lastVisit.selectOption({ label: 'Tout dernier rendez-vous' })
+  await expect(page).not.toHaveURL(/dernier=/)
+  await expect(page).toHaveURL(/tri=recents/)
   await sort.selectOption({ label: 'Nom' })
   await expect(page).not.toHaveURL(/tri=|dernier=/)
+  await expect(alice).toBeVisible()
 })
