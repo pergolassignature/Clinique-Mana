@@ -78,24 +78,31 @@ const DialogHeader = ({
 )
 DialogHeader.displayName = 'DialogHeader'
 
-/**
- * The dialog's buttons. A long dialog scrolls (`DialogContent` caps its height): the footer stays
- * pinned at the bottom of the window, so « Enregistrer » is never below the fold. Its box takes the
- * dialog's bottom padding (`-mb-5 pb-5`), so a short dialog looks the same.
- */
 const DialogFooter = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'sticky bottom-0 z-10 -mb-5 flex flex-col-reverse gap-2 bg-card pb-5 sm:flex-row sm:justify-end',
+      'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
       className
     )}
     {...props}
   />
 )
 DialogFooter.displayName = 'DialogFooter'
+
+/**
+ * For a long form in a dialog (`DialogContent` with `className` including `dialogScrollContent`):
+ * the fields scroll in their own region, the footer stays below it, so « Enregistrer » is always
+ * in view however long the form (« Ajouter un fournisseur de PAE », a retention grid). A short form
+ * looks as before.
+ */
+const dialogScrollContent = 'flex flex-col overflow-hidden'
+const DialogScrollBody = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('-mx-5 grid min-h-0 flex-1 gap-3.5 overflow-y-auto px-5 py-0.5', className)} {...props} />
+)
+DialogScrollBody.displayName = 'DialogScrollBody'
 
 const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
@@ -130,6 +137,8 @@ export {
   DialogContent,
   DialogHeader,
   DialogFooter,
+  DialogScrollBody,
+  dialogScrollContent,
   DialogTitle,
   DialogDescription,
 }

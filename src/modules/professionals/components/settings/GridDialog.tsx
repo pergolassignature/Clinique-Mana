@@ -3,8 +3,9 @@ import { useController, useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Plus, X } from 'lucide-react'
 import { t } from '@/i18n'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, dialogScrollContent, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { DURATIONS, type GridInput, type GridRow } from '../../api/compensation'
@@ -73,7 +74,7 @@ export function GridDialog({ titleId, titleName, series }: GridDialogProps) {
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-lg"
+        className={cn(dialogScrollContent, 'sm:max-w-lg')}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           firstField.current?.focus()

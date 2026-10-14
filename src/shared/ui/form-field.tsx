@@ -80,12 +80,12 @@ export function FormField({ label, width, className, help, error, required, read
         'space-y-1',
         width && ['min-w-0 max-w-full', FIELD_WIDTH[width]],
         // A short field is at least as wide as its label (« Délai de paiement (jours) » no longer wraps
-        // on three lines beside its neighbour); on a phone the row wraps instead.
-        (width === 'xs' || width === 'sm') && 'sm:min-w-fit',
+        // on three lines, beside its neighbour or alone on a phone's row).
+        (width === 'xs' || width === 'sm') && 'min-w-fit',
         className,
       )}
     >
-      <Label htmlFor={id} className={cn(hideLabel && 'sr-only', !hideLabel && (width === 'xs' || width === 'sm') && 'sm:whitespace-nowrap')}>
+      <Label htmlFor={id} className={cn(hideLabel && 'sr-only', !hideLabel && (width === 'xs' || width === 'sm') && 'whitespace-nowrap')}>
         {label}
         {required && !readOnly && (
           <>

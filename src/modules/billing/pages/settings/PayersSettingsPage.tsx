@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
 import { t } from '@/i18n'
+import { cn } from '@/shared/lib/utils'
 import { useAccess } from '@/core/access/access-context'
 import { CheckboxField } from '@/shared/components/CheckboxField'
 import { DescriptionList } from '@/shared/components/DescriptionList'
@@ -15,7 +16,7 @@ import { formatDateOnly, getClinicDateString } from '@/shared/lib/timezone'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogScrollBody, DialogTitle, dialogScrollContent } from '@/shared/ui/dialog'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
@@ -201,14 +202,14 @@ function OrganisationDialog({ row, onClose }: { row: PayerOrganisation | null; o
   const ivac = row?.kind === 'ivac'
   return (
     <Dialog open onOpenChange={(open) => !open && !save.isPending && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={cn(dialogScrollContent, 'sm:max-w-lg')}>
         <DialogHeader>
           <DialogTitle>{row ? t(`${S}.dialog.editTitle`, { name: row.name }) : t(`${S}.dialog.addTitle`)}</DialogTitle>
           <DialogDescription>{t(ivac ? `${S}.dialog.ivacDescription` : `${S}.dialog.description`)}</DialogDescription>
         </DialogHeader>
         <form
           noValidate
-          className="grid gap-4"
+          className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
             event.stopPropagation()
@@ -233,6 +234,7 @@ function OrganisationDialog({ row, onClose }: { row: PayerOrganisation | null; o
             )
           }}
         >
+          <DialogScrollBody className="gap-4">
           <FormField label={t(`${S}.fields.name`)} width="full" required>
             {(field) => <Input {...field} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="off" />}
           </FormField>
@@ -282,6 +284,7 @@ function OrganisationDialog({ row, onClose }: { row: PayerOrganisation | null; o
             {(field) => <Textarea {...field} value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={1000} />}
           </FormField>
           {refusal && <RefusalAlert message={refusal} />}
+          </DialogScrollBody>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
