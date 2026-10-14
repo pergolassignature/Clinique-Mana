@@ -82,7 +82,8 @@ describe('ServicesSettingsPage', () => {
       within(catalogue()).getByText('50 · Administratif')
     ).toBeInTheDocument()
     const session = within(rowOf('Consultation individuelle 50 min'))
-    expect(session.getByText('50 min + 10')).toBeInTheDocument()
+    // In its column, and under the name on a phone (one shows at a time).
+    expect(session.getAllByText('50 min + 10 min de pause')).toHaveLength(2)
     expect(rowOf('Consultation individuelle 50 min')).toHaveTextContent(
       'Grille, 50 minNon taxable'
     )

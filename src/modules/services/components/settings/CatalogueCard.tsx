@@ -119,7 +119,7 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
             <TableRow className="[&>th]:whitespace-nowrap">
               <TableHead>{t(`${C}.columns.code`)}</TableHead>
               <TableHead>{t(`${C}.columns.name`)}</TableHead>
-              <TableHead>{t(`${C}.columns.duration`)}</TableHead>
+              <TableHead className="max-sm:hidden">{t(`${C}.columns.duration`)}</TableHead>
               <TableHead>{t(`${C}.columns.price`)}</TableHead>
               <TableHead className="max-md:hidden">{t(`${C}.columns.titles`)}</TableHead>
               {canEdit && (
@@ -140,9 +140,11 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
                     <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
                       {!service.isActive && <Badge variant="secondary">{t(`${C}.archived`)}</Badge>}
                       {service.forTwo && <span>{t(`${C}.forTwo`)}</span>}
+                      {/* On a phone the duration goes here: the price and « … » stay in view. */}
+                      <span className="sm:hidden">{durationLabel(service)}</span>
                     </span>
                   </th>
-                  <TableCell className="whitespace-nowrap">{durationLabel(service)}</TableCell>
+                  <TableCell className="whitespace-nowrap max-sm:hidden">{durationLabel(service)}</TableCell>
                   <TableCell className="min-w-[132px]">
                     {priceSummary(service)}
                     <span className="block text-xs text-muted-foreground">{taxRuleLabel(service.taxRule)}</span>
