@@ -15120,6 +15120,10 @@ export type Database = {
       }
       get_ai_draft_status: { Args: never; Returns: Json }
       get_ai_settings: { Args: never; Returns: Json }
+      get_appointment_billing: {
+        Args: { p_appointment_id: string }
+        Returns: Json
+      }
       get_appointment_consents: {
         Args: { p_appointment_id: string }
         Returns: {
@@ -15569,6 +15573,21 @@ export type Database = {
           record_id: string
           source: string
           table_name: string
+        }[]
+      }
+      list_appointment_messages: {
+        Args: { p_id: string }
+        Returns: {
+          attempts: number
+          channel: string
+          created_at: string
+          id: string
+          kind: string
+          recipient_client_id: string
+          recipient_name: string
+          sent_at: string
+          skip_reason: string
+          status: string
         }[]
       }
       list_appointments_without_reminder: {
@@ -17168,6 +17187,10 @@ export type Database = {
       reschedule_demande_task: {
         Args: { p_demande_id: string; p_due_at: string; p_task_id: string }
         Returns: undefined
+      }
+      resend_appointment_notification: {
+        Args: { p_id: string }
+        Returns: number
       }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
       reset_mail_history: {
