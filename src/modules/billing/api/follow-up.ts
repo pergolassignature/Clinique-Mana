@@ -4,7 +4,7 @@ import { sqlArgs, UNEXPECTED_SHAPE } from './invoices'
 
 /**
  * Facturation F3: « Impayés » (`list_overdue_invoices`), the cancellation fees to decide
- * (`list_fee_decisions`, `decide_cancellation_fee`), refunds (`refund_payment`) and the reminders'
+ * (`list_fee_decisions`, `decide_cancellation_fee`), refunds (`refund_payment`, `record_refund_outside_app`) and the reminders'
  * settings (`set_billing_dunning`). Payloads that do not match throw UNEXPECTED_SHAPE.
  */
 function parse<S extends z.ZodType>(schema: S, data: unknown): z.output<S> {
@@ -108,6 +108,21 @@ export async function decideFee(appointmentId: string, apply: boolean, note: str
 
 export async function refundPayment(paymentId: string, amountCents: number, reason: string): Promise<string> {
   const { data, error } = await supabase.rpc('refund_payment', { p_payment_id: paymentId, p_amount_cents: amountCents, p_reason: reason })
+  if (error) throw error
+  return parse(z.string(), data)
+}
+
+/**
+ * « Remboursement fait hors de l'app » (BI-29): an imported card payment the clinic refunded itself
+ * (`record_refund_outside_app`), recorded at once with its reference.
+ */
+export async function recordRefundOutsideApp(paymentId: string, amountCents: number, reason: string, reference: string): Promise<string> {
+  const { data, error } = await supabase.rpc('record_refund_outside_app', {
+    p_payment_id: paymentId,
+    p_amount_cents: amountCents,
+    p_reason: reason,
+    p_reference: reference,
+  })
   if (error) throw error
   return parse(z.string(), data)
 }

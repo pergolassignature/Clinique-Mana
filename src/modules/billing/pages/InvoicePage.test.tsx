@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
     issueCreditNote: vi.fn(),
   },
   queue: { sendInvoices: vi.fn(), recordPayment: vi.fn(), releaseDraft: vi.fn(), resendDocument: vi.fn(), deliverNow: vi.fn() },
-  followUp: { refundPayment: vi.fn() },
+  followUp: { refundPayment: vi.fn(), recordRefundOutsideApp: vi.fn() },
   stripe: { refundByStripe: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
@@ -329,5 +329,48 @@ describe('InvoicePage', () => {
     expect(within(credit).getByText(/Note de crédit/)).toBeInTheDocument()
     expect(within(credit).queryByRole('button', { name: t(`${I}.payments.refund`) })).not.toBeInTheDocument()
     expect(within(interac).getByRole('button', { name: t(`${I}.payments.refund`) })).toBeInTheDocument()
+  })
+
+  it('an imported card payment: « Remboursement fait hors de l’app » with its reference, never Stripe (BI-29)', async () => {
+    const user = userEvent.setup()
+    mocks.followUp.recordRefundOutsideApp.mockResolvedValue('rf2')
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...bundle({ status: 'issued', number: '2025-700', issuedOn: '2025-03-04', paidCents: 7500, paymentStatus: 'partial' }),
+      payments: [
+        {
+          id: 'p5', modeCode: 'stripe', mode: 'Carte (Stripe)', amountCents: 6000, paidOn: '2025-03-04', reference: null, note: null,
+          receiptId: null, receiptNumber: null, receiptFileId: null, receiptDeliveries: [], refundableCents: 3500, imported: true,
+          refunds: [{ id: 'rf1', amountCents: 2500, reason: 'Séance annulée', status: 'recorded', reference: 'VIR-2026-10-14', createdAt: '2026-10-14T12:00:00Z' }],
+        },
+        {
+          id: 'p6', modeCode: 'stripe', mode: 'Carte (Stripe)', amountCents: 1500, paidOn: '2026-10-13', reference: null, note: null,
+          receiptId: null, receiptNumber: null, receiptFileId: null, receiptDeliveries: [], refunds: [], refundableCents: 1500, imported: false,
+        },
+      ],
+    })
+    open()
+    const list = await screen.findByRole('list', { name: t(`${I}.payments.list`) })
+    const [imported, app] = within(list).getAllByRole('listitem')
+    // The refund already recorded outside the app shows its reference.
+    expect(within(imported!).getByText(/hors de l’app.*Séance annulée.*Réf\. VIR-2026-10-14/)).toBeInTheDocument()
+    // The imported card payment: never the online « Rembourser »; the app's card payment keeps it.
+    expect(within(imported!).queryByRole('button', { name: t(`${I}.payments.refund`) })).not.toBeInTheDocument()
+    expect(within(app!).getByRole('button', { name: t(`${I}.payments.refund`) })).toBeInTheDocument()
+    expect(within(app!).queryByRole('button', { name: t(`${I}.payments.refundOutside`) })).not.toBeInTheDocument()
+
+    await user.click(within(imported!).getByRole('button', { name: t(`${I}.payments.refundOutside`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${I}.payments.refundOutsideTitle`) })
+    expect(within(dialog).getByText(t(`${I}.payments.refundOutsideBody`))).toBeInTheDocument()
+    await user.type(within(dialog).getByLabelText(/^Raison/), 'Séance annulée')
+    // The reference is required.
+    await user.click(within(dialog).getByRole('button', { name: t(`${I}.payments.refundOutsideSubmit`) }))
+    expect(await within(dialog).findByText(t(`${I}.payments.refundReferenceInvalid`))).toBeInTheDocument()
+    expect(mocks.followUp.recordRefundOutsideApp).not.toHaveBeenCalled()
+    await user.type(within(dialog).getByLabelText(/^Référence du remboursement/), ' VIR-2026-10-15 ')
+    await user.click(within(dialog).getByRole('button', { name: t(`${I}.payments.refundOutsideSubmit`) }))
+    await waitFor(() => expect(mocks.followUp.recordRefundOutsideApp).toHaveBeenCalledWith('p5', 3500, 'Séance annulée', 'VIR-2026-10-15'))
+    expect(mocks.followUp.refundPayment).not.toHaveBeenCalled()
+    expect(mocks.stripe.refundByStripe).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.billing.saved.refund')))
   })
 })

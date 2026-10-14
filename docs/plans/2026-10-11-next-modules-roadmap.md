@@ -645,6 +645,7 @@ Les questions de la première version, celles de la visite de GOrendezvous (§13
 
 **Importation GOrendezvous (2026-10-14)**
 56. **« Note de crédit » de GOrendezvous :** importées comme un **crédit importé** sur leur facture (BI-27) : elles comptent dans le payé (soldes identiques à GOrendezvous), ne vont jamais dans QuickBooks, ne se remboursent pas et n'ont pas de reçu. *Reco : garder ce choix ; sinon, dire ce qu'une facture réglée par note de crédit doit montrer (payée, ou un solde à suivre à la main).*
+57. **Rembourser un paiement par carte importé de GOrendezvous :** l'app ne peut pas le rembourser par Stripe (il a été fait sur le compte Stripe de GOrendezvous). La clinique le rembourse elle-même (virement, ou tableau de bord Stripe), puis l'enregistre avec « Remboursement fait hors de l'app » et sa référence (BI-29). Les factures importées n'allant jamais à QuickBooks par l'app, ce remboursement s'y inscrit à la main. *Reco : garder ; dire si l'app doit plutôt l'envoyer à QuickBooks.*
 
 ## 5. Prochaine étape
 

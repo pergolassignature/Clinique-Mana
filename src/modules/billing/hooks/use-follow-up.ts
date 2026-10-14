@@ -3,7 +3,7 @@ import { t, type TranslationKey } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
 import { rpcErrorCode } from '@/core/modules/errors'
 import { toast } from '@/shared/ui/sonner'
-import { decideFee, fetchFeeDecisions, fetchOverdueInvoices, refundPayment, setDunning, type DunningInput, type FeeStatus } from '../api/follow-up'
+import { decideFee, fetchFeeDecisions, fetchOverdueInvoices, recordRefundOutsideApp, refundPayment, setDunning, type DunningInput, type FeeStatus } from '../api/follow-up'
 import { refundByStripe, type StripeRefundStatus } from '../api/stripe'
 import { billingError } from '../lib/errors'
 import type { MutationFeedback } from './use-invoices'
@@ -52,6 +52,14 @@ export const useRefundPayment = (feedback?: MutationFeedback) =>
       else toast.success(t(status === 'pending' ? `${S}.refundStripe.pending` : `${S}.refundStripe.recorded`))
     },
     null,
+    feedback,
+  )
+/** « Remboursement fait hors de l'app » (BI-29): an imported card payment, recorded with its reference. */
+export const useRecordRefundOutsideApp = (feedback?: MutationFeedback) =>
+  useFollowUpMutation(
+    ({ paymentId, amountCents, reason, reference }: { paymentId: string; amountCents: number; reason: string; reference: string }) =>
+      recordRefundOutsideApp(paymentId, amountCents, reason, reference),
+    `${S}.refund`,
     feedback,
   )
 export const useSetDunning = (feedback?: MutationFeedback) => useFollowUpMutation((input: DunningInput) => setDunning(input), `${S}.dunning`, feedback)

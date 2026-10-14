@@ -17087,6 +17087,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_refund_outside_app: {
+        Args: {
+          p_amount_cents: number
+          p_payment_id: string
+          p_reason: string
+          p_reference: string
+        }
+        Returns: string
+      }
       record_signature_sync: {
         Args: {
           p_error_code?: string
