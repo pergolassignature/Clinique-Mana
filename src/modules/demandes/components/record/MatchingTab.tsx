@@ -18,8 +18,9 @@ import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Dialog } from '@/shared/ui/dialog'
 import { toast } from '@/shared/ui/sonner'
-import type { MatchCriteria, MatchedProfessional } from '../../api/matching'
-import { useDemandeMatch } from '../../hooks/use-matching'
+import { formatClinicDateTime } from '@/shared/lib/timezone'
+import type { MatchCriteria, MatchedProfessional, NextSlot } from '../../api/matching'
+import { useDemandeMatch, useNextSlots } from '../../hooks/use-matching'
 import { usePropositions } from '../../hooks/use-propositions'
 import { criteriaLines, fitLines, placesLabel, reasonLabel, warningLabels } from '../../lib/matching'
 import { MatchDialog } from './MatchDialog'
@@ -39,8 +40,10 @@ const M = 'modules.demandes.matching'
  */
 export function MatchingTab() {
   const { id, bundle, canEdit } = useDemandeRecord()
-  const { can } = useAccess()
+  const { can, access } = useAccess()
   const match = useDemandeMatch(id)
+  // A-7 (D-48): the eligible ones' next free slot, with the agenda's right and Rendez-vous on.
+  const nextSlots = useNextSlots(id, can('appointments.view') && (access?.modules.includes('appointments') ?? false))
   const propositions = usePropositions(id)
   const [showOthers, setShowOthers] = useState(false)
   const [confirming, setConfirming] = useState<MatchedProfessional | null>(null)
@@ -102,6 +105,7 @@ export function MatchingTab() {
                 criteria={criteria}
                 onPropose={canPropose ? () => propose(p) : undefined}
                 onMatch={canMatch ? () => setMatching(p.professional_id) : undefined}
+                nextSlot={nextSlots.data?.find((s) => s.professional_id === p.professional_id)}
               />
             ))}
           </ol>
@@ -184,11 +188,14 @@ function ProfessionalRow({
   criteria,
   onPropose,
   onMatch,
+  nextSlot,
 }: {
   professional: MatchedProfessional
   criteria: MatchCriteria
   onPropose?: () => void
   onMatch?: () => void
+  /** Her default service and next free start for this request (A-7); absent while unread. */
+  nextSlot?: NextSlot
 }) {
   const places = placesLabel(p)
   const warnings = warningLabels(p)
@@ -221,6 +228,13 @@ function ProfessionalRow({
           )}
         </div>
       </div>
+      {nextSlot && (
+        <p className="text-sm text-foreground">
+          {nextSlot.starts_at
+            ? t(`${M}.nextSlot.label`, { when: formatClinicDateTime(nextSlot.starts_at), service: nextSlot.service_name ?? '' })
+            : t(`${M}.nextSlot.none`, { service: nextSlot.service_name ?? '' })}
+        </p>
+      )}
       <ul className="space-y-0.5 text-sm">
         {fitLines(p, criteria).map((line) => (
           <li key={line}>{line}</li>

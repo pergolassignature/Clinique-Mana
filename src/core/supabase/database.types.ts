@@ -14950,6 +14950,7 @@ export type Database = {
         Returns: undefined
       }
       demande_consents: { Args: { p_id: string }; Returns: Json }
+      demande_next_slots: { Args: { p_demande_id: string }; Returns: Json }
       demandes_booking_page_for_service: {
         Args: { p_org_id: string }
         Returns: Json
@@ -15597,6 +15598,7 @@ export type Database = {
         Args: { p_limit?: number; p_org_id: string }
         Returns: string[]
       }
+      list_client_demandes: { Args: { p_client_id: string }; Returns: Json }
       list_client_history: {
         Args: { p_before_id?: number; p_id: string; p_limit?: number }
         Returns: {
@@ -15716,6 +15718,7 @@ export type Database = {
           p_limit?: number
           p_offset?: number
           p_search?: string
+          p_sort?: string
           p_view?: string
         }
         Returns: {

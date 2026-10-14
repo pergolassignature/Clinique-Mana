@@ -54,9 +54,10 @@ export interface ModuleHomeCard {
  * slot is; a panel reads what it needs from the route (`client.visits`: the record's `:id`).
  *   `client.visits`: Clients' record, tab « Visites et paiements » (Rendez-vous R5, Facturation F2).
  *   `client.messages`: Clients' record, tab « Courriels » (Communications CM3: the linked threads, « Écrire »).
+ *   `client.demandes`: Clients' record, tab « Demandes », shown only with a panel (Demandes: the file's requests, L18).
  *   `agenda.mine`: Rendez-vous' « Mon agenda », below the agenda (Facturation F3: the fees to decide).
  */
-export type ModuleSlotName = 'client.visits' | 'client.messages' | 'agenda.mine'
+export type ModuleSlotName = 'client.visits' | 'client.messages' | 'client.demandes' | 'agenda.mine'
 
 /** A panel a module adds to a slot, for whoever holds one of its permissions. */
 export interface ModuleSlotItem {

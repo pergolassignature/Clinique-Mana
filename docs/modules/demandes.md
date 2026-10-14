@@ -13,6 +13,7 @@ The counselors' work: a request comes in (phone, email, the website's form, the 
 | D5 | Places and the availability board (nightly snapshots) | built |
 | Parity | The audit's gaps before the cutover: participants' files, intake follow-ups, « Jumelée » by hand, consents per file, the primary professional at the match | built |
 | D6 | KPIs feeding Rapports (« Indicateurs des demandes ») | built |
+| A | After-cutover audit, lane B: the client's « Demandes » tab (L18), the inbox's sort and columns (L17), the next free slot in Jumelage and the proposal's slots (L20) | built |
 
 - **Registry:** `modules.key = 'demandes'` (migration `20261012223803_demandes_module`), depends on `clients` and `professionals`. It **starts disabled** in every clinic; the local seed enables it.
 - **Migrations:** `20261012223803_demandes_module` (registry, tables, RLS, audit), `20261012223807_demandes_rpcs` (RPCs).
@@ -313,6 +314,17 @@ Migrations `20261013233833_demandes_report_facts` (Demandes), `20261013233844_ap
 ## Accueil: « Demandes à traiter » (L29)
 
 `homeCards` `demandes-queue` (`demandes.manage`, `components/DemandesHomeCard.tsx`): the inbox's counts (`demandes_counts`, its cache), each figure that is not zero a link to the inbox filtered on it: « en retard (plus de 2 jours ouvrables sans contact) » (`?filtres=en-retard`), « sans réponse au dernier essai » (`sans-reponse`), « à rappeler maintenant » (`a-rappeler`), « sans conseillère » (`?pour=personne`), then « à moi » (`?pour=moi`). Nothing when the queue is clear (« à moi » alone is not work to flag).
+
+## After the cutover audit: the file's requests, the inbox's order, the slots (A-1, A-4, A-7, A-8)
+
+Migration `20261014010723_demandes_audit_followups` (pgTAP `178`); decisions **D-46 … D-49**; [parity audit](../plans/2026-10-13-parity-audit.md) L17 (Demandes' part), L18, L20.
+
+- **The client's « Demandes » tab (L18, D-46):** Clients' record shows a « Demandes » tab after « Consentements » only when a module fills the core slot `client.demandes`. Demandes adds `demandes.client` (`demandes.view`, `pages/ClientDemandesPanel.tsx`): the file's requests and those it is a participant of, newest first, each with its number (a link to the record), received date, state (with the closing reason), « Son dossier » or « Participante ou participant », and the matched professional. `list_client_demandes(client)` (definer, `demandes.view` first) returns only those columns.
+- **The inbox's order and columns (L17, D-47):**
+  - « Trier par »: « Priorité » (the default: urgent, late, then the oldest; on the open requests; otherwise the most recent first), the received date either way, « Attente la plus longue d'abord », « État » (the workflow's order). In the address (`?tri=recentes|anciennes|attente|etat`). `list_demandes(…, p_sort)` orders in SQL (an unknown sort is refused, 22023), then received date and id.
+  - « Colonnes »: État, Conseillère, Suivi (the defaults), Pour qui, Motifs (the count). Her choice is a user preference (`demandes.inbox_columns`), so it follows her from one computer to another. The person, the received date and « Noter un appel » always show.
+- **The next free slot in « Jumelage » (L20, D-48):** each eligible professional (the first 15 in the panel's order) shows « Prochaine plage libre : <date et heure> (<service>) », or none in the coming 4 weeks. `demande_next_slots(demande)` (definer; `demandes.view`, `professionals.view` and `appointments.view`) reads Rendez-vous' `get_open_slots` with her default service for the request (`private.demandes_default_service`): a couple's service for a couple, else the 50-minute session, else the first by code, among the services her title allows. The panel asks only when the user holds `appointments.view` and Rendez-vous is enabled; a professional whose slots cannot be read is left without a line.
+- **The proposal's slots (L20, D-48, D-49):** « Proposer un professionnel » chooses her default service once her services are read (the same rule; the counselor may change it). When the person gave moments (Matin, Après-midi, Fin de journée, Soir, Fin de semaine), « Seulement aux moments indiqués par la personne » is on and the free slots at other moments are hidden until it is unchecked; each day's slots are grouped by moment.
 
 ## What the module publishes
 

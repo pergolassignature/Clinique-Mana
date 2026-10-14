@@ -84,6 +84,8 @@ Many items appear in more than one source, so the gaps below are merged.
 | L28 | Workbook priority colours (Christine 19) | Demandes | S | B | Christine's workbook |
 | L29 | « Accueil » cards per module (figures, work queues). Legacy had none. | Each module's `homeCards` | M | B (coordinates; each module adds its cards) | — |
 
+Built since: L18, L20 and L17's Demandes part (lane B, A-batch: [demandes doc](../modules/demandes.md#after-the-cutover-audit-the-files-requests-the-inboxs-order-the-slots-a-1-a-4-a-7-a-8), D-46 … D-49); L19 (parity batch, D-41); L22's D6 (D-42 … D-45); L29 (Accueil cards, #142 and #143).
+
 ## Stale docs found on the way
 
 `docs/modules/demandes.md`'s batch table still lists D3, D3b, D4 and D5 as « planned »; they are merged. The coding plan's batch states are otherwise right.

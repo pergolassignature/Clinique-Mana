@@ -7,6 +7,7 @@ import {
   completeTask,
   createDemande,
   fetchCounts,
+  fetchClientDemandes,
   fetchDemandeConsents,
   fetchReference,
   getDemande,
@@ -36,6 +37,11 @@ export function useInbox(query: InboxQuery, page: number) {
     queryFn: () => listDemandes(query, page),
     placeholderData: keepPreviousData,
   })
+}
+
+/** A client file's requests (Clients' tab « Demandes », D-46). */
+export function useClientDemandes(clientId: string) {
+  return useQuery({ queryKey: demandesKeys.clientDemandes(clientId), queryFn: () => fetchClientDemandes(clientId), enabled: clientId !== '' })
 }
 
 export function useInboxCounts() {
