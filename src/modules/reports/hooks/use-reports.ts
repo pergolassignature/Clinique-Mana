@@ -1,9 +1,11 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   fetchCancellations,
+  fetchConsentsReport,
   fetchFollowUp,
   fetchRevenue,
   type CancellationFilters,
+  type ConsentsFilters,
   type FollowUpFilters,
   type RevenueFilters,
 } from '../api/reports'
@@ -20,4 +22,8 @@ export function useCancellations(f: CancellationFilters, enabled = true) {
 
 export function useFollowUp(f: FollowUpFilters, enabled = true) {
   return useQuery({ queryKey: reportsKeys.followUp(f), queryFn: () => fetchFollowUp(f), placeholderData: keepPreviousData, enabled })
+}
+
+export function useConsentsReport(f: ConsentsFilters, enabled = true) {
+  return useQuery({ queryKey: reportsKeys.consents(f), queryFn: () => fetchConsentsReport(f), placeholderData: keepPreviousData, enabled })
 }

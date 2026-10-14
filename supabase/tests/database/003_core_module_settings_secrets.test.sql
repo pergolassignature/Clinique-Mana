@@ -269,7 +269,9 @@ select functions_are('public', array[
   -- Rendez-vous, the parity audit's gaps (AP-28 … AP-32).
   'change_appointment_service', 'restore_appointment', 'confirm_appointment', 'get_booking_consents',
   -- Rendez-vous, the parity audit part 2 (AP-33).
-  'list_appointment_history'
+  'list_appointment_history',
+  -- Clients C5b part 2 (Rapports « Consentements »).
+  'report_consents'
 ],'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

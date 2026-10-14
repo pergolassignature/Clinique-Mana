@@ -229,3 +229,49 @@ export async function fetchFollowUp(f: FollowUpFilters): Promise<FollowUpReport>
   if (error) throw error
   return followUpSchema.parse(data)
 }
+
+// --- « Consentements » (Clients C5b, CC-19) -----------------------------------------------------
+
+const consentGap = z.object({
+  consent_key: z.string(),
+  consent_name: z.string(),
+  signed: count,
+  resign: count,
+  pending: count,
+  overdue: count,
+  withdrawn: count,
+  none: count,
+})
+export type ConsentGap = z.infer<typeof consentGap>
+
+const consentsSchema = z.object({
+  gaps: z.array(consentGap),
+  by_professional: z.array(
+    z.object({
+      professional_id: z.string().nullable(),
+      professional_name: z.string().nullable(),
+      consent_key: z.string(),
+      consent_name: z.string(),
+      signed: count,
+      to_obtain: count,
+    }),
+  ),
+  months: z.array(z.object({ month: z.string(), signed: count, imported: count, withdrawn: count })),
+  delays: z.array(z.object({ consent_key: z.string(), consent_name: z.string(), count, average_days: z.number(), median_days: z.number() })),
+  totals: z.object({ clients: count, signed: count, withdrawn: count }),
+  options: z.object({ professionals: z.array(option) }),
+})
+export type ConsentsReport = z.infer<typeof consentsSchema>
+
+export interface ConsentsFilters {
+  from: string
+  to: string
+  professionalId: string | null
+}
+
+/** `report_consents` (reports.view): the states today per consent, per professional; per month; the send → sign delay. */
+export async function fetchConsentsReport(f: ConsentsFilters): Promise<ConsentsReport> {
+  const { data, error } = await supabase.rpc('report_consents', { p_from: f.from, p_to: f.to, p_professional_id: f.professionalId ?? undefined })
+  if (error) throw error
+  return consentsSchema.parse(data)
+}
