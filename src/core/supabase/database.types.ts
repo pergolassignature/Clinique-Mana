@@ -15120,6 +15120,10 @@ export type Database = {
       }
       get_ai_draft_status: { Args: never; Returns: Json }
       get_ai_settings: { Args: never; Returns: Json }
+      get_appointment_billing: {
+        Args: { p_appointment_id: string }
+        Returns: Json
+      }
       get_appointment_consents: {
         Args: { p_appointment_id: string }
         Returns: {

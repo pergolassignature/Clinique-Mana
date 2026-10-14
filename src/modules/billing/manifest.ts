@@ -146,5 +146,9 @@ export const billingManifest: ModuleManifest = {
     ],
     // « Mon agenda »: the professional's cancellation fees to decide (F3, R-59).
     'agenda.mine': [{ id: 'billing.fees', permissions: ['billing.self'], component: lazyPage(() => import('./pages/FollowUp'), 'MyFeesPanel') }],
+    // The appointment sheet's « Facturation » tab (L10): its invoice, price and fee.
+    'appointment.sheet': [
+      { id: 'billing.appointment', permissions: ['billing.view'], component: lazyPage(() => import('./pages/AppointmentBillingPanel'), 'AppointmentBillingPanel') },
+    ],
   },
 }
