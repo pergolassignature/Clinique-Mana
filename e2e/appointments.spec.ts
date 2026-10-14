@@ -338,6 +338,10 @@ test('the agenda opens « Clients sans rappel » from its address (Accueil, L29)
 })
 
 test('a family of three: booked together, a fourth added, one taken off, then cancelled (R-79)', async ({ page, signIn }) => {
+  // Félix's own clients (the seed's Alice, Léa, Marc) and Inès: booking links a client to him, and
+  // clients.spec checks that Paule stays out of his « Mes clients ». Alice is the one taken off: Marc
+  // manages Léa's appointments, so he would rightly get no cancellation. The person seen
+  // comes first in the title: Marc takes Alice's place.
   const monday = nextMonday()
   const wednesday = new Date(`${monday}T12:00:00Z`)
   wednesday.setUTCDate(wednesday.getUTCDate() + 2)
@@ -350,7 +354,7 @@ test('a family of three: booked together, a fourth added, one taken off, then ca
   for (const [query, name] of [
     ['Tremblay-Fictive', 'Alice Tremblay-Fictive'],
     ['Gagnon-Fictif', 'Marc Gagnon-Fictif'],
-    ['Roy-Fictive', 'Paule Roy-Fictive'],
+    ['Gagnon-Fictive', 'Léa Gagnon-Fictive'],
   ] as const) {
     await sheet.getByRole('searchbox').fill(query)
     await sheet.getByRole('button', { name: new RegExp(name) }).click()
@@ -359,16 +363,16 @@ test('a family of three: booked together, a fourth added, one taken off, then ca
   await sheet.getByRole('button', { name: 'Réserver' }).click()
   await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
 
-  await page.getByRole('button', { name: /^15:00, Alice Tremblay-Fictive, Marc Gagnon-Fictif et Paule Roy-Fictive/ }).click()
-  const editor = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Marc Gagnon-Fictif et Paule Roy-Fictive' })
+  await page.getByRole('button', { name: /^15:00, Alice Tremblay-Fictive, Léa Gagnon-Fictive et Marc Gagnon-Fictif/ }).click()
+  const editor = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Léa Gagnon-Fictive et Marc Gagnon-Fictif' })
   await editor.getByRole('searchbox', { name: /^Ajouter une personne/ }).fill('Côté-Fictive')
   await editor.getByRole('button', { name: /Inès Côté-Fictive/ }).click()
   await expect(page.getByText('Personne ajoutée au rendez-vous : elle reçoit la confirmation.')).toBeVisible()
-  const four = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Inès Côté-Fictive, Marc Gagnon-Fictif et Paule Roy-Fictive' })
-  await four.getByRole('button', { name: 'Retirer Marc Gagnon-Fictif' }).click()
-  await page.getByRole('alertdialog', { name: 'Retirer Marc Gagnon-Fictif du rendez-vous ?' }).getByRole('button', { name: 'Retirer du rendez-vous' }).click()
+  const four = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Inès Côté-Fictive, Léa Gagnon-Fictive et Marc Gagnon-Fictif' })
+  await four.getByRole('button', { name: 'Retirer Alice Tremblay-Fictive' }).click()
+  await page.getByRole('alertdialog', { name: 'Retirer Alice Tremblay-Fictive du rendez-vous ?' }).getByRole('button', { name: 'Retirer du rendez-vous' }).click()
   await expect(page.getByText("Personne retirée du rendez-vous : elle reçoit un avis d'annulation.")).toBeVisible()
-  const three = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive, Inès Côté-Fictive et Paule Roy-Fictive' })
+  const three = page.getByRole('dialog', { name: 'Marc Gagnon-Fictif, Inès Côté-Fictive et Léa Gagnon-Fictive' })
   await three.getByRole('tab', { name: 'Messages' }).click()
   const messages = three.getByRole('list', { name: 'Messages envoyés aux clients' })
   await expect(messages).toContainText('Courriel · Inès Côté-Fictive')
