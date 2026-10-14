@@ -150,6 +150,13 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 
 The tabs « Brouillons », « Émises », « Créditées » and « Toutes » export their invoices, newest first, every page (`fetchAllInvoices`: `list_invoices` 200 at a time, 5 000 at most): number, issue date, file number, client, payer, total, paid, balance, state, payment. Built in the browser (`lib/invoices-csv.ts`), nothing stored.
 
+## The appointment sheet's « Facturation » (parity audit L10, BI-22)
+
+Migration `20261014033531_billing_appointment_billing`; pgTAP `184_billing_appointment_billing`. Facturation fills the core slot `appointment.sheet` (`billing.view`, `pages/AppointmentBillingPanel.tsx`), so Rendez-vous' sheet shows a « Facturation » tab:
+
+- `get_appointment_billing(appointment)` (definer, `billing.view` first; null when not the clinic's or personal) returns the appointment's invoice lines (session, cancellation fee; live or credited) with their invoice's number, state, payment, total and paid, the client billed; `invoiceable` (booked, confirmed or completed, no live session line); `preview`, the price `create_invoice` would put (`service_price` for the first client: her rate, her tax exemption, the professional's title, the day), its taxes and total, `missing` when not fixed, and the file-opening fee when this would be her first invoice; `fee`, the cancellation-fee decision (kind, state, percent, amount, invoice).
+- The panel: each live invoice (a link, « Émise », « Payée en partie », « Solde »); not invoiced, « Prix prévu : … » and « Créer la facture » (`billing.manage`, `create_invoice`, then the invoice opens); a fee and its decision; the credited invoices named.
+
 ## What the module publishes
 
 - **For Demandes' waiting list (BI-19, migration `20261013152313_billing_source_hooks`):** `private.billing_create_waitlist_fee_invoice(org, client, entry, actor)` → (invoice id, number): the `waitlist_registration` service to the dossier's default payer, issued and sent (P3-40), never twice while one stands (source `waitlist_fee`). **`billing_source_hooks`** (source type → `private.<name>_billing_changed(org, source_id, invoice_id, state)`, like Clients' handler catalogues): an invoice of that source moving between `issued`, `paid` and `credited` calls its module's hook (trigger `invoices_source_hooks`), when that module is enabled.

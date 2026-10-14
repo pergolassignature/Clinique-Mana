@@ -154,7 +154,7 @@ select functions_are('public', array[
   -- Facturation, batch F1.
   'create_invoice', 'create_manual_invoice', 'add_invoice_line', 'set_invoice_line_price', 'remove_invoice_line',
   'set_invoice_payer', 'set_invoice_notes', 'delete_invoice_draft', 'finalize_invoice', 'issue_credit_note',
-  'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing',
+  'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing', 'get_appointment_billing',
   -- Facturation, batch FPay (payroll).
   'list_payout_periods', 'build_payout_month', 'rebuild_payout_period', 'send_payout_periods', 'add_payout_adjustment',
   'remove_payout_adjustment', 'reopen_payout_period', 'mark_period_paid', 'list_payout_export', 'list_my_payout_periods',
@@ -271,7 +271,7 @@ select functions_are('public', array[
   -- Clients, batch C5b (withdrawal and the signed copy).
   'withdraw_client_consent', 'prepare_client_consent_copy_for_service', 'mark_client_consent_copy_sent_for_service',
   -- Rendez-vous, the parity audit's gaps (AP-28 … AP-32).
-  'change_appointment_service', 'restore_appointment', 'confirm_appointment', 'get_booking_consents',
+  'change_appointment_service', 'restore_appointment', 'confirm_appointment', 'get_booking_consents', 'list_appointment_messages', 'resend_appointment_notification',
   -- Rendez-vous, the parity audit part 2 (AP-33).
   'list_appointment_history',
   -- Clients C5b part 2 (Rapports « Consentements »).

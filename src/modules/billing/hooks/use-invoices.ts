@@ -9,6 +9,7 @@ import {
   createManualInvoice,
   deleteDraft,
   fetchBillingNames,
+  fetchAppointmentBilling,
   fetchClientBilling,
   fetchInvoice,
   fetchInvoices,
@@ -38,6 +39,9 @@ export function useInvoices(status: InvoiceStatus | null) {
 }
 
 export const useInvoice = (id: string) => useQuery({ queryKey: billingKeys.invoice(id), queryFn: () => fetchInvoice(id), enabled: id !== '' })
+/** L10: an appointment's billing, for the « Facturation » tab of its sheet. */
+export const useAppointmentBilling = (appointmentId: string) =>
+  useQuery({ queryKey: billingKeys.appointment(appointmentId), queryFn: () => fetchAppointmentBilling(appointmentId), enabled: appointmentId !== '' })
 export const useClientBilling = (clientId: string) =>
   useQuery({ queryKey: billingKeys.client(clientId), queryFn: () => fetchClientBilling(clientId), enabled: clientId !== '' })
 export const useBillingNames = () => useQuery({ queryKey: billingKeys.names(), queryFn: fetchBillingNames, staleTime: 5 * 60_000 })
