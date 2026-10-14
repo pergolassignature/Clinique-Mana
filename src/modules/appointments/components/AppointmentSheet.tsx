@@ -225,8 +225,8 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
         <SheetDescription>{t(`${E}.newDescription`)}</SheetDescription>
       </SheetHeader>
       <SheetBody className="space-y-4">
-        <FormRow>
-          <FormField label={t(`${E}.professional`)} width="md" required>
+        <FormRow columns={2}>
+          <FormField label={t(`${E}.professional`)} required>
             {(field) => (
               <Select {...field} value={professionalId} onChange={(e) => {
                 setProfessionalId(e.target.value)
@@ -240,7 +240,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
               </Select>
             )}
           </FormField>
-          <FormField label={t(`${E}.service`)} width="md" required>
+          <FormField label={t(`${E}.service`)} required>
             {(field) => (
               <Select {...field} value={serviceId} onChange={(e) => setServiceId(e.target.value)} placeholder={t(`${E}.choose`)}>
                 {services.map((s) => (
@@ -252,14 +252,14 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
             )}
           </FormField>
         </FormRow>
-        <FormRow>
-          <FormField label={t(`${E}.date`)} width="sm" required>
+        <FormRow columns={3}>
+          <FormField label={t(`${E}.date`)} required>
             {(field) => <DateField {...field} value={day} onChange={setDay} />}
           </FormField>
-          <FormField label={t(`${E}.time`)} width="sm" required help={service ? t(`${E}.slotHelp`, { duration: String(service.durationMinutes), buffer: String(service.bufferAfterMinutes) }) : undefined}>
+          <FormField label={t(`${E}.time`)} required help={service ? t(`${E}.slotHelp`, { duration: String(service.durationMinutes), buffer: String(service.bufferAfterMinutes) }) : undefined}>
             {(field) => <TimeField {...field} value={time} onChange={setTime} />}
           </FormField>
-          <FormField label={t(`${E}.mode`)} width="sm">
+          <FormField label={t(`${E}.mode`)}>
             {(field) => (
               <Select {...field} value={mode} onChange={(e) => setMode(e.target.value as AppointmentMode)}>
                 {MODES.map((m) => (
@@ -522,6 +522,8 @@ function AppointmentTab({
 }) {
   const { can } = useAccess()
   const detail = useAppointmentDetail(a.id)
+  // An instant compared with now (no date shown): the appointment is over once it ended or is completed.
+  const over = a.state === 'completed' || Date.parse(a.endsAt) < Date.now()
   const [day, setDay] = useState(getClinicDateString(dragged?.startsAt ?? a.startsAt))
   const [time, setTime] = useState(getClinicTimeString(dragged?.startsAt ?? a.startsAt))
   const [professionalId, setProfessionalId] = useState(a.professionalId)
@@ -552,6 +554,9 @@ function AppointmentTab({
       {a.participants.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-sm font-medium">{t(`${E}.presence`)}</h3>
+          {over && a.participants.some((p) => p.presence === 'expected') && (
+            <p className="text-xs text-muted-foreground">{t(`${E}.presenceToRecordHelp`)}</p>
+          )}
           <ul className="space-y-1.5">
             {a.participants.map((p) => (
               <li key={p.clientId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -569,7 +574,8 @@ function AppointmentTab({
                 >
                   {PRESENCES.map((value) => (
                     <option key={value} value={value}>
-                      {presenceLabel(value)}
+                      {/* Once the appointment is over, « Sera présent » becomes the question to answer. */}
+                      {value === 'expected' && over ? t(`${E}.presenceToRecord`) : presenceLabel(value)}
                     </option>
                   ))}
                 </Select>

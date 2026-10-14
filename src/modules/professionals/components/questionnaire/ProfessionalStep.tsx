@@ -4,11 +4,11 @@ import { Plus } from 'lucide-react'
 import { t } from '@/i18n'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { cn } from '@/shared/lib/utils'
-import { focusRing } from '@/shared/ui/field-classes'
 import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { Radio } from '@/shared/ui/radio'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
 import { professionalSchema, submittedProfessions, toProfessionalValues, type ProfessionalValues } from '../../schemas/questionnaire'
 import { FIELD_GRID, FieldGroup, StepActions, StepAlert, StepForm } from './StepParts'
@@ -192,13 +192,11 @@ function ProfessionRow({ form, catalog, index, rows, radioName, onRemove }: Prof
       {rows > 1 && (
         <div className="flex min-h-8 items-center">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="radio"
+            <Radio
               name={radioName}
               checked={item.isPrimary}
               onChange={() => items.forEach((_, i) => form.setValue(`professions.${i}.isPrimary`, i === index, { shouldDirty: true }))}
               aria-label={t(`${E}.primaryLabel`, { name: titleName ?? t(`${E}.rowEmpty`, { n }) })}
-              className={cn('h-4 w-4 rounded-full accent-primary', focusRing)}
             />
             <span aria-hidden>{t(`${E}.primary`)}</span>
           </label>

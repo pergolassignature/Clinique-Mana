@@ -9819,7 +9819,9 @@
             "reserved": "module réservé aux testeurs",
             "other": "raison inconnue"
           }
-        }
+        },
+        "presenceToRecord": "À indiquer",
+        "presenceToRecordHelp": "Le rendez-vous est passé : indiquez si la personne était présente ou absente."
       },
       "availability": {
         "newTitle": "Nouvelle plage",
@@ -11944,7 +11946,9 @@
         "notInvoiceable": "Ce rendez-vous n’est pas à facturer : il est annulé ou en attente d’acceptation.",
         "feeAmount": "Montant : {amount}.",
         "feeAmountPercent": "Montant : {amount} ({percent} % de la séance).",
-        "credited": "Créditée : {numbers}."
+        "credited": "Créditée : {numbers}.",
+        "feeWho": "Le professionnel décide s’il applique les frais, dans « Mon agenda ». L’adjointe peut décider pour lui.",
+        "feeOpenList": "Voir les frais d’annulation à décider"
       }
     },
     "reports": {
