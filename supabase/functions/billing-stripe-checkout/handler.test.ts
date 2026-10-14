@@ -1,5 +1,5 @@
 import { assert, assertEquals } from '@std/assert'
-import { consentText, createHandler } from './handler.ts'
+import { consentText, createHandler, paymentWindow } from './handler.ts'
 import { generateToken } from '../_shared/links.ts'
 import { withEnv } from '../_shared/testing/env.ts'
 import {
@@ -91,10 +91,17 @@ Deno.test('billing-stripe-checkout: « Payer en ligne » opens a payment checkou
     const call = stripe.calls.find((c) => c.path === '/v1/checkout/sessions')!
     assertEquals(call.params.get('customer_email'), 'alice@exemple.test')
     assertEquals(call.params.get('line_items[0][price_data][currency]'), 'cad')
-    // The balance of the moment: the session lapses after 31 minutes.
+    // The balance of the moment: the session lapses with its half hour (at
+    // 15:00 exactly, 31 minutes after 15:30).
     assertEquals(
       call.params.get('expires_at'),
-      String(Math.floor(Date.parse('2026-11-03T15:00:00Z') / 1000) + 31 * 60),
+      String(Math.floor(Date.parse('2026-11-03T15:00:00Z') / 1000) + 61 * 60),
+    )
+    assertEquals(
+      call.idempotencyKey,
+      `checkout:${INVOICE}:20000:${
+        Math.floor(Date.parse('2026-11-03T15:00:00Z') / 1000 / 1800)
+      }`,
     )
     assertEquals(
       call.params.get('payment_intent_data[metadata][invoice_id]'),
@@ -166,3 +173,40 @@ Deno.test('billing-stripe-checkout: an English payer comes back to the English p
     const call = stripe.calls.find((c) => c.path === '/v1/checkout/sessions')!
     assertEquals(call.params.get('locale'), 'en')
   }))
+
+Deno.test('billing-stripe-checkout: two links of one invoice opened together give one session (one payment)', () =>
+  run(async () => {
+    const { handler, stripe } = setup(valid())
+    const a = await (await handler(post({ token: generateToken() }))).json()
+    const b = await (await handler(post({ token: generateToken() }))).json()
+    assertEquals(a.state, 'valid')
+    assertEquals(b.url, a.url)
+    assertEquals(stripe.sessions.size, 1)
+  }))
+
+Deno.test('billing-stripe-checkout: a new balance is a new session', () =>
+  run(async () => {
+    const amounts = [20000, 15000]
+    const { handler, stripe } = setup(() =>
+      valid({ amount_cents: amounts.shift() })
+    )
+    const a = await (await handler(post({ token: generateToken() }))).json()
+    const b = await (await handler(post({ token: generateToken() }))).json()
+    assert(a.url !== b.url, 'another session for another amount')
+    assertEquals(stripe.sessions.size, 2)
+  }))
+
+Deno.test('billing-stripe-checkout: the payment window: same key and expiry within the half hour, 31 to 61 minutes ahead', () => {
+  const at = (iso: string) => paymentWindow(INVOICE, 20000, new Date(iso))
+  const start = at('2026-11-03T15:00:00Z')
+  const late = at('2026-11-03T15:29:59Z')
+  assertEquals(late, start)
+  const next = at('2026-11-03T15:30:00Z')
+  assert(next.key !== start.key)
+  const now = Date.parse('2026-11-03T15:29:59Z') / 1000
+  assert(late.expiresAt - now >= 31 * 60 && late.expiresAt - now <= 61 * 60)
+  assert(
+    paymentWindow(INVOICE, 19999, new Date('2026-11-03T15:00:00Z')).key !==
+      start.key,
+  )
+})

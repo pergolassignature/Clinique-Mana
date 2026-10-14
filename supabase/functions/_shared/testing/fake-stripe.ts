@@ -276,6 +276,9 @@ export function fakeStripe(options: FakeStripeOptions = {}): FakeStripe {
       return json({ id: cus, object: 'customer' })
     }
     if (req.method === 'POST' && path === '/v1/checkout/sessions') {
+      if (idempotencyKey && idempotent.has(idempotencyKey)) {
+        return idempotent.get(idempotencyKey)!.clone()
+      }
       const mode = params.get('mode') === 'setup' ? 'setup' : 'payment'
       const cs = id('cs')
       const amount = params.get('line_items[0][price_data][unit_amount]')
@@ -290,11 +293,13 @@ export function fakeStripe(options: FakeStripeOptions = {}): FakeStripe {
         cancelUrl: params.get('cancel_url') ?? '',
         completed: false,
       })
-      return json({
+      const res = json({
         id: cs,
         object: 'checkout.session',
         url: `${publicOrigin}/checkout/${cs}`,
       })
+      if (idempotencyKey) idempotent.set(idempotencyKey, res.clone())
+      return res
     }
     const seti = path.match(/^\/v1\/setup_intents\/([A-Za-z0-9_]+)$/)
     if (req.method === 'GET' && seti) {

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
@@ -9,7 +10,7 @@ import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { ABSENCE_KINDS, type AbsenceKind, type CancellationsReport, type FollowUpReport } from '../api/reports'
 import { FilterSelect, ReportControls, Totals } from '../components/ReportControls'
 import { useReportParams } from '../hooks/use-report-params'
@@ -44,7 +45,7 @@ export function CancellationsPage() {
   const query = tab === 'reasons' ? cancellations : followUp
   const data = error === null ? query.data : undefined
 
-  let body
+  let body: ReactNode
   if (error) body = null
   else if (query.isPending) body = <Loading />
   else if (query.isError && !query.data) {
@@ -69,7 +70,7 @@ export function CancellationsPage() {
   return (
     <div className="max-w-content space-y-5">
       <PageHeader level={1} title={t(`${C}.title`)} description={t(`${C}.description`)} />
-      <Tabs value={tab} onValueChange={(v) => set({ onglet: v === 'follow-up' ? 'relancer' : null, type: null, raison: null })}>
+      <Tabs value={tab} onValueChange={(v) => set({ onglet: v === 'follow-up' ? 'relancer' : null, type: null, raison: null })} className="space-y-5">
         <TabsList aria-label={t(`${C}.views`)}>
           {TABS.map((v) => (
             <TabsTrigger key={v} value={v}>
@@ -77,43 +78,47 @@ export function CancellationsPage() {
             </TabsTrigger>
           ))}
         </TabsList>
-      </Tabs>
-      <ReportControls
-        period={period}
-        today={today}
-        periodError={error}
-        onPeriod={(p: Period) => set({ du: p.from, au: p.to })}
-        onExport={data && data.rows.length > 0 ? onExport : undefined}
-      >
-        <FilterSelect
-          label={t(`${C}.filters.professional`)}
-          value={professionalId}
-          allLabel={t(`${C}.filters.allProfessionals`)}
-          options={professionals.map((p) => ({ value: p.id, label: p.name }))}
-          onChange={(v) => set({ pro: v })}
-        />
-        {tab === 'reasons' && (
-          <>
-            <FilterSelect
-              label={t(`${C}.filters.kind`)}
-              value={kind}
-              allLabel={t(`${C}.filters.allKinds`)}
-              options={ABSENCE_KINDS.map((k) => ({ value: k, label: t(`${C}.filters.kinds.${k}`) }))}
-              onChange={(v) => set({ type: v, raison: v === 'absent' ? null : params.get('raison') })}
-            />
-            {kind !== 'absent' && (
+        {TABS.map((v) => (
+          <TabsContent key={v} value={v} className="space-y-5">
+            <ReportControls
+              period={period}
+              today={today}
+              periodError={error}
+              onPeriod={(p: Period) => set({ du: p.from, au: p.to })}
+              onExport={data && data.rows.length > 0 ? onExport : undefined}
+            >
               <FilterSelect
-                label={t(`${C}.filters.reason`)}
-                value={params.get('raison')}
-                allLabel={t(`${C}.filters.allReasons`)}
-                options={(cancellations.data?.options.reasons ?? []).map((r) => ({ value: r.id, label: r.name }))}
-                onChange={(v) => set({ raison: v })}
+                label={t(`${C}.filters.professional`)}
+                value={professionalId}
+                allLabel={t(`${C}.filters.allProfessionals`)}
+                options={professionals.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(v) => set({ pro: v })}
               />
-            )}
-          </>
-        )}
-      </ReportControls>
-      {body}
+              {tab === 'reasons' && (
+                <>
+                  <FilterSelect
+                    label={t(`${C}.filters.kind`)}
+                    value={kind}
+                    allLabel={t(`${C}.filters.allKinds`)}
+                    options={ABSENCE_KINDS.map((k) => ({ value: k, label: t(`${C}.filters.kinds.${k}`) }))}
+                    onChange={(v) => set({ type: v, raison: v === 'absent' ? null : params.get('raison') })}
+                  />
+                  {kind !== 'absent' && (
+                    <FilterSelect
+                      label={t(`${C}.filters.reason`)}
+                      value={params.get('raison')}
+                      allLabel={t(`${C}.filters.allReasons`)}
+                      options={(cancellations.data?.options.reasons ?? []).map((r) => ({ value: r.id, label: r.name }))}
+                      onChange={(v) => set({ raison: v })}
+                    />
+                  )}
+                </>
+              )}
+            </ReportControls>
+            {body}
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   )
 }

@@ -110,6 +110,8 @@ function ConnectionTest({ apiKeyConfigured }: { apiKeyConfigured: boolean }) {
         type="button"
         variant="outline"
         disabled={!apiKeyConfigured || sendTest.isPending}
+        // The address makes the label long: on a phone it wraps inside the button.
+        className="max-w-full max-sm:h-auto max-sm:whitespace-normal max-sm:py-2 max-sm:text-left"
         onClick={() =>
           sendTest.mutate({
             key: TEST_TEMPLATE_KEY,

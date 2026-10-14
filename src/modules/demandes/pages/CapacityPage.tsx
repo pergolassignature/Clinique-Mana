@@ -93,17 +93,23 @@ function CapacityBoardPage() {
 function BoardTable({ rows, view, onEdit }: { rows: CapacityRow[]; view: CapacityView; onEdit?: (row: CapacityRow) => void }) {
   if (rows.length === 0) return <EmptyState title={t(`${C}.empty.${view}`)} body={t(`${C}.emptyBody`)} />
   return (
-    <Table aria-label={t(`${C}.title`)}>
+    // Beside the menu the content is narrow: the details go first (the note, the languages, the
+    // periods, the matches), the professional, her places and « Modifier » always show.
+    <Table aria-label={t(`${C}.title`)} scrollLabel={t(`${C}.title`)} scrollFocus="overflow">
       <TableHeader>
-        <TableRow>
+        <TableRow className="[&>th]:whitespace-nowrap">
           <TableHead>{t(`${C}.columns.professional`)}</TableHead>
           <TableHead>{t(`${C}.columns.places`)}</TableHead>
-          <TableHead>{t(`${C}.columns.accepting`)}</TableHead>
-          <TableHead>{t(`${C}.columns.periods`)}</TableHead>
-          <TableHead>{t(`${C}.columns.languages`)}</TableHead>
-          <TableHead className="text-right">{t(`${C}.columns.matched`)}</TableHead>
-          <TableHead>{t(`${C}.columns.note`)}</TableHead>
-          {onEdit && <TableHead className="sr-only">{t(`${C}.columns.actions`)}</TableHead>}
+          <TableHead className="max-sm:hidden">{t(`${C}.columns.accepting`)}</TableHead>
+          <TableHead className="max-lg:hidden">{t(`${C}.columns.periods`)}</TableHead>
+          <TableHead className="max-xl:hidden">{t(`${C}.columns.languages`)}</TableHead>
+          <TableHead className="text-right max-md:hidden">{t(`${C}.columns.matched`)}</TableHead>
+          <TableHead className="max-xl:hidden">{t(`${C}.columns.note`)}</TableHead>
+          {onEdit && (
+            <TableHead>
+              <span className="sr-only">{t(`${C}.columns.actions`)}</span>
+            </TableHead>
+          )}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -116,6 +122,10 @@ function BoardTable({ rows, view, onEdit }: { rows: CapacityRow[]; view: Capacit
                   {row.display_name}
                 </Link>
                 {row.primary_title_label && <span className="block text-xs text-muted-foreground">{row.primary_title_label}</span>}
+                {/* On a phone the « Nouveaux clients » column is folded here. */}
+                <span className="block text-xs text-foreground sm:hidden">
+                  {row.accepting_new_clients ? t(`${C}.accepting`) : t(`${C}.notAccepting`)}
+                </span>
                 {row.matching_priority_reason && (
                   <span className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Badge variant="info">{t('modules.demandes.matching.priority')}</Badge>
@@ -127,13 +137,13 @@ function BoardTable({ rows, view, onEdit }: { rows: CapacityRow[]; view: Capacit
                 <Badge variant={places.tone === 'warning' ? 'warning' : 'secondary'}>{places.label}</Badge>
                 {places.since && <span className="block text-xs text-muted-foreground">{places.since}</span>}
               </TableCell>
-              <TableCell>{row.accepting_new_clients ? t(`${C}.accepting`) : t(`${C}.notAccepting`)}</TableCell>
-              <TableCell>{row.availability_periods.length > 0 ? periodsText(row.availability_periods) : t(`${C}.noPeriods`)}</TableCell>
-              <TableCell>{row.languages.join(', ')}</TableCell>
-              <TableCell className="tabular text-right">{row.matched_30_days}</TableCell>
-              <TableCell className="max-w-72 whitespace-pre-line text-sm text-muted-foreground">{row.matching_note ?? ''}</TableCell>
+              <TableCell className="max-sm:hidden">{row.accepting_new_clients ? t(`${C}.accepting`) : t(`${C}.notAccepting`)}</TableCell>
+              <TableCell className="max-lg:hidden">{row.availability_periods.length > 0 ? periodsText(row.availability_periods) : t(`${C}.noPeriods`)}</TableCell>
+              <TableCell className="max-xl:hidden">{row.languages.join(', ')}</TableCell>
+              <TableCell className="tabular text-right max-md:hidden">{row.matched_30_days}</TableCell>
+              <TableCell className="max-w-72 whitespace-pre-line text-sm text-muted-foreground max-xl:hidden">{row.matching_note ?? ''}</TableCell>
               {onEdit && (
-                <TableCell>
+                <TableCell className="text-right">
                   <Button
                     type="button"
                     variant="outline"
