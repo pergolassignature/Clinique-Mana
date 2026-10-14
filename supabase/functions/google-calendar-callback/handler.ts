@@ -45,7 +45,7 @@ import {
 } from '../_shared/google-calendar/client.ts'
 import { calendarOrigins, redirectUri } from '../_shared/google-calendar/env.ts'
 import { readJson } from '../_shared/http.ts'
-import { verifyState } from '../_shared/oauth-state.ts'
+import { spendStateNonce, verifyState } from '../_shared/oauth-state.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
@@ -114,11 +114,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (state.orgId !== orgId || state.userId !== auth.user.id) {
       return errorResponse('forbidden', 'Not your connection', 403, req)
     }
-    const nonce = await consume(service, LIMITS.oauthStateNonce, [state.nonce])
-    if (!nonce.allowed) {
-      return nonce.reason === 'unavailable'
-        ? limitResponse(nonce, req)!
-        : errorResponse('link_used', 'State already used', 410, req)
+    const spent = await spendStateNonce(service, state)
+    if (spent === 'unavailable') {
+      return errorResponse(
+        'not_configured',
+        'State check unavailable',
+        503,
+        req,
+      )
+    }
+    if (spent === 'used') {
+      return errorResponse('link_used', 'State already used', 410, req)
     }
 
     let app

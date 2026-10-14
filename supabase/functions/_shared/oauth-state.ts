@@ -12,12 +12,17 @@
  * - `verifyState` checks the format, the MAC (constant time), the expiry (10
  *   minutes) and the purpose, and answers the payload. Who may use it is the
  *   caller's check: the callback compares `org` and `user` with the signed-in
- *   caller. Single use is the caller's too: it spends the nonce on a
- *   rate-limit bucket of one hit (`LIMITS.oauthStateNonce`), so a replayed
- *   state is refused like a second click.
+ *   caller. Single use is the caller's too: `spendStateNonce` records the
+ *   nonce's SHA-256 until the state has expired
+ *   (`spend_oauth_state_nonce_for_service`), so a replayed state is refused
+ *   like a second click. (A rate-limit bucket of one hit was not enough: its
+ *   fixed windows let a state be spent again once the next window began.)
  * - The state never carries a secret or a return address: the app's return
  *   path is fixed (no open redirect).
  */
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { byteaHex } from './bytea.ts'
+import { reportError } from './report.ts'
 import { timingSafeEqualBytes } from './timing-safe-equal.ts'
 import { UUID } from './patterns.ts'
 
@@ -166,4 +171,39 @@ export async function verifyState(
       ...(d ? { data: d as Record<string, string> } : {}),
     },
   }
+}
+
+/** What spending a state's nonce answered. */
+export type NonceSpend = 'ok' | 'used' | 'unavailable'
+
+/**
+ * Spends a verified state's nonce, once: `'ok'` the first time, `'used'` for
+ * a replay, `'unavailable'` when the database could not say (reported; answer
+ * it 503 `not_configured`, failing closed). Only the nonce's SHA-256 reaches
+ * the database, kept until the state's own expiry (plus a margin).
+ */
+export async function spendStateNonce(
+  client: SupabaseClient,
+  state: Pick<OAuthState, 'nonce' | 'expiresAt'>,
+): Promise<NonceSpend> {
+  const hash = new Uint8Array(
+    await crypto.subtle.digest(
+      'SHA-256',
+      encoder.encode(state.nonce) as BufferSource,
+    ),
+  )
+  // spend_oauth_state_nonce_for_service(p_nonce_hash bytea,
+  //   p_expires_at timestamptz) returns boolean (*_core_oauth_state_nonces.sql)
+  const { data, error } = await client.rpc(
+    'spend_oauth_state_nonce_for_service',
+    {
+      p_nonce_hash: byteaHex(hash),
+      p_expires_at: new Date(state.expiresAt * 1000).toISOString(),
+    },
+  )
+  if (error || typeof data !== 'boolean') {
+    await reportError({ fn: 'oauth-state', code: 'nonce_unavailable' })
+    return 'unavailable'
+  }
+  return data ? 'ok' : 'used'
 }

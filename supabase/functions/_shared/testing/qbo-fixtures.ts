@@ -6,7 +6,11 @@
  */
 import { accessFixture, ADMIN_ID, ORG_ID } from './email-fixtures.ts'
 import { fakeQbo, type FakeQboOptions, seedCompany } from './fake-qbo.ts'
-import { fakeSupabase, type RpcRoute } from './fake-supabase.ts'
+import {
+  fakeSupabase,
+  nonceSpendRoute,
+  type RpcRoute,
+} from './fake-supabase.ts'
 
 export const FAKE_ORIGIN = 'http://fake-intuit.test'
 export const NOW = '2026-10-13T12:00:00.000Z'
@@ -54,6 +58,7 @@ function qboRoutes(state: QboState): Record<string, RpcRoute> {
       hits: 1,
       retry_after_seconds: 0,
     }]),
+    spend_oauth_state_nonce_for_service: nonceSpendRoute(),
     module_enabled_for_org: ok(true),
     get_org_secret: (args) => ok(state.secrets[args.p_key as string] ?? null),
     get_qbo_credentials: () =>
