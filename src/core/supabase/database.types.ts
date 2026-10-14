@@ -8184,6 +8184,75 @@ export type Database = {
           },
         ]
       }
+      professional_image_rights_withdrawals: {
+        Row: {
+          created_at: string
+          org_id: string
+          professional_id: string
+          updated_at: string
+          withdrawal_note: string | null
+          withdrawn_at: string
+          withdrawn_by: string | null
+          withdrawn_on: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          professional_id: string
+          updated_at?: string
+          withdrawal_note?: string | null
+          withdrawn_at?: string
+          withdrawn_by?: string | null
+          withdrawn_on: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          professional_id?: string
+          updated_at?: string
+          withdrawal_note?: string | null
+          withdrawn_at?: string
+          withdrawn_by?: string | null
+          withdrawn_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_image_rights_withdrawals_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       professional_invitation_deliveries: {
         Row: {
           created_at: string
