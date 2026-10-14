@@ -14,6 +14,7 @@ import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { formatDateOnly, getClinicDateString } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { useUrlParams } from '@/shared/lib/use-url-params'
+import { PHONE_QUERY, useMediaQuery } from '@/shared/lib/use-media-query'
 import { Button } from '@/shared/ui/button'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
@@ -106,7 +107,11 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   // « Clients sans rappel » opens with `?sans-rappel=1` (Accueil's card, L29).
   const [unreachable, setUnreachable] = useState(() => params.get('sans-rappel') === '1')
   const today = getClinicDateString(new Date())
-  const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : 'semaine'
+  // On a phone a week of seven columns does not fit: the day is the default there (the address
+  // keeps any view chosen).
+  const phone = useMediaQuery(PHONE_QUERY)
+  const defaultView: View = phone ? 'jour' : 'semaine'
+  const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : defaultView
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : today
   const proParam = params.get('professionnel')
   const pro = mine ? (reference.professionals[0]?.id ?? null) : reference.professionals.some((p) => p.id === proParam) ? proParam : null
@@ -244,7 +249,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
         />
       )}
       <div className="mb-3 flex flex-wrap items-end gap-3">
-        <Tabs value={effectiveView} onValueChange={(v) => update({ vue: v === 'semaine' ? null : v, mode: null })}>
+        <Tabs value={effectiveView} onValueChange={(v) => update({ vue: v === defaultView ? null : v, mode: null })}>
           <TabsList aria-label={t(`${A}.views`)}>
             {VIEWS.map((v) => (
               <TabsTrigger key={v} value={v}>

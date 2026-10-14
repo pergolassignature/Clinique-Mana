@@ -19,6 +19,7 @@
       "followUp": "Suivi",
       "billing": "Facturation",
       "communications": "Communications",
+      "reports": "Rapports",
       "team": "Équipe",
       "other": "Autres"
     },
@@ -601,6 +602,8 @@
     "modules": {
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
       "dependsOn": "Requiert :",
+      "on": "Activé",
+      "off": "Désactivé",
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
       "loadError": "Impossible de charger les modules.",
@@ -6136,9 +6139,15 @@
           "over_365": "Il y a plus d'un an",
           "never": "Aucun rendez-vous"
         },
+        "columnPicker": {
+          "label": "Colonnes",
+          "title": "Colonnes affichées"
+        },
         "sortLabel": "Trier par",
         "sort": {
           "name": "Nom",
+          "number": "Numéro de dossier",
+          "created_recent": "Dossiers les plus récents d'abord",
           "visit_recent": "Dernier rendez-vous, le plus récent d'abord",
           "visit_oldest": "Dernier rendez-vous, le plus ancien d'abord"
         },
@@ -6161,6 +6170,7 @@
           "contact": "Coordonnées",
           "professional": "Professionnel principal",
           "lastVisit": "Dernier rendez-vous",
+          "opened": "Ouvert le",
           "flags": "Indications"
         },
         "archived": "Archivé",
@@ -10834,7 +10844,8 @@
           "preparing": "en préparation",
           "download": "Télécharger",
           "made": "Relevé demandé : il sera prêt dans un instant."
-        }
+        },
+        "draftOn": "Brouillon du {date}"
       },
       "settings": {
         "title": "Facturation",
@@ -12054,8 +12065,8 @@
         }
       },
       "consents": {
-        "nav": "Rapport des consentements",
-        "title": "Consentements",
+        "nav": "Consentements des clients",
+        "title": "Consentements des clients",
         "description": "L’état des consentements des clients actifs aujourd’hui, par consentement et par professionnel ; les signatures et les retraits de la période ; le délai entre l’envoi et la signature.",
         "filters": {
           "professional": "Professionnel principal",
@@ -12291,7 +12302,7 @@
         "others": "Autres valeurs (au-delà des 50 plus fréquentes)"
       },
       "ivac": {
-        "nav": "Rapport IVAC",
+        "nav": "IVAC",
         "title": "IVAC",
         "description": "Ce que l’IVAC paie pour chaque séance de la période (par la date de la séance) et ce qui lui est facturé à la main, avec où chaque montant en est : à facturer, en préparation, facturé, payé.",
         "filters": {
@@ -12347,7 +12358,7 @@
         }
       },
       "payouts": {
-        "nav": "Rapport de paie",
+        "nav": "Paie des professionnels",
         "title": "Paie des professionnels",
         "description": "Les sommaires de paie des mois de la période : ce qui est dû, payé, validé et encore à payer, par mois et par professionnel.",
         "filters": {
@@ -12764,7 +12775,8 @@
     },
     "scrollLabel": "Entrées du journal d'audit",
     "row": {
-      "toggle": "Détails : {action}, {section}"
+      "toggle": "Détails : {action}, {section}",
+      "recordFallback": "Fiche {id}"
     },
     "details": {
       "record": "Élément : {id}",

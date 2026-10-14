@@ -51,9 +51,11 @@ function setup(
   options: {
     page?: RpcRoute
     book?: RpcRoute
+    spend?: RpcRoute
     limit?: (bucket: string) => typeof ALLOWED
   } = {},
 ) {
+  const spentNonces = new Set<string>()
   const service = fakeSupabase({
     rpc: {
       consume_rate_limit: (args) => ({
@@ -61,6 +63,13 @@ function setup(
       }),
       demandes_booking_page_for_service: options.page ?? { data: openPage },
       book_discovery_call_for_service: options.book ?? { data: booked },
+      // Core's nonce table: true the first time a hash is spent, false after.
+      spend_oauth_state_nonce_for_service: options.spend ?? ((args) => {
+        const hash = String(args.p_nonce_hash)
+        const fresh = !spentNonces.has(hash)
+        spentNonces.add(hash)
+        return { data: fresh }
+      }),
       cancel_discovery_call_for_service: (args) => ({
         data: {
           state: String(args.p_token_hash).length === 66
@@ -250,12 +259,15 @@ Deno.test('demandes-book-call: book → the source and a hashed cancel token to 
       /\/appel-decouverte\/annuler#t=[A-Za-z0-9_-]{43}/.test(mail.Text),
       'the cancel link',
     )
-    const buckets = s.service.calls.filter((c) => c.fn === 'consume_rate_limit')
-      .map((c) => c.args.p_bucket)
+    const order = s.service.calls.map((c) =>
+      c.fn === 'consume_rate_limit' ? String(c.args.p_bucket) : c.fn
+    )
     assert(
-      buckets.indexOf('demandes.booking_ip') <
-        buckets.indexOf('demandes.booking_challenge'),
-      'per IP, then the check once',
+      order.lastIndexOf('demandes.booking_ip') <
+          order.indexOf('spend_oauth_state_nonce_for_service') &&
+        order.indexOf('spend_oauth_state_nonce_for_service') <
+          order.indexOf('book_discovery_call_for_service'),
+      'per IP, then the check spent once, then the booking',
     )
   })
 })
@@ -345,25 +357,46 @@ Deno.test('demandes-book-call: no work, a forged or another clinic’s check →
   })
 })
 
-Deno.test('demandes-book-call: a check is used once', async () => {
+Deno.test('demandes-book-call: a check is used once, for its whole life (no window to wait out)', async () => {
   await run(async () => {
-    let spent = false
-    const s = setup({
-      limit: (bucket) => {
-        if (bucket !== 'demandes.booking_challenge') return ALLOWED
-        const answer = spent ? REFUSED : ALLOWED
-        spent = true
-        return answer
-      },
-    })
+    const s = setup()
     const { ticket, nonce } = await ticketFrom(s.handler)
     assertEquals((await s.handler(post(bookBody(ticket, nonce)))).status, 200)
+    const spends = s.service.calls.filter((c) =>
+      c.fn === 'spend_oauth_state_nonce_for_service'
+    )
+    assert(
+      /^\\x[0-9a-f]{64}$/.test(String(spends[0].args.p_nonce_hash)),
+      'only the nonce’s hash is kept',
+    )
+    const expires = Date.parse(String(spends[0].args.p_expires_at))
+    const now = Date.parse('2026-10-12T15:00:00Z')
+    assert(
+      expires > now && expires <= now + 600_000,
+      'kept until the ticket expires',
+    )
+    // The replay, as after the next hour began: the nonce table still refuses it.
     const again = await s.handler(post(bookBody(ticket, nonce)))
     assertEquals(again.status, 400)
+    assertEquals((await again.json()).error.code, 'invalid_request')
     assertEquals(
       s.service.calls.filter((c) => c.fn === 'book_discovery_call_for_service')
         .length,
       1,
+    )
+  })
+})
+
+Deno.test('demandes-book-call: the nonce table unavailable → 503, nothing booked', async () => {
+  await run(async () => {
+    const s = setup({ spend: { error: { code: '57014', message: 'timeout' } } })
+    const { ticket, nonce } = await ticketFrom(s.handler)
+    const res = await s.handler(post(bookBody(ticket, nonce)))
+    assertEquals(res.status, 503)
+    assertEquals(
+      s.service.calls.filter((c) => c.fn === 'book_discovery_call_for_service')
+        .length,
+      0,
     )
   })
 })

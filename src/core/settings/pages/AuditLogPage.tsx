@@ -8,7 +8,7 @@ import {
   AUDITED_TABLES,
   auditDetailLines,
   roleNamesFromEntries,
-  shortRecordId,
+  recordLabel,
   type AuditDetailLine,
   type AuditLookups,
   type AuditValue,
@@ -244,7 +244,7 @@ export function AuditLogPage() {
                     <TableCell className="whitespace-nowrap max-sm:hidden">{action}</TableCell>
                     <TableCell className="whitespace-nowrap max-sm:hidden">
                       <span title={entry.record_id} className="text-muted-foreground">
-                        {shortRecordId(entry.record_id)}
+                        {recordLabel(entry)}
                       </span>
                     </TableCell>
                   </TableRow>

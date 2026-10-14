@@ -34,6 +34,8 @@ export const consentKeys = {
   all: ['clients', 'consents'] as const,
   types: () => [...consentKeys.all, 'types'] as const,
   rules: () => [...consentKeys.all, 'rules'] as const,
+  /** The service names a rule on a service shows (Services' catalogue). */
+  serviceNames: () => [...consentKeys.all, 'service-names'] as const,
   settings: () => [...consentKeys.all, 'settings'] as const,
   templates: () => [...consentKeys.all, 'templates'] as const,
   toObtain: () => [...consentKeys.all, 'to-obtain'] as const,

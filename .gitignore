@@ -72,3 +72,6 @@ Clinique-MANA-import/
 rapport*.txt
 *gorendezvous*.csv
 *GOrendezvous*.csv
+
+# Volume test output (scripts/volume-test/run.sh): local timings and plans
+scripts/volume-test/out/

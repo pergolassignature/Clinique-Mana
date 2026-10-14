@@ -1,4 +1,4 @@
-import { useId, type MouseEvent } from 'react'
+import { useEffect, useId, useRef, useState, type MouseEvent, type RefObject } from 'react'
 import { LogOut } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import logoUrl from '@/assets/logo-header.svg'
@@ -43,6 +43,10 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
   // (/clients/consentements), which is its own item: the longer item wins where it matches.
   const shadowedHere = (path: string) =>
     navItems.some((other) => other.path.startsWith(`${path}/`) && isUnder(pathname, other.path))
+  // On a short screen (1280×720) the menu scrolls above the user's block: its edges fade where
+  // items are hidden, and a rule sets the block apart, so nothing looks cut under it.
+  const navRef = useRef<HTMLElement>(null)
+  const hidden = useHiddenEdges(navRef)
 
   return (
     <>
@@ -53,7 +57,16 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
         <span className="sr-only">{org_name || t('app.name')}</span>
       </div>
 
-      <nav aria-label={t('nav.label')} className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-1">
+      <nav
+        ref={navRef}
+        aria-label={t('nav.label')}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col overflow-y-auto pt-1',
+          hidden.after && !hidden.before && '[mask-image:linear-gradient(to_bottom,black_calc(100%_-_2rem),transparent)]',
+          hidden.before && !hidden.after && '[mask-image:linear-gradient(to_top,black_calc(100%_-_2rem),transparent)]',
+          hidden.before && hidden.after && '[mask-image:linear-gradient(to_bottom,transparent,black_2rem,black_calc(100%_-_2rem),transparent)]',
+        )}
+      >
         {/* By section (decision NAV-1), as Paramètres' menu: a labelled section is a group named by
             its heading, plain text that is never focused. Collapsed, the headings stay for screen
             readers and a rule separates the sections. */}
@@ -104,7 +117,7 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
         })}
       </nav>
 
-      <div className="shrink-0 pb-2.5 pt-2">
+      <div className={cn('shrink-0 pb-2.5 pt-2', hidden.after && 'border-t border-border')}>
         <div
           className={cn('flex items-center gap-2 px-2 py-1.5', collapsed && 'justify-center')}
           // The role is empty while a custom role's name loads: the name alone then.
@@ -142,4 +155,28 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
       </div>
     </>
   )
+}
+
+/** Whether a vertical scroller hides content above or below (its edges then fade). */
+function useHiddenEdges(ref: RefObject<HTMLElement | null>) {
+  const [edges, setEdges] = useState({ before: false, after: false })
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const update = () => {
+      const before = element.scrollTop > 1
+      const after = element.scrollTop + element.clientHeight < element.scrollHeight - 1
+      setEdges((e) => (e.before === before && e.after === after ? e : { before, after }))
+    }
+    update()
+    element.addEventListener('scroll', update, { passive: true })
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null
+    observer?.observe(element)
+    if (element.firstElementChild) observer?.observe(element.firstElementChild)
+    return () => {
+      element.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [ref])
+  return edges
 }

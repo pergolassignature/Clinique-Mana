@@ -7,6 +7,7 @@ import { LoadError, Loading } from '@/shared/components/LoadState'
 import { RefusalAlert } from '@/shared/components/RefusalAlert'
 import {
   formatClinicDateFull,
+  formatClinicDateShort,
   formatClinicTime,
   formatDateOnly,
   getClinicDateString,
@@ -198,7 +199,8 @@ export function ClientBillingPanel() {
                     to={`/facturation/factures/${i.id}`}
                     className="font-medium text-primary underline-offset-2 hover:underline"
                   >
-                    {i.number ?? t(`${C}.draft`)}
+                    {/* A draft has no number yet: its date tells two drafts apart. */}
+                    {i.number ?? t(`${C}.draftOn`, { date: formatClinicDateShort(i.createdAt) })}
                   </Link>
                   <span className="text-muted-foreground">
                     {i.issuedOn ? ` · ${formatDateOnly(i.issuedOn)}` : ''}

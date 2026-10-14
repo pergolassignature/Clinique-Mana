@@ -47,7 +47,8 @@ const COLUMNS: ReferenceColumn<'document_types'>[] = [
         types: row.acceptedMime.length === DOCUMENT_MIME_TYPES.length ? t(`${R}.allFiles`) : mimeListLabel(row.acceptedMime),
         size: megabytesLabel(row.maxBytes),
       }),
-    className: 'max-md:hidden',
+    // Beside the menus at 1024–1279 px the table is narrow: the files from xl (they show in the dialog).
+    className: 'max-xl:hidden',
   },
 ]
 

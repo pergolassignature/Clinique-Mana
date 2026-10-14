@@ -107,7 +107,8 @@ export function listRowFixture(overrides: Partial<ClientListRow> = {}): ClientLi
     fileIncomplete: false,
     specialAgreement: false,
     lastVisitAt: null,
-    cursor: { last: 'tremblay', first: 'alice', id: CIDS.alice, visit: null },
+    createdAt: '2026-10-01T14:00:00Z',
+    cursor: { last: 'tremblay', first: 'alice', id: CIDS.alice, visit: null, number: 1, created: '2026-10-01T14:00:00Z' },
     ...overrides,
   }
 }

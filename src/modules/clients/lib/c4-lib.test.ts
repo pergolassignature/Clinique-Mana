@@ -84,6 +84,9 @@ describe('⌘K and the history', () => {
     const entry = { id: 2, created_at: '2026-10-13T15:00:00Z', table_name: 'clients', record_id: 'x', action: 'update', changed_fields: { city: { before: 'A', after: 'B' }, updated_at: { before: 1, after: 2 }, referral_source_id: { before: null, after: 'y' } }, actor_id: null, actor_name: null, actor_role: null, source: 'app' }
     expect(readable(entry).changed_fields).toEqual({ city: { before: 'A', after: 'B' }, referral_source_id: { before: null, after: 'y' } })
     expect(readable(entry, new Map([['y', 'Google']])).changed_fields).toMatchObject({ referral_source_id: { after: 'Google' } })
+    // Technical columns stay out too: the time zone, the import's reference.
+    const created = { ...entry, action: 'insert', changed_fields: { city: 'Laval', time_zone: 'America/Toronto', external_ref: 'gorendezvous:42' } }
+    expect(readable(created).changed_fields).toEqual({ city: 'Laval' })
     const days = groupByDay([entry, { ...entry, id: 1, created_at: '2026-10-13T14:00:00Z' }, { ...entry, id: 0, created_at: '2026-10-11T14:00:00Z' }])
     expect(days.map((d) => d.entries.map((e) => e.id))).toEqual([[2, 1], [0]])
   })

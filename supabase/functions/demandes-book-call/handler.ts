@@ -18,7 +18,8 @@
  *    create, no third-party script). Closed → `{ open: false }`.
  * 4. `book` {org, ticket, nonce, the person, the slot, the source}: the
  *    ticket's signature, expiry, clinic and work, then its single use
- *    (`LIMITS.bookingChallenge` on its nonce), then
+ *    (`spendStateNonce`: its nonce's hash kept until the ticket expires, so
+ *    a ticket is never spent twice, whatever the window), then
  *    `book_discovery_call_for_service` with the hash of a fresh cancel-link
  *    token (the actor model: the token exists only here and in the email).
  *    The confirmation (`demandes.discovery_call_booked` / `_en`) carries the
@@ -51,7 +52,11 @@ import {
   linkGoneResponse,
   linkUrl,
 } from '../_shared/links.ts'
-import { signState, verifyState } from '../_shared/oauth-state.ts'
+import {
+  signState,
+  spendStateNonce,
+  verifyState,
+} from '../_shared/oauth-state.ts'
 import { UUID } from '../_shared/patterns.ts'
 import {
   clientIp,
@@ -243,13 +248,13 @@ export function createHandler(
     ) {
       return errorResponse('invalid_request', 'Check failed', 400, req)
     }
-    const spent = await consume(service, LIMITS.bookingChallenge, [
-      verified.state.nonce,
-    ])
-    if (!spent.allowed) {
-      return spent.reason === 'unavailable'
-        ? (limitResponse(spent, req) as Response)
-        : errorResponse('invalid_request', 'Check already used', 400, req)
+    // Spent once for its whole life (core's nonce table, until the ticket expires).
+    const spent = await spendStateNonce(service, verified.state)
+    if (spent === 'unavailable') {
+      return errorResponse('not_configured', 'Check unavailable', 503, req)
+    }
+    if (spent === 'used') {
+      return errorResponse('invalid_request', 'Check already used', 400, req)
     }
 
     const token = generateToken()
