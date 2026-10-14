@@ -10002,6 +10002,7 @@
           "professional_invoices": "Factures des professionnels",
           "payout_service_rules": "Règles de paie",
           "qbo_vendor_links": "Fournisseurs QuickBooks des professionnels",
+          "qbo_bill_clearances": "Bills retirés de QuickBooks",
           "stripe_customers": "Cartes au dossier (Stripe)",
           "stripe_charges": "Prélèvements Stripe",
           "interac_notices": "Avis de virement Interac",
@@ -10286,6 +10287,14 @@
             "professional_id": "Professionnel",
             "qbo_vendor_id": "Fournisseur QuickBooks"
           },
+          "qbo_bill_clearances": {
+            "period_id": "Sommaire",
+            "professional_invoice_id": "Facture du professionnel",
+            "qbo_bill_id": "Dépense QuickBooks",
+            "method": "Façon",
+            "reason": "Raison",
+            "cleared_by": "Retiré par"
+          },
           "stripe_customers": {
             "payer_client_id": "Payeur",
             "stripe_customer_id": "Client Stripe",
@@ -10542,6 +10551,12 @@
             "source": {
               "uploaded": "Téléversée",
               "generated": "Générée"
+            }
+          },
+          "qbo_bill_clearances": {
+            "method": {
+              "verified": "Vérifié dans QuickBooks",
+              "override": "Forcé sans vérifier"
             }
           },
           "payout_service_rules": {
