@@ -46,6 +46,10 @@ export const demandesManifest: ModuleManifest = {
     },
     { path: '/liste-attente', labelKey: 'modules.demandes.waitlist.name', icon: ListOrdered, permission: 'demandes.view', group: 'intake', order: 13 },
   ],
+  // Accueil « Demandes à traiter » (L29): the counselors' work queue, each figure a filtered inbox.
+  homeCards: [
+    { id: 'demandes-queue', permission: 'demandes.manage', component: lazyPage(() => import('./components/DemandesHomeCard'), 'DemandesHomeCard') },
+  ],
   routes: [
     { path: 'demandes', permission: 'demandes.view', component: lazyPage(() => import('./pages/DemandesInboxPage'), 'DemandesInboxPage') },
     // Before the record's route: « appels » is not a request's id.
