@@ -35,6 +35,15 @@
  *    code, tried again by the database (10, 20 minutes), failed at the
  *    third try.
  *
+ * A receipt also loads its professionals' signature images (R-86) beside the
+ * logo, their paths read with the service role
+ * (`billing_receipt_signatures_for_service`). In a delivery, one that cannot
+ * be read or loaded fails the delivery (`signatures_read_failed`,
+ * `signature_unavailable`; tried again by the database): a receipt is never
+ * stored nor emailed unsigned for a professional who has a signature. In a
+ * preview, it is left out and reported, like a logo that does not load. A
+ * receipt not stored yet renders with the professional's current signature.
+ *
  * Nothing logs an address, a name or an amount: reports carry ids.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -65,6 +74,8 @@ import {
   billingReminderEmail,
   documentLanguage,
   documentTitle,
+  receiptSignaturesSchema,
+  signatureAssets,
 } from './document.ts'
 
 const FN = 'billing-documents'
@@ -226,9 +237,21 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return errorResponse('internal', 'Preview failed', 500, req)
     }
     try {
-      const assets = await logoAssets(service, shape.data.logo)
+      const assets = await documentAssets(
+        service,
+        orgId,
+        shape.data.logo,
+        parsed.data,
+        'preview',
+        (code) =>
+          reportError({
+            fn: FN,
+            code,
+            ids: { org_id: orgId, document_id: input.id },
+          }, deps.fetch),
+      )
       const pdf = await renderPdf(
-        billingPdf(parsed.data, { logo: 'logo' in assets }),
+        billingPdf(parsed.data, pdfOptions(assets)),
         assets,
       )
       const answer = jsonResponse(
@@ -271,6 +294,63 @@ async function logoAssets(
     }])
   } catch {
     return {}
+  }
+}
+
+/**
+ * The logo and, for a receipt, the professionals' signature images (R-86),
+ * read by the service role (`billing_receipt_signatures_for_service`: the
+ * document carries no storage path). The logo that does not load is left out.
+ * A signature that cannot be read or loaded: in `deliver` mode the delivery
+ * fails (`DeliveryFailure`, tried again by the database), so a receipt is
+ * never stored nor emailed unsigned for a professional who has a signature;
+ * in `preview` mode it is left out and reported.
+ */
+async function documentAssets(
+  service: SupabaseClient,
+  orgId: string,
+  logo: z.infer<typeof fileRef> | null,
+  doc: BillingDocument,
+  mode: 'preview' | 'deliver',
+  report: (code: string) => Promise<void>,
+): Promise<PdfAssets> {
+  const fail = async (code: string) => {
+    if (mode === 'deliver') throw new DeliveryFailure(code)
+    await report(code)
+  }
+  let refs: ReturnType<typeof signatureAssets> = []
+  if (doc.kind === 'receipt') {
+    const { data, error } = await service.rpc(
+      'billing_receipt_signatures_for_service',
+      { p_org_id: orgId, p_receipt_id: doc.id },
+    )
+    const rows = receiptSignaturesSchema.safeParse(data)
+    if (error || !rows.success) await fail('signatures_read_failed')
+    else refs = signatureAssets(doc, rows.data)
+  }
+  const [logoAsset, ...loaded] = await Promise.all([
+    logoAssets(service, logo),
+    ...refs.map(async (ref): Promise<PdfAssets> => {
+      try {
+        return await loadAssets(service, [ref])
+      } catch {
+        await fail('signature_unavailable')
+        return {}
+      }
+    }),
+  ])
+  return Object.assign({}, logoAsset, ...loaded)
+}
+
+/** What `billingPdf` is told of the assets that loaded. */
+function pdfOptions(
+  assets: PdfAssets,
+): { logo: boolean; signatures: Set<string> } {
+  return {
+    logo: 'logo' in assets,
+    signatures: new Set(
+      Object.keys(assets).filter((key) => key.startsWith('signature_')),
+    ),
   }
 }
 
@@ -414,11 +494,15 @@ async function deliverOne(
     if (d.stored) {
       bytes = await download(client, d.stored)
     } else {
-      const assets = await logoAssets(client, d.logo)
-      const pdf = await renderPdf(
-        billingPdf(doc, { logo: 'logo' in assets }),
-        assets,
+      const assets = await documentAssets(
+        client,
+        orgId,
+        d.logo,
+        doc,
+        'deliver',
+        report,
       )
+      const pdf = await renderPdf(billingPdf(doc, pdfOptions(assets)), assets)
       bytes = pdf.bytes
       // A reminder's PDF is its invoice's, stored on the invoice.
       newFileId = await store(
