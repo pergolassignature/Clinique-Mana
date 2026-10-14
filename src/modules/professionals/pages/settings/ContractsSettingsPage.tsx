@@ -57,6 +57,24 @@ function contractEditorOptions(): Omit<TemplateEditorOptions, 'handlers'> {
   }
 }
 
+/** The image-rights article's title (P4-557): the heading the database looks for too. */
+const IMAGE_RIGHTS_ARTICLE = 'Promotion des services professionnels'
+
+/** The service contract's image-rights mark in the editor (P4-557): shown, a switch, said when publishing. */
+function imageRightsOption(): TemplateEditorOptions['imageRights'] {
+  const R = `${E}.imageRights`
+  return {
+    article: IMAGE_RIGHTS_ARTICLE,
+    label: t(`${R}.label`),
+    help: t(`${R}.help`, { article: IMAGE_RIGHTS_ARTICLE }),
+    on: t(`${R}.on`),
+    off: t(`${R}.off`),
+    missing: t(`${R}.missing`, { article: IMAGE_RIGHTS_ARTICLE }),
+    blocked: t(`${R}.blocked`, { article: IMAGE_RIGHTS_ARTICLE }),
+    confirm: t(`${R}.confirm`),
+  }
+}
+
 const FILTERS = ['all', 'published', 'draft', 'unpublished', 'retired'] as const
 type Filter = (typeof FILTERS)[number]
 
@@ -190,7 +208,12 @@ export function ContractsSettingsPage() {
       </div>
       {open && (
         <section aria-label={t(`${N}.editorLabel`, { title: open.title })} className="max-w-form">
-          <DocumentTemplateEditor template={open} readOnly={readOnly || !open.canEdit} options={{ ...editorOptions, handlers }} />
+          <DocumentTemplateEditor
+            template={open}
+            readOnly={readOnly || !open.canEdit}
+            // Only the service contract carries the image rights (P4-557).
+            options={{ ...editorOptions, ...(open.key === 'professionals.service_contract' && { imageRights: imageRightsOption() }), handlers }}
+          />
         </section>
       )}
     </div>

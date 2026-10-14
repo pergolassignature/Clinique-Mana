@@ -2,8 +2,9 @@
 -- decisions P4-554 … P4-557).
 -- Covers: the template's content (no banner, the image-rights mark, every placeholder declared,
 -- Annexe A alone on its line, a signature page last, no real name or address, the phone
--- variable); the seed for a new clinic; the data fix (a seeded draft rewritten, an edited draft
--- or a clinic with a published version untouched, idempotent); the printed terms' phone; the
+-- variable); the seed for a new clinic; the data fix (a never-edited seeded draft rewritten, a
+-- published v1 without a draft gets a new draft v2, an edited draft with its banner untouched,
+-- idempotent); the printed terms' phone; the
 -- 2026 draft passes publish_template_version.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -69,41 +70,55 @@ select is((select v.body -> 'grantsImageRights' from public.document_template_ve
   'true'::jsonb, 'a new clinic''s draft is the 2026 text');
 
 -- =============================================================================
--- The data fix: a seeded draft (the banner still in it, nothing published) is rewritten
+-- The data fix, per clinic: a never-edited seeded draft is rewritten; no draft → a new draft;
+-- an edited draft (its banner still there) is left untouched
 -- =============================================================================
--- Org A: back to a seeded draft (the banner first, the old variables); org B: the same, but a
--- published version exists; org C: a draft the clinic edited (no banner).
+-- The original seed as the fix receives it (here a short stand-in): body and variables.
+select set_config('test.seed', jsonb_build_object(
+  'body', jsonb_build_object('title', 'Contrat de service', 'footer', jsonb_build_object('text', 'x'),
+                             'blocks', jsonb_build_array(
+                               jsonb_build_object('type', 'paragraph', 'runs', jsonb_build_array(jsonb_build_object(
+                                 'text', 'Texte à faire valider par la direction avant publication', 'bold', true))),
+                               jsonb_build_object('type', 'paragraph', 'runs', '[{"text": "1.1. Les parties déclarent."}]'::jsonb),
+                               jsonb_build_object('type', 'paragraph', 'runs', '[{"text": "{{pricing.annexe_a}}"}]'::jsonb))),
+  'variables', '[{"path": "pricing.annexe_a", "label": "Annexe", "sample": "x", "required": true, "kind": "text"}]'::jsonb)::text, true);
+-- Org A: its draft is the seed, never edited. Org C: the seed with one paragraph changed, the banner
+-- kept. Org B: its v1 edited and published (as production), no draft.
 update public.document_template_versions v
-   set body = jsonb_build_object('title', 'Contrat de service', 'footer', jsonb_build_object('text', 'x'),
-                                 'blocks', jsonb_build_array(
-                                   jsonb_build_object('type', 'paragraph', 'runs', jsonb_build_array(jsonb_build_object(
-                                     'text', 'Texte à faire valider par la direction avant publication', 'bold', true))),
-                                   jsonb_build_object('type', 'paragraph', 'runs', '[{"text": "{{pricing.annexe_a}}"}]'::jsonb))),
-       variables = '[{"path": "pricing.annexe_a", "label": "Annexe", "sample": "x", "required": true, "kind": "text"}]'::jsonb
+   set body = current_setting('test.seed')::jsonb -> 'body', variables = current_setting('test.seed')::jsonb -> 'variables'
  where v.id in ((current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000a')::uuid,
-                (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000b')::uuid);
-insert into public.document_template_versions (template_id, org_id, version, status, body, variables, signers, email_subject, published_at)
-select v.template_id, v.org_id, 2, 'published', v.body, v.variables, v.signers, 'Sujet', now()
-  from public.document_template_versions v where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000b')::uuid;
+                (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000c')::uuid);
 update public.document_template_versions v
-   set body = jsonb_set(v.body, '{blocks,0}', '{"type": "paragraph", "runs": [{"text": "Notre texte"}]}'::jsonb)
+   set body = jsonb_set(v.body, '{blocks,1}', '{"type": "paragraph", "runs": [{"text": "1.1. Notre texte."}]}'::jsonb)
  where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000c')::uuid;
+update public.document_template_versions v
+   set body = jsonb_set(current_setting('test.seed')::jsonb -> 'body', '{blocks,0}', '{"type": "paragraph", "runs": [{"text": "Notre contrat"}]}'::jsonb),
+       variables = current_setting('test.seed')::jsonb -> 'variables', email_subject = 'Votre contrat'
+ where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000b')::uuid;
+update public.document_template_versions v set status = 'published', published_at = now()
+ where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000b')::uuid;
 select set_config('test.c_before', (select v.body::text from public.document_template_versions v
                                      where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000c')::uuid), true);
 
-select is(private.professionals_contract_2026_text(), 1, 'one seeded draft rewritten');
+select is(private.professionals_contract_2026_text(current_setting('test.seed')::jsonb), 2,
+  'two drafts written: org A''s rewritten, org B''s created');
 select results_eq($$ select v.body, v.variables from public.document_template_versions v
                       where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000a')::uuid $$,
   $$ select t -> 'body', t -> 'variables' from (select private.professionals_contract_template() t) x $$,
-  'org A''s draft is the 2026 body and variables');
-select ok((select v.body::text ~ 'Texte à faire valider' from public.document_template_versions v
-            where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000b')::uuid),
-  'a clinic with a published version keeps its draft as it is');
+  'org A''s never-edited draft is the 2026 body and variables');
+select results_eq($$ select v.version, v.status, v.body = (private.professionals_contract_template() -> 'body'),
+                            v.variables = (private.professionals_contract_template() -> 'variables'),
+                            v.signers = (private.professionals_contract_template() -> 'signers'), v.email_subject <> ''
+                       from public.document_template_versions v
+                      where v.template_id = (current_setting('test.tpl')::json ->> 'b0000000-0000-0000-0000-00000000000b')::uuid
+                      order by v.version $$,
+  $$ values (1, 'published'::text, false, false, true, true), (2, 'draft'::text, true, true, true, true) $$,
+  'org B (v1 published, no draft): a new draft v2 holds the 2026 text; v1 stays published');
 select is((select v.body::text from public.document_template_versions v
             where v.id = (current_setting('test.v')::json ->> 'b0000000-0000-0000-0000-00000000000c')::uuid),
-  current_setting('test.c_before'), 'a draft the clinic edited is left untouched');
-select is(private.professionals_contract_2026_text(), 0, 'idempotent: nothing left to rewrite');
-select function_privs_are('private', 'professionals_contract_2026_text', array[]::text[], 'authenticated', array[]::text[],
+  current_setting('test.c_before'), 'a draft the clinic edited (its banner still there) is left untouched');
+select is(private.professionals_contract_2026_text(current_setting('test.seed')::jsonb), 0, 'idempotent: nothing left to write');
+select function_privs_are('private', 'professionals_contract_2026_text', array['jsonb'], 'authenticated', array[]::text[],
   'no client runs the data fix');
 
 -- =============================================================================

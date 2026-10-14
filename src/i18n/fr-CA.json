@@ -3798,6 +3798,15 @@
                 "lateCancellation": "Annulation tardive ou absence non motivée*",
                 "otherFees": "Autres frais administratifs"
               }
+            },
+            "imageRights": {
+              "label": "Accorde le droit à l'image",
+              "help": "Signé, ce contrat compte comme le consentement du professionnel au droit à l'image (l'article « {article} »). Désactivez si vous retirez cet article du texte.",
+              "on": "Ce contrat accorde le droit à l'image (article 6.2).",
+              "off": "Ce contrat n'accorde pas le droit à l'image : un consentement séparé est demandé.",
+              "missing": "« Accorde le droit à l'image » est activé, mais aucun titre ne contient « {article} » : remettez l'article ou désactivez l'option.",
+              "blocked": "Remettez l'article « {article} » ou désactivez « Accorde le droit à l'image » avant de publier.",
+              "confirm": "Ce contrat accorde le droit à l'image (article 6.2) : signé, il comptera comme le consentement du professionnel."
             }
           }
         },

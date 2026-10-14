@@ -29,16 +29,24 @@
 --   model's optional flag, ignored by the renderer; the editor and create_template_version copy the
 --   body, so the flag follows the text into the clinic's next versions). The next migration
 --   (*_professionals_contract_image_rights.sql) reads it (P4-557).
--- * The data fix (private.professionals_contract_2026_text(), run once below, idempotent): in each
---   clinic whose « Contrat de service » has NO published version, the draft that still holds the
---   seeded banner « Texte à faire valider par la direction avant publication » gets the 2026 body
---   and variables (plus any variable its own email subject or message uses); a draft the clinic
---   edited (no banner) or a clinic with a published version is left as it is (a NOTICE says so).
---   Its email subject and message are kept.
+-- * The data fix (private.professionals_contract_2026_text(seed), run once below with the ORIGINAL
+--   seed of *_professionals_contracts.sql, captured before the template function is replaced), per
+--   clinic's « Contrat de service »:
+--   - a draft whose body AND variables equal that seed (never edited: the banner alone proves
+--     nothing, the clinic removes it last) gets the 2026 body and variables, its email kept;
+--   - no draft at all (whatever is published, e.g. a v1 the clinic edited and published): a NEW
+--     DRAFT version (the next number, as core's « Nouvelle version ») holding the 2026 text, its
+--     variables, signers and email; never published: the clinic reviews it and publishes it in the
+--     editor;
+--   - a draft the clinic edited: left untouched (a NOTICE says so).
+--   A draft or a published version already holding the 2026 body is left as it is (idempotent).
 -- * Additive: two functions replaced with the same signatures, one function added.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_contract_2026', true);
+
+-- The original seed, kept for the data fix's comparison before the template function changes.
+create temporary table professionals_contract_seed_v1 as select private.professionals_contract_template() as content;
 
 -- -----------------------------------------------------------------------------
 -- The template's content (the 2026 text)
@@ -390,57 +398,64 @@ $$;
 revoke all on function private.professional_contract_terms(uuid, uuid) from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
--- The data fix: a seeded draft gets the 2026 text
+-- The data fix: the 2026 text as the clinic's draft
 -- -----------------------------------------------------------------------------
--- Returns how many drafts it rewrote (header). Idempotent: a rewritten draft no longer holds the
--- banner.
-create function private.professionals_contract_2026_text()
+-- p_seed: the original seed ({body, variables, …}). Returns how many drafts it wrote (rewritten or
+-- created; header). Idempotent: a draft or a published version already holding the 2026 body is
+-- left as it is.
+create function private.professionals_contract_2026_text(p_seed jsonb)
 returns int
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v record;
+  t record;
   v_content jsonb := private.professionals_contract_template();
+  v_draft public.document_template_versions;
   v_count int := 0;
 begin
-  for v in
-    select x.id, x.org_id, x.version, x.body, x.variables, x.email_subject, x.email_message,
-           exists (select 1 from public.document_template_versions p
-                    where p.template_id = x.template_id and p.status = 'published') as has_published
-      from public.document_template_versions x
-      join public.document_templates t on t.id = x.template_id and t.org_id = x.org_id
-     where t.key = 'professionals.service_contract' and x.status = 'draft'
+  for t in
+    select x.id, x.org_id from public.document_templates x
+     where x.key = 'professionals.service_contract'
      order by x.org_id
   loop
-    if v.body = v_content -> 'body' then
-      null; -- Already the 2026 text (a clinic created since, or a second run).
-    elsif v.body::text !~ 'Texte à faire valider par la direction avant publication' then
-      raise notice 'service contract (org %): draft version % edited by the clinic: left as it is', v.org_id, v.version;
-    elsif v.has_published then
-      raise notice 'service contract (org %): a version is published: draft version % left as it is', v.org_id, v.version;
+    v_draft := null;
+    select * into v_draft from public.document_template_versions v
+     where v.template_id = t.id and v.status = 'draft';
+    if v_draft.id is not null then
+      if v_draft.body = v_content -> 'body' then
+        null; -- Already the 2026 text.
+      elsif v_draft.body = p_seed -> 'body' and v_draft.variables = p_seed -> 'variables' then
+        update public.document_template_versions x
+           set body = v_content -> 'body', variables = v_content -> 'variables'
+         where x.id = v_draft.id;
+        v_count := v_count + 1;
+        raise notice 'service contract (org %): the seeded draft version % now holds the 2026 text', t.org_id, v_draft.version;
+      else
+        raise notice 'service contract (org %): draft version % edited by the clinic: left as it is', t.org_id, v_draft.version;
+      end if;
+    elsif exists (select 1 from public.document_template_versions v
+                   where v.template_id = t.id and v.status = 'published' and v.body = v_content -> 'body') then
+      null; -- The 2026 text is already published.
     else
-      update public.document_template_versions x
-         set body = v_content -> 'body',
-             -- The 2026 variables, then any other one the draft's own email still uses.
-             variables = (v_content -> 'variables') || coalesce((
-               select pg_catalog.jsonb_agg(o.var order by o.ord)
-                 from pg_catalog.jsonb_array_elements(v.variables) with ordinality as o(var, ord)
-                where not exists (select 1 from pg_catalog.jsonb_array_elements(v_content -> 'variables') n
-                                   where n ->> 'path' = o.var ->> 'path')
-                  and pg_catalog.strpos(v.email_subject || ' ' || v.email_message, '{{' || (o.var ->> 'path') || '}}') > 0),
-               '[]'::jsonb)
-       where x.id = v.id;
+      -- As core's create_template_version: the next number, a draft; nothing published.
+      insert into public.document_template_versions
+        (template_id, org_id, version, body, variables, signers, email_subject, email_message)
+      select t.id, t.org_id,
+             coalesce((select pg_catalog.max(v.version) from public.document_template_versions v where v.template_id = t.id), 0) + 1,
+             v_content -> 'body', v_content -> 'variables', v_content -> 'signers',
+             v_content ->> 'email_subject', v_content ->> 'email_message';
       v_count := v_count + 1;
-      raise notice 'service contract (org %): draft version % now holds the 2026 text', v.org_id, v.version;
+      raise notice 'service contract (org %): a new draft holds the 2026 text (to review and publish)', t.org_id;
     end if;
   end loop;
   return v_count;
 end;
 $$;
-revoke all on function private.professionals_contract_2026_text() from public, anon, authenticated, service_role;
+revoke all on function private.professionals_contract_2026_text(jsonb) from public, anon, authenticated, service_role;
 
-select private.professionals_contract_2026_text();
+select private.professionals_contract_2026_text((select s.content from pg_temp.professionals_contract_seed_v1 s));
+drop table pg_temp.professionals_contract_seed_v1;
 
 select pg_catalog.set_config('app.audit_source', '', true);

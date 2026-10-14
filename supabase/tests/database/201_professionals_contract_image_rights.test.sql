@@ -6,10 +6,11 @@
 -- newer paper contract does not grant; the withdrawal (recorded on the professional, a notice
 -- period corrected, it wins over a later contract, a separate consent signed later is in force,
 -- nothing to withdraw); the questionnaire (no consent section for a new professional once the
--- contract grants; an older draft's consent section complete); history; the backfill.
+-- contract grants; an older draft's consent section complete; not after a withdrawal, nor with an
+-- older contract out); history; the backfill; a marked version without the article never published.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(42);
+select plan(47);
 
 -- =============================================================================
 -- Privileges
@@ -267,6 +268,46 @@ select results_eq($$ select w.withdrawn_on, w.withdrawn_by from public.professio
                       where w.professional_id = 'c0000000-0000-0000-0000-000000000002' $$,
   $$ values (current_date - 10, 'a0000000-0000-0000-0000-000000000002'::uuid) $$, '… with its date and who recorded it');
 select is(private.professionals_image_rights_backfill(), 0, 'idempotent');
+select is(private.image_rights_by_next_contract('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002'), false,
+  'a recorded withdrawal: her next contract would not grant them, so the separate consent is asked');
+
+-- =============================================================================
+-- An older contract out for her signature: the next one she signs may not grant them (Max)
+-- =============================================================================
+select is(private.image_rights_by_next_contract('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000005'), true,
+  'Max: no contract yet, the published one grants them');
+insert into public.document_template_versions (id, template_id, org_id, version, status, body, variables, signers, email_subject, archived_at)
+select 'd9000000-0000-0000-0000-000000000001', v.template_id, v.org_id, 90, 'archived', v.body - 'grantsImageRights', v.variables, v.signers,
+       v.email_subject, now()
+  from public.document_template_versions v where v.id = current_setting('test.v1')::uuid;
+insert into public.signature_requests (id, org_id, module_key, purpose, template_version_id, subject_type, subject_id, title, status,
+                                       envelope_id, idempotency_key, view_permission, sent_at)
+values ('d0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'professionals', 'professionals.service_contract',
+        'd9000000-0000-0000-0000-000000000001', 'professional', 'c0000000-0000-0000-0000-000000000005', 'Contrat de service', 'sent',
+        'envelope_6', 'key-6', 'professionals.compensation', now());
+select is(private.image_rights_by_next_contract('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000005'), false,
+  'an unmarked contract out for her signature: the separate consent is asked');
+
+-- =============================================================================
+-- A marked version without the image-rights article is never published (P4-557)
+-- =============================================================================
+insert into public.document_template_versions (id, template_id, org_id, version, status, body, variables, signers, email_subject)
+select 'd9000000-0000-0000-0000-000000000002', v.template_id, v.org_id, 91, 'draft',
+       jsonb_set(v.body, '{blocks}', (select jsonb_agg(b order by o) from jsonb_array_elements(v.body -> 'blocks') with ordinality x(b, o)
+                                       where b ->> 'text' is distinct from '6.2 Promotion des services professionnels')),
+       v.variables, v.signers, v.email_subject
+  from public.document_template_versions v where v.id = current_setting('test.v1')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok($$ select public.publish_template_version('d9000000-0000-0000-0000-000000000002') $$, 'P0001',
+  'Ce contrat accorde le droit à l''image, mais son texte n''a plus l''article « Promotion des services professionnels » : remettez l''article, ou désactivez « Accorde le droit à l''image », puis publiez.',
+  'the article deleted but the mark kept: refused');
+reset role;
+update public.document_template_versions set body = body - 'grantsImageRights' where id = 'd9000000-0000-0000-0000-000000000002';
+set local role authenticated;
+select lives_ok($$ select public.publish_template_version('d9000000-0000-0000-0000-000000000002') $$,
+  'without the mark, the same text publishes');
+reset role;
 
 select * from finish();
 rollback;

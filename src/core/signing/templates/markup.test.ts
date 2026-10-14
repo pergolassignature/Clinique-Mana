@@ -4,6 +4,7 @@ import {
   bodyToMarkup,
   hasBanner,
   hasBlockPlaceholder,
+  hasHeadingWith,
   markupToBody,
   parseRuns,
   previewHtml,
@@ -144,5 +145,14 @@ describe('previewHtml', () => {
 
   it('has no script', () => {
     expect(previewHtml(body(), { 'clinic.name': '<script>alert(1)</script>' }, TEXT)).not.toMatch(/<script/i)
+  })
+})
+
+describe('hasHeadingWith (an article kept in the text, P4-557)', () => {
+  it('finds a heading of any level holding the words, letter case ignored; never a paragraph', () => {
+    expect(hasHeadingWith('# Contrat\n\n### 6.2 Promotion des services professionnels\n\nTexte.', 'Promotion des services professionnels')).toBe(true)
+    expect(hasHeadingWith('## PROMOTION DES SERVICES PROFESSIONNELS', 'Promotion des services professionnels')).toBe(true)
+    expect(hasHeadingWith('La promotion des services professionnels est permise.', 'Promotion des services professionnels')).toBe(false)
+    expect(hasHeadingWith('### 6.2 Autre chose', 'Promotion des services professionnels')).toBe(false)
   })
 })

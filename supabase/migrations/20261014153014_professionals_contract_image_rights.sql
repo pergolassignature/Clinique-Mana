@@ -48,7 +48,10 @@
 --   complete (submission_gaps), and the app says the contract will carry it
 --   (`image_rights_next_contract`, `next_contract_grants`). A professional under an older contract
 --   still signs the separate form, which staff can always send.
--- * Additive: one table, five helpers, one view and seven functions replaced with the same
+-- * Publishing (P4-557): a marked « Contrat de service » version is refused publication when its body
+--   no longer holds the image-rights article (a heading « Promotion des services professionnels »;
+--   trigger document_template_versions_professional_image_rights, a module check on core's table).
+-- * Additive: one table, seven helpers, one trigger, one view and seven functions replaced with the same
 --   signatures and grants.
 -- =============================================================================
 
@@ -141,8 +144,10 @@ $$;
 revoke all on function private.service_contract_grants_image_rights(uuid) from public, anon, authenticated, service_role;
 
 -- Whether the professional's NEXT contract carries the image rights (P4-560): the clinic's published
--- contract grants them and no contract is in force for her yet (no signed request, no paper
--- contract). A professional under an older contract still signs the separate form.
+-- contract grants them, no contract is in force for her yet (no signed request, no paper
+-- contract), no contract on a version WITHOUT the mark is out for her signature (she may sign that
+-- older one), and she has no recorded withdrawal (P4-559: the contract would not grant them). A
+-- professional under an older contract still signs the separate form.
 create function private.image_rights_by_next_contract(p_org uuid, p_pid uuid)
 returns boolean
 language sql
@@ -156,8 +161,63 @@ as $$
                         and r.purpose = 'professionals.service_contract' and r.status = 'signed')
      and not exists (select 1 from public.professional_paper_contracts c
                       where c.org_id = p_org and c.professional_id = p_pid)
+     and not exists (select 1 from public.signature_requests r
+                       join public.document_template_versions v on v.id = r.template_version_id
+                      where r.org_id = p_org and r.subject_type = 'professional' and r.subject_id = p_pid
+                        and r.purpose = 'professionals.service_contract'
+                        and (r.status in ('sent', 'viewed') or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'))
+                        and v.body -> 'grantsImageRights' is distinct from 'true'::jsonb)
+     and not exists (select 1 from public.professional_image_rights_withdrawals w
+                      where w.org_id = p_org and w.professional_id = p_pid)
 $$;
 revoke all on function private.image_rights_by_next_contract(uuid, uuid) from public, anon, authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- A marked contract must still hold the image-rights article (P4-557)
+-- -----------------------------------------------------------------------------
+-- The article's marker: a heading (any level) whose text contains « Promotion des services
+-- professionnels » (article 6.2's title in the 2026 text), letter case ignored. A version of the
+-- « Contrat de service » marked `grantsImageRights` is refused publication without it (the editor
+-- says so first, and offers a switch to drop the mark): the mark survives every edit of the
+-- markup, so deleting the article must not leave signers treated as consenting.
+create function private.contract_body_has_image_rights_article(p_body jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select exists (select 1 from pg_catalog.jsonb_array_elements(
+                                 case when pg_catalog.jsonb_typeof(p_body -> 'blocks') = 'array' then p_body -> 'blocks' else '[]'::jsonb end) b
+                  where b ->> 'type' = 'heading'
+                    and pg_catalog.strpos(pg_catalog.lower(coalesce(b ->> 'text', '')), 'promotion des services professionnels') > 0)
+$$;
+revoke all on function private.contract_body_has_image_rights_article(jsonb) from public, anon, authenticated, service_role;
+
+-- BEFORE INSERT OR UPDATE OF status on core's document_template_versions (a module check, as the
+-- signed consent's trigger on signature_requests, P4-485): only the « Contrat de service », only on
+-- the way to `published`.
+create function private.professional_contract_publish_check()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.status = 'published' and (tg_op = 'INSERT' or old.status is distinct from 'published')
+     and new.body -> 'grantsImageRights' = 'true'::jsonb
+     and not private.contract_body_has_image_rights_article(new.body)
+     and exists (select 1 from public.document_templates t
+                  where t.id = new.template_id and t.key = 'professionals.service_contract') then
+    raise exception 'Ce contrat accorde le droit à l''image, mais son texte n''a plus l''article « Promotion des services professionnels » : remettez l''article, ou désactivez « Accorde le droit à l''image », puis publiez.'
+      using errcode = 'P0001', hint = 'image_rights';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.professional_contract_publish_check() from public, anon, authenticated, service_role;
+create trigger document_template_versions_professional_image_rights
+  before insert or update of status on public.document_template_versions
+  for each row execute function private.professional_contract_publish_check();
 
 -- The professionals of p_org (every clinic when null: the weekly job reads the readiness view
 -- with no user) whose contract in force (P4-522) is a signed request on a version that grants the
