@@ -33,7 +33,7 @@ All definer, permission first, French `P0001` with a HINT (`period`, `view`, `ki
 
 ## What this module reads (published only)
 
-- **Facturation:** `private.billing_revenue_lines(org, from, to)`, `private.billing_revenue_payments(org, from, to)`, `private.billing_payment_mode_names(org)`.
+- **Facturation:** `private.billing_revenue_lines(org, from, to)`, `private.billing_revenue_payments(org, from, to)`, `private.billing_revenue_refunds(org, from, to)` (L6), `private.billing_payment_mode_names(org)`.
 - **Rendez-vous:** `private.appointment_absence_facts(org, from, to)` (instants: Rapports gives the clinic day's bounds), `private.cancellation_reason_names(org)`.
 - **Clients:** `private.clients_display_names`, `private.clients_billing_facts` (archived, closed), and for « Consentements » `private.client_consent_state_facts(org)`, `private.client_consent_event_facts(org, from, to)` and `private.clients_consent_names(org)`.
 - **Professionnels:** `private.professional_display_names`. **Services et tarifs:** `private.service_payout_facts` (code, name).
@@ -42,6 +42,7 @@ All definer, permission first, French `P0001` with a HINT (`period`, `view`, `ki
 ## Screens
 
 - **« Revenus »** (`/rapports/revenus`, menu Facturation, `reports.finance`): real tabs « Par facture », « Par service », « Par paiement » (`?vue=`); the period (« Du », « Au », « Ce mois-ci », « Mois dernier », « Cette année », « Année dernière »; this month by default), « Professionnel », « Service », « Mode de paiement » (by payment); the totals, the credited invoices said apart, the rows (each invoice links to its page), « Exporter (CSV) ». Every filter is in the address.
+- **Refunds in « Par paiement »** (parity audit L6, RP-7): the refunds recorded in the period (done by hand or confirmed by Stripe; not those still with Stripe or refused) are rows of their own, dated by the clinic day they were recorded, under their payment's mode, the amount negative, « Remboursement » under the mode. The totals and each mode say what was received, « Remboursements (N) » and « Net » (each mode's figure is its net). The CSV gains a « Type » column (« Paiement », « Remboursement »). The mode, professional and service filters apply to a refund through its payment and invoice. The refund's reason is never shown.
 - **« Annulations et absences »** (`/rapports/annulations`, menu Suivi, `reports.view`): « Par raison » (the totals, per reason with the late ones, then each appointment with the client's next one or « Aucun rendez-vous après ») and « Clients à relancer » (`?onglet=relancer`: each client linked to the file, the last missed appointment, how many); filters: the period, the professional, the type and the reason; « Exporter (CSV) ».
 
 - **« Consentements »** (`/rapports/consentements`, menu Suivi « Rapport des consentements », `reports.view`): the totals; « Aujourd'hui, par consentement »; « Par professionnel principal »; « Signatures et retraits par mois »; « Délai entre l'envoi et la signature ». Filters: the period, the primary professional. « Exporter (CSV) » saves the states per consent.

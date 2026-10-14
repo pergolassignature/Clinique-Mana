@@ -121,10 +121,10 @@ export function revenueCsv(report: RevenueReport, period: Period): { fileName: s
       csvMoney(r.gst_cents), csvMoney(r.qst_cents), csvMoney(r.total_cents)])
     return { fileName, content: buildCsv(header, rows) }
   }
-  const header = [t(`${C}.date`), t(`${C}.number`), t(`${C}.fileNumber`), t(`${C}.client`), t(`${C}.payer`), t(`${C}.mode`),
-    t(`${C}.amount`), t(`${C}.reference`)]
-  const rows: CsvCell[][] = report.rows.map((r) => [r.paid_on, r.number, fileNumber(r.client_number), r.client_name, r.payer_name,
-    r.mode_name, csvMoney(r.amount_cents), r.reference])
+  const header = [t(`${C}.date`), t(`${C}.kind`), t(`${C}.number`), t(`${C}.fileNumber`), t(`${C}.client`), t(`${C}.payer`),
+    t(`${C}.mode`), t(`${C}.amount`), t(`${C}.reference`)]
+  const rows: CsvCell[][] = report.rows.map((r) => [r.paid_on, t(`${R}.revenue.kinds.${r.kind}`), r.number, fileNumber(r.client_number),
+    r.client_name, r.payer_name, r.mode_name, csvMoney(r.amount_cents), r.reference])
   return { fileName, content: buildCsv(header, rows) }
 }
 
