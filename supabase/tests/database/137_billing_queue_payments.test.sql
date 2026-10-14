@@ -262,11 +262,11 @@ select results_eq($$ select send_email from public.billing_deliveries where invo
   $$ values (false) $$, '… its PDF made, no email');
 
 -- Statements.
-select set_config('test.st', public.create_statement('d0000000-0000-0000-0000-000000000001', extract(year from current_date)::int, null, true)::text, true);
+select set_config('test.st', public.create_statement('d0000000-0000-0000-0000-000000000001', extract(year from (now() at time zone 'America/Toronto'))::int, null, true)::text, true);
 select results_eq($$ select pg_catalog.jsonb_array_length(d -> 'invoices'), pg_catalog.jsonb_array_length(d -> 'payments'), d #>> '{payer,first_name}'
                        from (select public.get_billing_document('statement', current_setting('test.st')::uuid) -> 'document' d) x $$,
   $$ values (1, 2, 'Léa'::text) $$, 'Léa''s statement: her invoice, its two payments');
-select throws_ok($$ select public.create_statement('d0000000-0000-0000-0000-000000000001', extract(year from current_date)::int + 1) $$,
+select throws_ok($$ select public.create_statement('d0000000-0000-0000-0000-000000000001', extract(year from (now() at time zone 'America/Toronto'))::int + 1) $$,
   'P0001', 'Choisissez une année passée ou l''année en cours.', 'not a year to come');
 
 -- The reads.

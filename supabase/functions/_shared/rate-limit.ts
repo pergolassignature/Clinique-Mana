@@ -329,16 +329,6 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
-   * An OAuth state's nonce (`_shared/oauth-state.ts`): one hit per nonce
-   * within its lifetime, so a replayed state is refused like a second click.
-   * The window is the state's own 10 minutes.
-   */
-  oauthStateNonce: {
-    bucket: 'oauth.state_nonce',
-    max: 1,
-    windowSeconds: 600,
-  },
-  /**
    * `gmail-callback` (the code exchange), per caller: each call reaches
    * Google's token endpoint and stores a connection.
    */

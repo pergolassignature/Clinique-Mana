@@ -11,8 +11,8 @@
  * 3. The state (`verifyState`: the MAC, 10 minutes, the purpose): malformed
  *    or forged → 410 `link_invalid`; expired → 410 `link_expired`; another
  *    clinic or person → 403 `forbidden`.
- * 4. The nonce spent on `LIMITS.oauthStateNonce`: a replayed state → 410
- *    `link_used`.
+ * 4. The nonce spent once (`spendStateNonce`, kept until the state expires):
+ *    a replayed state → 410 `link_used`; the check unavailable → 503.
  * 5. The code exchanged at Zoom's token endpoint with the clinic's Zoom app
  *    (none → 503 `not_configured`): a refused code → 400 with a French
  *    refusal; Zoom down → 502.
@@ -41,7 +41,7 @@ import {
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
-import { verifyState } from '../_shared/oauth-state.ts'
+import { spendStateNonce, verifyState } from '../_shared/oauth-state.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
@@ -114,11 +114,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (state.orgId !== orgId || state.userId !== auth.user.id) {
       return errorResponse('forbidden', 'Not your connection', 403, req)
     }
-    const nonce = await consume(service, LIMITS.oauthStateNonce, [state.nonce])
-    if (!nonce.allowed) {
-      return nonce.reason === 'unavailable'
-        ? limitResponse(nonce, req)!
-        : errorResponse('link_used', 'State already used', 410, req)
+    const spent = await spendStateNonce(service, state)
+    if (spent === 'unavailable') {
+      return errorResponse(
+        'not_configured',
+        'State check unavailable',
+        503,
+        req,
+      )
+    }
+    if (spent === 'used') {
+      return errorResponse('link_used', 'State already used', 410, req)
     }
 
     let app

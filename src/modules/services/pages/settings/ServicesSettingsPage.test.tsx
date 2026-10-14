@@ -28,6 +28,8 @@ vi.mock('../../api/catalogue', async (importOriginal) => ({
   ...mocks.api,
 }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
+const taxMocks = vi.hoisted(() => ({ taxRateOn: vi.fn() }))
+vi.mock('@/core/settings/tax/api', async (importOriginal) => ({ ...(await importOriginal<object>()), ...taxMocks }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const S = 'modules.services.settings'
@@ -35,6 +37,7 @@ const C = `${S}.catalogue`
 const SH = `${S}.sheet`
 
 beforeEach(() => {
+  taxMocks.taxRateOn.mockImplementation(async (tax: string) => (tax === 'gst' ? 0.05 : 0.09975))
   mocks.api.fetchServicesSettings.mockResolvedValue(servicesSettings())
   mocks.api.fetchServicePrices.mockResolvedValue(PRICES)
 })
@@ -241,5 +244,40 @@ describe('ServicesSettingsPage', () => {
       )
     )
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.archivedToast`))
+  })
+
+  it('« Trier par »: one list by name, without the family rows (L27)', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await user.selectOptions(screen.getByRole('combobox', { name: t(`${C}.sortLabel`) }), 'name')
+    const names = within(catalogue())
+      .getAllByRole('rowheader')
+      .map((cell) => cell.textContent ?? '')
+    expect(names[0]).toMatch(/^Consultation individuelle 50 min/)
+    expect(names[1]).toMatch(/^Inscription liste d'attente/)
+    expect(names[2]).toMatch(/^Ouverture de dossier/)
+    expect(within(catalogue()).queryByText('10 · Individuel')).not.toBeInTheDocument()
+  })
+
+  it('the search reads the description too, and shows it under the name (L27)', async () => {
+    const user = userEvent.setup()
+    const settings = servicesSettings()
+    mocks.api.fetchServicesSettings.mockResolvedValue({
+      ...settings,
+      services: settings.services.map((s) => (s.id === SIDS.waitlist ? { ...s, description: 'Frais pour rester inscrit' } : s)),
+    })
+    await renderPage()
+    await user.type(screen.getByRole('searchbox', { name: t(`${C}.searchLabel`) }), 'rester')
+    expect(rowOf("Inscription liste d'attente")).toHaveTextContent('Frais pour rester inscrit')
+    expect(within(catalogue()).queryByRole('rowheader', { name: /Consultation individuelle/ })).not.toBeInTheDocument()
+  })
+
+  it('« Prix »: a taxable price shows its amount with the taxes in force today (L27)', async () => {
+    mocks.api.fetchServicePrices.mockResolvedValue(PRICES.map((p) => (p.serviceId === SIDS.session50 && p.titleId === SIDS.psychologue ? { ...p, taxRule: 'taxable' } : p)))
+    await renderPage()
+    const prices = await screen.findByRole('table', { name: t(`${S}.prices.table`) })
+    // 175,00 $ + 8,75 $ (TPS 5 %) + 17,46 $ (TVQ 9,975 %), each tax rounded on its own.
+    expect(await within(prices).findByText(/^Avec taxes : 201,21/)).toBeInTheDocument()
+    expect(taxMocks.taxRateOn).toHaveBeenCalledWith('gst', expect.any(String))
   })
 })

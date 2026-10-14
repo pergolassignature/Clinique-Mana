@@ -4,12 +4,13 @@
 -- page closed while booking is off, the module reserved for its testers (P3-40) or unknown; the free
 -- slots (the rule, the notice, the horizon, the capacity); a booking (a « Nouvelle » request on the
 -- booking channel with its source: answer, utm_*, referrer, landing page; its discovery call; the
--- cancel link; the slot taken); refusals (slot taken, same address, a bad email, closed); the cancel
+-- cancel link; the slot taken); refusals (slot taken, a bad email, closed); the same address
+-- answered like a booking (security review 2026-10-14); the cancel
 -- link (resolve, cancel once, the request closed « s'est retirée », the slot free again); the
 -- reportable view (staff only); the landing page redacted in the audit.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(44);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -143,9 +144,10 @@ select ok(not exists (select 1 from jsonb_array_elements(public.demandes_booking
 select is(private.test_error_hint(format($$ select public.book_discovery_call_for_service('b0000000-0000-0000-0000-00000000000a',
   jsonb_build_object('starts_at', %L, 'first_name', 'Autre', 'last_name', 'Personne', 'email', 'autre@exemple.test', 'phone_e164', '+15145550102'),
   sha256('t-2'::bytea)) $$, current_setting('test.slot'))), 'slot', 'the same slot again: refused');
-select is(private.test_error_hint(format($$ select public.book_discovery_call_for_service('b0000000-0000-0000-0000-00000000000a',
-  jsonb_build_object('starts_at', %L, 'first_name', 'Camille', 'last_name', 'Essai', 'email', 'camille@exemple.test', 'phone_e164', '+15145550101'),
-  sha256('t-3'::bytea)) $$, (select p -> 'slots' ->> 5 from page))), 'already_booked', 'a second call with the same address: refused');
+select is((public.book_discovery_call_for_service('b0000000-0000-0000-0000-00000000000a',
+  jsonb_build_object('starts_at', (select p -> 'slots' ->> 5 from page), 'first_name', 'Camille', 'last_name', 'Essai', 'email', 'camille@exemple.test', 'phone_e164', '+15145550101'),
+  sha256('t-3'::bytea)) ->> 'task_id'), current_setting('test.booked')::jsonb ->> 'task_id',
+  'a second call with the same address: answered like a booking, for the earlier call (never told apart; its cancel link renewed)');
 select is(private.test_error_hint(format($$ select public.book_discovery_call_for_service('b0000000-0000-0000-0000-00000000000a',
   jsonb_build_object('starts_at', %L, 'first_name', 'Bob', 'last_name', 'Roy', 'email', 'pas un courriel', 'phone_e164', '+15145550103'),
   sha256('t-4'::bytea)) $$, (select p -> 'slots' ->> 6 from page))), 'email', 'an unreadable email: refused with its field');
@@ -176,17 +178,19 @@ reset role;
 -- =============================================================================
 -- Cancelling
 -- =============================================================================
-select set_config('test.link', (select id::text from public.secure_links where token_hash = sha256('t-cancel-1'::bytea)), true);
+-- The second booking with the same address renewed the call's cancel link (t-3).
+select set_config('test.link', (select id::text from public.secure_links where token_hash = sha256('t-3'::bytea)), true);
 set local role service_role;
 select is((public.resolve_discovery_call_link(current_setting('test.link')::uuid) ->> 'starts_at')::timestamptz,
   current_setting('test.slot')::timestamptz, 'resolve-link shows the call''s time');
-select is(public.cancel_discovery_call_for_service(sha256('t-cancel-1'::bytea)) ->> 'state', 'cancelled', 'cancelled by its link');
+select is(public.cancel_discovery_call_for_service(sha256('t-cancel-1'::bytea)) ->> 'state', 'invalid', 'the renewed link replaced the first');
+select is(public.cancel_discovery_call_for_service(sha256('t-3'::bytea)) ->> 'state', 'cancelled', 'cancelled by its link');
 reset role;
 select results_eq($$ select d.state, d.closed_reason, t.state from public.demandes d join public.demande_tasks t on t.demande_id = d.id
                       where d.id = current_setting('test.demande')::uuid $$,
   $$ values ('closed', 'withdrew', 'cancelled') $$, 'the call is cancelled and the request closed « s''est retirée »');
 set local role service_role;
-select is(public.cancel_discovery_call_for_service(sha256('t-cancel-1'::bytea)) ->> 'state', 'invalid', 'the link works once');
+select is(public.cancel_discovery_call_for_service(sha256('t-3'::bytea)) ->> 'state', 'invalid', 'the link works once');
 select ok(exists (select 1 from jsonb_array_elements(public.demandes_booking_page_for_service('b0000000-0000-0000-0000-00000000000a') -> 'slots') s
                    where (s #>> '{}')::timestamptz = current_setting('test.slot')::timestamptz), 'the slot is free again');
 reset role;

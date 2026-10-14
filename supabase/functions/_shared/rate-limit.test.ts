@@ -340,7 +340,6 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     documensoWebhookIp: ['webhooks.documenso_ip', 600, 60],
     gmailWebhookIp: ['webhooks.gmail_ip', 600, 60],
     gmailConnectUser: ['gmail.connect_user', 20, 3_600],
-    oauthStateNonce: ['oauth.state_nonce', 1, 600],
     gmailCallbackUser: ['gmail.callback_user', 20, 3_600],
     gmailSyncUser: ['gmail.sync_user', 60, 3_600],
     gmailModifyUser: ['gmail.modify_user', 600, 3_600],
