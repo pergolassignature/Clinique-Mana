@@ -10710,7 +10710,9 @@
           "title": "Relances",
           "step": "Relance du jour {step} : {date}",
           "stepMissed": "Jour {step} : passé sans envoi"
-        }
+        },
+        "serviceCode": "code {code}",
+        "quantityAndTaxes": "Quantité {quantity} · Taxes : {taxes}"
       },
       "client": {
         "title": "Factures",
@@ -11290,7 +11292,7 @@
           "exportFileName": "Factures des professionnels {month}.csv",
           "previousMonth": "Mois précédent",
           "nextMonth": "Mois suivant",
-          "summary": "{periods} sommaire(s), {total} · {unpriced} à compléter · {validated} validé(s) · {paid} versé(s)",
+          "summary": "Sommaires : {periods} · Total : {total} · À compléter : {unpriced} · Validés : {validated} · Versés : {paid}",
           "unknownProfessional": "Professionnel",
           "noSpecialty": "Profession à confirmer",
           "noInvoice": "Aucune",
@@ -11538,7 +11540,7 @@
       "interac": {
         "nav": "Virements Interac",
         "title": "Virements Interac",
-        "description": "Les avis de virement reçus à administration@, à rapprocher d’une facture : le paiement et son reçu sont enregistrés d’un clic.",
+        "description": "Les avis de virement reçus dans la boîte « administration » de la clinique, à rapprocher d’une facture : le paiement et son reçu sont enregistrés d’un clic.",
         "loadError": "Les avis de virement n’ont pas pu être chargés.",
         "filterLabel": "Avis à afficher",
         "states": {
@@ -11552,7 +11554,7 @@
           "ignored": "Aucun virement ignoré"
         },
         "receivedOn": "Reçu le {date}",
-        "fromMailbox": "lu dans administration@",
+        "fromMailbox": "lu dans la boîte « administration »",
         "reference": "Référence : {reference}",
         "suggestions": "Factures suggérées",
         "noSuggestion": "Aucune facture émise n’a ce solde ni ce nom : enregistrez le paiement depuis la facture, puis ignorez l’avis.",
@@ -11572,7 +11574,7 @@
         },
         "add": {
           "title": "Ajouter un avis de virement",
-          "description": "Recopiez l’avis reçu à administration@ (montant, expéditeur, message).",
+          "description": "Recopiez l’avis reçu dans la boîte « administration » (montant, expéditeur, message).",
           "date": "Reçu le",
           "amount": "Montant ($)",
           "amountInvalid": "Entrez le montant du virement (par exemple 130 ou 130,00).",
