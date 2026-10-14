@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { t } from '@/i18n'
@@ -98,15 +98,21 @@ export function ClientsListPage() {
   const rows = list.data?.pages.flat()
   const filtered = Boolean(filters.query || filters.professionalId || filters.tagId || filters.lastVisit || filters.status !== 'active')
 
+  // From the latest parameters, not this render's: two quick changes in a row (before the URL's
+  // re-render) must not undo each other (react-router's functional setter reads the render's too).
+  const latest = useRef(params)
+  latest.current = params
   const update = (patch: Record<string, string | null>, q: string = filters.query) => {
-    const next = new URLSearchParams(params)
+    const previous = latest.current
+    const next = new URLSearchParams(previous)
     for (const [key, value] of Object.entries(patch)) {
       if (value === null || value === '') next.delete(key)
       else next.set(key, value)
     }
+    latest.current = next
     setParams(next, { replace: true, state: q ? { q } : null })
     setPhase('done')
-    if (filterQuery(next) !== filterQuery(params)) schedule(toRememberedFilters(next))
+    if (filterQuery(next) !== filterQuery(previous)) schedule(toRememberedFilters(next))
   }
 
   return (
