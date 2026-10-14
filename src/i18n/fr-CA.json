@@ -5857,7 +5857,7 @@
           "loadError": "Impossible de charger les réglages des consentements.",
           "texts": {
             "title": "Textes des consentements",
-            "description": "Un consentement par ligne, en français et en anglais. « Modifier » ouvre ses deux textes. Rien n’est envoyé aux clients avant la publication.",
+            "description": "Un consentement par ligne, en français et en anglais. « Modifier » ouvre ses deux textes. Sans texte anglais publié, un client de langue anglaise reçoit le texte français. Rien n’est envoyé aux clients avant la publication.",
             "published": "Texte publié.",
             "publishedFlagged": "Texte publié : {count} clients devront signer de nouveau.",
             "publishTitle": "Publier la version {version} : {name} ({language})",
@@ -5877,7 +5877,8 @@
             "publishFirst": "Première publication : ce consentement pourra être demandé aux clients (« Quand demander »). Les prochaines demandes utiliseront cette version.",
             "whoSigns": "Qui doit signer cette version ?",
             "campaignNote": "Les clients qui ont signé une version précédente passent à « À signer de nouveau ». Pour leur envoyer la demande, lancez ensuite « Nouvelles signatures » (100 clients par jour au plus).",
-            "testersNote": "Tant que le module Clients est réservé aux testeurs, aucune demande ne part vers les clients."
+            "testersNote": "Tant que le module Clients est réservé aux testeurs, aucune demande ne part vers les clients.",
+            "englishFallback": "Les clients de langue anglaise reçoivent le texte français"
           },
           "rules": {
             "title": "Quand demander",
