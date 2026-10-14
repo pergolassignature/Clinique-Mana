@@ -6352,7 +6352,7 @@
           "provider": "Fournisseur du PAE",
           "fileNumber": "Numéro de dossier",
           "sessionAmount": "Montant par séance ($)",
-          "maxSessions": "Séances au plus",
+          "maxSessions": "Nombre maximal de séances",
           "maxAmount": "Montant au plus ($)",
           "period": "Période",
           "startsOn": "Début",
