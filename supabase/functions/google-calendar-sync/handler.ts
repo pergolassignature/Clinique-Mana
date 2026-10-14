@@ -25,7 +25,7 @@ import {
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
-import { oauthApp } from '../_shared/gmail/credentials.ts'
+import { calendarOAuthApp } from '../_shared/google-calendar/credentials.ts'
 import { syncConnection } from '../_shared/google-calendar/client.ts'
 import { calendarOrigins } from '../_shared/google-calendar/env.ts'
 import { readJson } from '../_shared/http.ts'
@@ -51,7 +51,7 @@ export function syncOrg(deps: Deps): PerOrg {
     if (await requireModuleForOrg(client, orgId, 'appointments')) {
       return 'module_disabled'
     }
-    const app = await oauthApp(client, orgId)
+    const app = await calendarOAuthApp(client, orgId)
     if (!app) return 'not_configured'
     const due = await client.rpc(
       'list_calendar_connections_to_sync_for_service',
@@ -120,7 +120,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     let app
     try {
-      app = await oauthApp(service, orgId)
+      app = await calendarOAuthApp(service, orgId)
     } catch {
       await report('oauth_app_unavailable')
       return errorResponse('internal', 'Request failed', 500, req)

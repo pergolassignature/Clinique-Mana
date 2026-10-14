@@ -14,6 +14,7 @@ import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { AgendaSettings } from '../../api/changes'
+import { GoogleCalendarAppCard } from '../../components/calendar/GoogleCalendarAppCard'
 import { useAgendaSettings, useSaveAgendaSettings } from '../../hooks/use-agenda'
 
 const S = 'modules.appointments.settings'
@@ -22,7 +23,8 @@ const WEEKDAYS = ['1', '2', '3', '4', '5', '6', '7'] as const
 /**
  * Paramètres → Agenda (seen with `appointments.view`, changed with `appointments.settings`): the
  * clinic's business days and hours, the reminders' day and hour (R-52, R4), and whether the late
- * cancellation notice counts business hours (AP-31, on by default: GOrendezvous's « 24 h ouvrables »).
+ * cancellation notice counts business hours (AP-31, on by default: GOrendezvous's « 24 h ouvrables »);
+ * the professionals' Google agendas' application and job (R6, AP-46).
  */
 export function AgendaSettingsPage() {
   const { readOnly } = useSettingsSection()
@@ -36,6 +38,7 @@ export function AgendaSettingsPage() {
     content = (
       <SectionSurface>
         <HoursCard settings={settings.data} readOnly={readOnly} />
+        <GoogleCalendarAppCard />
       </SectionSurface>
     )
   }
