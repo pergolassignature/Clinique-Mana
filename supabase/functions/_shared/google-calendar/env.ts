@@ -1,9 +1,9 @@
 /**
  * Where the Google busy-time functions (R6) reach Google, and what they ask for.
  *
- * The OAuth side is Gmail's (the clinic's Google application, the org secrets
- * `google_oauth_client_id` / `_secret`, the token, revoke and consent
- * origins: `gmailOrigins`). The API side is `www.googleapis.com` (FreeBusy and
+ * The OAuth side is Google's, as Gmail's (the token, revoke and consent
+ * origins: `gmailOrigins`); the application is the calendars' own, else
+ * Gmail's (`credentials.ts`, AP-46). The API side is `www.googleapis.com` (FreeBusy and
  * the person's id); on a dev machine (`APP_URL` local) `GOOGLE_CALENDAR_BASE_URL`
  * points it at the local fake (`npm run fake:gmail`), ignored elsewhere.
  */

@@ -11,9 +11,13 @@ import { AgendaSettingsPage } from './AgendaSettingsPage'
 
 const mocks = vi.hoisted(() => ({
   api: { fetchAgendaSettings: vi.fn(), saveAgendaSettings: vi.fn() },
+  secrets: { listOrgSecretKeys: vi.fn(), setOrgSecret: vi.fn() },
+  jobs: { listScheduledJobs: vi.fn(), setScheduledJobEnabled: vi.fn(), listScheduledJobRuns: vi.fn(), runScheduledJobNow: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../api/changes', async (importOriginal) => ({ ...(await importOriginal<object>()), ...mocks.api }))
+vi.mock('@/core/settings/secrets/api', () => mocks.secrets)
+vi.mock('@/core/jobs/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/jobs/api')>()), ...mocks.jobs }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -22,6 +26,22 @@ const S = 'modules.appointments.settings'
 beforeEach(() => {
   mocks.api.fetchAgendaSettings.mockResolvedValue(DEFAULT_AGENDA_SETTINGS)
   mocks.api.saveAgendaSettings.mockResolvedValue(undefined)
+  mocks.secrets.listOrgSecretKeys.mockResolvedValue([{ key: 'google_calendar_client_id', updated_at: '2026-10-13T15:00:00+00:00' }])
+  mocks.jobs.listScheduledJobs.mockResolvedValue([
+    {
+      key: 'appointments.google_busy_sync',
+      label: 'Plages occupées des agendas Google',
+      description: '',
+      kind: 'function',
+      is_maintenance: false,
+      local_hour: null,
+      schedule: '*/15 * * * *',
+      enabled: false,
+      last_started_at: null,
+      last_status: null,
+      last_detail: null,
+    },
+  ])
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -78,5 +98,15 @@ describe('AgendaSettingsPage', () => {
     await user.click(within(form).getByRole('button', { name: t('common.save') }))
     expect(await within(form).findByText(t(`${S}.daysRequired`))).toBeInTheDocument()
     expect(mocks.api.saveAgendaSettings).not.toHaveBeenCalled()
+  })
+
+  it('R6 (AP-46): the professionals’ Google agendas — their own application (write-only), the return address, the job', async () => {
+    renderPage()
+    const G = 'modules.appointments.calendar.settings'
+    expect(await screen.findByRole('heading', { name: t(`${G}.title`) })).toBeInTheDocument()
+    expect(await screen.findByText(t(`${G}.clientId`))).toBeInTheDocument()
+    expect(screen.getByText(t(`${G}.clientSecret`))).toBeInTheDocument()
+    expect(screen.getByDisplayValue(`${window.location.origin}/mon-agenda/agenda-google`)).toBeInTheDocument()
+    expect(await screen.findByText(t(`${G}.job.off`))).toBeInTheDocument()
   })
 })
