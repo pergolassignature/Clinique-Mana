@@ -90,7 +90,7 @@ describe('history — the record row', () => {
 
   it('names one changed field with its values, in the sentence', () => {
     const event = only([row('professionals', 'update', { years_experience: { before: 12, after: 14 } })])
-    expect(event.sentence).toBe("a modifié les années d'expérience\u00a0: 12 → 14")
+    expect(event.sentence).toBe("a modifié les années d'expérience\u00a0: 12, maintenant 14")
     expect(event.lines).toEqual([])
   })
 
@@ -122,10 +122,10 @@ describe('history — the record row', () => {
 
   it('reads the matching profile: periods by name, booleans Oui / Non', () => {
     expect(only([row('professional_matching_profiles', 'update', { availability_periods: { before: [], after: ['evening', 'end_of_day', 'am'] } })]).sentence).toBe(
-      `a modifié les disponibilités générales\u00a0: ${t('audit.values.empty')} → Matin · Fin de journée · Soir`,
+      `a modifié les disponibilités générales\u00a0: ${t('audit.values.empty')}, maintenant Matin · Fin de journée · Soir`,
     )
     expect(only([row('professional_matching_profiles', 'update', { accepting_new_clients: { before: true, after: false } })]).sentence).toBe(
-      "a modifié l'accueil de nouveaux clients\u00a0: Oui → Non",
+      "a modifié l'accueil de nouveaux clients\u00a0: Oui, maintenant Non",
     )
   })
 
@@ -136,10 +136,10 @@ describe('history — the record row', () => {
         new_client_places_set_at: { before: '2026-10-01T12:00:00+00:00', after: TX },
       }),
     ])
-    expect(event.sentence).toBe('a modifié le nombre de places offertes\u00a0: 3 → 4')
+    expect(event.sentence).toBe('a modifié le nombre de places offertes\u00a0: 3, maintenant 4')
     expect(event.lines).toEqual([])
     expect(only([row('professional_matching_profiles', 'update', { new_client_places: { before: 2, after: null }, new_client_places_set_at: { before: TX, after: null } })]).sentence).toBe(
-      `a modifié le nombre de places offertes\u00a0: 2 → ${t('audit.values.empty')}`,
+      `a modifié le nombre de places offertes\u00a0: 2, maintenant ${t('audit.values.empty')}`,
     )
   })
 
@@ -163,13 +163,13 @@ describe('history — the record row', () => {
 
   it('formats the public phone', () => {
     expect(only([row('professional_public_profiles', 'update', { public_phone: { before: null, after: '+15145550101' } })]).sentence).toBe(
-      `a modifié le téléphone public\u00a0: ${t('audit.values.empty')} → 514 555-0101`,
+      `a modifié le téléphone public\u00a0: ${t('audit.values.empty')}, maintenant 514 555-0101`,
     )
   })
 
   it('says a login account was linked without its id', () => {
     const event = only([row('professionals', 'update', { profile_id: { before: null, after: IDS.admin } })])
-    expect(event.sentence).toBe(`a modifié le compte de connexion\u00a0: ${t(`${H}.values.accountNone`)} → ${t(`${H}.values.accountLinked`)}`)
+    expect(event.sentence).toBe(`a modifié le compte de connexion\u00a0: ${t(`${H}.values.accountNone`)}, maintenant ${t(`${H}.values.accountLinked`)}`)
   })
 
   it('reads status changes as what happened to the file', () => {
@@ -212,7 +212,7 @@ describe('history — the record row', () => {
     expect(reactivation.lines).toEqual([{ kind: 'text', text: t(`${H}.lines.accountEnabled`) }])
 
     expect(only([row('professionals', 'update', { status: { before: 'draft', after: 'in_review' } })]).sentence).toBe(
-      'a changé le statut\u00a0: À inviter → À réviser',
+      'a changé le statut\u00a0: À inviter, maintenant À réviser',
     )
   })
 
@@ -340,7 +340,7 @@ describe('history — titles and payer numbers', () => {
   it('finds the title of an updated row through the record or the loaded rows', () => {
     const titleByRow = professionTitlesByRow([], recordFixture())
     expect(only([professionRow('update', { licence_number: { before: '12345', after: '54321' } })], ctx({ titleByRow })).sentence).toBe(
-      'a modifié le numéro de permis (Psychologue)\u00a0: 12345 → 54321',
+      'a modifié le numéro de permis (Psychologue)\u00a0: 12345, maintenant 54321',
     )
     const other = '00000000-0000-4000-8000-000000001102'
     const rows = [
@@ -352,7 +352,7 @@ describe('history — titles and payer numbers', () => {
     // The former primary losing the flag says nothing the new primary does not.
     expect(list.map((e) => e.sentence)).toEqual(['a choisi Naturopathe comme titre principal', 'a ajouté le titre Naturopathe'])
     expect(only([professionRow('update', { licence_number: { before: '1', after: '2' } }, other)]).sentence).toBe(
-      `a modifié le numéro de permis (${t(`${H}.values.unknown.title`)})\u00a0: 1 → 2`,
+      `a modifié le numéro de permis (${t(`${H}.values.unknown.title`)})\u00a0: 1, maintenant 2`,
     )
   })
 
@@ -360,7 +360,7 @@ describe('history — titles and payer numbers', () => {
     const ivac = (action: HistoryEntry['action'], fields: Record<string, unknown>) =>
       row('professional_payer_numbers', action, fields, { recordId: `${P}:ivac` })
     expect(only([ivac('insert', { payer_type: 'ivac', number: 'IVAC-1' })]).sentence).toBe('a ajouté le numéro IVAC IVAC-1')
-    expect(only([ivac('update', { number: { before: 'IVAC-1', after: 'IVAC-2' } })]).sentence).toBe('a modifié le numéro IVAC\u00a0: IVAC-1 → IVAC-2')
+    expect(only([ivac('update', { number: { before: 'IVAC-1', after: 'IVAC-2' } })]).sentence).toBe('a modifié le numéro IVAC\u00a0: IVAC-1, maintenant IVAC-2')
     expect(only([ivac('delete', { payer_type: 'ivac', number: 'IVAC-2' })]).sentence).toBe('a retiré le numéro IVAC IVAC-2')
   })
 
@@ -368,7 +368,7 @@ describe('history — titles and payer numbers', () => {
     const other = (action: HistoryEntry['action'], fields: Record<string, unknown>) =>
       row('professional_payer_numbers', action, fields, { recordId: `${P}:csst_new` })
     expect(only([other('insert', { payer_type: 'csst_new', number: 'C-1' })]).sentence).toBe('a ajouté le numéro de payeur C-1')
-    expect(only([other('update', { number: { before: 'C-1', after: 'C-2' } })]).sentence).toBe('a modifié le numéro de payeur\u00a0: C-1 → C-2')
+    expect(only([other('update', { number: { before: 'C-1', after: 'C-2' } })]).sentence).toBe('a modifié le numéro de payeur\u00a0: C-1, maintenant C-2')
     expect(printed(events([other('delete', { number: 'C-2' })]))).not.toContain('csst_new')
   })
 })
