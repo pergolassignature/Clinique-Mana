@@ -91,6 +91,9 @@ const INVOICE = {
   notes_client: 'Merci !',
 }
 
+/** The people's ids (Marc: Léa's spouse, served with her in a couple's session). */
+export const PEOPLE_IDS = { lea: id(31), payer: id(32), marc: id(33) }
+
 const PEOPLE = {
   client: {
     id: id(31),

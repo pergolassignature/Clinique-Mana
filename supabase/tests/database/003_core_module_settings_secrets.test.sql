@@ -180,6 +180,8 @@ select functions_are('public', array[
   'release_invoice_draft', 'send_invoices', 'send_billing_document', 'record_payment', 'create_statement', 'get_billing_document',
   'billing_deliveries_for_service', 'billing_document_for_service', 'finish_billing_delivery_for_service',
   'discard_billing_file_for_service', 'set_professional_supervisor',
+  -- Professionnels: the signature on the receipts (R-86).
+  'set_professional_signature',
   'billing_sync_events_for_service', 'finish_billing_sync_event_for_service',
   -- Facturation, batch F3.
   'set_billing_dunning', 'set_billing_invoice_note', 'decide_cancellation_fee', 'list_fee_decisions', 'list_overdue_invoices', 'refund_payment', 'record_refund_outside_app',

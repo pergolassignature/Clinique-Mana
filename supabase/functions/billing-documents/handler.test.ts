@@ -5,6 +5,7 @@ import { fakeFetch } from '../_shared/testing/fake-fetch.ts'
 import {
   fakeSupabase,
   type RpcRoute,
+  type StorageRoute,
 } from '../_shared/testing/fake-supabase.ts'
 import { fixedClock } from '../_shared/testing/fixed-clock.ts'
 import { captureConsole, withEnv } from '../_shared/testing/env.ts'
@@ -61,6 +62,7 @@ function harness(opts: {
   userRpc?: Record<string, RpcRoute>
   payLink?: boolean
   buttonLabel?: string | null
+  download?: StorageRoute
 } = {}) {
   const docs = opts.deliveries ?? [delivery(11)]
   const service = fakeSupabase({
@@ -107,7 +109,7 @@ function harness(opts: {
     },
     storage: {
       upload: () => ({ data: { path: 'x' }, error: null }),
-      download: () => ({ data: new Blob([PDF]) }),
+      download: opts.download ?? (() => ({ data: new Blob([PDF]) })),
     },
   })
   const user = fakeSupabase({
@@ -481,5 +483,56 @@ Deno.test('billing-documents: no pay link (a card on file, Stripe not set): the 
         .p_email_status,
       'sent',
     )
+  })
+})
+
+Deno.test('billing-documents: a receipt prints its professional’s signature image (R-86); one that does not load is left out, the receipt still sent', async () => {
+  await run(async () => {
+    const png = await Deno.readFile(
+      new URL('../_shared/pdf/fixtures/logo.png', import.meta.url),
+    )
+    const SIGNATURE = `${ORG_ID}/professionals/p/signature.png`
+    const document = receiptDoc({
+      professionals: receiptDoc().professionals.map((p) => ({
+        ...p,
+        signature: { bucket: 'documents', object_path: SIGNATURE },
+      })),
+    })
+    const receipt = delivery(11, { kind: 'receipt', document })
+    const sizes: number[] = []
+    for (const loads of [true, false]) {
+      const { handler, service } = harness({
+        deliveries: [receipt],
+        download: (_bucket, path) =>
+          path === SIGNATURE && loads
+            ? { data: new Blob([png]) }
+            : { error: { message: 'not found' } },
+      })
+      let res: Response | undefined
+      const logged = await captureConsole('error', async () => {
+        res = await handler(await jobRequest())
+      })
+      assertEquals(res?.status, 200)
+      // The failure reported by code and ids, never a path.
+      assertEquals(
+        logged.map((args) => String(args[0]).includes('signature_unavailable')),
+        loads ? [] : [true],
+      )
+      assert(!JSON.stringify(logged).includes(SIGNATURE))
+      assertEquals(
+        service.storageCalls.filter((c) => c.method === 'download').map((
+          c,
+        ) => [c.bucket, c.args[0]]),
+        [['documents', SIGNATURE]],
+      )
+      const [finish] = callsTo(
+        service.calls,
+        'finish_billing_delivery_for_service',
+      )
+      assertEquals([finish.p_email_status, finish.p_error], ['sent', null])
+      const upload = service.storageCalls.find((c) => c.method === 'upload')!
+      sizes.push((upload.args[1] as Uint8Array).length)
+    }
+    assert(sizes[0] > sizes[1], 'the image is in the first PDF only')
   })
 })

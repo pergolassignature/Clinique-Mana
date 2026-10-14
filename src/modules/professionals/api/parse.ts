@@ -172,6 +172,8 @@ const professionalPayload = z
     activation_override_reason: z.string().nullable(),
     /** F2.0 (Facturation): the intern's supervisor, printed on her receipts (R-60). */
     supervisor_professional_id: z.string().nullable().default(null),
+    /** R-86: her signature image (a stored file), printed on her receipts. */
+    signature_file_id: z.string().nullable().default(null),
     created_at: z.string(),
     updated_at: z.string(),
   })
@@ -198,6 +200,7 @@ const professionalPayload = z
     deactivationDisabledAccount: p.deactivation_disabled_account,
     activationOverrideReason: p.activation_override_reason,
     supervisorId: p.supervisor_professional_id,
+    signatureFileId: p.signature_file_id,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   }))

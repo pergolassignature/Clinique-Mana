@@ -1625,7 +1625,8 @@
             "deactivation_disabled_account": "Compte désactivé avec le dossier",
             "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
             "fiche_generated_at": "Fiche PDF générée le",
-            "supervisor_professional_id": "Superviseur"
+            "supervisor_professional_id": "Superviseur",
+            "signature_file_id": "Signature des reçus"
           },
           "professional_professions": {
             "professional_id": "Professionnel",
@@ -2707,6 +2708,25 @@
             "saved": "Superviseur enregistré.",
             "loadError": "La liste des professionnels ne se charge pas.",
             "inactive": "Un professionnel inactif"
+          },
+          "signature": {
+            "title": "Signature des reçus",
+            "description": "L’image de la signature du professionnel, imprimée au-dessus de son nom sur ses reçus d’assurance. Pour un stagiaire : sa propre signature, à côté du nom de son superviseur.",
+            "label": "Signature",
+            "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
+            "alt": "Signature de {name}",
+            "empty": "Aucune signature : les reçus s’impriment sans signature.",
+            "onFile": "Signature enregistrée",
+            "none": "Aucune signature",
+            "replace": "Remplacer",
+            "remove": "Retirer",
+            "saved": "Signature enregistrée.",
+            "removed": "Signature retirée.",
+            "removeConfirm": {
+              "title": "Retirer la signature ?",
+              "body": "Les prochains reçus de {name} s’imprimeront sans signature. Les reçus déjà envoyés ne changent pas.",
+              "confirm": "Retirer"
+            }
           }
         }
       },
@@ -2922,7 +2942,8 @@
             "deactivation_note": "la note de désactivation",
             "deactivation_disabled_account": "le compte désactivé avec le dossier",
             "activation_override_reason": "la raison de l'activation d'un dossier incomplet",
-            "supervisor_professional_id": "le superviseur"
+            "supervisor_professional_id": "le superviseur",
+            "signature_file_id": "la signature des reçus"
           },
           "professional_public_profiles": {
             "bio": "la présentation",

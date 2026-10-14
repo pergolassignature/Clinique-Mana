@@ -12,7 +12,9 @@ import {
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
+  setSignature,
   syncProfessionalSignin,
+  uploadSignature,
   updateMatchingProfile,
   updateProfessional,
   updatePublicProfile,
@@ -28,8 +30,13 @@ const mocks = vi.hoisted(() => {
   const from = vi.fn(() => ({ update }))
   const rpc = vi.fn()
   const invokeFunction = vi.fn()
-  return { from, update, eq, select, rpc, invokeFunction }
+  const uploadFile = vi.fn()
+  return { from, update, eq, select, rpc, invokeFunction, uploadFile }
 })
+vi.mock('@/core/storage/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/storage/api')>()),
+  uploadFile: mocks.uploadFile,
+}))
 vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }))
 vi.mock('@/core/supabase/functions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/supabase/functions')>()),
@@ -279,5 +286,34 @@ describe('status (professionals-set-status, Task 4b.6)', () => {
     await expect(activateProfessional(ID)).rejects.toBe(error)
     mocks.invokeFunction.mockResolvedValue([{ status: 'active', account_change: null, profile_id: null }])
     await expect(activateProfessional(ID)).rejects.toThrow(UNEXPECTED_SHAPE)
+  })
+})
+
+describe('the signature on the receipts (R-86)', () => {
+  it('uploadSignature: the image as professional_signature, subject the professional, then made hers', async () => {
+    const FILE = '33333333-3333-4333-8333-333333333333'
+    mocks.uploadFile.mockResolvedValue({ fileId: FILE })
+    ok(null)
+    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'signature.png', { type: 'image/png' })
+    const onStep = vi.fn()
+    await expect(uploadSignature({ id: ID, file, mimeType: 'image/png', onStep })).resolves.toBe(FILE)
+    expect(mocks.uploadFile).toHaveBeenCalledExactlyOnceWith({
+      purpose: 'professional_signature',
+      subjectType: 'professional',
+      subjectId: ID,
+      file,
+      mimeType: 'image/png',
+      onStep,
+    })
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('set_professional_signature', { p_professional_id: ID, p_file_id: FILE })
+  })
+
+  it('setSignature with null removes it; a refusal is thrown unchanged', async () => {
+    ok(null)
+    await setSignature(ID, null)
+    expect(mocks.rpc).toHaveBeenCalledWith('set_professional_signature', { p_professional_id: ID, p_file_id: null })
+    const refusal = { code: 'P0001', message: 'Fichier introuvable.' }
+    fail(refusal)
+    await expect(setSignature(ID, 'f')).rejects.toBe(refusal)
   })
 })

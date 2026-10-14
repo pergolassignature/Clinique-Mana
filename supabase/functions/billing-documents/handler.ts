@@ -35,6 +35,11 @@
  *    code, tried again by the database (10, 20 minutes), failed at the
  *    third try.
  *
+ * A receipt also loads its professionals' signature images (R-86,
+ * `signatureAssets`) beside the logo; one that does not load is left out of
+ * the PDF and reported (`signature_unavailable`), like a logo that does not
+ * load.
+ *
  * Nothing logs an address, a name or an amount: reports carry ids.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -65,6 +70,7 @@ import {
   billingReminderEmail,
   documentLanguage,
   documentTitle,
+  signatureAssets,
 } from './document.ts'
 
 const FN = 'billing-documents'
@@ -226,9 +232,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return errorResponse('internal', 'Preview failed', 500, req)
     }
     try {
-      const assets = await logoAssets(service, shape.data.logo)
+      const assets = await documentAssets(
+        service,
+        shape.data.logo,
+        parsed.data,
+        (code) =>
+          reportError({
+            fn: FN,
+            code,
+            ids: { org_id: orgId, document_id: input.id },
+          }, deps.fetch),
+      )
       const pdf = await renderPdf(
-        billingPdf(parsed.data, { logo: 'logo' in assets }),
+        billingPdf(parsed.data, pdfOptions(assets)),
         assets,
       )
       const answer = jsonResponse(
@@ -271,6 +287,44 @@ async function logoAssets(
     }])
   } catch {
     return {}
+  }
+}
+
+/**
+ * The logo and, for a receipt, the professionals' signature images (R-86),
+ * each loaded on its own: one that does not load is left out (a signature's
+ * failure reported).
+ */
+async function documentAssets(
+  service: SupabaseClient,
+  logo: z.infer<typeof fileRef> | null,
+  doc: BillingDocument,
+  report: (code: string) => Promise<void>,
+): Promise<PdfAssets> {
+  const signatures = signatureAssets(doc)
+  const [logoAsset, ...loaded] = await Promise.all([
+    logoAssets(service, logo),
+    ...signatures.map(async (ref) => {
+      try {
+        return await loadAssets(service, [ref])
+      } catch {
+        await report('signature_unavailable')
+        return {}
+      }
+    }),
+  ])
+  return Object.assign({}, logoAsset, ...loaded)
+}
+
+/** What `billingPdf` is told of the assets that loaded. */
+function pdfOptions(
+  assets: PdfAssets,
+): { logo: boolean; signatures: Set<string> } {
+  return {
+    logo: 'logo' in assets,
+    signatures: new Set(
+      Object.keys(assets).filter((key) => key.startsWith('signature_')),
+    ),
   }
 }
 
@@ -414,11 +468,8 @@ async function deliverOne(
     if (d.stored) {
       bytes = await download(client, d.stored)
     } else {
-      const assets = await logoAssets(client, d.logo)
-      const pdf = await renderPdf(
-        billingPdf(doc, { logo: 'logo' in assets }),
-        assets,
-      )
+      const assets = await documentAssets(client, d.logo, doc, report)
+      const pdf = await renderPdf(billingPdf(doc, pdfOptions(assets)), assets)
       bytes = pdf.bytes
       // A reminder's PDF is its invoice's, stored on the invoice.
       newFileId = await store(

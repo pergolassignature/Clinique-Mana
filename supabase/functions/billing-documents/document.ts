@@ -7,7 +7,10 @@
  * The receipt names the person served and the payer, the professional (an
  * intern's supervisor, her order and licence, R-60), the date, the length,
  * the service, the amount paid, the receipt's number, the clinic's address
- * and tax numbers (roadmap §2.6 bis).
+ * and tax numbers (roadmap §2.6 bis). A session for several people (AP-5)
+ * names every person it served, the file's client first (R-87); each
+ * professional's signature image, when she has one and it loaded, prints
+ * above her name (R-86; an intern's own).
  *
  * A payer organisation's invoice (FP-4, FP-11) is billed to the organisation
  * with the clinic's provider number and the payer's file number, due on its
@@ -67,6 +70,12 @@ const lineSchema = z.object({
   professional_id: z.string().nullable().optional(),
   service_date: maybe,
   minutes: z.number().int().nullable().optional(),
+  /** R-87: the people a session for several served, in the appointment's order. */
+  served: z.array(z.object({
+    id: z.string(),
+    name: text,
+    client_number: z.number().int().nullable().optional(),
+  })).max(20).nullable().optional(),
 })
 
 const professionalSchema = z.object({
@@ -84,6 +93,9 @@ const professionalSchema = z.object({
   supervisor_order_acronym: maybe,
   supervisor_licence_label: maybe,
   supervisor_licence_number: maybe,
+  /** R-86: her signature image, where the renderer downloads it. */
+  signature: z.object({ bucket: z.string(), object_path: z.string() })
+    .nullable().optional(),
 })
 
 const invoiceDocSchema = z.object({
@@ -227,6 +239,7 @@ const LABELS = {
     billedTo: 'Facturé à',
     paidBy: 'Payé par',
     servedTo: 'Services rendus à',
+    and: 'et',
     file: 'dossier n°',
     service: 'Service',
     professional: 'Professionnel',
@@ -283,6 +296,7 @@ const LABELS = {
     billedTo: 'Billed to',
     paidBy: 'Paid by',
     servedTo: 'Services provided to',
+    and: 'and',
     file: 'file no.',
     service: 'Service',
     professional: 'Professional',
@@ -373,10 +387,36 @@ function formatPhone(value: string): string {
 }
 
 /** « Léa Essai (dossier n° 12) ». */
-function personLine(p: BillingDocument['client'], l: Labels): string {
+function personLine(
+  p: { name: string; client_number?: number | null },
+  l: Labels,
+): string {
   return p.client_number
     ? `${p.name} (${l.file}${NBSP}${p.client_number})`
     : p.name
+}
+
+/**
+ * Who a document's sessions served (R-87): the file's client, then every
+ * other person a session for several brought together, once each.
+ */
+export function servedPeople(
+  doc: InvoiceDoc,
+): { name: string; client_number?: number | null }[] {
+  const people: { id: string; name: string; client_number?: number | null }[] =
+    [doc.client]
+  for (const line of doc.lines) {
+    for (const person of line.served ?? []) {
+      if (!people.some((p) => p.id === person.id)) people.push(person)
+    }
+  }
+  return people
+}
+
+/** « A », « A et B », « A, B et C ». */
+function joinNames(names: string[], l: Labels): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} ${l.and} ${names[names.length - 1]}`
 }
 
 /** « Psychologue — Ordre des psychologues du Québec (OPQ), N° de permis L-1 ». */
@@ -496,28 +536,70 @@ function totalsTable(doc: InvoiceDoc, language: Language, l: Labels): Block {
   }
 }
 
+/** The asset key of the professional's signature image at `index` of `professionals`. */
+export function signatureKey(index: number): string {
+  return `signature_${index}`
+}
+
+/**
+ * The signature images a document prints (R-86): a receipt's professionals
+ * who have one, under `signatureKey(index)`; none on any other document.
+ */
+export function signatureAssets(
+  doc: BillingDocument,
+): { key: string; bucket: string; path: string }[] {
+  if (doc.kind !== 'receipt') return []
+  return doc.professionals.flatMap((p, i) =>
+    p.signature
+      ? [{
+        key: signatureKey(i),
+        bucket: p.signature.bucket,
+        path: p.signature.object_path,
+      }]
+      : []
+  )
+}
+
+/** A signature's width on the receipt, in points. */
+const SIGNATURE_WIDTH = 150
+
 function professionalsBlocks(
   professionals: Professional[],
   l: Labels,
   payerNumbers: { professional_id: string; number: string }[] = [],
+  signatures: ReadonlySet<string> = new Set(),
 ): Block[] {
   if (professionals.length === 0) return []
   const numberOf = (id: string) =>
     payerNumbers.find((n) => n.professional_id === id)?.number
-  return [
-    { type: 'heading', level: 3, text: l.professionals },
-    {
+  const lineOf = (p: Professional) => {
+    const ivac = numberOf(p.professional_id)
+    return plain(
+      `${professionalLine(p, l)}${ivac ? `, ${l.ivac} ${ivac}` : ''}`,
+    )
+  }
+  const heading: Block = { type: 'heading', level: 3, text: l.professionals }
+  if (!professionals.some((_, i) => signatures.has(signatureKey(i)))) {
+    return [heading, {
       type: 'list',
       ordered: false,
-      items: professionals.map((p) => {
-        const ivac = numberOf(p.professional_id)
-        return [
-          plain(
-            `${professionalLine(p, l)}${ivac ? `, ${l.ivac} ${ivac}` : ''}`,
+      items: professionals.map((p) => [lineOf(p)]),
+    }]
+  }
+  // R-86: each signature above the name it belongs to.
+  return [
+    heading,
+    ...professionals.flatMap((p, i): Block[] => {
+      const key = signatureKey(i)
+      return signatures.has(key)
+        ? [
+          { type: 'image', assetKey: key, width: SIGNATURE_WIDTH },
+          para(
+            lineOf(p),
           ),
         ]
-      }),
-    },
+        : [para(lineOf(p))]
+    }),
   ]
 }
 
@@ -559,10 +641,14 @@ export function documentLanguage(doc: BillingDocument): Language {
   return doc.payer.language === 'en' ? 'en' : 'fr'
 }
 
-/** The PDF of a document; `logo` when the clinic's logo is passed as the `logo` asset. */
+/**
+ * The PDF of a document; `logo` when the clinic's logo is passed as the
+ * `logo` asset; `signatures`: the keys of the signature images passed
+ * (`signatureAssets`, a receipt only).
+ */
 export function billingPdf(
   doc: BillingDocument,
-  options: { logo: boolean },
+  options: { logo: boolean; signatures?: ReadonlySet<string> },
 ): PdfDocument {
   const language = documentLanguage(doc)
   const l = LABELS[language]
@@ -574,7 +660,9 @@ export function billingPdf(
   if (doc.kind === 'statement') {
     blocks.push(...statementBlocks(doc, language, l))
   } else {
-    blocks.push(...invoiceBlocks(doc, language, l))
+    blocks.push(
+      ...invoiceBlocks(doc, language, l, options.signatures ?? new Set()),
+    )
   }
   return {
     title: cut(`${title} — ${doc.clinic.name}`, 200),
@@ -588,6 +676,7 @@ function invoiceBlocks(
   doc: InvoiceDoc,
   language: Language,
   l: Labels,
+  signatures: ReadonlySet<string>,
 ): Block[] {
   const blocks: Block[] = []
   const date = doc.kind === 'invoice' ? doc.invoice.issued_on : doc.issued_on
@@ -625,8 +714,13 @@ function invoiceBlocks(
       para(label(l.payerFile, language), plain(doc.invoice.payer_reference)),
     )
   }
+  // R-87: a receipt names every person its sessions served.
+  const served = doc.kind === 'receipt' ? servedPeople(doc) : [doc.client]
   blocks.push(
-    para(label(l.servedTo, language), plain(personLine(doc.client, l))),
+    para(
+      label(l.servedTo, language),
+      plain(joinNames(served.map((p) => personLine(p, l)), l)),
+    ),
   )
   if (doc.kind === 'credit_note' && doc.invoice.number) {
     blocks.push(
@@ -672,7 +766,12 @@ function invoiceBlocks(
   }
   blocks.push(totalsTable(doc, language, l))
   blocks.push(
-    ...professionalsBlocks(doc.professionals, l, doc.payer_numbers ?? []),
+    ...professionalsBlocks(
+      doc.professionals,
+      l,
+      doc.payer_numbers ?? [],
+      doc.kind === 'receipt' ? signatures : new Set(),
+    ),
   )
   if (doc.kind === 'invoice' && doc.invoice.notes_client) {
     blocks.push(para(label(l.note, language), plain(doc.invoice.notes_client)))

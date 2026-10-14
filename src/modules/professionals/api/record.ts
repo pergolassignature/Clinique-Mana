@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 import type { TablesUpdate } from '@/core/supabase/database.types'
 import { invokeFunction } from '@/core/supabase/functions'
+import { uploadFile } from '@/core/storage/api'
+import type { UploadStep } from '@/shared/lib/files'
 import type { PayerType } from '../lib/constants'
 import { asRpcRefusal } from './function-errors'
 import {
@@ -277,6 +279,37 @@ export function syncProfessionalSignin(id: string): Promise<SigninSync> {
 export async function setSupervisor(id: string, supervisorId: string | null): Promise<void> {
   const { error } = await supabase.rpc('set_professional_supervisor', sqlArgs<'set_professional_supervisor'>({ p_professional_id: id, p_supervisor_id: supervisorId }))
   if (error) throw error
+}
+
+/**
+ * R-86: the signature image printed on her receipts (`upload_purposes.professional_signature`:
+ * PNG or JPEG, 2 Mo, 2000 px; uploaded and read with `professionals.manage`).
+ */
+export const SIGNATURE_PURPOSE = {
+  purpose: 'professional_signature',
+  mimeTypes: ['image/png', 'image/jpeg'],
+  maxBytes: 2_097_152,
+  maxImageSide: 2000,
+} as const
+
+/** Makes `fileId` her signature (null removes it; the previous file is soft-deleted). */
+export async function setSignature(id: string, fileId: string | null): Promise<void> {
+  const { error } = await supabase.rpc('set_professional_signature', sqlArgs<'set_professional_signature'>({ p_professional_id: id, p_file_id: fileId }))
+  if (error) throw error
+}
+
+export interface SignatureUpload {
+  id: string
+  file: File
+  mimeType: string
+  onStep: (step: UploadStep) => void
+}
+
+/** « Choisir un fichier » / « Remplacer »: the image through the storage pipeline, then made hers. Returns its file id. */
+export async function uploadSignature({ id, file, mimeType, onStep }: SignatureUpload): Promise<string> {
+  const { fileId } = await uploadFile({ purpose: SIGNATURE_PURPOSE.purpose, subjectType: 'professional', subjectId: id, file, mimeType, onStep })
+  await setSignature(id, fileId)
+  return fileId
 }
 
 const supervisorOptionRows = z.array(z.object({ id: z.string(), display_name: z.string().nullable(), status: z.string() }))

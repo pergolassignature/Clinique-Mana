@@ -18,12 +18,16 @@ const mocks = vi.hoisted(() => ({
     setProfessions: vi.fn(),
     setSupervisor: vi.fn(),
     fetchSupervisorOptions: vi.fn(),
+    setSignature: vi.fn(),
+    uploadSignature: vi.fn(),
   },
+  storage: { signedFileUrl: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
   address: { fetchAddressSuggestions: vi.fn(), fetchPlaceAddress: vi.fn() },
 }))
 vi.mock('@/core/address/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/address/api')>()), ...mocks.address }))
 vi.mock('../../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/record')>()), ...mocks.record }))
+vi.mock('@/core/storage/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/storage/api')>()), ...mocks.storage }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -66,6 +70,46 @@ describe('IdentityTab', () => {
     await save(supervision)
     await waitFor(() => expect(mocks.record.setSupervisor).toHaveBeenCalledExactlyOnceWith(stored.professional.id, 'sup-1'))
     expect(mocks.record.updateProfessional).not.toHaveBeenCalled()
+  })
+
+  describe('« Signature des reçus » (R-86)', () => {
+    const FILE_ID = '33333333-3333-4333-8333-333333333333'
+    const section = () => screen.getByRole('region', { name: t(`${I}.signature.title`) })
+
+    it('uploads an image and makes it hers', async () => {
+      mocks.storage.signedFileUrl.mockResolvedValue({ url: 'https://x.test/s.png?token=t', expiresAt: '2026-10-14T12:05:00Z' })
+      mocks.record.uploadSignature.mockImplementation(async () => {
+        stored = { ...stored, professional: { ...stored.professional, signatureFileId: FILE_ID } }
+        return FILE_ID
+      })
+      renderRecordTab(<IdentityTab />, { record: stored })
+      expect(within(section()).getByText(t(`${I}.signature.empty`))).toBeInTheDocument()
+      expect(within(section()).getByRole('button', { name: t('storage.dropzone.choose') })).toHaveAccessibleDescription(
+        /^PNG à fond transparent recommandé \(JPEG accepté\), 2 Mo et 2\s000 pixels de côté au plus\.$/,
+      )
+      const input = section().querySelector('input[type="file"]') as HTMLInputElement
+      await userEvent.upload(input, new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'signature.png', { type: 'image/png' }))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${I}.signature.saved`)))
+      expect(mocks.record.uploadSignature).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ id: stored.professional.id, mimeType: 'image/png', file: expect.any(File) }),
+      )
+      const name = `${stored.professional.firstName} ${stored.professional.lastName}`
+      await waitFor(() => expect(within(section()).getByRole('img', { name: t(`${I}.signature.alt`, { name }) })).toHaveAttribute('src', 'https://x.test/s.png?token=t'))
+    })
+
+    it('« Retirer » after a confirmation', async () => {
+      stored = { ...stored, professional: { ...stored.professional, signatureFileId: FILE_ID } }
+      mocks.storage.signedFileUrl.mockResolvedValue({ url: 'https://x.test/s.png?token=t', expiresAt: '2026-10-14T12:05:00Z' })
+      mocks.record.setSignature.mockImplementation(async (_id: string, fileId: string | null) => {
+        stored = { ...stored, professional: { ...stored.professional, signatureFileId: fileId } }
+      })
+      renderRecordTab(<IdentityTab />, { record: stored })
+      await userEvent.click(within(section()).getByRole('button', { name: t(`${I}.signature.remove`) }))
+      await userEvent.click(screen.getByRole('button', { name: t(`${I}.signature.removeConfirm.confirm`) }))
+      await waitFor(() => expect(mocks.record.setSignature).toHaveBeenCalledExactlyOnceWith(stored.professional.id, null))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${I}.signature.removed`)))
+      await waitFor(() => expect(within(section()).getByText(t(`${I}.signature.empty`))).toBeInTheDocument())
+    })
   })
 
   it('saves only the Identité fields, the gender null when « Non indiqué »', async () => {
@@ -392,7 +436,11 @@ describe('IdentityTab', () => {
       t(`${I}.contact.title`),
       t(`${I}.professions.title`),
       t(`${I}.experience.title`),
+      t(`${I}.signature.title`),
     ])
+    // R-86: whether there is a signature, never the image (read with professionals.manage only).
+    expect(screen.getByText(t(`${I}.signature.label`), { selector: 'dt' }).nextElementSibling?.textContent).toBe(t(`${I}.signature.none`))
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
     const value = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent
     expect(value(t(`${I}.identity.firstName`))).toBe(stored.professional.firstName)
     expect(value(t(`${I}.contact.province`))).toBe(t('settings.provinces.QC'))
