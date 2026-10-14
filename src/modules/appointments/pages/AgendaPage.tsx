@@ -29,6 +29,7 @@ import { UpcomingList } from '../components/UpcomingList'
 import { WithoutReminderSheet } from '../components/WithoutReminderSheet'
 import { useAgenda, useAgendaReference, useAvailability, useMoveAppointment, useMyAgendaReference } from '../hooks/use-agenda'
 import { useAvailabilityEditing } from '../hooks/use-availability-edit'
+import { useExternalBusy } from '../hooks/use-calendar'
 import { APPOINTMENT_LINK_PARAM as LINK_PARAM, servicesFor, weekdayLabel } from '../lib/display'
 import { addDays, daysFrom, hhmm, isoWeekday, monthGrid, rangeOf, startOfWeek } from '../lib/time'
 
@@ -142,6 +143,10 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const agenda = useAgenda(range.from, range.to, shownIds, mode === 'rendez-vous')
   const availabilityIds = mode === 'disponibilites' ? (pro ? [pro] : []) : effectiveView === 'jour' ? shown.map((p) => p.id) : pro ? [pro] : []
   const availability = useAvailability(availabilityIds, range.from)
+  // Google busy times (R6): drawn where a column has one professional (the day, or a week of one).
+  const timeGrid = mode === 'rendez-vous' && (effectiveView === 'jour' || effectiveView === 'semaine')
+  const busyIds = effectiveView === 'jour' ? shown.map((p) => p.id) : pro ? [pro] : []
+  const externalBusy = useExternalBusy(range.from, range.to, busyIds, timeGrid && busyIds.length > 0)
   // A personal appointment taken off is gone from the agenda (a clients' cancellation stays, struck).
   const appointments = useMemo(() => (agenda.data ?? []).filter((a) => !(a.isPersonal && a.state === 'cancelled')), [agenda.data])
 
@@ -356,6 +361,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
               onOpen={(a) => setSheet({ kind: 'edit', id: a.id })}
               onMove={onMove}
               serviceColour={(id) => reference.services.find((s) => s.id === id)?.colour ?? null}
+              busy={externalBusy.data ?? []}
             />
           )}
           {mode === 'disponibilites' && pro && (

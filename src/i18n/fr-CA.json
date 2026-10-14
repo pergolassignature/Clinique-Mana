@@ -8916,6 +8916,17 @@
         "placesOfOther": "{left} places restantes sur {declared}",
         "sinceOne": "Depuis le {date} : {used} prise",
         "sinceOther": "Depuis le {date} : {used} prises"
+      },
+      "home": {
+        "title": "Demandes à traiter",
+        "body": "Demandes ouvertes : {count}. Chaque chiffre ouvre la liste correspondante.",
+        "items": {
+          "late": "en retard (plus de 2 jours ouvrables sans contact)",
+          "no_answer": "sans réponse au dernier essai",
+          "due": "à rappeler maintenant",
+          "unassigned": "sans conseillère",
+          "mine": "à moi"
+        }
       }
     },
     "appointments": {
@@ -8933,7 +8944,9 @@
           "video_connections": "Comptes Zoom des professionnels",
           "video_connection_tokens": "Jetons des comptes Zoom",
           "appointment_video_meetings": "Réunions Zoom des rendez-vous",
-          "video_tasks": "Tâches des réunions Zoom"
+          "video_tasks": "Tâches des réunions Zoom",
+          "calendar_connections": "Agendas Google des professionnels",
+          "calendar_connection_tokens": "Jetons des agendas Google"
         },
         "fields": {
           "appointments": {
@@ -9060,6 +9073,25 @@
             "occurrences": "Nombre de rendez-vous",
             "until_on": "Jusqu'au",
             "skipped_on": "Dates ignorées (conflits)"
+          },
+          "calendar_connections": {
+            "professional_id": "Professionnel",
+            "provider": "Service",
+            "state": "État",
+            "external_user_id": "Identifiant Google",
+            "account_email": "Adresse Google",
+            "scopes": "Accès accordés",
+            "connected_at": "Connecté le",
+            "connected_by": "Connecté par",
+            "disconnected_at": "Déconnecté le",
+            "reconnect_reason": "Raison de la reconnexion"
+          },
+          "calendar_connection_tokens": {
+            "connection_id": "Agenda Google",
+            "access_token": "Jeton d’accès",
+            "refresh_token": "Jeton de renouvellement",
+            "access_token_expires_at": "Expiration du jeton d’accès",
+            "key_version": "Version de la clé"
           }
         },
         "values": {
@@ -9120,12 +9152,28 @@
               "done": "Faite",
               "failed": "Échec"
             }
+          },
+          "calendar_connections": {
+            "state": {
+              "connected": "Connecté",
+              "needs_reconnect": "À reconnecter",
+              "disconnected": "Déconnecté"
+            },
+            "provider": {
+              "google": "Google"
+            },
+            "reconnect_reason": {
+              "invalid_grant": "Google a refusé l’accès",
+              "unauthorized": "Google a refusé l’accès",
+              "scope_missing": "Permission des disponibilités retirée"
+            }
           }
         },
         "sources": {
           "seed:appointments_reference": "Réglages initiaux de l’agenda",
           "job:appointments.video_sync": "Tâche « Liens Zoom des rendez-vous »",
-          "webhook:zoom": "Zoom"
+          "webhook:zoom": "Zoom",
+          "job:appointments.google_busy_sync": "Tâche « Plages occupées des agendas Google »"
         }
       },
       "video": {
@@ -9251,6 +9299,62 @@
               "loadError": "L’état des tâches planifiées n’a pas pu être chargé."
             }
           }
+        }
+      },
+      "calendar": {
+        "nav": "Agenda Google",
+        "busy": "Occupé",
+        "page": {
+          "title": "Agenda Google",
+          "description": "Si vous le souhaitez, la clinique lit les moments où vous êtes occupé dans votre agenda Google, et seulement cela : jamais le titre, les invités ni le lieu de vos événements.",
+          "loadError": "Impossible de charger votre agenda Google.",
+          "notProfessionalTitle": "Réservé aux professionnels",
+          "notProfessionalBody": "Votre compte n’est lié à aucun dossier de professionnel de la clinique."
+        },
+        "title": "Mes moments occupés",
+        "description": "Connecté, chaque moment occupé de votre agenda Google principal paraît « Occupé » dans l’agenda de la clinique et n’est jamais proposé comme plage libre. Les conseillères peuvent quand même y réserver un rendez-vous au besoin.",
+        "notConnected": "Agenda Google non connecté",
+        "connected": "Agenda Google connecté",
+        "toReconnect": "Agenda Google à reconnecter",
+        "connect": "Connecter mon agenda Google",
+        "reconnect": "Reconnecter mon agenda Google",
+        "leaving": "Ouverture de Google…",
+        "connectHelp": "Google vous demande d’autoriser la clinique à voir vos disponibilités, puis vous ramène ici.",
+        "connectedAs": "Compte {email}, connecté le {date}.",
+        "connectedSince": "Connecté le {date}.",
+        "lastSyncedNone": "Lu le {date} : aucun moment occupé dans les 62 prochains jours.",
+        "lastSyncedOne": "Lu le {date} : 1 moment occupé dans les 62 prochains jours.",
+        "lastSyncedOther": "Lu le {date} : {count} moments occupés dans les 62 prochains jours.",
+        "neverSynced": "Pas encore lu : il le sera dans les 15 prochaines minutes.",
+        "syncErrorSince": "La dernière lecture a échoué. Les moments lus le {date} restent affichés ; la clinique réessaie toutes les 15 minutes.",
+        "syncErrorNever": "La première lecture a échoué. La clinique réessaie toutes les 15 minutes.",
+        "reconnectWhy": "Google refuse l’accès de la clinique à votre agenda.",
+        "reconnectScope": "La permission de voir vos disponibilités a été retirée.",
+        "reconnectNotice": "Vos moments occupés ne sont plus mis à jour tant que vous ne l’avez pas reconnecté.",
+        "sync": "Synchroniser",
+        "syncing": "Synchronisation…",
+        "synced": "Vos moments occupés sont à jour.",
+        "syncReconnect": "Google refuse l’accès de la clinique : reconnectez votre agenda Google.",
+        "syncFailed": "Google ne répond pas pour le moment. Réessayez dans quelques minutes.",
+        "disconnect": "Déconnecter",
+        "disconnecting": "Déconnexion…",
+        "disconnected": "Votre agenda Google est déconnecté : vos moments occupés ne sont plus affichés.",
+        "disconnectConfirm": {
+          "title": "Déconnecter votre agenda Google ?",
+          "body": "La clinique ne lira plus vos moments occupés, et ceux déjà lus sont effacés. Votre agenda Google n’est pas modifié.",
+          "action": "Déconnecter"
+        },
+        "connectedToast": "Votre agenda Google est connecté ({email}).",
+        "connectedToastPlain": "Votre agenda Google est connecté.",
+        "declined": "La connexion à Google a été annulée : votre agenda n’a pas été autorisé.",
+        "errors": {
+          "notConfigured": "La clinique n’a pas encore configuré son application Google. Demandez-lui de le faire.",
+          "providerError": "Google ne répond pas pour le moment. Réessayez dans quelques minutes.",
+          "linkInvalid": "Ce retour de Google n’est pas valide. Recommencez la connexion.",
+          "linkExpired": "La connexion a pris trop de temps. Recommencez-la.",
+          "linkUsed": "Cette connexion a déjà été traitée. Recommencez-la au besoin.",
+          "notFound": "Aucun agenda Google n’est connecté.",
+          "forbidden": "Cette connexion a été commencée par une autre personne. Recommencez-la."
         }
       },
       "saved": {

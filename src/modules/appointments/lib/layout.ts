@@ -1,3 +1,4 @@
+import type { ExternalBusy } from '../api/calendar'
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
 import { DEFAULT_GRID, isoWeekday, minutesOf, minutesOnDay, type GridRange } from './time'
 
@@ -63,6 +64,14 @@ export function exceptionsOn(exceptions: readonly AvailabilityException[], profe
     .filter((e) => e.professionalId === professionalId)
     .map((exception) => ({ exception, start: minutesOnDay(exception.startsAt, day), end: minutesOnDay(exception.endsAt, day) }))
     .filter((e) => e.end > e.start)
+}
+
+/** A professional's Google busy times overlapping `day` (R6), clipped to it: times only, drawn « Occupé ». */
+export function busyOn(busy: readonly ExternalBusy[], professionalId: string, day: string): { start: number; end: number }[] {
+  return busy
+    .filter((b) => b.professionalId === professionalId)
+    .map((b) => ({ start: Math.max(minutesOnDay(b.startsAt, day), 0), end: Math.min(minutesOnDay(b.endsAt, day), 24 * 60) }))
+    .filter((b) => b.end > b.start)
 }
 
 /** Top and height of a [start, end) range in a grid of `hourHeight` px per hour, clipped to the grid's `range`. */

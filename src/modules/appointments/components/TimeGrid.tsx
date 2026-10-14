@@ -3,8 +3,9 @@ import { Ban, Phone, Repeat, TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import { formatClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
+import type { ExternalBusy } from '../api/calendar'
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
-import { exceptionsOn, placeAppointments, verticalBox, windowsOn } from '../lib/layout'
+import { busyOn, exceptionsOn, placeAppointments, verticalBox, windowsOn } from '../lib/layout'
 import { DEFAULT_GRID, SNAP, gridRangeFor, hhmm, instantOf, minutesOnDay, snap, type GridRange } from '../lib/time'
 import { appointmentTitle, blockClasses, isBusyOnly, stateLabel } from '../lib/display'
 
@@ -37,6 +38,8 @@ interface TimeGridProps {
   onMove: (appointment: AgendaAppointment, startsAt: string) => void
   /** A service's colour (Services et tarifs), drawn on the block's left edge; null for none. */
   serviceColour?: (serviceId: string | null) => string | null
+  /** The professionals' Google busy times (R6): « Occupé », never a title, nothing to open. */
+  busy?: readonly ExternalBusy[]
 }
 
 interface Drag {
@@ -49,7 +52,8 @@ interface Drag {
 /**
  * The agenda's time grid (plan R2): columns of days or professionals, 6:00–22:00, widened by whole
  * hours to any appointment outside it (one is never hidden), each item placed by its clinic date and clock time (`lib/time`, so 9:00 stays on the 9:00 line across a
- * daylight-saving change). Booking mode: availability windows shaded and exceptions hatched; a
+ * daylight-saving change). Booking mode: availability windows shaded and exceptions hatched, a
+ * professional's Google busy times « Occupé » (R6, times only); a
  * click on an empty quarter hour creates an appointment there; an appointment opens on click and
  * moves by dragging (Pointer Events, 15-minute snapping), the move confirmed by the database.
  * « Disponibilités » is `AvailabilityGrid` (direct manipulation, AP-27). Blocks are buttons (keyboard: Tab then Entrée); creation also has the toolbar's button.
@@ -114,6 +118,7 @@ function Column({ column, height, range, ...props }: TimeGridProps & { column: G
   const placed = placeAppointments(ownOf(appointments, column), column.day)
   const windows = shadeFor ? windowsOn(rules, shadeFor, column.day) : []
   const offs = shadeFor ? exceptionsOn(exceptions, shadeFor, column.day) : []
+  const busy = shadeFor && props.busy ? busyOn(props.busy, shadeFor, column.day) : []
   const [drag, setDrag] = useState<Drag | null>(null)
   const dragRef = useRef<Drag | null>(null)
   // A drag ends with a click on the block: that click must not open it.
@@ -176,6 +181,17 @@ function Column({ column, height, range, ...props }: TimeGridProps & { column: G
             className="pointer-events-none absolute inset-x-0 bg-muted [background-image:repeating-linear-gradient(135deg,transparent_0_6px,rgb(var(--border-strong))_6px_7px)]"
             style={verticalBox(start, end, HOUR_HEIGHT, range)}
           />
+        ))}
+        {busy.map(({ start, end }) => (
+          // Busy elsewhere (her Google agenda): under the appointments; a click still books there (AP-43).
+          <div
+            key={`busy-${start}-${end}`}
+            data-testid="agenda-busy"
+            className="pointer-events-none absolute inset-x-0.5 overflow-hidden rounded-md border border-dashed border-border-strong bg-muted/80 px-1.5 py-0.5 text-xs text-muted-foreground"
+            style={verticalBox(start, end, HOUR_HEIGHT, range)}
+          >
+            {t('modules.appointments.calendar.busy')}
+          </div>
         ))}
         {placed.map(({ item: a, start, end, lane, lanes }) => {
             const offset = drag?.id === a.id ? drag.offset : 0
