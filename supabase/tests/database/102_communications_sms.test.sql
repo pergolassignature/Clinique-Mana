@@ -125,7 +125,7 @@ select is(private.sms_keyword('Stop'), 'stop', '« Stop » stops');
 select is(private.sms_keyword('UNSUBSCRIBE'), 'stop', '« UNSUBSCRIBE » stops');
 select is(private.sms_keyword('Oui!'), 'yes', '« Oui! » confirms');
 select is(private.sms_keyword('yes'), 'yes', '« yes » confirms');
-select is(private.sms_keyword('stop l''envoi'), null, 'a sentence is not a keyword');
+select is(private.sms_keyword('Merci, à mardi'), null, 'a sentence is not a keyword');
 select is(private.sms_keyword(''), null, 'empty is not a keyword');
 
 -- 2027-03-10 is a Wednesday. Toronto is UTC−5 in March before the 14th.

@@ -3,16 +3,20 @@
  * function (CLAUDE.md §7).
  *
  * 1. CORS, `POST` only, the body (`readJson`), then `verifyAuth(req, {
- *    module: 'communications', permission: 'communications.ai_draft' })`.
+ *    module: 'communications', permission: 'communications.ai_draft' })`
+ *    and `communications.inbox` (drafting reads and writes mail).
  * 2. The caller's limit (`communications.ai_draft_user`, 40 an hour).
- * 3. `ai_draft_context_for_service(org, actor, client, thread)`: the right
- *    again, the clinic's settings, the month's spending, and the names to
- *    keep from OpenAI. Off → a French refusal; the monthly cap reached → a
- *    French refusal (nothing is called).
+ * 3. `ai_draft_context_for_service(org, actor, client, thread)`: the rights
+ *    again (and a thread she reads), the clinic's settings, the month's
+ *    spending, and the names to keep from OpenAI (the file's person, the
+ *    sender, the clinic, every correspondent of the thread). Off → a French
+ *    refusal; the monthly cap reached → a French refusal (nothing is called).
  * 4. The key (`get_org_secret('openai_api_key')`); none → 503 `not_configured`.
  * 5. Everything sent is masked first (`mask.ts`): the file's person, the
  *    sender and the clinic become the composer's placeholders (gmail-send
- *    fills them at the send), addresses and numbers numbered tokens.
+ *    fills them at the send), the thread's other correspondents, addresses
+ *    and numbers numbered tokens. The masked text of the message replied to
+ *    is sent (CM-19).
  *    PS Hub's prompts (`prompts.ts`), then OpenAI's Chat Completions.
  * 6. Each call is recorded without its text (`record_ai_request_for_service`:
  *    the model, the kind, the result, the tokens, the cost).
@@ -53,6 +57,7 @@ import {
 } from './prompts.ts'
 
 const FN = 'communications-draft'
+const INBOX_PERMISSION = 'communications.inbox'
 const TEXT_MAX = 20_000
 
 const turnSchema = z.object({
@@ -84,6 +89,7 @@ const contextSchema = z.object({
   }).nullable(),
   sender_name: z.string().nullable(),
   clinic_name: z.string().nullable(),
+  correspondent_names: z.array(z.string()).max(50).default([]),
 })
 
 const money = (cents: number) =>
@@ -103,6 +109,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       permission: 'communications.ai_draft',
     }, deps.userClient)
     if (auth instanceof Response) return auth
+    if (!auth.access.permissions.includes(INBOX_PERMISSION)) {
+      return errorResponse(
+        'forbidden',
+        `Permission required: ${INBOX_PERMISSION}`,
+        403,
+        req,
+      )
+    }
     const orgId = auth.access.org_id
     const userId = auth.user.id
     const ids: Record<string, string> = { org_id: orgId, user_id: userId }
@@ -180,6 +194,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       lastName: settings.person?.last_name,
       senderName: settings.sender_name,
       clinicName: settings.clinic_name,
+      others: settings.correspondent_names,
     })
     const userTurn = buildUserTurn({
       mode,

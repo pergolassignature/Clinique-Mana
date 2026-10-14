@@ -45,11 +45,60 @@ export function fillPlaceholders(
   })
 }
 
+/** The schemes a link or a source may name; a relative address has none. */
+const ALLOWED_SCHEMES = new Set(['https', 'http', 'mailto', 'tel', 'cid'])
+
+const URL_ENTITIES: Record<string, string> = {
+  colon: ':',
+  tab: '\t',
+  newline: '\n',
+  sol: '/',
+  period: '.',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+}
+
+/** An attribute value as the browser reads it: character references decoded (with or without `;`). */
+function decodeAttribute(value: string): string {
+  return value.replace(
+    /&(?:#x([0-9a-f]+)|#(\d+)|([a-z]+));?/gi,
+    (all, hex?: string, dec?: string, name?: string) => {
+      const code = hex ? parseInt(hex, 16) : dec ? Number(dec) : null
+      if (code !== null) {
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : ''
+      }
+      return URL_ENTITIES[name!.toLowerCase()] ?? all
+    },
+  )
+}
+
+/**
+ * Whether a link or source may stay: its scheme, once decoded and stripped of
+ * the controls and spaces a browser ignores (`java&#x09;script:`,
+ * `&#106;avascript:`, `javascript&colon;`), is http(s), mailto, tel or cid,
+ * or it has none (a relative address, an anchor).
+ */
+function safeUrl(raw: string): boolean {
+  // Controls and spaces (code points up to U+0020, U+007F to U+009F) dropped.
+  const value = [...decodeAttribute(raw)].filter((c) => {
+    const code = c.codePointAt(0)!
+    return code > 0x20 && (code < 0x7f || code > 0x9f)
+  }).join('')
+  const scheme = /^([^/?#]*?):/.exec(value)
+  if (!scheme) return true
+  return ALLOWED_SCHEMES.has(scheme[1]!.toLowerCase())
+}
+
 /**
  * Hardens the composer's HTML (TipTap's output is already a small schema; this
  * is the server's own line): no script, style, iframe, object, embed, form or
- * base element, no `on…` attribute, no `javascript:` / `data:` / `vbscript:`
- * link or source, no `srcdoc`.
+ * base element, no `on…` attribute, no `srcdoc`, and a link or source only to
+ * an https, http, mailto, tel or cid address, or a relative one (character
+ * references decoded first: an encoded `javascript:` is caught).
  */
 export function hardenHtml(html: string): string {
   return html
@@ -64,8 +113,11 @@ export function hardenHtml(html: string): string {
     .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/\s+srcdoc\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(
-      /\s+(href|src|action|formaction|xlink:href)\s*=\s*("\s*(?:javascript|vbscript|data):[^"]*"|'\s*(?:javascript|vbscript|data):[^']*'|(?:javascript|vbscript|data):[^\s>]*)/gi,
-      '',
+      /\s+(href|src|action|formaction|xlink:href|background|poster|longdesc|cite)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
+      (all, _name: string, quoted: string) => {
+        const value = /^["']/.test(quoted) ? quoted.slice(1, -1) : quoted
+        return safeUrl(value) ? all : ''
+      },
     )
 }
 
