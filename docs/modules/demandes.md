@@ -375,7 +375,7 @@ Migration `20261013045323_demandes_booking`; pgTAP `116_demandes_booking`; funct
 
 ## Security review (2026-10-14)
 
-Migration `20261014042310_demandes_security_fixes`; pgTAP `190_demandes_security_fixes` (and 116 updated); Deno `demandes-book-call/handler.test.ts`; decisions **D-50, D-51**.
+Migration `20261014054618_demandes_security_fixes`; pgTAP `191_demandes_security_fixes` (and 116 updated); Deno `demandes-book-call/handler.test.ts`; decisions **D-50, D-51**.
 
 - **The booking page never tells whether an address already has a call** (D-50). A second booking with the same address answers like any booking: no request, no call, no refusal. The earlier call gets a fresh cancel link (the first one stops working). The function sends the usual confirmation to that address, with the call's own time, first name and language, never the text typed this time. The page shows the slot asked for (`requested_starts_at`), never the earlier call.
 - **A professional stops seeing the files she loses** (D-51). This happens when a participant is removed or the request's file changes on a matched request, and when the request leaves « Jumelée » (unmatched or closed). Demandes' `private.demandes_release_clients` keeps any file that another request still matched to her holds. For the others it calls Clients' `private.clients_unlink_professional_reason(org, client, professional, 'demande')`, which:
