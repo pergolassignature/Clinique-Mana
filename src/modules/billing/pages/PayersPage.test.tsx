@@ -9,7 +9,7 @@ import type { PayerQueueGroup } from '../api/payers'
 import { PayersPage } from './PayersPage'
 
 const mocks = vi.hoisted(() => ({
-  payers: { fetchPayerQueue: vi.fn(), preparePayerInvoices: vi.fn() },
+  payers: { fetchPayerQueue: vi.fn(), preparePayerInvoices: vi.fn(), fetchPayerOrganisations: vi.fn() },
   queue: { sendInvoices: vi.fn(), deliverNow: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
@@ -45,6 +45,7 @@ function open(role: FixtureRole = 'admin_assistant') {
 beforeEach(() => {
   mocks.payers.fetchPayerQueue.mockResolvedValue([IVAC, PAE])
   mocks.payers.preparePayerInvoices.mockResolvedValue(['i8'])
+  mocks.payers.fetchPayerOrganisations.mockResolvedValue([])
   mocks.queue.sendInvoices.mockResolvedValue([{ invoiceId: 'i7', number: '2026-701', error: null }])
   mocks.queue.deliverNow.mockResolvedValue({ done: 1, failed: 0 })
 })
@@ -65,6 +66,20 @@ describe('PayersPage', () => {
     expect(within(pae).getByText(t(`${P}.later.threshold`))).toBeInTheDocument()
     expect(within(pae).getByText(t(`${P}.noFileNumber`))).toBeInTheDocument()
     expect(within(pae).getByRole('link', { name: 'Rémi Essai' })).toHaveAttribute('href', '/facturation/factures/i7')
+  })
+
+  it('R-84: an organisation that takes its invoices on a portal links to it, never « sans adresse »', async () => {
+    mocks.payers.fetchPayerQueue.mockResolvedValue([{ ...IVAC, organisation: { ...IVAC.organisation, billingEmail: null } }])
+    mocks.payers.fetchPayerOrganisations.mockResolvedValue([
+      {
+        id: 'o-ivac', kind: 'ivac', name: 'IVAC', billingEmail: null, contactName: null, language: 'fr', providerNumber: null, cadence: 'monthly',
+        dueDays: 30, remindersEnabled: false, isActive: true, note: null, portalUrl: 'https://portail.exemple.test/depot',
+      },
+    ])
+    open()
+    const ivac = await screen.findByRole('region', { name: 'IVAC' })
+    expect(await within(ivac).findByRole('link', { name: t(`${P}.portal`) })).toHaveAttribute('href', 'https://portail.exemple.test/depot')
+    expect(within(ivac).queryByText(t(`${P}.noBillingEmail`))).not.toBeInTheDocument()
   })
 
   it('« Préparer les factures » drafts what is due, by each organisation’s cadence', async () => {

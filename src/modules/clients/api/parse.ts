@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { CoverageTier } from '../lib/payer-tiers'
 import { HOLDER_RELATIONS, LANGUAGES, PAYER_KINDS, RATE_VARIANTS, RELATION_TYPES, SEXES } from '../lib/constants'
 
 /**
@@ -211,6 +212,17 @@ export const insurancePayload = z
   }))
 export type ClientInsurance = z.output<typeof insurancePayload>
 
+/** One tier of a PAE agreement (R-85): its next `sessions` covered by an amount or a share. */
+const coverageTierPayload = z
+  .object({
+    sessions: z.number().int(),
+    coverage_percent: z.number().int().nullable().optional(),
+    session_amount_cents: z.number().int().nullable().optional(),
+  })
+  .transform(
+    (r): CoverageTier => ({ sessions: r.sessions, coveragePercent: r.coverage_percent ?? null, sessionAmountCents: r.session_amount_cents ?? null }),
+  )
+
 export const payerPayload = z
   .object({
     id: z.string(),
@@ -232,6 +244,9 @@ export const payerPayload = z
     prior_used_sessions: z.number().int().nullable().default(null),
     prior_used_on: z.string().nullable().default(null),
     is_stub: z.boolean().default(false),
+    // R-84: the date of the event an IVAC file is about (a calendar date); R-85: a PAE's tiers.
+    event_on: z.string().nullable().default(null),
+    coverage_tiers: z.array(coverageTierPayload).max(5).default([]),
   })
   .transform((r) => ({
     id: r.id,
@@ -252,6 +267,8 @@ export const payerPayload = z
     priorUsedSessions: r.prior_used_sessions,
     priorUsedOn: r.prior_used_on,
     isStub: r.is_stub,
+    eventOn: r.event_on,
+    coverageTiers: r.coverage_tiers,
   }))
 export type ClientPayer = z.output<typeof payerPayload>
 

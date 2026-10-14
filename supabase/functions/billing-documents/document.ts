@@ -14,7 +14,10 @@
  *
  * A payer organisation's invoice (FP-4, FP-11) is billed to the organisation
  * with the clinic's provider number and the payer's file number, due on its
- * date; an IVAC invoice also names each professional's IVAC number.
+ * date; an IVAC invoice also names each professional's IVAC number. Its
+ * header follows the CNESST's sample (R-84): « N° de dossier », « Fournisseur »
+ * (the clinic and its supplier number), « Professionnel » (her name and IVAC
+ * number), « Permis » (her order and permit), « Date de l'évènement ».
  *
  * pdfmake-free: plain model data (`_shared/pdf/model.ts`).
  */
@@ -35,6 +38,8 @@ const personSchema = z.object({
   /** FP: an organisation payer's kind and the clinic's provider number with it. */
   organisation_kind: z.enum(['ivac', 'pae']).nullable().optional(),
   provider_number: maybe,
+  /** R-84: an IVAC invoice's client's event date (a calendar date). */
+  event_on: maybe,
 })
 
 const clinicSchema = z.object({
@@ -352,6 +357,24 @@ const LABELS = {
 } as const
 
 type Labels = (typeof LABELS)[Language]
+
+/** R-84: the labels of an IVAC invoice's header, as the CNESST's sample has them. */
+const IVAC_LABELS = {
+  fr: {
+    file: 'N° de dossier',
+    supplier: 'Fournisseur',
+    professional: 'Professionnel',
+    permit: 'Permis',
+    eventOn: 'Date de l’évènement',
+  },
+  en: {
+    file: 'File no.',
+    supplier: 'Supplier',
+    professional: 'Professional',
+    permit: 'Licence',
+    eventOn: 'Date of the event',
+  },
+} as const
 
 /** At most `max` UTF-16 units, never splitting a surrogate pair. */
 function cut(value: string, max: number): string {
@@ -711,15 +734,22 @@ function invoiceBlocks(
       plain(personLine(doc.payer, l)),
     ),
   )
-  if (organisation && doc.payer.provider_number) {
-    blocks.push(
-      para(label(l.providerNumber, language), plain(doc.payer.provider_number)),
-    )
-  }
-  if (organisation && doc.invoice.payer_reference) {
-    blocks.push(
-      para(label(l.payerFile, language), plain(doc.invoice.payer_reference)),
-    )
+  if (organisation && doc.payer.organisation_kind === 'ivac') {
+    blocks.push(...ivacHeaderBlocks(doc, language))
+  } else {
+    if (organisation && doc.payer.provider_number) {
+      blocks.push(
+        para(
+          label(l.providerNumber, language),
+          plain(doc.payer.provider_number),
+        ),
+      )
+    }
+    if (organisation && doc.invoice.payer_reference) {
+      blocks.push(
+        para(label(l.payerFile, language), plain(doc.invoice.payer_reference)),
+      )
+    }
   }
   // R-87: a receipt names every person its sessions served.
   const served = doc.kind === 'receipt' ? servedPeople(doc) : [doc.client]
@@ -772,20 +802,92 @@ function invoiceBlocks(
     blocks.push(linesTable(lines, doc.professionals, language, l))
   }
   blocks.push(totalsTable(doc, language, l))
-  blocks.push(
-    ...professionalsBlocks(
-      doc.professionals,
-      l,
-      doc.payer_numbers ?? [],
-      doc.kind === 'receipt' ? signatures : new Set(),
-    ),
-  )
+  // An IVAC invoice names its professionals once, in its header (R-84); an
+  // organisation's document is never an insurance receipt, so no signature
+  // is lost.
+  if (!(organisation && doc.payer.organisation_kind === 'ivac')) {
+    blocks.push(
+      ...professionalsBlocks(
+        doc.professionals,
+        l,
+        doc.payer_numbers ?? [],
+        doc.kind === 'receipt' ? signatures : new Set(),
+      ),
+    )
+  }
   if (doc.kind === 'invoice' && doc.invoice.notes_client) {
     blocks.push(para(label(l.note, language), plain(doc.invoice.notes_client)))
   }
   const paying = doc.kind === 'invoice' ? paymentNote(doc, language) : ''
   if (paying) blocks.push(para(label(l.paying, language), plain(paying)))
   if (doc.kind === 'receipt') blocks.push(para(plain(l.thanks)))
+  return blocks
+}
+
+/**
+ * An IVAC invoice's header (R-84, the CNESST's sample): the client's file
+ * number, the clinic with its supplier number, each professional with her
+ * IVAC number and her order's permit, then the date of the event. The only
+ * place an IVAC invoice names its professionals. An intern (a supervisor, as
+ * `professionalLine` decides) is « (stagiaire) » and prints her supervisor's
+ * order and permit, with the supervisor's name.
+ */
+export function ivacHeaderBlocks(doc: InvoiceDoc, language: Language): Block[] {
+  const l = IVAC_LABELS[language]
+  const common = LABELS[language]
+  const blocks: Block[] = []
+  if (doc.invoice.payer_reference) {
+    blocks.push(
+      para(label(l.file, language), plain(doc.invoice.payer_reference)),
+    )
+  }
+  const supplier = [
+    doc.clinic.legal_name || doc.clinic.name,
+    doc.payer.provider_number,
+  ].filter(Boolean).join(' ')
+  blocks.push(para(label(l.supplier, language), plain(supplier)))
+  for (const p of doc.professionals) {
+    const number = doc.payer_numbers?.find((n) =>
+      n.professional_id === p.professional_id
+    )?.number
+    const intern = !!(p.supervisor_id && p.supervisor_name)
+    blocks.push(
+      para(
+        label(l.professional, language),
+        plain(
+          [intern ? `${p.name} (${common.intern})` : p.name, number]
+            .filter(Boolean).join(' '),
+        ),
+      ),
+    )
+    const permit = intern
+      ? [
+        p.supervisor_order_acronym || p.supervisor_order_name,
+        p.supervisor_licence_number,
+      ].filter(Boolean).join(' ')
+      : [p.order_acronym || p.order_name, p.licence_number].filter(Boolean)
+        .join(' ')
+    if (permit) {
+      blocks.push(
+        para(
+          label(l.permit, language),
+          plain(
+            intern
+              ? `${permit} (${common.supervisedBy} ${p.supervisor_name})`
+              : permit,
+          ),
+        ),
+      )
+    }
+  }
+  if (doc.payer.event_on) {
+    blocks.push(
+      para(
+        label(l.eventOn, language),
+        plain(day(doc.payer.event_on, language)),
+      ),
+    )
+  }
   return blocks
 }
 

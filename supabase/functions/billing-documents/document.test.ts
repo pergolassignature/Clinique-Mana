@@ -122,7 +122,7 @@ Deno.test('the invoice: billed to the payer, taxes per line with their rates, th
   assertStringIncludes(exempt, 'Exempté de taxes (Statut Indien)')
 })
 
-Deno.test('an IVAC invoice (FP-11): billed to IVAC with the clinic’s provider number and the file number, due on its date, each professional’s IVAC number', () => {
+Deno.test('an IVAC invoice (FP-11, R-84): billed to IVAC, its header as the CNESST’s sample (file, supplier, professional with her IVAC number, permit, event date), due on its date', () => {
   const ivac = invoiceDoc({
     invoice: {
       ...invoiceDoc().invoice,
@@ -138,6 +138,7 @@ Deno.test('an IVAC invoice (FP-11): billed to IVAC with the clinic’s provider 
       language: 'fr',
       organisation_kind: 'ivac',
       provider_number: 'FOURN-1',
+      event_on: '2026-03-02',
     },
     payer_numbers: [{
       professional_id: PROFESSIONALS[0].professional_id,
@@ -146,18 +147,73 @@ Deno.test('an IVAC invoice (FP-11): billed to IVAC with the clinic’s provider 
   })
   const all = texts(billingPdf(parse(ivac), { logo: false }))
   assertStringIncludes(all, 'Facturé à : IVAC')
-  assertStringIncludes(
-    all,
-    'N° de fournisseur de la clinique : FOURN-1',
-  )
-  assertStringIncludes(all, 'N° de dossier : IV-1')
+  // R-84: the header in the CNESST's order, the event date last.
+  const header = [
+    'N° de dossier\u00A0: IV-1',
+    'Fournisseur\u00A0: Clinique MANA inc. FOURN-1',
+    'Professionnel\u00A0: Simon Stagiaire (stagiaire) IVAC-123',
+    'Permis\u00A0: OPQ L-1 (sous la supervision de Hélène Superviseure)',
+    'Date de l’évènement\u00A0: 2 mars 2026',
+  ]
+  let at = -1
+  for (const line of header) {
+    const next = all.indexOf(line)
+    assert(next > at, line)
+    at = next
+  }
+  assert(!all.includes('N° de fournisseur de la clinique'))
   assertStringIncludes(all, 'Échéance : 12 novembre 2026')
   assert(!all.includes('sur réception'))
-  assertStringIncludes(all, 'N° IVAC IVAC-123')
+  // Named once, in the header: no « Professionnels » block below.
+  assert(!all.split('\n').includes('Professionnels'))
+  assert(!all.includes('N° IVAC'))
   // A client's invoice: due on receipt, no provider nor IVAC number.
   const own = texts(billingPdf(parse(invoiceDoc()), { logo: false }))
   assertStringIncludes(own, 'Échéance : sur réception')
   assert(!own.includes('N° IVAC') && !own.includes('fournisseur'))
+})
+
+Deno.test('R-84: an IVAC header without an event date nor a supplier number; a professional (no supervisor) prints her own permit; a PAE keeps its lines and the professionals’ block', () => {
+  const base = invoiceDoc().invoice
+  const ivac = parse(invoiceDoc({
+    invoice: { ...base, payer_kind: 'organisation', payer_reference: 'IV-2' },
+    payer: {
+      id: 'o1',
+      name: 'IVAC',
+      language: 'fr',
+      organisation_kind: 'ivac',
+      provider_number: null,
+    },
+    professionals: [{
+      ...PROFESSIONALS[0],
+      name: 'Hélène Pro',
+      supervisor_id: null,
+      supervisor_name: null,
+    }],
+  }))
+  const all = texts(billingPdf(ivac, { logo: false }))
+  assertStringIncludes(all, 'Fournisseur\u00A0: Clinique MANA inc.\n')
+  assertStringIncludes(all, 'Professionnel\u00A0: Hélène Pro\n')
+  assertStringIncludes(all, 'Permis\u00A0: OPQ S-2\n')
+  assert(!all.includes('stagiaire'))
+  assert(!all.includes('évènement'))
+  const pae = texts(billingPdf(
+    parse(invoiceDoc({
+      invoice: { ...base, payer_kind: 'organisation', payer_reference: 'PX-9' },
+      payer: {
+        id: 'o2',
+        name: 'Fournisseur X',
+        language: 'fr',
+        organisation_kind: 'pae',
+        provider_number: 'F-77',
+      },
+    })),
+    { logo: false },
+  ))
+  assertStringIncludes(pae, 'N° de fournisseur de la clinique\u00A0: F-77')
+  assertStringIncludes(pae, 'N° de dossier\u00A0: PX-9')
+  assert(!pae.includes('Permis\u00A0:'))
+  assert(pae.split('\n').includes('Professionnels'))
 })
 
 Deno.test('BI-21: an invoice says how to pay by Interac and when the receipt follows; in its email too; never on a receipt', () => {

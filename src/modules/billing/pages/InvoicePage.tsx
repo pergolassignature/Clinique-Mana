@@ -54,6 +54,7 @@ import {
   useSetLinePrice,
 } from '../hooks/use-invoices'
 import { useRecordRefundOutsideApp, useRefundPayment } from '../hooks/use-follow-up'
+import { usePayerOrganisations } from '../hooks/use-payers'
 import {
   useRecordPayment,
   useReleaseDraft,
@@ -119,6 +120,11 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
   const release = useReleaseDraft(feedback)
   const resend = useResendDocument(feedback)
   const delivery = deliveryText(bundle.deliveries[0])
+  // R-84: an organisation that takes its invoices on a portal (IVAC: the CNESST's) gets the PDF
+  // uploaded there, not emailed.
+  const organisationPayer = invoice.payerKind === 'organisation'
+  const organisations = usePayerOrganisations({ enabled: organisationPayer })
+  const portalUrl = organisationPayer ? (organisations.data?.find((o) => o.id === payer.id)?.portalUrl ?? null) : null
   return (
     <div className="space-y-5">
       <PageHeader
@@ -248,12 +254,26 @@ function Invoice({ bundle }: { bundle: InvoiceBundle }) {
       )}
       {invoice.status === 'draft' &&
         !invoice.payerHasEmail &&
-        invoice.holdNow !== 'payer_missing' && (
-          <p className="text-sm text-muted-foreground">{t(`${I}.noEmail`)}</p>
+        invoice.holdNow !== 'payer_missing' &&
+        (!organisationPayer || !organisations.isPending) && (
+          <p className="text-sm text-muted-foreground">
+            {portalUrl ? t(`${I}.portalNote`, { payer: payer.name }) : t(`${I}.noEmail`)}
+          </p>
         )}
       {invoice.status !== 'draft' && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           <PdfLink fileId={invoice.pdfFileId} label={t(`${I}.download`)} />
+          {portalUrl && (
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t(`${I}.portalLinkLabel`, { payer: payer.name })}
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              {t(`${I}.portalLink`)}
+            </a>
+          )}
           {delivery && (
             <span className="text-muted-foreground">{delivery}</span>
           )}
