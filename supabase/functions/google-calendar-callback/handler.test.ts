@@ -80,7 +80,12 @@ Deno.test('google-calendar-callback: the happy path stores the connection, syncs
     assertEquals(h.google.freeBusyCalls[0].timeMax, '2026-12-14T15:00:00.000Z')
     const limits = h.service.calls.filter((c) => c.fn === 'consume_rate_limit')
       .map((c) => c.args.p_bucket)
-    assertEquals(limits, ['google_calendar.callback_user', 'oauth.state_nonce'])
+    assertEquals(limits, ['google_calendar.callback_user'])
+    const spend = h.service.calls.filter((c) =>
+      c.fn === 'spend_oauth_state_nonce_for_service'
+    )
+    assertEquals(spend.length, 1)
+    assert(/^\\x[0-9a-f]{64}$/.test(String(spend[0].args.p_nonce_hash)))
   }))
 
 Deno.test('google-calendar-callback: the free/busy box unticked → a French refusal, the grant revoked, nothing stored', () =>
@@ -94,6 +99,35 @@ Deno.test('google-calendar-callback: the free/busy box unticked → a French ref
     const body = await res.json()
     assertEquals(body.error.refusal, true)
     assert(body.error.message.includes('disponibilités'))
+    assert([...h.google.grants.values()].every((g) => g.revoked))
+    assert(!h.rpcNames().includes('store_calendar_connection'))
+  }))
+
+Deno.test('google-calendar-callback: no refresh token from Google → a French refusal, the grant revoked, nothing stored', () =>
+  run(async () => {
+    const h = calendarHarness()
+    // Google answers the code without a refresh token (a grant it already gave).
+    const google = h.deps.fetch
+    const fetchWithoutRefresh: typeof fetch = async (input, init) => {
+      const res = await google(input, init)
+      const url = input instanceof Request ? input.url : String(input)
+      if (!new URL(url).pathname.endsWith('/token') || !res.ok) return res
+      const body = await res.json()
+      delete body.refresh_token
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    const code = h.google.issueCode(SCOPES)
+    const res = await createHandler({ ...h.deps, fetch: fetchWithoutRefresh })(
+      post({ code, state: await signed(h) }),
+    )
+    assertEquals(res.status, 400)
+    const body = await res.json()
+    assertEquals(body.error.refusal, true)
+    assert(body.error.message.includes('accès durable'))
+    assert(h.google.grants.size > 0)
     assert([...h.google.grants.values()].every((g) => g.revoked))
     assert(!h.rpcNames().includes('store_calendar_connection'))
   }))
@@ -141,25 +175,45 @@ Deno.test('google-calendar-callback: an expired state → 410 link_expired', () 
     assertEquals((await res.json()).error.code, 'link_expired')
   }))
 
-Deno.test('google-calendar-callback: a replayed state → 410 link_used', () =>
+Deno.test('google-calendar-callback: a replayed state → 410 link_used, even minutes later; the check unavailable → 503', () =>
   run(async () => {
-    const h = calendarHarness({
+    const h = calendarHarness()
+    const handler = createHandler(h.deps)
+    const state = await signed(h)
+    const first = await handler(
+      post({ code: h.google.issueCode(SCOPES), state }),
+    )
+    assertEquals(first.status, 200)
+    const googleCalls = h.google.calls.length
+    for (const minutes of [0, 9]) {
+      h.advance(minutes * 60_000)
+      const res = await handler(
+        post({ code: h.google.issueCode(SCOPES), state }),
+      )
+      assertEquals(res.status, 410)
+      assertEquals((await res.json()).error.code, 'link_used')
+    }
+    assertEquals(h.google.calls.length, googleCalls)
+
+    const down = calendarHarness({
       rpc: {
-        consume_rate_limit: (args) => ({
-          data: [{
-            allowed: args.p_bucket !== 'oauth.state_nonce',
-            hits: 2,
-            retry_after_seconds: 0,
-          }],
-        }),
+        spend_oauth_state_nonce_for_service: {
+          error: { code: '22023', message: 'Arguments invalides.' },
+        },
       },
     })
-    const res = await createHandler(h.deps)(
-      post({ code: h.google.issueCode(SCOPES), state: await signed(h) }),
-    )
-    assertEquals(res.status, 410)
-    assertEquals((await res.json()).error.code, 'link_used')
-    assertEquals(h.google.calls.length, 0)
+    let res: Response | undefined
+    await captureConsole('error', async () => {
+      res = await createHandler(down.deps)(
+        post({
+          code: down.google.issueCode(SCOPES),
+          state: await signed(down),
+        }),
+      )
+    })
+    assertEquals(res!.status, 503)
+    assertEquals((await res!.json()).error.code, 'not_configured')
+    assertEquals(down.google.calls.length, 0)
   }))
 
 Deno.test('google-calendar-callback: a code Google refuses → a French refusal, Google’s body never passed on', () =>

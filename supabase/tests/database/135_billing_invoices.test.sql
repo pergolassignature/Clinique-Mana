@@ -156,12 +156,12 @@ select is((select count(*)::int from public.invoice_lines where invoice_id = cur
 select ok(public.finalize_invoice(current_setting('test.i2')::uuid) ~ '^[0-9]{4}-2$', '… and the next number, without a gap');
 
 -- The sequence set by the settings (GOrendezvous's last number), never backwards.
-select throws_ok($$ select public.set_invoice_sequence(extract(year from current_date)::int, 600) $$,
+select throws_ok($$ select public.set_invoice_sequence(extract(year from (now() at time zone 'America/Toronto'))::int, 600) $$,
   '42501', 'Permission refusée : billing.settings', 'the sequence: billing.settings');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.set_invoice_sequence(extract(year from current_date)::int, 1) $$,
-  'P0001', 'La facture ' || extract(year from current_date)::int || '-2 existe déjà : la numérotation ne peut pas reculer.', 'never below a number given');
-select lives_ok($$ select public.set_invoice_sequence(extract(year from current_date)::int, 600) $$, 'continue after 600');
+select throws_ok($$ select public.set_invoice_sequence(extract(year from (now() at time zone 'America/Toronto'))::int, 1) $$,
+  'P0001', 'La facture ' || extract(year from (now() at time zone 'America/Toronto'))::int || '-2 existe déjà : la numérotation ne peut pas reculer.', 'never below a number given');
+select lives_ok($$ select public.set_invoice_sequence(extract(year from (now() at time zone 'America/Toronto'))::int, 600) $$, 'continue after 600');
 select set_config('test.i3', public.create_invoice(array['e0000000-0000-0000-0000-000000000003'::uuid])::text, true);
 select ok(public.finalize_invoice(current_setting('test.i3')::uuid) ~ '^[0-9]{4}-601$', '… the next is 601');
 

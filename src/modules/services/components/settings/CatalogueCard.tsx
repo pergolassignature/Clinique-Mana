@@ -11,6 +11,7 @@ import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/ui/dropdown-menu'
 import { Input } from '@/shared/ui/input'
+import { Select } from '@/shared/ui/select'
 import { Table, TableBody, TableCell, TableGroupRow, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import type { ServicesSettings } from '../../api/catalogue'
 import type { Service } from '../../api/parse'
@@ -26,6 +27,15 @@ const KEEP: Record<ListStatusFilterValue, (service: Service) => boolean> = {
   all: () => true,
 }
 
+/** « Trier par » (parity audit L27): by family (the default, grouped), or one list by code, name or duration. */
+const SORTS = ['family', 'code', 'name', 'duration'] as const
+type Sort = (typeof SORTS)[number]
+const COMPARE: Record<Exclude<Sort, 'family'>, (a: Service, b: Service) => number> = {
+  code: (a, b) => a.code - b.code,
+  name: (a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }) || a.code - b.code,
+  duration: (a, b) => a.durationMinutes - b.durationMinutes || a.code - b.code,
+}
+
 /** The name cell (`<th scope="row">`) looks like the other cells. */
 const ROW_HEADER = 'h-10 max-w-[320px] whitespace-normal px-3 py-2 text-left align-middle font-normal'
 
@@ -37,7 +47,9 @@ interface CatalogueCardProps {
 /**
  * « Catalogue » (plan S3.2): the services grouped by family, with their code, duration (and pause
  * after), the price's source, the taxes and the professions offering them; « Actifs · Archivés ·
- * Tous », a search on the name, the code and the key (accents ignored, the match highlighted);
+ * Tous », a search on the name, the code, the key and the description (accents ignored, the match
+ * highlighted; a description that matched shows under the name); « Trier par »: by family (grouped,
+ * the default), or one list by code, name or duration;
  * « Ajouter un service » and, per row, a « … » menu: « Modifier » (the sheet), « Archiver » / « Restaurer ».
  * Read-only (`canEdit` false): the rows, the filter and the search only.
  */
@@ -45,6 +57,7 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
   const { families, services, titleIdsByService, titles } = data
   const [filter, setFilter] = useState<ListStatusFilterValue>('active')
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<Sort>('family')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [edited, setEdited] = useState<Service | null>(null)
   const addRef = useRef<HTMLButtonElement>(null)
@@ -55,11 +68,17 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
 
   const words = searchWords(query)
   const counts = { active: services.filter(KEEP.active).length, archived: services.filter(KEEP.archived).length, all: services.length }
-  const shown = services.filter((s) => KEEP[filter](s) && matchesSearch([s.name, String(s.code), s.key], words))
+  const shown = services.filter((s) => KEEP[filter](s) && matchesSearch([s.name, String(s.code), s.key, s.description ?? ''], words))
   const groups = useMemo(
-    () => families.map((family) => ({ family, rows: shown.filter((s) => s.familyId === family.id) })).filter((group) => group.rows.length > 0),
-    [families, shown],
+    () =>
+      sort === 'family'
+        ? families.map((family) => ({ family, rows: shown.filter((s) => s.familyId === family.id) })).filter((group) => group.rows.length > 0)
+        : [{ family: null, rows: [...shown].sort(COMPARE[sort]) }],
+    [families, shown, sort],
   )
+  /** The description, when the search found the service through it (never otherwise: it can be long). */
+  const describedMatch = (service: Service) =>
+    words.length > 0 && service.description !== null && !matchesSearch([service.name, String(service.code), service.key], words) ? service.description : null
   const titleNames = (serviceId: string) => {
     const ids = titleIdsByService.get(serviceId) ?? []
     const names = titles.filter((title) => ids.includes(title.id)).map((title) => title.name)
@@ -110,6 +129,15 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
           </label>
           <Input id={searchId} type="search" role="searchbox" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t(`${C}.search`)} className="pl-8" />
         </div>
+        <div className="w-field-sm max-w-full">
+          <Select aria-label={t(`${C}.sortLabel`)} value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
+            {SORTS.map((value) => (
+              <option key={value} value={value}>
+                {t(`${C}.sort.${value}`)}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
       {empty ? (
         <EmptyState title={empty.title} body={empty.body} inCard={false} />
@@ -130,13 +158,14 @@ export function CatalogueCard({ data, canEdit }: CatalogueCardProps) {
             </TableRow>
           </TableHeader>
           {groups.map(({ family, rows }) => (
-            <TableBody key={family.id}>
-              <TableGroupRow colSpan={columnCount}>{familyHeading(family)}</TableGroupRow>
+            <TableBody key={family?.id ?? 'all'}>
+              {family && <TableGroupRow colSpan={columnCount}>{familyHeading(family)}</TableGroupRow>}
               {rows.map((service) => (
                 <TableRow key={service.id} className={cn(!service.isActive && 'text-muted-foreground')}>
                   <TableCell className="tabular whitespace-nowrap">{highlight(String(service.code))}</TableCell>
                   <th scope="row" className={ROW_HEADER}>
                     <span className={cn('block min-w-0 break-words', service.isActive && 'font-medium')}>{highlight(service.name)}</span>
+                    {describedMatch(service) && <span className="block text-xs text-muted-foreground">{highlight(describedMatch(service)!)}</span>}
                     <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
                       {!service.isActive && <Badge variant="secondary">{t(`${C}.archived`)}</Badge>}
                       {service.forTwo && <span>{t(`${C}.forTwo`)}</span>}

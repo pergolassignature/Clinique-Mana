@@ -76,13 +76,22 @@ Deno.test('gmail-callback: the happy path stores the connection with its tokens 
     ])
     const exchange = h.google.calls[0]
     assertEquals(exchange.status, 200)
-    // The nonce was spent on its own bucket before Google was asked.
+    // The nonce was spent (its hash only) before Google was asked.
     const limits = h.service.calls.filter((c) => c.fn === 'consume_rate_limit')
       .map((c) => c.args.p_bucket)
-    assertEquals(limits, ['gmail.callback_user', 'oauth.state_nonce'])
+    assertEquals(limits, ['gmail.callback_user'])
+    const spend = h.service.calls.filter((c) =>
+      c.fn === 'spend_oauth_state_nonce_for_service'
+    )
+    assertEquals(spend.length, 1)
+    assert(/^\\x[0-9a-f]{64}$/.test(String(spend[0].args.p_nonce_hash)))
+    assertEquals(
+      spend[0].args.p_expires_at,
+      new Date(h.deps.now().getTime() + 600_000).toISOString(),
+    )
   }))
 
-Deno.test("gmail-callback: a forged, expired or replayed state, or someone else's, is refused before Google is asked", () =>
+Deno.test("gmail-callback: a forged or expired state, or someone else's, is refused before Google is asked and spends nothing", () =>
   run(async () => {
     const h = fresh()
     const handler = createHandler(h.deps)
@@ -128,26 +137,55 @@ Deno.test("gmail-callback: a forged, expired or replayed state, or someone else'
     assertEquals(res.status, 410)
     assertEquals(h.google.calls.length, 0)
 
-    // A replay: the nonce bucket refuses the second hit.
-    const replay = fresh({
+    assertEquals(
+      h.service.calls.filter((c) =>
+        c.fn === 'spend_oauth_state_nonce_for_service'
+      ).length,
+      0,
+    )
+  }))
+
+Deno.test('gmail-callback: a state used once is refused when replayed, even minutes later; the check unavailable → 503', () =>
+  run(async () => {
+    const h = fresh()
+    const handler = createHandler(h.deps)
+    const state = await signed(h)
+    let res = await handler(post({ code: h.google.issueCode(), state }))
+    assertEquals(res.status, 200)
+    const googleCalls = h.google.calls.length
+    for (const minutes of [0, 9]) {
+      h.advance(minutes * 60_000)
+      res = await handler(post({ code: h.google.issueCode(), state }))
+      assertEquals([res.status, (await res.json()).error.code], [
+        410,
+        'link_used',
+      ])
+    }
+    assertEquals(h.google.calls.length, googleCalls)
+
+    const down = fresh({
       rpc: {
-        consume_rate_limit: (args) => ({
-          data: [
-            args.p_bucket === 'oauth.state_nonce'
-              ? { allowed: false, hits: 2, retry_after_seconds: 500 }
-              : { allowed: true, hits: 1, retry_after_seconds: 0 },
-          ],
-        }),
+        spend_oauth_state_nonce_for_service: {
+          error: { code: '22023', message: 'Arguments invalides.' },
+        },
       },
     })
-    res = await createHandler(replay.deps)(
-      post({ code: replay.google.issueCode(), state: await signed(replay) }),
-    )
-    assertEquals([res.status, (await res.json()).error.code], [
-      410,
-      'link_used',
-    ])
-    assertEquals(replay.google.calls.length, 0)
+    await withEnv({ SENTRY_DSN: undefined }, async () => {
+      const lines = await captureConsole('error', async () => {
+        res = await createHandler(down.deps)(
+          post({ code: down.google.issueCode(), state: await signed(down) }),
+        )
+      })
+      assertEquals([res.status, (await res.json()).error.code], [
+        503,
+        'not_configured',
+      ])
+      assertEquals(JSON.parse(String(lines[0][0])), {
+        fn: 'oauth-state',
+        code: 'nonce_unavailable',
+      })
+    })
+    assertEquals(down.google.calls.length, 0)
   }))
 
 Deno.test('gmail-callback: a code Google refuses → a French refusal; a grant missing gmail.modify → a French refusal, nothing stored', () =>

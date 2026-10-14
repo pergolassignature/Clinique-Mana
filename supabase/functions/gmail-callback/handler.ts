@@ -12,8 +12,8 @@
  * 3. The state (`verifyState`: the MAC, 10 minutes, the purpose): malformed
  *    or forged → 410 `link_invalid`; expired → 410 `link_expired`; another
  *    clinic or person → 403 `forbidden`.
- * 4. The nonce spent on `LIMITS.oauthStateNonce` (one hit per nonce): a
- *    replayed state → 410 `link_used`.
+ * 4. The nonce spent once (`spendStateNonce`, kept until the state expires):
+ *    a replayed state → 410 `link_used`; the check unavailable → 503.
  * 5. The code exchanged at Google's token endpoint with the clinic's OAuth
  *    application (none → 503 `not_configured`): a refused code → 400 with a
  *    French refusal (« Google a refusé… recommencez »); Google down → 502.
@@ -50,7 +50,7 @@ import {
   REQUIRED_SCOPE,
 } from '../_shared/gmail/env.ts'
 import { readJson } from '../_shared/http.ts'
-import { verifyState } from '../_shared/oauth-state.ts'
+import { spendStateNonce, verifyState } from '../_shared/oauth-state.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
@@ -116,11 +116,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (state.orgId !== orgId || state.userId !== auth.user.id) {
       return errorResponse('forbidden', 'Not your connection', 403, req)
     }
-    const nonce = await consume(service, LIMITS.oauthStateNonce, [state.nonce])
-    if (!nonce.allowed) {
-      return nonce.reason === 'unavailable'
-        ? limitResponse(nonce, req)!
-        : errorResponse('link_used', 'State already used', 410, req)
+    const spent = await spendStateNonce(service, state)
+    if (spent === 'unavailable') {
+      return errorResponse(
+        'not_configured',
+        'State check unavailable',
+        503,
+        req,
+      )
+    }
+    if (spent === 'used') {
+      return errorResponse('link_used', 'State already used', 410, req)
     }
     // Shared mailboxes only (CM-10); the RPC refuses any other kind too.
     const kind = 'shared'

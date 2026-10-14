@@ -8,10 +8,11 @@ import { useClinicDate } from '@/shared/lib/use-clinic-date'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import type { ServicesSettings } from '../../api/catalogue'
 import type { ServicePrice } from '../../api/parse'
-import { useServicePrices } from '../../hooks/use-services'
+import { useServicePrices, useTaxRatesOn } from '../../hooks/use-services'
 import { gridDurationLabel } from '../../lib/display'
 import { formatCents } from '../../lib/format'
 import { priceGaps } from '../../lib/price-gaps'
+import { withTaxes, type TaxRatesOn } from '../../lib/taxes'
 
 const R = 'modules.services.settings.prices'
 
@@ -23,12 +24,15 @@ interface PricesCardProps {
  * « Prix » (plan S3.2): read-only, the grid price of every active grid service for each
  * profession that offers it, today, with the student and reduced rates in force under it, and
  * « À confirmer » where the profession has no grid; then the gap report against GOrendezvous's
- * observed prices (plan §5.4). The grids themselves are Paramètres → Rémunération's.
+ * observed prices (plan §5.4). A taxable price shows its after-tax amount with the GST and QST in
+ * force today (core's `tax_rate_on`; parity audit L27). The grids themselves are Paramètres →
+ * Rémunération's.
  */
 export function PricesCard({ data }: PricesCardProps) {
   const { services, titles, titleIdsByService } = data
   const today = useClinicDate()
   const prices = useServicePrices(today)
+  const rates = useTaxRatesOn(today)
   const { can } = useAccess()
   const gridServices = services.filter((s) => s.isActive && s.priceSource === 'grid').sort((a, b) => a.code - b.code)
   const offering = titles.filter((title) => gridServices.some((s) => (titleIdsByService.get(s.id) ?? []).includes(title.id)))
@@ -68,7 +72,7 @@ export function PricesCard({ data }: PricesCardProps) {
                     const price = offered ? priceOf(service.id, title.id) : undefined
                     return (
                       <TableCell key={service.id} align="right" className="whitespace-nowrap tabular">
-                        {!offered ? <span className="text-muted-foreground">{t(`${R}.notOffered`)}</span> : <PriceCell price={price} />}
+                        {!offered ? <span className="text-muted-foreground">{t(`${R}.notOffered`)}</span> : <PriceCell price={price} rates={rates.data} />}
                       </TableCell>
                     )
                   })}
@@ -138,12 +142,18 @@ export function PricesCard({ data }: PricesCardProps) {
   )
 }
 
-/** The price, with the student and reduced rates under it; « À confirmer » without a grid. */
-function PriceCell({ price }: { price: ServicePrice | undefined }) {
+/** The price (and, taxable, with its taxes), with the student and reduced rates under it; « À confirmer » without a grid. */
+function PriceCell({ price, rates }: { price: ServicePrice | undefined; rates: TaxRatesOn | undefined }) {
   if (!price || price.priceCents === null) return <span className="text-muted-foreground">{t(`${R}.toConfirm`)}</span>
+  const taxed = price.taxRule === 'taxable' && rates ? withTaxes(price.priceCents, rates) : null
   return (
     <>
       {formatCents(price.priceCents)}
+      {price.taxRule === 'taxable' && (
+        <span className="block text-xs text-muted-foreground">
+          {taxed === null ? t(`${R}.taxesUnknown`) : t(`${R}.withTaxes`, { price: formatCents(taxed) })}
+        </span>
+      )}
       {price.studentPriceCents !== null && <span className="block text-xs text-muted-foreground">{t(`${R}.student`, { price: formatCents(price.studentPriceCents) })}</span>}
       {price.reducedPriceCents !== null && <span className="block text-xs text-muted-foreground">{t(`${R}.reduced`, { price: formatCents(price.reducedPriceCents) })}</span>}
     </>
