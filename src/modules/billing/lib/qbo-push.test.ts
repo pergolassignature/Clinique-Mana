@@ -16,6 +16,8 @@ describe('pushErrorText', () => {
   it('a known code in plain words, any other as « Erreur inattendue »', () => {
     expect(pushErrorText(null)).toBeNull()
     expect(pushErrorText('missing_map')).toBe(t(`${P}.errors.missing_map`))
+    // BI-27: a Bill forgotten after its deletion in QuickBooks.
+    expect(pushErrorText('bill_voided')).toBe(t(`${P}.errors.bill_voided`))
     expect(pushErrorText('refund_incomplete')).toBe(t(`${P}.errors.other`))
   })
 })

@@ -9862,6 +9862,64 @@ export type Database = {
           },
         ]
       }
+      qbo_bill_clearances: {
+        Row: {
+          cleared_by: string | null
+          created_at: string
+          id: string
+          method: string
+          org_id: string
+          period_id: string
+          professional_invoice_id: string
+          qbo_bill_id: string
+          reason: string | null
+        }
+        Insert: {
+          cleared_by?: string | null
+          created_at?: string
+          id?: string
+          method: string
+          org_id: string
+          period_id: string
+          professional_invoice_id: string
+          qbo_bill_id: string
+          reason?: string | null
+        }
+        Update: {
+          cleared_by?: string | null
+          created_at?: string
+          id?: string
+          method?: string
+          org_id?: string
+          period_id?: string
+          professional_invoice_id?: string
+          qbo_bill_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qbo_bill_clearances_cleared_by_fkey"
+            columns: ["cleared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "qbo_bill_clearances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qbo_bill_clearances_period_fkey"
+            columns: ["org_id", "period_id"]
+            isOneToOne: false
+            referencedRelation: "payout_periods"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       qbo_connection_tokens: {
         Row: {
           access_token: string
@@ -10377,6 +10435,7 @@ export type Database = {
           created_at: string
           entity_id: string
           event_id: number | null
+          generation: number
           id: string
           invoice_id: string | null
           kind: string
@@ -10395,6 +10454,7 @@ export type Database = {
           created_at?: string
           entity_id: string
           event_id?: number | null
+          generation?: number
           id?: string
           invoice_id?: string | null
           kind: string
@@ -10413,6 +10473,7 @@ export type Database = {
           created_at?: string
           entity_id?: string
           event_id?: number | null
+          generation?: number
           id?: string
           invoice_id?: string | null
           kind?: string
@@ -14669,6 +14730,15 @@ export type Database = {
         Args: { p_field: string; p_id: string }
         Returns: undefined
       }
+      clear_qbo_bill_for_service: {
+        Args: {
+          p_actor: string
+          p_bill_id: string
+          p_org_id: string
+          p_period_id: string
+        }
+        Returns: undefined
+      }
       client_consent_campaign_batch_for_service: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: Json
@@ -15141,6 +15211,10 @@ export type Database = {
           p_status: string
         }
         Returns: Json
+      }
+      force_clear_qbo_bill: {
+        Args: { p_period_id: string; p_reason: string }
+        Returns: undefined
       }
       get_ai_draft_status: { Args: never; Returns: Json }
       get_ai_settings: { Args: never; Returns: Json }
@@ -16794,12 +16868,17 @@ export type Database = {
       }
       publish_consent_version: { Args: { p_id: string }; Returns: undefined }
       publish_template_version: { Args: { p_id: string }; Returns: undefined }
+      qbo_bill_to_check_for_service: {
+        Args: { p_actor: string; p_org_id: string; p_period_id: string }
+        Returns: Json
+      }
       qbo_bills_to_push_for_service: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
           amount_cents: number
           attempts: number
           expense_account_id: string
+          generation: number
           invoice_id: string
           issued_on: string
           number: string

@@ -160,6 +160,8 @@ const billSchema = z.array(z.object({
   vendor_id: z.string().nullable(),
   expense_account_id: z.string().nullable(),
   title_name: z.string().nullable(),
+  /** How many times its Bill was forgotten (BI-27): a re-push needs a new requestid. */
+  generation: z.number().int().min(0).optional(),
 }))
 
 /** A failure of the push with our code (never Intuit's text). */
@@ -170,6 +172,20 @@ class PushFailure extends Error {
 }
 
 const money = (cents: number) => Math.round(cents) / 100
+
+/**
+ * A Bill's `requestid`: the invoice's, as before, until its Bill is forgotten
+ * (« Bill annulé dans QuickBooks », BI-27); then one per generation, since
+ * Intuit answers a repeated requestid with the first (deleted) Bill.
+ */
+export function billRequestId(
+  invoiceId: string,
+  generation: number,
+): Promise<string> {
+  return generation > 0
+    ? requestIdFor('bill', invoiceId, `g${generation}`)
+    : requestIdFor('bill', invoiceId)
+}
 
 async function rpc(
   client: SupabaseClient,
@@ -391,7 +407,7 @@ export async function runQboPush(
               AccountRef: { value: bill.expense_account_id },
             },
           }],
-        }, await requestIdFor('bill', bill.invoice_id))
+        }, await billRequestId(bill.invoice_id, bill.generation ?? 0))
         await record('bill', bill.invoice_id, null, null, { qboId: created.id })
         result.pushed++
       } catch (error) {
