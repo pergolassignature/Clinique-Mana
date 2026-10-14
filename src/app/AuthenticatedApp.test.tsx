@@ -288,20 +288,20 @@ describe('AuthenticatedApp', () => {
       t('modules.demandes.calls.nav'),
       t('modules.demandes.capacity.nav'),
       t('modules.demandes.waitlist.name'),
-      t('modules.reports.demandes.nav'),
       t('modules.appointments.agenda.title'),
       t('modules.clients.name'),
       t('modules.clients.consents.nav'),
-      t('modules.reports.cancellations.nav'),
-      t('modules.reports.consents.nav'),
       t('modules.billing.name'),
       t('modules.billing.interac.nav'),
       t('modules.billing.payers.nav'),
-      t('modules.reports.revenue.nav'),
-      t('modules.reports.ivac.nav'),
-      t('modules.reports.payouts.nav'),
       t('modules.communications.inbox.menu'),
       t('modules.communications.sms.nav'),
+      t('modules.reports.revenue.nav'),
+      t('modules.reports.payouts.nav'),
+      t('modules.reports.ivac.nav'),
+      t('modules.reports.cancellations.nav'),
+      t('modules.reports.demandes.nav'),
+      t('modules.reports.consents.nav'),
       t('modules.professionals.name'),
       t('nav.settings'),
     ])
@@ -318,22 +318,27 @@ describe('AuthenticatedApp', () => {
       t('nav.groups.followUp'),
       t('nav.groups.billing'),
       t('nav.groups.communications'),
+      t('nav.groups.reports'),
       t('nav.groups.team'),
     ])
     expect(section('nav.groups.followUp')).toEqual([
       t('modules.appointments.agenda.title'),
       t('modules.clients.name'),
       t('modules.clients.consents.nav'),
-      t('modules.reports.cancellations.nav'),
-      t('modules.reports.consents.nav'),
     ])
     expect(section('nav.groups.billing')).toEqual([
       t('modules.billing.name'),
       t('modules.billing.interac.nav'),
       t('modules.billing.payers.nav'),
+    ])
+    // NAV-2: every report in one section.
+    expect(section('nav.groups.reports')).toEqual([
       t('modules.reports.revenue.nav'),
-      t('modules.reports.ivac.nav'),
       t('modules.reports.payouts.nav'),
+      t('modules.reports.ivac.nav'),
+      t('modules.reports.cancellations.nav'),
+      t('modules.reports.demandes.nav'),
+      t('modules.reports.consents.nav'),
     ])
     expect(section('nav.groups.team')).toEqual([t('modules.professionals.name')])
   })

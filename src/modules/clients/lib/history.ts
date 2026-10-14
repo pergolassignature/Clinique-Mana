@@ -5,7 +5,10 @@ import type { ClientHistoryEntry } from '../api/parse'
 
 /** Ids and timestamps say nothing to the reader (the entry has its time): left out of the details, but the ids the history names. */
 const NAMED = new Set(['primary_professional_id', 'professional_id', 'referral_source_id', 'tag_id'])
-const HIDDEN = (column: string) => (column === 'id' || column.endsWith('_id') || column === 'created_at' || column === 'updated_at') && !NAMED.has(column)
+/** Technical columns a reader of the file has no use for: the time zone, the import's references (GOrendezvous). */
+const TECHNICAL = new Set(['time_zone', 'timezone', 'external_ref', 'import_ref', 'import_source', 'source_ref'])
+const HIDDEN = (column: string) =>
+  ((column === 'id' || column.endsWith('_id') || column === 'created_at' || column === 'updated_at') && !NAMED.has(column)) || TECHNICAL.has(column)
 /** On a creation or a deletion, an empty value or a « Non » says nothing either: what was given is listed. */
 const EMPTY = (value: unknown) => value === null || value === '' || value === false
 

@@ -111,7 +111,10 @@ describe('FormField', () => {
       </FormField>,
     )
     const wrapper = screen.getByText('Code postal').closest('div')!
-    expect(wrapper).toHaveClass(cls, 'max-w-full', 'min-w-0')
+    // A short field (xs, sm) is at least as wide as its label, its label on one line.
+    const short = width === 'xs' || width === 'sm'
+    expect(wrapper).toHaveClass(cls, 'max-w-full', short ? 'min-w-fit' : 'min-w-0')
+    if (short) expect(screen.getByText('Code postal')).toHaveClass('whitespace-nowrap')
     expect(wrapper).toContainElement(screen.getByText('A1A 1A1'))
   })
 

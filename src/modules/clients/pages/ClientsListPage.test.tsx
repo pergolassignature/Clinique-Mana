@@ -112,7 +112,8 @@ describe('ClientsListPage', () => {
     renderPage({ path: '/clients?tri=anciens&dernier=jamais' })
     const table = await screen.findByRole('table', { name: t(`${L}.table`) })
     expect(within(table).queryByRole('columnheader', { name: t(`${L}.columns.lastVisit`) })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: t(`${L}.sortLabel`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: t(`${L}.lastVisitLabel`) })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('combobox', { name: t(`${L}.sortLabel`) })).queryByRole('option', { name: t(`${L}.sort.visit_oldest`) })).not.toBeInTheDocument()
     await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'name', lastVisit: null }), null))
   })
 
@@ -124,6 +125,32 @@ describe('ClientsListPage', () => {
     await user.click(await screen.findByRole('button', { name: t(`${L}.reset`) }))
     await waitFor(() => expect(mocks.preferences.deleteUserPreference).toHaveBeenCalled())
     await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }), null))
+  })
+
+  it('A-3: « Trier par » numéro or newest files without Rendez-vous (never a visit order); « Colonnes » remembered for her', async () => {
+    const user = userEvent.setup()
+    renderPage({ path: '/clients?tri=numero' })
+    const table = await screen.findByRole('table', { name: t(`${L}.table`) })
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'number' }), null))
+    const sort = screen.getByRole('combobox', { name: t(`${L}.sortLabel`) })
+    expect(within(sort).queryByRole('option', { name: t(`${L}.sort.visit_recent`) })).not.toBeInTheDocument()
+    await user.selectOptions(sort, 'created_recent')
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'created_recent' }), null))
+    // « Colonnes »: « Ouvert le » on, « Naissance » off; written to her preference.
+    expect(within(table).queryByRole('columnheader', { name: t(`${L}.columns.opened`) })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t(`${L}.columnPicker.label`) }))
+    const picker = await screen.findByRole('dialog', { name: t(`${L}.columnPicker.title`) })
+    expect(within(picker).queryByRole('checkbox', { name: t(`${L}.columns.lastVisit`) })).not.toBeInTheDocument()
+    await user.click(within(picker).getByRole('checkbox', { name: t(`${L}.columns.opened`) }))
+    expect(await within(table).findByRole('columnheader', { name: t(`${L}.columns.opened`) })).toBeInTheDocument()
+    await user.click(within(picker).getByRole('checkbox', { name: t(`${L}.columns.birthday`) }))
+    await waitFor(() => expect(within(table).queryByRole('columnheader', { name: t(`${L}.columns.birthday`) })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(mocks.preferences.saveUserPreference).toHaveBeenCalledWith(expect.any(String), 'clients.list_columns', {
+        columns: ['number', 'contact', 'professional', 'lastVisit', 'opened', 'flags'],
+      }),
+      { timeout: 3000 },
+    )
   })
 
   it('« Nouveau client » for whoever manages files only', async () => {

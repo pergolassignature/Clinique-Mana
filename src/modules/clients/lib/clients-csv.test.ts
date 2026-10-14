@@ -20,7 +20,8 @@ const row = (over: Partial<ClientListRow> = {}): ClientListRow => ({
   fileIncomplete: true,
   specialAgreement: false,
   lastVisitAt: '2026-10-01T14:00:00Z',
-  cursor: { last: 'essai', first: 'alice', id: 'c1', visit: null },
+  createdAt: '2026-09-01T14:00:00Z',
+  cursor: { last: 'essai', first: 'alice', id: 'c1', visit: null, number: 12, created: '2026-09-01T14:00:00Z' },
   ...over,
 })
 

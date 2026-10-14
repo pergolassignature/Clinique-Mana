@@ -21,6 +21,10 @@ describe('ruleTriggerText', () => {
     expect(ruleTriggerText({ triggerKind: 'general', target: null })).toBe('Tous les clients')
     expect(ruleTriggerText({ triggerKind: 'payer_kind', target: 'pae' })).toBe('Payeur : PAE')
     expect(ruleTriggerText({ triggerKind: 'service', target: '10157' })).toBe('Le service 10157')
+    // With the catalogue read: its name too.
+    expect(ruleTriggerText({ triggerKind: 'service', target: '10157' }, new Map([[10157, 'Consultation naturopathie']]))).toBe(
+      'Le service 10157 · Consultation naturopathie',
+    )
     expect(ruleTriggerText({ triggerKind: 'professional_status', target: 'intern' })).toBe('Professionnel stagiaire')
     expect(ruleTriggerText({ triggerKind: 'situation', target: 'waitlist' })).toBe('Situation : liste d’attente')
     expect(ruleTriggerText({ triggerKind: 'situation', target: 'file_transfer' })).toBe('Situation : transfert de dossier')

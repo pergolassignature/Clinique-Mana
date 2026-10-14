@@ -88,6 +88,11 @@ export function ModulesSettingsPage() {
                         </p>
                       )}
                     </div>
+                    {/* The module's switch says its state in words, apart from « Réservé aux testeurs » below. */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span aria-hidden className="text-sm text-muted-foreground">
+                        {(saving?.key === m.key ? saving.enabled : m.enabled) ? t('settings.modules.on') : t('settings.modules.off')}
+                      </span>
                     {/* Optimistic: the switch shows the requested state while saving. */}
                     <Switch
                       checked={
@@ -104,6 +109,7 @@ export function ModulesSettingsPage() {
                         hasDependencies ? dependsOnId : undefined
                       }
                     />
+                    </div>
                   </div>
                   {/* Shown once the testers are known: a failed load never reads as « not reserved ». */}
                   {testers.data && (

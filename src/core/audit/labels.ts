@@ -154,6 +154,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+/** The columns that name a row, in the order tried: an invoice's number, a request's reference, a name… */
+const NAMING_COLUMNS = ['number', 'reference', 'name', 'title', 'label', 'display_name', 'code', 'key'] as const
+
+/**
+ * What the « Élément » column says of a row: the first naming value the entry carries (an insert's
+ * or a delete's row, an update's changed values, after first), never a redacted one; else the
+ * row's id, cut (« Fiche 97d79672 »), the full id staying in the details.
+ */
+export function recordLabel(entry: Pick<AuditEntry, 'action' | 'record_id' | 'changed_fields'>): string {
+  const fields = entry.changed_fields
+  if (isRecord(fields) && entry.action !== 'read') {
+    for (const column of NAMING_COLUMNS) {
+      const raw = fields[column]
+      const value = entry.action === 'update' && isRecord(raw) ? (raw.after ?? raw.before) : raw
+      if ((typeof value === 'string' && value.trim() !== '' && value !== REDACTED) || typeof value === 'number') return String(value)
+    }
+  }
+  const first = entry.record_id.match(UUID)?.[0]
+  return t('audit.row.recordFallback', { id: first ? first.slice(0, 8) : entry.record_id })
+}
+
 /** Names the details can show instead of stored codes and ids; each is optional (fallback: the raw value). */
 export interface AuditLookups {
   /** user id → display name (`list_audit_actors`). */

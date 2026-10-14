@@ -3,8 +3,9 @@ import { useController, useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Plus, X } from 'lucide-react'
 import { t } from '@/i18n'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, dialogScrollContent, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { DURATIONS, type GridInput, type GridRow } from '../../api/compensation'
@@ -73,7 +74,7 @@ export function GridDialog({ titleId, titleName, series }: GridDialogProps) {
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-lg"
+        className={cn(dialogScrollContent, 'sm:max-w-lg')}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           firstField.current?.focus()
@@ -137,20 +138,28 @@ function GridForm({ titleId, series, firstFieldRef, pending, refusal, dateError,
       <fieldset className="min-w-0 space-y-2">
         <legend className="text-sm font-medium">{t(`${G}.dialog.tiers`)}</legend>
         <p className="text-xs text-muted-foreground">{t(`${G}.dialog.tiersHelp`)}</p>
+        {/* The columns are named once; each row's fields keep their full name for screen readers. */}
+        <div aria-hidden className="grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-2 text-xs font-medium text-muted-foreground">
+          <span />
+          <span>{t(`${G}.dialog.thresholdColumn`)}</span>
+          <span>{t(`${G}.dialog.retentionColumn`)}</span>
+        </div>
         <ol className="space-y-2">
           {tiers.fields.map((tier, index) => (
-            <li key={tier.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2">
-              <FormField label={t(`${G}.dialog.threshold`, { index: String(index + 1) })} error={errors.tiers?.[index]?.threshold?.message}>
+            <li key={tier.id} className="grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)_2.25rem] items-start gap-2">
+              <span aria-hidden className="pt-2 text-sm text-muted-foreground">
+                {t(`${G}.dialog.tierRow`, { index: String(index + 1) })}
+              </span>
+              <FormField hideLabel label={t(`${G}.dialog.threshold`, { index: String(index + 1) })} error={errors.tiers?.[index]?.threshold?.message}>
                 {(field) => <Input {...field} {...form.register(`tiers.${index}.threshold`)} inputMode="numeric" autoComplete="off" />}
               </FormField>
-              <FormField label={t(`${G}.dialog.retention`, { index: String(index + 1) })} error={errors.tiers?.[index]?.pct?.message}>
+              <FormField hideLabel label={t(`${G}.dialog.retention`, { index: String(index + 1) })} error={errors.tiers?.[index]?.pct?.message}>
                 {(field) => <Input {...field} {...form.register(`tiers.${index}.pct`)} inputMode="decimal" autoComplete="off" />}
               </FormField>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="mt-6"
                 aria-label={t(`${G}.dialog.removeTier`, { index: String(index + 1) })}
                 disabled={tiers.fields.length === 1}
                 onClick={() => tiers.remove(index)}

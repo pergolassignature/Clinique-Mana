@@ -388,6 +388,7 @@ Migration `20261014054618_demandes_security_fixes`; pgTAP `192_demandes_security
 - **The cancel link** does nothing while Demandes is off for the clinic.
 - **« Facturer l'inscription »** is refused (`module_reserved`) while Demandes is reserved for its testers (P3-40).
 - **The booking's names:** each name is 99 characters at most (the function's schema and the page's fields), in letters. A digit, `/ : @ < > …` or a period followed by a letter (a web address) is refused in French with hint `name`, so a name written in the confirmation can never be a link.
+- **The booking's proof-of-work ticket is spent once for its whole life.** `spendStateNonce` keeps the nonce's hash in core's `oauth_state_nonces` until the ticket expires. It replaces the one-hit rate-limit bucket `demandes.booking_challenge` (removed), whose fixed hourly windows let a ticket be spent again once the next hour began.
 - **An offer noted by hand** stores each slot rebuilt (`starts_at`, `ends_at` only).
 - **The « still waiting? » link** names a professional's list through `private.professional_display_facts`. It runs without a user, and the directory returned nothing that way.
 - **Deferred:** per-clinic and per-address booking caps, and Cloudflare Turnstile on top of the proof of work. D-7 already plans them if spam gets through. The duplicate's answer now sends an email as a booking does, so its timing matches a booking's.
