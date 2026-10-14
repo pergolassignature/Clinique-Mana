@@ -8,7 +8,7 @@
 -- published to Facturation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(40);
 
 -- Shape and privileges.
 select has_column('public', 'client_payers', 'event_on', 'client_payers.event_on');
@@ -91,10 +91,19 @@ select throws_ok($$ select public.save_client_payer('d2000000-0000-0000-0000-000
   'P0001', 'Chaque palier compte de 1 à 999 séances.', 'a tier of 0 sessions is refused');
 select throws_ok($$ select public.save_client_payer('d2000000-0000-0000-0000-000000000002', null, 'pae', 'Fournisseur Y', 'PY-1', null, null, null,
                    null, null, null, 50, p_coverage_tiers => '[{"sessions": 3, "coverage_percent": 100, "session_amount_cents": 5000}]'::jsonb) $$,
-  'P0001', 'Un palier couvre un montant par séance ou une part de la séance (1 % à 100 %), pas les deux.', 'a tier covers an amount or a share, not both');
+  'P0001', 'Un palier couvre un montant par séance (au moins 0,01 $) ou une part de la séance (1 % à 100 %), pas les deux.', 'a tier covers an amount or a share, not both');
 select throws_ok($$ select public.save_client_payer('d2000000-0000-0000-0000-000000000002', null, 'pae', 'Fournisseur Y', 'PY-1', null, null, null,
                    null, null, null, 50, p_coverage_tiers => '[{"sessions": 3, "coverage_percent": 101}]'::jsonb) $$,
-  'P0001', 'Un palier couvre un montant par séance ou une part de la séance (1 % à 100 %), pas les deux.', 'a share above 100 % is refused');
+  'P0001', 'Un palier couvre un montant par séance (au moins 0,01 $) ou une part de la séance (1 % à 100 %), pas les deux.', 'a share above 100 % is refused');
+select throws_ok($$ select public.save_client_payer('d2000000-0000-0000-0000-000000000002', null, 'pae', 'Fournisseur Y', 'PY-1', null, null, null,
+                   null, null, null, 50, p_coverage_tiers => '[{"sessions": 3, "session_amount_cents": 0}]'::jsonb) $$,
+  'P0001', 'Un palier couvre un montant par séance (au moins 0,01 $) ou une part de la séance (1 % à 100 %), pas les deux.',
+  'a 0 $ tier is refused: a session it covers would never count, and the tier never end');
+select throws_ok($$ select public.save_client_payer('d2000000-0000-0000-0000-000000000002', null, 'pae', 'Fournisseur Y', 'PY-1', null, null, null,
+                   null, null, null, 50, p_prior_used_cents => 12000, p_prior_used_on => date '2026-09-30',
+                   p_coverage_tiers => '[{"sessions": 3, "coverage_percent": 100}]'::jsonb) $$,
+  'P0001', 'Avec des paliers, indiquez aussi le nombre de séances déjà utilisées avant l''application.',
+  'with tiers, a use before the app in dollars only is refused (the tiers would start over)');
 select throws_ok($$ select public.save_client_payer('d2000000-0000-0000-0000-000000000002', null, 'pae', 'Fournisseur Y', 'PY-1', null, null, null,
                    null, null, null, 50, p_coverage_tiers => (select pg_catalog.jsonb_agg('{"sessions": 1, "coverage_percent": 100}'::jsonb)
                                                                 from pg_catalog.generate_series(1, 6))) $$,

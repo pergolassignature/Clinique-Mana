@@ -72,7 +72,8 @@ export const tierRow = (tier: CoverageTier): TierRow => ({
 
 /**
  * The form's rows → the tiers to save, or null when one is not readable: a whole number of
- * sessions (1–999), and a share from 1 to 100 % or an amount in dollars (at most 10 000 $).
+ * sessions (1–999), and a share from 1 to 100 % or an amount in dollars (0,01 $ to 10 000 $: a
+ * tier pays something, else its sessions would never count and it would never end).
  */
 export function parseTierRows(rows: readonly TierRow[]): CoverageTier[] | null {
   const tiers: CoverageTier[] = []
@@ -85,7 +86,7 @@ export function parseTierRows(rows: readonly TierRow[]): CoverageTier[] | null {
       tiers.push({ sessions, coveragePercent: percent, sessionAmountCents: null })
     } else {
       const cents = dollarsToCents(row.value)
-      if (cents === null || Number.isNaN(cents) || cents > 1_000_000) return null
+      if (cents === null || Number.isNaN(cents) || cents < 1 || cents > 1_000_000) return null
       tiers.push({ sessions, coveragePercent: null, sessionAmountCents: cents })
     }
   }

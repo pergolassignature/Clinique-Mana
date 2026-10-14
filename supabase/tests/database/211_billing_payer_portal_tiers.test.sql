@@ -7,7 +7,7 @@
 -- prior use counted, the renewal starting the tiers over; an agreement without tiers unchanged.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(21);
 
 select has_column('public', 'payer_organisations', 'portal_url', 'payer_organisations.portal_url');
 select function_privs_are('public', 'save_payer_organisation',
@@ -44,7 +44,9 @@ insert into public.clients (id, org_id, first_name, last_name, email) values
   ('d3000000-0000-0000-0000-000000000001', 'b3000000-0000-0000-0000-00000000000a', 'Ivan', 'Essai', 'ivan@r85.test'),
   ('d3000000-0000-0000-0000-000000000002', 'b3000000-0000-0000-0000-00000000000a', 'Tess', 'Essai', 'tess@r85.test'),
   ('d3000000-0000-0000-0000-000000000003', 'b3000000-0000-0000-0000-00000000000a', 'Uma', 'Essai', 'uma@r85.test'),
-  ('d3000000-0000-0000-0000-000000000004', 'b3000000-0000-0000-0000-00000000000a', 'Vic', 'Essai', 'vic@r85.test');
+  ('d3000000-0000-0000-0000-000000000004', 'b3000000-0000-0000-0000-00000000000a', 'Vic', 'Essai', 'vic@r85.test'),
+  ('d3000000-0000-0000-0000-000000000005', 'b3000000-0000-0000-0000-00000000000a', 'Wes', 'Essai', 'wes@r85.test'),
+  ('d3000000-0000-0000-0000-000000000006', 'b3000000-0000-0000-0000-00000000000a', 'Xan', 'Essai', 'xan@r85.test');
 insert into public.client_payers (id, client_id, org_id, kind, organisation_name, file_number, event_on, coverage_percent, session_amount_cents,
                                   max_sessions, max_amount_cents, renewal_month, renewal_day, prior_used_sessions, prior_used_on, coverage_tiers)
 values
@@ -55,7 +57,15 @@ values
   ('f3000000-0000-0000-0000-000000000003', 'd3000000-0000-0000-0000-000000000003', 'b3000000-0000-0000-0000-00000000000a', 'pae', 'Fournisseur T', 'PU-1',
    null, null, 3000, null, 10000, null, null, null, null, '[{"sessions": 1, "session_amount_cents": 8000}]'),
   ('f3000000-0000-0000-0000-000000000004', 'd3000000-0000-0000-0000-000000000004', 'b3000000-0000-0000-0000-00000000000a', 'pae', 'Fournisseur T', 'PV-1',
-   null, 50, null, null, null, current_setting('test.m')::int, 11, 2, current_setting('test.base')::date - 10, '[{"sessions": 3, "coverage_percent": 100}]');
+   null, 50, null, null, null, current_setting('test.m')::int, 11, 2, current_setting('test.base')::date - 10, '[{"sessions": 3, "coverage_percent": 100}]'),
+  -- Wes: 1 session at 100 %, then 0 $ (the open-ended last coverage may be nothing; a tier may not).
+  ('f3000000-0000-0000-0000-000000000005', 'd3000000-0000-0000-0000-000000000005', 'b3000000-0000-0000-0000-00000000000a', 'pae', 'Fournisseur T', 'PW-1',
+   null, null, 0, null, null, null, null, null, null, '[{"sessions": 1, "coverage_percent": 100}]'),
+  -- Xan: 1 session at 100 %, then 50 %; 4 sessions used before the app on the last renewal day a
+  -- year ago, so in the year before: they do not count in this one.
+  ('f3000000-0000-0000-0000-000000000006', 'd3000000-0000-0000-0000-000000000006', 'b3000000-0000-0000-0000-00000000000a', 'pae', 'Fournisseur T', 'PX-1',
+   null, 50, null, null, null, current_setting('test.m')::int, 11, 4, (current_setting('test.base')::date - interval '1 year')::date,
+   '[{"sessions": 1, "coverage_percent": 100}]');
 -- Sessions: g = the day's offset from the 11th.
 select set_config('test.s50', (select id::text from public.services where org_id = 'b3000000-0000-0000-0000-00000000000a' and code = 10150), true);
 insert into public.appointments (id, org_id, professional_id, service_id, starts_at, ends_at, blocks_until, state, completed_at)
@@ -68,7 +78,9 @@ select x.id, 'b3000000-0000-0000-0000-00000000000a', 'c3000000-0000-0000-0000-00
                ('e3000000-0000-0000-0000-000000000027'::uuid, 2, 9),
                ('e3000000-0000-0000-0000-000000000031'::uuid, -4, 10), ('e3000000-0000-0000-0000-000000000032'::uuid, -3, 10),
                ('e3000000-0000-0000-0000-000000000033'::uuid, -2, 10),
-               ('e3000000-0000-0000-0000-000000000041'::uuid, -4, 11), ('e3000000-0000-0000-0000-000000000042'::uuid, -3, 11)) as x(id, g, h)
+               ('e3000000-0000-0000-0000-000000000041'::uuid, -4, 11), ('e3000000-0000-0000-0000-000000000042'::uuid, -3, 11),
+               ('e3000000-0000-0000-0000-000000000051'::uuid, -4, 12), ('e3000000-0000-0000-0000-000000000052'::uuid, -3, 12),
+               ('e3000000-0000-0000-0000-000000000061'::uuid, -4, 13)) as x(id, g, h)
   cross join lateral (select ((current_setting('test.base')::date + x.g + pg_catalog.make_time(x.h, 0, 0)) at time zone 'America/Toronto') as s) t;
 insert into public.appointment_participants (appointment_id, client_id, org_id)
 select a.id, ('d3000000-0000-0000-0000-00000000000' || substr(a.id::text, 35, 1))::uuid, 'b3000000-0000-0000-0000-00000000000a'
@@ -143,6 +155,9 @@ select set_config('test.i_uma', public.create_invoice(array['e3000000-0000-0000-
   'e3000000-0000-0000-0000-000000000033'::uuid], null, false)::text, true);
 select set_config('test.i_vic', public.create_invoice(array['e3000000-0000-0000-0000-000000000041'::uuid, 'e3000000-0000-0000-0000-000000000042'::uuid],
   null, false)::text, true);
+select set_config('test.i_wes', public.create_invoice(array['e3000000-0000-0000-0000-000000000051'::uuid, 'e3000000-0000-0000-0000-000000000052'::uuid],
+  null, false)::text, true);
+select set_config('test.i_xan', public.create_invoice(array['e3000000-0000-0000-0000-000000000061'::uuid], null, false)::text, true);
 reset role;
 select results_eq($$ select -total_cents from public.invoice_lines where invoice_id = current_setting('test.i_uma')::uuid and line_type = 'payer_share'
                       order by service_on $$,
@@ -151,6 +166,12 @@ select results_eq($$ select -total_cents from public.invoice_lines where invoice
                       order by service_on $$,
   $$ values (current_setting('test.price')::int), (round(current_setting('test.price')::int * 0.5)::int) $$,
   'Vic: 2 sessions used before the app, so his first is the third at 100 %, the next at 50 %');
+
+select results_eq($$ select -total_cents from public.invoice_lines where invoice_id = current_setting('test.i_wes')::uuid and line_type = 'payer_share' $$,
+  $$ values (current_setting('test.price')::int) $$, 'Wes: his first session at 100 %, then the 0 $ coverage writes no share');
+select results_eq($$ select -total_cents from public.invoice_lines where invoice_id = current_setting('test.i_xan')::uuid and line_type = 'payer_share' $$,
+  $$ values (current_setting('test.price')::int) $$,
+  'Xan: the use before the app dated on the last renewal day belongs to the year before; this year''s tiers start over (100 %)');
 
 select * from finish();
 rollback;

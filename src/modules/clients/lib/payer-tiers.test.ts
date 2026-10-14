@@ -36,6 +36,8 @@ describe('a PAE agreement’s tiers (R-85)', () => {
       { sessions: '3', mode: 'percent', value: '0' },
       { sessions: '3', mode: 'percent', value: '101' },
       { sessions: '3', mode: 'amount', value: '' },
+      { sessions: '3', mode: 'amount', value: '0' },
+      { sessions: '3', mode: 'amount', value: '0,00' },
       { sessions: '3', mode: 'amount', value: 'abc' },
       { sessions: '3', mode: 'amount', value: '10000,01' },
     ] as const) {

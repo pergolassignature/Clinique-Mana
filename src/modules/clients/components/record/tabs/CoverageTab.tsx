@@ -363,6 +363,11 @@ function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: 
               setRefusal(t(`${C}.tiersNeedCoverage`))
               return
             }
+            // R-85: the tiers count sessions, so a use before the app is given in sessions too.
+            if (coverageTiers.length > 0 && (prior !== null || priorCount !== null) && priorCount === null) {
+              setRefusal(t(`${C}.tiersNeedPriorSessions`))
+              return
+            }
             const month = pae ? (renewalMonth === '' ? null : Number(renewalMonth)) : (row?.renewalMonth ?? null)
             const day = pae ? (renewalDay.trim() === '' ? null : Number(renewalDay)) : (row?.renewalDay ?? null)
             if ((month === null) !== (day === null) || (day !== null && (!Number.isInteger(day) || day < 1 || day > 31))) {

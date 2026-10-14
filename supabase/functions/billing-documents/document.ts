@@ -802,14 +802,19 @@ function invoiceBlocks(
     blocks.push(linesTable(lines, doc.professionals, language, l))
   }
   blocks.push(totalsTable(doc, language, l))
-  blocks.push(
-    ...professionalsBlocks(
-      doc.professionals,
-      l,
-      doc.payer_numbers ?? [],
-      doc.kind === 'receipt' ? signatures : new Set(),
-    ),
-  )
+  // An IVAC invoice names its professionals once, in its header (R-84); an
+  // organisation's document is never an insurance receipt, so no signature
+  // is lost.
+  if (!(organisation && doc.payer.organisation_kind === 'ivac')) {
+    blocks.push(
+      ...professionalsBlocks(
+        doc.professionals,
+        l,
+        doc.payer_numbers ?? [],
+        doc.kind === 'receipt' ? signatures : new Set(),
+      ),
+    )
+  }
   if (doc.kind === 'invoice' && doc.invoice.notes_client) {
     blocks.push(para(label(l.note, language), plain(doc.invoice.notes_client)))
   }
@@ -822,11 +827,14 @@ function invoiceBlocks(
 /**
  * An IVAC invoice's header (R-84, the CNESST's sample): the client's file
  * number, the clinic with its supplier number, each professional with her
- * IVAC number and her order's permit (an intern without her own: her
- * supervisor's), then the date of the event.
+ * IVAC number and her order's permit, then the date of the event. The only
+ * place an IVAC invoice names its professionals. An intern (a supervisor, as
+ * `professionalLine` decides) is « (stagiaire) » and prints her supervisor's
+ * order and permit, with the supervisor's name.
  */
 export function ivacHeaderBlocks(doc: InvoiceDoc, language: Language): Block[] {
   const l = IVAC_LABELS[language]
+  const common = LABELS[language]
   const blocks: Block[] = []
   if (doc.invoice.payer_reference) {
     blocks.push(
@@ -842,20 +850,35 @@ export function ivacHeaderBlocks(doc: InvoiceDoc, language: Language): Block[] {
     const number = doc.payer_numbers?.find((n) =>
       n.professional_id === p.professional_id
     )?.number
+    const intern = !!(p.supervisor_id && p.supervisor_name)
     blocks.push(
       para(
         label(l.professional, language),
-        plain([p.name, number].filter(Boolean).join(' ')),
+        plain(
+          [intern ? `${p.name} (${common.intern})` : p.name, number]
+            .filter(Boolean).join(' '),
+        ),
       ),
     )
-    const own = p.licence_number
-    const permit = [
-      own
-        ? p.order_acronym || p.order_name
-        : p.supervisor_order_acronym || p.supervisor_order_name,
-      own || p.supervisor_licence_number,
-    ].filter(Boolean).join(' ')
-    if (permit) blocks.push(para(label(l.permit, language), plain(permit)))
+    const permit = intern
+      ? [
+        p.supervisor_order_acronym || p.supervisor_order_name,
+        p.supervisor_licence_number,
+      ].filter(Boolean).join(' ')
+      : [p.order_acronym || p.order_name, p.licence_number].filter(Boolean)
+        .join(' ')
+    if (permit) {
+      blocks.push(
+        para(
+          label(l.permit, language),
+          plain(
+            intern
+              ? `${permit} (${common.supervisedBy} ${p.supervisor_name})`
+              : permit,
+          ),
+        ),
+      )
+    }
   }
   if (doc.payer.event_on) {
     blocks.push(

@@ -7,7 +7,8 @@
 --
 --   * `payer_organisations.portal_url` (R-84): IVAC's invoices are uploaded on the CNESST's portal
 --     (« envoi de fichier »), not emailed. An organisation may hold the portal's address (https
---     only, one address without spaces) instead of a billing email: then its drafts are not held
+--     only, one address without spaces) instead of a billing email: then its drafts (any
+--     organisation's, a PAE provider's too) are not held
 --     « Payeur sans adresse courriel » (`billing_hold_now`), the invoice is finalised without
 --     sending and its PDF uploaded there (the screen links to the portal). `list_payer_organisations`
 --     gives it; `save_payer_organisation` takes it (dropped and made again: one parameter more).
@@ -17,7 +18,9 @@
 --     it, by the count of sessions already covered in the agreement's year (the issued shares, the
 --     use before the app and this invoice's earlier sessions: what already counted for the maximum
 --     of sessions), through Clients' `client_payer_session_coverage`; an agreement without tiers is
---     unchanged, and the maximum of sessions or dollars still caps every tier.
+--     unchanged, and the maximum of sessions or dollars still caps every tier. The count is of
+--     the shares already issued, so the tier follows the order invoices are issued in, not the
+--     sessions' dates: an older session on a draft finalised later gets a later tier.
 -- Additive: a column, `create or replace` of the latest bodies (same signatures) and one function
 -- made again with a parameter more.
 -- =============================================================================

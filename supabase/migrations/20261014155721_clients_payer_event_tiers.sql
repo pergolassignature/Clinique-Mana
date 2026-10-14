@@ -16,7 +16,9 @@
 --     tier, so an agreement without tiers (`[]`, the default) works exactly as before and
 --     everything that checks « a PAE without its coverage » still holds. The tiers count the
 --     sessions already covered in the agreement's year (the prior use included); the agreement's
---     maximum of sessions or dollars still caps them (FP-2, in Facturation's split).
+--     maximum of sessions or dollars still caps them (FP-2, in Facturation's split). A tier pays
+--     something (at least 0,01 $ or 1 %: a covered session is a share line, which is what counts),
+--     and with tiers a use before the app is given in sessions too.
 --   * `save_client_payer` takes both (`p_event_on`, `p_coverage_tiers`; dropped and made again:
 --     two parameters with defaults); `list_client_payers_to_complete` lists an IVAC payer without
 --     its event date (`missing: event_on`); `private.clients_anonymize_one` blanks the date.
@@ -195,8 +197,10 @@ begin
                   or (v_tier ->> 'coverage_percent')::int not between 1 and 100))
          or (v_tier -> 'session_amount_cents' <> 'null'::jsonb
              and (pg_catalog.jsonb_typeof(v_tier -> 'session_amount_cents') <> 'number' or (v_tier ->> 'session_amount_cents') !~ '^[0-9]{1,7}$'
-                  or (v_tier ->> 'session_amount_cents')::int not between 0 and 1000000)) then
-        raise exception 'Un palier couvre un montant par séance ou une part de la séance (1 %% à 100 %%), pas les deux.'
+                  or (v_tier ->> 'session_amount_cents')::int not between 1 and 1000000)) then
+        -- A tier pays something (at least 0,01 $ or 1 %): a session it covers is a share line, so
+        -- it counts towards the tier's sessions (a 0 $ tier would never end).
+        raise exception 'Un palier couvre un montant par séance (au moins 0,01 $) ou une part de la séance (1 %% à 100 %%), pas les deux.'
           using errcode = 'P0001', hint = 'coverage_tiers';
       end if;
       v_sessions := v_sessions + (v_tier ->> 'sessions')::int;
@@ -216,6 +220,11 @@ begin
      or (p_renewal_month is not null and (p_renewal_month not between 1 and 12 or p_renewal_day not between 1 and
          case when p_renewal_month = 2 then 28 when p_renewal_month in (4, 6, 9, 11) then 30 else 31 end)) then
     raise exception 'La date de renouvellement est un jour de l''année (par exemple le 31 mars).' using errcode = 'P0001', hint = 'renewal';
+  end if;
+  -- R-85: the tiers count sessions, so a use before the app is given in sessions too (in dollars
+  -- only, the tiers would start over as if nothing had been used).
+  if pg_catalog.jsonb_array_length(v_tiers) > 0 and p_prior_used_on is not null and p_prior_used_sessions is null then
+    raise exception 'Avec des paliers, indiquez aussi le nombre de séances déjà utilisées avant l''application.' using errcode = 'P0001', hint = 'prior_used';
   end if;
   if (p_prior_used_on is null) <> (p_prior_used_cents is null and p_prior_used_sessions is null)
      or (p_prior_used_cents is not null and p_prior_used_cents not between 0 and 100000000)

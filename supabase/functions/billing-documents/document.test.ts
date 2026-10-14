@@ -151,8 +151,8 @@ Deno.test('an IVAC invoice (FP-11, R-84): billed to IVAC, its header as the CNES
   const header = [
     'N° de dossier\u00A0: IV-1',
     'Fournisseur\u00A0: Clinique MANA inc. FOURN-1',
-    'Professionnel\u00A0: Simon Stagiaire IVAC-123',
-    'Permis\u00A0: OPQ S-2',
+    'Professionnel\u00A0: Simon Stagiaire (stagiaire) IVAC-123',
+    'Permis\u00A0: OPQ L-1 (sous la supervision de Hélène Superviseure)',
     'Date de l’évènement\u00A0: 2 mars 2026',
   ]
   let at = -1
@@ -164,14 +164,16 @@ Deno.test('an IVAC invoice (FP-11, R-84): billed to IVAC, its header as the CNES
   assert(!all.includes('N° de fournisseur de la clinique'))
   assertStringIncludes(all, 'Échéance : 12 novembre 2026')
   assert(!all.includes('sur réception'))
-  assertStringIncludes(all, 'N° IVAC IVAC-123')
+  // Named once, in the header: no « Professionnels » block below.
+  assert(!all.split('\n').includes('Professionnels'))
+  assert(!all.includes('N° IVAC'))
   // A client's invoice: due on receipt, no provider nor IVAC number.
   const own = texts(billingPdf(parse(invoiceDoc()), { logo: false }))
   assertStringIncludes(own, 'Échéance : sur réception')
   assert(!own.includes('N° IVAC') && !own.includes('fournisseur'))
 })
 
-Deno.test('R-84: an IVAC header without an event date nor a supplier number; an intern without her own permit prints her supervisor’s; a PAE keeps its lines', () => {
+Deno.test('R-84: an IVAC header without an event date nor a supplier number; a professional (no supervisor) prints her own permit; a PAE keeps its lines and the professionals’ block', () => {
   const base = invoiceDoc().invoice
   const ivac = parse(invoiceDoc({
     invoice: { ...base, payer_kind: 'organisation', payer_reference: 'IV-2' },
@@ -182,12 +184,18 @@ Deno.test('R-84: an IVAC header without an event date nor a supplier number; an 
       organisation_kind: 'ivac',
       provider_number: null,
     },
-    professionals: [{ ...PROFESSIONALS[0], licence_number: null }],
+    professionals: [{
+      ...PROFESSIONALS[0],
+      name: 'Hélène Pro',
+      supervisor_id: null,
+      supervisor_name: null,
+    }],
   }))
   const all = texts(billingPdf(ivac, { logo: false }))
   assertStringIncludes(all, 'Fournisseur\u00A0: Clinique MANA inc.\n')
-  assertStringIncludes(all, 'Professionnel\u00A0: Simon Stagiaire\n')
-  assertStringIncludes(all, 'Permis\u00A0: OPQ L-1')
+  assertStringIncludes(all, 'Professionnel\u00A0: Hélène Pro\n')
+  assertStringIncludes(all, 'Permis\u00A0: OPQ S-2\n')
+  assert(!all.includes('stagiaire'))
   assert(!all.includes('évènement'))
   const pae = texts(billingPdf(
     parse(invoiceDoc({
@@ -205,6 +213,7 @@ Deno.test('R-84: an IVAC header without an event date nor a supplier number; an 
   assertStringIncludes(pae, 'N° de fournisseur de la clinique\u00A0: F-77')
   assertStringIncludes(pae, 'N° de dossier\u00A0: PX-9')
   assert(!pae.includes('Permis\u00A0:'))
+  assert(pae.split('\n').includes('Professionnels'))
 })
 
 Deno.test('BI-21: an invoice says how to pay by Interac and when the receipt follows; in its email too; never on a receipt', () => {

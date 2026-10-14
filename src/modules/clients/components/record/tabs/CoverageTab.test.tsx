@@ -184,6 +184,28 @@ describe('CoverageTab (FP)', () => {
     expect(mocks.api.saveClientPayer).not.toHaveBeenCalled()
   })
 
+  it('… with tiers, a use before the app in dollars only is refused: its sessions are needed', async () => {
+    const user = userEvent.setup()
+    const pae: ClientPayer = { ...STUB, organisationName: 'Fournisseur X', fileNumber: 'PX-1', coveragePercent: 50, isStub: false }
+    mocks.api.fetchClientSummary.mockResolvedValue(summaryFixture({ payers: [pae] }))
+    renderTab()
+    await user.click(await screen.findByRole('button', { name: t(`${C}.edit`) }))
+    const dialog = await screen.findByRole('dialog', { name: t(`${C}.editPayer`) })
+    await user.click(within(dialog).getByRole('button', { name: t(`${C}.addTier`) }))
+    await user.type(within(dialog).getByLabelText(/^Palier 1 · Séances/), '3')
+    await user.type(within(dialog).getByLabelText(/^Palier 1 · Part couverte/), '100')
+    await user.type(within(dialog).getByLabelText(/^Déjà utilisé avant/), '120')
+    await user.type(within(dialog).getByLabelText(/^En date du/), '2026-09-30')
+    await user.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    expect(await within(dialog).findByText(t(`${C}.tiersNeedPriorSessions`))).toBeInTheDocument()
+    expect(mocks.api.saveClientPayer).not.toHaveBeenCalled()
+    await user.type(within(dialog).getByLabelText(/^Séances déjà utilisées/), '2')
+    await user.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    await waitFor(() =>
+      expect(mocks.api.saveClientPayer).toHaveBeenCalledWith(expect.objectContaining({ priorUsedCents: 12000, priorUsedSessions: 2, priorUsedOn: '2026-09-30' })),
+    )
+  })
+
   it('the card shows a tiered agreement in one line, and an IVAC file its event date', async () => {
     const pae: ClientPayer = {
       ...STUB,
