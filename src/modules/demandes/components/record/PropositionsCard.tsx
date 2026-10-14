@@ -25,7 +25,9 @@ import type { OpenSlot, Proposition } from '../../api/propositions'
 import { useDemandeMatch } from '../../hooks/use-matching'
 import { useOpenSlots, usePropose, usePropositions, usePropositionServices, useWithdrawProposition } from '../../hooks/use-propositions'
 import { useWaitlistLists } from '../../hooks/use-waitlist'
+import { optionLabel } from '../../lib/display'
 import { demandesError, proposeErrorMessage } from '../../lib/errors'
+import { defaultServiceId, slotPeriod, suitsPeriods } from '../../lib/proposal-slots'
 import { useDemandeRecord } from './record-context'
 
 const P = 'modules.demandes.propositions'
@@ -183,6 +185,15 @@ export function ProposeForm({
     !(initial?.insuranceConfirmed && initial.id === professionalId) &&
     (match.data?.professionals.find((p) => p.professional_id === professionalId)?.warnings.includes('insurance_expired') ?? false)
   const services = usePropositionServices(professionalId || null)
+  // A-8 (D-48): her default service for this request once her services are read (a couple's for a
+  // couple, else the 50-minute session); the counselor may change it.
+  const forTwo = bundle.demande.beneficiary === 'couple'
+  useEffect(() => {
+    if (!serviceId && services.data && services.data.length > 0) setServiceId(defaultServiceId(services.data, forTwo) ?? '')
+  }, [services.data]) // eslint-disable-line react-hooks/exhaustive-deps
+  // A-8 (D-49): the slots at the moments the person gave first; « seulement » on by default when she gave some.
+  const periods = bundle.demande.availability_periods
+  const [onlyPeriods, setOnlyPeriods] = useState(periods.length > 0)
   const [from] = useState(() => getClinicDateString(new Date()))
   const to = shiftCalendarDay(from, DAYS - 1)
   const slots = useOpenSlots(professionalId || null, serviceId || null, from, to)
@@ -195,11 +206,12 @@ export function ProposeForm({
   const byDay = useMemo(() => {
     const days = new Map<string, OpenSlot[]>()
     for (const slot of fresh ?? []) {
+      if (onlyPeriods && !suitsPeriods(slot.starts_at, periods)) continue
       const day = getClinicDateString(slot.starts_at)
       days.set(day, [...(days.get(day) ?? []), slot])
     }
     return [...days.entries()]
-  }, [fresh])
+  }, [fresh, onlyPeriods, periods])
 
   const toggle = (startsAt: string) =>
     setChosen((current) => (current.includes(startsAt) ? current.filter((s) => s !== startsAt) : current.length < MAX_SLOTS ? [...current, startsAt] : current))
@@ -295,6 +307,13 @@ export function ProposeForm({
         {professionalId && serviceId && (
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-foreground">{t(`${P}.form.slots`, { max: String(MAX_SLOTS), days: String(DAYS) })}</legend>
+            {periods.length > 0 && (
+              <CheckboxField
+                label={t(`${P}.form.onlyPeriods`, { periods: periods.map((p) => optionLabel('period', p)).join(', ') })}
+                checked={onlyPeriods}
+                onCheckedChange={(v) => setOnlyPeriods(v === true)}
+              />
+            )}
             {slots.isError ? (
               <p role="alert" className="text-sm text-destructive">
                 {t(`${P}.form.slotsError`)}
@@ -304,7 +323,9 @@ export function ProposeForm({
                 {t('common.loading')}
               </p>
             ) : byDay.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t(`${P}.form.noSlot`)}</p>
+              <p className="text-sm text-muted-foreground">
+                {onlyPeriods && (fresh ?? []).length > 0 ? t(`${P}.form.noSlotInPeriods`) : t(`${P}.form.noSlot`)}
+              </p>
             ) : (
               <div className="max-h-72 space-y-2 overflow-y-auto">
                 {byDay.map(([day, list]) => (
@@ -312,18 +333,25 @@ export function ProposeForm({
                     <p className="text-xs font-medium text-muted-foreground first-letter:uppercase">
                       {formatInClinicTimezone(list[0]!.starts_at, 'EEEE d MMMM')}
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {list.map((slot) => {
-                        const on = chosen.includes(slot.starts_at)
-                        const full = !on && chosen.length >= MAX_SLOTS
-                        return (
-                          <label key={slot.starts_at} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-sm">
-                            <input type="checkbox" checked={on} disabled={full} onChange={() => toggle(slot.starts_at)} className="size-4" />
-                            <span className="tabular">{formatClinicTime(slot.starts_at)}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
+                    {(['am', 'pm', 'end_of_day', 'evening'] as const).map((moment) => {
+                      const inMoment = list.filter((slot) => slotPeriod(slot.starts_at).period === moment)
+                      if (inMoment.length === 0) return null
+                      return (
+                        <div key={moment} className="flex flex-wrap items-center gap-2">
+                          <span className="w-28 text-xs text-muted-foreground">{t(`${P}.form.periodOf.${moment}`)}</span>
+                          {inMoment.map((slot) => {
+                            const on = chosen.includes(slot.starts_at)
+                            const full = !on && chosen.length >= MAX_SLOTS
+                            return (
+                              <label key={slot.starts_at} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-sm">
+                                <input type="checkbox" checked={on} disabled={full} onChange={() => toggle(slot.starts_at)} className="size-4" />
+                                <span className="tabular">{formatClinicTime(slot.starts_at)}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
                   </div>
                 ))}
               </div>

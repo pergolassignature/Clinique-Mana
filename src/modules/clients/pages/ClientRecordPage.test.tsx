@@ -3,6 +3,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Route, Routes } from 'react-router-dom'
+import { ModuleSlotsContext } from '@/core/modules/slots'
+import type { ModuleSlotItem } from '@/core/modules/types'
 import { t } from '@/i18n'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { renderWithContexts } from '@/test/contexts'
@@ -35,17 +37,23 @@ beforeEach(() => {
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage({ role = 'counselor' as FixtureRole, path = `/clients/${CIDS.alice}/apercu` } = {}) {
+function renderPage({
+  role = 'counselor' as FixtureRole,
+  path = `/clients/${CIDS.alice}/apercu`,
+  slots = {} as Partial<Record<'client.demandes', readonly ModuleSlotItem[]>>,
+} = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
       {renderWithContexts(
-        <UnsavedChangesProvider>
-          <Routes>
-            <Route path="clients/:id/:onglet?" element={<ClientRecordPage />} />
-            <Route path="clients" element={<p>LISTE</p>} />
-          </Routes>
-        </UnsavedChangesProvider>,
+        <ModuleSlotsContext.Provider value={slots}>
+          <UnsavedChangesProvider>
+            <Routes>
+              <Route path="clients/:id/:onglet?" element={<ClientRecordPage />} />
+              <Route path="clients" element={<p>LISTE</p>} />
+            </Routes>
+          </UnsavedChangesProvider>
+        </ModuleSlotsContext.Provider>,
         { path, access: { access: accessForRole(role) } },
       )}
     </QueryClientProvider>,
@@ -74,6 +82,16 @@ describe('ClientRecordPage', () => {
     ])
     expect(within(tabs).getByRole('tab', { name: 'Aperçu' })).toHaveAttribute('aria-selected', 'true')
     expect(mocks.api.fetchClientSummary).toHaveBeenCalledWith(CIDS.alice)
+  })
+
+  it('« Demandes » shows after « Consentements » only when a module fills it (A-1)', async () => {
+    const Panel = (() => <p>PANNEAU DEMANDES</p>) as unknown as ModuleSlotItem['component']
+    renderPage({ path: `/clients/${CIDS.alice}/demandes`, slots: { 'client.demandes': [{ id: 'demandes.client', permissions: [], component: Panel }] } })
+    const tabs = await screen.findByRole('tablist', { name: t(`${R}.tabs.label`) })
+    const names = within(tabs).getAllByRole('tab').map((tab) => tab.textContent)
+    expect(names.indexOf(t(`${R}.tabs.demandes`))).toBe(names.indexOf('Consentements') + 1)
+    expect(within(tabs).getByRole('tab', { name: t(`${R}.tabs.demandes`) })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('PANNEAU DEMANDES')).toBeInTheDocument()
   })
 
   it('« Dossier introuvable » for an id that is not a record, without a request', async () => {

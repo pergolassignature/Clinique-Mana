@@ -28,11 +28,15 @@ export const demandesKeys = {
   all: ['demandes'] as const,
   lists: () => [...demandesKeys.all, 'list'] as const,
   list: (query: InboxQuery, page: number) =>
-    [...demandesKeys.lists(), query.view, query.assigned, [...query.flags].sort().join(','), query.search.trim(), page] as const,
+    [...demandesKeys.lists(), query.view, query.assigned, [...query.flags].sort().join(','), query.search.trim(), query.sort, page] as const,
+  /** A client file's requests (D-46): under the lists, so every write on a request reads it again. */
+  clientDemandes: (clientId: string) => [...demandesKeys.lists(), 'client', clientId] as const,
   counts: () => [...demandesKeys.all, 'counts'] as const,
   record: (id: string) => [...demandesKeys.all, 'record', id] as const,
   /** The matching panel (D4): under its request, so every write on the request reads it again. */
   matching: (id: string) => [...demandesKeys.record(id), 'matching'] as const,
+  /** The eligible professionals' next free slot (D-48): under the request too. */
+  nextSlots: (id: string) => [...demandesKeys.record(id), 'next-slots'] as const,
   /** The consents of the request's files (D-39): under its request, read again with it. */
   consents: (id: string) => [...demandesKeys.record(id), 'consents'] as const,
   reference: () => [...demandesKeys.all, 'reference'] as const,
