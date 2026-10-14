@@ -178,7 +178,7 @@ Migration `20261013231311_communications_sms_conversations` (pgTAP `171`).
 
 ## Security review (2026-10-14)
 
-Migration `20261014042141_communications_security_fixes` (pgTAP `187`); Deno `communications-draft/handler.test.ts`, `_shared/gmail/compose.test.ts`, `_shared/google-oidc.test.ts`.
+Migration `20261014042141_communications_security_fixes` (pgTAP `188`); Deno `communications-draft/handler.test.ts`, `_shared/gmail/compose.test.ts`, `_shared/google-oidc.test.ts`.
 
 - **AI draft (CM-19):** `communications-draft` and `ai_draft_context_for_service` also require `communications.inbox`; a thread named must be one the caller reads (a shared mailbox, or her own personal one), else 403. The context returns `correspondent_names` (every display name of the thread's messages: from, to, cc, bcc), which `mask.ts` turns into `[[nom-N]]` tokens, whole and word by word (3 letters or more), whether or not the thread is linked to a file and whether or not the caller holds `clients.view`. A name never rewrites a placeholder or a token already put in. The masked text of the message replied to is sent to OpenAI. Limit: names typed in a new message with no thread are masked only when they are the file's person, the sender or the clinic.
 - **PBX settings (SM-10):** `set_sms_settings` refuses (P0001) a change of `sms_base_url`, `sms_client_id` or `sms_did` without `settings.integrations_manage` (they decide where the client secret is sent); the same values sent again pass. A new PBX address deletes the stored session (`sms_provider_sessions`; its tokens leave Vault through the row's trigger). Paramètres → Textos shows the PBX form read-only without that permission.
