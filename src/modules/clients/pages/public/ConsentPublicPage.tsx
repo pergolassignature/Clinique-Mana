@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
+import { Radio } from '@/shared/ui/radio'
 import { openConsent, resolveConsentLink, startConsentSigning, type ConsentPage, type Identity } from '../../api/public-consent'
 
 /** 32 random bytes, base64url without padding (`_shared/links.ts`): anything else is not a link. */
@@ -309,14 +310,12 @@ function AnswersForm({
               <div className="flex gap-4">
                 {(['yes', 'no'] as const).map((value) => (
                   <label key={value} className={cn('inline-flex items-center gap-1.5 text-sm', !page.can_answer && 'text-muted-foreground')}>
-                    <input
-                      type="radio"
+                    <Radio
                       name={`clause-${clause.key}`}
                       value={value}
                       checked={answers[clause.key] === value}
                       disabled={!page.can_answer}
                       onChange={() => setAnswers((a) => ({ ...a, [clause.key]: value }))}
-                      className="size-4 accent-primary"
                     />
                     {t(`${T}.clauses.${value}`)}
                   </label>

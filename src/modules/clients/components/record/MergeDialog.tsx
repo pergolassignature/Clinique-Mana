@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
+import { Radio } from '@/shared/ui/radio'
 import type { Client, ClientSummary } from '../../api/parse'
 import { useClientRecord, useClientSearch, useClientsReference, useMergeClients } from '../../hooks/use-clients'
 import { clientPath } from '../../lib/constants'
@@ -134,15 +135,14 @@ function MergeForm({ current, otherId, onChange, onClose }: { current: ClientSum
           const isThis = summary === current
           return (
             <label key={summary.client.id} className="flex items-start gap-2 text-sm">
-              <input
-                type="radio"
+              <Radio
                 name="merge-keep"
                 checked={sides.keepThis === isThis}
                 onChange={() => {
                   setKeepCurrent(isThis)
                   setTakeMerged(new Set())
                 }}
-                className="mt-0.5 size-4 accent-primary"
+                className="mt-0.5"
               />
               <span>
                 <span className="font-medium">{fullName(summary.client)}</span> · <span className="tabular">{clientNumberLabel(summary.client.clientNumber)}</span>
@@ -185,8 +185,7 @@ function MergeForm({ current, otherId, onChange, onClose }: { current: ClientSum
                 </span>
                 {([false, true] as const).map((fromMerged) => (
                   <label key={String(fromMerged)} className="flex items-start gap-2 text-sm">
-                    <input
-                      type="radio"
+                    <Radio
                       name={`merge-${row.key}`}
                       checked={takeMerged.has(row.key) === fromMerged}
                       onChange={() => {
@@ -195,7 +194,7 @@ function MergeForm({ current, otherId, onChange, onClose }: { current: ClientSum
                         else next.delete(row.key)
                         setTakeMerged(next)
                       }}
-                      className="mt-0.5 size-4 accent-primary"
+                      className="mt-0.5"
                     />
                     <span className="min-w-0 break-words">{fromMerged ? row.merged : row.kept}</span>
                   </label>

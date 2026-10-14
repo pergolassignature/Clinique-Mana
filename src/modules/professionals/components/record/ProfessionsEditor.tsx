@@ -8,7 +8,6 @@ import { t } from '@/i18n'
 import { FormActions } from '@/shared/components/FormActions'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
-import { focusRing } from '@/shared/ui/field-classes'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
@@ -16,6 +15,7 @@ import { Button } from '@/shared/ui/button'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { Radio } from '@/shared/ui/radio'
 import type { ProfessionalRecord } from '../../api/parse'
 import type { ProfessionInput } from '../../api/record'
 import { professionalCatalogKeys, professionalKeys } from '../../hooks/keys'
@@ -277,14 +277,13 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, pendin
               item.isPrimary && <span className="text-xs text-muted-foreground">{t(`${P}.primary`)}</span>
             ) : (
               <label className={cn('flex items-center gap-2 text-sm', pending ? 'cursor-not-allowed' : 'cursor-pointer')}>
-                <input
-                  type="radio"
+                <Radio
                   name={radioName}
                   checked={item.isPrimary}
                   onChange={choosePrimary}
                   aria-label={t(`${P}.primaryLabel`, { name: titleName ?? t(`${P}.rowEmpty`, { n }) })}
                   aria-disabled={pending || undefined}
-                  className={cn('h-4 w-4 rounded-full accent-primary', focusRing, softDisabledClasses)}
+                  className={softDisabledClasses}
                 />
                 <span aria-hidden>{t(`${P}.primary`)}</span>
               </label>

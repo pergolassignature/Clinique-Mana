@@ -17,6 +17,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Switch } from '@/shared/ui/switch'
+import { Radio } from '@/shared/ui/radio'
 import type { ConsentCampaign, ConsentRule, ConsentSettings, ConsentTemplate, ConsentType, Population } from '../../api/consents'
 import { ConsentTextEditor } from '../../components/consents/ConsentTextEditor'
 import {
@@ -173,13 +174,12 @@ function PublishDialog({ target, onClose }: { target: { template: ConsentTemplat
           <fieldset className="space-y-2" disabled={first}>
             {(['new_clients', 'all_active'] as const).map((value) => (
               <label key={value} className="flex items-start gap-2 text-sm">
-                <input
-                  type="radio"
+                <Radio
                   name="population"
                   value={value}
                   checked={(first ? 'new_clients' : population) === value}
                   onChange={() => setPopulation(value)}
-                  className="mt-0.5 size-4 accent-primary"
+                  className="mt-0.5"
                 />
                 <span>
                   <span className="block font-medium text-foreground">{t(value === 'new_clients' ? `${S}.texts.newClients` : `${S}.texts.allActive`)}</span>

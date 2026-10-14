@@ -11,6 +11,7 @@ import { formatInClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone
 import { useNoIndex, usePageTitle } from '@/shared/lib/use-page-title'
 import { Button } from '@/shared/ui/button'
 import { Select } from '@/shared/ui/select'
+import { Radio } from '@/shared/ui/radio'
 import { answerProposition, DECLINE_REASONS, resolvePropositionLink, type DeclineReason } from '../../api/propositions'
 import { PublicFrame } from './PublicFrame'
 
@@ -161,7 +162,7 @@ export function PropositionPage() {
             <legend className="text-sm font-medium text-foreground">{t(`${A}.choose`)}</legend>
             {slots.map((s) => (
               <label key={s.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                <input type="radio" name="slot" value={s.id} checked={choice === s.id} onChange={() => setChoice(s.id)} className="size-4" />
+                <Radio name="slot" value={s.id} checked={choice === s.id} onChange={() => setChoice(s.id)} />
                 <span className="first-letter:uppercase">{when(s.starts_at)}</span>
               </label>
             ))}
