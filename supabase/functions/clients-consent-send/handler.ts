@@ -4,7 +4,7 @@
  * (CLAUDE.md §7); the actor model (ADR 0007): the links' tokens are made and
  * hashed here and travel only in the emails, never to the caller.
  *
- * 1. CORS; `POST` only; body `{ action: 'send', client_id, consent_key,
+ * 1. CORS; `POST` only; `verifyAuth` (step 2) before the body is read; body `{ action: 'send', client_id, consent_key,
  *    context_type?, context_id?, due_at? }` or `{ action: 'resend',
  *    request_id }`.
  * 2. `verifyAuth` with the module `clients` and `clients.manage`.
@@ -76,6 +76,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (req.method !== 'POST') {
       return errorResponse('invalid_request', 'Method not allowed', 405, req)
     }
+    // The caller first (security review 2026-10-14): an unauthenticated
+    // request never has its body read.
+    const auth = await verifyAuth(
+      req,
+      { module: 'clients', permission: 'clients.manage' },
+      deps.userClient,
+    )
+    if (auth instanceof Response) return auth
     const input = await readJson(req, bodySchema)
     if (input instanceof Response) return input
     if (
@@ -84,12 +92,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     ) {
       return errorResponse('invalid_request', 'Invalid request', 400, req)
     }
-    const auth = await verifyAuth(
-      req,
-      { module: 'clients', permission: 'clients.manage' },
-      deps.userClient,
-    )
-    if (auth instanceof Response) return auth
     const client = deps.serviceClient()
     if (client instanceof Response) return client
     const { org_id: orgId, user_id: actor } = auth.access

@@ -14,7 +14,7 @@
 -- my_client_consents only, another clinic, the module off).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(126);
+select plan(128);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -292,6 +292,17 @@ set local role service_role;
 select is((public.open_client_consent_for_service(sha256('t-alice-2'::bytea), 'Alicia', 1990)) ->> 'state', 'identity_mismatch', 'a wrong first name');
 select is((public.open_client_consent_for_service(sha256('t-alice-2'::bytea), 'alice', 1991)) ->> 'state', 'identity_mismatch', 'a wrong birth year');
 select is((public.open_client_consent_for_service(sha256('t-alice-1'::bytea), 'Alice', 1990)) ->> 'state', 'invalid', 'a revoked link');
+-- Security review 2026-10-14 (P3-40): nothing opens while Clients is reserved for its testers.
+reset role;
+update public.org_modules set testers_only = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'clients';
+set local role service_role;
+select is((public.open_client_consent_for_service(sha256('t-alice-2'::bytea), 'Alice', 1990)) ->> 'state', 'invalid',
+  'reserved for testers: the page opens nothing (P3-40)');
+select is((public.start_client_consent_signing_for_service(sha256('t-alice-2'::bytea), 'Alice', 1990, '{"accord": "yes"}', 'key-alice-0')) ->> 'state',
+  'invalid', 'reserved for testers: nothing is signed (P3-40)');
+reset role;
+update public.org_modules set testers_only = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'clients';
+set local role service_role;
 select results_eq($$ select r ->> 'state', r ->> 'role', r ->> 'can_answer', r ->> 'consent_name', r -> 'clauses' -> 0 ->> 'kind'
                        from public.open_client_consent_for_service(sha256('t-alice-2'::bytea), ' ALICE ', 1990) r $$,
   $$ values ('ready', 'client', 'true', 'Consentement général', 'agree') $$, 'the right identity opens it (case and spaces ignored)');

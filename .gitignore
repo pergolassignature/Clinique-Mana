@@ -61,3 +61,14 @@ supabase/.temp
 
 # Import reports (scripts/import-professionals.mjs): emails of real people, never committed
 import-report-*.csv
+
+# GOrendezvous exports and import reports (scripts/import-gorendezvous.mjs): real clients' data.
+# They live in ~/Clinique-MANA-import/ and the script refuses them inside the repository; these
+# patterns catch a copy made by hand. The synthetic fixtures (scripts/import-gorendezvous/fixtures/)
+# stay tracked.
+Clinique-MANA-import/
+/*.csv
+/*.xlsx
+rapport*.txt
+*gorendezvous*.csv
+*GOrendezvous*.csv
