@@ -222,6 +222,7 @@ export function AppShell({
         </a>
 
         <aside
+          data-print="hide"
           data-collapsed={collapsed}
           className={cn(
             'sticky top-0 hidden h-dvh shrink-0 flex-col bg-sidebar px-2 transition-[width] duration-160 motion-reduce:transition-none md:flex',

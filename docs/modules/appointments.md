@@ -260,6 +260,10 @@ Migration `20261014035625_appointments_messages_sheet`; pgTAP `184_appointments_
 - **« Messages »** (a tab of the sheet, after « Annulation »): `list_appointment_messages(id)` (`appointments.view`; or `appointments.self` for her own appointment): every message to the appointment's clients and their relations, newest first: the kind (Confirmation, Rappel, Modification, Annulation), the channel, the recipient's name (Clients' `clients_display_names`), the state in words (« En attente d'envoi », « Envoyé le … », « Échec après N essais », « Non envoyé : <raison> ») and when it was created. Never an address, a number or a text.
 - **« Renvoyer la notification »** (`appointments.manage`; a coming appointment, booked, confirmed or cancelled): `resend_appointment_notification(id)` queues its confirmation (or its cancellation) again for every recipient and channel, through `appointments_queue_message(org, id, kind, again => true)` (a new message past the one-per-start key). Refused for a past, held or personal appointment, and within 2 minutes of the last one of that kind. Returns how many were queued: 0 says « personne ne peut être joint » (or Rendez-vous is reserved for testers, P3-40). A text leaves at once; an email with the messages job.
 
+## Printing the agenda (AP-48, parity audit L14)
+
+« Imprimer » (beside the agenda's date, in « Rendez-vous » for « Jour » and « Semaine ») opens `/agenda/imprimer` (`appointments.view`) or `/mon-agenda/imprimer` (`appointments.self`) with the agenda's own address (`vue`, `date`, `professionnel`, `service`): the day or the week as a plain list, per day and per professional, each appointment's time, client(s), service and mode, and state; a cancellation only when kept on the schedule; never a note, a message or a contact. « Imprimer » calls the browser's print; the shell, the toasts and the page's buttons carry `data-print="hide"` (`globals.css`, `@media print`). Read through `list_agenda` (no new RPC).
+
 ## The GOrendezvous import (I2, I-15)
 
 `import_appointment(row, dry_run)` (`appointments.manage`, `clients.manage`, `clients.merge`; migration `*_appointments_import.sql`, pgTAP `178_appointments_import`): one appointment by `external_ref` « gorendezvous:… » (a re-run `skipped`), its professional, service code and one or two clients (by reference or name, Clients' `clients_import_match`: `unmatched`), each linked « import » to the professional.
@@ -272,7 +276,7 @@ Migration `20261014035625_appointments_messages_sheet`; pgTAP `184_appointments_
 
 ## Security review (2026-10-14)
 
-Migration `*_appointments_security_fixes.sql`, pgTAP `189_appointments_security_fixes`; decision AP-48.
+Migration `*_appointments_security_fixes.sql`, pgTAP `189_appointments_security_fixes`; decision AP-49.
 
 - **A professional books her own clients only:** `book_appointment` (and so `create_series`, which books each date through it) refuses, for a caller without `appointments.manage`, a client not already visible to her (Clients' `private.client_visible_to_professional`), before any rule reads the clients' facts: P0001 « Ce client n'est pas encore dans vos dossiers : demandez à la clinique de le jumeler. » (hint `client_ids`). Booking would have linked her (`clients_link_professional`) and opened the file. The staff are unchanged.
 - **« Votre lien de rencontre »:** `video_link_email_for_service` keeps only contacts with `reminders_by_email`, and returns nothing while the module is reserved for testers (P3-40); the sync job then marks the link as handled, as when nobody has an address.
