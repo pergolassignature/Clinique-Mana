@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
     confirmAppointment: vi.fn(),
     fetchAppointmentConsents: vi.fn(),
     fetchBookingConsents: vi.fn(),
+    addAppointmentParticipant: vi.fn(),
+    removeAppointmentParticipant: vi.fn(),
   },
   messages: { fetchWithoutReminder: vi.fn() },
   history: { fetchAppointmentHistory: vi.fn() },
@@ -44,13 +46,30 @@ vi.mock('../api/messages', async (importOriginal) => ({ ...(await importOriginal
 vi.mock('../api/history', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/history')>()), ...mocks.history }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
-vi.mock('@/modules/clients', () => ({
-  ClientPicker: ({ onSelect }: { onSelect: (id: string, client: { id: string; name: string; clientNumber: number }) => void }) => (
-    <button type="button" onClick={() => onSelect('c1', { id: 'c1', name: 'Alice Essai', clientNumber: 1 })}>
-      Choisir Alice
-    </button>
-  ),
-}))
+// The picker offers the next person not chosen yet: Alice, then Bruno, then Chloé (R-79's families).
+vi.mock('@/modules/clients', () => {
+  const people = [
+    { id: 'c1', name: 'Alice Essai', clientNumber: 1 },
+    { id: 'c2', name: 'Bruno Essai', clientNumber: 2 },
+    { id: 'c3', name: 'Chloé Essai', clientNumber: 3 },
+  ]
+  return {
+    ClientPicker: ({
+      onSelect,
+      excludeIds = [],
+    }: {
+      onSelect: (id: string, client: { id: string; name: string; clientNumber: number }) => void
+      excludeIds?: readonly string[]
+    }) => {
+      const next = people.find((p) => !excludeIds.includes(p.id))
+      return next ? (
+        <button type="button" onClick={() => onSelect(next.id, next)}>
+          {`Choisir ${next.name.split(' ')[0]}`}
+        </button>
+      ) : null
+    },
+  }
+})
 
 const A = 'modules.appointments.agenda'
 const D = 'modules.appointments.availability'
@@ -130,6 +149,8 @@ beforeEach(() => {
   mocks.changes.confirmAppointment.mockResolvedValue(undefined)
   mocks.changes.fetchAppointmentConsents.mockResolvedValue([])
   mocks.changes.fetchBookingConsents.mockResolvedValue([])
+  mocks.changes.addAppointmentParticipant.mockResolvedValue(undefined)
+  mocks.changes.removeAppointmentParticipant.mockResolvedValue(undefined)
   mocks.messages.fetchWithoutReminder.mockResolvedValue([])
   mocks.history.fetchAppointmentHistory.mockResolvedValue([])
 })
@@ -554,6 +575,64 @@ describe('AgendaPage', () => {
       expect(within(sheet).getByText('Félix Gauthier', { selector: 'li span' })).toBeInTheDocument()
       expect(within(sheet).getByText(/10150 · Consultation individuelle 50 min/)).toBeInTheDocument()
       expect(mocks.history.fetchAppointmentHistory).toHaveBeenCalledWith('a1', null)
+    })
+  })
+
+  describe('an appointment for several people (R-79)', () => {
+    it('books a family: each person named in the form, all of them sent in order', async () => {
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: t(`${A}.new`) }))
+      const sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
+      await user.selectOptions(within(sheet).getByLabelText(/^Service/), 's50')
+      await user.click(within(sheet).getByRole('button', { name: 'Choisir Alice' }))
+      expect(within(sheet).getByText(t(`${E}.clientsHelp`, { max: '6' }))).toBeInTheDocument()
+      await user.click(within(sheet).getByRole('button', { name: 'Choisir Bruno' }))
+      await user.click(within(sheet).getByRole('button', { name: 'Choisir Chloé' }))
+      const list = within(sheet).getAllByRole('listitem').map((item) => item.textContent)
+      expect(list).toEqual([
+        `Alice Essai · ${t(`${E}.personSeen`)}${t(`${E}.removeClient`)}`,
+        `Bruno Essai · ${t(`${E}.otherPerson`)}${t(`${E}.removeClient`)}`,
+        `Chloé Essai · ${t(`${E}.otherPerson`)}${t(`${E}.removeClient`)}`,
+      ])
+      await user.click(within(sheet).getByRole('button', { name: t(`${E}.book`) }))
+      await waitFor(() => expect(mocks.api.bookAppointment).toHaveBeenCalled())
+      expect(mocks.api.bookAppointment.mock.calls[0]?.[0]).toMatchObject({ clientIds: ['c1', 'c2', 'c3'] })
+    })
+
+    it('the block names everyone; the sheet adds a person, and takes one off once confirmed', async () => {
+      const user = userEvent.setup()
+      mocks.api.fetchAgenda.mockResolvedValue([
+        appointment({
+          participants: [
+            { clientId: 'c1', name: 'Alice Essai', clientNumber: 1, role: 'client', presence: 'expected', confirmedAt: null },
+            { clientId: 'c2', name: 'Bruno Essai', clientNumber: 2, role: 'second', presence: 'expected', confirmedAt: null },
+          ],
+        }),
+      ])
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai et Bruno Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      await user.click(within(sheet).getByRole('button', { name: 'Choisir Chloé' }))
+      await waitFor(() => expect(mocks.changes.addAppointmentParticipant).toHaveBeenCalledWith('a1', 'c3'))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.appointments.saved.participantAdded')))
+      await user.click(within(sheet).getByRole('button', { name: t(`${E}.participants.remove`, { name: 'Bruno Essai' }) }))
+      const confirm = await screen.findByRole('alertdialog', { name: t(`${E}.participants.removeTitle`, { name: 'Bruno Essai' }) })
+      expect(mocks.changes.removeAppointmentParticipant).not.toHaveBeenCalled()
+      await user.click(within(confirm).getByRole('button', { name: t(`${E}.participants.removeConfirm`) }))
+      await waitFor(() => expect(mocks.changes.removeAppointmentParticipant).toHaveBeenCalledWith('a1', 'c2'))
+    })
+
+    it('a refusal from the database is shown as written', async () => {
+      const user = userEvent.setup()
+      mocks.changes.addAppointmentParticipant.mockRejectedValueOnce({ code: 'P0001', hint: 'client_id', message: 'Ce client participe déjà à ce rendez-vous.' })
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+      const sheet = await screen.findByRole('dialog')
+      // Alone, Alice cannot be taken off: the appointment keeps at least one person.
+      expect(within(sheet).queryByRole('button', { name: t(`${E}.participants.remove`, { name: 'Alice Essai' }) })).not.toBeInTheDocument()
+      await user.click(within(sheet).getByRole('button', { name: 'Choisir Bruno' }))
+      expect(await within(sheet).findByText('Ce client participe déjà à ce rendez-vous.')).toBeInTheDocument()
     })
   })
 

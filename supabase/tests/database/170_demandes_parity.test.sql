@@ -106,8 +106,9 @@ select is(private.demandes_booking_clients('b0000000-0000-0000-0000-00000000000a
   'any service books every file (two at most)');
 insert into public.demande_participants (demande_id, org_id, client_id, relationship)
 values (current_setting('test.d')::uuid, 'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000003', 'child');
-select throws_ok($$ select private.demandes_booking_clients('b0000000-0000-0000-0000-00000000000a', current_setting('test.d')::uuid, false) $$,
-  'P0001', null, 'three files: an appointment counts two clients at most');
+-- R-79 (*_demandes_family_booking.sql): three files are booked together (six at most).
+select is(pg_catalog.cardinality(private.demandes_booking_clients('b0000000-0000-0000-0000-00000000000a', current_setting('test.d')::uuid, false)),
+  3, 'three files: all booked (R-79, an appointment for several people)');
 delete from public.demande_participants where client_id = 'd0000000-0000-0000-0000-000000000003';
 
 -- =============================================================================

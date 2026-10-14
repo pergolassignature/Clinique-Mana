@@ -10,6 +10,7 @@ import { Button } from '@/shared/ui/button'
 import { closeButtonClasses } from '@/shared/ui/overlay-classes'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
 import { useConfirmAppointment, useWithoutReminder } from '../hooks/use-agenda'
+import { joinNames } from '../lib/participants'
 
 const W = 'modules.appointments.withoutReminder'
 
@@ -77,4 +78,4 @@ export function WithoutReminderSheet({ professionalName, onClose }: { profession
   )
 }
 
-const names = (a: { participants: { name: string }[] }) => a.participants.map((p) => p.name).filter(Boolean).join(' et ')
+const names = (a: { participants: { name: string }[] }) => joinNames(a.participants.map((p) => p.name))

@@ -14,8 +14,19 @@ import { cn } from '@/shared/lib/utils'
 import { SaveButton } from '@/shared/components/SaveButton'
 import { formatClinicDateFull, formatClinicTime, getClinicDateString, getClinicTimeString, clinicTimeToUTC } from '@/shared/lib/timezone'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/shared/ui/alert-dialog'
 import { Badge } from '@/shared/ui/badge'
-import { Button } from '@/shared/ui/button'
+import { Button, buttonVariants } from '@/shared/ui/button'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { NavTab, NavTabs } from '@/shared/ui/nav-tabs'
@@ -28,6 +39,7 @@ import { TimeField } from '@/shared/ui/time-field'
 import type { AgendaReference, SeriesRule } from '../api/agenda'
 import { MODES, PRESENCES, type AgendaAppointment, type AppointmentMode, type Presence } from '../api/parse'
 import {
+  useAddParticipant,
   useAppointmentConsents,
   useAppointmentDetail,
   useBookAppointment,
@@ -38,12 +50,14 @@ import {
   useConfirmAppointment,
   useCreateSeries,
   useMoveAppointment,
+  useRemoveParticipant,
   useRestoreAppointment,
   useSeriesPreview,
   useSetAppointmentDetails,
   useSetPresence,
 } from '../hooks/use-agenda'
 import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVariant, stateLabel } from '../lib/display'
+import { MAX_CLIENTS, maxClientsFor, participantRole } from '../lib/participants'
 import { isoWeekday } from '../lib/time'
 import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
 import { AppointmentHistory } from './AppointmentHistory'
@@ -178,6 +192,8 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   const consents = useBookingConsents(serviceId, clients.map((c) => c.id))
   const service = services.find((s) => s.id === serviceId)
   const needed = service?.forTwo ? 2 : 1
+  // R-79: a family holds up to six people, a couple service exactly two.
+  const max = maxClientsFor(service)
   // The series' rule once complete: its dates and conflicts come from the database.
   const rule: SeriesRule | null =
     series.repeat && professionalId && serviceId && day && time && seriesComplete(series)
@@ -195,7 +211,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   const conflicts = preview.data?.filter((d) => d.conflict !== null).length ?? 0
   useUnsavedChanges(Boolean(serviceId || clients.length > 0 || note.trim() || message.trim() || series.repeat))
   const ready =
-    Boolean(professionalId && serviceId && day && time && clients.length >= needed) &&
+    Boolean(professionalId && serviceId && day && time && clients.length >= needed && clients.length <= max) &&
     (!series.repeat || (rule !== null && preview.data !== undefined && (conflicts === 0 || series.skipConflicts)))
   const pending = book.isPending || createSeries.isPending
 
@@ -216,7 +232,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
     else book.mutate({ professionalId, serviceId, startsAt: clinicTimeToUTC(day, time), ...shared }, { onSuccess: onClose })
   }
 
-  const addClient = (client: PickedClient) => setClients((list) => (list.some((c) => c.id === client.id) || list.length >= 2 ? list : [...list, client]))
+  const addClient = (client: PickedClient) => setClients((list) => (list.some((c) => c.id === client.id) || list.length >= max ? list : [...list, client]))
 
   return (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
@@ -279,7 +295,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
                 <li key={c.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1 text-sm">
                   <span>
                     <span className="font-medium">{c.name}</span>
-                    <span className="text-muted-foreground"> · {t(i === 0 ? `${E}.personSeen` : `${E}.secondPerson`)}</span>
+                    <span className="text-muted-foreground"> · {participantRole(i, clients.length)}</span>
                   </span>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setClients((list) => list.filter((x) => x.id !== c.id))}>
                     {t(`${E}.removeClient`)}
@@ -288,14 +304,33 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
               ))}
             </ul>
           )}
-          {clients.length < 2 && (
+          {clients.length > max && (
+            <Alert variant="warning">
+              <TriangleAlert aria-hidden />
+              <AlertDescription className="text-foreground">{t(`${E}.forTwoTooMany`)}</AlertDescription>
+            </Alert>
+          )}
+          {clients.length < max && (
             <Suspense fallback={<Loading />}>
               <ClientPicker
-                label={t(clients.length === 0 ? (service?.forTwo ? `${E}.clientsTwo` : `${E}.findClient`) : service?.forTwo ? `${E}.findSecondRequired` : `${E}.findSecond`)}
+                label={t(
+                  clients.length === 0
+                    ? service?.forTwo
+                      ? `${E}.clientsTwo`
+                      : `${E}.findClient`
+                    : service?.forTwo
+                      ? `${E}.findSecondRequired`
+                      : clients.length === 1
+                        ? `${E}.findSecond`
+                        : `${E}.findOther`,
+                )}
                 excludeIds={clients.map((c) => c.id)}
                 onSelect={(id, client) => addClient(client ?? { id, name: t(`${E}.newClientName`), clientNumber: 0 })}
               />
             </Suspense>
+          )}
+          {!service?.forTwo && clients.length > 0 && clients.length < max && (
+            <p className="text-xs text-muted-foreground">{t(`${E}.clientsHelp`, { max: String(MAX_CLIENTS) })}</p>
           )}
         </section>
         {serviceId && clients.length > 0 && (
@@ -509,6 +544,64 @@ function MarkConfirmed({ appointment: a }: { appointment: AgendaAppointment }) {
   )
 }
 
+/** « Ajouter une personne » (R-79): Clients' picker; the person added gets the confirmation. */
+function AddParticipant({ appointment: a, forTwo, onError }: { appointment: AgendaAppointment; forTwo: boolean; onError: (message: string | null) => void }) {
+  const add = useAddParticipant({ onErrorMessage: (message) => onError(message) })
+  const P = `${E}.participants` as const
+  if (forTwo) return <p className="text-xs text-muted-foreground">{t(`${P}.forTwo`)}</p>
+  if (a.participants.length >= MAX_CLIENTS) return <p className="text-xs text-muted-foreground">{t(`${P}.full`, { max: String(MAX_CLIENTS) })}</p>
+  return (
+    <section className="space-y-1" aria-label={t(`${P}.add`)}>
+      <Suspense fallback={<Loading />}>
+        <ClientPicker
+          label={t(`${P}.add`)}
+          excludeIds={a.participants.map((p) => p.clientId)}
+          onSelect={(clientId) => {
+            if (add.isPending) return
+            onError(null)
+            add.mutate({ appointmentId: a.id, clientId })
+          }}
+        />
+      </Suspense>
+      <p className="text-xs text-muted-foreground">{t(`${P}.help`, { max: String(MAX_CLIENTS) })}</p>
+    </section>
+  )
+}
+
+/** « Retirer » a person from the appointment (R-79), asked once more: she gets a cancellation. */
+function RemoveParticipant({ appointmentId, clientId, name, onError }: { appointmentId: string; clientId: string; name: string; onError: (message: string | null) => void }) {
+  const remove = useRemoveParticipant({ onErrorMessage: (message) => onError(message) })
+  const P = `${E}.participants` as const
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" aria-disabled={remove.isPending || undefined} className={softDisabledClasses} aria-label={t(`${P}.remove`, { name })}>
+          {t(`${E}.removeClient`)}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t(`${P}.removeTitle`, { name })}</AlertDialogTitle>
+          <AlertDialogDescription>{t(`${P}.removeBody`, { name })}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+          <AlertDialogAction
+            className={buttonVariants({ variant: 'destructive' })}
+            onClick={() => {
+              if (remove.isPending) return
+              onError(null)
+              remove.mutate({ appointmentId, clientId })
+            }}
+          >
+            {t(`${P}.removeConfirm`)}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 function AppointmentTab({
   appointment: a,
   move: dragged,
@@ -540,6 +633,11 @@ function AppointmentTab({
   const changed = day !== getClinicDateString(a.startsAt) || time !== getClinicTimeString(a.startsAt) || professionalId !== a.professionalId
   useUnsavedChanges(open && (changed || outsideReason.trim() !== ''))
   const eligible = a.serviceId ? reference.professionals.filter((p) => servicesFor(reference, p.id).some((s) => s.id === a.serviceId)) : reference.professionals
+  const service = reference.services.find((s) => s.id === a.serviceId)
+  // R-79: the people of a coming appointment change here (the database checks every rule; a
+  // professional only with her own clients).
+  const editParticipants = open && !a.isPersonal && Date.parse(a.startsAt) > Date.now() && (can('appointments.manage') || can('appointments.self'))
+  const [participantsRefusal, setParticipantsRefusal] = useState<string | null>(null)
 
   return (
     <>
@@ -562,28 +660,37 @@ function AppointmentTab({
               <li key={p.clientId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span>
                   <span className="font-medium">{p.name}</span>
-                  {p.role === 'second' && <span className="text-muted-foreground"> · {t(`${E}.secondPerson`)}</span>}
+                  {p.role === 'second' && (
+                    <span className="text-muted-foreground"> · {t(a.participants.length <= 2 ? `${E}.secondPerson` : `${E}.otherPerson`)}</span>
+                  )}
                   {p.confirmedAt && <span className="text-muted-foreground"> · {t(`${E}.confirmed`)}</span>}
                 </span>
-                <Select
-                  aria-label={t(`${E}.presenceOf`, { name: p.name })}
-                  value={p.presence}
-                  disabled={a.state === 'cancelled' || a.state === 'held'}
-                  onChange={(e) => presence.mutate({ appointmentId: a.id, clientId: p.clientId, presence: e.target.value as Presence })}
-                  className="w-40"
-                >
-                  {PRESENCES.map((value) => (
-                    <option key={value} value={value}>
-                      {/* Once the appointment is over, « Sera présent » becomes the question to answer. */}
-                      {value === 'expected' && over ? t(`${E}.presenceToRecord`) : presenceLabel(value)}
-                    </option>
-                  ))}
-                </Select>
+                <span className="flex items-center gap-1">
+                  <Select
+                    aria-label={t(`${E}.presenceOf`, { name: p.name })}
+                    value={p.presence}
+                    disabled={a.state === 'cancelled' || a.state === 'held'}
+                    onChange={(e) => presence.mutate({ appointmentId: a.id, clientId: p.clientId, presence: e.target.value as Presence })}
+                    className="w-40"
+                  >
+                    {PRESENCES.map((value) => (
+                      <option key={value} value={value}>
+                        {/* Once the appointment is over, « Sera présent » becomes the question to answer. */}
+                        {value === 'expected' && over ? t(`${E}.presenceToRecord`) : presenceLabel(value)}
+                      </option>
+                    ))}
+                  </Select>
+                  {editParticipants && a.participants.length > 1 && !service?.forTwo && (
+                    <RemoveParticipant appointmentId={a.id} clientId={p.clientId} name={p.name} onError={setParticipantsRefusal} />
+                  )}
+                </span>
               </li>
             ))}
           </ul>
         </section>
       )}
+      {editParticipants && <AddParticipant appointment={a} forTwo={Boolean(service?.forTwo)} onError={setParticipantsRefusal} />}
+      <Refusal message={participantsRefusal} />
       {a.state === 'booked' && !a.isPersonal && can('appointments.manage') && <MarkConfirmed appointment={a} />}
       {open && (
         <section className="space-y-3">

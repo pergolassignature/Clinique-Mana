@@ -14533,6 +14533,10 @@ export type Database = {
           status: string
         }[]
       }
+      add_appointment_participant: {
+        Args: { p_appointment_id: string; p_client_id: string }
+        Returns: undefined
+      }
       add_availability_exception: {
         Args: {
           p_ends_at: string
@@ -17386,6 +17390,10 @@ export type Database = {
       }
       release_sms_provider_lock: {
         Args: { p_org_id: string; p_owner: string }
+        Returns: undefined
+      }
+      remove_appointment_participant: {
+        Args: { p_appointment_id: string; p_client_id: string }
         Returns: undefined
       }
       remove_availability_exception: {

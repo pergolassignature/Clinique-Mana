@@ -115,3 +115,19 @@ export async function saveClientLinks(enabled: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_appointment_client_links', { p_enabled: enabled })
   if (error) throw error
 }
+
+/**
+ * An appointment for several people (R-79): adds a client to a booked or confirmed appointment
+ * still to come (the booking's rules on the whole list, six at most; a professional only her own
+ * clients). She, and each relation who manages her appointments, gets the confirmation.
+ */
+export async function addAppointmentParticipant(appointmentId: string, clientId: string): Promise<void> {
+  const { error } = await supabase.rpc('add_appointment_participant', { p_appointment_id: appointmentId, p_client_id: clientId })
+  if (error) throw error
+}
+
+/** Takes a client off a coming appointment (R-79): she gets a cancellation; never the last one. */
+export async function removeAppointmentParticipant(appointmentId: string, clientId: string): Promise<void> {
+  const { error } = await supabase.rpc('remove_appointment_participant', { p_appointment_id: appointmentId, p_client_id: clientId })
+  if (error) throw error
+}

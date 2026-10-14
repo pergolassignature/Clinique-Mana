@@ -63,7 +63,8 @@ export function AgendaPage() {
 /**
  * « Mon agenda » (plan R5, AP-23): the professional's own agenda, the same views on her alone. She
  * moves and cancels her appointments, notes presence, edits her availability and adds personal
- * appointments (a click on a free quarter hour); booking clients is the clinic's (dispatch).
+ * appointments (a click on a free quarter hour). Since R-82 she also books her own clients
+ * (« Rendez-vous avec un client »), outside her availability too, never over another appointment.
  */
 export function MyAgendaPage() {
   usePageTitle(t('modules.appointments.mine.title'))
@@ -219,10 +220,17 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
             ) : undefined
           ) : mine ? (
             canWrite && mode === 'rendez-vous' ? (
-              <Button type="button" onClick={() => setPersonal({ day, time: '12:00' })}>
-                <Plus aria-hidden />
-                {t('modules.appointments.personal.new')}
-              </Button>
+              <>
+                <Button type="button" variant="outline" onClick={() => setPersonal({ day, time: '12:00' })}>
+                  <Plus aria-hidden />
+                  {t('modules.appointments.personal.new')}
+                </Button>
+                {/* R-82: she books her own clients on her agenda, at any time but over another appointment. */}
+                <Button type="button" onClick={() => setSheet({ kind: 'create', professionalId: pro, day, time: '09:00' })}>
+                  <Plus aria-hidden />
+                  {t('modules.appointments.mine.newClient')}
+                </Button>
+              </>
             ) : undefined
           ) : (
             <>
@@ -400,7 +408,17 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
         />
       )}
       {rule && <RuleDialog target={rule} reference={reference} onClose={() => setRule(null)} />}
-      {personal && <PersonalDialog day={personal.day} time={personal.time} onClose={() => setPersonal(null)} />}
+      {personal && (
+        <PersonalDialog
+          day={personal.day}
+          time={personal.time}
+          onClose={() => setPersonal(null)}
+          onClient={() => {
+            setPersonal(null)
+            setSheet({ kind: 'create', professionalId: pro, day: personal.day, time: personal.time })
+          }}
+        />
+      )}
     </>
   )
 }

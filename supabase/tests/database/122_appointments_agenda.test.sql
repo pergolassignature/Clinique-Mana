@@ -1,6 +1,6 @@
 -- Rendez-vous, batch R2 (migrations *_clients_display_names.sql, *_appointments_agenda.sql).
 -- Covers: privileges (the new signatures, the old ones gone); AP-12 « Hors disponibilités »: a
--- reason required, staff only, never a professional on her own agenda, overlaps still refused,
+-- reason required from the staff (a professional on her own agenda needs none since R-82), overlaps still refused,
 -- the reason kept with its author and redacted in the audit, a move back inside clears it;
 -- set_appointment_details; list_agenda: names, busy time for another's personal appointment,
 -- a professional's own only, the bounded period.
@@ -70,9 +70,9 @@ select throws_ok($$ select public.book_appointment('c0000000-0000-0000-0000-0000
   '2027-03-15 22:30Z', array['d0000000-0000-0000-0000-000000000002'::uuid], 'video', null, null, null, 'Encore une') $$,
   'P0001', 'Ce professionnel a déjà un rendez-vous sur ce créneau (pause après comprise).', 'never across another appointment');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select throws_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
-  '2027-03-16 22:00Z', array['d0000000-0000-0000-0000-000000000002'::uuid], 'video', null, null, null, 'Pour moi') $$,
-  '42501', 'Permission refusée : appointments.manage', 'never a professional on her own agenda');
+select lives_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
+  '2027-03-16 22:00Z', array['d0000000-0000-0000-0000-000000000001'::uuid], 'video', null, null, null, 'Pour moi') $$,
+  'R-82 (*_appointments_own_bookings.sql): a professional books on her own agenda outside her availability (was refused, AP-12)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select lives_ok($$ select public.move_appointment(current_setting('test.out')::uuid, '2027-03-15 13:00Z') $$, 'moved inside the availability');
 reset role;

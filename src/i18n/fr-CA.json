@@ -9794,7 +9794,9 @@
         "restored": "Rendez-vous rétabli.",
         "confirmed": "Rendez-vous marqué confirmé.",
         "settings": "Réglages de l’agenda enregistrés.",
-        "clientLinks": "Réglage des liens enregistré."
+        "clientLinks": "Réglage des liens enregistré.",
+        "participantAdded": "Personne ajoutée au rendez-vous : elle reçoit la confirmation.",
+        "participantRemoved": "Personne retirée du rendez-vous : elle reçoit un avis d'annulation."
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez."
@@ -9868,9 +9870,24 @@
         "clientsTwo": "Les deux clients",
         "personSeen": "personne reçue",
         "secondPerson": "deuxième personne",
+        "otherPerson": "autre personne",
         "removeClient": "Retirer",
         "findClient": "Client",
         "findSecond": "Deuxième personne (facultatif)",
+        "findOther": "Une autre personne (facultatif)",
+        "clientsHelp": "Jusqu'à {max} personnes, chacune avec son dossier : chacune reçoit la confirmation, les rappels et les avis.",
+        "forTwoTooMany": "Ce service se réserve pour deux personnes : retirez les autres avant de réserver.",
+        "participants": {
+          "title": "Personnes au rendez-vous",
+          "help": "Jusqu'à {max} personnes. Une personne ajoutée reçoit la confirmation ; une personne retirée reçoit un avis d'annulation.",
+          "add": "Ajouter une personne",
+          "remove": "Retirer {name}",
+          "removeTitle": "Retirer {name} du rendez-vous ?",
+          "removeBody": "{name} reçoit un avis d'annulation. Le rendez-vous reste réservé pour les autres personnes.",
+          "removeConfirm": "Retirer du rendez-vous",
+          "full": "Le rendez-vous compte déjà {max} personnes, le maximum.",
+          "forTwo": "Ce service se réserve pour deux personnes : changez le service pour ajouter ou retirer une personne."
+        },
         "newClientName": "Nouveau dossier",
         "internalNote": "Note interne",
         "internalNoteHelp": "Pour l'équipe seulement ; jamais envoyée au client.",
@@ -10165,11 +10182,13 @@
         "workHelp": "Une rencontre liée à votre travail (réunion, formation).",
         "save": "Ajouter",
         "new": "Rendez-vous personnel",
-        "cancel": "Retirer ce rendez-vous personnel"
+        "cancel": "Retirer ce rendez-vous personnel",
+        "withClient": "Plutôt un rendez-vous avec un client"
       },
       "mine": {
         "title": "Mon agenda",
-        "description": "Vos rendez-vous et vos disponibilités. Les réservations des clients passent par la clinique.",
+        "description": "Vos rendez-vous et vos disponibilités. Vous pouvez réserver vos clients à l'heure de votre choix, même hors de vos disponibilités, jamais par-dessus un autre rendez-vous.",
+        "newClient": "Rendez-vous avec un client",
         "loadError": "Votre agenda ne se charge pas.",
         "notProfessionalTitle": "Aucun dossier professionnel",
         "notProfessionalBody": "Votre compte n'est lié à aucun dossier professionnel : il n'a pas d'agenda."
