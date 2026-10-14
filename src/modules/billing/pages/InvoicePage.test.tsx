@@ -306,4 +306,28 @@ describe('InvoicePage', () => {
     await waitFor(() => expect(mocks.stripe.refundByStripe).toHaveBeenCalledWith('rf1'))
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.billing.saved.refundStripe.pending'))
   })
+
+  it('an imported « Note de crédit »: shown with its mode, never « Rembourser » (BI-27)', async () => {
+    mocks.api.fetchInvoice.mockResolvedValue({
+      ...bundle({ status: 'issued', number: '2025-500', issuedOn: '2025-03-04', paidCents: 10000, paymentStatus: 'partial' }),
+      payments: [
+        {
+          id: 'p3', modeCode: 'credit_note', mode: 'Note de crédit', amountCents: 6000, paidOn: '2025-03-05', reference: null, note: null,
+          receiptId: null, receiptNumber: null, receiptFileId: null, receiptDeliveries: [], refunds: [], refundableCents: 6000,
+        },
+        {
+          id: 'p4', modeCode: 'interac', mode: 'Virement Interac', amountCents: 4000, paidOn: '2025-03-04', reference: null, note: null,
+          receiptId: null, receiptNumber: null, receiptFileId: null, receiptDeliveries: [], refunds: [], refundableCents: 4000,
+        },
+      ],
+    })
+    open()
+    const list = await screen.findByRole('list', { name: t(`${I}.payments.list`) })
+    const items = within(list).getAllByRole('listitem')
+    const credit = items[0]!
+    const interac = items[1]!
+    expect(within(credit).getByText(/Note de crédit/)).toBeInTheDocument()
+    expect(within(credit).queryByRole('button', { name: t(`${I}.payments.refund`) })).not.toBeInTheDocument()
+    expect(within(interac).getByRole('button', { name: t(`${I}.payments.refund`) })).toBeInTheDocument()
+  })
 })
