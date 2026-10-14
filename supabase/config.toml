@@ -278,6 +278,14 @@ verify_jwt = false
 # Job appointments.video_sync: X-Job-Signature (runJob).
 [functions.appointments-video-sync]
 verify_jwt = false
+# Rendez-vous R6: a professional connects her Google agenda's busy times (verifyAuth, appointments.self);
+# the sync is both « Synchroniser » (user) and the job appointments.google_busy_sync (runJob).
+[functions.google-calendar-connect]
+verify_jwt = false
+[functions.google-calendar-callback]
+verify_jwt = false
+[functions.google-calendar-sync]
+verify_jwt = false
 [functions.billing-payout-invoice]
 verify_jwt = false
 [functions.billing-stripe]
