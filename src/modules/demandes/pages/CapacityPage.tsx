@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { RequireAccess } from '@/core/access/guards'
@@ -17,6 +17,7 @@ import { Input } from '@/shared/ui/input'
 import { toast } from '@/shared/ui/sonner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import type { CapacityRow } from '../api/capacity'
 import { useCapacityBoard, useSetNewClientPlaces } from '../hooks/use-capacity'
 import { CAPACITY_VIEWS, CAPACITY_VIEW_PARAM, inView, placesText, totalText, type CapacityView } from '../lib/capacity'
@@ -46,7 +47,7 @@ function CapacityBoardPage() {
   usePageTitle(t(`${C}.title`))
   const { can } = useAccess()
   const board = useCapacityBoard()
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   const view = CAPACITY_VIEWS.find((v) => CAPACITY_VIEW_PARAM[v] === params.get('vue')) ?? 'all'
   const [editing, setEditing] = useState<CapacityRow | null>(null)
   const canEdit = can('professionals.matching')
@@ -62,7 +63,7 @@ function CapacityBoardPage() {
           )}
         </p>
       )}
-      <Tabs value={view} onValueChange={(next) => setParams(next === 'all' ? {} : { vue: CAPACITY_VIEW_PARAM[next as CapacityView] }, { replace: true })}>
+      <Tabs value={view} onValueChange={(next) => update({ vue: next === 'all' ? null : CAPACITY_VIEW_PARAM[next as CapacityView] })}>
         <TabsList aria-label={t(`${C}.views`)}>
           {CAPACITY_VIEWS.map((v) => (
             <TabsTrigger key={v} value={v}>

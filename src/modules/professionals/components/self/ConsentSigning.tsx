@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { CircleCheck } from 'lucide-react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
@@ -8,6 +7,7 @@ import { SignedDocumentDownloads } from '@/core/signing/components/SignedDocumen
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { softDisabledClasses } from '@/shared/components/soft-disabled'
 import { Button } from '@/shared/ui/button'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import type { SigningReturn } from '../../api/consent-sign'
 import { useConsentSigning, useMyImageConsent } from '../../hooks/use-consent-sign'
 import { RefusalAlert } from '../compensation/DatedRowParts'
@@ -26,7 +26,7 @@ const S = 'modules.professionals.consentSign'
 export function ConsentSigning({ back, variant, cardSaysInForce = false }: { back: SigningReturn; variant: 'step' | 'documents'; cardSaysInForce?: boolean }) {
   const consent = useMyImageConsent()
   const signing = useConsentSigning(back)
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   const returned = useRef(false)
   const { completed } = signing
 
@@ -35,15 +35,8 @@ export function ConsentSigning({ back, variant, cardSaysInForce = false }: { bac
     if (returned.current || params.get(SIGNED_PARAM) !== 'signe') return
     returned.current = true
     completed()
-    setParams(
-      (prev) => {
-        const out = new URLSearchParams(prev)
-        out.delete(SIGNED_PARAM)
-        return out
-      },
-      { replace: true },
-    )
-  }, [params, setParams, completed])
+    update({ [SIGNED_PARAM]: null })
+  }, [params, update, completed])
 
   if (consent.isPending) return <Loading />
   if (consent.data === undefined) {

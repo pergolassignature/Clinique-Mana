@@ -140,4 +140,24 @@ export default tseslint.config(
   { files: ENTRY_FILES.modules, ignores: TESTS, rules: restrict(MODULE_LAYERS, ENTRY_RESTRICTIONS) },
   { files: ENTRY_FILES.other, ignores: TESTS, rules: restrict(ENTRY_RESTRICTIONS) },
   { files: ['src/**/*.{ts,tsx}'], ignores: ['src/modules/professionals/pdf/**', 'src/modules/clients/pdf/**', ...TESTS], rules: PDF_RESTRICTIONS },
+  // The address's parameters change only through useUrlParams (core doc, « Filters in the address »):
+  // react-router's setter builds on the render's parameters, which a transition may set aside.
+  // Reading them (`const [params] = useSearchParams()`) stays allowed.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/shared/lib/use-url-params.ts', ...TESTS],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "VariableDeclarator[init.callee.name='useSearchParams'][id.type='ArrayPattern'][id.elements.length>1]",
+          message: "Change the address's parameters with useUrlParams().update (@/shared/lib/use-url-params), never useSearchParams' setter.",
+        },
+        {
+          selector: "MemberExpression[object.callee.name='useSearchParams'][property.value=1]",
+          message: "Change the address's parameters with useUrlParams().update (@/shared/lib/use-url-params), never useSearchParams' setter.",
+        },
+      ],
+    },
+  },
 )

@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { ExportCsvButton } from '@/shared/components/ExportCsvButton'
@@ -9,6 +9,7 @@ import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import { fetchAllInvoices, type InvoiceStatus } from '../api/invoices'
 import { useInvoices } from '../hooks/use-invoices'
 import { invoicesCsv } from '../lib/invoices-csv'
@@ -30,12 +31,12 @@ const STATUS_OF: Record<ListView, InvoiceStatus | null> = { brouillons: 'draft',
  */
 export function InvoicesPage() {
   usePageTitle(t(`${L}.title`))
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   const view: View = (VIEWS as readonly string[]).includes(params.get('vue') ?? '') ? (params.get('vue') as View) : 'file'
   return (
     <>
       <PageHeader level={1} title={t(`${L}.title`)} description={t(`${L}.description`)} />
-      <Tabs value={view} onValueChange={(v) => setParams(v === 'file' ? {} : { vue: v }, { replace: true })} className="mb-3">
+      <Tabs value={view} onValueChange={(v) => update({ vue: v === 'file' ? null : v })} className="mb-3">
         <TabsList aria-label={t(`${L}.views`)}>
           {VIEWS.map((v) => (
             <TabsTrigger key={v} value={v}>
