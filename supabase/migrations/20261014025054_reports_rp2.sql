@@ -5,23 +5,23 @@
 -- Legacy:    docs/plans/2026-10-06-legacy-feature-inventory.md §G (`/rapports/ivac`: totals by
 --            state, a state filter, sorts, the professional's IVAC number, the client's IVAC file
 --            number, the service, the invoice; its CSV was disabled)
--- Decisions: RP-7, RP-8 (decisions log)
+-- Decisions: RP-8, RP-9 (decisions log)
 --
 -- Two definer RPCs, permission first, reading only what Facturation publishes
 -- (`private.billing_payer_claim_facts`, `private.billing_payout_facts`) and the names and numbers
 -- Clients, Professionnels and Services et tarifs publish:
---   * `report_ivac(from, to, state, professional)` (`reports.finance`, RP-7): per session IVAC
+--   * `report_ivac(from, to, state, professional)` (`reports.finance`, RP-8): per session IVAC
 --     covers in the period (and the lines billed to IVAC by hand), what IVAC is billed and where it
 --     stands: « À facturer », « En préparation », « Facturée », « Payée en partie », « Payée »; totals per state
 --     (whatever the state filter).
---   * `report_payouts(from, to, professional)` (`reports.payroll`, new, admin; RP-8): the payroll
+--   * `report_payouts(from, to, professional)` (`reports.payroll`, new, admin; RP-9): the payroll
 --     summaries (FPay) of the months the period covers, per month and per professional.
 -- The period's rules are RP1's (a year at most); at most 5 000 rows (`truncated`).
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:reports_rp2', true);
 
--- RP-8: the payroll is a professional's pay: its own key, admin only by default.
+-- RP-9: the payroll is a professional's pay: its own key, admin only by default.
 insert into public.permissions (key, module_key, description) values
   ('reports.payroll', 'reports', 'Voir le rapport de paie des professionnels')
 on conflict do nothing;
@@ -31,7 +31,7 @@ insert into public.role_permissions (role, permission_key) values
 on conflict do nothing;
 
 -- -----------------------------------------------------------------------------
--- « IVAC » (RP-7)
+-- « IVAC » (RP-8)
 -- -----------------------------------------------------------------------------
 create function public.report_ivac(p_from date, p_to date, p_state text default null, p_professional_id uuid default null)
 returns jsonb
@@ -110,7 +110,7 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- « Paie » (RP-8)
+-- « Paie » (RP-9)
 -- -----------------------------------------------------------------------------
 create function public.report_payouts(p_from date, p_to date, p_professional_id uuid default null)
 returns jsonb

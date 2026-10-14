@@ -41,7 +41,7 @@ describe('reportsManifest', () => {
     expect(has('admin', 'reports.view') && has('admin', 'reports.finance')).toBe(true)
     expect([has('admin_assistant', 'reports.finance'), has('admin_assistant', 'reports.view')]).toEqual([true, false])
     expect(has('counselor', 'reports.view') || has('provider', 'reports.finance')).toBe(false)
-    // RP-8: the payroll report is the admin's only.
+    // RP-9: the payroll report is the admin's only.
     expect([has('admin', 'reports.payroll'), has('admin_assistant', 'reports.payroll')]).toEqual([true, false])
   })
 })

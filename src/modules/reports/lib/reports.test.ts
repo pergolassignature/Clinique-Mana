@@ -49,7 +49,11 @@ describe('the CSV exports (RP-6)', () => {
     expect(lines(revenueCsv(serviceReport, SEPT).content)[1]).toBe(
       '2026-09-05;2026-1;12;Alice Essai;Pro Un;10150;Consultation individuelle 50 min;Consultation;1;175,00;175,00;0,00;0,00;175,00',
     )
-    expect(lines(revenueCsv(paymentReport, SEPT).content)[1]).toBe("2026-09-06;2026-1;12;Alice Essai;;Virement Interac;100,00;'-ref")
+    const payments = lines(revenueCsv(paymentReport, SEPT).content)
+    expect(payments[0]).toBe('Date;Type;Facture;N° de dossier;Client;Payeur;Mode;Montant;Référence')
+    // L6: a refund is its own row, negative, under its payment's mode.
+    expect(payments[1]).toBe('2026-09-20;Remboursement;2026-1;12;Alice Essai;;Virement Interac;-25,00;')
+    expect(payments[2]).toBe("2026-09-06;Paiement;2026-1;12;Alice Essai;;Virement Interac;100,00;'-ref")
   })
 
   it('the cancellations and the clients to call back, in clinic time', () => {

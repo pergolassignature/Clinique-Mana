@@ -97,7 +97,7 @@ function renderAt(path: string, permissions: string[]) {
   )
 }
 
-describe('« IVAC » (RP-7)', () => {
+describe('« IVAC » (RP-8)', () => {
   it('the totals per state, each session with its file, the IVAC number and both invoices; filters from the address', async () => {
     mocks.api.fetchIvacReport.mockResolvedValue(ivac)
     renderAt('/rapports/ivac?du=2026-09-01&au=2026-09-30&etat=claimed', ['reports.finance', 'billing.view'])
@@ -144,7 +144,7 @@ describe('« IVAC » (RP-7)', () => {
   })
 })
 
-describe('« Paie » (RP-8)', () => {
+describe('« Paie » (RP-9)', () => {
   it('the totals, per month, per professional and each summary, opened in « Paie » for who runs it', async () => {
     mocks.api.fetchPayoutsReport.mockResolvedValue(payouts)
     renderAt('/rapports/paie?du=2026-09-01&au=2026-09-30', ['reports.payroll', 'billing.payroll'])

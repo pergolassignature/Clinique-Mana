@@ -24,7 +24,8 @@ const asView = (value: string | null): RevenueView =>
 /**
  * « Revenus » (`/rapports/revenus`, reports.finance; RP-2), like GOrendezvous's: by invoice (the
  * invoices issued in the period and not credited), by service (their lines, and the total per
- * service), by payment (the payments made in the period, and the total per mode). Filters: the
+ * service), by payment (the payments made in the period and the refunds recorded in it, L6; the
+ * received, refunded and net per mode). Filters: the
  * period, the professional, the service, the payment mode (by payment). « Exporter (CSV) » saves
  * what is shown (RP-6).
  */
@@ -266,7 +267,13 @@ function RevenueBody({ report }: { report: RevenueReport }) {
         items={[
           { label: t(`${V}.totalLabels.payments`), value: String(x.count) },
           { label: t(`${V}.totalLabels.received`), value: formatMoney(x.amount_cents) },
-          ...report.by_mode.map((m) => ({ label: m.mode_name, value: formatMoney(m.amount_cents) })),
+          ...(x.refunds_count > 0
+            ? [
+                { label: t(`${V}.totalLabels.refunds`, { count: String(x.refunds_count) }), value: formatMoney(-x.refunds_cents) },
+                { label: t(`${V}.totalLabels.net`), value: formatMoney(x.net_cents ?? x.amount_cents - x.refunds_cents) },
+              ]
+            : []),
+          ...report.by_mode.map((m) => ({ label: m.mode_name, value: formatMoney(m.net_cents ?? m.amount_cents - m.refunds_cents) })),
         ]}
       />
       <Truncated show={report.truncated} />
@@ -286,14 +293,17 @@ function RevenueBody({ report }: { report: RevenueReport }) {
           </TableHeader>
           <TableBody>
             {report.rows.map((r) => (
-              <TableRow key={r.payment_id}>
+              <TableRow key={r.row_id ?? r.payment_id}>
                 <TableCell className="tabular whitespace-nowrap">{formatDateOnlyShort(r.paid_on)}</TableCell>
                 <TableCell className="tabular whitespace-nowrap">{invoiceLink(r.invoice_id, r.number)}</TableCell>
                 <TableCell>
                   {r.client_name}
                   {r.payer_name && <span className="block text-xs text-muted-foreground">{t(`${V}.paidBy`, { name: r.payer_name })}</span>}
                 </TableCell>
-                <TableCell>{r.mode_name}</TableCell>
+                <TableCell>
+                  {r.mode_name}
+                  {r.kind === 'refund' && <span className="block text-xs text-muted-foreground">{t(`${V}.refund`)}</span>}
+                </TableCell>
                 <TableCell className="max-md:hidden">{r.reference}</TableCell>
                 <TableCell className="tabular whitespace-nowrap text-right">{formatMoney(r.amount_cents)}</TableCell>
               </TableRow>

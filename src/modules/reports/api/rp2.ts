@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 
 /*
- * Rapports RP2: « IVAC » (`report_ivac`, reports.finance; RP-7) and « Paie » (`report_payouts`,
- * reports.payroll; RP-8). A period goes from a clinic date to another, a year at most; at most
+ * Rapports RP2: « IVAC » (`report_ivac`, reports.finance; RP-8) and « Paie » (`report_payouts`,
+ * reports.payroll; RP-9). A period goes from a clinic date to another, a year at most; at most
  * 5 000 rows come back (`truncated`), the totals count everything.
  */
 

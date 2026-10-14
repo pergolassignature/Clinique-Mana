@@ -35,12 +35,12 @@ export function useConsentsReport(f: ConsentsFilters, enabled = true) {
   return useQuery({ queryKey: reportsKeys.consents(f), queryFn: () => fetchConsentsReport(f), placeholderData: keepPreviousData, enabled })
 }
 
-/** Rapports « IVAC » (RP-7). */
+/** Rapports « IVAC » (RP-8). */
 export function useIvacReport(f: IvacFilters, enabled = true) {
   return useQuery({ queryKey: reportsKeys.ivac(f), queryFn: () => fetchIvacReport(f), placeholderData: keepPreviousData, enabled })
 }
 
-/** Rapports « Paie » (RP-8). */
+/** Rapports « Paie » (RP-9). */
 export function usePayoutsReport(f: PayoutsFilters, enabled = true) {
   return useQuery({ queryKey: reportsKeys.payouts(f), queryFn: () => fetchPayoutsReport(f), placeholderData: keepPreviousData, enabled })
 }

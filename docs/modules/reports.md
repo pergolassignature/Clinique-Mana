@@ -6,7 +6,7 @@ The clinic's reports, read-only: what GOrendezvous's « Revenus », « Annulatio
 |---|---|---|
 | RP1 | « Revenus » (by invoice, by service, by payment; filters; CSV), « Annulations et absences » (by reason), « Clients à relancer » | built |
 | D6 (RP2's intake part) | « Indicateurs des demandes »: activity and cohort, the promise of 2 business days, sources, delays, first appointments cancelled, waiting list, places | built |
-| RP2 | « IVAC » and « Paie » (RP-7, RP-8) | built |
+| RP2 | « IVAC » and « Paie » (RP-8, RP-9) | built |
 
 - **Registry:** `modules.key = 'reports'`, depends on `billing` and `appointments`; starts disabled in every clinic (Paramètres → Modules).
 - **Migrations:** RP2: `20261014025051_billing_rp2_report_facts` (Facturation's published facts), `20261014025054_reports_rp2` (`report_ivac`, `report_payouts`, the permission `reports.payroll`), pgTAP `185_reports_rp2`. RP1: `20261013160528_billing_report_facts` (Facturation's published facts), `20261013160534_appointments_report_facts` (Rendez-vous'), `20261013160540_reports_module` (registry, permissions, the three RPCs); D6: `20261013233833_demandes_report_facts` (Demandes' published facts), `20261013233839_professionals_catalogue_names` (Professionnels' names), `20261013233844_appointments_first_after` (Rendez-vous'), `20261013233851_reports_demandes` (`report_demandes`). pgTAP `172_reports_demandes`.
@@ -18,7 +18,7 @@ The clinic's reports, read-only: what GOrendezvous's « Revenus », « Annulatio
 |---|---|---|
 | `reports.view` | admin | « Annulations et absences », « Clients à relancer », « Consentements » |
 | `reports.finance` | admin, adjointe | « Revenus », « IVAC » |
-| `reports.payroll` | admin | « Paie » (RP-8) |
+| `reports.payroll` | admin | « Paie » (RP-9) |
 
 ## RPCs
 
@@ -30,13 +30,13 @@ All definer, permission first, French `P0001` with a HINT (`period`, `view`, `ki
 | `report_cancellations(from, to, professional, reason, kind)` → jsonb | `reports.view` | one row per client of the period's appointments cancelled (reason, late, kept on the schedule, the client's next appointment) or where the client was absent; `by_reason` and `totals` count appointments (a couple's once). Never a personal appointment nor a held one; never the cancellation's details (RP-3). |
 | `report_demandes(from, to)` → jsonb | `reports.view`, Demandes enabled (else « Activez d'abord Demandes … », HINT `module`) | the intake indicators (D6, D-42 … D-45, below) |
 | `report_clients_to_follow_up(from, to, professional)` → jsonb | `reports.view` | per client, the period's last cancellation or absence with nothing booked, confirmed or completed after it (whoever the professional), files neither archived nor closed; `events`: how many in the period (RP-4). |
-| `report_ivac(from, to, state, professional)` → jsonb | `reports.finance` | RP-7: `rows` (per session IVAC covers in the period and per line billed to IVAC by hand: date, client and file number, IVAC file number, professional and IVAC number, service, amount, state, client and IVAC invoices), `by_state` (`to_claim`, `draft`, `claimed`, `partial`, `paid`: count and amount, whatever the state filter), `totals`, `options`. An unknown state is refused (HINT `state`). |
-| `report_payouts(from, to, professional)` → jsonb | `reports.payroll` | RP-8: the payroll summaries of the months the period covers: `rows` (per summary), `by_month`, `by_professional`, `totals` (owed, paid, validated to pay, not validated). |
+| `report_ivac(from, to, state, professional)` → jsonb | `reports.finance` | RP-8: `rows` (per session IVAC covers in the period and per line billed to IVAC by hand: date, client and file number, IVAC file number, professional and IVAC number, service, amount, state, client and IVAC invoices), `by_state` (`to_claim`, `draft`, `claimed`, `partial`, `paid`: count and amount, whatever the state filter), `totals`, `options`. An unknown state is refused (HINT `state`). |
+| `report_payouts(from, to, professional)` → jsonb | `reports.payroll` | RP-9: the payroll summaries of the months the period covers: `rows` (per summary), `by_month`, `by_professional`, `totals` (owed, paid, validated to pay, not validated). |
 | `report_consents(from, to, professional)` → jsonb | `reports.view` | Clients C5b (CC-19): `gaps`, per active consent, today's count of active files in each state (signed, resign, pending, overdue, withdrawn, none), the record tabs' states; `by_professional`, per primary professional and consent, signed and « à obtenir » (pending, overdue, resign, withdrawn); `months`, per month of the period, the signatures in the app, the imported ones and the withdrawals; `delays`, per consent, the period's signatures in the app with the average and median days from the first send; `totals`. Counts only, never a name. The professional filter reads the file's primary professional. |
 
 ## What this module reads (published only)
 
-- **Facturation:** `private.billing_revenue_lines(org, from, to)`, `private.billing_revenue_payments(org, from, to)`, `private.billing_payment_mode_names(org)`; RP2: `private.billing_payer_claim_facts(org, from, to)` (each payer's share and line billed by hand, with its claim's state), `private.billing_payout_facts(org, from_month, to_month)` (the payroll summaries and their amounts per kind). **Professionnels (RP2):** `private.professional_payer_numbers_of` (the IVAC numbers). **Clients (RP2):** `private.client_payer_facts` (the IVAC file numbers).
+- **Facturation:** `private.billing_revenue_lines(org, from, to)`, `private.billing_revenue_payments(org, from, to)`, `private.billing_revenue_refunds(org, from, to)` (L6), `private.billing_payment_mode_names(org)`; RP2: `private.billing_payer_claim_facts(org, from, to)` (each payer's share and line billed by hand, with its claim's state), `private.billing_payout_facts(org, from_month, to_month)` (the payroll summaries and their amounts per kind). **Professionnels (RP2):** `private.professional_payer_numbers_of` (the IVAC numbers). **Clients (RP2):** `private.client_payer_facts` (the IVAC file numbers).
 - **Rendez-vous:** `private.appointment_absence_facts(org, from, to)` (instants: Rapports gives the clinic day's bounds), `private.cancellation_reason_names(org)`.
 - **Clients:** `private.clients_display_names`, `private.clients_billing_facts` (archived, closed), and for « Consentements » `private.client_consent_state_facts(org)`, `private.client_consent_event_facts(org, from, to)` and `private.clients_consent_names(org)`.
 - **Professionnels:** `private.professional_display_names`. **Services et tarifs:** `private.service_payout_facts` (code, name).
@@ -45,6 +45,7 @@ All definer, permission first, French `P0001` with a HINT (`period`, `view`, `ki
 ## Screens
 
 - **« Revenus »** (`/rapports/revenus`, menu Facturation, `reports.finance`): real tabs « Par facture », « Par service », « Par paiement » (`?vue=`); the period (« Du », « Au », « Ce mois-ci », « Mois dernier », « Cette année », « Année dernière »; this month by default), « Professionnel », « Service », « Mode de paiement » (by payment); the totals, the credited invoices said apart, the rows (each invoice links to its page), « Exporter (CSV) ». Every filter is in the address.
+- **Refunds in « Par paiement »** (parity audit L6, RP-7): the refunds recorded in the period (done by hand or confirmed by Stripe; not those still with Stripe or refused) are rows of their own, dated by the clinic day they were recorded, under their payment's mode, the amount negative, « Remboursement » under the mode. The totals and each mode say what was received, « Remboursements (N) » and « Net » (each mode's figure is its net). The CSV gains a « Type » column (« Paiement », « Remboursement »). The mode, professional and service filters apply to a refund through its payment and invoice. The refund's reason is never shown.
 - **« Annulations et absences »** (`/rapports/annulations`, menu Suivi, `reports.view`): « Par raison » (the totals, per reason with the late ones, then each appointment with the client's next one or « Aucun rendez-vous après ») and « Clients à relancer » (`?onglet=relancer`: each client linked to the file, the last missed appointment, how many); filters: the period, the professional, the type and the reason; « Exporter (CSV) ».
 
 - **« IVAC »** (`/rapports/ivac`, menu Facturation « Rapport IVAC », `reports.finance`): the totals per state; each session IVAC covers (newest first, or oldest, by client, by professional: `?tri=`) with the client and « Dossier IVAC … », the professional and « N° IVAC … » (« à ajouter au profil » when missing), the service, IVAC's amount, the state, « Client : » and « IVAC : » invoices (links with `billing.view`; « brouillon » for a draft). Filters: the period, « État », « Professionnel » (`?etat=`, `?pro=`). « Exporter (CSV) » saves what is shown in its order.
@@ -65,7 +66,7 @@ Made in the browser (`@/shared/lib/csv`): semicolons, a decimal comma, a BOM, CR
 
 | Item | Decision |
 |---|---|
-| Legacy « Reports = link to IVAC report » (inventory, settings) | **Change:** the IVAC report is in Rapports (RP2, RP-7), with its CSV |
+| Legacy « Reports = link to IVAC report » (inventory, settings) | **Change:** the IVAC report is in Rapports (RP2, RP-8), with its CSV |
 | GOrendezvous « Revenus » by invoice / by service-product / by payment; filters (period, professional, client, service, mode); Excel export | **Keep** (RP1); a client's own revenue is her « Visites et paiements »; CSV for Excel |
 | GOrendezvous « Annulations » by reason, « Clients à relancer » (Impressions → Exporter) | **Keep** (RP1), with the absences |
 | GOrendezvous dashboard (acquisition through GOrendezvous's own channels) | **Change:** the intake KPIs by source come from Demandes (D6, RP2) |

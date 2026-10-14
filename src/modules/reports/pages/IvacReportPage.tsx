@@ -26,7 +26,7 @@ const asState = (value: string | null): IvacState | null => ((IVAC_STATES as rea
 const asSort = (value: string | null): IvacSort => ((IVAC_SORTS as readonly string[]).includes(value ?? '') ? (value as IvacSort) : 'date_desc')
 
 /**
- * « IVAC » (`/rapports/ivac`, reports.finance; RP-7, parity audit L5): each session IVAC covers in
+ * « IVAC » (`/rapports/ivac`, reports.finance; RP-8, parity audit L5): each session IVAC covers in
  * the period (by its date) and each line billed to IVAC by hand, with what IVAC is billed and where
  * it stands (« À facturer », « En préparation », « Facturée », « Payée en partie », « Payée »);
  * the totals per state; the client's file number with IVAC, the professional's IVAC number, the

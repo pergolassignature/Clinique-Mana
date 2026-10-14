@@ -11781,7 +11781,9 @@
           "paid": "Payé",
           "balance": "Solde",
           "payments": "Paiements",
-          "received": "Reçu"
+          "received": "Reçu",
+          "refunds": "Remboursements ({count})",
+          "net": "Net"
         },
         "credited": "Factures émises dans la période puis créditées, non comptées : {count} ({amount}).",
         "empty": "Aucune facture émise dans cette période.",
@@ -11811,7 +11813,13 @@
           "unitPrice": "Prix unitaire",
           "mode": "Mode",
           "amount": "Montant",
-          "reference": "Référence"
+          "reference": "Référence",
+          "kind": "Type"
+        },
+        "refund": "Remboursement",
+        "kinds": {
+          "payment": "Paiement",
+          "refund": "Remboursement"
         }
       },
       "cancellations": {

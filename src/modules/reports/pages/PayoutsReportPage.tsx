@@ -20,7 +20,7 @@ import { payoutStateLabel, payoutsCsv } from '../lib/rp2'
 const V = 'modules.reports.payouts'
 
 /**
- * « Paie » (`/rapports/paie`, reports.payroll; RP-8): the payroll summaries (Facturation FPay) of
+ * « Paie » (`/rapports/paie`, reports.payroll; RP-9): the payroll summaries (Facturation FPay) of
  * the months the period covers: the totals (owed, paid, validated and still to pay, not validated
  * yet), per month, per professional, then each summary (sessions, late cancellations, other fees,
  * adjustments, total, its state). A summary opens in « Paie » for who runs the payroll. « Exporter
