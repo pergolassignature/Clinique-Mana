@@ -14,6 +14,8 @@ import { E2E_ORIGIN } from './fixtures/origin'
  * 2. « Annulations »: per reason, then « Clients à relancer » (the tab in the address).
  * 3. The adjointe has « Revenus » but not « Annulations ».
  * 4. « Consentements » (Clients C5b): today's states per consent, per month.
+ * 5. « Indicateurs des demandes » (Demandes D6; the seed enables Demandes): this year's totals, then
+ *    « Provenance » and « Liste d'attente et places » (the tabs in the address).
  */
 
 async function setReports(page: Page, on: boolean) {
@@ -97,5 +99,26 @@ test('the adjointe has « Revenus », not « Annulations »', async ({ page, sig
     } finally {
       await other.close()
     }
+  })
+})
+
+test('the admin reads « Indicateurs des demandes »: activity, sources, waiting list and places', async ({ page, signIn }) => {
+  await withReports(page, signIn, async () => {
+    await page.goto('/accueil')
+    await page.getByRole('link', { name: 'Indicateurs des demandes' }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Indicateurs des demandes' })).toBeVisible()
+    await page.getByRole('button', { name: 'Cette année' }).click()
+    const tabs = page.getByRole('tablist', { name: 'Vues des indicateurs' })
+    await expect(tabs.getByRole('tab', { name: 'Activité' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByLabel('Totaux de la période')).toBeVisible()
+    await tabs.getByRole('tab', { name: 'Provenance' }).click()
+    await expect(page).toHaveURL(/onglet=provenance/)
+    // The seed may hold no request this year (the spec runs on its own): the tab then says so.
+    await expect(
+      page.getByRole('heading', { name: 'Comment avez-vous entendu parler de MANA ?' }).or(page.getByText('Aucune demande reçue dans cette période.')),
+    ).toBeVisible()
+    await tabs.getByRole('tab', { name: 'Liste d\'attente et places' }).click()
+    await expect(page).toHaveURL(/onglet=liste-attente/)
+    await expect(page.getByRole('heading', { name: 'Places des professionnels' })).toBeVisible()
   })
 })
