@@ -116,6 +116,16 @@ describe('ClientsListPage', () => {
     await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'name', lastVisit: null }), null))
   })
 
+  it('« Réinitialiser » clears the URL and forgets the remembered filters at once (no write left waiting)', async () => {
+    const user = userEvent.setup()
+    mocks.preferences.fetchUserPreference.mockResolvedValue({ query: 'statut=archives' })
+    mocks.api.fetchClientsPage.mockResolvedValue([])
+    renderPage({ path: '/clients?statut=archives' })
+    await user.click(await screen.findByRole('button', { name: t(`${L}.reset`) }))
+    await waitFor(() => expect(mocks.preferences.deleteUserPreference).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }), null))
+  })
+
   it('« Nouveau client » for whoever manages files only', async () => {
     renderPage({ role: 'provider' })
     await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalled())
