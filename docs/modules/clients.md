@@ -210,7 +210,7 @@ Migration `20261013043434_clients_import`; pgTAP `115_clients_import`; decisions
 ## Security review (2026-10-14)
 
 Pre-cutover review, lane C (Clients, the GOrendezvous imports, Rapports). Migrations
-`*_core_imports_switch.sql` and `*_clients_imports_security_fixes.sql`; pgTAP `188_clients_imports_security_fixes` (and `108`, `144`, `003`).
+`*_core_imports_switch.sql` and `*_clients_imports_security_fixes.sql`; pgTAP `189_clients_imports_security_fixes` (and `108`, `144`, `003`).
 
 | # | Finding | Fix |
 |---|---|---|
