@@ -413,12 +413,6 @@ export const LIMITS = {
     max: 5,
     windowSeconds: 3_600,
   },
-  /** One booking per solved check (its nonce): a solved check is never replayed. */
-  bookingChallenge: {
-    bucket: 'demandes.booking_challenge',
-    max: 1,
-    windowSeconds: 3_600,
-  },
   /** `demandes-book-call` « cancel », per IP, before any lookup. */
   bookingCancelIp: {
     bucket: 'demandes.booking_cancel_ip',

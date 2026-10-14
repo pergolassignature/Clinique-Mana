@@ -355,7 +355,6 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     clientConsentLink: ['clients.consent_link', 20, 3_600],
     bookingPageIp: ['demandes.booking_page_ip', 60, 600],
     bookingIp: ['demandes.booking_ip', 5, 3_600],
-    bookingChallenge: ['demandes.booking_challenge', 1, 3_600],
     bookingCancelIp: ['demandes.booking_cancel_ip', 20, 600],
     waitlistAnswerIp: ['demandes.waitlist_answer_ip', 20, 600],
     propositionUser: ['demandes.proposition_user', 30, 3_600],
