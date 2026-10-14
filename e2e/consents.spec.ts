@@ -173,3 +173,25 @@ test('« Retirer le consentement »: a note, then « Retiré le … » (C5b, CC-
   await expect(general.getByText(/^Retiré le /)).toBeVisible()
   await expect(general.getByRole('button', { name: 'Retirer le consentement' })).toHaveCount(0)
 })
+
+test('« Nouvelles signatures » (C5b.4, CC-20): the campaign is confirmed first; nobody left to ask is said in the dialog', async ({ page, signIn }) => {
+  await signIn('admin')
+  await publishGeneralFrench(page)
+  const card = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Nouvelles signatures' }) })
+  await card.getByRole('button', { name: /^Demander une nouvelle signature de «\sConsentement général\s» à tous les clients actifs$/ }).click()
+  const dialog = page.getByRole('dialog', { name: /^Nouvelle signature de «\sConsentement général\s»$/ })
+  await expect(dialog.getByText(/100 par jour au plus/)).toBeVisible()
+  await dialog.getByRole('button', { name: 'Lancer la campagne' }).click()
+  // Run after the withdrawal above, the seed's only imported general consent is withdrawn: nobody
+  // is left to ask (said in the dialog). Run alone, Amélie is asked: the campaign runs, then stops.
+  const outcome = page.getByText(/^(Campagne lancée : 1 client\(s\) à qui demander\.|Tous les clients actifs ont déjà signé la version en vigueur.*)$/)
+  await expect(outcome).toBeVisible()
+  if (await dialog.isVisible()) {
+    await dialog.getByRole('button', { name: 'Annuler' }).click()
+    await expect(dialog).toBeHidden()
+  } else {
+    await expect(card.getByText(/^En cours : 0 envoyée\(s\) sur 1/)).toBeVisible()
+    await card.getByRole('button', { name: 'Arrêter la campagne' }).click()
+    await expect(page.getByText('Campagne arrêtée.')).toBeVisible()
+  }
+})

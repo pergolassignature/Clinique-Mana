@@ -40,4 +40,6 @@ export const consentKeys = {
   client: (clientId: string) => [...consentKeys.all, 'client', clientId] as const,
   /** A consent text version's clauses (CC-13). */
   clauses: (versionId: string) => [...consentKeys.all, 'clauses', versionId] as const,
+  /** The re-sign campaigns (C5b.4): a start or a stop refetches `all` (the flags change the states too). */
+  campaigns: () => [...consentKeys.all, 'campaigns'] as const,
 }

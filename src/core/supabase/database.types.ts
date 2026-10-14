@@ -1763,6 +1763,156 @@ export type Database = {
           },
         ]
       }
+      client_consent_campaign_items: {
+        Row: {
+          campaign_id: string
+          client_id: string
+          created_at: string
+          failure: string | null
+          id: string
+          org_id: string
+          processed_at: string | null
+          request_id: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          client_id: string
+          created_at?: string
+          failure?: string | null
+          id?: string
+          org_id: string
+          processed_at?: string | null
+          request_id?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          client_id?: string
+          created_at?: string
+          failure?: string | null
+          id?: string
+          org_id?: string
+          processed_at?: string | null
+          request_id?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_campaign_items_campaign_fkey"
+            columns: ["org_id", "campaign_id"]
+            isOneToOne: false
+            referencedRelation: "client_consent_campaigns"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaign_items_campaign_fkey"
+            columns: ["org_id", "campaign_id"]
+            isOneToOne: false
+            referencedRelation: "client_consent_campaigns_summary"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaign_items_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaign_items_client_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaign_items_request_fkey"
+            columns: ["org_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "client_consent_requests"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaign_items_request_fkey"
+            columns: ["org_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "client_consents_to_obtain"
+            referencedColumns: ["org_id", "request_id"]
+          },
+        ]
+      }
+      client_consent_campaigns: {
+        Row: {
+          cancelled_by: string | null
+          consent_key: string
+          created_at: string
+          created_by: string | null
+          finished_at: string | null
+          id: string
+          org_id: string
+          state: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          cancelled_by?: string | null
+          consent_key: string
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          org_id: string
+          state?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          cancelled_by?: string | null
+          consent_key?: string
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          org_id?: string
+          state?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_campaigns_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaigns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaigns_type_fkey"
+            columns: ["org_id", "consent_key"]
+            isOneToOne: false
+            referencedRelation: "client_consent_types"
+            referencedColumns: ["org_id", "key"]
+          },
+        ]
+      }
       client_consent_request_signers: {
         Row: {
           created_at: string
@@ -13277,6 +13427,45 @@ export type Database = {
       }
     }
     Views: {
+      client_consent_campaigns_summary: {
+        Row: {
+          consent_key: string | null
+          created_at: string | null
+          created_by: string | null
+          failed: number | null
+          finished_at: string | null
+          id: string | null
+          org_id: string | null
+          queued: number | null
+          sent: number | null
+          skipped: number | null
+          state: string | null
+          total: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consent_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaigns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consent_campaigns_type_fkey"
+            columns: ["org_id", "consent_key"]
+            isOneToOne: false
+            referencedRelation: "client_consent_types"
+            referencedColumns: ["org_id", "key"]
+          },
+        ]
+      }
       client_consents_status: {
         Row: {
           client_id: string | null
@@ -14358,6 +14547,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      cancel_client_consent_campaign: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       cancel_client_consent_request: {
         Args: { p_id: string }
         Returns: undefined
@@ -14451,6 +14644,10 @@ export type Database = {
       clear_professional_private_field: {
         Args: { p_field: string; p_id: string }
         Returns: undefined
+      }
+      client_consent_campaign_batch_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: Json
       }
       client_consent_reminders_for_service: {
         Args: { p_limit?: number; p_org_id: string }
@@ -14859,6 +15056,16 @@ export type Database = {
       }
       finish_billing_sync_event_for_service: {
         Args: { p_error_code: string; p_id: number; p_org_id: string }
+        Returns: undefined
+      }
+      finish_client_consent_campaign_item_for_service: {
+        Args: {
+          p_failure?: string
+          p_item_id: string
+          p_org_id: string
+          p_request_id?: string
+          p_sent: boolean
+        }
         Returns: undefined
       }
       finish_job_run: {
@@ -17716,6 +17923,10 @@ export type Database = {
           p_provider_session_id: number
         }
         Returns: string
+      }
+      start_client_consent_campaign: {
+        Args: { p_consent_key: string }
+        Returns: Json
       }
       start_client_consent_signing_for_service: {
         Args: {

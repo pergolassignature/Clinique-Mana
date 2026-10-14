@@ -4,7 +4,10 @@ import { moduleErrorMessage } from '@/core/modules/errors'
 import { documentTemplateKeys } from '@/core/signing/templates/hooks'
 import { toast } from '@/shared/ui/sonner'
 import {
+  cancelConsentCampaign,
   cancelConsentRequest,
+  fetchConsentCampaigns,
+  startConsentCampaign,
   fetchClientConsentStatus,
   fetchConsentClauses,
   fetchConsentRules,
@@ -167,5 +170,29 @@ export function useSaveConsentClauses({ onErrorMessage }: { onErrorMessage?: (me
       else toast.error(message)
     },
     onSettled: (_data, _error, { versionId }) => queryClient.invalidateQueries({ queryKey: consentKeys.clauses(versionId) }),
+  })
+}
+
+/** The re-sign campaigns (C5b.4). */
+export const useConsentCampaigns = () => useQuery({ queryKey: consentKeys.campaigns(), queryFn: fetchConsentCampaigns })
+
+/** Starts a campaign; its count in the toast; every consent state refetched (the files are flagged). */
+export function useStartConsentCampaign({ onErrorMessage }: { onErrorMessage: (message: string) => void }) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (consentKey: string) => startConsentCampaign(consentKey),
+    onSuccess: (total) => toast.success(t(`${S}.settings.campaigns.started`, { count: String(total) })),
+    onError: (error) => onErrorMessage(moduleErrorMessage(error, t(`${S}.settings.campaigns.error`), 'clients')),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: consentKeys.all }),
+  })
+}
+
+export function useCancelConsentCampaign() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => cancelConsentCampaign(id),
+    onSuccess: () => toast.success(t(`${S}.settings.campaigns.stopped`)),
+    onError: (error) => toast.error(moduleErrorMessage(error, t(`${S}.settings.campaigns.error`), 'clients')),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: consentKeys.campaigns() }),
   })
 }

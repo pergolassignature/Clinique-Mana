@@ -17,9 +17,11 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Switch } from '@/shared/ui/switch'
-import type { ConsentRule, ConsentSettings, ConsentTemplate, ConsentType, Population } from '../../api/consents'
+import type { ConsentCampaign, ConsentRule, ConsentSettings, ConsentTemplate, ConsentType, Population } from '../../api/consents'
 import { ConsentTextEditor } from '../../components/consents/ConsentTextEditor'
 import {
+  useCancelConsentCampaign,
+  useConsentCampaigns,
   useConsentRules,
   useConsentSettings,
   useConsentTemplates,
@@ -27,6 +29,7 @@ import {
   usePublishConsentVersion,
   useSaveConsentRule,
   useSaveConsentSettings,
+  useStartConsentCampaign,
 } from '../../hooks/use-consents'
 import { ruleTriggerText } from '../../lib/consents'
 
@@ -36,7 +39,8 @@ const S = 'modules.clients.consents.settings'
  * Paramètres → Consentements (Clients C5a; seen with `clients.view`, changed with `clients.manage`):
  * the 14 texts (7 consents × French and English) with « Publier » and who must sign again (R-49);
  * when each consent is asked (the rules, switched on once a text is published); the delays and
- * reminders; how long the sealed PDFs of ended consents are kept (CC-18: none by default). « Modifier le texte » opens a text in core's shared editor under the cards (CC-12);
+ * reminders; how long the sealed PDFs of ended consents are kept (CC-18: none by default); « Nouvelles
+ * signatures », a campaign asking every active file to sign the version in force again (C5b.4, CC-20). « Modifier le texte » opens a text in core's shared editor under the cards (CC-12);
  * opening another one or closing it asks first while a draft has unsaved changes.
  */
 export function ConsentsSettingsPage() {
@@ -62,6 +66,7 @@ export function ConsentsSettingsPage() {
     content = (
       <SectionSurface>
         <TextsCard types={types.data} templates={templates.data} readOnly={readOnly} onOpen={openText} />
+        <CampaignsCard types={types.data} templates={templates.data} readOnly={readOnly} />
         <RulesCard types={types.data} rules={rules.data} templates={templates.data} readOnly={readOnly} />
         <DelaysCard settings={settings.data} readOnly={readOnly} />
         <RetentionCard settings={settings.data} readOnly={readOnly} />
@@ -378,5 +383,109 @@ function RetentionCard({ settings, readOnly }: { settings: ConsentSettings; read
         </DialogContent>
       </Dialog>
     </SettingsCard>
+  )
+}
+
+/**
+ * « Nouvelles signatures » (C5b.4, CC-20): per consent with a text published, « Demander une nouvelle
+ * signature à tous les clients actifs » (confirmed first), or its campaign in progress with
+ * « Arrêter la campagne »; the last campaign's outcome otherwise. The sends are the job's, 100 a day.
+ */
+function CampaignsCard({ types, templates, readOnly }: { types: ConsentType[]; templates: ConsentTemplate[]; readOnly: boolean }) {
+  const campaigns = useConsentCampaigns()
+  const [starting, setStarting] = useState<ConsentType | null>(null)
+  const stop = useCancelConsentCampaign()
+  const latest = (key: string) => campaigns.data?.find((c) => c.consentKey === key) ?? null
+  return (
+    <SettingsCard as="section" layout="section" title={t(`${S}.campaigns.title`)} description={t(`${S}.campaigns.description`)}>
+      {campaigns.isError && !campaigns.data ? (
+        <LoadError message={t(`${S}.campaigns.loadError`)} retrying={campaigns.isFetching} onRetry={() => void campaigns.refetch()} />
+      ) : !campaigns.data ? (
+        <Loading />
+      ) : (
+        <ul className="divide-y divide-border-light">
+          {types
+            .filter((type) => type.isActive)
+            .map((type) => {
+              const published = templates.some((tpl) => tpl.consentKey === type.key && tpl.published)
+              const campaign = latest(type.key)
+              return (
+                <li key={type.key} className="flex flex-col gap-2 py-2.5 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                  <span className="min-w-0 space-y-0.5">
+                    <span className="block font-medium text-foreground">{type.name}</span>
+                    <span className="block text-muted-foreground">{campaignLine(campaign, published)}</span>
+                  </span>
+                  {!readOnly && published && (
+                    <span className="flex shrink-0 flex-wrap gap-2">
+                      {campaign?.state === 'running' ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => !stop.isPending && stop.mutate(campaign.id)}>
+                          {t(`${S}.campaigns.stop`)}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-label={t(`${S}.campaigns.startLabel`, { name: type.name })}
+                          onClick={() => setStarting(type)}
+                        >
+                          {t(`${S}.campaigns.start`)}
+                        </Button>
+                      )}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+        </ul>
+      )}
+      {starting && <StartCampaignDialog type={starting} onClose={() => setStarting(null)} />}
+    </SettingsCard>
+  )
+}
+
+/** A consent's campaign in words: in progress with its counts, its end, or none. */
+function campaignLine(campaign: ConsentCampaign | null, published: boolean): string {
+  if (!published) return t(`${S}.campaigns.noText`)
+  if (!campaign) return t(`${S}.campaigns.none`)
+  const counts = { sent: String(campaign.sent), total: String(campaign.total), queued: String(campaign.queued), failed: String(campaign.failed) }
+  if (campaign.state === 'running') return t(`${S}.campaigns.running`, counts)
+  const date = formatClinicDateShort(campaign.finishedAt ?? campaign.createdAt)
+  return campaign.state === 'done' ? t(`${S}.campaigns.done`, { ...counts, date }) : t(`${S}.campaigns.cancelled`, { ...counts, date })
+}
+
+/** Confirms a campaign: who is asked, 100 a day, the flag set now; a refusal shown where the person acted. */
+function StartCampaignDialog({ type, onClose }: { type: ConsentType; onClose: () => void }) {
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const start = useStartConsentCampaign({ onErrorMessage: setRefusal })
+  return (
+    <Dialog open onOpenChange={(open) => !open && !start.isPending && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t(`${S}.campaigns.confirmTitle`, { name: type.name })}</DialogTitle>
+          <DialogDescription>{t(`${S}.campaigns.confirmBody`)}</DialogDescription>
+        </DialogHeader>
+        {refusal && (
+          <p role="alert" className="text-sm text-destructive">
+            {refusal}
+          </p>
+        )}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              if (start.isPending) return
+              setRefusal(null)
+              start.mutate(type.key, { onSuccess: onClose })
+            }}
+          >
+            {t(start.isPending ? `${S}.campaigns.starting` : `${S}.campaigns.confirm`)}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
