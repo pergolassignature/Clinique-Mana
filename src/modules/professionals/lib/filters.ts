@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { foldSearch } from '@/shared/lib/list-search'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import { DISPLAY_STATUSES, MAX_SET_SIZE, PAGE_SIZE, type DisplayStatus } from './constants'
 import type { CatalogView } from './catalog-view'
 import { displayStatus } from './onboarding'
@@ -117,26 +117,16 @@ const CHOSEN = { replace: true, chosen: true } as const
  * history entry (typing must not stack entries); a page change pushes one, so Back returns to the
  * previous page.
  *
- * Each setter computes the next filters from the current URL, not from the filters of the last
- * render, so two changes in one event (or a setter held by an older closure) both apply. The
- * current URL is `latest`, not `setSearchParams`'s updater argument: react-router 6 hands that
- * updater the search params of its last render, so a second call in the same tick would undo the
- * first. `latest` follows every new address (Back, links) and every write made here.
+ * Each setter computes the next filters from the latest address (`useUrlParams`), not from the
+ * filters of the last render, so two changes in one event, a setter held by an older closure, or a
+ * change made while a navigation is still pending all apply.
  *
  * `onChange` hears the filters a person chose (`setFilters`, `toggleMotif`, `reset`), not a page
  * change, a link, Back, or `restore`: what the list remembers for them (4a.10).
  */
 export function useProfessionalsFilters({ onChange }: { onChange?: (filters: ProfessionalsFilters) => void } = {}) {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { params: searchParams, update: patchUrl } = useUrlParams()
   const filters = useMemo(() => parseProfessionalsFilters(searchParams), [searchParams])
-  const latest = useRef(searchParams)
-  // Only a new address replaces `latest` (as useUrlParams): a re-render of the old one while a
-  // navigation is pending (a new `onChange` re-ran this effect) would bring back a cleared filter.
-  const seen = useRef(searchParams)
-  if (seen.current !== searchParams) {
-    seen.current = searchParams
-    latest.current = searchParams
-  }
   const changed = useRef(onChange)
   useLayoutEffect(() => {
     changed.current = onChange
@@ -144,13 +134,17 @@ export function useProfessionalsFilters({ onChange }: { onChange?: (filters: Pro
 
   const update = useCallback(
     (change: (current: ProfessionalsFilters) => ProfessionalsFilters, { replace, chosen }: { replace: boolean; chosen: boolean }) => {
-      const nextFilters = change(parseProfessionalsFilters(latest.current))
-      const next = filtersToSearchParams(nextFilters, latest.current)
-      latest.current = next
-      setSearchParams(next, { replace })
+      let nextFilters = DEFAULT_FILTERS
+      patchUrl(
+        (current) => {
+          nextFilters = change(parseProfessionalsFilters(current))
+          return filtersToSearchParams(nextFilters, current)
+        },
+        { replace },
+      )
       if (chosen) changed.current?.(nextFilters)
     },
-    [setSearchParams],
+    [patchUrl],
   )
   const setFilters = useCallback(
     (patch: Partial<Omit<ProfessionalsFilters, 'page'>>) => update((current) => ({ ...current, ...patch, page: 1 }), CHOSEN),

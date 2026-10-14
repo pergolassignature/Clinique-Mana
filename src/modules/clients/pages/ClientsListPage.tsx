@@ -1,5 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { Columns3, Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -13,6 +13,7 @@ import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/sof
 import { EmailText } from '@/shared/components/EmailText'
 import { useDebouncedValue } from '@/shared/lib/use-debounced-value'
 import { usePageTitle } from '@/shared/lib/use-page-title'
+import { patchParams, useUrlParams, type UrlParamsPatch } from '@/shared/lib/use-url-params'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
@@ -75,7 +76,9 @@ export function ClientsListPage() {
   const { can, access } = useAccess()
   // A-2: the last appointment (column, filter, order) with the agenda's right and Rendez-vous on.
   const visits = can('appointments.view') && (access?.modules.includes('appointments') ?? false)
-  const [params, setParams] = useSearchParams()
+  // The filters in the address, changed from the latest one (`useUrlParams`): two quick changes, or
+  // a change while a navigation is still pending (a transition), never undo each other.
+  const { params, update: patchUrl } = useUrlParams()
   const location = useLocation()
   const filters = readFilters(params, searchOf(location.state), visits)
   const searchId = useId()
@@ -92,10 +95,10 @@ export function ClientsListPage() {
     if (phase !== 'waiting' || preference.isPending) return
     const saved = hasFilters ? null : fromRememberedFilters(preference.data)
     if (saved) {
-      setParams(saved, { replace: true, state: location.state })
+      patchUrl(() => saved, { replace: true, state: location.state })
       setPhase('applying')
     } else setPhase('done')
-  }, [phase, preference.isPending, preference.data, hasFilters, setParams, location.state])
+  }, [phase, preference.isPending, preference.data, hasFilters, patchUrl, location.state])
   const restoring = phase === 'waiting' || (phase === 'applying' && !hasFilters)
   // The search reaches the server 250 ms after the last keystroke; the field shows what is typed.
   const debouncedQuery = useDebouncedValue(filters.query, 250)
@@ -105,16 +108,6 @@ export function ClientsListPage() {
   const rows = list.data?.pages.flat()
   const filtered = Boolean(filters.query || filters.professionalId || filters.tagId || filters.lastVisit || filters.status !== 'active')
 
-  // From the latest parameters, not this render's: two quick changes in a row (before the URL's
-  // re-render) must not undo each other (react-router's functional setter reads the render's too).
-  // A render while the navigation is still pending (the list's data arriving) carries the old
-  // parameters: only a new URL replaces them.
-  const latest = useRef(params)
-  const seen = useRef(params)
-  if (seen.current !== params) {
-    seen.current = params
-    latest.current = params
-  }
   // The columns she chose (her preference, A-3), the defaults until it is read.
   const columnsPreference = useUserPreference(CLIENT_LIST_COLUMNS_PREFERENCE)
   const writeColumns = usePreferenceWriter(CLIENT_LIST_COLUMNS_PREFERENCE)
@@ -122,17 +115,19 @@ export function ClientsListPage() {
   const toggleColumn = (column: ClientListColumn) =>
     writeColumns.schedule({ columns: columns.includes(column) ? columns.filter((c) => c !== column) : CLIENT_LIST_COLUMNS.filter((c) => c === column || columns.includes(c)) })
 
-  const update = (patch: Record<string, string | null>, q: string = filters.query) => {
-    const previous = latest.current
-    const next = new URLSearchParams(previous)
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null || value === '') next.delete(key)
-      else next.set(key, value)
-    }
-    latest.current = next
-    setParams(next, { replace: true, state: q ? { q } : null })
+  const update = (patch: UrlParamsPatch, q: string = filters.query) => {
+    let previous = ''
+    let next = new URLSearchParams()
+    patchUrl(
+      (current) => {
+        previous = filterQuery(current)
+        next = patchParams(current, patch)
+        return next
+      },
+      { replace: true, state: q ? { q } : null },
+    )
     setPhase('done')
-    if (filterQuery(next) !== filterQuery(previous)) schedule(toRememberedFilters(next))
+    if (filterQuery(next) !== previous) schedule(toRememberedFilters(next))
   }
 
   return (
@@ -253,8 +248,7 @@ export function ClientsListPage() {
                   onClick={() => {
                     // Both at once: the URL, and the remembered filters forgotten now (no debounce
                     // left pending that could bring them back on the next visit).
-                    latest.current = new URLSearchParams()
-                    setParams(latest.current, { replace: true })
+                    patchUrl(() => new URLSearchParams(), { replace: true })
                     schedule(null)
                     flush()
                   }}
