@@ -1,5 +1,5 @@
 import { Suspense, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { BellOff, ChevronLeft, ChevronRight, Plus, Printer } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -13,6 +13,7 @@ import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { formatDateOnly, getClinicDateString } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import { Button } from '@/shared/ui/button'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
@@ -101,7 +102,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const { can } = useAccess()
   const canWrite = can(mine ? 'appointments.self' : 'appointments.manage')
   const [personal, setPersonal] = useState<{ day: string; time: string } | null>(null)
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   // « Clients sans rappel » opens with `?sans-rappel=1` (Accueil's card, L29).
   const [unreachable, setUnreachable] = useState(() => params.get('sans-rappel') === '1')
   const today = getClinicDateString(new Date())
@@ -118,14 +119,6 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const [rule, setRule] = useState<RuleTarget | null>(null)
   const [tool, setTool] = useState<AvailabilityTool>('available')
 
-  const update = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(params)
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null || value === '') next.delete(key)
-      else next.set(key, value)
-    }
-    setParams(next, { replace: true })
-  }
 
   // Who is shown: one professional, a service's, or all.
   const shown = useMemo(() => {
@@ -246,11 +239,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
           professionalName={(id) => reference.professionals.find((p) => p.id === id)?.name ?? ''}
           onClose={() => {
             setUnreachable(false)
-            if (params.has('sans-rappel')) {
-              const next = new URLSearchParams(params)
-              next.delete('sans-rappel')
-              setParams(next, { replace: true })
-            }
+            if (params.has('sans-rappel')) update({ 'sans-rappel': null })
           }}
         />
       )}

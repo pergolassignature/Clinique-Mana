@@ -275,6 +275,19 @@ Migration `20261014035625_appointments_messages_sheet`; pgTAP `184_appointments_
 - **Overlaps:** `conflict` (never an error), for the tool's report. Notes are never imported (D8).
 - **Reminders at the cutover (I-19):** an imported coming appointment gets its reminder, never a confirmation. `private.appointments_reminder_window(org, at)` gives the dates reminded at an instant (the rule of `appointments_queue_reminders`, unchanged): never today's (no catch-up), Friday covers Saturday to Monday. pgTAP `182_appointments_reminder_window` checks it at the cutover's dates (Monday November 30, 2026).
 
+## Security review (2026-10-14)
+
+Migration `*_appointments_security_fixes.sql`, pgTAP `190_appointments_security_fixes`; decision AP-49.
+
+- **A professional books her own clients only:** `book_appointment` (and so `create_series`, which books each date through it) refuses, for a caller without `appointments.manage`, a client not already visible to her (Clients' `private.client_visible_to_professional`), before any rule reads the clients' facts: P0001 « Ce client n'est pas encore dans vos dossiers : demandez à la clinique de le jumeler. » (hint `client_ids`). Booking would have linked her (`clients_link_professional`) and opened the file. The staff are unchanged.
+- **« Votre lien de rencontre »:** `video_link_email_for_service` keeps only contacts with `reminders_by_email`, and returns nothing while the module is reserved for testers (P3-40); the sync job then marks the link as handled, as when nobody has an address.
+- **Confirmation links:** `resolve_appointment_confirm_link` and `confirm_appointment_by_link_for_service` refuse a link whose message announced another start (as « OUI » by text); the messages trigger revokes the appointment's links on a move, a change, a cancellation and a restore.
+- **Audit:** `appointments.video_external_id` and `appointment_video_meetings.external_id` are redacted, with the columns already redacted.
+- **Held slots (AP-15):** for a caller without `appointments.view`, `list_agenda` returns no participants for a `held` appointment, and the `appointment_participants` policy hides them (the agenda shows « Sans client »).
+- **Permission first:** `retry_appointment_video` checks the permission before reading; `cancel_series_from` checks the appointment's own (`appointments_can_act_on`) before telling whether it belongs to a series.
+- **Published facts:** `get_booking_consents` reads the file's existence from Clients' `private.clients_booking_facts`, no longer Clients' table.
+- **Google busy times:** `google-calendar-callback` revokes the grant when Google returns no refresh token (as when the free/busy scope is missing).
+
 ## Rules for the other lanes
 
 - Never book by inserting: `book_appointment` holds every rule; the import (I1) will get its own service-role entry that keeps `external_ref`.

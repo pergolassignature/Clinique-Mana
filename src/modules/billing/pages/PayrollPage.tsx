@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -7,6 +6,7 @@ import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { RefusalAlert } from '@/shared/components/RefusalAlert'
 import { usePageTitle } from '@/shared/lib/use-page-title'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,7 +52,7 @@ const A = 'modules.billing.payroll.admin'
  * them). A summary opens in a side sheet.
  */
 export function PayrollPage() {
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   const month = monthFromParam(params.get('mois')) ?? lastFinishedMonth()
   const periodId = params.get('periode')
   usePageTitle(t(`${A}.title`))
@@ -65,13 +65,11 @@ export function PayrollPage() {
   const discard = useDiscardPayoutDrafts()
   const finished = month < currentMonth()
 
-  const go = (next: { mois?: string; periode?: string | null }) => {
-    const p = new URLSearchParams(params)
-    if (next.mois) p.set('mois', next.mois)
-    if (next.periode === null) p.delete('periode')
-    else if (next.periode) p.set('periode', next.periode)
-    setParams(p, { replace: next.periode !== undefined })
-  }
+  const go = (next: { mois?: string; periode?: string | null }) =>
+    update(
+      { ...(next.mois ? { mois: next.mois } : {}), ...(next.periode !== undefined ? { periode: next.periode } : {}) },
+      { replace: next.periode !== undefined },
+    )
 
   const runBuild = () => {
     if (build.isPending) return
