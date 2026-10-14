@@ -182,6 +182,16 @@ Migrations `20261013233508_clients_consent_report_facts` (Clients) and `20261013
 - **Published for Rapports:** `private.client_consent_state_facts(org)` (one row per active file and active consent: the file's primary professional and the state as the record's tab shows it, `client_consents_status`, or `none`) and `private.client_consent_event_facts(org, from, to)` (the signatures, app or import, and the withdrawals of a period, with the request's first send for the app's).
 - **Rapports → « Consentements »:** see [reports doc](reports.md). The counts are the record tabs' (C5b acceptance).
 
+## Consents, part 4 (batch C5b: the re-sign campaign)
+
+Migration `20261013234708_clients_consent_campaigns`; pgTAP `176_clients_consent_campaigns`; function `clients-consent-campaign` (job); decision **CC-20**.
+
+- **What it asks:** « Demander une nouvelle signature à tous les clients actifs » (Paramètres → Consentements, card « Nouvelles signatures », `clients.manage`, confirmed first). `start_client_consent_campaign(consent)` targets every active file whose consent in force is not on a version published now (an older version, or GOrendezvous's), with no request already out. Their consent is flagged « À signer de nouveau » at once (R-49's flag), and each gets an item in `client_consent_campaign_items`. There is one running campaign per consent. Refused in French while Clients is reserved for its testers (P3-40), with no published text, or when nobody is left to ask.
+- **The sends:** the job `clients.consent_campaign` (function `clients-consent-campaign`, daily at 9 h, **off by default**) takes at most **100 items a day per clinic**, oldest first (`client_consent_campaign_batch_for_service`). It sends each one through the same path as « Envoyer » (`prepare_client_consent_request_for_service`, with the campaign's author as the actor, then the request email). Each item ends `sent` or `failed`, with the refusal's HINT (`client`, `signer_email`, `template`…, `email` when no email left, `permission` when the author lost `clients.manage`). The campaign is `done` once none is left. A claim older than an hour goes back to the queue. Nothing is sent while the module is reserved (the items wait).
+- **« Arrêter la campagne »** (`cancel_client_consent_campaign`): the queued items are `skipped`; what was sent stays.
+- **Read model:** `client_consent_campaigns_summary` (counts per state, `clients.view`).
+- **Tests:** pgTAP 176; Deno (`clients-consent-campaign/handler.test.ts`); Vitest (the card: start confirmed, running counts, « Arrêter »).
+
 ## GOrendezvous import (batch I1)
 
 Migration `20261013043434_clients_import`; pgTAP `115_clients_import`; decisions I-7 … I-14; runbook [`import-gorendezvous.md`](../runbooks/import-gorendezvous.md).

@@ -356,3 +356,56 @@ export async function saveConsentClauses(versionId: string, clauses: VersionClau
   if (error) throw error
   return parse(z.array(versionClauseSchema), data)
 }
+
+// --- « Demander une nouvelle signature à tous les clients actifs » (C5b.4, CC-20) -----------------
+
+const campaignSchema = z
+  .object({
+    id: z.string(),
+    consent_key: z.string(),
+    state: z.enum(['running', 'done', 'cancelled']),
+    total: z.number().int(),
+    created_at: z.string(),
+    finished_at: z.string().nullable(),
+    queued: z.number().int(),
+    sent: z.number().int(),
+    failed: z.number().int(),
+    skipped: z.number().int(),
+  })
+  .transform((r) => ({
+    id: r.id,
+    consentKey: r.consent_key,
+    state: r.state,
+    total: r.total,
+    createdAt: r.created_at,
+    finishedAt: r.finished_at,
+    queued: r.queued,
+    sent: r.sent,
+    failed: r.failed,
+    skipped: r.skipped,
+  }))
+export type ConsentCampaign = z.output<typeof campaignSchema>
+
+/** The clinic's re-sign campaigns, newest first, with their counts (`client_consent_campaigns_summary`). */
+export async function fetchConsentCampaigns(): Promise<ConsentCampaign[]> {
+  const { data, error } = await supabase
+    .from('client_consent_campaigns_summary')
+    .select('id, consent_key, state, total, created_at, finished_at, queued, sent, failed, skipped')
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return parse(z.array(campaignSchema), data)
+}
+
+/** Starts one (clients.manage): every active file not on the version in force; returns how many. */
+export async function startConsentCampaign(consentKey: string): Promise<number> {
+  const { data, error } = await supabase.rpc('start_client_consent_campaign', { p_consent_key: consentKey })
+  if (error) throw error
+  return parse(z.object({ campaign_id: z.string(), total: z.number().int() }), data).total
+}
+
+/** « Arrêter la campagne »: what is not sent yet is not sent. */
+export async function cancelConsentCampaign(id: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_client_consent_campaign', { p_id: id })
+  if (error) throw error
+}

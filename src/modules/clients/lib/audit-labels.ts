@@ -23,6 +23,8 @@ export const CLIENTS_AUDITED_TABLES = [
   'client_consent_version_clauses',
   'client_consent_rules',
   'client_consent_settings',
+  'client_consent_campaigns',
+  'client_consent_campaign_items',
 ] as const
 
 /** The audit source of the referral sources seed (`private.seed_clients_reference`). */
