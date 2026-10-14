@@ -196,6 +196,8 @@ select functions_are('public', array[
   'demande_consents',
   -- Rapports « Demandes » (Demandes D6).
   'report_demandes',
+  -- Demandes, the audit's after-cutover items (a file's requests, the next free slots).
+  'list_client_demandes', 'demande_next_slots',
   -- Facturation: the GOrendezvous import (I3).
   'import_invoice',
   -- Communications: « Rédiger avec l'IA » (CM4).

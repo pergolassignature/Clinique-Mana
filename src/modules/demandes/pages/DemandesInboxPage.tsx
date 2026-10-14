@@ -17,7 +17,25 @@ import { Input } from '@/shared/ui/input'
 import { StatusDot } from '@/shared/ui/status-dot'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
-import { ASSIGNED, FLAGS, PAGE_SIZE, VIEWS, type AssignedFilter, type InboxFlag, type InboxQuery, type InboxRow, type InboxView } from '../api/demandes'
+import { Columns3 } from 'lucide-react'
+import { usePreferenceWriter, useUserPreference } from '@/core/preferences/hooks'
+import { CheckboxField } from '@/shared/components/CheckboxField'
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
+import { Select } from '@/shared/ui/select'
+import {
+  ASSIGNED,
+  FLAGS,
+  PAGE_SIZE,
+  SORTS,
+  VIEWS,
+  type AssignedFilter,
+  type InboxFlag,
+  type InboxQuery,
+  type InboxRow,
+  type InboxSort,
+  type InboxView,
+} from '../api/demandes'
+import { INBOX_COLUMNS, INBOX_COLUMNS_PREFERENCE, SORT_PARAM, columnsOf, type InboxColumn } from '../lib/inbox-columns'
 import { LogContactDialog } from '../components/LogContactDialog'
 import { NewDemandeDialog } from '../components/NewDemandeDialog'
 import { useDemandesRealtime, useInbox, useInboxCounts } from '../hooks/use-demandes'
@@ -57,11 +75,20 @@ export function DemandesInboxPage() {
   useDemandesRealtime(true)
 
   const view = fromParam(VIEW_PARAM, params.get('vue'), 'open')
+  const sort: InboxSort = (Object.entries(SORT_PARAM) as [InboxSort, string | null][]).find(([, v]) => v !== null && v === params.get('tri'))?.[0] ?? 'priority'
+  // The columns she chose (her preference), the defaults until it is read.
+  const preference = useUserPreference(INBOX_COLUMNS_PREFERENCE)
+  const writeColumns = usePreferenceWriter(INBOX_COLUMNS_PREFERENCE)
+  const columns = columnsOf(preference.data)
+  const toggleColumn = (column: InboxColumn) => {
+    const next = columns.includes(column) ? columns.filter((c) => c !== column) : INBOX_COLUMNS.filter((c) => c === column || columns.includes(c))
+    writeColumns.schedule({ columns: next })
+  }
   const assigned = fromParam(ASSIGNED_PARAM, params.get('pour'), 'any')
   const flags = (params.get('filtres') ?? '').split(',').map(flagOf).filter((f): f is InboxFlag => f !== undefined)
   const typed = searchOf(location.state)
   const search = useDebouncedValue(typed, 250)
-  const query = useMemo<InboxQuery>(() => ({ view, assigned, flags, search }), [view, assigned, flags.join(','), search]) // eslint-disable-line react-hooks/exhaustive-deps
+  const query = useMemo<InboxQuery>(() => ({ view, assigned, flags, search, sort }), [view, assigned, flags.join(','), search, sort]) // eslint-disable-line react-hooks/exhaustive-deps
   const inbox = useInbox(query, page)
   const counts = useInboxCounts()
 
@@ -140,6 +167,35 @@ export function DemandesInboxPage() {
             }))}
           />
         </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <label htmlFor={`${searchId}-sort`} className="text-sm font-medium text-foreground">
+              {t(`${I}.sort.label`)}
+            </label>
+            <Select id={`${searchId}-sort`} value={sort} onChange={(e) => update({ tri: SORT_PARAM[e.target.value as InboxSort] })} className="w-auto">
+              {SORTS.map((s) => (
+                <option key={s} value={s}>
+                  {t(`${I}.sort.${s}`)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" className="max-sm:h-11">
+                <Columns3 aria-hidden />
+                {t(`${I}.columnPicker.label`)}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" collisionPadding={16} aria-label={t(`${I}.columnPicker.title`)} className="w-64 p-3">
+              <div className="grid gap-2">
+                {INBOX_COLUMNS.map((c) => (
+                  <CheckboxField key={c} label={t(`${I}.columns.${c}`)} checked={columns.includes(c)} onCheckedChange={() => toggleColumn(c)} />
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
         <div role="group" aria-label={t(`${I}.flagsLabel`)} className="flex flex-wrap gap-2">
           {FLAGS.map((flag) => {
             const on = flags.includes(flag)
@@ -169,7 +225,7 @@ export function DemandesInboxPage() {
             <EmptyState title={t(`${I}.empty.${view}`)} body={t(`${I}.emptyBody`)} />
           )
         ) : (
-          <InboxTable rows={rows ?? null} canLog={can('demandes.manage')} />
+          <InboxTable rows={rows ?? null} canLog={can('demandes.manage')} columns={columns} />
         )}
         {rows && (page > 0 || rows.length === PAGE_SIZE) && (
           <div className="flex flex-wrap gap-2">
@@ -188,16 +244,19 @@ export function DemandesInboxPage() {
   )
 }
 
-function InboxTable({ rows, canLog }: { rows: readonly InboxRow[] | null; canLog: boolean }) {
+function InboxTable({ rows, canLog, columns }: { rows: readonly InboxRow[] | null; canLog: boolean; columns: readonly InboxColumn[] }) {
+  const show = (c: InboxColumn) => columns.includes(c)
   return (
     <Table aria-label={t(`${I}.table`)} scrollLabel={t(`${I}.table`)} scrollFocus="overflow" stickyHeader>
       <TableHeader>
         <TableRow className="[&>th]:whitespace-nowrap">
           <TableHead>{t(`${I}.columns.person`)}</TableHead>
           <TableHead>{t(`${I}.columns.received`)}</TableHead>
-          <TableHead className="max-sm:hidden">{t(`${I}.columns.state`)}</TableHead>
-          <TableHead className="max-lg:hidden">{t(`${I}.columns.assigned`)}</TableHead>
-          <TableHead className="max-md:hidden">{t(`${I}.columns.followUp`)}</TableHead>
+          {show('state') && <TableHead className="max-sm:hidden">{t(`${I}.columns.state`)}</TableHead>}
+          {show('beneficiary') && <TableHead className="max-md:hidden">{t(`${I}.columns.beneficiary`)}</TableHead>}
+          {show('motifs') && <TableHead className="max-md:hidden">{t(`${I}.columns.motifs`)}</TableHead>}
+          {show('assigned') && <TableHead className="max-lg:hidden">{t(`${I}.columns.assigned`)}</TableHead>}
+          {show('followUp') && <TableHead className="max-md:hidden">{t(`${I}.columns.followUp`)}</TableHead>}
           <TableHead>
             <span className="sr-only">{t(`${I}.columns.actions`)}</span>
           </TableHead>
@@ -206,21 +265,21 @@ function InboxTable({ rows, canLog }: { rows: readonly InboxRow[] | null; canLog
       <TableBody>
         {rows === null ? (
           <TableRow>
-            <TableCell colSpan={6}>
+            <TableCell colSpan={3 + columns.length}>
               <p role="status" className="py-2 text-sm text-muted-foreground">
                 {t('common.loading')}
               </p>
             </TableCell>
           </TableRow>
         ) : (
-          rows.map((row) => <InboxRowView key={row.id} row={row} canLog={canLog} />)
+          rows.map((row) => <InboxRowView key={row.id} row={row} canLog={canLog} show={show} />)
         )}
       </TableBody>
     </Table>
   )
 }
 
-function InboxRowView({ row, canLog }: { row: InboxRow; canLog: boolean }) {
+function InboxRowView({ row, canLog, show }: { row: InboxRow; canLog: boolean; show: (c: InboxColumn) => boolean }) {
   const person = personLabel(row)
   const promise = promiseText(row.promise, row.waiting_hours)
   const open = !['matched', 'closed'].includes(row.state)
@@ -247,13 +306,30 @@ function InboxRowView({ row, canLog }: { row: InboxRow; canLog: boolean }) {
         )}
         <p className="text-xs text-muted-foreground">{optionLabel('channel', row.channel)}</p>
       </TableCell>
-      <TableCell className="max-sm:hidden">
-        <span className="inline-flex items-center gap-1.5 text-sm">
-          <StatusDot tone={stateTone(row.state)} />
-          {stateLabel(row.state)}
-        </span>
-      </TableCell>
-      <TableCell className="max-lg:hidden text-sm">{row.assigned_name ?? <span className="text-muted-foreground">{t(`${I}.unassigned`)}</span>}</TableCell>
+      {show('state') && (
+        <TableCell className="max-sm:hidden">
+          <span className="inline-flex items-center gap-1.5 text-sm">
+            <StatusDot tone={stateTone(row.state)} />
+            {stateLabel(row.state)}
+          </span>
+        </TableCell>
+      )}
+      {show('beneficiary') && (
+        <TableCell className="max-md:hidden text-sm">{row.beneficiary ? optionLabel('beneficiary', row.beneficiary) : ''}</TableCell>
+      )}
+      {show('motifs') && (
+        <TableCell className="tabular max-md:hidden text-sm">
+          {row.motif_count === 0
+            ? t(`${I}.columnPicker.noMotif`)
+            : row.motif_count === 1
+              ? t(`${I}.columnPicker.motifOne`)
+              : t(`${I}.columnPicker.motifCount`, { count: String(row.motif_count) })}
+        </TableCell>
+      )}
+      {show('assigned') && (
+        <TableCell className="max-lg:hidden text-sm">{row.assigned_name ?? <span className="text-muted-foreground">{t(`${I}.unassigned`)}</span>}</TableCell>
+      )}
+      {show('followUp') && (
       <TableCell className="max-md:hidden text-xs">
         {row.no_answer && <p className="font-medium text-foreground">{t(`${I}.noAnswer`, { count: String(row.contact_attempts) })}</p>}
         {row.last_contact_at && (
@@ -264,6 +340,7 @@ function InboxRowView({ row, canLog }: { row: InboxRow; canLog: boolean }) {
         {row.next_contact_at && <p className="text-foreground">{t(`${I}.nextContact`, { date: formatClinicDateTime(row.next_contact_at) })}</p>}
         {!row.last_contact_at && open && <p className="text-muted-foreground">{t(`${I}.neverContacted`)}</p>}
       </TableCell>
+      )}
       <TableCell className="text-right">{canLog && open && <LogContactDialog demandeId={row.id} person={person} compact />}</TableCell>
     </TableRow>
   )

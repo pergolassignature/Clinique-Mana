@@ -1,6 +1,6 @@
 # Runbook — Import from GOrendezvous: the clients (I1), the appointments and the waiting list (I2), the invoices (I3)
 
-**Status:** built and tested locally with synthetic files (2026-10-12). **Not run on the clinic's database.** · **Plan:** [§9 I1](../plans/2026-10-11-modules-coding-plan.md#9-importation-gorendezvous--batches) · **Decisions:** I-1 … I-18 · **Code:** `scripts/import-gorendezvous.mjs`, `scripts/import-gorendezvous/`, RPCs `import_client` / `import_client_relation` (`supabase/migrations/20261013043434_clients_import.sql`), pgTAP `115_clients_import`
+**Status:** built and tested locally with synthetic files (2026-10-12). **Not run on the clinic's database.** · **Plan:** [§9 I1](../plans/2026-10-11-modules-coding-plan.md#9-importation-gorendezvous--batches) · **Decisions:** I-1 … I-19 · **Code:** `scripts/import-gorendezvous.mjs`, `scripts/import-gorendezvous/`, RPCs `import_client` / `import_client_relation` (`supabase/migrations/20261013043434_clients_import.sql`), pgTAP `115_clients_import`
 
 > **Running it against the clinic's database is Jonathan's call, every time** (CLAUDE.md §11). He runs it himself, in his own terminal, signed in with his own account: first a dry run, then, after reading its report, `--commit`. **An agent never runs it against the clinic's database.**
 
@@ -120,13 +120,14 @@ node scripts/import-gorendezvous.mjs rendez-vous --appointments ~/Clinique-MANA-
 - **coming:** « Réservé » or « Confirmé », with its pause. GOrendezvous's video link is kept, and no Zoom meeting replaces it. **No confirmation is sent**; the reminders go out as for any appointment, and a move, cancellation or restore made in the app afterwards is told to the client;
 - each client is linked to the professional (« Mes clients »).
 
-**Reminders at the cutover (one reminder, never two, never none):**
+**Reminders at the cutover (one reminder, never two, never none; decision I-19):**
 - An imported coming appointment sends **no confirmation** at its import, but gets **its reminder** from the messages job like any appointment (pgTAP `178_appointments_import`): the clients booked in GOrendezvous for December are reminded by the app.
-- The app reminds the appointments of the **next business day**, from the reminder hour (`appointment_settings`, 8 h). GOrendezvous reminds them on its own schedule. To avoid a double reminder or a gap, follow this order:
-  1. **Import** (`rendez-vous --commit`) before the cutover day.
-  2. **Switch GOrendezvous's reminders off** the evening before the first business day of the app, once GOrendezvous's last batch has gone out (it covered that next day's appointments).
-  3. **Enable the app's messages job** « Courriels et rappels des rendez-vous » (`appointments.messages`, off by default; Paramètres → Tâches planifiées), with Rendez-vous open to everyone (not « Réservé aux testeurs », P3-40), that morning, **before the reminder hour**. Its first pass reminds the following business day's appointments, which GOrendezvous never reminded.
-- **Check GOrendezvous's lead time** (« 24 h avant » or « 48 h avant ») against the app's (`reminder_business_days`, 1 business day by default). With 48 h, GOrendezvous's last batch has also reminded the day after the first app day, and the app's first pass would remind those appointments again. Then switch GOrendezvous's reminders off one evening earlier: its next-to-last batch already covered the first app day. Never run both while GOrendezvous's reminders are on.
+- **The two rules are the same** (pgTAP `182_appointments_reminder_window`, with the cutover's dates). GOrendezvous (Communications → Notifications et rappels) sends « 1 jour(s) avant » and nothing on a weekend, so Monday's appointments are reminded on Friday. The app, with its defaults (Paramètres → Agenda: Monday to Friday, reminder at 8 h, business hours until 17 h, one business day ahead), reminds on a business day, from the reminder hour to the end of the business hours, the appointments of the days after today up to the next business day. On Friday that is Saturday to Monday; nothing goes out on a weekend. **An appointment of the same day is never reminded** (no catch-up).
+- **The cutover, Monday November 30, 2026:**
+  1. **Before:** import (`rendez-vous --commit`), with the app's messages job still off.
+  2. **Friday November 27:** GOrendezvous sends its last batch, Saturday's to Monday November 30's appointments. **That evening (or Saturday), switch GOrendezvous's reminders off.**
+  3. **Monday November 30, before 8 h:** open Rendez-vous to everyone (not « Réservé aux testeurs », P3-40) and enable « Courriels et rappels des rendez-vous » (`appointments.messages`, off by default; Paramètres → Tâches planifiées). From 8 h its first pass reminds **Tuesday December 1's** appointments, and never Monday's, which GOrendezvous reminded on Friday. Enabled later on Monday, the same holds: Tuesday's only.
+- Check that Paramètres → Agenda still holds those defaults before Monday. Another lead (2 business days), or Saturday as a business day, would change the dates above.
 
 **What an imported registration is:** an entry on its list, with its GOrendezvous date (its rank) and its fee (« payée » or « à facturer »). It is active once the consent is in force and the fee is paid or waived, else « incomplète ». All of a client's imported registrations share one request « Liste d'attente » (channel « Autre »).
 
