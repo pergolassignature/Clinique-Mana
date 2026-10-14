@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCsv, csvField, csvMoney, csvNumber } from './csv'
+import { buildCsv, collectPages, csvField, csvMoney, csvNumber } from './csv'
 
 describe('csv', () => {
   it('guards a text cell that a spreadsheet would read as a formula', () => {
@@ -21,5 +21,31 @@ describe('csv', () => {
     expect(buildCsv(['Montant', 'Code', 'Quantité', 'Vide'], [[csvMoney(17550), csvNumber(10150), csvNumber(1.5), null]])).toBe(
       '\uFEFFMontant;Code;Quantité;Vide\r\n175,50;10150;1,5;\r\n',
     )
+  })
+})
+
+describe('collectPages (L7)', () => {
+  const source = Array.from({ length: 23 }, (_, i) => i + 1)
+  const fetchPage = (size: number) => (after: number | null) => Promise.resolve(source.filter((n) => n > (after ?? 0)).slice(0, size))
+
+  it('follows the cursor until a short page', async () => {
+    const calls: (number | null)[] = []
+    const result = await collectPages((after: number | null) => {
+      calls.push(after)
+      return fetchPage(10)(after)
+    }, 10, (page) => page.at(-1) ?? null)
+    expect(result).toEqual({ rows: source, truncated: false })
+    expect(calls).toEqual([null, 10, 20])
+  })
+
+  it('stops at the maximum and says the file is cut', async () => {
+    const result = await collectPages(fetchPage(10), 10, (page) => page.at(-1) ?? null, 15)
+    expect(result.rows).toEqual(source.slice(0, 15))
+    expect(result.truncated).toBe(true)
+  })
+
+  it('a maximum met exactly by the last rows is not cut', async () => {
+    const result = await collectPages(fetchPage(10), 10, (page) => page.at(-1) ?? null, 23)
+    expect(result).toEqual({ rows: source, truncated: false })
   })
 })

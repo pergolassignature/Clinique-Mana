@@ -1,15 +1,17 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { ExportCsvButton } from '@/shared/components/ExportCsvButton'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
-import { formatDateOnly } from '@/shared/lib/timezone'
+import { formatDateOnly, getClinicDateString } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
-import type { InvoiceStatus } from '../api/invoices'
+import { fetchAllInvoices, type InvoiceStatus } from '../api/invoices'
 import { useInvoices } from '../hooks/use-invoices'
+import { invoicesCsv } from '../lib/invoices-csv'
 import { formatCents, paymentLabel, paymentVariant, statusLabel, statusVariant } from '../lib/money'
 import { FeeDecisions, OverdueInvoices } from './FollowUp'
 import { MorningQueue } from './MorningQueue'
@@ -68,6 +70,15 @@ function InvoiceList({ view }: { view: ListView }) {
         <EmptyState title={t(`${L}.empty.${view}`)} />
       ) : (
         <div className="space-y-3">
+          {/* L7: every invoice of the tab, every page. */}
+          <div className="flex justify-end">
+            <ExportCsvButton
+              build={async () => {
+                const all = await fetchAllInvoices(STATUS_OF[view])
+                return { ...invoicesCsv(all.rows, t(`${L}.csv.views.${view}`), getClinicDateString(new Date())), truncated: all.truncated }
+              }}
+            />
+          </div>
           <div className="overflow-x-auto rounded-md border border-border bg-card">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-muted-foreground">

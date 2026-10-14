@@ -146,6 +146,10 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 - **The invoice:** each payment's « Rembourser » (an amount, what is left by default; a reason) and its refunds (« Remboursé », « En attente de Stripe », « Refusé »); « Relances » (the day each reminder went, or a step passed without one).
 - **Paramètres → Facturation → « Relances »:** « Relances à partir du » (empty: no reminder and no refusal), the days, and the day a balance refuses a booking.
 
+## « Exporter (CSV) » on the invoices (parity audit L7)
+
+The tabs « Brouillons », « Émises », « Créditées » and « Toutes » export their invoices, newest first, every page (`fetchAllInvoices`: `list_invoices` 200 at a time, 5 000 at most): number, issue date, file number, client, payer, total, paid, balance, state, payment. Built in the browser (`lib/invoices-csv.ts`), nothing stored.
+
 ## What the module publishes
 
 - **For Demandes' waiting list (BI-19, migration `20261013152313_billing_source_hooks`):** `private.billing_create_waitlist_fee_invoice(org, client, entry, actor)` → (invoice id, number): the `waitlist_registration` service to the dossier's default payer, issued and sent (P3-40), never twice while one stands (source `waitlist_fee`). **`billing_source_hooks`** (source type → `private.<name>_billing_changed(org, source_id, invoice_id, state)`, like Clients' handler catalogues): an invoice of that source moving between `issued`, `paid` and `credited` calls its module's hook (trigger `invoices_source_hooks`), when that module is enabled.

@@ -30,6 +30,32 @@ export function buildCsv(header: readonly string[], rows: readonly (readonly Csv
   return '\uFEFF' + [header.map(csvField).join(';'), ...rows.map((r) => r.map(cell).join(';'))].join('\r\n') + '\r\n'
 }
 
+/** At most this many rows in a list's export (L7): beyond, the caller says the file is cut. */
+export const CSV_MAX_ROWS = 5000
+
+/**
+ * Every row of a paged list for its export (L7): asks `fetchPage` from the start until a page
+ * comes back short, following `next` (the cursor after a page), at most `max` rows. `truncated`
+ * when there may be more.
+ */
+export async function collectPages<T, C>(
+  fetchPage: (after: C | null) => Promise<readonly T[]>,
+  pageSize: number,
+  next: (page: readonly T[]) => C | null,
+  max: number = CSV_MAX_ROWS,
+): Promise<{ rows: T[]; truncated: boolean }> {
+  const rows: T[] = []
+  let after: C | null = null
+  for (;;) {
+    const page = await fetchPage(after)
+    rows.push(...page)
+    if (rows.length >= max) return { rows: rows.slice(0, max), truncated: rows.length > max || page.length === pageSize }
+    if (page.length < pageSize) return { rows, truncated: false }
+    after = next(page)
+    if (after === null) return { rows, truncated: false }
+  }
+}
+
 /** Hands the file to the browser (« Exporter »). */
 export function downloadCsv(fileName: string, content: string): void {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
