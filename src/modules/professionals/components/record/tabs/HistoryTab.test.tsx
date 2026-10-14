@@ -95,7 +95,7 @@ describe('HistoryTab', () => {
     expect(screen.queryByRole('region', { name: 'Mercredi 7 octobre 2026' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: t(`${H}.loadMore`) }))
     expect(await screen.findByRole('region', { name: 'Mercredi 7 octobre 2026' })).toHaveTextContent(
-      "Admin Local a modifié les années d'expérience : 1 → 2",
+      "Admin Local a modifié les années d'expérience : 1, maintenant 2",
     )
   })
 
@@ -111,7 +111,7 @@ describe('HistoryTab', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(within(panel).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       `Ville\u00a0: ${t('audit.values.redacted')}`,
-      'Province\u00a0: QC → ON',
+      'Province\u00a0: QC, maintenant ON',
     ])
   })
 
@@ -183,14 +183,14 @@ describe('HistoryTab', () => {
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([motif(7, b, IDS.psychose), motif(6, b, IDS.deuil)])
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([motif(5, b, IDS.orphan), c])
     renderTab()
-    expect(await screen.findByText(/a modifié les années d'expérience : 2 → 3/)).toBeInTheDocument()
+    expect(await screen.findByText(/a modifié les années d'expérience : 2, maintenant 3/)).toBeInTheDocument()
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
     // One click: page 2 is the held-back save alone (nothing new to show), so page 3 follows.
     await userEvent.click(screen.getByRole('button', { name: t(`${H}.loadMore`) }))
     expect(await screen.findByRole('button', { name: 'Admin Local a ajouté 4 motifs' })).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 8], [P, 6]])
     // C may go on in page 4: held back, « Charger plus » again.
-    expect(screen.queryByText(/a modifié les années d'expérience : 1 → 2/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/a modifié les années d'expérience : 1, maintenant 2/)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: t(`${H}.loadMore`) })).not.toHaveAttribute('aria-disabled')
   })
 
@@ -238,7 +238,7 @@ describe('HistoryTab', () => {
     renderTab()
     await userEvent.click(await screen.findByRole('button', { name: t(`${H}.loadMore`) }))
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${H}.loadMoreError`))
-    expect(screen.getByText(/a modifié les années d'expérience : 2 → 3/)).toBeInTheDocument()
+    expect(screen.getByText(/a modifié les années d'expérience : 2, maintenant 3/)).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory).toHaveBeenCalledTimes(3)
     const loadMore = screen.getByRole('button', { name: t(`${H}.loadMore`) })
     expect(loadMore).not.toHaveAttribute('aria-disabled')
@@ -287,7 +287,7 @@ describe('HistoryTab', () => {
     const { queryClient } = setupQueryClient()
     const { unmount } = renderTab(CATALOG_VIEW, queryClient)
     await userEvent.click(await screen.findByRole('button', { name: t(`${H}.loadMore`) }))
-    expect(await screen.findByText(/a modifié les années d'expérience : 1 → 2/)).toBeInTheDocument()
+    expect(await screen.findByText(/a modifié les années d'expérience : 1, maintenant 2/)).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 8]])
 
     // A record change: one request, the first page.
@@ -297,13 +297,13 @@ describe('HistoryTab', () => {
 
     // Read on again, leave the tab, come back to stale data: one request again.
     await userEvent.click(screen.getByRole('button', { name: t(`${H}.loadMore`) }))
-    await screen.findByText(/a modifié les années d'expérience : 1 → 2/)
+    await screen.findByText(/a modifié les années d'expérience : 1, maintenant 2/)
     unmount()
     await queryClient.invalidateQueries({ queryKey: ['professionals', 'history', P] })
     mocks.fetchProfessionalHistory.mockClear()
     renderTab(CATALOG_VIEW, queryClient)
     await waitFor(() => expect(mocks.fetchProfessionalHistory).toHaveBeenCalled())
-    expect(await screen.findByText(/a modifié les années d'expérience : 2 → 3/)).toBeInTheDocument()
+    expect(await screen.findByText(/a modifié les années d'expérience : 2, maintenant 3/)).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined]])
   })
 
@@ -314,7 +314,7 @@ describe('HistoryTab', () => {
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([draft(7, 30), draft(6, 20)])
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(5, '2026-10-08T16:00:00+00:00', 'professionals', 'update', { years_experience: { before: 1, after: 2 } })])
     renderTab()
-    expect(await screen.findByText(/a modifié les années d'expérience : 1 → 2/)).toBeInTheDocument()
+    expect(await screen.findByText(/a modifié les années d'expérience : 1, maintenant 2/)).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 8], [P, 6]])
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
     expect(screen.getByText(t(`${H}.end`))).toBeInTheDocument()
@@ -328,7 +328,7 @@ describe('HistoryTab', () => {
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(6, '2026-10-08T16:00:00+00:00', 'professionals', 'update', { years_experience: { before: 1, after: 2 } })])
     renderTab()
     await userEvent.click(await screen.findByRole('button', { name: t(`${H}.loadMore`) }))
-    expect(await screen.findByText(/a modifié les années d'expérience : 1 → 2/)).toBeInTheDocument()
+    expect(await screen.findByText(/a modifié les années d'expérience : 1, maintenant 2/)).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 9], [P, 7]])
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
   })

@@ -13,7 +13,7 @@ const fail = (code: string, status: number, message = 'x', variable?: string) =>
 
 describe('emailErrorMessage', () => {
   it.each([
-    ['not_configured', 503, "L'envoi de courriels n'est pas encore configuré (Paramètres → Courriels)."],
+    ['not_configured', 503, "L'envoi de courriels n'est pas encore configuré (Paramètres, section « Courriels »)."],
     ['provider_error', 502, "Le service d'envoi de courriels n'a pas répondu. Réessayez dans quelques minutes."],
   ])('says %s in French', (code, status, text) => {
     expect(emailErrorMessage(fail(code, status))).toBe(text)

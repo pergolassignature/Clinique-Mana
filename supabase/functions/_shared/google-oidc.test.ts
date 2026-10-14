@@ -2,6 +2,7 @@ import { assertEquals } from '@std/assert'
 import {
   GOOGLE_CERTS_PATH,
   resetGoogleCertsCache,
+  UNKNOWN_KID_REFETCH_MS,
   verifyGoogleIdToken,
 } from './google-oidc.ts'
 import { createOidcSigner, pushClaims } from './testing/google-oidc-signer.ts'
@@ -142,4 +143,41 @@ Deno.test('google-oidc: a rotated key is found by reading the keys again', async
   s.setJwks(await next.jwks())
   const rotated = await next.sign(pushClaims(AUD, EMAIL, nowS))
   assertEquals(await verifyGoogleIdToken(rotated, expect, s.ctx), { ok: true })
+})
+
+Deno.test('google-oidc: unknown kids read the keys again at most once a minute', async () => {
+  const s = await setup()
+  let clock = NOW.getTime()
+  const ctx = { ...s.ctx, now: () => new Date(clock) }
+  const good = await s.signer.sign(pushClaims(AUD, EMAIL, nowS))
+  assertEquals((await verifyGoogleIdToken(good, expect, ctx)).ok, true)
+  const reads = () => s.calls.length
+  assertEquals(reads(), 1)
+  const forge = (kid: string) =>
+    s.signer.sign(pushClaims(AUD, EMAIL, nowS), { kid })
+  assertEquals(
+    await verifyGoogleIdToken(await forge('made-up-1'), expect, ctx),
+    {
+      ok: false,
+      reason: 'unknown_key',
+    },
+  )
+  assertEquals(reads(), 2, 'the first unknown kid reads the keys again')
+  for (const kid of ['made-up-2', 'made-up-3', 'made-up-4']) {
+    clock += 10_000
+    assertEquals(
+      (await verifyGoogleIdToken(await forge(kid), expect, ctx)).ok,
+      false,
+    )
+  }
+  assertEquals(reads(), 2, 'within the minute: no other read')
+  assertEquals((await verifyGoogleIdToken(good, expect, ctx)).ok, true)
+
+  // A real rotation after the minute is found.
+  clock += UNKNOWN_KID_REFETCH_MS
+  const next = await createOidcSigner('fake-key-2')
+  s.setJwks(await next.jwks())
+  const rotated = await next.sign(pushClaims(AUD, EMAIL, nowS))
+  assertEquals(await verifyGoogleIdToken(rotated, expect, ctx), { ok: true })
+  assertEquals(reads(), 3)
 })
