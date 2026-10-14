@@ -1,10 +1,10 @@
 /**
- * The seeded « Contrat de service » (draft version 1 of
- * `*_professionals_contracts.sql`, `private.professionals_contract_template()`)
- * renders: every placeholder is declared, Annexe A is its block placeholder,
- * the document passes the renderer's checks once filled with the variables'
- * samples and real Annexe A blocks, and the initials and signature boxes land
- * where Documenso expects them (P4-17, P4-431).
+ * The seeded « Contrat de service » (`private.professionals_contract_template()`,
+ * the 2026 text of `*_professionals_contract_2026.sql`, the newest migration
+ * that defines it) renders: every placeholder is declared, Annexe A is its
+ * block placeholder, the document passes the renderer's checks once filled
+ * with the variables' samples and real Annexe A blocks, and the initials and
+ * signature boxes land where Documenso expects them (P4-17, P4-431, P4-554).
  */
 import { assert, assertEquals } from '@std/assert'
 import { PLACEHOLDER_SOURCE, type TemplateVariable } from '../_shared/format.ts'
@@ -23,10 +23,21 @@ async function seededTemplate(): Promise<{
   email_subject: string
   email_message: string
 }> {
-  const name = [...Deno.readDirSync(MIGRATIONS)].map((e) => e.name)
-    .find((n) => n.endsWith('_professionals_contracts.sql'))
-  assert(name, 'the contracts migration exists')
-  const sql = await Deno.readTextFile(new URL(name, MIGRATIONS))
+  // The newest migration that defines the template's content.
+  const names = [...Deno.readDirSync(MIGRATIONS)].map((e) => e.name)
+    .filter((n) => n.endsWith('.sql')).sort().reverse()
+  let sql = ''
+  for (const name of names) {
+    const text = await Deno.readTextFile(new URL(name, MIGRATIONS))
+    if (
+      /create (or replace )?function private\.professionals_contract_template\(\)/
+        .test(text)
+    ) {
+      sql = text
+      break
+    }
+  }
+  assert(sql, 'a migration defines the template')
   const start = sql.indexOf('$json$') + '$json$'.length
   const end = sql.indexOf('$json$::jsonb')
   return JSON.parse(sql.slice(start, end))
@@ -57,6 +68,7 @@ const annexe = annexeBlocks({
   tiers: Array.from({ length: 7 }, (_, n) => ({
     from: n === 0 ? 0 : n * 50 + 1,
     to: n === 6 ? null : (n + 1) * 50,
+    retention_pct: 30 - n * 0.5,
     pay: [60, 50, 30].map((duration) => ({ duration, cents: 10000 + n * 100 })),
   })),
   sessions_total: 78,
@@ -69,15 +81,21 @@ const annexe = annexeBlocks({
   }],
 })
 
-Deno.test('seeded contract: the draft opens with the validation banner and holds Annexe A as a block placeholder', async () => {
+Deno.test('seeded contract: the 2026 text, final (no banner), granting the image rights, with Annexe A as a block placeholder', async () => {
   const { body } = await seededTemplate()
-  assertEquals(body.blocks[0], {
-    type: 'paragraph',
-    runs: [{
-      text: 'Texte à faire valider par la direction avant publication',
-      bold: true,
-    }],
-  })
+  assertEquals(
+    body.title,
+    'Convention de prestation de services professionnels',
+  )
+  assertEquals(body.grantsImageRights, true)
+  assert(!JSON.stringify(body).includes('Texte à faire valider'))
+  assert(
+    body.blocks.some((b) =>
+      b.type === 'heading' &&
+      b.text === '6.2 Promotion des services professionnels'
+    ),
+    'the image-rights article',
+  )
   assert(
     body.blocks.some((b) =>
       b.type === 'paragraph' && b.runs.length === 1 &&
