@@ -130,6 +130,14 @@ describe('DateField', () => {
     expect(field()).toHaveValue('')
   })
 
+  it('a day of the next month shown in the grid is chosen with one click', async () => {
+    const user = userEvent.setup()
+    render(<Harness initial="2026-10-12" />)
+    await user.click(screen.getByRole('button', { name: 'Ouvrir le calendrier' }))
+    await user.click(screen.getByRole('button', { name: 'dimanche 1 novembre 2026' }))
+    expect(value()).toBe('2026-11-01')
+  })
+
   it('not clearable: no « Effacer »', async () => {
     const user = userEvent.setup()
     render(<Harness initial="2026-01-05" />)

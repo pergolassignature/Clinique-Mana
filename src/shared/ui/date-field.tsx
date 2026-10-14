@@ -384,7 +384,9 @@ export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function D
                         aria-current={day === today ? 'date' : undefined}
                         aria-disabled={!allowed || undefined}
                         onClick={() => choose(day)}
-                        onFocus={() => day !== focused && setFocused(day)}
+                        // A day of the month shown only: focusing a neighbouring month's day would
+                        // redraw the grid under the pointer before its click lands.
+                        onFocus={() => day !== focused && !outside && setFocused(day)}
                         className={cn(
                           'relative h-9 w-9 rounded-md text-sm tabular transition-colors',
                           focusRing,
