@@ -8,7 +8,7 @@ import { downloadCsv } from '@/shared/lib/csv'
 import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { DemandesReport } from '../api/demandes-report'
 import { ReportControls, Totals } from '../components/ReportControls'
 import { useReportParams } from '../hooks/use-report-params'
@@ -84,7 +84,7 @@ export function DemandesReportPage() {
   return (
     <div className="max-w-content space-y-5">
       <PageHeader level={1} title={t(`${D}.title`)} description={t(`${D}.description`)} />
-      <Tabs value={tab} onValueChange={(v) => set({ onglet: TAB_PARAMS[v as DemandesTab] })}>
+      <Tabs value={tab} onValueChange={(v) => set({ onglet: TAB_PARAMS[v as DemandesTab] })} className="space-y-5">
         <TabsList aria-label={t(`${D}.views`)}>
           {DEMANDES_TABS.map((v) => (
             <TabsTrigger key={v} value={v}>
@@ -92,9 +92,13 @@ export function DemandesReportPage() {
             </TabsTrigger>
           ))}
         </TabsList>
+        {DEMANDES_TABS.map((v) => (
+          <TabsContent key={v} value={v} className="space-y-5">
+            <ReportControls period={period} today={today} periodError={error} onPeriod={(next: Period) => set({ du: next.from, au: next.to })} onExport={report ? onExport : undefined} />
+            {body}
+          </TabsContent>
+        ))}
       </Tabs>
-      <ReportControls period={period} today={today} periodError={error} onPeriod={(next: Period) => set({ du: next.from, au: next.to })} onExport={report ? onExport : undefined} />
-      {body}
     </div>
   )
 }

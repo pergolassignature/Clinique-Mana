@@ -11,6 +11,8 @@ import { appointmentTitle, blockClasses, isBusyOnly, stateLabel } from '../lib/d
 
 /** Pixels per hour of the grid (16 hours by default: 6:00 to 22:00). */
 export const HOUR_HEIGHT = 48
+/** A block's text line (text-xs, 16 px): a block shows the lines it has room for. */
+const LINE_HEIGHT = 16
 const hoursOf = (range: GridRange) => Array.from({ length: (range.end - range.start) / 60 }, (_, i) => range.start + i * 60)
 const A = 'modules.appointments.agenda'
 
@@ -162,7 +164,7 @@ function Column({ column, height, range, ...props }: TimeGridProps & { column: G
   }
 
   return (
-    <div className="w-44 shrink-0 border-r border-border last:border-r-0 sm:w-auto sm:min-w-40 sm:flex-1">
+    <div className="w-44 shrink-0 border-r border-border last:border-r-0 sm:w-auto sm:min-w-24 sm:flex-1 xl:min-w-32">
       <ColumnHeader column={column} />
       <div
         className={cn('relative', canWrite && 'cursor-copy')}
@@ -239,17 +241,22 @@ function Column({ column, height, range, ...props }: TimeGridProps & { column: G
                 )}
                 style={position}
                 aria-label={t(`${A}.blockLabel`, { time: formatClinicTime(a.startsAt), title: appointmentTitle(a) })}
+                // The professional on hover when the block is too short to write her name.
+                title={props.showProfessional ? props.professionalName(a.professionalId) : undefined}
               >
                 <span className="flex items-center gap-1 font-medium">
                   <span className="tabular">{offset ? hhmm(start + offset) : formatClinicTime(a.startsAt)}</span>
                   {a.mode === 'phone' && <Phone aria-hidden className="size-3" />}
                   {a.outsideAvailability && <TriangleAlert aria-hidden className="size-3 text-warning" />}
-                  {a.state === 'cancelled' && <Ban aria-hidden className="size-3" />}
+                  {a.state === 'cancelled' && <Ban aria-hidden className="size-3 shrink-0" />}
+                  {a.state === 'cancelled' && <span className="truncate font-normal">{stateLabel(a.state)}</span>}
                   {a.seriesId && <Repeat aria-hidden className="size-3" />}
                 </span>
                 <span className="block truncate">{appointmentTitle(a)}</span>
                 {a.state === 'held' && <span className="block truncate text-muted-foreground">{stateLabel(a.state)}</span>}
-                {props.showProfessional && <span className="block truncate text-muted-foreground">{props.professionalName(a.professionalId)}</span>}
+                {props.showProfessional && position.height >= 3 * LINE_HEIGHT + 4 && (
+                  <span className="block truncate text-muted-foreground">{props.professionalName(a.professionalId)}</span>
+                )}
               </button>
             )
           })}

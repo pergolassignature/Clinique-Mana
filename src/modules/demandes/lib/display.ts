@@ -72,6 +72,9 @@ export function personLabel(row: Pick<InboxRow, 'person_name'>): string {
   return row.person_name?.trim() || t(`${D}.unnamed`)
 }
 
-export const fileLabel = (number: number, name: string) => t(`${D}.file`, { number: String(number), name })
+/** A file's number as Clients writes it everywhere: « CLI-000010 » (Clients' lib is not public). */
+export const clientNumber = (number: number): string => `CLI-${String(number).padStart(6, '0')}`
+
+export const fileLabel = (number: number, name: string) => t(`${D}.file`, { number: clientNumber(number), name })
 
 export const optionLabel = (group: string, value: string) => t(`${D}.options.${group}.${value}` as never)

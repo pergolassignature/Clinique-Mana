@@ -1,4 +1,5 @@
 import { i18nAuditLabels } from '@/core/audit/module-labels'
+import { clientNumberLabel } from './display'
 
 /**
  * The module's audited tables, in the order of the Journal d'audit's « Section » filter: the
@@ -38,6 +39,8 @@ const money = new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2, maximum
 /** Amounts in the module's words; stored codes (sex, language, relation types, kinds) are in the i18n `values`. */
 function clientsValue(_table: string, column: string, value: unknown): string | undefined {
   if (typeof value === 'number' && MONEY_COLUMNS.has(column)) return `${money.format(value / 100)}\u00A0$`
+  // The file's number as the record writes it (« CLI-000001 », not « 1 »).
+  if (typeof value === 'number' && column === 'client_number') return clientNumberLabel(value)
   return undefined
 }
 

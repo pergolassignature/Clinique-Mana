@@ -320,7 +320,8 @@ function IntakeForm() {
         <FormField label={t(`${A}.contact.name`)}>
           {(field) => <Input {...field} value={values.contact_name} onChange={(e) => set('contact_name', e.target.value)} readOnly={!canEdit} autoComplete="off" />}
         </FormField>
-        <FormRow>
+        {/* Two equal columns: an e-mail address reads whole (it was cut beside the phone). */}
+        <FormRow columns={2}>
           <FormField label={t(`${A}.contact.phone`)}>
             {(field) => (
               <Input {...field} type="tel" value={values.contact_phone} onChange={(e) => set('contact_phone', e.target.value)} readOnly={!canEdit} autoComplete="off" />
@@ -389,7 +390,8 @@ function IntakeForm() {
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium">{t(`${A}.need.motifs`)}</legend>
           <p className="text-xs text-muted-foreground">{t(`${A}.need.motifsHelp`)}</p>
-          <div className="grid max-h-80 gap-3 overflow-y-auto rounded-md border border-border-light p-3 sm:grid-cols-2">
+          {/* The whole list shows (an inner scroll box hid the last categories on a phone). */}
+          <div className="grid gap-3 rounded-md border border-border-light p-3 sm:grid-cols-2">
             {motifsByCategory.map((group) => (
               <div key={group.name} className="space-y-1.5">
                 <p className="text-xs font-semibold text-muted-foreground">{group.name}</p>
