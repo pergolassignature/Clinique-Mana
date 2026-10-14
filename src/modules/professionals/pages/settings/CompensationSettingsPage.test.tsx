@@ -197,7 +197,7 @@ describe('CompensationSettingsPage — other kinds (P4-181)', () => {
     const rates = await region(t(`${S}.rates.title`))
     await userEvent.click(within(rates).getByRole('button', { name: t(`${S}.rates.add`) }))
     const dialog = screen.getByRole('dialog', { name: t(`${S}.rates.dialog.title`) })
-    await userEvent.selectOptions(within(dialog).getByRole('combobox'), 'late_cancellation')
+    await userEvent.selectOptions(within(dialog).getAllByRole('combobox')[0]!, 'late_cancellation')
     await userEvent.type(within(dialog).getByRole('textbox', { name: new RegExp(t(`${S}.rates.dialog.rate`).replace(/[()%]/g, '.')) }), '35')
     fireEvent.change(within(dialog).getByLabelText(new RegExp(t(`${W}.from`))), { target: { value: '2027-01-01' } })
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.add`) }))

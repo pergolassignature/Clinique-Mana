@@ -6,8 +6,8 @@ import { cn } from '@/shared/lib/utils'
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/ui/alert-dialog'
 import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
-import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
 import type { ProfessionalDocument } from '../../api/documents'
 import type { DocumentType } from '../../api/parse'
 import { useDeleteDocument, useRejectDocument, useSetDocumentExpiry, useVerifyDocument, useWithdrawImageConsent } from '../../hooks/use-documents'
@@ -124,7 +124,7 @@ function ExpiryField({ value, onChange, error, help, inputRef }: { value: string
   return (
     <FormField label={t(`${D}.verify.expiresOn`)} help={help} required error={error ?? undefined}>
       {(field) => (
-        <Input {...field} ref={inputRef} type="date" value={value} min="2000-01-01" max="2100-12-31" onChange={(event) => onChange(event.target.value)} className="max-w-[12rem] tabular" />
+        <DateField {...field} ref={inputRef} value={value} min="2000-01-01" max="2100-12-31" onChange={onChange} className="max-w-[12rem]" />
       )}
     </FormField>
   )
@@ -312,15 +312,14 @@ export function WithdrawConsentDialog({ owner, today, scheduled, onClose, onClos
     >
       <FormField label={t(`${D}.withdraw.date`)} help={t(`${D}.withdraw.dateHelp`)} required error={state.fieldError ?? undefined}>
         {(field) => (
-          <Input
+          <DateField
             {...field}
             ref={dateInput}
-            type="date"
             value={withdrawnOn}
             min="2000-01-01"
             max={withdrawalLatest(today)}
-            onChange={(event) => setWithdrawnOn(event.target.value)}
-            className="max-w-[12rem] tabular"
+            onChange={setWithdrawnOn}
+            className="max-w-[12rem]"
           />
         )}
       </FormField>

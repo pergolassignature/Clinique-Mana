@@ -260,7 +260,7 @@ describe('RetentionReviewPage (P4-190)', () => {
     await userEvent.click(within(await itemOf('Paul Un')).getByRole('button', decide(`Appliquer ${pct('27,5')}`, 'Paul Un')))
     const dialog = screen.getByRole('dialog', { name: `Appliquer ${pct('27,5')} — Paul Un` })
     expect(dialog).toHaveTextContent('Rencontre 50 min : versé 126,00 $ → devient 126,88 $ (+0,88 $)')
-    expect(within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))).toHaveValue('2026-10-01')
+    expect(within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))).toHaveValue('1 oct. 2026')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
     // The count runs through the reviewed month: what is applied is the suggestion shown.
     await waitFor(() =>

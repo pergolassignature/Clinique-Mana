@@ -1,5 +1,5 @@
 import { forwardRef, useMemo, useRef, useState, type RefObject } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { DateField } from '@/shared/ui/date-field'
 import { DURATIONS, type AgreementInput, type AgreementRow } from '../../api/compensation'
 import { useDeleteClientAgreement, useEndClientAgreement, useSetClientAgreement } from '../../hooks/use-compensation'
 import { canDeleteDated, datedStatus, durationLabel, formatCents, periodLabel } from '../../lib/compensation'
@@ -199,7 +200,7 @@ function AgreementForm({ firstFieldRef, pending, refusal, dateError, onSubmit }:
   })
   const { errors, isDirty } = form.formState
   useDateErrorOnField(form.setError, 'effectiveFrom', dateError)
-  const effectiveFrom = useWatch({ control: form.control, name: 'effectiveFrom' })
+  const { field: from } = useController({ control: form.control, name: 'effectiveFrom' })
   const { ref: labelRef, ...labelField } = form.register('clientLabel')
 
   return (
@@ -237,7 +238,7 @@ function AgreementForm({ firstFieldRef, pending, refusal, dateError, onSubmit }:
           {(field) => <Input {...field} {...form.register('professionalAmount')} inputMode="decimal" autoComplete="off" />}
         </FormField>
       </div>
-      <EffectiveFromField registration={form.register('effectiveFrom')} value={effectiveFrom} error={errors.effectiveFrom?.message} min={null} help={t(`${A}.dialog.fromHelp`)} />
+      <EffectiveFromField input={from} error={errors.effectiveFrom?.message} min={null} help={t(`${A}.dialog.fromHelp`)} />
       <FormField label={t(`${W}.note`)} help={t(`${W}.noteHelp`)} error={errors.note?.message}>
         {(field) => <Input {...field} {...form.register('note')} autoComplete="off" maxLength={500} />}
       </FormField>
@@ -301,7 +302,13 @@ function EndAgreementDialog({ professionalId, row, today, onClose, triggerRef, f
           pendingLabel={t(`${A}.ending`)}
         >
           <FormField label={t(`${A}.endDialog.to`)} help={t(`${A}.endDialog.toHelp`)} required error={form.formState.errors.effectiveTo?.message}>
-            {(field) => <Input {...field} {...form.register('effectiveTo')} type="date" min={minDate > today ? minDate : today} max={LAST_DATE} />}
+            {(field) => (
+              <Controller
+                control={form.control}
+                name="effectiveTo"
+                render={({ field: control }) => <DateField {...field} {...control} min={minDate > today ? minDate : today} max={LAST_DATE} />}
+              />
+            )}
           </FormField>
         </DialogForm>
       </DialogContent>

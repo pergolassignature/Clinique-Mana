@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
 import { INVOICE_MAX_BYTES, INVOICE_MIME } from '../../api/payroll'
 import { payrollErrorMessage } from '../../api/payroll-errors'
 import { useGenerateProfessionalInvoice, useUploadProfessionalInvoice } from '../../hooks/use-payroll'
@@ -224,7 +225,7 @@ export function PaidDialog({ professionalName, totalCents, onSubmit, onClose }: 
           {error && <RefusalAlert message={error} />}
           <FormField label={t(`${D}.paid.date`)} required>
             {(field) => (
-              <Input {...field} type="date" value={paidOn} readOnly={busy} className="max-w-[12rem] tabular" onChange={(event) => setPaidOn(event.target.value)} />
+              <DateField {...field} value={paidOn} readOnly={busy} className="max-w-[12rem]" onChange={setPaidOn} />
             )}
           </FormField>
           <FormField label={t(`${D}.paid.note`)} help={t(`${D}.paid.noteHelp`)}>
@@ -323,16 +324,15 @@ export function InvoiceDialog({ mode, periodId, month, totalCents, onDone, onClo
           </FormField>
           <FormField label={t(`${D}.invoice.date`)} required error={errors.date}>
             {(field) => (
-              <Input
+              <DateField
                 {...field}
-                type="date"
                 value={issuedOn}
                 min={month}
                 max={today}
                 readOnly={busy}
-                className="max-w-[12rem] tabular"
-                onChange={(event) => {
-                  setIssuedOn(event.target.value)
+                className="max-w-[12rem]"
+                onChange={(value) => {
+                  setIssuedOn(value)
                   setErrors((e) => ({ ...e, date: undefined }))
                 }}
               />

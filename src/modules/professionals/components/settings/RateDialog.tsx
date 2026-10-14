@@ -1,5 +1,5 @@
 import { forwardRef, useMemo, useRef, useState, type RefObject } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useController, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus } from 'lucide-react'
 import { t } from '@/i18n'
@@ -89,7 +89,8 @@ function RateForm({ kinds, rows, firstFieldRef, pending, refusal, dateError, onS
   const form = useForm<RateFormValues, unknown, RateInput>({ resolver, defaultValues: { kind: kinds[0]?.key ?? '', pct: '', effectiveFrom: '' } })
   const { errors, isDirty } = form.formState
   useDateErrorOnField(form.setError, 'effectiveFrom', dateError)
-  const [kind, effectiveFrom] = useWatch({ control: form.control, name: ['kind', 'effectiveFrom'] })
+  const kind = useWatch({ control: form.control, name: 'kind' })
+  const { field: from } = useController({ control: form.control, name: 'effectiveFrom' })
   const { ref: registerKindRef, ...kindField } = form.register('kind')
 
   return (
@@ -117,7 +118,7 @@ function RateForm({ kinds, rows, firstFieldRef, pending, refusal, dateError, onS
           {(field) => <Input {...field} {...form.register('pct')} inputMode="decimal" autoComplete="off" />}
         </FormField>
       </div>
-      <EffectiveFromField registration={form.register('effectiveFrom')} value={effectiveFrom} error={errors.effectiveFrom?.message} min={minDateFor(kind)} help={t(`${O}.dialog.fromHelp`)} />
+      <EffectiveFromField input={from} error={errors.effectiveFrom?.message} min={minDateFor(kind)} help={t(`${O}.dialog.fromHelp`)} />
     </DialogForm>
   )
 }

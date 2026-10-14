@@ -15,6 +15,7 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import { Switch } from '@/shared/ui/switch'
+import { TimeField } from '@/shared/ui/time-field'
 import { bookingPageUrl, type BookingSettings, type WeeklyRange } from '../../api/booking'
 import { useBookingSettings, useSaveBookingSettings } from '../../hooks/use-booking'
 
@@ -190,22 +191,18 @@ function SlotsCard({ settings, readOnly }: { settings: BookingSettings; readOnly
               {ranges.length === 0 && <p className="text-xs text-muted-foreground">{t(`${S}.slots.none`)}</p>}
               {ranges.map(({ r, index }) => (
                 <div key={index} className="flex flex-wrap items-center gap-2">
-                  <Input
-                    type="time"
+                  <TimeField
                     aria-label={`${dayName} — ${t(`${S}.slots.start`)}`}
                     value={r.start}
-                    onChange={(e) => setRange(index, { start: e.target.value })}
-                    className="tabular w-32"
-                    step={300}
+                    onChange={(start) => setRange(index, { start })}
+                    className="w-32"
                   />
                   <span aria-hidden className="text-muted-foreground">–</span>
-                  <Input
-                    type="time"
+                  <TimeField
                     aria-label={`${dayName} — ${t(`${S}.slots.end`)}`}
                     value={r.end === '24:00' ? '23:59' : r.end}
-                    onChange={(e) => setRange(index, { end: e.target.value })}
-                    className="tabular w-32"
-                    step={300}
+                    onChange={(end) => setRange(index, { end })}
+                    className="w-32"
                   />
                   {!readOnly && (
                     <Button

@@ -25,6 +25,7 @@ import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
+import { DateField } from '@/shared/ui/date-field'
 import type { ClientInsurance, ClientPayer } from '../../../api/parse'
 import { useDeleteClientInsurance, useEndClientPayer, useSaveClientPayer, useUpsertClientInsurance } from '../../../hooks/use-clients'
 import { HOLDER_RELATIONS, PAYER_KINDS, type HolderRelation, type PayerKind } from '../../../lib/constants'
@@ -427,10 +428,10 @@ function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: 
           </FormRow>
           <FormRow>
             <FormField label={t(`${C}.startsOn`)} width="sm">
-              {(field) => <Input {...field} type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />}
+              {(field) => <DateField {...field} value={startsOn} onChange={setStartsOn} />}
             </FormField>
             <FormField label={t(`${C}.expiresOn`)} width="sm">
-              {(field) => <Input {...field} type="date" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />}
+              {(field) => <DateField {...field} value={expiresOn} onChange={setExpiresOn} />}
             </FormField>
           </FormRow>
           {pae && (
@@ -460,7 +461,7 @@ function PayerDialog({ row, kinds, onClose }: { row: ClientPayer | null; kinds: 
                   {(field) => <Input {...field} value={priorSessions} onChange={(e) => setPriorSessions(e.target.value)} inputMode="numeric" autoComplete="off" />}
                 </FormField>
                 <FormField label={t(`${C}.priorOn`)} width="sm">
-                  {(field) => <Input {...field} type="date" value={priorOn} onChange={(e) => setPriorOn(e.target.value)} />}
+                  {(field) => <DateField {...field} value={priorOn} onChange={setPriorOn} />}
                 </FormField>
               </FormRow>
             </>

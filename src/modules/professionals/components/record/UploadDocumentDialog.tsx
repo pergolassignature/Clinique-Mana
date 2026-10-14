@@ -11,6 +11,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
+import { DateField } from '@/shared/ui/date-field'
 import type { DocumentType } from '../../api/parse'
 import { useUploadDocument } from '../../hooks/use-documents'
 import { DOCUMENT_MAX_IMAGE_SIDE } from '../../lib/constants'
@@ -193,16 +194,15 @@ export function UploadDocumentDialog({ professionalId, professionalName, today, 
           {withExpiry && (
             <FormField label={t(`${U}.expiresOn`)} help={t(`${U}.expiresOnHelp`)} required error={errors.expiresOn}>
               {(field) => (
-                <Input
+                <DateField
                   {...field}
                   ref={dateInput}
-                  type="date"
                   value={expiresOn}
                   min={today}
                   max="2100-12-31"
-                  onChange={(event) => setExpiresOn(event.target.value)}
+                  onChange={setExpiresOn}
                   readOnly={busy}
-                  className="max-w-[12rem] tabular"
+                  className="max-w-[12rem]"
                 />
               )}
             </FormField>

@@ -39,7 +39,10 @@ export const CheckboxField = forwardRef<HTMLButtonElement, CheckboxFieldProps>(f
         className="mt-0.5"
       />
       <div className="min-w-0 space-y-0.5">
-        <Label htmlFor={id}>{label}</Label>
+        {/* A long label wraps (a service's full name), never cut. */}
+        <Label htmlFor={id} className="break-words">
+          {label}
+        </Label>
         {help && (
           <p id={helpId} className="text-xs text-muted-foreground">
             {help}
