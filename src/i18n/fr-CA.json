@@ -8150,7 +8150,9 @@
           "needed": "Choisissez un professionnel.",
           "done": "La demande est jumelée à {name}.",
           "loadError": "La liste des professionnels n'a pas pu être lue."
-        }
+        },
+        "waitlistLoading": "Lecture des inscriptions à la liste d'attente…",
+        "waitlistLoadError": "Les inscriptions à la liste d'attente n'ont pas pu être lues. Réessayez."
       },
       "intake": {
         "file": {

@@ -1,5 +1,6 @@
-import { createElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { createElement, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { demandesError } from '../lib/errors'
@@ -196,7 +197,9 @@ function RecordHeader({ data }: { data: DemandeRecordData }) {
 /**
  * « État » and its moves; closing asks for the reason; « Liste d'attente » registers the request
  * on a list (D-15) unless it already has an open entry (back from « Proposée » or « Acceptée »);
- * « Jumelée » asks for the professional (D-38).
+ * « Jumelée » asks for the professional (D-38). Chosen before the request's registrations are read,
+ * « Liste d'attente » waits for them (the list disabled, « Lecture des inscriptions… »), then goes
+ * on: the click is never lost.
  */
 function StateControl({ data }: { data: DemandeRecordData }) {
   const d = data.bundle.demande
@@ -204,6 +207,8 @@ function StateControl({ data }: { data: DemandeRecordData }) {
   const setState = useSetDemandeState(data.id)
   const entries = useDemandeWaitlist(data.id)
   const [registering, setRegistering] = useState(false)
+  /** « Liste d'attente » chosen while the registrations were still loading. */
+  const [waitlistPending, setWaitlistPending] = useState(false)
   const [matching, setMatching] = useState(false)
   const [closing, setClosing] = useState(false)
   const [reason, setReason] = useState<ClosedReason>('not_relevant')
@@ -215,24 +220,41 @@ function StateControl({ data }: { data: DemandeRecordData }) {
         onError: (error) => toast.error(demandesError(error)),
       },
     )
+  const toWaitlist = (rows: { state: string }[]) => {
+    if (rows.some((e) => e.state !== 'closed')) move('waitlist', null)
+    else if (can('demandes.waitlist')) setRegistering(true)
+    else toast.error(t(`${R}.waitlistPermission`))
+  }
+  // The registrations arrived (or failed) after « Liste d'attente » was chosen: go on, or say why not.
+  useEffect(() => {
+    if (!waitlistPending) return
+    if (entries.data) {
+      setWaitlistPending(false)
+      toWaitlist(entries.data)
+    } else if (entries.isError) {
+      setWaitlistPending(false)
+      toast.error(t(`${R}.waitlistLoadError`))
+    }
+    // toWaitlist reads the latest props; only the pending choice and the read matter here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitlistPending, entries.data, entries.isError])
   return (
     <div className="space-y-1">
       <Label htmlFor="demande-state">{t(`${R}.changeState`)}</Label>
       <Select
         id="demande-state"
-        value=""
-        disabled={setState.isPending}
+        value={waitlistPending ? 'waitlist' : ''}
+        disabled={setState.isPending || waitlistPending}
+        aria-describedby={waitlistPending ? 'demande-state-waiting' : undefined}
         onChange={(event) => {
           const next = event.target.value as DemandeState
           if (!next) return
           if (next === 'closed') setClosing(true)
           else if (next === 'matched') setMatching(true)
-          // The entries not read yet: wait (never register a request that is already on a list).
-          else if (next === 'waitlist' && !entries.data) toast.error(t('common.loading'))
-          else if (next === 'waitlist' && !entries.data!.some((e) => e.state !== 'closed')) {
-            if (can('demandes.waitlist')) setRegistering(true)
-            else toast.error(t(`${R}.waitlistPermission`))
-          } else move(next, null)
+          // The entries not read yet: wait for them (never register a request already on a list).
+          else if (next === 'waitlist' && !entries.data) setWaitlistPending(true)
+          else if (next === 'waitlist') toWaitlist(entries.data!)
+          else move(next, null)
         }}
         className="w-56"
       >
@@ -243,6 +265,12 @@ function StateControl({ data }: { data: DemandeRecordData }) {
           </option>
         ))}
       </Select>
+      {waitlistPending && (
+        <p id="demande-state-waiting" role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 aria-hidden className="size-3.5 animate-spin" />
+          {t(`${R}.waitlistLoading`)}
+        </p>
+      )}
       <RegisterWaitlistDialog demandeId={data.id} hasFile={data.bundle.client !== null} open={registering} onOpenChange={setRegistering} />
       <MatchDialog demandeId={data.id} open={matching} onOpenChange={setMatching} />
       <AlertDialog open={closing} onOpenChange={setClosing}>

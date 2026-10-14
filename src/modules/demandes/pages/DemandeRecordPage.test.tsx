@@ -576,6 +576,34 @@ describe('DemandeRecordPage', () => {
     expect(mocks.api.setDemandeState).not.toHaveBeenCalled()
   })
 
+  it('« Liste d\'attente » chosen before the registrations are read: it waits, says so, then opens the registration', async () => {
+    let resolve: (rows: never[]) => void = () => {}
+    mocks.waitlist.listWaitlist.mockReturnValue(new Promise((r) => (resolve = r)))
+    const user = userEvent.setup()
+    renderPage()
+    const select = await screen.findByRole('combobox', { name: t(`${R}.changeState`) })
+    await user.selectOptions(select, 'waitlist')
+    expect(await screen.findByRole('status')).toHaveTextContent(t(`${R}.waitlistLoading`))
+    expect(select).toBeDisabled()
+    expect(mocks.toast.error).not.toHaveBeenCalled()
+    resolve([])
+    expect(await screen.findByRole('dialog', { name: t('modules.demandes.waitlist.register.title') })).toBeInTheDocument()
+    expect(screen.queryByText(t(`${R}.waitlistLoading`))).not.toBeInTheDocument()
+  })
+
+  it('« Liste d\'attente » whose registrations cannot be read: said, and the list usable again', async () => {
+    let reject: (error: Error) => void = () => {}
+    mocks.waitlist.listWaitlist.mockReturnValue(new Promise((_, r) => (reject = r)))
+    const user = userEvent.setup()
+    renderPage()
+    const select = await screen.findByRole('combobox', { name: t(`${R}.changeState`) })
+    await user.selectOptions(select, 'waitlist')
+    reject(new Error('down'))
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t(`${R}.waitlistLoadError`)))
+    await waitFor(() => expect(select).toBeEnabled())
+    expect(screen.queryByRole('dialog', { name: t('modules.demandes.waitlist.register.title') })).not.toBeInTheDocument()
+  })
+
   it('without a client file, registering says to link it first', async () => {
     const user = userEvent.setup()
     mocks.api.getDemande.mockResolvedValue(bundle({ client: null }, { client_id: null }))
