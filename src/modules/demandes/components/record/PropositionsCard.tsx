@@ -338,7 +338,7 @@ export function ProposeForm({
                       if (inMoment.length === 0) return null
                       return (
                         <div key={moment} className="flex flex-wrap items-center gap-2">
-                          <span className="w-28 text-xs text-muted-foreground">{t(`${P}.form.periodOf.${moment}`)}</span>
+                          <span className="w-full text-xs text-muted-foreground sm:w-28">{t(`${P}.form.periodOf.${moment}`)}</span>
                           {inMoment.map((slot) => {
                             const on = chosen.includes(slot.starts_at)
                             const full = !on && chosen.length >= MAX_SLOTS
