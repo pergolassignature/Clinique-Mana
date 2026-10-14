@@ -193,6 +193,37 @@ test('the parity audit: « Changer le service », « Marquer confirmé », « R�
   await expect(page.getByText('Rendez-vous annulé.').first()).toBeVisible()
 })
 
+test('the sheet’s « Messages »: the confirmation listed; « Renvoyer » right after it is refused, then the appointment cancelled (AP-47)', async ({ page, signIn }) => {
+  const monday = nextMonday()
+  const friday = new Date(`${monday}T12:00:00Z`)
+  friday.setUTCDate(friday.getUTCDate() + 4)
+  await signIn('admin')
+  await page.goto(`/agenda?professionnel=${FELIX}&date=${friday.toISOString().slice(0, 10)}&vue=jour`)
+  await page.getByRole('button', { name: 'Nouveau rendez-vous' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Nouveau rendez-vous' })
+  await sheet.getByLabel(/^Heure/).fill('16:00')
+  await sheet.getByLabel(/^Service/).selectOption({ index: 1 })
+  await sheet.getByRole('searchbox', { name: /^Client/ }).fill('Tremblay-Fictive')
+  await sheet.getByRole('button', { name: /Alice Tremblay-Fictive/ }).click()
+  await sheet.getByRole('button', { name: 'Réserver' }).click()
+  await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
+
+  await page.getByRole('button', { name: /^16:00, Alice Tremblay-Fictive/ }).click()
+  const editor = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive' })
+  await editor.getByRole('tab', { name: 'Messages' }).click()
+  const list = editor.getByRole('list', { name: 'Messages envoyés aux clients' })
+  await expect(list).toContainText('Confirmation')
+  await expect(list).toContainText('Courriel · Alice Tremblay-Fictive')
+  await editor.getByRole('button', { name: 'Renvoyer la notification' }).click()
+  await expect(page.getByText('Une notification vient de partir : réessayez dans quelques minutes.')).toBeVisible()
+
+  // Leave the database as found.
+  await editor.getByRole('tab', { name: 'Annulation' }).click()
+  await editor.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
+  await editor.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
+  await expect(page.getByText('Rendez-vous annulé.')).toBeVisible()
+})
+
 test('Paramètres → Agenda: the late notice counts business hours by default (AP-31)', async ({ page, signIn }) => {
   await signIn('admin')
   await page.goto('/parametres/agenda')
