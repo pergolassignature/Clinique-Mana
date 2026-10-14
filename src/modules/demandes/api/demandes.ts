@@ -42,10 +42,15 @@ export type AssignedFilter = (typeof ASSIGNED)[number]
 export const FLAGS = ['late', 'no_answer', 'urgent', 'due'] as const
 export type InboxFlag = (typeof FLAGS)[number]
 
+/** The inbox's sorts (D-47); `priority` is its own order (urgent, late, then the oldest). */
+export const SORTS = ['priority', 'received_desc', 'received_asc', 'waiting_desc', 'state'] as const
+export type InboxSort = (typeof SORTS)[number]
+
 export interface InboxQuery {
   view: InboxView
   assigned: AssignedFilter
   flags: InboxFlag[]
+  sort: InboxSort
   search: string
 }
 
@@ -91,9 +96,29 @@ export async function listDemandes(query: InboxQuery, page: number): Promise<Inb
     ...(query.search.trim() && { p_search: query.search.trim() }),
     p_offset: page * PAGE_SIZE,
     p_limit: PAGE_SIZE,
+    p_sort: query.sort,
   })
   if (error) throw error
   return z.array(rowSchema).parse(data)
+}
+
+const clientDemandeSchema = z.object({
+  id: z.string(),
+  reference: z.string(),
+  received_at: z.string(),
+  state: z.enum(STATES),
+  closed_reason: z.string().nullable(),
+  beneficiary: z.string().nullable(),
+  role: z.enum(['file', 'participant']),
+  matched_professional_name: z.string().nullable(),
+})
+export type ClientDemande = z.infer<typeof clientDemandeSchema>
+
+/** A client file's requests, its own and as a participant, newest first (D-46). */
+export async function fetchClientDemandes(clientId: string): Promise<ClientDemande[]> {
+  const { data, error } = await supabase.rpc('list_client_demandes', { p_client_id: clientId })
+  if (error) throw error
+  return z.array(clientDemandeSchema).parse(data)
 }
 
 const countsSchema = z.array(

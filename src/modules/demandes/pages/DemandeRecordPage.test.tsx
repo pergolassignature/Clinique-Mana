@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Route, Routes } from 'react-router-dom'
 import { t } from '@/i18n'
+import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole } from '@/test/role-fixtures'
 import type { DemandeBundle, DemandesReference } from '../api/demandes'
@@ -27,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   },
   waitlist: { listWaitlist: vi.fn(), fetchWaitlistLists: vi.fn(), registerWaitlist: vi.fn() },
   propositions: { listPropositions: vi.fn(), fetchPropositionServices: vi.fn(), fetchOpenSlots: vi.fn(), propose: vi.fn(), withdrawProposition: vi.fn() },
-  matching: { fetchDemandeMatch: vi.fn() },
+  matching: { fetchDemandeMatch: vi.fn(), fetchNextSlots: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api/demandes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/demandes')>()), ...mocks.api }))
@@ -199,6 +200,7 @@ beforeEach(() => {
   mocks.waitlist.registerWaitlist.mockResolvedValue(['w1'])
   mocks.propositions.listPropositions.mockResolvedValue([])
   mocks.matching.fetchDemandeMatch.mockResolvedValue(MATCH)
+  mocks.matching.fetchNextSlots.mockResolvedValue([])
   mocks.propositions.fetchPropositionServices.mockResolvedValue([{ id: 's50', code: 10150, name: 'Consultation 50 min', duration_minutes: 50, for_two: false }])
   mocks.propositions.fetchOpenSlots.mockResolvedValue([
     { starts_at: '2026-10-20T13:00:00Z', ends_at: '2026-10-20T13:50:00Z' },
@@ -282,6 +284,28 @@ describe('DemandeRecordPage', () => {
     expect(within(dialog).queryByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })).not.toBeInTheDocument()
   })
 
+  it('Jumelage: each eligible one shows her next free slot, with Rendez-vous on (A-7)', async () => {
+    mocks.matching.fetchNextSlots.mockResolvedValue([
+      { professional_id: 'pro1', service_id: 's50', service_name: 'Consultation 50 min', starts_at: '2026-10-20T22:00:00Z' },
+      { professional_id: 'pro2', service_id: 's50', service_name: 'Consultation 50 min', starts_at: null },
+    ])
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    renderPage('jumelage', ['demandes', 'clients', 'professionals', 'appointments'])
+    const M = 'modules.demandes.matching'
+    expect(
+      await screen.findByText(t(`${M}.nextSlot.label`, { when: formatClinicDateTime('2026-10-20T22:00:00Z'), service: 'Consultation 50 min' })),
+    ).toBeInTheDocument()
+    expect(screen.getByText(t(`${M}.nextSlot.none`, { service: 'Consultation 50 min' }))).toBeInTheDocument()
+    expect(mocks.matching.fetchNextSlots).toHaveBeenCalledWith(ID)
+  })
+
+  it('Jumelage: without Rendez-vous, no next slot is asked for', async () => {
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'accepted' }))
+    renderPage('jumelage', ['demandes', 'clients', 'professionals'])
+    await screen.findAllByText('Pro Deux')
+    expect(mocks.matching.fetchNextSlots).not.toHaveBeenCalled()
+  })
+
   it('Jumelage: « Offrir la plage » from the waiting list (?proposer=) opens the proposal to her', async () => {
     mocks.api.getDemande.mockResolvedValue(bundle({}, { state: 'waitlist' }))
     renderPage('jumelage?proposer=pro1', ['demandes', 'clients', 'professionals', 'appointments'])
@@ -318,7 +342,9 @@ describe('DemandeRecordPage', () => {
     const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
     await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.professional') }), 'pro2')
     await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.service') }), 's50')
-    await user.click((await within(dialog).findAllByRole('checkbox'))[0]!)
+    // The request asks for evenings; her slots are mornings: the « seulement » filter (on) is lifted (A-8).
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Seulement aux moments/ }))
+    await user.click((await within(dialog).findAllByRole('checkbox'))[1]!)
     const confirm = await within(dialog).findByRole('checkbox', { name: t('modules.demandes.propositions.form.insuranceConfirm') })
     await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(t('modules.demandes.propositions.form.insuranceUnconfirmed'))
@@ -587,10 +613,15 @@ describe('DemandeRecordPage', () => {
     await user.click(await screen.findByRole('button', { name: t('modules.demandes.propositions.open') }))
     const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
     await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.professional') }), 'pro1')
-    await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.service') }), 's50')
+    // Her default service is chosen once her services are read (A-8, D-48).
+    await waitFor(() => expect(within(dialog).getByRole('combobox', { name: t('modules.demandes.propositions.form.service') })).toHaveValue('s50'))
+    // The request asks for evenings; her slots are mornings: none at those moments until the filter is lifted.
+    expect(await within(dialog).findByText(t('modules.demandes.propositions.form.noSlotInPeriods'))).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('checkbox', { name: /Seulement aux moments/ }))
+    expect(within(dialog).getAllByText(t('modules.demandes.propositions.form.periodOf.am')).length).toBeGreaterThan(0)
     const boxes = await within(dialog).findAllByRole('checkbox')
-    await user.click(boxes[0]!)
-    await user.click(boxes[2]!)
+    await user.click(boxes[1]!)
+    await user.click(boxes[3]!)
     await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '2' }) }))
     await waitFor(() =>
       expect(mocks.propositions.propose).toHaveBeenCalledWith({
@@ -619,7 +650,9 @@ describe('DemandeRecordPage', () => {
     const dialog = await screen.findByRole('dialog', { name: t('modules.demandes.propositions.form.title') })
     await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.professional') }), 'pro1')
     await user.selectOptions(await within(dialog).findByRole('combobox', { name: t('modules.demandes.propositions.form.service') }), 's50')
-    await user.click((await within(dialog).findAllByRole('checkbox'))[0]!)
+    // The request asks for evenings; her slots are mornings: the « seulement » filter (on) is lifted (A-8).
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Seulement aux moments/ }))
+    await user.click((await within(dialog).findAllByRole('checkbox'))[1]!)
     await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.form.send', { count: '1' }) }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(/réservé aux testeurs/)
   })

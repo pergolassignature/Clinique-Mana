@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   api: { listDemandes: vi.fn(), fetchCounts: vi.fn(), createDemande: vi.fn(), logContact: vi.fn() },
   realtime: { handlers: null as null | { onChange: (c: unknown) => void; onResync: () => void }, module: null as string | null },
   toast: { success: vi.fn(), error: vi.fn() },
+  preferences: { fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn() },
 }))
+vi.mock('@/core/preferences/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/preferences/api')>()), ...mocks.preferences }))
 vi.mock('../api/demandes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/demandes')>()), ...mocks.api }))
 vi.mock('@/core/realtime/use-org-realtime', () => ({
   useOrgRealtime: (module: string | null, handlers: { onChange: (c: unknown) => void; onResync: () => void }) => {
@@ -80,6 +82,8 @@ beforeEach(() => {
   mocks.api.fetchCounts.mockResolvedValue({ open: 3, late: 1, no_answer: 1, due: 0, mine: 1, unassigned: 2, waitlist: 4 })
   mocks.api.createDemande.mockResolvedValue('e0000000-0000-0000-0000-000000000009')
   mocks.api.logContact.mockResolvedValue(undefined)
+  mocks.preferences.fetchUserPreference.mockResolvedValue(null)
+  mocks.preferences.saveUserPreference.mockResolvedValue(undefined)
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -114,7 +118,7 @@ describe('DemandesInboxPage', () => {
     expect(rows[2]).toHaveTextContent(t(`${I}.fileNumber`, { number: '42' }))
     expect(rows[2]).toHaveTextContent(t(`${I}.noAnswer`, { count: '2' }))
     expect(within(rows[0]!).getByRole('link', { name: 'Urgent Maintenant' })).toHaveAttribute('href', `/demandes/${D2}/accueil`)
-    expect(mocks.api.listDemandes).toHaveBeenCalledWith({ view: 'open', assigned: 'any', flags: [], search: '' }, 0)
+    expect(mocks.api.listDemandes).toHaveBeenCalledWith({ view: 'open', assigned: 'any', flags: [], search: '', sort: 'priority' }, 0)
     // The counters on the tabs and filters.
     expect(screen.getByRole('tab', { name: new RegExp(t(`${I}.view.open`)) })).toHaveTextContent('3')
     expect(screen.getByRole('button', { name: new RegExp(t(`${I}.flags.late`)) })).toHaveTextContent('1')
@@ -126,14 +130,36 @@ describe('DemandesInboxPage', () => {
     renderPage()
     await screen.findByText('Urgent Maintenant')
     await user.click(screen.getByRole('button', { name: new RegExp(t(`${I}.flags.no_answer`)) }))
-    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'open', assigned: 'any', flags: ['no_answer'], search: '' }, 0))
+    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'open', assigned: 'any', flags: ['no_answer'], search: '', sort: 'priority' }, 0))
     expect(screen.getByRole('button', { name: new RegExp(t(`${I}.flags.no_answer`)) })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: t(`${I}.assigned.meCount`, { count: '1' }) }))
-    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'open', assigned: 'me', flags: ['no_answer'], search: '' }, 0))
+    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'open', assigned: 'me', flags: ['no_answer'], search: '', sort: 'priority' }, 0))
     await user.click(screen.getByRole('tab', { name: new RegExp(t(`${I}.view.closed`)) }))
-    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'closed', assigned: 'me', flags: ['no_answer'], search: '' }, 0))
+    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'closed', assigned: 'me', flags: ['no_answer'], search: '', sort: 'priority' }, 0))
     await user.type(screen.getByRole('searchbox', { name: t(`${I}.searchLabel`) }), 'alice')
-    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'closed', assigned: 'me', flags: ['no_answer'], search: 'alice' }, 0))
+    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'closed', assigned: 'me', flags: ['no_answer'], search: 'alice', sort: 'priority' }, 0))
+  })
+
+  it('sorts as chosen, in the address; shows the columns she chose and remembers them (A-4)', async () => {
+    const user = userEvent.setup()
+    mocks.preferences.fetchUserPreference.mockResolvedValue({ columns: ['state', 'motifs'] })
+    mocks.api.listDemandes.mockResolvedValue([row({ motif_count: 3, beneficiary: 'couple' })])
+    renderPage('/demandes?tri=anciennes')
+    await screen.findByText('Élodie Ancienne')
+    expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'open', assigned: 'any', flags: [], search: '', sort: 'received_asc' }, 0)
+    const sort = screen.getByRole('combobox', { name: t(`${I}.sort.label`) })
+    expect(sort).toHaveValue('received_asc')
+    await user.selectOptions(sort, 'waiting_desc')
+    await waitFor(() => expect(mocks.api.listDemandes).toHaveBeenLastCalledWith({ view: 'open', assigned: 'any', flags: [], search: '', sort: 'waiting_desc' }, 0))
+    // Her columns: the state and the motifs, not who handles it nor the follow-up.
+    const table = screen.getByRole('table', { name: t(`${I}.table`) })
+    await waitFor(() => expect(within(table).getByRole('columnheader', { name: t(`${I}.columns.motifs`) })).toBeInTheDocument())
+    expect(within(table).queryByRole('columnheader', { name: t(`${I}.columns.assigned`) })).not.toBeInTheDocument()
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent(t(`${I}.columnPicker.motifCount`, { count: '3' }))
+    await user.click(screen.getByRole('button', { name: t(`${I}.columnPicker.label`) }))
+    await user.click(await screen.findByRole('checkbox', { name: t(`${I}.columns.beneficiary`) }))
+    expect(await within(table).findByRole('columnheader', { name: t(`${I}.columns.beneficiary`) })).toBeInTheDocument()
+    await waitFor(() => expect(mocks.preferences.saveUserPreference).toHaveBeenCalledWith(expect.anything(), 'demandes.inbox_columns', { columns: ['state', 'beneficiary', 'motifs'] }), { timeout: 3000 })
   })
 
   it('reads the list again when another counselor changes a request', async () => {

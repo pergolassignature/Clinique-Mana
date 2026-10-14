@@ -10,6 +10,24 @@ import { supabase } from '@/core/supabase/client'
  * an age or a sex to ask; 0 place left). Parsed here.
  */
 
+const nextSlotSchema = z.object({
+  professional_id: z.string(),
+  service_id: z.string(),
+  service_name: z.string().nullable(),
+  starts_at: z.string().nullable(),
+})
+export type NextSlot = z.infer<typeof nextSlotSchema>
+
+/**
+ * The eligible professionals' next free slot (D-48): her default service for the request and
+ * the first free start in the coming 4 weeks (null: none). Needs appointments.view too.
+ */
+export async function fetchNextSlots(demandeId: string): Promise<NextSlot[]> {
+  const { data, error } = await supabase.rpc('demande_next_slots', { p_demande_id: demandeId })
+  if (error) throw error
+  return z.array(nextSlotSchema).parse(data)
+}
+
 export const MATCH_REASONS = ['inactive', 'not_ready', 'not_accepting', 'title', 'clientele', 'min_age', 'women_only', 'language', 'gender'] as const
 export type MatchReason = (typeof MATCH_REASONS)[number]
 export const MATCH_WARNINGS = [
