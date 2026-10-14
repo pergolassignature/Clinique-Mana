@@ -28,7 +28,7 @@ test('the admin books, moves and cancels an appointment in Félix’s week', asy
   await expect(page.getByRole('heading', { level: 1, name: 'Agenda' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Semaine' })).toHaveAttribute('aria-selected', 'true')
   // The seed's Monday 10:00 with Alice.
-  await expect(page.getByRole('button', { name: '10:00, Alice Tremblay-Fictive' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^10:00, Alice Tremblay-Fictive(,|$)/ })).toBeVisible()
 
   // Friday 10:00: 4 hours below 6:00 at 48 px an hour.
   const column = page.getByTestId(`agenda-column-${fridayKey}`)
@@ -41,7 +41,7 @@ test('the admin books, moves and cancels an appointment in Félix’s week', asy
   await sheet.getByRole('button', { name: 'Réserver' }).click()
   await expect(sheet).toBeHidden()
   await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
-  const block = page.getByRole('button', { name: '10:00, Marc Gagnon-Fictif' })
+  const block = page.getByRole('button', { name: /^10:00, Marc Gagnon-Fictif(,|$)/ })
   await expect(block).toBeVisible()
 
   // Drag it 30 minutes later (24 px).
@@ -53,7 +53,7 @@ test('the admin books, moves and cancels an appointment in Félix’s week', asy
   await page.mouse.move(box.x + box.width / 2, box.y + 32, { steps: 4 })
   await page.mouse.up()
   await expect(page.getByText('Rendez-vous déplacé.')).toBeVisible()
-  const moved = page.getByRole('button', { name: '10:30, Marc Gagnon-Fictif' })
+  const moved = page.getByRole('button', { name: /^10:30, Marc Gagnon-Fictif(,|$)/ })
   await expect(moved).toBeVisible()
 
   // Cancel it (and leave the database as found).
@@ -80,7 +80,7 @@ test('outside the availability: refused, then booked with « Hors disponibilité
   await sheet.getByRole('textbox', { name: /^Raison « Hors disponibilités »/ }).fill('Soirée exceptionnelle')
   await sheet.getByRole('button', { name: 'Réserver' }).click()
   await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
-  const block = page.getByRole('button', { name: '19:00, Alice Tremblay-Fictive' })
+  const block = page.getByRole('button', { name: /^19:00, Alice Tremblay-Fictive(,|$)/ })
   await block.click()
   const editor = page.getByRole('dialog', { name: 'Alice Tremblay-Fictive' })
   await expect(editor.getByText('Hors disponibilités').first()).toBeVisible()
@@ -113,7 +113,7 @@ test('a weekly series: the conflict with Alice listed, skipped, then the rest of
 
   // The week after: Marc at 10:00, part of the series; cancel it and the rest.
   await page.goto(`/agenda?professionnel=${FELIX}&date=${following.toISOString().slice(0, 10)}&vue=jour`)
-  await page.getByRole('button', { name: '10:00, Marc Gagnon-Fictif' }).click()
+  await page.getByRole('button', { name: /^10:00, Marc Gagnon-Fictif(,|$)/ }).click()
   const editor = page.getByRole('dialog', { name: 'Marc Gagnon-Fictif' })
   await editor.getByRole('tab', { name: 'Annulation' }).click()
   await editor.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
@@ -130,7 +130,7 @@ test('« Mon agenda »: Félix sees his week and adds then removes a personal ap
   await page.getByRole('link', { name: 'Mon agenda' }).first().click()
   await expect(page.getByRole('heading', { level: 1, name: 'Mon agenda' })).toBeVisible()
   await page.goto(`/mon-agenda?date=${monday}`)
-  await expect(page.getByRole('button', { name: '10:00, Alice Tremblay-Fictive' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^10:00, Alice Tremblay-Fictive(,|$)/ })).toBeVisible()
   await expect(page.getByLabel('Professionnel')).toHaveCount(0)
 
   // Tuesday 12:00: 6 hours below 6:00 at 48 px an hour.
@@ -140,7 +140,7 @@ test('« Mon agenda »: Félix sees his week and adds then removes a personal ap
   await dialog.getByLabel(/^Libellé/).fill('Dentiste')
   await dialog.getByRole('button', { name: 'Ajouter' }).click()
   await expect(page.getByText('Rendez-vous personnel ajouté.')).toBeVisible()
-  const block = page.getByRole('button', { name: '12:00, Dentiste' })
+  const block = page.getByRole('button', { name: /^12:00, Dentiste(,|$)/ })
   await block.scrollIntoViewIfNeeded()
   await block.click()
   await page.getByRole('button', { name: 'Retirer ce rendez-vous personnel' }).click()
@@ -162,7 +162,7 @@ test('the parity audit: « Changer le service », « Marquer confirmé », « R�
   await sheet.getByRole('button', { name: 'Réserver' }).click()
   await expect(page.getByText('Rendez-vous réservé.')).toBeVisible()
 
-  await page.getByRole('button', { name: '15:00, Marc Gagnon-Fictif' }).click()
+  await page.getByRole('button', { name: /^15:00, Marc Gagnon-Fictif(,|$)/ }).click()
   const editor = page.getByRole('dialog', { name: 'Marc Gagnon-Fictif' })
   // « Changer le service »: another service, the same moment.
   const service = editor.getByRole('combobox', { name: /^Service/ })
@@ -242,6 +242,16 @@ test('« Imprimer »: Félix’s week as a list to print, the shell hidden when 
   await page.emulateMedia({ media: 'screen' })
   await page.getByRole('link', { name: "Retour à l'agenda" }).click()
   await expect(page).toHaveURL(/\/agenda\?/)
+})
+
+test('« Légende »: the blocks’ icons explained, the reminder and the client’s confirmation first (AP-49)', async ({ page, signIn }) => {
+  await signIn('admin')
+  await page.goto(`/agenda?professionnel=${FELIX}&date=${nextMonday()}`)
+  await page.getByRole('button', { name: 'Légende' }).click()
+  const legend = page.getByRole('dialog', { name: "Légende de l'agenda" })
+  await expect(legend).toContainText('Rappel envoyé pour cette heure')
+  await expect(legend).toContainText('Confirmé par le client')
+  await expect(legend).toContainText('Personne à qui envoyer le rappel')
 })
 
 test('Paramètres → Agenda: the late notice counts business hours by default (AP-31)', async ({ page, signIn }) => {

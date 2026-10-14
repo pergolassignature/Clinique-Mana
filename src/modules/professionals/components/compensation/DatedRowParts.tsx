@@ -19,7 +19,7 @@ import {
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { DateField, type DateFieldBinding } from '@/shared/ui/date-field'
-import { DialogClose, DialogFooter } from '@/shared/ui/dialog'
+import { DialogClose, DialogFooter, DialogScrollBody } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import type { DatedStatus } from '../../lib/compensation'
 import { FIRST_DATE, LAST_DATE } from '../../schemas/compensation'
@@ -65,10 +65,13 @@ export function DialogForm({ onSubmit, pending, dirty, refusal, submitLabel, pen
         event.stopPropagation()
         onSubmit(event)
       }}
-      className="grid gap-3.5"
+      className="flex min-h-0 flex-1 flex-col gap-3.5"
     >
-      {children}
-      {refusal && <RefusalAlert message={refusal} />}
+      {/* In a `dialogScrollContent` dialog the fields scroll and the buttons stay in view. */}
+      <DialogScrollBody>
+        {children}
+        {refusal && <RefusalAlert message={refusal} />}
+      </DialogScrollBody>
       <DialogFooter>
         <DialogClose asChild>
           <Button

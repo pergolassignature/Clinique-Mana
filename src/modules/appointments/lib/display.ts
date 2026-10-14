@@ -62,3 +62,16 @@ export function appointmentLink(a: { id: string; startsAt: string; professionalI
   params.set(APPOINTMENT_LINK_PARAM, a.id)
   return `${mine ? '/mon-agenda' : '/agenda'}?${params.toString()}`
 }
+
+/**
+ * The client-facing state of a block (AP-49, as GOrendezvous): confirmed by the client (a check),
+ * its reminder sent (a bell), nobody to remind (a struck bell). In words, for the block's label.
+ */
+export function reminderMarks(a: Pick<AgendaAppointment, 'state' | 'reminderStatus' | 'unreachable' | 'isPersonal'>): ('confirmed' | 'reminded' | 'unreachable')[] {
+  if (a.isPersonal || a.state === 'cancelled' || a.state === 'held') return []
+  const marks: ('confirmed' | 'reminded' | 'unreachable')[] = []
+  if (a.state === 'confirmed') marks.push('confirmed')
+  if (a.reminderStatus === 'sent') marks.push('reminded')
+  if (a.unreachable) marks.push('unreachable')
+  return marks
+}

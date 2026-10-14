@@ -42,6 +42,8 @@ const appointment = (overrides: Partial<AgendaAppointment>): AgendaAppointment =
   videoStatus: null,
   participants: [{ clientId: 'c1', name: 'Alice Essai', clientNumber: 1, role: 'client', presence: 'expected', confirmedAt: null }],
   seriesId: null,
+  reminderStatus: null,
+  unreachable: false,
   ...overrides,
 })
 

@@ -33,11 +33,11 @@ export function PayoutLinesTable({ lines, totalCents, showClients = true, onRemo
       <Table aria-label={t(`${L}.table`)} scrollLabel={t(`${L}.table`)} scrollFocus="overflow" className="max-sm:[&_td]:px-2 max-sm:[&_th]:px-2">
         <TableHeader>
           <TableRow className="[&>th]:whitespace-nowrap">
-            <TableHead>{t(`${L}.columns.date`)}</TableHead>
+            <TableHead className="max-sm:hidden">{t(`${L}.columns.date`)}</TableHead>
             {showClients && <TableHead>{t(`${L}.columns.client`)}</TableHead>}
             <TableHead>{t(`${L}.columns.service`)}</TableHead>
-            <TableHead align="right">{t(`${L}.columns.base`)}</TableHead>
-            <TableHead align="right">{t(`${L}.columns.retention`)}</TableHead>
+            <TableHead align="right" className="max-sm:hidden">{t(`${L}.columns.base`)}</TableHead>
+            <TableHead align="right" className="max-sm:hidden">{t(`${L}.columns.retention`)}</TableHead>
             <TableHead align="right">{t(`${L}.columns.amount`)}</TableHead>
             {onRemoveAdjustment && <TableHead className="w-0"><span className="sr-only">{t(`${L}.columns.actions`)}</span></TableHead>}
           </TableRow>
@@ -45,7 +45,7 @@ export function PayoutLinesTable({ lines, totalCents, showClients = true, onRemo
         <TableBody>
           {lines.map((line) => (
             <TableRow key={line.id} className="align-top" data-kind={line.kind}>
-              <TableCell className="whitespace-nowrap">
+              <TableCell className="whitespace-nowrap max-sm:hidden">
                 {formatDateOnlyShort(line.occurred_on)}
                 {line.late && (
                   <span className="block">
@@ -54,25 +54,27 @@ export function PayoutLinesTable({ lines, totalCents, showClients = true, onRemo
                 )}
               </TableCell>
               {showClients && (
-                <TableCell className="min-w-[140px]">
+                <TableCell className="sm:min-w-[140px]">
                   {line.client_name ?? <span className="text-muted-foreground">{t(`${L}.noClient`)}</span>}
                   {line.client_number !== null && (
-                    <span className="block text-xs text-muted-foreground">{t(`${L}.fileNumber`, { number: String(line.client_number) })}</span>
+                    <span className="block text-xs text-muted-foreground">{t(`${L}.fileNumber`, { number: `CLI-${String(line.client_number).padStart(6, '0')}` })}</span>
                   )}
                 </TableCell>
               )}
-              <TableCell className="min-w-[200px]">
+              <TableCell className="sm:min-w-[200px]">
                 {lineDescription(line)}
+                {/* On a phone the date goes here, and the base and the retention fold away: the amount stays in view. */}
+                <span className="block text-xs text-muted-foreground sm:hidden">{formatDateOnlyShort(line.occurred_on)}</span>
                 <span className="block text-xs text-muted-foreground">
                   {kindLabel(line.kind)}
                   {line.pricing === 'agreement' && ` · ${pricingLabel('agreement')}`}
                   {line.paid_on && ` · ${t(`${L}.paidOn`, { date: formatDateOnlyShort(line.paid_on) })}`}
                 </span>
               </TableCell>
-              <TableCell align="right" className="whitespace-nowrap">
+              <TableCell align="right" className="whitespace-nowrap max-sm:hidden">
                 {line.base_cents === null ? '' : formatPay(line.base_cents)}
               </TableCell>
-              <TableCell align="right" className="whitespace-nowrap">
+              <TableCell align="right" className="whitespace-nowrap max-sm:hidden">
                 {line.retention_pct === null ? '' : formatRetention(line.retention_pct)}
               </TableCell>
               <TableCell align="right" className="whitespace-nowrap font-medium">

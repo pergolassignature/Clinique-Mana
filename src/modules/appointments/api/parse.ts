@@ -57,6 +57,8 @@ export const agendaRowPayload = z
     video_status: z.string().nullable(),
     participants: z.array(participantPayload),
     series_id: z.string().nullable().optional(),
+    reminder_status: z.enum(['sent', 'pending']).nullable().optional(),
+    unreachable: z.boolean().optional(),
   })
   .transform((r) => ({
     id: r.id,
@@ -79,6 +81,10 @@ export const agendaRowPayload = z
     videoStatus: r.video_status,
     participants: r.participants,
     seriesId: r.series_id ?? null,
+    /** The reminder of its current start (AP-49): sent, waiting, or none. */
+    reminderStatus: r.reminder_status ?? null,
+    /** A coming appointment of the next 14 days nobody can be reminded of (AP-49). */
+    unreachable: r.unreachable ?? false,
   }))
 export type AgendaAppointment = z.output<typeof agendaRowPayload>
 

@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from './field-classes'
+import { stripMaskClasses, useStripInView } from './use-strip-in-view'
 
 /**
  * NavTabs - Navigation tabs that are excluded from keyboard tab order.
@@ -21,16 +22,23 @@ interface NavTabsProps {
 }
 
 const NavTabs = React.forwardRef<HTMLDivElement, NavTabsProps>(
-  ({ className, children, ...props }, ref) => (
-    <div
-      ref={ref}
-      role="tablist"
-      className={cn('scrollbar-hide flex overflow-x-auto overflow-y-hidden border-b border-border', className)}
-      {...props}
-    >
-      {children}
-    </div>
-  )
+  ({ className, children, ...props }, ref) => {
+    // As Tabs: the active tab stays in view (a sheet's last tab on a phone) and the strip fades
+    // where tabs are hidden.
+    const inner = React.useRef<HTMLDivElement>(null)
+    React.useImperativeHandle(ref, () => inner.current as HTMLDivElement)
+    const hidden = useStripInView(inner)
+    return (
+      <div
+        ref={inner}
+        role="tablist"
+        className={cn('scrollbar-hide flex overflow-x-auto overflow-y-hidden border-b border-border', stripMaskClasses(hidden), className)}
+        {...props}
+      >
+        {children}
+      </div>
+    )
+  }
 )
 NavTabs.displayName = 'NavTabs'
 
