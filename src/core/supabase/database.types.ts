@@ -15189,7 +15189,15 @@ export type Database = {
         Args: { p_notice_id: string; p_reason: string }
         Returns: undefined
       }
+      import_appointment: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_client: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
+      import_client_consent: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
@@ -15212,11 +15220,19 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
+      import_default_payer: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       import_invoice: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
       import_professional: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
+      import_waitlist_entry: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
