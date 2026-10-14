@@ -271,7 +271,7 @@ select functions_are('public', array[
   -- Clients, batch C5b (withdrawal and the signed copy).
   'withdraw_client_consent', 'prepare_client_consent_copy_for_service', 'mark_client_consent_copy_sent_for_service',
   -- Rendez-vous, the parity audit's gaps (AP-28 … AP-32).
-  'change_appointment_service', 'restore_appointment', 'confirm_appointment', 'get_booking_consents',
+  'change_appointment_service', 'restore_appointment', 'confirm_appointment', 'get_booking_consents', 'list_appointment_messages', 'resend_appointment_notification',
   -- Rendez-vous, the parity audit part 2 (AP-33).
   'list_appointment_history',
   -- Clients C5b part 2 (Rapports « Consentements »).

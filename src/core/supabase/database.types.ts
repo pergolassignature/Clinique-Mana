@@ -15581,6 +15581,21 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_appointment_messages: {
+        Args: { p_id: string }
+        Returns: {
+          attempts: number
+          channel: string
+          created_at: string
+          id: string
+          kind: string
+          recipient_client_id: string
+          recipient_name: string
+          sent_at: string
+          skip_reason: string
+          status: string
+        }[]
+      }
       list_appointments_without_reminder: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -17178,6 +17193,10 @@ export type Database = {
       reschedule_demande_task: {
         Args: { p_demande_id: string; p_due_at: string; p_task_id: string }
         Returns: undefined
+      }
+      resend_appointment_notification: {
+        Args: { p_id: string }
+        Returns: number
       }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
       reset_mail_history: {

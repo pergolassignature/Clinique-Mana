@@ -63,9 +63,9 @@ export function DemandeSourceCard({ demande, referralSources = [], referralSourc
   const captured: [string, string][] = (
     [
       [t(`${S}.campaign`), demande.source_campaign],
-      [t(`${S}.utm`), utm.length > 0 ? utm.map(([k, v]) => `${k.replace(/^utm_/, '')} : ${v}`).join(' · ') : null],
+      [t(`${S}.utm`), utm.length > 0 ? utm.map(([k, v]) => `${utmLabel(k)} : ${v}`).join(' · ') : null],
       [t(`${S}.referrer`), demande.source_referrer],
-      [t(`${S}.landing`), demande.source_landing_page],
+      [t(`${S}.landing`), pageOf(demande.source_landing_page)],
     ] as [string, string | null][]
   ).filter((row): row is [string, string] => row[1] !== null && row[1].trim() !== '')
 
@@ -104,6 +104,24 @@ export function DemandeSourceCard({ demande, referralSources = [], referralSourc
       )}
     </section>
   )
+}
+
+const UTM_KEYS = ['source', 'medium', 'campaign', 'term', 'content'] as const
+
+/** « utm_campaign » → « Campagne »: the campaign's parameters in plain French. */
+function utmLabel(key: string): string {
+  const short = key.replace(/^utm_/, '')
+  return (UTM_KEYS as readonly string[]).includes(short) ? t(`${S}.utmKeys.${short as (typeof UTM_KEYS)[number]}`) : short
+}
+
+/** The page's address without the site and its technical parameters (« /appel-decouverte »). */
+function pageOf(url: string | null): string | null {
+  if (!url) return null
+  try {
+    return new URL(url).pathname
+  } catch {
+    return url
+  }
 }
 
 function Row({ label, value }: { label: string; value: string }) {

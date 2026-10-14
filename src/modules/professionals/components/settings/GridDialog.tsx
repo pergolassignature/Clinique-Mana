@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type RefObject } from 'react'
 import { useController, useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, X } from 'lucide-react'
+import { Pencil, Plus, X } from 'lucide-react'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
@@ -67,7 +67,9 @@ export function GridDialog({ titleId, titleName, series }: GridDialogProps) {
       <DialogTrigger asChild>
         {/* « Nouvelle version » repeats on every row of the grids' table: quiet (ghost); « Créer la grille », a gap to fill, stays outline. */}
         <Button type="button" variant={series.length > 0 ? 'ghost' : 'outline'} size="sm" aria-label={t(series.length > 0 ? `${G}.newVersionLabel` : `${G}.createLabel`, { title: titleName })}>
-          {t(series.length > 0 ? `${G}.newVersion` : `${G}.create`)}
+          {/* Beside the menus the table is narrow: the icon alone below xl (the name stays in aria-label). */}
+          {series.length > 0 ? <Pencil aria-hidden className="size-3.5" /> : <Plus aria-hidden className="size-3.5" />}
+          <span className="max-xl:sr-only">{t(series.length > 0 ? `${G}.newVersion` : `${G}.create`)}</span>
         </Button>
       </DialogTrigger>
       <DialogContent

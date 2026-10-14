@@ -71,7 +71,7 @@ function RulesCard({ readOnly }: { readOnly: boolean }) {
         {error && <RefusalAlert message={error} />}
         <Table aria-label={t(`${S}.rules.table`)} scrollLabel={t(`${S}.rules.table`)} scrollFocus="overflow">
           <TableHeader>
-            <TableRow>
+            <TableRow className="max-sm:hidden">
               <TableHead>{t(`${S}.rules.columns.service`)}</TableHead>
               <TableHead>{t(`${S}.rules.columns.rule`)}</TableHead>
             </TableRow>
@@ -101,12 +101,13 @@ function FamilyRows({ name, rows, readOnly, busy, onChange }: {
     <TableBody>
       <TableGroupRow colSpan={2}>{name}</TableGroupRow>
       {rows.map((row) => (
-        <TableRow key={row.service_id}>
-          <TableCell>
+        // On a phone the rule goes under the service, full width (it ran past the card).
+        <TableRow key={row.service_id} className="max-sm:flex max-sm:flex-col">
+          <TableCell className="max-sm:pb-1">
             <span className="tabular">{row.code}</span> {row.name}
             {!row.is_active && <span className="block text-xs text-muted-foreground">{t(`${S}.rules.inactive`)}</span>}
           </TableCell>
-          <TableCell className="min-w-[14rem]">
+          <TableCell className="max-sm:pt-0 sm:min-w-[14rem]">
             <Select
               aria-label={t(`${S}.rules.selectLabel`, { service: `${row.code} ${row.name}` })}
               value={row.rule}

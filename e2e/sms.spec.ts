@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test'
  * « Textos » (batch SM; local only, after `npm run db:reset`: the seed enables Communications and
  * stores the fake PBX's settings and secrets).
  *
- * 1. Always: the admin records a consent for a new number (« Nouveau numéro ») → its thread opens
+ * 1. Always: the admin records a consent for a new number (« Ajouter un numéro (consentement) ») → its thread opens
  *    with the clinic's consent text waiting for the dispatch → the reply box is there → she
  *    withdraws the consent → no reply box any more. Paramètres → Textos shows the webhook address.
  * 2. With the fake PBX (`npm run fake:yeastar`) and the functions served (`npx supabase functions
@@ -30,7 +30,7 @@ async function openTextos(page: Page) {
 }
 
 async function recordConsent(page: Page, typed: string, shown: string) {
-  await page.getByRole('button', { name: 'Nouveau numéro' }).click()
+  await page.getByRole('button', { name: 'Ajouter un numéro (consentement)' }).click()
   const dialog = page.getByRole('dialog', { name: 'Consentement aux textos' })
   await dialog.getByRole('textbox', { name: /^Numéro de téléphone/ }).fill(typed)
   await dialog.getByRole('textbox', { name: /^Comment le consentement/ }).fill('Au téléphone (test e2e)')

@@ -4,6 +4,7 @@ import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { EmailText } from '@/shared/components/EmailText'
 import { matchesSearch, searchWords } from '@/shared/lib/list-search'
 import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
@@ -90,7 +91,7 @@ export function MyClientsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <span className="block break-all">{row.email ?? ''}</span>
+                        {row.email && <EmailText value={row.email} className="block" />}
                         <span className="block tabular text-xs text-muted-foreground">{phoneLabel(row.mobile)}</span>
                       </TableCell>
                       <TableCell className="max-sm:hidden">{languageLabel(row.language)}</TableCell>

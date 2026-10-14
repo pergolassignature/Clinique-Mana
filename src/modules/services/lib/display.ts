@@ -17,7 +17,7 @@ export function gridDurationLabel(duration: GridDuration): string {
   return duration === 60 ? t('modules.services.display.grid60') : t('modules.services.display.gridMinutes', { minutes: String(duration) })
 }
 
-/** « 50 min », « 50 min + 10 » (with the pause after), « Aucune » for a service without a slot. */
+/** « 50 min », « 50 min + 10 min de pause » (with the pause after), « Aucune » for a service without a slot. */
 export function durationLabel(service: Pick<Service, 'durationMinutes' | 'bufferAfterMinutes'>): string {
   if (service.durationMinutes === 0) return t('modules.services.display.noDuration')
   const base = t('modules.services.display.minutes', { minutes: String(service.durationMinutes) })

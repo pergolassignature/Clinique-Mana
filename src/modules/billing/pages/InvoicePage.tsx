@@ -382,13 +382,13 @@ function Lines({
         <thead className="text-left text-xs text-muted-foreground">
           <tr className="border-b border-border">
             <th className="px-3 py-2 font-medium">{t(`${I}.description`)}</th>
-            <th className="px-3 py-2 text-right font-medium">
+            <th className="px-3 py-2 text-right font-medium max-sm:hidden">
               {t(`${I}.quantity`)}
             </th>
             <th className="px-3 py-2 text-right font-medium">
               {t(`${I}.unitPrice`)}
             </th>
-            <th className="px-3 py-2 text-right font-medium">
+            <th className="px-3 py-2 text-right font-medium max-sm:hidden">
               {t(`${I}.taxes`)}
             </th>
             <th className="px-3 py-2 text-right font-medium">
@@ -404,10 +404,17 @@ function Lines({
                 <span className="block">{l.description}</span>
                 <span className="text-xs text-muted-foreground">
                   {lineTypeLabel(l.lineType)}
-                  {l.serviceCode !== null && ` · ${l.serviceCode}`}
+                  {l.serviceCode !== null && ` · ${t(`${I}.serviceCode`, { code: String(l.serviceCode) })}`}
+                </span>
+                {/* On a phone the quantity and the taxes go under the description (the total stays in view). */}
+                <span className="block text-xs text-muted-foreground sm:hidden">
+                  {t(`${I}.quantityAndTaxes`, {
+                    quantity: String(l.quantity),
+                    taxes: l.taxRule === 'taxable' ? formatCents(l.gstCents + l.qstCents) : t(`${I}.untaxed`),
+                  })}
                 </span>
               </td>
-              <td className="tabular px-3 py-2 text-right">{l.quantity}</td>
+              <td className="tabular px-3 py-2 text-right max-sm:hidden">{l.quantity}</td>
               <td className="tabular px-3 py-2 text-right">
                 {l.unitPriceCents === null ? (
                   draft ? (
@@ -419,7 +426,7 @@ function Lines({
                   formatCents(l.unitPriceCents)
                 )}
               </td>
-              <td className="tabular px-3 py-2 text-right text-muted-foreground">
+              <td className="tabular px-3 py-2 text-right text-muted-foreground max-sm:hidden">
                 {l.taxRule === 'taxable'
                   ? formatCents(l.gstCents + l.qstCents)
                   : t(`${I}.untaxed`)}

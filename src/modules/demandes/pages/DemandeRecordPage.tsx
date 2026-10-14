@@ -37,7 +37,7 @@ import { RegisterWaitlistDialog } from '../components/waitlist/RegisterWaitlistD
 import { DemandeRecordContext, type DemandeRecordData } from '../components/record/record-context'
 import { useAssignDemande, useDemande, useDemandesRealtime, useDemandesReference, useSetDemandeState, useSetHandler } from '../hooks/use-demandes'
 import { useDemandeWaitlist } from '../hooks/use-waitlist'
-import { RECORD_TABS, demandePath, nextStates, optionLabel, personLabel, promiseText, stateLabel, stateTone, type RecordTab } from '../lib/display'
+import { RECORD_TABS, clientNumber, demandePath, nextStates, optionLabel, personLabel, promiseText, stateLabel, stateTone, type RecordTab } from '../lib/display'
 
 const R = 'modules.demandes.record'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -170,7 +170,7 @@ function RecordHeader({ data }: { data: DemandeRecordData }) {
           {bundle.client ? (
             <p className="text-sm">
               <Link to={`/clients/${bundle.client.id}`} className="text-link underline-offset-2 hover:underline">
-                {t(`${R}.openFile`, { number: String(bundle.client.client_number) })}
+                {t(`${R}.openFile`, { number: clientNumber(bundle.client.client_number) })}
               </Link>
             </p>
           ) : (
@@ -288,7 +288,7 @@ function AssignControl({ data }: { data: DemandeRecordData }) {
             onError: (error) => toast.error(demandesError(error)),
           })
         }
-        className="w-56"
+        className="w-full sm:w-64"
       >
         <option value="">{t(`${R}.sharedInbox`)}</option>
         {data.reference.workers.map((w) => (
