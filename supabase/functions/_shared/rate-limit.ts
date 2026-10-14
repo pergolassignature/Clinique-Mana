@@ -510,6 +510,12 @@ export const LIMITS = {
   },
   /** `qbo-sync` (« Synchroniser »), per caller: each pass reads the whole company. */
   qboSyncUser: { bucket: 'qbo.sync_user', max: 30, windowSeconds: 3_600 },
+  /** `qbo-bill-check` (« Bill annulé dans QuickBooks »), per caller: each call reads QuickBooks. */
+  qboBillCheckUser: {
+    bucket: 'qbo.bill_check_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
   /** `billing-stripe` (card link, « Prélever maintenant », « Retirer la carte »), per caller: each call reaches Stripe. */
   billingStripeUser: {
     bucket: 'billing.stripe_user',

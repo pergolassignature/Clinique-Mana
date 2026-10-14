@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import { uploadErrorMessage } from '@/core/storage/errors'
 import { FileDropzone } from '@/shared/components/FileDropzone'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { RefusalAlert } from '@/shared/components/RefusalAlert'
 import type { UploadStep } from '@/shared/lib/files'
 import { getClinicDateString } from '@/shared/lib/timezone'
@@ -23,6 +25,8 @@ interface NoteDialogProps {
   description: string
   label: string
   help?: string
+  /** A warning shown above the note (« Forcer le retrait » of a Bill). */
+  warning?: string
   submitLabel: string
   min: number
   max: number
@@ -32,7 +36,7 @@ interface NoteDialogProps {
 }
 
 /** A note to write, then one action (« Signaler une correction », « Rouvrir »). */
-export function NoteDialog({ title, description, label, help, submitLabel, min, max, onSubmit, onClose }: NoteDialogProps) {
+export function NoteDialog({ title, description, label, help, warning, submitLabel, min, max, onSubmit, onClose }: NoteDialogProps) {
   const [note, setNote] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +70,12 @@ export function NoteDialog({ title, description, label, help, submitLabel, min, 
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
+          {warning && (
+            <Alert variant="warning">
+              <TriangleAlert aria-hidden />
+              <AlertDescription className="text-foreground">{warning}</AlertDescription>
+            </Alert>
+          )}
           {error && <RefusalAlert message={error} />}
           <FormField label={label} help={help} required error={fieldError ?? undefined}>
             {(field) => (

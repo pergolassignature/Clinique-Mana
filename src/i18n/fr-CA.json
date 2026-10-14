@@ -10028,6 +10028,7 @@
           "professional_invoices": "Factures des professionnels",
           "payout_service_rules": "Règles de paie",
           "qbo_vendor_links": "Fournisseurs QuickBooks des professionnels",
+          "qbo_bill_clearances": "Bills retirés de QuickBooks",
           "stripe_customers": "Cartes au dossier (Stripe)",
           "stripe_charges": "Prélèvements Stripe",
           "interac_notices": "Avis de virement Interac",
@@ -10312,6 +10313,14 @@
             "professional_id": "Professionnel",
             "qbo_vendor_id": "Fournisseur QuickBooks"
           },
+          "qbo_bill_clearances": {
+            "period_id": "Sommaire",
+            "professional_invoice_id": "Facture du professionnel",
+            "qbo_bill_id": "Dépense QuickBooks",
+            "method": "Façon",
+            "reason": "Raison",
+            "cleared_by": "Retiré par"
+          },
           "stripe_customers": {
             "payer_client_id": "Payeur",
             "stripe_customer_id": "Client Stripe",
@@ -10568,6 +10577,12 @@
             "source": {
               "uploaded": "Téléversée",
               "generated": "Générée"
+            }
+          },
+          "qbo_bill_clearances": {
+            "method": {
+              "verified": "Vérifié dans QuickBooks",
+              "override": "Forcé sans vérifier"
             }
           },
           "payout_service_rules": {
@@ -11221,6 +11236,7 @@
             "invoice_not_pushed": "sa facture n'est pas encore dans QuickBooks",
             "client_gone": "le dossier n'existe plus",
             "not_supported": "pas encore pris en charge",
+            "bill_voided": "Bill supprimé dans QuickBooks : « Réessayer » en envoie un nouveau",
             "other": "erreur inattendue"
           }
         }
@@ -11261,7 +11277,13 @@
           "no_rate": "Taux de départ à fixer"
         },
         "errors": {
-          "failed": "L’opération sur la paie n’a pas pu être faite. Réessayez."
+          "failed": "L’opération sur la paie n’a pas pu être faite. Réessayez.",
+          "qboBill": {
+            "notConnected": "QuickBooks n’est pas connecté : la clinique ne peut pas vérifier le Bill. Reconnectez QuickBooks (Paramètres → QuickBooks), ou forcez le retrait.",
+            "reconnect": "QuickBooks demande d’être reconnecté (Paramètres → QuickBooks) avant de vérifier le Bill.",
+            "notConfigured": "L’application Intuit n’est pas configurée (Paramètres → QuickBooks) : la clinique ne peut pas vérifier le Bill.",
+            "unreachable": "QuickBooks n’a pas répondu. Réessayez dans quelques minutes."
+          }
         },
         "lines": {
           "table": "Lignes du sommaire",
@@ -11304,7 +11326,8 @@
             "generate": "Générer la facture",
             "replaceGenerate": "Générer à nouveau",
             "paid": "Marquer comme versée",
-            "reopen": "Rouvrir"
+            "reopen": "Rouvrir",
+            "billVoided": "Bill annulé dans QuickBooks"
           },
           "notices": {
             "unpriced": "{count} ligne(s) à compléter : l’administration doit les corriger avant que vous puissiez valider.",
@@ -11316,7 +11339,24 @@
             "invoiceMissingStaff": "Validé : la facture du professionnel est attendue (vous pouvez l’ajouter pour lui).",
             "readyToPay": "Validé et facturé : prêt à verser.",
             "correction": "Correction demandée le {date} :",
-            "reopened": "Rouvert par l’administration : {reason}"
+            "reopened": "Rouvert par l’administration : {reason}",
+            "inQuickbooks": "Facture envoyée à QuickBooks (Bill n° {bill}) : pour rouvrir le sommaire ou remplacer la facture, supprimez d’abord ce Bill dans QuickBooks, puis cliquez « Bill annulé dans QuickBooks »."
+          },
+          "billDialog": {
+            "title": "Bill annulé dans QuickBooks",
+            "description": "Supprimez d’abord le Bill n° {bill} dans QuickBooks. La clinique vérifie ensuite auprès de QuickBooks qu’il n’existe plus, puis le détache de la facture : le sommaire pourra être rouvert et la facture remplacée.",
+            "verify": "Vérifier dans QuickBooks",
+            "verifying": "Vérification…",
+            "forceIntro": "QuickBooks est inaccessible et le Bill est bien supprimé ?",
+            "force": "Forcer le retrait sans vérifier"
+          },
+          "forceDialog": {
+            "title": "Forcer le retrait du Bill n° {bill}",
+            "description": "La clinique oublie le Bill sans le vérifier dans QuickBooks. Le retrait est inscrit au journal, avec votre nom et la raison.",
+            "warning": "La paie sera payée deux fois si le Bill existe encore dans QuickBooks. Ne forcez que si vous l’avez supprimé vous-même.",
+            "label": "Raison",
+            "help": "Par exemple : « Bill supprimé dans QuickBooks le 14 octobre, QuickBooks déconnecté ».",
+            "submit": "Forcer le retrait"
           },
           "invoice": {
             "summary": "Facture {number} du {date}",
@@ -11352,6 +11392,7 @@
             "adjusted": "Ajustement ajouté.",
             "adjustmentRemoved": "Ajustement retiré.",
             "reopened": "Sommaire rouvert.",
+            "billCleared": "Bill retiré : le sommaire peut être rouvert et la facture remplacée.",
             "paid": "Paie de {name} marquée comme versée.",
             "uploaded": "Facture ajoutée.",
             "generated": "Facture générée et ajoutée."

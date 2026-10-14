@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { useSignedFileUrl } from '@/core/storage/hooks'
 import { RefusalAlert } from '@/shared/components/RefusalAlert'
 import { formatClinicDateShort, formatDateOnly } from '@/shared/lib/timezone'
@@ -21,6 +22,7 @@ import type { PayoutLine, PayoutPeriod } from '../../api/payroll'
 import { payrollErrorMessage } from '../../api/payroll-errors'
 import {
   useAddPayoutAdjustment,
+  useForceClearQboBill,
   useMarkPeriodPaid,
   useRebuildPayoutPeriod,
   useRemovePayoutAdjustment,
@@ -32,10 +34,11 @@ import {
 import { formatPay, monthLabel, stateBadgeVariant, stateLabel } from '../../lib/payroll'
 import { AdjustmentDialog, InvoiceDialog, NoteDialog, PaidDialog } from './PayrollDialogs'
 import { PayoutLinesTable } from './PayoutLinesTable'
+import { QboBillDialog } from './QboBillDialog'
 
 const P = 'modules.billing.payroll.period'
 
-type Open = null | 'correction' | 'adjustment' | 'reopen' | 'paid' | 'validate' | 'rebuild' | 'upload' | 'generate'
+type Open = null | 'correction' | 'adjustment' | 'reopen' | 'paid' | 'validate' | 'rebuild' | 'upload' | 'generate' | 'bill' | 'forceBill'
 
 interface PayoutPeriodDetailProps {
   period: PayoutPeriod
@@ -59,9 +62,13 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
   const removeAdjustment = useRemovePayoutAdjustment()
   const reopen = useReopenPayoutPeriod()
   const paid = useMarkPeriodPaid()
+  const forceBill = useForceClearQboBill()
+  const { can } = useAccess()
   const [error, setError] = useState<string | null>(null)
   const editable = staff && ['draft', 'to_validate', 'correction_requested'].includes(period.state)
   const name = period.professional?.display_name ?? t(`${P}.unknownProfessional`)
+  // BI-23 / BI-28: a Bill in QuickBooks locks the invoice and the reopening until it is forgotten.
+  const qboBill = staff && period.state === 'validated' ? (period.invoice?.qbo_bill_id ?? null) : null
 
   const run = async (action: () => Promise<unknown>, success: string) => {
     setError(null)
@@ -143,6 +150,13 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
           {t(`${P}.actions.reopen`)}
         </Button>,
       )
+      if (qboBill) {
+        actions.push(
+          <Button key="billVoided" type="button" variant="outline" onClick={() => setOpen('bill')}>
+            {t(`${P}.actions.billVoided`)}
+          </Button>,
+        )
+      }
     }
   }
 
@@ -159,6 +173,7 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
         {period.paid_on && <span className="text-sm text-muted-foreground">{t(`${P}.paidOn`, { date: formatDateOnly(period.paid_on) })}</span>}
       </div>
       <StateNotice period={period} audience={audience} />
+      {qboBill && <p className="text-sm text-muted-foreground">{t(`${P}.notices.inQuickbooks`, { bill: qboBill })}</p>}
       {error && <RefusalAlert message={error} />}
       <PayoutLinesTable
         lines={period.lines}
@@ -230,6 +245,36 @@ export function PayoutPeriodDetail({ period, audience }: PayoutPeriodDetailProps
           onSubmit={async (reason) => {
             await reopen.mutateAsync({ id: period.id, reason })
             toast.success(t(`${P}.toasts.reopened`))
+          }}
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {open === 'bill' && qboBill && (
+        <QboBillDialog
+          periodId={period.id}
+          billId={qboBill}
+          canForce={can('billing.settings')}
+          onCleared={() => {
+            toast.success(t(`${P}.toasts.billCleared`))
+            setOpen(null)
+          }}
+          onForce={() => setOpen('forceBill')}
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {open === 'forceBill' && qboBill && (
+        <NoteDialog
+          title={t(`${P}.forceDialog.title`, { bill: qboBill })}
+          description={t(`${P}.forceDialog.description`)}
+          warning={t(`${P}.forceDialog.warning`)}
+          label={t(`${P}.forceDialog.label`)}
+          help={t(`${P}.forceDialog.help`)}
+          submitLabel={t(`${P}.forceDialog.submit`)}
+          min={10}
+          max={500}
+          onSubmit={async (reason) => {
+            await forceBill.mutateAsync({ periodId: period.id, reason })
+            toast.success(t(`${P}.toasts.billCleared`))
           }}
           onClose={() => setOpen(null)}
         />

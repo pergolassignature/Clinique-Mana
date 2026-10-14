@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   addPayoutAdjustment,
   buildPayoutMonth,
+  checkQboBillVoided,
   discardPayoutDrafts,
   fetchPayoutPeriod,
+  forceClearQboBill,
   generateProfessionalInvoice,
   listMyPayoutPeriods,
   listPayoutExport,
@@ -75,6 +77,9 @@ export const useAddPayoutAdjustment = () =>
 export const useRemovePayoutAdjustment = () => usePayrollMutation((lineId: string) => removePayoutAdjustment(lineId))
 export const useReopenPayoutPeriod = () =>
   usePayrollMutation(({ id, reason }: { id: string; reason: string }) => reopenPayoutPeriod(id, reason))
+export const useCheckQboBillVoided = () => usePayrollMutation((periodId: string) => checkQboBillVoided(periodId))
+export const useForceClearQboBill = () =>
+  usePayrollMutation(({ periodId, reason }: { periodId: string; reason: string }) => forceClearQboBill(periodId, reason))
 export const useMarkPeriodPaid = () =>
   usePayrollMutation(({ id, paidOn, note }: { id: string; paidOn: string; note: string }) => markPeriodPaid(id, paidOn, note))
 export const useRequestPayoutCorrection = () =>

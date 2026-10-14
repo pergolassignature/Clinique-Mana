@@ -261,6 +261,9 @@ verify_jwt = false
 verify_jwt = false
 [functions.qbo-sync]
 verify_jwt = false
+# Facturation BI-28: « Bill annulé dans QuickBooks » (verifyAuth, billing.payroll).
+[functions.qbo-bill-check]
+verify_jwt = false
 # Job billing.qbo_token_refresh (runJob verifies X-Job-Signature).
 [functions.qbo-token-refresh]
 verify_jwt = false

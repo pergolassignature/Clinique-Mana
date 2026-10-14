@@ -19,6 +19,9 @@
  *   display name is taken (400, fault 6240);
  * - FQ follow-up: `journalentry` (a refund): debits equal credits, an
  *   Accounts Receivable line names a known customer;
+ * - BI-28: a Bill read (`GET bill/<id>`: a deleted one is a 400, fault
+ *   610, a voided one has a zero total) and deleted (`POST bill?operation=
+ *   delete`, or `deleteBill` / `voidBill` as if done in QuickBooks);
  * - FQ part 2: `query` on Item and TaxCode; `invoice`, `creditmemo`,
  *   `payment`, `vendor`, `bill`, `item` creates, kept in `documents`; a
  *   create repeated with the same `requestid` answers the first one (as
@@ -117,6 +120,14 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
     requestId: string | null
   }[] = []
   const byRequest = new Map<string, Response>()
+  /** Bills deleted (`operation=delete`, `deleteBill`) or voided (`voidBill`) in the company. */
+  const deletedBills = new Set<string>()
+  const voidedBills = new Set<string>()
+  const billTotal = (body: Record<string, unknown>) =>
+    Math.round(
+      ((body.Line as { Amount?: unknown }[] | undefined) ?? [])
+        .reduce((sum, line) => sum + Number(line.Amount ?? 0), 0) * 100,
+    ) / 100
   const calls: { method: string; path: string; query?: string }[] = []
   const failures: {
     match: string
@@ -295,6 +306,38 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
           QueryResponse: rows.length
             ? { [entity]: rows, startPosition: 1, maxResults: rows.length }
             : {},
+        })
+      }
+      // A Bill read (« Bill annulé dans QuickBooks »): a deleted or unknown
+      // one is Intuit's 400, fault 610 « Object Not Found »; a voided one
+      // stands with a zero total.
+      const billRead = /^bill\/([0-9]+)$/.exec(rest)
+      if (billRead && req.method === 'GET') {
+        const doc = documents.find((d) =>
+          d.entity === 'bill' && d.id === billRead[1]
+        )
+        if (!doc || deletedBills.has(doc.id)) return fault(400, '610')
+        return Response.json({
+          Bill: {
+            ...doc.body,
+            Id: doc.id,
+            SyncToken: '0',
+            TotalAmt: voidedBills.has(doc.id) ? 0 : billTotal(doc.body),
+          },
+        })
+      }
+      if (
+        rest === 'bill' && req.method === 'POST' &&
+        url.searchParams.get('operation') === 'delete'
+      ) {
+        const body = await req.json() as { Id?: string }
+        const doc = documents.find((d) =>
+          d.entity === 'bill' && d.id === String(body.Id)
+        )
+        if (!doc || deletedBills.has(doc.id)) return fault(400, '610')
+        deletedBills.add(doc.id)
+        return Response.json({
+          Bill: { Id: doc.id, status: 'Deleted', domain: 'QBO' },
         })
       }
       const entityKey: Record<string, string> = {
@@ -501,6 +544,14 @@ export function fakeQbo(opts: FakeQboOptions = {}) {
     },
     isRevoked(refresh: string): boolean {
       return refreshes.get(refresh)?.grant.revoked ?? false
+    },
+    /** A Bill deleted in QuickBooks (a read then answers fault 610). */
+    deleteBill(id: string) {
+      deletedBills.add(id)
+    },
+    /** A Bill voided in QuickBooks (it stands, with a zero total). */
+    voidBill(id: string) {
+      voidedBills.add(id)
     },
     failNext(match: string, status: number, faultCode?: string, times = 1) {
       failures.push({ match, status, fault: faultCode, times })
