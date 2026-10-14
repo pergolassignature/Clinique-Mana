@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -11,6 +11,7 @@ import { useDebouncedValue } from '@/shared/lib/use-debounced-value'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -68,7 +69,7 @@ function searchOf(state: unknown): string {
 export function DemandesInboxPage() {
   usePageTitle(t('modules.demandes.name'))
   const { can } = useAccess()
-  const [params, setParams] = useSearchParams()
+  const { params, update: patchUrl } = useUrlParams()
   const location = useLocation()
   const searchId = useId()
   const [page, setPage] = useState(0)
@@ -92,14 +93,10 @@ export function DemandesInboxPage() {
   const inbox = useInbox(query, page)
   const counts = useInboxCounts()
 
+  // From the latest address (useUrlParams): « tri » and the filters never undo each other.
   const update = (patch: Record<string, string | null>, q: string = typed) => {
-    const next = new URLSearchParams(params)
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null || value === '') next.delete(key)
-      else next.set(key, value)
-    }
     setPage(0)
-    setParams(next, { replace: true, state: q ? { q } : null })
+    patchUrl(patch, { replace: true, state: q ? { q } : null })
   }
   const toggleFlag = (flag: InboxFlag) => {
     const set = new Set(flags)

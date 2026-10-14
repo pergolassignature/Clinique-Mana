@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -9,6 +9,7 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { formatClinicDateShort, getClinicDateString } from '@/shared/lib/timezone'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { cn } from '@/shared/lib/utils'
+import { useUrlParams } from '@/shared/lib/use-url-params'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
@@ -50,7 +51,7 @@ const P = `${W}.page`
 export function WaitlistPage() {
   usePageTitle(t(`${W}.name`))
   useDemandesRealtime(true)
-  const [params, setParams] = useSearchParams()
+  const { params, update } = useUrlParams()
   const listId = useId()
   const [openEntry, setOpenEntry] = useState<string | null>(null)
   const target = targetFromParam(params.get('liste'))
@@ -61,14 +62,6 @@ export function WaitlistPage() {
   const selected = target ? lists.data?.find((l) => l.target_id === target.id) ?? null : null
   const { can } = useAccess()
 
-  const update = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(params)
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null) next.delete(key)
-      else next.set(key, value)
-    }
-    setParams(next, { replace: true })
-  }
   const titles = (lists.data ?? []).filter((l) => l.target_kind === 'title')
   const professionals = (lists.data ?? []).filter((l) => l.target_kind === 'professional')
   const option = (l: WaitlistList) => (

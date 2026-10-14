@@ -121,7 +121,7 @@ const CHOSEN = { replace: true, chosen: true } as const
  * render, so two changes in one event (or a setter held by an older closure) both apply. The
  * current URL is `latest`, not `setSearchParams`'s updater argument: react-router 6 hands that
  * updater the search params of its last render, so a second call in the same tick would undo the
- * first. `latest` follows every render (Back, links) and every write made here.
+ * first. `latest` follows every new address (Back, links) and every write made here.
  *
  * `onChange` hears the filters a person chose (`setFilters`, `toggleMotif`, `reset`), not a page
  * change, a link, Back, or `restore`: what the list remembers for them (4a.10).
@@ -130,11 +130,17 @@ export function useProfessionalsFilters({ onChange }: { onChange?: (filters: Pro
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => parseProfessionalsFilters(searchParams), [searchParams])
   const latest = useRef(searchParams)
+  // Only a new address replaces `latest` (as useUrlParams): a re-render of the old one while a
+  // navigation is pending (a new `onChange` re-ran this effect) would bring back a cleared filter.
+  const seen = useRef(searchParams)
+  if (seen.current !== searchParams) {
+    seen.current = searchParams
+    latest.current = searchParams
+  }
   const changed = useRef(onChange)
   useLayoutEffect(() => {
-    latest.current = searchParams
     changed.current = onChange
-  }, [searchParams, onChange])
+  }, [onChange])
 
   const update = useCallback(
     (change: (current: ProfessionalsFilters) => ProfessionalsFilters, { replace, chosen }: { replace: boolean; chosen: boolean }) => {
