@@ -36,7 +36,7 @@ const myDemandeSchema = z.object({
     .array(z.object({ client_id: nullableString, display_name: nullableString, relationship: nullableString, is_primary: z.boolean() }))
     .nullable()
     .transform((v) => v ?? []),
-  is_urgent: z.boolean(),
+  is_urgent: z.boolean().nullable().transform((v) => v ?? false),
   motif_other: nullableString,
   availability_other: nullableString,
   has_issues: z.boolean().nullable(),
