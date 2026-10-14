@@ -53,8 +53,11 @@ export function PageHeader({ title, description, count, actions, level = 2, full
           </p>
         )}
       </div>
-      {/* The box is the title's line height (28 / 24): the buttons are centred on that line. */}
-      {actions && <div className={cn('flex shrink-0 items-center gap-1.5', level === 1 ? 'h-7' : 'h-6')}>{actions}</div>}
+      {/* The box is at least the title's line height (28 / 24): the buttons are centred on that line.
+          On a narrow screen the buttons wrap among themselves rather than running off the page. */}
+      {actions && (
+        <div className={cn('flex max-w-full shrink-0 flex-wrap items-center gap-1.5', level === 1 ? 'min-h-7' : 'min-h-6')}>{actions}</div>
+      )}
     </div>
   )
 }
