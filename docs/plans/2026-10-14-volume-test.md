@@ -1,6 +1,6 @@
 # Volume test before the cutover (2026-10-14)
 
-The hot screens were timed against production-scale synthetic data on the local stack. One slow query was found and fixed. Every other screen stays under 100 ms at this volume.
+The hot screens were timed against production-scale synthetic data on the local stack. One slow query was found and fixed. Every other screen stays under 100 ms at this volume, including the messages, request events and notices added in pass 2.
 
 ## The data
 
@@ -66,4 +66,37 @@ bash scripts/with-db-lock.sh bash scripts/volume-test/run.sh <tag>
 - **Reports over a year (65–95 ms):** the time goes into building the JSON for at most 5 000 rows, not into reading. Plans use the existing `(org_id, …)` indexes, and no sequential scan is costly.
 - **The Demandes inbox over every request, with a search (93 ms):** `demandes_inbox_rows` computes the business-hours delay of all 4 000 requests before the search filters them. The default view (open requests) takes 3 ms. Filtering on the search words before computing the delays would bring it under 20 ms. This is lane B's module, and it is noted for them.
 - **No missing index was found.** None of the logged plans (statements over 50 ms) scans `appointments`, `invoices`, `invoice_lines`, `payments` or `appointment_participants` sequentially. The only sequential scans are small tables (`organizations`, `profiles`) and the inbox's full read of `demandes` when every request is asked.
-- **Not measured here:** the synthetic data has no request events, mail or text messages, so the inbox's per-request lookups and the Communications screens ran against empty tables. A later run should add them.
+- **Messages and request events** were not in the first run. Pass 2 below adds them.
+
+## Pass 2: messages, request events and notices
+
+`scripts/volume-test/generate-messages.sql` runs in the same session after `generate.sql`. It adds, fictional and local only:
+
+- about 18 000 request events (created, contacts, state changes);
+- 2 shared mailboxes with 10 000 threads and 30 000 emails over two years, 7 threads in 10 linked to a client;
+- about 10 000 texts with about 1 900 numbers, in and out, each number linked to a client;
+- 2 000 notices for the admin, half of them read.
+
+`timing-messages.sql` times their screens, and `run.sh` runs both passes.
+
+| Screen / RPC | Time (ms) |
+|---|---:|
+| Courriels, inbox, first page (`list_mail_threads`) | 1 |
+| Courriels, every thread, with a search | 52–55 |
+| Courriels, « À rattacher » | 1 |
+| Courriels, one thread (`get_mail_thread`) | 1–2 |
+| Courriels, mailboxes (`list_mail_connections`) | 3 |
+| A client's « Courriels » tab (`list_client_mail_threads`) | 1 |
+| Textos, conversations (`list_sms_conversations`) | 11 |
+| Textos, « À rattacher » | 9 |
+| Textos, search | 13 |
+| Textos, one conversation (`list_sms_thread`) | 0.3 |
+| A client's « Textos » tab (`list_client_sms`) | 1 |
+| The bell's unread count (`count_my_unread_notifications`) | 0.4 |
+| The bell's list (`list_my_notifications`) | 0.4 |
+| Demandes inbox, open requests, with events | 3 |
+| Demandes inbox, every request, with a search, with events | 74 |
+| Demandes inbox, every request, with events | 74 |
+| « Indicateurs des demandes » over a year, with events | 39 |
+
+Nothing exceeds 150 ms, so pass 2 changes no query. The slowest is still the Demandes inbox over every request (74 ms, with or without a search), for the reason given above: the delays of every request are computed before the search and the page limit apply. The note for lane B stands.
