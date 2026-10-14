@@ -519,3 +519,56 @@ export async function setSequence(year: number, lastNumber: number): Promise<voi
   const { error } = await supabase.rpc('set_invoice_sequence', { p_year: year, p_last_number: lastNumber })
   if (error) throw error
 }
+
+// --- An appointment's billing (L10: the « Facturation » tab of Rendez-vous' sheet) -------------------
+
+const appointmentBillingSchema = z.object({
+  appointment_id: z.string(),
+  state: z.string(),
+  invoiceable: z.boolean(),
+  lines: z.array(
+    z.object({
+      line_id: z.string(),
+      line_type: z.enum(LINE_TYPES),
+      credited: z.boolean(),
+      line_total_cents: z.number().int(),
+      invoice_id: z.string(),
+      number: z.string().nullable(),
+      status: z.enum(INVOICE_STATUSES),
+      payment_status: z.enum(PAYMENT_STATUSES),
+      invoice_total_cents: z.number().int(),
+      paid_cents: z.number().int(),
+      client_id: z.string(),
+      client_name: z.string().nullable(),
+    }),
+  ),
+  preview: z
+    .object({
+      client_id: z.string(),
+      missing: z.boolean(),
+      variant_applied: z.boolean(),
+      subtotal_cents: z.number().int().nullable(),
+      tax_cents: z.number().int().nullable(),
+      total_cents: z.number().int().nullable(),
+      file_opening: z.object({ missing: z.boolean(), total_cents: z.number().int().nullable() }).nullable(),
+    })
+    .nullable(),
+  fee: z
+    .object({
+      kind: z.enum(['late_cancellation', 'no_show']),
+      status: z.enum(['pending', 'applied', 'waived']),
+      fee_percent: z.number().nullable(),
+      amount_cents: z.number().int().nullable(),
+      invoice_id: z.string().nullable(),
+      invoice_number: z.string().nullable(),
+    })
+    .nullable(),
+})
+export type AppointmentBilling = z.infer<typeof appointmentBillingSchema>
+
+/** An appointment's invoice lines, the price it would be invoiced at and its cancellation fee; null when not the clinic's or personal. */
+export async function fetchAppointmentBilling(appointmentId: string): Promise<AppointmentBilling | null> {
+  const { data, error } = await supabase.rpc('get_appointment_billing', { p_appointment_id: appointmentId })
+  if (error) throw error
+  return data === null ? null : parse(appointmentBillingSchema, data)
+}

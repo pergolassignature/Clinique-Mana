@@ -9551,7 +9551,8 @@
           "appointment": "Rendez-vous",
           "notes": "Notes",
           "cancel": "Annulation",
-          "history": "Historique"
+          "history": "Historique",
+          "billing": "Facturation"
         },
         "presence": "Présence",
         "presenceOf": "Présence de {name}",
@@ -11700,6 +11701,27 @@
           "interac": "virements Interac à rapprocher",
           "payers": "payeurs tiers à facturer"
         }
+      },
+      "appointment": {
+        "title": "Facturation du rendez-vous",
+        "loadError": "La facturation de ce rendez-vous ne se charge pas.",
+        "none": "Ce rendez-vous ne se facture pas.",
+        "invoice": "Facture {number}",
+        "draft": "Facture en brouillon",
+        "balance": "Solde : {amount}",
+        "notInvoiced": "Pas encore facturé.",
+        "price": "Prix prévu : {total}.",
+        "priceTaxed": "Prix prévu : {total}, dont {taxes} de taxes.",
+        "variant": "Le tarif particulier du client est appliqué.",
+        "priceMissing": "Le prix de ce service n’est pas fixé pour ce professionnel à cette date : à confirmer dans Services et tarifs, ou à entrer sur la facture.",
+        "fileOpening": "S’y ajoutent les frais d’ouverture de dossier : {total} (première facture du client).",
+        "fileOpeningMissing": "S’y ajoutent les frais d’ouverture de dossier (première facture du client), dont le prix est à confirmer.",
+        "create": "Créer la facture",
+        "creating": "Création…",
+        "notInvoiceable": "Ce rendez-vous n’est pas à facturer : il est annulé ou en attente d’acceptation.",
+        "feeAmount": "Montant : {amount}.",
+        "feeAmountPercent": "Montant : {amount} ({percent} % de la séance).",
+        "credited": "Créditée : {numbers}."
       }
     },
     "reports": {

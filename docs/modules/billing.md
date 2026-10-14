@@ -146,7 +146,13 @@ F1's `create_invoice`, `finalize_invoice` (now a PDF, no email), `issue_credit_n
 - **The invoice:** each payment's « Rembourser » (an amount, what is left by default; a reason) and its refunds (« Remboursé », « En attente de Stripe », « Refusé »); « Relances » (the day each reminder went, or a step passed without one).
 - **Paramètres → Facturation → « Relances »:** « Relances à partir du » (empty: no reminder and no refusal), the days, and the day a balance refuses a booking.
 
-## What the module publishes
+## The appointment sheet's « Facturation » (parity audit L10, BI-22)
+
+Migration `20261014023011_billing_appointment_billing`; pgTAP `184_billing_appointment_billing`. Facturation fills the core slot `appointment.sheet` (`billing.view`, `pages/AppointmentBillingPanel.tsx`), so Rendez-vous' sheet shows a « Facturation » tab:
+
+- `get_appointment_billing(appointment)` (definer, `billing.view` first; null when not the clinic's or personal) returns the appointment's invoice lines (session, cancellation fee; live or credited) with their invoice's number, state, payment, total and paid, the client billed; `invoiceable` (booked, confirmed or completed, no live session line); `preview`, the price `create_invoice` would put (`service_price` for the first client: her rate, her tax exemption, the professional's title, the day), its taxes and total, `missing` when not fixed, and the file-opening fee when this would be her first invoice; `fee`, the cancellation-fee decision (kind, state, percent, amount, invoice).
+- The panel: each live invoice (a link, « Émise », « Payée en partie », « Solde »); not invoiced, « Prix prévu : … » and « Créer la facture » (`billing.manage`, `create_invoice`, then the invoice opens); a fee and its decision; the credited invoices named.
+
 
 - **For Demandes' waiting list (BI-19, migration `20261013152313_billing_source_hooks`):** `private.billing_create_waitlist_fee_invoice(org, client, entry, actor)` → (invoice id, number): the `waitlist_registration` service to the dossier's default payer, issued and sent (P3-40), never twice while one stands (source `waitlist_fee`). **`billing_source_hooks`** (source type → `private.<name>_billing_changed(org, source_id, invoice_id, state)`, like Clients' handler catalogues): an invoice of that source moving between `issued`, `paid` and `credited` calls its module's hook (trigger `invoices_source_hooks`), when that module is enabled.
 - **`private.billing_create_service_invoice(org, client, service, source_id, actor)`** → draft id: a service outside the agenda (Demandes' waiting-list fee, a report), priced today. Granted to no role.

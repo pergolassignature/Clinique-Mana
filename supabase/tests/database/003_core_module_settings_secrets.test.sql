@@ -154,7 +154,7 @@ select functions_are('public', array[
   -- Facturation, batch F1.
   'create_invoice', 'create_manual_invoice', 'add_invoice_line', 'set_invoice_line_price', 'remove_invoice_line',
   'set_invoice_payer', 'set_invoice_notes', 'delete_invoice_draft', 'finalize_invoice', 'issue_credit_note',
-  'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing',
+  'set_default_payer', 'set_invoice_sequence', 'list_invoices', 'get_invoice', 'get_client_billing', 'get_appointment_billing',
   -- Facturation, batch FPay (payroll).
   'list_payout_periods', 'build_payout_month', 'rebuild_payout_period', 'send_payout_periods', 'add_payout_adjustment',
   'remove_payout_adjustment', 'reopen_payout_period', 'mark_period_paid', 'list_payout_export', 'list_my_payout_periods',
