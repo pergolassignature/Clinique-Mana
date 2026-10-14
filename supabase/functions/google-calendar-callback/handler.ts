@@ -15,8 +15,8 @@
  *    refused code → 400 with a French refusal; Google down → 502.
  * 5. The grant must hold `calendar.freebusy` (she may untick it): else a
  *    French refusal, and the grant is revoked.
- * 6. `userinfo` names the account (`sub`, the address); without a refresh
- *    token Google is asked again (a French refusal).
+ * 6. Without a refresh token Google is asked again (a French refusal) and the
+ *    grant is revoked; then `userinfo` names the account (`sub`, the address).
  * 7. `store_calendar_connection` (the actor model: P0001 when this account is
  *    connected for another professional), then a first sync at once (best
  *    effort: the job catches up).
@@ -168,6 +168,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
     if (!token.refresh_token) {
+      // The grant is not kept: revoked as when the scope is missing (nothing stored).
+      await revokeToken(deps.fetch, origins, token.access_token)
       return refusalResponse(
         'Google n’a pas donné d’accès durable. Recommencez la connexion de votre agenda Google.',
         req,
