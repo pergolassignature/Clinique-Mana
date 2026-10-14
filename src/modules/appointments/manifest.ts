@@ -1,4 +1,4 @@
-import { CalendarCog, CalendarDays, CalendarRange, Video } from 'lucide-react'
+import { CalendarClock, CalendarCog, CalendarDays, CalendarRange, Video } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -18,7 +18,8 @@ export const confirmAppointmentPublicPage = lazyPage(() => import('./pages/publi
  * completion; R4: the clients' messages; R5: « Mon agenda » for a professional and her clients'
  * visits in Clients' record (slot `client.visits`). RZ adds the video links: each professional's
  * Zoom or fixed link (« Vidéoconférence » in her space) and the staff's view of who is ready
- * (Paramètres → Vidéoconférence). Depends on Clients (the files), Services et tarifs (durations,
+ * (Paramètres → Vidéoconférence). R6 adds a professional's opt-in Google busy times (« Agenda
+ * Google »: « Occupé » in the agenda, never offered as open slots). Depends on Clients (the files), Services et tarifs (durations,
  * « pause après », who offers what) and Professionnels.
  */
 export const appointmentsManifest: ModuleManifest = {
@@ -47,6 +48,16 @@ export const appointmentsManifest: ModuleManifest = {
       group: 'main',
       order: 7,
     },
+    // The professional's opt-in Google busy times (R6).
+    {
+      path: '/mon-agenda/agenda-google',
+      labelKey: 'modules.appointments.calendar.nav',
+      icon: CalendarClock,
+      permission: 'appointments.self',
+      shownWhen: hasProfessionalFile,
+      group: 'main',
+      order: 8,
+    },
   ],
   routes: [
     { path: 'agenda', permission: 'appointments.view', component: lazyPage(() => import('./pages/AgendaPage'), 'AgendaPage') },
@@ -57,6 +68,13 @@ export const appointmentsManifest: ModuleManifest = {
       path: 'mon-agenda/videoconference',
       permission: 'appointments.self',
       component: lazyPage(() => import('./pages/MyVideoPage'), 'MyVideoPage'),
+    },
+    // R6: also where Google sends the browser back after « Connecter mon agenda Google »
+    // (`_shared/google-calendar/env.ts` RETURN_PATH).
+    {
+      path: 'mon-agenda/agenda-google',
+      permission: 'appointments.self',
+      component: lazyPage(() => import('./pages/MyGoogleCalendarPage'), 'MyGoogleCalendarPage'),
     },
   ],
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.

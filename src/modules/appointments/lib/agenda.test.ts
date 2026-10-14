@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { setClinicTimezone } from '@/shared/lib/timezone'
 import type { AvailabilityRule } from '../api/parse'
-import { packLanes, verticalBox, windowsOn } from './layout'
+import { busyOn, packLanes, verticalBox, windowsOn } from './layout'
 import { addDays, gridRangeFor, instantOf, isoWeekday, minutesOnDay, monthGrid, snap, startOfWeek } from './time'
 
 beforeAll(() => setClinicTimezone('America/Toronto'))
@@ -72,5 +72,22 @@ describe('the grid range (AP-33)', () => {
     expect(gridRangeFor([{ start: 5 * 60 + 30, end: 6 * 60 + 20 }, { start: 22 * 60 + 15, end: 23 * 60 + 5 }])).toEqual({ start: 300, end: 24 * 60 })
     expect(gridRangeFor([{ start: 0, end: 30 }])).toEqual({ start: 0, end: 1320 })
     expect(gridRangeFor([{ start: 700, end: 700 }])).toEqual({ start: 360, end: 1320 })
+  })
+})
+
+describe('Google busy times (R6)', () => {
+  it('a professional’s busy times on a day, clipped to it, others’ left out', () => {
+    const busy = [
+      { professionalId: 'p', startsAt: '2027-03-15T13:00:00Z', endsAt: '2027-03-15T14:30:00Z' },
+      // Across midnight: clipped to each day.
+      { professionalId: 'p', startsAt: '2027-03-16T03:00:00Z', endsAt: '2027-03-16T06:00:00Z' },
+      { professionalId: 'q', startsAt: '2027-03-15T13:00:00Z', endsAt: '2027-03-15T14:00:00Z' },
+    ]
+    expect(busyOn(busy, 'p', '2027-03-15')).toEqual([
+      { start: 9 * 60, end: 10 * 60 + 30 },
+      { start: 23 * 60, end: 24 * 60 },
+    ])
+    expect(busyOn(busy, 'p', '2027-03-16')).toEqual([{ start: 0, end: 2 * 60 }])
+    expect(busyOn(busy, 'q', '2027-03-17')).toEqual([])
   })
 })

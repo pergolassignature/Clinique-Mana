@@ -20,6 +20,12 @@
 // and the seed org's secrets and settings (supabase/seed.sql) hold the fake's
 // OAuth client and the push's service account.
 //
+// R6 (Google busy times) uses the same fake: GOOGLE_CALENDAR_BASE_URL=
+// http://host.docker.internal:55392 in supabase/functions/.env. A few busy
+// times are seeded for the next working days; replace them with
+// `curl -X POST http://127.0.0.1:55392/__fake/busy` and a JSON body
+// `[{ "start", "end" }]` (ISO instants), `[]` to clear.
+//
 // A new message: `curl -X POST http://127.0.0.1:55392/__fake/deliver`
 // (optional JSON body `{ "from", "subject", "text" }`). Once the mailbox is
 // watched, every change posts Pub/Sub's authenticated push to the local
@@ -90,6 +96,23 @@ const fake = fakeGmail({
   },
 })
 seedMailbox(fake, mailbox)
+seedBusy()
+
+/** A few busy times on the next working days (10 h – 11 h 30, and 14 h – 15 h every other day, UTC−4). */
+function seedBusy() {
+  fake.busy.length = 0
+  const day = 86_400_000
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  for (let i = 1; i <= 10; i++) {
+    const d = new Date(today.getTime() + i * day)
+    if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue
+    const at = (h: number, m = 0) =>
+      new Date(d.getTime() + (h + 4) * 3_600_000 + m * 60_000).toISOString()
+    fake.busy.push({ start: at(10), end: at(11, 30) })
+    if (i % 2 === 0) fake.busy.push({ start: at(14), end: at(15) })
+  }
+}
 
 const kindOf = (pathname: string): string => {
   if (pathname.startsWith('/__fake/')) return pathname
@@ -97,6 +120,8 @@ const kindOf = (pathname: string): string => {
   if (pathname === '/oauth2/v3/certs') return 'certs'
   if (pathname === '/token' || pathname === '/revoke') return pathname.slice(1)
   if (pathname.startsWith('/gmail/v1/')) return 'gmail-api'
+  if (pathname === '/oauth2/v3/userinfo') return 'userinfo'
+  if (pathname.startsWith('/calendar/v3/')) return 'calendar-api'
   return 'other'
 }
 
@@ -131,9 +156,33 @@ Deno.serve({
         labelIds: ['INBOX', 'UNREAD'],
       })
       res = Response.json({ id: message.id, threadId: message.threadId })
+    } else if (pathname === '/__fake/busy' && req.method === 'POST') {
+      let input: unknown = []
+      try {
+        const text = await req.text()
+        input = text ? JSON.parse(text) : []
+      } catch {
+        input = null
+      }
+      const valid = Array.isArray(input) &&
+        input.every((b) =>
+          typeof b?.start === 'string' && typeof b?.end === 'string' &&
+          !Number.isNaN(Date.parse(b.start)) &&
+          Date.parse(b.end) > Date.parse(b.start)
+        )
+      if (!valid) {
+        res = Response.json({ error: 'invalid' }, { status: 400 })
+      } else {
+        fake.busy.length = 0
+        for (const b of input as { start: string; end: string }[]) {
+          fake.busy.push({ start: b.start, end: b.end })
+        }
+        res = Response.json({ busy: fake.busy.length })
+      }
     } else if (pathname === '/__fake/reset' && req.method === 'POST') {
       fake.reset()
       seedMailbox(fake, mailbox)
+      seedBusy()
       res = Response.json({ ok: true })
     } else {
       res = await fake.handler(req)

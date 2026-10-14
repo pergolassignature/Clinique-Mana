@@ -3,7 +3,7 @@ import { i18nAuditLabels } from '@/core/audit/module-labels'
 /**
  * The module's audited tables, in the order of the Journal d'audit's « Section » filter: the
  * appointments (and their Zoom meetings, RZ), then the availability, then the clinic's lists and
- * settings, then the professionals' video setup (RZ).
+ * settings, then the professionals' video setup (RZ) and Google agendas (R6).
  * `src/app/audit-labels.test.ts` checks it against the migrations' audit triggers.
  */
 export const APPOINTMENTS_AUDITED_TABLES = [
@@ -19,6 +19,8 @@ export const APPOINTMENTS_AUDITED_TABLES = [
   'professional_video_links',
   'video_connections',
   'video_connection_tokens',
+  'calendar_connections',
+  'calendar_connection_tokens',
 ] as const
 
 /** The audit source of the per-clinic seed (`private.seed_appointments_reference`). */
@@ -43,5 +45,5 @@ export const appointmentsAuditLabels = i18nAuditLabels({
   prefix: 'modules.appointments.audit',
   tables: APPOINTMENTS_AUDITED_TABLES,
   value: appointmentsValue,
-  sources: [APPOINTMENTS_SEED_SOURCE, 'job:appointments.video_sync', 'webhook:zoom'],
+  sources: [APPOINTMENTS_SEED_SOURCE, 'job:appointments.video_sync', 'webhook:zoom', 'job:appointments.google_busy_sync'],
 })

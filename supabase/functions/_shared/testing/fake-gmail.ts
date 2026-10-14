@@ -33,7 +33,11 @@
  *   `failNextSend` makes the next one fail after it was sent (Gmail sent, then
  *   answered 503) or before (refused, 400);
  * - `/oauth2/v3/certs` publishes the `signer`'s key, as Google publishes the
- *   keys of the ID tokens Pub/Sub's authenticated pushes carry.
+ *   keys of the ID tokens Pub/Sub's authenticated pushes carry;
+ * - R6 (Google busy times): `/oauth2/v3/userinfo` answers the account's `sub`
+ *   and address; `/calendar/v3/freeBusy` (the `calendar.freebusy` scope, 403
+ *   otherwise) answers the `busy` intervals that overlap the asked window,
+ *   for `primary` only (times, never a title).
  * Error bodies carry `FAKE_ERROR_MARKER`, so tests can prove the function
  * never passes them on.
  */
@@ -127,6 +131,8 @@ export interface FakeGmailOptions {
   clientSecret?: string
   /** The clock (default: `Date.now`). */
   now?: () => number
+  /** Google's stable id of the account (`/oauth2/v3/userinfo`'s `sub`). */
+  accountSub?: string
   /** Called on every change while a watch is active (the local server posts the Pub/Sub push). */
   onWatchNotification?: (
     payload: { emailAddress: string; historyId: string },
@@ -156,6 +162,10 @@ export interface FakeGmail {
   issueCode(scope?: string): string
   /** The next `messages.send`: sent then a 503 (`after_send`), or refused with a 400 (`refused`). */
   failNextSend(mode: 'after_send' | 'refused'): void
+  /** The primary calendar's busy intervals (ISO instants), what FreeBusy answers. */
+  busy: { start: string; end: string }[]
+  /** The FreeBusy requests received (their window), for assertions. */
+  freeBusyCalls: { timeMin: string; timeMax: string; ids: string[] }[]
   /** Removes the messages and the history. */
   reset(): void
 }
@@ -199,6 +209,17 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
   let watch: FakeGmail['watch'] = null
   let labels: FakeLabel[] = defaultLabels()
   let nextSendFailure: 'after_send' | 'refused' | null = null
+  const accountSub = options.accountSub ?? '100000000000000000001'
+  const busy: FakeGmail['busy'] = []
+  const freeBusyCalls: FakeGmail['freeBusyCalls'] = []
+  const FREEBUSY = 'https://www.googleapis.com/auth/calendar.freebusy'
+  const scopesOf = (req: Request): string[] => {
+    const token = /^Bearer\s+(\S+)$/.exec(
+      req.headers.get('Authorization') ?? '',
+    )?.[1]
+    const refresh = token ? accessTokens.get(token)?.refresh : undefined
+    return refresh ? grants.get(refresh)?.scopes ?? [] : []
+  }
 
   const nextHistory = (record: Omit<HistoryRecord, 'id'>) => {
     historyId++
@@ -526,6 +547,59 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       return json(200, {})
     }
 
+    // --- R6: the account and its busy times --------------------------------
+    if (path === '/oauth2/v3/userinfo' && req.method === 'GET') {
+      if (!bearer(req)) return error(401, 'UNAUTHENTICATED')
+      return json(200, {
+        sub: accountSub,
+        email: emailAddress,
+        email_verified: true,
+      })
+    }
+    if (path === '/calendar/v3/freeBusy' && req.method === 'POST') {
+      if (!bearer(req)) return error(401, 'UNAUTHENTICATED')
+      if (!scopesOf(req).includes(FREEBUSY)) {
+        return error(403, 'PERMISSION_DENIED')
+      }
+      let body: {
+        timeMin?: string
+        timeMax?: string
+        items?: { id?: string }[]
+      }
+      try {
+        body = JSON.parse(await req.text())
+      } catch {
+        return error(400, 'INVALID_ARGUMENT')
+      }
+      const from = Date.parse(body.timeMin ?? '')
+      const to = Date.parse(body.timeMax ?? '')
+      if (Number.isNaN(from) || Number.isNaN(to) || to <= from) {
+        return error(400, 'INVALID_ARGUMENT')
+      }
+      const ids = (body.items ?? []).map((i) => i.id ?? '')
+      freeBusyCalls.push({
+        timeMin: body.timeMin!,
+        timeMax: body.timeMax!,
+        ids,
+      })
+      const calendars: Record<string, unknown> = {}
+      for (const id of ids) {
+        calendars[id] = id === 'primary' || id === emailAddress
+          ? {
+            busy: busy.filter((b) =>
+              Date.parse(b.end) > from && Date.parse(b.start) < to
+            ),
+          }
+          : { busy: [], errors: [{ domain: 'global', reason: 'notFound' }] }
+      }
+      return json(200, {
+        kind: 'calendar#freeBusy',
+        timeMin: body.timeMin,
+        timeMax: body.timeMax,
+        calendars,
+      })
+    }
+
     // --- messages.send (the upload endpoint) -------------------------------
     if (
       path === '/upload/gmail/v1/users/me/messages/send' &&
@@ -767,6 +841,8 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
     grants,
     tokens: accessTokens,
     sent,
+    busy,
+    freeBusyCalls,
     deliver,
     issueCode,
     failNextSend(mode) {
@@ -781,6 +857,8 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
       watch = null
       counter = 1
       nextSendFailure = null
+      busy.length = 0
+      freeBusyCalls.length = 0
     },
   }
   return fake

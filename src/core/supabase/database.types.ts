@@ -1359,6 +1359,166 @@ export type Database = {
           },
         ]
       }
+      calendar_connection_tokens: {
+        Row: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at: string
+          key_version: number
+          org_id: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          access_token_expires_at: string
+          connection_id: string
+          created_at?: string
+          key_version?: number
+          org_id: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          access_token_expires_at?: string
+          connection_id?: string
+          created_at?: string
+          key_version?: number
+          org_id?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_connection_tokens_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      calendar_connections: {
+        Row: {
+          account_email: string | null
+          connected_at: string | null
+          connected_by: string | null
+          created_at: string
+          disconnected_at: string | null
+          external_user_id: string | null
+          id: string
+          org_id: string
+          professional_id: string
+          provider: string
+          reconnect_reason: string | null
+          scopes: string[]
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          account_email?: string | null
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          external_user_id?: string | null
+          id?: string
+          org_id: string
+          professional_id: string
+          provider?: string
+          reconnect_reason?: string | null
+          scopes?: string[]
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          account_email?: string | null
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          external_user_id?: string | null
+          id?: string
+          org_id?: string
+          professional_id?: string
+          provider?: string
+          reconnect_reason?: string | null
+          scopes?: string[]
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_connections_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "calendar_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "calendar_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "calendar_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "calendar_connections_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      calendar_sync_status: {
+        Row: {
+          connection_id: string
+          last_sync_error: string | null
+          last_synced_at: string | null
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_sync_status_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       cancellation_fee_decisions: {
         Row: {
           amount_cents: number | null
@@ -4560,6 +4720,72 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      external_busy_blocks: {
+        Row: {
+          connection_id: string
+          created_at: string
+          ends_at: string
+          id: string
+          org_id: string
+          professional_id: string
+          starts_at: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          ends_at: string
+          id?: string
+          org_id: string
+          professional_id: string
+          starts_at: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          ends_at?: string
+          id?: string
+          org_id?: string
+          professional_id?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_busy_blocks_connection_fkey"
+            columns: ["org_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_connections"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "external_busy_blocks_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "external_busy_blocks_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "external_busy_blocks_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "external_busy_blocks_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
           },
         ]
       }
@@ -14557,6 +14783,10 @@ export type Database = {
         Args: { p_actor: string; p_connection_id: string; p_org_id: string }
         Returns: boolean
       }
+      disconnect_my_calendar_connection: {
+        Args: { p_actor: string; p_org_id: string }
+        Returns: boolean
+      }
       disconnect_my_zoom_connection: {
         Args: { p_actor: string; p_org_id: string }
         Returns: boolean
@@ -14726,6 +14956,17 @@ export type Database = {
           state: string
         }[]
       }
+      get_calendar_credentials_for_service: {
+        Args: { p_connection_id: string; p_org_id: string }
+        Returns: {
+          access_token: string
+          access_token_expires_at: string
+          connected_at: string
+          professional_id: string
+          refresh_token: string
+          state: string
+        }[]
+      }
       get_client_billing: { Args: { p_client_id: string }; Returns: Json }
       get_client_consent_clauses: {
         Args: { p_version_id: string }
@@ -14780,6 +15021,30 @@ export type Database = {
       }
       get_my_access: { Args: never; Returns: Json }
       get_my_agenda_reference: { Args: never; Returns: Json }
+      get_my_calendar_credentials_for_service: {
+        Args: { p_actor: string; p_org_id: string }
+        Returns: {
+          access_token: string
+          access_token_expires_at: string
+          connected_at: string
+          connection_id: string
+          refresh_token: string
+          state: string
+        }[]
+      }
+      get_my_calendar_setup: {
+        Args: never
+        Returns: {
+          account_email: string
+          busy_count: number
+          connected_at: string
+          last_sync_error: string
+          last_synced_at: string
+          professional_id: string
+          reconnect_reason: string
+          state: string
+        }[]
+      }
       get_my_image_consent: { Args: never; Returns: Json }
       get_my_professional_private: {
         Args: never
@@ -15121,6 +15386,10 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_calendar_connections_to_sync_for_service: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: string[]
+      }
       list_client_history: {
         Args: { p_before_id?: number; p_id: string; p_limit?: number }
         Returns: {
@@ -15367,6 +15636,14 @@ export type Database = {
           updated_by_name: string
           variables: Json
           version: number
+        }[]
+      }
+      list_external_busy: {
+        Args: { p_from: string; p_professional_ids?: string[]; p_to: string }
+        Returns: {
+          ends_at: string
+          professional_id: string
+          starts_at: string
         }[]
       }
       list_fee_decisions: { Args: { p_status?: string }; Returns: Json }
@@ -16007,6 +16284,15 @@ export type Database = {
         Returns: undefined
       }
       mark_all_notifications_read: { Args: never; Returns: undefined }
+      mark_calendar_needs_reconnect_for_service: {
+        Args: {
+          p_connected_at: string
+          p_connection_id: string
+          p_org_id: string
+          p_reason: string
+        }
+        Returns: boolean
+      }
       mark_client_consent_copy_sent_for_service: {
         Args: { p_actor: string; p_consent_id: string; p_org_id: string }
         Returns: string
@@ -16295,6 +16581,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_calendar_sync_error_for_service: {
+        Args: { p_connection_id: string; p_error: string; p_org_id: string }
+        Returns: undefined
+      }
       record_generated_professional_invoice: {
         Args: {
           p_actor: string
@@ -16565,6 +16855,17 @@ export type Database = {
       reorder_professionals_reference: {
         Args: { p_ids: string[]; p_kind: string }
         Returns: undefined
+      }
+      replace_calendar_busy_for_service: {
+        Args: {
+          p_blocks: Json
+          p_connected_at: string
+          p_connection_id: string
+          p_from: string
+          p_org_id: string
+          p_to: string
+        }
+        Returns: number
       }
       replace_qbo_accounts: {
         Args: { p_accounts: Json; p_org_id: string }
@@ -16997,6 +17298,16 @@ export type Database = {
         Args: { p_queue_from: string }
         Returns: undefined
       }
+      set_calendar_token_for_service: {
+        Args: {
+          p_access_token: string
+          p_access_token_expires_at: string
+          p_connected_at: string
+          p_connection_id: string
+          p_org_id: string
+        }
+        Returns: boolean
+      }
       set_client_consent_clauses: {
         Args: { p_clauses: Json; p_version_id: string }
         Returns: Json
@@ -17417,6 +17728,19 @@ export type Database = {
       }
       start_my_profile_update: {
         Args: { p_sections: string[] }
+        Returns: string
+      }
+      store_calendar_connection: {
+        Args: {
+          p_access_token: string
+          p_access_token_expires_at: string
+          p_account_email: string
+          p_actor: string
+          p_external_user_id: string
+          p_org_id: string
+          p_refresh_token: string
+          p_scopes: string[]
+        }
         Returns: string
       }
       store_mail_connection: {

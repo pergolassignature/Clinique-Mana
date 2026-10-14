@@ -253,6 +253,11 @@ select functions_are('public', array[
   -- Rendez-vous, batch RZ (video links: Zoom per professional, or a fixed link).
   'set_professional_video_link', 'list_professional_video_status', 'get_my_video_setup', 'get_appointment_video',
   'retry_appointment_video', 'store_zoom_connection', 'get_my_zoom_credentials_for_service',
+  -- R6: a professional's Google busy times.
+  'get_my_calendar_setup', 'list_external_busy', 'store_calendar_connection', 'get_my_calendar_credentials_for_service',
+  'disconnect_my_calendar_connection', 'get_calendar_credentials_for_service', 'set_calendar_token_for_service',
+  'mark_calendar_needs_reconnect_for_service', 'list_calendar_connections_to_sync_for_service',
+  'replace_calendar_busy_for_service', 'record_calendar_sync_error_for_service',
   'disconnect_my_zoom_connection', 'zoom_deauthorized_for_service', 'get_zoom_credentials_for_service',
   'set_zoom_tokens_for_service', 'mark_zoom_needs_reconnect_for_service', 'list_zoom_connections_to_refresh_for_service',
   'claim_video_tasks_for_service', 'complete_video_task_for_service', 'video_link_email_for_service',
