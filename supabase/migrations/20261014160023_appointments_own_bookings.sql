@@ -34,8 +34,9 @@ language sql
 stable
 set search_path = ''
 as $$
-  select private.has_permission('appointments.self') and p_professional_id is not null
-     and p_professional_id = private.current_professional_id()
+  -- Never null: a caller without a professional file (an admin) is not on her own agenda.
+  select coalesce(private.has_permission('appointments.self') and p_professional_id is not null
+                  and p_professional_id = private.current_professional_id(), false)
 $$;
 
 create function private.appointments_outside_reason(p_in_availability boolean, p_reason text, p_professional_id uuid)

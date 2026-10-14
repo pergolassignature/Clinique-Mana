@@ -4,10 +4,11 @@
 -- availability without a reason (the trace kept: the reason « Réservé par le professionnel … » or
 -- hers, her as its author, the audit); never on another professional's agenda; never over another
 -- appointment; her series' preview shows no « outside » conflict; the staff keep AP-12 (a reason,
--- never over another appointment); a hold (Demandes) stays in the availability only.
+-- never over another appointment), the admin too (she holds appointments.self but has no
+-- professional file); a hold (Demandes) stays in the availability only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(20);
 
 select is_empty($$
   select p.proname from pg_proc p
@@ -21,14 +22,17 @@ $$, 'the helpers are granted to no role');
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test',    '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'conseillere@a.test', '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'conseillere@a.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',       '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values ('b0000000-0000-0000-0000-00000000000a', 'Org A');
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A',    'provider@a.test',    'active'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'conseillere@a.test', 'active');
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'conseillere@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',       'admin@a.test',       'active');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'counselor');
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin');
 insert into public.org_modules (org_id, module_key, enabled)
 select 'b0000000-0000-0000-0000-00000000000a', m, true
   from (values ('professionals'), ('services'), ('clients'), ('appointments')) as y(m);
@@ -119,6 +123,12 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
   current_setting('test.eve')::timestamptz + interval '1 day', array['d0000000-0000-0000-0000-000000000001'::uuid]) $$,
   'P0001', 'Ce créneau est en dehors des disponibilités du professionnel pour ce service.', 'the conseillère still needs a reason');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
+  current_setting('test.eve')::timestamptz + interval '1 day', array['d0000000-0000-0000-0000-000000000001'::uuid]) $$,
+  'P0001', 'Ce créneau est en dehors des disponibilités du professionnel pour ce service.',
+  '… and so does the admin (appointments.self, but no professional file of her own)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select lives_ok($$ select public.book_appointment('c0000000-0000-0000-0000-000000000001', current_setting('test.s50')::uuid,
   current_setting('test.eve')::timestamptz + interval '1 day', array['d0000000-0000-0000-0000-000000000001'::uuid], 'video', null, null, null,
   'Soirée exceptionnelle') $$, '… and books with one');
