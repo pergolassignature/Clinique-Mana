@@ -110,7 +110,8 @@ const REDACTED = '[redacted]'
  */
 const isDateOnlyColumn = (column: string) => column.endsWith('_on') || column === 'effective_from' || column === 'effective_to'
 /** An instant (`timestamptz`): shown in the clinic's timezone. */
-const isInstantColumn = (column: string) => column.endsWith('_at') || column === 'retain_until'
+/** An instant column: `…_at`, or `…_until` (a pause's end, a retention's limit). A name that looks like a date stays text. */
+const isInstantColumn = (column: string) => column.endsWith('_at') || column.endsWith('_until')
 
 /** Runs a date formatter; the raw string when the date is invalid (never throws). */
 function formatDateSafely(value: string, format: (value: string) => string): string {

@@ -71,7 +71,7 @@ test('the admin is stopped on a duplicate, creates a file and adds a parent with
   const dialog = page.getByRole('dialog', { name: 'Ajouter un proche' })
   await dialog.getByRole('searchbox', { name: /^Proche/ }).fill('Gagnon-Fictif')
   await dialog.getByRole('list', { name: 'Dossiers trouvés' }).getByRole('button', { name: /Marc Gagnon-Fictif/ }).click()
-  await dialog.getByLabel(/^Ce proche est/).selectOption({ label: 'Parent' })
+  await dialog.getByLabel(/^Lien avec /).selectOption({ label: 'Parent' })
   const marcRights = dialog.getByRole('group', { name: /^Ce que Marc Gagnon-Fictif peut faire/ })
   await marcRights.getByRole('checkbox', { name: 'Gère les rendez-vous et formulaires' }).click()
   await marcRights.getByRole('checkbox', { name: 'Reçoit les reçus et factures' }).click()

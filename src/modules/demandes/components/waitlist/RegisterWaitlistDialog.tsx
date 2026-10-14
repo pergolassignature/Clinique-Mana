@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { Button } from '@/shared/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
@@ -74,9 +75,24 @@ function RegisterForm({ demandeId, hasFile, onDone }: { demandeId: string; hasFi
         <DialogDescription>{t(`${W}.description`)}</DialogDescription>
       </DialogHeader>
       {!hasFile ? (
-        <p role="alert" className="text-sm text-foreground">
-          {t(`${W}.fileNeeded`)}
-        </p>
+        <>
+          <p role="alert" className="text-sm text-foreground">
+            {t(`${W}.fileNeeded`)}
+          </p>
+          {/* A way on: to Accueil, where the file is attached, or out. */}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('common.close')}
+              </Button>
+            </DialogClose>
+            <Button asChild>
+              <Link to={`/demandes/${demandeId}/accueil`} onClick={onDone}>
+                {t(`${W}.toAccueil`)}
+              </Link>
+            </Button>
+          </DialogFooter>
+        </>
       ) : (
         <form onSubmit={submit} noValidate className="space-y-3">
           <FormField label={t(`${W}.profession`)} help={t(`${W}.titleHelp`)}>
@@ -126,6 +142,11 @@ function RegisterForm({ demandeId, hasFile, onDone }: { demandeId: string; hasFi
             </p>
           )}
           <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('common.cancel')}
+              </Button>
+            </DialogClose>
             <Button type="submit" aria-disabled={register.isPending || undefined}>
               {register.isPending ? t(`${W}.saving`) : t(`${W}.save`)}
             </Button>

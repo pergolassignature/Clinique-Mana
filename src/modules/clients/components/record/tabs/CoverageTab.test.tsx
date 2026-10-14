@@ -77,7 +77,7 @@ describe('CoverageTab (FP)', () => {
     await user.type(within(dialog).getByLabelText(/^Fournisseur/), 'Fournisseur X')
     await user.selectOptions(within(dialog).getByLabelText(/^Ce que le PAE paie/), 'percent')
     await user.type(within(dialog).getByLabelText(/^Part couverte/), '80')
-    await user.type(within(dialog).getByLabelText(/^Montant au plus/), '800')
+    await user.type(within(dialog).getByLabelText(/^Montant maximal total/), '800')
     await user.type(within(dialog).getByLabelText(/^Déjà utilisé avant/), '120')
     await user.type(within(dialog).getByLabelText(/^En date du/), '2026-09-30')
     await user.click(within(dialog).getByRole('button', { name: t('common.save') }))
