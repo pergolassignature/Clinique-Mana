@@ -16,6 +16,7 @@ import { E2E_ORIGIN } from './fixtures/origin'
  * 4. « Consentements » (Clients C5b): today's states per consent, per month.
  * 5. « Indicateurs des demandes » (Demandes D6; the seed enables Demandes): this year's totals, then
  *    « Provenance » and « Liste d'attente et places » (the tabs in the address).
+ * 6. RP2: « Rapport IVAC » (the state filter in the address) and « Rapport de paie » (admin only).
  */
 
 async function setReports(page: Page, on: boolean) {
@@ -121,5 +122,20 @@ test('the admin reads « Indicateurs des demandes »: activity, sources, waiting
     await tabs.getByRole('tab', { name: 'Liste d\'attente et places' }).click()
     await expect(page).toHaveURL(/onglet=liste-attente/)
     await expect(page.getByRole('heading', { name: 'Places des professionnels' })).toBeVisible()
+  })
+})
+
+test('the admin reads « Rapport IVAC » and « Rapport de paie » (RP2)', async ({ page, signIn }) => {
+  await withReports(page, signIn, async () => {
+    await page.goto('/accueil')
+    await page.getByRole('link', { name: 'Rapport IVAC' }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'IVAC' })).toBeVisible()
+    await page.getByLabel('État', { exact: true }).selectOption('paid')
+    await expect(page).toHaveURL(/etat=paid/)
+    await expect(page.getByLabel('Totaux', { exact: true })).toBeVisible()
+    await page.getByRole('link', { name: 'Rapport de paie' }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Paie des professionnels' })).toBeVisible()
+    await page.getByRole('button', { name: 'Année dernière' }).click()
+    await expect(page.getByLabel('Totaux', { exact: true }).or(page.getByText('Aucun sommaire de paie pour ces mois.')).first()).toBeVisible()
   })
 })
