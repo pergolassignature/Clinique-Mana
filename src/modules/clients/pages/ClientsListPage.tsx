@@ -274,7 +274,7 @@ function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableP
         <TableHeader>
           <TableRow className="[&>th]:whitespace-nowrap">
             <TableHead>{t(`${L}.columns.name`)}</TableHead>
-            <TableHead className="max-sm:hidden">{t(`${L}.columns.number`)}</TableHead>
+            <TableHead className="max-xl:hidden">{t(`${L}.columns.number`)}</TableHead>
             <TableHead>{t(`${L}.columns.birthday`)}</TableHead>
             <TableHead className="max-md:hidden">{t(`${L}.columns.contact`)}</TableHead>
             {/* The menu takes 220 px: from xl only, so « Dernier rendez-vous » and the flags stay in view at 1024. */}
@@ -301,13 +301,15 @@ function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableP
                     <Link to={clientPath(row.id)} className="text-link underline-offset-2 hover:underline">
                       {row.firstName} {row.lastName}
                     </Link>
+                    {/* Below xl the number goes under the name: the table clips from lg (sticky header), so it must fit. */}
+                    <span className="block text-xs font-normal tabular text-muted-foreground xl:hidden">{clientNumberLabel(row.clientNumber)}</span>
                     {row.isArchived && (
                       <Badge variant="secondary" className="ml-2">
                         {t(`${L}.archived`)}
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="tabular whitespace-nowrap max-sm:hidden">{clientNumberLabel(row.clientNumber)}</TableCell>
+                  <TableCell className="tabular whitespace-nowrap max-xl:hidden">{clientNumberLabel(row.clientNumber)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     {row.birthday ? (
                       <>
