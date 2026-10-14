@@ -281,10 +281,10 @@ function BookingForm({
           <legend className="text-base font-semibold text-foreground">{t(`${P}.you`)}</legend>
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField label={t(`${P}.firstName`)} required error={errors.firstName}>
-              {(field) => <Input {...field} value={values.firstName} onChange={(e) => set('firstName')(e.target.value)} autoComplete="given-name" maxLength={100} />}
+              {(field) => <Input {...field} value={values.firstName} onChange={(e) => set('firstName')(e.target.value)} autoComplete="given-name" maxLength={99} />}
             </FormField>
             <FormField label={t(`${P}.lastName`)} required error={errors.lastName}>
-              {(field) => <Input {...field} value={values.lastName} onChange={(e) => set('lastName')(e.target.value)} autoComplete="family-name" maxLength={100} />}
+              {(field) => <Input {...field} value={values.lastName} onChange={(e) => set('lastName')(e.target.value)} autoComplete="family-name" maxLength={99} />}
             </FormField>
           </div>
           <FormField label={t(`${P}.email`)} required help={t(`${P}.emailHelp`)} error={errors.email}>

@@ -373,3 +373,22 @@ Migration `20261013045323_demandes_booking`; pgTAP `116_demandes_booking`; funct
   - `e2e/booking.spec.ts`: book, the email, cancel.
   - The local seed opens booking every day from 8 h to 20 h.
 
+## Security review (2026-10-14)
+
+Migration `20261014054618_demandes_security_fixes`; pgTAP `192_demandes_security_fixes` (and 116 updated); Deno `demandes-book-call/handler.test.ts`; decisions **D-50, D-51**.
+
+- **The booking page never tells whether an address already has a call** (D-50). A second booking with the same address answers like any booking: no request, no call, no refusal. The earlier call gets a fresh cancel link (the first one stops working). The function sends the usual confirmation to that address, with the call's own time, first name and language, never the text typed this time. The page shows the slot asked for (`requested_starts_at`), never the earlier call.
+- **A professional stops seeing the files she loses** (D-51). This happens when a participant is removed or the request's file changes on a matched request, and when the request leaves « Jumelée » (unmatched or closed). Demandes' `private.demandes_release_clients` keeps any file that another request still matched to her holds. For the others it calls Clients' `private.clients_unlink_professional_reason(org, client, professional, 'demande')`, which:
+  - removes only a link whose first reason is `demande`;
+  - never removes one while she has an appointment with the file (Rendez-vous' `private.appointments_professional_has_client`: held, booked, confirmed, completed, or cancelled late);
+  - also clears the file's primary professional when it is her (the match had set it).
+  Clients' older `clients_unlink_professional` stays unused.
+- **The anonymisation** (`private.demandes_anonymize_client`) now blanks more on the person's requests: the free text (concerns, comments, legal detail, « Autre motif », « Autres disponibilités »), the legal context, the insurer and the source (referrer, landing page, utm). It also deletes their internal note. On the waiting list, the priority and waiver reasons become « Anonymisé »: the checks keep a reason with the priority and the waiver. Journal rows written before this migration keep the values the audit did not redact then.
+- **Audit:** `demandes_audit` also redacts `availability_other`, `insurer`, `legal_context`, `issues`, `has_legal_context` and `has_issues`.
+- **The cancel link** does nothing while Demandes is off for the clinic.
+- **« Facturer l'inscription »** is refused (`module_reserved`) while Demandes is reserved for its testers (P3-40).
+- **The booking's names:** each name is 99 characters at most (the function's schema and the page's fields), in letters. A digit, `/ : @ < > …` or a period followed by a letter (a web address) is refused in French with hint `name`, so a name written in the confirmation can never be a link.
+- **An offer noted by hand** stores each slot rebuilt (`starts_at`, `ends_at` only).
+- **The « still waiting? » link** names a professional's list through `private.professional_display_facts`. It runs without a user, and the directory returned nothing that way.
+- **Deferred:** per-clinic and per-address booking caps, and Cloudflare Turnstile on top of the proof of work. D-7 already plans them if spam gets through. The duplicate's answer now sends an email as a booking does, so its timing matches a booking's.
+
