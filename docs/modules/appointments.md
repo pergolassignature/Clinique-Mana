@@ -227,7 +227,7 @@ Migration `20261013223925_appointments_history`; pgTAP `173_appointments_history
 
 ## Google busy times (batch R6, AP-40 … AP-45)
 
-Migration `20261014000122_appointments_google_busy`; pgTAP `177_appointments_google_busy`; functions `google-calendar-connect`, `google-calendar-callback`, `google-calendar-sync` (`_shared/google-calendar/`); decisions AP-40 … AP-45.
+Migration `20261014000122_appointments_google_busy`; pgTAP `177_appointments_google_busy`; functions `google-calendar-connect`, `google-calendar-callback`, `google-calendar-sync` (`_shared/google-calendar/`); decisions AP-40 … AP-46.
 
 - **Tables:**
   - `calendar_connections`: a professional's Google account (one per professional and clinic; one professional per Google account while connected). State `connected` / `needs_reconnect` / `disconnected`, a reconnect reason (`invalid_grant`, `unauthorized`, `scope_missing`), the account's `sub` and address (redacted in the journal). Staff (`appointments.view`) read every row, a professional (`.self`) hers.
@@ -241,13 +241,15 @@ Migration `20261014000122_appointments_google_busy`; pgTAP `177_appointments_goo
 - **Open slots:** `get_open_slots` skips a busy time (`create or replace`, same signature), so the booking forms, the proposals and the waiting list's offers never offer one. The booking RPCs do not refuse one (AP-43).
 - **Functions:**
   - `google-calendar-connect` (user, `appointments.self`): `start` → Google's consent URL (scopes `openid email calendar.freebusy`, offline, consent, signed state); `disconnect` revokes the grant, then deletes.
-  - `google-calendar-callback` (user, `appointments.self`): the state and its nonce, the code exchanged with Gmail's OAuth client, the free/busy scope required (else a French refusal and the grant revoked), a refresh token required, `userinfo`, the connection stored, a first sync.
+  - `google-calendar-callback` (user, `appointments.self`): the state and its nonce, the code exchanged with the clinic's Google application (`calendarOAuthApp`), the free/busy scope required (else a French refusal and the grant revoked), a refresh token required, `userinfo`, the connection stored, a first sync.
   - `google-calendar-sync`: the job `appointments.google_busy_sync` (every 15 minutes, off by default) and « Synchroniser » (`{ action: 'sync' }`).
   - Rate limits: `google_calendar.connect_user`, `google_calendar.callback_user` (20 an hour), `google_calendar.sync_user` (30 an hour); the nonce on `oauth.state_nonce`.
+  - The Google application (AP-46, `_shared/google-calendar/credentials.ts`): the org secrets `google_calendar_client_id` / `_secret` when both are set, else Gmail's `google_oauth_client_*`. After a change of application, Google's `unauthorized_client` on a refresh marks the connection « à reconnecter ».
   - Local fake: `npm run fake:gmail` (port 55392) answers `/oauth2/v3/userinfo` and `/calendar/v3/freeBusy` too (`GOOGLE_CALENDAR_BASE_URL`, honoured only while `APP_URL` is local); `POST /__fake/busy` sets the busy times.
 - **Notice:** `appointments.google_calendar_reconnect` (important, to the professional), expired at the reconnection.
 - **Screens:**
   - « Agenda Google » (`/mon-agenda/agenda-google`, nav entry for an account with a professional file): « Mes moments occupés » with « Connecter mon agenda Google », « Compte …, connecté le … », « Lu le … : N moments occupés dans les 62 prochains jours », « Synchroniser », « Reconnecter mon agenda Google », « Déconnecter » confirmed. The page is Google's return path.
+  - Paramètres → Agenda, « Agendas Google des professionnels » (`GoogleCalendarAppCard`): the application's client id and secret (write-only, `settings.integrations_manage`), the return address to give Google, the job's state.
   - The agenda (`TimeGrid`, `busy` prop; `useExternalBusy`, keys under `['appointments', 'calendar']`): « Occupé » under the appointments where a column has one professional (day view, a week of one professional, « Mon agenda »). Not drawn in a week of every professional, the month or « Prochains jours ».
 
 ## The GOrendezvous import (I2, I-15)

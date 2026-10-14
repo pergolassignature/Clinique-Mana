@@ -122,6 +122,10 @@ export async function refreshAccessToken(
     if (error.success && error.data.error === 'invalid_grant') {
       throw new CalendarReconnect('invalid_grant')
     }
+    // The refresh token was issued to another application (the clinic changed it, AP-46).
+    if (error.success && error.data.error === 'unauthorized_client') {
+      throw new CalendarReconnect('unauthorized')
+    }
   }
   if (status === 429) throw new CalendarError('rate_limited', status)
   throw new CalendarError('provider_error', status)

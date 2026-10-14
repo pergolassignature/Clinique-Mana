@@ -34,11 +34,8 @@ import {
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
 import { GmailError } from '../_shared/gmail/client.ts'
-import {
-  exchangeCode,
-  oauthApp,
-  revokeToken,
-} from '../_shared/gmail/credentials.ts'
+import { exchangeCode, revokeToken } from '../_shared/gmail/credentials.ts'
+import { calendarOAuthApp } from '../_shared/google-calendar/credentials.ts'
 import {
   CalendarError,
   CalendarReconnect,
@@ -126,7 +123,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     let app
     try {
-      app = await oauthApp(service, orgId)
+      app = await calendarOAuthApp(service, orgId)
     } catch {
       await report('oauth_app_unavailable')
       return errorResponse('internal', 'Request failed', 500, req)
