@@ -18,6 +18,12 @@ export const servicesManifest: ModuleManifest = {
   labelKey: 'modules.services.name',
   dependsOn: ['professionals'],
   routes: [],
+  // L26: « Services offerts » on a professional's record (read-only; Services' published reads).
+  slots: {
+    'professional.services': [
+      { id: 'services.offered', permissions: ['services.view'], component: lazyPage(() => import('./pages/ProfessionalServicesPanel'), 'ProfessionalServicesPanel') },
+    ],
+  },
   // The Journal d'audit's names and values for the module's tables: loaded with the journal.
   audit: () => import('./lib/audit-labels').then((m) => m.servicesAuditLabels),
   settingsSections: [

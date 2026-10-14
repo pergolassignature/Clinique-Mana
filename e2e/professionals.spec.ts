@@ -191,3 +191,14 @@ test('the conseillère cannot add, edits motifs, and reads Identité et permis o
   await expect(panel.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Activer' })).toHaveCount(0)
 })
+
+test('L26: « Services offerts » on the record: the services her title allows, with her price today', async ({ page, signIn }) => {
+  await signIn('admin')
+  // Geneviève Tremblay (seed 01), psychologue: the 50 min session at the psychologists' grid price.
+  await page.goto('/professionnels/5eed0000-0000-0000-0000-000000000001/jumelage')
+  const card = page.getByRole('region', { name: 'Services offerts' })
+  await expect(card).toBeVisible()
+  const session = card.getByRole('row').filter({ hasText: '10150' })
+  await expect(session).toContainText('$')
+  await expect(session).toContainText('min')
+})
