@@ -38,7 +38,8 @@ interface TopbarProps {
 /** A breadcrumb step before the last one: a guarded link, then the separator. */
 function CrumbLink({ page }: { page: ShellPage }) {
   return (
-    <li className="flex shrink-0 items-center gap-2">
+    // On a phone only the page's own title shows (the menu leads back): it is not cut to « Coordon… ».
+    <li className="flex shrink-0 items-center gap-2 max-sm:hidden">
       <GuardedNavLink
         to={page.path}
         end

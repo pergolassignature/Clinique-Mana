@@ -51,15 +51,51 @@ function useOverflowing(wrapper: React.RefObject<HTMLDivElement | null>, enabled
   return overflowing
 }
 
+/**
+ * Which sides of a scrolling wrapper hide columns (the browser's scrollbar is hidden on most
+ * screens, so a cut table looked finished): the wrapper fades on those sides.
+ */
+function useHiddenSides(wrapper: React.RefObject<HTMLDivElement | null>, enabled: boolean) {
+  const [sides, setSides] = React.useState({ before: false, after: false })
+  React.useLayoutEffect(() => {
+    const element = wrapper.current
+    if (!enabled || !element) return
+    const update = () => {
+      const before = element.scrollLeft > 1
+      const after = element.scrollLeft + element.clientWidth < element.scrollWidth - 1
+      setSides((s) => (s.before === before && s.after === after ? s : { before, after }))
+    }
+    update()
+    element.addEventListener('scroll', update, { passive: true })
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null
+    observer?.observe(element)
+    if (element.firstElementChild) observer?.observe(element.firstElementChild)
+    return () => {
+      element.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [wrapper, enabled])
+  return sides
+}
+
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, scrollLabel, scrollFocus = 'always', stickyHeader = false, ...props }, ref) => {
     const wrapper = React.useRef<HTMLDivElement>(null)
     const overflowing = useOverflowing(wrapper, Boolean(scrollLabel) && scrollFocus === 'overflow')
     const focusable = Boolean(scrollLabel) && (scrollFocus === 'always' || overflowing)
+    // A sticky-header table clips instead of scrolling from lg: no fade there.
+    const hidden = useHiddenSides(wrapper, !stickyHeader)
     return (
       <div
         ref={wrapper}
-        className={cn('relative w-full overflow-x-auto rounded-lg', stickyHeader && 'lg:overflow-x-clip', focusRing)}
+        className={cn(
+          'relative w-full overflow-x-auto rounded-lg',
+          stickyHeader && 'lg:overflow-x-clip',
+          hidden.after && !hidden.before && '[mask-image:linear-gradient(to_right,black_calc(100%_-_3rem),transparent)]',
+          hidden.before && !hidden.after && '[mask-image:linear-gradient(to_left,black_calc(100%_-_3rem),transparent)]',
+          hidden.before && hidden.after && '[mask-image:linear-gradient(to_right,transparent,black_3rem,black_calc(100%_-_3rem),transparent)]',
+          focusRing,
+        )}
         {...(focusable ? { role: 'region', 'aria-label': scrollLabel, tabIndex: 0 } : {})}
       >
         <StickyHeaderContext.Provider value={stickyHeader}>

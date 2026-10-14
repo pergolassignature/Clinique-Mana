@@ -230,15 +230,20 @@ export class StripeApi {
     return customer.id
   }
 
-  /** A Checkout session: `setup` (save a card) or `payment` (one amount). Returns its URL. */
+  /**
+   * A Checkout session: `setup` (save a card) or `payment` (one amount). Returns its URL. With an
+   * idempotency key, the same key and parameters give back the same session.
+   */
   async createCheckoutSession(
     params: Params,
+    idempotencyKey?: string,
   ): Promise<{ id: string; url: string | null }> {
     const session = await this.call(
       'POST',
       '/v1/checkout/sessions',
       sessionSchema,
       params,
+      idempotencyKey,
     )
     return { id: session.id, url: session.url ?? null }
   }

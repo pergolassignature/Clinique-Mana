@@ -187,7 +187,7 @@ function TextsCard({ settings, readOnly }: { settings: SmsSettings } & CardProps
       footer={<FormActions onCancel={cancel} onReset={() => form.setFocus('consentText')} dirty={isDirty} pending={save.isPending} />}
     >
       <FormField label={t(`${S}.texts.consentText`)} required help={t(`${S}.texts.consentHelp`)} error={errors.consentText?.message}>
-        {(field) => <Textarea {...field} {...form.register('consentText')} rows={4} maxLength={480} />}
+        {(field) => <Textarea {...field} {...form.register('consentText')} rows={6} maxLength={480} />}
       </FormField>
       <FormField label={t(`${S}.texts.optOutReply`)} required help={t(`${S}.texts.optOutHelp`)} error={errors.optOutReply?.message}>
         {(field) => <Textarea {...field} {...form.register('optOutReply')} rows={3} maxLength={480} />}
