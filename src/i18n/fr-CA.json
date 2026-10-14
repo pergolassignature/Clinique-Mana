@@ -152,6 +152,12 @@
       "minutesOther": "Please try again in about {count} minutes.",
       "hourOne": "Please try again in about 1 hour.",
       "hoursOther": "Please try again in about {count} hours."
+    },
+    "exportCsv": {
+      "label": "Exporter (CSV)",
+      "preparing": "Préparation du fichier…",
+      "truncated": "Le fichier contient les 5 000 premières lignes : précisez les filtres pour le reste.",
+      "failed": "Le fichier n’a pas pu être préparé. Réessayez."
     }
   },
   "auth": {
@@ -6156,7 +6162,23 @@
           "taxExempt": "Sans taxes"
         },
         "loadMore": "Afficher plus de clients",
-        "loadingMore": "Chargement…"
+        "loadingMore": "Chargement…",
+        "csv": {
+          "fileName": "clients-{date}.csv",
+          "number": "N° de dossier",
+          "lastName": "Nom",
+          "firstName": "Prénom",
+          "birthday": "Date de naissance",
+          "email": "Courriel",
+          "mobile": "Cellulaire",
+          "professional": "Professionnel principal",
+          "lastVisit": "Dernier rendez-vous",
+          "flags": "Indications",
+          "tags": "Étiquettes",
+          "state": "État",
+          "active": "Actif",
+          "archived": "Archivé"
+        }
       },
       "create": {
         "add": "Nouveau client",
@@ -8602,7 +8624,24 @@
           },
           "pendingOffer": "Offre en attente de réponse",
           "openFor": "Ouvrir l'inscription de {person}",
-          "open": "Ouvrir"
+          "open": "Ouvrir",
+          "csv": {
+            "fileName": "liste-attente-{date}.csv",
+            "rank": "Rang",
+            "reference": "Référence",
+            "person": "Personne",
+            "fileNumber": "N° de dossier",
+            "list": "Liste",
+            "priority": "Priorité",
+            "registered": "Inscrite le",
+            "waitedDays": "Jours d’attente",
+            "state": "État",
+            "exitReason": "Raison de la sortie",
+            "consent": "Consentement",
+            "fee": "Frais d’inscription",
+            "lastContact": "Dernier contact",
+            "nextContact": "Prochain contact"
+          }
         },
         "card": {
           "title": "Liste d'attente",
@@ -9569,7 +9608,9 @@
           "appointment": "Rendez-vous",
           "notes": "Notes",
           "cancel": "Annulation",
-          "history": "Historique"
+          "messages": "Messages",
+          "history": "Historique",
+          "billing": "Facturation"
         },
         "presence": "Présence",
         "presenceOf": "Présence de {name}",
@@ -9654,6 +9695,45 @@
           "arrow": " → ",
           "loadMore": "Charger plus",
           "loadingMore": "Chargement…"
+        },
+        "messages": {
+          "label": "Messages envoyés aux clients",
+          "loadError": "Les messages du rendez-vous ne se chargent pas.",
+          "empty": "Aucun message pour ce rendez-vous.",
+          "emptyBody": "Les confirmations, rappels, modifications et annulations envoyés aux clients s'affichent ici.",
+          "resend": "Renvoyer la notification",
+          "resendHelp": "Renvoie la confirmation du rendez-vous au client (texto tout de suite, courriel avec la prochaine tâche des messages).",
+          "resendCancelled": "Renvoie l'avis d'annulation au client.",
+          "resent": "Notification renvoyée ({count} message(s)).",
+          "nobody": "Aucun message envoyé : personne ne peut être joint (pas de courriel ni de cellulaire avec rappels).",
+          "queuedAt": "Créé le {when}",
+          "kind": {
+            "confirmation": "Confirmation",
+            "reminder": "Rappel",
+            "changed": "Modification",
+            "cancelled": "Annulation"
+          },
+          "channel": {
+            "email": "Courriel",
+            "sms": "Texto"
+          },
+          "status": {
+            "pending": "En attente d'envoi",
+            "sent": "Envoyé",
+            "sentAt": "Envoyé le {when}",
+            "failed": "Échec après {attempts} essai(s)",
+            "skipped": "Non envoyé : {reason}"
+          },
+          "skip": {
+            "no_consent": "pas de consentement aux textos",
+            "sms_off": "textos non activés",
+            "cancelled": "rendez-vous annulé",
+            "past": "rendez-vous passé",
+            "superseded": "remplacé par un message plus récent",
+            "unreachable": "aucun moyen de joindre la personne",
+            "reserved": "module réservé aux testeurs",
+            "other": "raison inconnue"
+          }
         }
       },
       "availability": {
@@ -10534,7 +10614,26 @@
         "status": "État",
         "draft": "Brouillon",
         "more": "Afficher plus",
-        "payment": "Paiement"
+        "payment": "Paiement",
+        "csv": {
+          "fileName": "factures-{view}-{date}.csv",
+          "views": {
+            "brouillons": "brouillons",
+            "emises": "emises",
+            "creditees": "creditees",
+            "toutes": "toutes"
+          },
+          "number": "Numéro",
+          "issuedOn": "Émise le",
+          "fileNumber": "N° de dossier",
+          "client": "Client",
+          "payer": "Facturé à",
+          "total": "Total",
+          "paid": "Payé",
+          "balance": "Solde",
+          "status": "État",
+          "payment": "Paiement"
+        }
       },
       "invoice": {
         "title": "Facture {number}",
@@ -11718,6 +11817,27 @@
           "interac": "virements Interac à rapprocher",
           "payers": "payeurs tiers à facturer"
         }
+      },
+      "appointment": {
+        "title": "Facturation du rendez-vous",
+        "loadError": "La facturation de ce rendez-vous ne se charge pas.",
+        "none": "Ce rendez-vous ne se facture pas.",
+        "invoice": "Facture {number}",
+        "draft": "Facture en brouillon",
+        "balance": "Solde : {amount}",
+        "notInvoiced": "Pas encore facturé.",
+        "price": "Prix prévu : {total}.",
+        "priceTaxed": "Prix prévu : {total}, dont {taxes} de taxes.",
+        "variant": "Le tarif particulier du client est appliqué.",
+        "priceMissing": "Le prix de ce service n’est pas fixé pour ce professionnel à cette date : à confirmer dans Services et tarifs, ou à entrer sur la facture.",
+        "fileOpening": "S’y ajoutent les frais d’ouverture de dossier : {total} (première facture du client).",
+        "fileOpeningMissing": "S’y ajoutent les frais d’ouverture de dossier (première facture du client), dont le prix est à confirmer.",
+        "create": "Créer la facture",
+        "creating": "Création…",
+        "notInvoiceable": "Ce rendez-vous n’est pas à facturer : il est annulé ou en attente d’acceptation.",
+        "feeAmount": "Montant : {amount}.",
+        "feeAmountPercent": "Montant : {amount} ({percent} % de la séance).",
+        "credited": "Créditée : {numbers}."
       }
     },
     "reports": {

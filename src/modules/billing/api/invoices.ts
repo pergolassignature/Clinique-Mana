@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
+import { collectPages } from '@/shared/lib/csv'
 import type { Database } from '@/core/supabase/database.types'
 
 /**
@@ -282,13 +283,18 @@ export type InvoiceRow = z.output<typeof listRow>
 
 export const INVOICES_PAGE = 50
 
-export async function fetchInvoices(status: InvoiceStatus | null, before: string | null): Promise<InvoiceRow[]> {
+export async function fetchInvoices(status: InvoiceStatus | null, before: string | null, limit: number = INVOICES_PAGE): Promise<InvoiceRow[]> {
   const { data, error } = await supabase.rpc(
     'list_invoices',
-    sqlArgs<'list_invoices'>({ p_status: status, p_client_id: null, p_before: before, p_limit: INVOICES_PAGE }),
+    sqlArgs<'list_invoices'>({ p_status: status, p_client_id: null, p_before: before, p_limit: limit }),
   )
   if (error) throw error
   return parse(z.array(listRow), data)
+}
+
+/** Every invoice of a tab, for its export (L7): 200 a page, newest first, 5 000 at most. */
+export function fetchAllInvoices(status: InvoiceStatus | null): Promise<{ rows: InvoiceRow[]; truncated: boolean }> {
+  return collectPages((before: string | null) => fetchInvoices(status, before, 200), 200, (page) => page.at(-1)?.createdAt ?? null)
 }
 
 export async function fetchInvoice(id: string): Promise<InvoiceBundle | null> {
@@ -518,4 +524,57 @@ export async function fetchSequence(year: number): Promise<number> {
 export async function setSequence(year: number, lastNumber: number): Promise<void> {
   const { error } = await supabase.rpc('set_invoice_sequence', { p_year: year, p_last_number: lastNumber })
   if (error) throw error
+}
+
+// --- An appointment's billing (L10: the « Facturation » tab of Rendez-vous' sheet) -------------------
+
+const appointmentBillingSchema = z.object({
+  appointment_id: z.string(),
+  state: z.string(),
+  invoiceable: z.boolean(),
+  lines: z.array(
+    z.object({
+      line_id: z.string(),
+      line_type: z.enum(LINE_TYPES),
+      credited: z.boolean(),
+      line_total_cents: z.number().int(),
+      invoice_id: z.string(),
+      number: z.string().nullable(),
+      status: z.enum(INVOICE_STATUSES),
+      payment_status: z.enum(PAYMENT_STATUSES),
+      invoice_total_cents: z.number().int(),
+      paid_cents: z.number().int(),
+      client_id: z.string(),
+      client_name: z.string().nullable(),
+    }),
+  ),
+  preview: z
+    .object({
+      client_id: z.string(),
+      missing: z.boolean(),
+      variant_applied: z.boolean(),
+      subtotal_cents: z.number().int().nullable(),
+      tax_cents: z.number().int().nullable(),
+      total_cents: z.number().int().nullable(),
+      file_opening: z.object({ missing: z.boolean(), total_cents: z.number().int().nullable() }).nullable(),
+    })
+    .nullable(),
+  fee: z
+    .object({
+      kind: z.enum(['late_cancellation', 'no_show']),
+      status: z.enum(['pending', 'applied', 'waived']),
+      fee_percent: z.number().nullable(),
+      amount_cents: z.number().int().nullable(),
+      invoice_id: z.string().nullable(),
+      invoice_number: z.string().nullable(),
+    })
+    .nullable(),
+})
+export type AppointmentBilling = z.infer<typeof appointmentBillingSchema>
+
+/** An appointment's invoice lines, the price it would be invoiced at and its cancellation fee; null when not the clinic's or personal. */
+export async function fetchAppointmentBilling(appointmentId: string): Promise<AppointmentBilling | null> {
+  const { data, error } = await supabase.rpc('get_appointment_billing', { p_appointment_id: appointmentId })
+  if (error) throw error
+  return data === null ? null : parse(appointmentBillingSchema, data)
 }

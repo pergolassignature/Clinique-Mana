@@ -24,3 +24,12 @@ export const SEED_ORG = '00000000-0000-0000-0000-000000000001'
 export function forgetDisconnectedMailboxes(): void {
   localSql(`delete from public.mail_connections where org_id = '${SEED_ORG}' and status = 'disconnected';`)
 }
+
+/**
+ * Forgets every account's remembered filters of a list (`user_preferences`, e.g.
+ * `clients.list_filters`): a spec that changes a list's filters leaves nothing for the next one.
+ */
+export function forgetRememberedFilters(key: string): void {
+  if (!/^[a-z0-9_.:-]{1,100}$/.test(key)) throw new Error('bad preference key')
+  localSql(`delete from public.user_preferences where key = '${key}';`)
+}
