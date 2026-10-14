@@ -53,7 +53,7 @@
 //   a client whose name several ClientIds hold (homonyms.mjs) stops the run before the database
 //   (fail closed): its ClientId goes in --clients-map (invoices) or the export's ClientId column.
 //   A payer named after homonyms is left out. The admin closes the imports after the cutover
-//   (`set_imports_open(false)`: every import RPC then refuses).
+//   (Paramètres → Modules, « Importation GOrendezvous »: every import RPC then refuses).
 // - A database error other than a refusal (P0001) prints its code only, never its message.
 import { closeSync, fsyncSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'

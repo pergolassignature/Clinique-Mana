@@ -4,6 +4,7 @@ import { useAccess } from '@/core/access/access-context'
 import { useModules, useSetModuleEnabled } from '@/core/modules/hooks'
 import { useModuleTesters } from '@/core/modules/testers-hooks'
 import { useOrgUsers } from '@/core/users/hooks'
+import { ImportsSwitchCard } from '../components/ImportsSwitchCard'
 import { ModuleTestersControls } from '../components/ModuleTestersControls'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -19,6 +20,7 @@ import { Switch } from '@/shared/ui/switch'
  * Under each switch, « Réservé aux testeurs » and the testers (R-72); the testers' names need
  * users.view (an admin has it), else only the count is known. A requirement still off reads
  * « (désactivé) », and a module that is off shows its testers muted, with what to do.
+ * Below the modules, « Importation GOrendezvous » (the imports switch, I-22).
  */
 export function ModulesSettingsPage() {
   const {
@@ -127,6 +129,7 @@ export function ModulesSettingsPage() {
           </ul>
         </>
       )}
+      <ImportsSwitchCard />
     </div>
   )
 }

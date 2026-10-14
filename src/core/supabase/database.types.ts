@@ -15302,6 +15302,15 @@ export type Database = {
         Args: { p_org_id: string; p_template_key: string }
         Returns: Json
       }
+      get_imports_status: {
+        Args: never
+        Returns: {
+          changed_at: string
+          changed_by_name: string
+          imports_closed_at: string
+          imports_open: boolean
+        }[]
+      }
       get_invoice: { Args: { p_invoice_id: string }; Returns: Json }
       get_mail_compose_context: { Args: { p_client_id: string }; Returns: Json }
       get_mail_connection_credentials: {

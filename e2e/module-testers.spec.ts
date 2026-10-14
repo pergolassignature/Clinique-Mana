@@ -74,3 +74,35 @@ test('the admin reserves Facturation for the adjointe, then opens it again', asy
   await page.goto('/accueil')
   await expect(page.getByRole('link', { name: 'Facturation' }).first()).toBeVisible()
 })
+
+/**
+ * « Importation GOrendezvous » (I-22): the admin closes the imports, sees who closed them, then
+ * reopens them. The reopening runs in `finally`, so a failed step never leaves the imports closed.
+ */
+test('the admin closes the GOrendezvous imports, then reopens them', async ({ page, signIn }) => {
+  await signIn('admin')
+  const card = page.getByRole('region', { name: 'Importation GOrendezvous' })
+  try {
+    await page.goto('/parametres/modules')
+    await expect(card.getByText('Importations ouvertes')).toBeVisible()
+    await card.getByRole('button', { name: 'Fermer les importations' }).click()
+    const confirm = page.getByRole('alertdialog', { name: 'Fermer les importations ?' })
+    await expect(confirm.getByText(/après la bascule/)).toBeVisible()
+    await confirm.getByRole('button', { name: 'Fermer les importations' }).click()
+    await expect(page.getByText('Importations fermées.')).toBeVisible()
+    await expect(card.getByText('Importations fermées', { exact: true })).toBeVisible()
+    await expect(card.getByText(/^Modifié le .+ par /)).toBeVisible()
+  } finally {
+    await page.goto('/parametres/modules')
+    // Either action shows once the state is loaded; reopen only when closed.
+    await expect(card.getByRole('button', { name: /les importations$/ })).toBeVisible()
+    const reopen = card.getByRole('button', { name: 'Rouvrir les importations' })
+    if (await reopen.isVisible()) {
+      await reopen.click()
+      await page.getByRole('alertdialog', { name: 'Rouvrir les importations ?' }).getByRole('button', { name: 'Rouvrir les importations' }).click()
+      await expect(page.getByText('Importations rouvertes.')).toBeVisible()
+    }
+  }
+  await expect(card.getByText('Importations ouvertes')).toBeVisible()
+  await expect(card.getByText(/^Dernière fermeture le /)).toBeVisible()
+})
