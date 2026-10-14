@@ -4,13 +4,17 @@ import { verifyState } from '../_shared/oauth-state.ts'
 import { withEnv } from '../_shared/testing/env.ts'
 import {
   ADMIN_ID,
+  CALENDAR_APP_SECRETS,
   calendarHarness,
   connected,
   FREEBUSY,
   ORG_ID,
   SECRET,
 } from '../_shared/testing/google-calendar-fixtures.ts'
-import { FAKE_CLIENT_ID } from '../_shared/testing/fake-gmail.ts'
+import {
+  FAKE_CALENDAR_CLIENT_ID,
+  FAKE_CLIENT_ID,
+} from '../_shared/testing/fake-gmail.ts'
 
 const URL_ = 'http://fn.test/functions/v1/google-calendar-connect'
 const post = (body: unknown) =>
@@ -143,4 +147,53 @@ Deno.test('google-calendar-connect: a refused RPC (not a professional) is passed
     assertEquals(res.status, 400)
     const body = await res.json()
     assertEquals(body.error.refusal, true)
+  }))
+
+Deno.test('google-calendar-connect: the calendars’ own Google application when both of its secrets are set (AP-46)', () =>
+  run(async () => {
+    const h = calendarHarness({
+      state: {
+        secrets: {
+          google_oauth_client_id: FAKE_CLIENT_ID,
+          google_oauth_client_secret: 'local-dev-google-client-secret',
+          ...CALENDAR_APP_SECRETS,
+        },
+      },
+    })
+    const res = await createHandler(h.deps)(post({ action: 'start' }))
+    const consent = new URL((await res.json()).url)
+    assertEquals(
+      consent.searchParams.get('client_id'),
+      FAKE_CALENDAR_CLIENT_ID,
+    )
+  }))
+
+Deno.test('google-calendar-connect: half of the calendars’ application set → Gmail’s is used', () =>
+  run(async () => {
+    const h = calendarHarness({
+      state: {
+        secrets: {
+          google_oauth_client_id: FAKE_CLIENT_ID,
+          google_oauth_client_secret: 'local-dev-google-client-secret',
+          google_calendar_client_id: FAKE_CALENDAR_CLIENT_ID,
+        },
+      },
+    })
+    const res = await createHandler(h.deps)(post({ action: 'start' }))
+    const consent = new URL((await res.json()).url)
+    assertEquals(consent.searchParams.get('client_id'), FAKE_CLIENT_ID)
+  }))
+
+Deno.test('google-calendar-connect: only the calendars’ application set (no Gmail) → it is used', () =>
+  run(async () => {
+    const h = calendarHarness({
+      state: { secrets: { ...CALENDAR_APP_SECRETS } },
+    })
+    const res = await createHandler(h.deps)(post({ action: 'start' }))
+    assertEquals(res.status, 200)
+    const consent = new URL((await res.json()).url)
+    assertEquals(
+      consent.searchParams.get('client_id'),
+      FAKE_CALENDAR_CLIENT_ID,
+    )
   }))

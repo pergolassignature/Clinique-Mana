@@ -5,11 +5,12 @@
 -- `skipped`; an overlap `conflict`; clients not found or homonyms `unmatched`; refusals in French
 -- with their field; a coming appointment with its pause and its GOrendezvous link kept (no Zoom
 -- task over it; one without a link gets its meeting), no confirmation, but a later cancellation
--- told; Facturation's three publications leave the imported history out (a coming one stays).
+-- told, and its reminder from the messages job; Facturation's three publications leave the
+-- imported history out (a coming one stays).
 -- The deferred messages trigger fires at commit; `set constraints all immediate` fires it here.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(33);
 
 select function_privs_are('public', 'import_appointment', array['jsonb', 'boolean'], 'authenticated', array['EXECUTE'], 'import_appointment: authenticated');
 select function_privs_are('public', 'import_appointment', array['jsonb', 'boolean'], 'anon', array[]::text[], 'import_appointment: never anon');
@@ -182,6 +183,27 @@ select is((select count(*)::int from private.client_billable_appointments('b0000
 update public.appointments set cancel_late = true where id = (current_setting('test.r3')::jsonb ->> 'id')::uuid;
 select is((select count(*)::int from private.appointments_fee_candidates('b0000000-0000-0000-0000-00000000000a', now() - interval '30 days', now())), 0,
   'cancellation fees: never an imported late cancellation');
+
+-- Reminders: an imported coming appointment gets its reminder from the messages job, as any other
+-- (no confirmation went out, so nothing holds it back). Every day a business day, from midnight to
+-- 23:59, so the job's pass runs now; the appointment is tomorrow at noon.
+insert into public.appointment_settings (org_id, business_days, business_start, business_end, reminder_business_days, reminder_local_hour)
+values ('b0000000-0000-0000-0000-00000000000a', '{1,2,3,4,5,6,7}', '00:00', '23:59', 1, 0)
+on conflict (org_id) do update set business_days = excluded.business_days, business_start = excluded.business_start,
+  business_end = excluded.business_end, reminder_business_days = 1, reminder_local_hour = 0;
+select set_config('test.t1', (((now() at time zone 'America/Toronto')::date + 1 + time '12:00') at time zone 'America/Toronto')::text, true);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select set_config('test.a7', (public.import_appointment(current_setting('test.row')::jsonb || jsonb_build_object('external_ref', 'gorendezvous:appt:7',
+  'starts_at', current_setting('test.t1')), false) ->> 'id'), true);
+reset role;
+set constraints all immediate;
+set constraints all deferred;
+select is((select count(*)::int from public.appointment_messages where appointment_id = current_setting('test.a7')::uuid), 0,
+  'tomorrow''s imported appointment: no confirmation at import');
+select private.appointments_queue_reminders('b0000000-0000-0000-0000-00000000000a');
+select results_eq($$ select kind, channel, status from public.appointment_messages where appointment_id = current_setting('test.a7')::uuid $$,
+  $$ values ('reminder'::text, 'email'::text, 'pending'::text) $$, '… but the messages job gives it its reminder, as any appointment');
 
 -- A cancellation made here afterwards is told (only the import's insert is silent).
 update public.appointments

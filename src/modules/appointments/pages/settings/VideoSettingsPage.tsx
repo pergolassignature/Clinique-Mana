@@ -2,10 +2,8 @@ import { useMemo, useState } from 'react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { ScheduledJobState } from '@/core/jobs/components/ScheduledJobState'
-import { SecretField } from '@/core/settings/components/SecretField'
 import { WebhookAddressField } from '@/core/settings/components/WebhookAddressField'
 import { useSettingsSection } from '@/core/settings/section-context'
-import { useOrgSecretKeys } from '@/core/settings/secrets/hooks'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
@@ -14,6 +12,7 @@ import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
 import { Button } from '@/shared/ui/button'
 import { StatusDot } from '@/shared/ui/status-dot'
 import type { ProfessionalName, VideoSetup } from '../../api/video'
+import { OrgSecretField } from '../../components/settings/OrgSecretField'
 import { FixedLinkForm } from '../../components/video/FixedLinkForm'
 import { useProfessionalNames, useProfessionalVideoStatus } from '../../hooks/use-video'
 import { videoReadiness, videoReadinessLabel, zoomDetail, zoomWebhookUrl, ZOOM_RETURN_PATH, type VideoReadiness } from '../../lib/video'
@@ -178,34 +177,14 @@ function ProfessionalsCard({ readOnly }: { readOnly: boolean }) {
   )
 }
 
-/** A write-only org secret of the Zoom app (« Configurée le … », never the value). */
-function OrgSecret({ secretKey, label, help, readOnly }: { secretKey: string; label: string; help: string; readOnly: boolean }) {
-  const { can } = useAccess()
-  const secrets = useOrgSecretKeys()
-  if (!can('settings.view')) {
-    return (
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{t(`${S}.app.secretsUnknown`)}</p>
-      </div>
-    )
-  }
-  if (secrets.isPending) return <Loading />
-  if (secrets.isError && !secrets.data) {
-    return <LoadError message={t(`${S}.app.secretsLoadError`)} retrying={secrets.isFetching} onRetry={() => void secrets.refetch()} />
-  }
-  const configuredAt = secrets.data.find((secret) => secret.key === secretKey)?.updated_at ?? null
-  return <SecretField secretKey={secretKey} label={label} help={help} configuredAt={configuredAt} readOnly={readOnly} />
-}
-
 /** « Application Zoom »: its client id and secret, its secret token, and the two addresses to give Zoom. */
 function ZoomAppCard({ readOnly }: { readOnly: boolean }) {
   const { org_id: orgId } = useReadyAccess()
   return (
     <SettingsCard as="section" layout="section" title={t(`${S}.app.title`)} description={t(`${S}.app.description`)}>
-      <OrgSecret secretKey="zoom_client_id" label={t(`${S}.app.clientId`)} help={t(`${S}.app.clientIdHelp`)} readOnly={readOnly} />
-      <OrgSecret secretKey="zoom_client_secret" label={t(`${S}.app.clientSecret`)} help={t(`${S}.app.clientSecretHelp`)} readOnly={readOnly} />
-      <OrgSecret secretKey="zoom_webhook_secret" label={t(`${S}.app.webhookSecret`)} help={t(`${S}.app.webhookSecretHelp`)} readOnly={readOnly} />
+      <OrgSecretField secretKey="zoom_client_id" label={t(`${S}.app.clientId`)} help={t(`${S}.app.clientIdHelp`)} readOnly={readOnly} />
+      <OrgSecretField secretKey="zoom_client_secret" label={t(`${S}.app.clientSecret`)} help={t(`${S}.app.clientSecretHelp`)} readOnly={readOnly} />
+      <OrgSecretField secretKey="zoom_webhook_secret" label={t(`${S}.app.webhookSecret`)} help={t(`${S}.app.webhookSecretHelp`)} readOnly={readOnly} />
       <WebhookAddressField url={`${window.location.origin}${ZOOM_RETURN_PATH}`} label={t(`${S}.app.redirect`)} help={t(`${S}.app.redirectHelp`)} />
       <WebhookAddressField url={zoomWebhookUrl(orgId)} label={t(`${S}.app.webhook`)} help={t(`${S}.app.webhookHelp`)} />
       {readOnly && <p className="text-xs text-muted-foreground">{t(`${S}.app.readOnly`)}</p>}

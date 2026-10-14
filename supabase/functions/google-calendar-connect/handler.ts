@@ -5,7 +5,8 @@
  * re-check that she is a professional of the clinic).
  *
  * `{ action: 'start' }` → `{ url }`: Google's consent page for the clinic's
- * Google application (Gmail's org secrets; none → 503 `not_configured`), the
+ * Google application (the calendars' own, else Gmail's: `calendarOAuthApp`, AP-46; none → 503
+ * `not_configured`), the
  * scopes `openid email calendar.freebusy` (AP-41), offline access with the
  * consent screen (so a refresh token comes back), the fixed redirect URI
  * (`APP_URL` + `/mon-agenda/agenda-google`) and a **signed state**
@@ -31,7 +32,8 @@ import {
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
-import { oauthApp, revokeToken } from '../_shared/gmail/credentials.ts'
+import { revokeToken } from '../_shared/gmail/credentials.ts'
+import { calendarOAuthApp } from '../_shared/google-calendar/credentials.ts'
 import {
   CALENDAR_SCOPES,
   calendarOrigins,
@@ -93,7 +95,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const origins = calendarOrigins(deps.env)
     let app
     try {
-      app = await oauthApp(service, orgId)
+      app = await calendarOAuthApp(service, orgId)
     } catch {
       await report('oauth_app_unavailable')
       return errorResponse('internal', 'Request failed', 500, req)

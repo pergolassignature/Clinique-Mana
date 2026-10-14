@@ -2,9 +2,11 @@ import { assert, assertEquals } from '@std/assert'
 import { createHandler } from './handler.ts'
 import { signState } from '../_shared/oauth-state.ts'
 import { captureConsole, withEnv } from '../_shared/testing/env.ts'
+import { FAKE_CALENDAR_CLIENT_ID } from '../_shared/testing/fake-gmail.ts'
 import {
   ACCOUNT,
   ADMIN_ID,
+  CALENDAR_APP_SECRETS,
   calendarHarness,
   FREEBUSY,
   ORG_ID,
@@ -227,4 +229,27 @@ Deno.test('google-calendar-callback: nothing it reports carries a token or an ad
     assert(!all.includes('ya29.'))
     assert(!all.includes(ACCOUNT))
     assertEquals(h.state.connection, null)
+  }))
+
+Deno.test('google-calendar-callback: the code is exchanged with the calendars’ own application when it is set (AP-46)', () =>
+  run(async () => {
+    const h = calendarHarness({
+      state: {
+        secrets: {
+          google_oauth_client_id: 'gmail-client',
+          google_oauth_client_secret: 'gmail-secret',
+          ...CALENDAR_APP_SECRETS,
+        },
+      },
+    })
+    const code = h.google.issueCode(SCOPES, FAKE_CALENDAR_CLIENT_ID)
+    const res = await createHandler(h.deps)(
+      post({ code, state: await signed(h) }),
+    )
+    assertEquals(res.status, 200)
+    const refresh = h.state.connection!.refresh
+    assertEquals(
+      h.google.grants.get(refresh)?.clientId,
+      FAKE_CALENDAR_CLIENT_ID,
+    )
   }))
