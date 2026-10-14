@@ -2,6 +2,7 @@ import { assert, assertEquals } from '@std/assert'
 import { createHandler, syncOrg } from './handler.ts'
 import { withEnv } from '../_shared/testing/env.ts'
 import {
+  CALENDAR_APP_SECRETS,
   calendarHarness,
   connected,
   CONNECTION_ID,
@@ -187,3 +188,22 @@ Deno.test('google-calendar-sync: the job counts outcomes by kind (codes only)', 
     'synced=2',
   )
 })
+
+Deno.test('google-calendar-sync: after the clinic changes application, a connection made with Gmail’s asks to be reconnected (AP-46)', () =>
+  run(async () => {
+    const h = calendarHarness({
+      state: {
+        connection: connected({ expiresAt: '2026-10-13T15:01:00.000Z' }),
+        secrets: {
+          google_oauth_client_id:
+            'local-dev-google-client-id.apps.googleusercontent.com',
+          google_oauth_client_secret: 'local-dev-google-client-secret',
+          ...CALENDAR_APP_SECRETS,
+        },
+      },
+    })
+    const res = await createHandler(h.deps)(post({ action: 'sync' }))
+    assertEquals(await res.json(), { outcome: 'reconnect' })
+    assertEquals(h.state.reconnects, ['unauthorized'])
+    assertEquals(h.state.errors, [])
+  }))

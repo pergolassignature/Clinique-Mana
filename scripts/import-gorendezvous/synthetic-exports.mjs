@@ -3,7 +3,10 @@
 // relations, the employees and services files, and the three « Revenus » exports, consistent with
 // each other (18 clients with a homonym pair and an archived file; 40 invoices over three months,
 // every payment mode, a refund, partial payments, a taxable line, an invoice for the homonyms, one
-// for a person not in the export, one without lines; a payment without an invoice number).
+// for a person not in the export, one without lines; a payment without an invoice number; two
+// invoices « Payé par » a relative, one allowed and one not), and for I2 the appointments (history
+// and coming, an absence, a cancellation, a couple, a phone call, a video link, an overlap, the
+// homonyms, the waiting list's fake appointments, an administrative agenda) and the consents.
 //
 //   node scripts/import-gorendezvous/synthetic-exports.mjs ~/Clinique-MANA-import/essai
 //
@@ -70,7 +73,9 @@ for (const [k, c] of named.entries()) {
     const items = [{ service: 'Psychothérapie individuelle 50 min', code: '10150', price: 13000 }]
     if (k % 4 === 0) items.push({ service: 'Psychothérapie individuelle (ancien)', code: '', price: 2500 })
     const subtotal = items.reduce((s, x) => s + x.price, 0)
-    invoices.push({ d, number, client: `${c.first} ${c.last}`, pro, subtotal, total: subtotal, payer: k === 5 ? 'IVAC' : '' })
+    // « Payé par »: IVAC (an organisation); a parent with the right to the invoices (9003 ← 9004, liens.csv); a relative without it.
+    const payer = k === 5 ? 'IVAC' : k === 2 && m === 10 ? 'Zoé Essai-04' : k === 8 && m === 10 ? 'Rose Essai-06' : ''
+    invoices.push({ d, number, client: `${c.first} ${c.last}`, pro, subtotal, total: subtotal, payer })
     for (const x of items) lines.push({ d, number, client: `${c.first} ${c.last}`, pro, ...x })
     if (k % 6 !== 5) {
       const mode = modes[(k + m) % modes.length]
@@ -102,4 +107,39 @@ write('revenus-services.csv', ['Revenus par service-produit (données fictives)'
 write('revenus-paiements.csv', ['Date;Facture;Client;Mode de paiement;Montant',
   ...payments.map((p) => [p.d, p.number, p.client, p.mode, p.amount < 0 ? `(${money(-p.amount)})` : money(p.amount)].join(';')),
   `2026-10-30;;Léa Essai-01;Interac;${money(1000)}`].join('\n') + '\n')
-console.log(`Écrits dans ${out} : ${clients.length} clients, ${invoices.length} factures, ${lines.length} lignes, ${payments.length + 1} paiements (données fictives).`)
+
+// I2: the appointments export (support's, columns as I2's aliases), history and coming.
+const appts = []
+let apptId = 70000
+const at = (date, time, rest) => appts.push({ id: (apptId += 1), date, time, ...rest })
+for (const [k, c] of named.entries()) {
+  const time = `${9 + (k % 6)}:00`
+  const who = { client: `${c.first} ${c.last}`, clientId: c.id, pro: c.pro }
+  at(day(8, 3 + k), time, { ...who, status: 'Présent' })
+  at(day(9, 3 + k), time, { ...who, status: k === 3 ? 'Absent' : k === 4 ? 'Annulé' : 'Présent', reason: k === 4 ? 'Maladie' : '' })
+  at(day(11, 9 + k), time, { ...who, status: k % 2 ? 'Confirmé' : 'Réservé', mode: k === 6 ? 'Téléphone' : '', link: k === 1 ? 'https://visio.exemple.test/essai-1' : '' })
+}
+// A couple, an overlap with a coming appointment, the homonyms (with and without their ClientId).
+at(day(9, 28), '16:00', { client: 'Émile Essai-03', clientId: 9003, client2: 'Zoé Essai-04', client2Id: 9004, pro: 'Pro Alpha', service: 'Thérapie de couple', code: '20170', status: 'Présent' })
+at(day(11, 9), '9:30', { client: 'Rose Essai-06', clientId: 9006, pro: 'Pro Alpha', status: 'Réservé' })
+at(day(11, 24), '15:00', { client: 'Sam Homonyme', pro: 'Pro Beta', status: 'Réservé' })
+at(day(11, 25), '15:00', { client: 'Sam Homonyme', clientId: 9102, pro: 'Pro Beta', status: 'Réservé' })
+// The waiting list as GOrendezvous kept it; an administrative agenda's call.
+at(day(7, 2), '8:00', { client: 'Camille Essai-08', clientId: 9008, pro: 'conseillère', service: 'Inscription – Liste attente', status: 'Réservé' })
+at(day(7, 3), '8:00', { client: 'Félix Essai-05', clientId: 9005, pro: 'conseillère', service: 'Inscription – Liste attente', status: 'Réservé' })
+at(day(7, 4), '8:00', { client: 'Rose Essai-14', clientId: 9014, pro: 'Pro Alpha', service: 'Inscription - Liste d’attente', status: 'Réservé' })
+at(day(7, 5), '8:00', { client: 'Jacob Essai-07', clientId: 9007, pro: 'Bureau administratif', service: 'Appel de suivi', status: 'Réservé' })
+write('rendez-vous.csv', ['Rendez-vous (données fictives)', '',
+  'Id;Date;Heure;Durée;Client;ClientId;Client 2;ClientId 2;Professionnel;Service;Code;Statut;Mode;Raison de l’annulation;Lien vidéo;Notes',
+  ...appts.map((a) => [a.id, a.date, a.time, a.code === '20170' ? '80' : '50', a.client, a.clientId ?? '', a.client2 ?? '', a.client2Id ?? '', a.pro,
+    a.service ?? 'Psychothérapie individuelle 50 min', a.code ?? (a.service ? '' : '10150'), a.status, a.mode ?? '', a.reason ?? '', a.link ?? '', 'note fictive jamais importée'].join(';'))].join('\n') + '\n')
+
+// I2: the consents GOrendezvous holds as signed (two unknown or repeated lines).
+const consentRows = named.slice(0, 10).map((c, k) => [c.id, `${c.first} ${c.last}`, 'Consentement général', day(8, 1 + k), 'GOrendezvous 2024', `${c.first} ${c.last}`])
+consentRows.push([9008, 'Camille Essai-08', 'Liste d’attente en psychologie et psychothérapie', day(7, 2), '', 'Camille Essai-08'])
+consentRows.push([9005, 'Félix Essai-05', 'Liste d’attente en psychologie et psychothérapie', day(7, 3), '', 'Félix Essai-05'])
+consentRows.push([9011, 'Émile Essai-11', 'Coaching', day(9, 1), '', ''])
+consentRows.push([9001, 'Léa Essai-01', 'Sondage de satisfaction', day(9, 2), '', ''])
+consentRows.push([9001, 'Léa Essai-01', 'Consentement général', day(7, 1), 'GOrendezvous 2023', 'Léa Essai-01'])
+write('consentements.csv', ['ClientId;Client;Formulaire;Signé le;Version;Signé par', ...consentRows.map((r) => r.join(';'))].join('\n') + '\n')
+console.log(`Écrits dans ${out} : ${clients.length} clients, ${invoices.length} factures, ${lines.length} lignes, ${payments.length + 1} paiements, ${appts.length} rendez-vous, ${consentRows.length} consentements (données fictives).`)
