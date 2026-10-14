@@ -171,7 +171,7 @@ Migration `20261012221028_core_module_testers` (pgTAP `105`; decisions P3-39, P3
 
 ## The GOrendezvous imports switch (I-22)
 
-Migrations `20261014042301_core_imports_switch` and `20261014065922_core_imports_status` (pgTAP `189`, `193`). `organizations.imports_open` (true by default) gates every `import_*` RPC of the modules through `private.imports_assert_open()` (« Les imports sont fermés pour cette clinique. »); `imports_closed_at` is the last close.
+Migrations `20261014042301_core_imports_switch` and `20261014065922_core_imports_status` (pgTAP `189`, `194`). `organizations.imports_open` (true by default) gates every `import_*` RPC of the modules through `private.imports_assert_open()` (« Les imports sont fermés pour cette clinique. »); `imports_closed_at` is the last close.
 
 - **RPCs** (`modules.manage`, as « Modules », checked first): `set_imports_open(p_open)` → `{imports_open, imports_closed_at}` (audited, `organizations`); `get_imports_status()` → `(imports_open, imports_closed_at, changed_at, changed_by_name)`, the switch's last change read from the audit log (`organizations` updates whose changed fields hold `imports_open`; nothing else of the row leaves).
 - **UI.** Paramètres → Modules, card « Importation GOrendezvous » (`ImportsSwitchCard`, below the modules; hidden without `modules.manage`, as the page): « Importations ouvertes » / « Importations fermées » with a `StatusDot`, « Modifié le … par … » (and « Dernière fermeture le … » once open again), and « Fermer les importations » / « Rouvrir les importations » after a confirmation saying what it does. The admin closes them after the cutover ([runbook « After »](../runbooks/import-gorendezvous.md)).
