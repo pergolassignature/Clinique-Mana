@@ -225,6 +225,31 @@ Migration `20261013223925_appointments_history`; pgTAP `173_appointments_history
   - The display copies Clients' history: by clinic day, in the Journal d'audit's words, with the professional, service, client and reason by name.
 - **Not built** (Drop pending Jonathan's OK, coordinator): resizing an appointment by dragging, and dragging services from a side bar.
 
+## Google busy times (batch R6, AP-40 … AP-45)
+
+Migration `20261014000122_appointments_google_busy`; pgTAP `177_appointments_google_busy`; functions `google-calendar-connect`, `google-calendar-callback`, `google-calendar-sync` (`_shared/google-calendar/`); decisions AP-40 … AP-45.
+
+- **Tables:**
+  - `calendar_connections`: a professional's Google account (one per professional and clinic; one professional per Google account while connected). State `connected` / `needs_reconnect` / `disconnected`, a reconnect reason (`invalid_grant`, `unauthorized`, `scope_missing`), the account's `sub` and address (redacted in the journal). Staff (`appointments.view`) read every row, a professional (`.self`) hers.
+  - `calendar_connection_tokens`: the tokens, encrypted. No privilege for any role; listed in `pii_encrypted_values()`.
+  - `calendar_sync_status`: when each connection was last read and the last failure's code. Operational (not audited, in `000_invariants`), no privilege: `get_my_calendar_setup` reads it.
+  - `external_busy_blocks`: the busy times, **times only** (`professional_id`, `starts_at`, `ends_at`). Operational (not audited). Staff read all, a professional hers.
+- **Client RPCs:**
+  - `get_my_calendar_setup()`: her state, address, connection date, reason, last read, last failure's code and the busy times still ahead.
+  - `list_external_busy(from, to, professional_ids)`: 62 days at most; staff for any professional, a professional for herself.
+- **Service RPCs** (the functions; actor model for her own connection): `store_calendar_connection`, `get_my_calendar_credentials_for_service`, `disconnect_my_calendar_connection`, `get_calendar_credentials_for_service`, `set_calendar_token_for_service`, `mark_calendar_needs_reconnect_for_service`, `list_calendar_connections_to_sync_for_service`, `replace_calendar_busy_for_service` (-1 when the connection changed since it was read), `record_calendar_sync_error_for_service`.
+- **Open slots:** `get_open_slots` skips a busy time (`create or replace`, same signature), so the booking forms, the proposals and the waiting list's offers never offer one. The booking RPCs do not refuse one (AP-43).
+- **Functions:**
+  - `google-calendar-connect` (user, `appointments.self`): `start` → Google's consent URL (scopes `openid email calendar.freebusy`, offline, consent, signed state); `disconnect` revokes the grant, then deletes.
+  - `google-calendar-callback` (user, `appointments.self`): the state and its nonce, the code exchanged with Gmail's OAuth client, the free/busy scope required (else a French refusal and the grant revoked), a refresh token required, `userinfo`, the connection stored, a first sync.
+  - `google-calendar-sync`: the job `appointments.google_busy_sync` (every 15 minutes, off by default) and « Synchroniser » (`{ action: 'sync' }`).
+  - Rate limits: `google_calendar.connect_user`, `google_calendar.callback_user` (20 an hour), `google_calendar.sync_user` (30 an hour); the nonce on `oauth.state_nonce`.
+  - Local fake: `npm run fake:gmail` (port 55392) answers `/oauth2/v3/userinfo` and `/calendar/v3/freeBusy` too (`GOOGLE_CALENDAR_BASE_URL`, honoured only while `APP_URL` is local); `POST /__fake/busy` sets the busy times.
+- **Notice:** `appointments.google_calendar_reconnect` (important, to the professional), expired at the reconnection.
+- **Screens:**
+  - « Agenda Google » (`/mon-agenda/agenda-google`, nav entry for an account with a professional file): « Mes moments occupés » with « Connecter mon agenda Google », « Compte …, connecté le … », « Lu le … : N moments occupés dans les 62 prochains jours », « Synchroniser », « Reconnecter mon agenda Google », « Déconnecter » confirmed. The page is Google's return path.
+  - The agenda (`TimeGrid`, `busy` prop; `useExternalBusy`, keys under `['appointments', 'calendar']`): « Occupé » under the appointments where a column has one professional (day view, a week of one professional, « Mon agenda »). Not drawn in a week of every professional, the month or « Prochains jours ».
+
 ## Rules for the other lanes
 
 - Never book by inserting: `book_appointment` holds every rule; the import (I1) will get its own service-role entry that keeps `external_ref`.

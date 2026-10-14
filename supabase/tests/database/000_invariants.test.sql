@@ -89,6 +89,10 @@ select is_empty($$
      -- places declared, the matches); the day's row is rewritten when the job runs again.
      -- ai_requests (CM-19): one row per « Rédiger avec l'IA » call, ids, tokens and cost only, never
      -- the text; a usage log like email_log. The settings a person changes (ai_settings) are audited.
+     -- external_busy_blocks (R6, AP-42): a professional's Google busy times (times only), replaced
+     -- at each sync every 15 minutes; a mirror like qbo_accounts. calendar_sync_status (R6): when
+     -- each connection was last read and the last failure's code, rewritten at every sync (like
+     -- mail_sync_state). Her connection and its tokens are audited.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
                            'scheduled_job_dispatches', 'notifications', 'notification_reads',
                            'user_preferences', 'signature_request_syncs', 'sms_messages',
@@ -96,7 +100,7 @@ select is_empty($$
                            'mail_threads', 'mail_messages', 'mail_attachments', 'mail_labels', 'mail_sync_state',
                            'qbo_accounts', 'qbo_customers', 'billing_sync_events',
                            'qbo_items', 'qbo_tax_codes', 'qbo_pushes', 'mail_drafts', 'capacity_snapshots',
-                           'ai_requests')
+                           'ai_requests', 'external_busy_blocks', 'calendar_sync_status')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');

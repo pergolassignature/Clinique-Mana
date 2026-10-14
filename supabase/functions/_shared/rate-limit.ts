@@ -468,6 +468,24 @@ export const LIMITS = {
     max: 20,
     windowSeconds: 3_600,
   },
+  /** `google-calendar-connect` (R6: « Connecter mon agenda Google », « Déconnecter »), per caller. */
+  googleCalendarConnectUser: {
+    bucket: 'google_calendar.connect_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /** `google-calendar-callback` (the code exchange), per caller: each call reaches Google's token endpoint. */
+  googleCalendarCallbackUser: {
+    bucket: 'google_calendar.callback_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /** `google-calendar-sync` « Synchroniser », per caller: each call reaches FreeBusy. */
+  googleCalendarSyncUser: {
+    bucket: 'google_calendar.sync_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
   /** `zoom-deauthorize`, per IP, before the org's secret is read (anyone can post there). */
   zoomWebhookIp: {
     bucket: 'webhooks.zoom_ip',
