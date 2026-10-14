@@ -196,9 +196,35 @@ test('L26: « Services offerts » on the record: the services her title allows, 
   await signIn('admin')
   // Geneviève Tremblay (seed 01), psychologue: the 50 min session at the psychologists' grid price.
   await page.goto('/professionnels/5eed0000-0000-0000-0000-000000000001/jumelage')
-  const card = page.getByRole('region', { name: 'Services offerts' })
+  // The admin holds professionals.manage: a form (R-83).
+  const card = page.getByRole('form', { name: 'Services offerts' })
   await expect(card).toBeVisible()
   const session = card.getByRole('row').filter({ hasText: '10150' })
   await expect(session).toContainText('$')
   await expect(session).toContainText('min')
+})
+
+test('R-83: « Services offerts »: a service of her title she does not offer, then offered again', async ({ page, signIn }) => {
+  await signIn('adminAssistant')
+  await page.goto('/professionnels/5eed0000-0000-0000-0000-000000000001/jumelage')
+  const card = page.getByRole('form', { name: 'Services offerts' })
+  // Supervision (50602): a service of her title no other test books.
+  const box = card.getByRole('checkbox', { name: /^Offre «\s50602 / })
+  await expect(box).toBeChecked()
+  await expect(card.getByText('Elle offre tous les services de ses titres.')).toBeVisible()
+  await box.click()
+  await card.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByText('Les services offerts sont enregistrés.')).toBeVisible()
+  try {
+    await page.reload()
+    const after = page.getByRole('form', { name: 'Services offerts' })
+    await expect(after.getByRole('checkbox', { name: /^Offre «\s50602 / })).not.toBeChecked()
+    await expect(after.getByRole('row').filter({ hasText: '50602' })).toContainText('Non offert')
+    await expect(after.getByText("1 service de ses titres n'est pas offert.")).toBeVisible()
+  } finally {
+    const again = page.getByRole('form', { name: 'Services offerts' })
+    await again.getByRole('checkbox', { name: /^Offre «\s50602 / }).click()
+    await again.getByRole('button', { name: 'Enregistrer' }).click()
+    await expect(again.getByText('Elle offre tous les services de ses titres.')).toBeVisible()
+  }
 })
