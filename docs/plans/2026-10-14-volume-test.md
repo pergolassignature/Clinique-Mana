@@ -64,7 +64,7 @@ bash scripts/with-db-lock.sh bash scripts/volume-test/run.sh <tag>
 ## Looked at, left as is
 
 - **Reports over a year (65–95 ms):** the time goes into building the JSON for at most 5 000 rows, not into reading. Plans use the existing `(org_id, …)` indexes, and no sequential scan is costly.
-- **The Demandes inbox over every request, with a search (93 ms):** `demandes_inbox_rows` computes the business-hours delay of all 4 000 requests before the search filters them. The default view (open requests) takes 3 ms. Filtering on the search words before computing the delays would bring it under 20 ms. This is lane B's module, and it is noted for them.
+- **The Demandes inbox over every request, with a search (93 ms):** `demandes_inbox_rows` computes the business-hours delay of all 4 000 requests before the search filters them. The default view (open requests) takes 3 ms. Filtering on the search words before computing the delays would bring it under 20 ms. This is lane B's module, and it is noted for them. **Fixed** (`*_demandes_inbox_page_first`, see the end of this file).
 - **No missing index was found.** None of the logged plans (statements over 50 ms) scans `appointments`, `invoices`, `invoice_lines`, `payments` or `appointment_participants` sequentially. The only sequential scans are small tables (`organizations`, `profiles`) and the inbox's full read of `demandes` when every request is asked.
 - **Messages and request events** were not in the first run. Pass 2 below adds them.
 
@@ -99,4 +99,22 @@ bash scripts/with-db-lock.sh bash scripts/volume-test/run.sh <tag>
 | Demandes inbox, every request, with events | 74 |
 | « Indicateurs des demandes » over a year, with events | 39 |
 
-Nothing exceeds 150 ms, so pass 2 changes no query. The slowest is still the Demandes inbox over every request (74 ms, with or without a search), for the reason given above: the delays of every request are computed before the search and the page limit apply. The note for lane B stands.
+Nothing exceeds 150 ms, so pass 2 changes no query. The slowest is still the Demandes inbox over every request (74 ms, with or without a search), for the reason given above: the delays of every request are computed before the search and the page limit apply. The note for lane B stands (fixed below).
+
+## The inbox, page first (lane B, 2026-10-14)
+
+`list_demandes` now chooses its page on the request's own columns (the view, the counselor, urgent,
+« Sans réponse », « À rappeler maintenant », the search), then computes the business-hours delays
+for those rows only, in one read (`demandes_inbox_rows` takes the page's ids). It does this when
+neither the filters nor the order need the delay. « En retard », « Attente la plus longue » and the
+open view's priority order keep the full read; the open view is a few hundred requests. pgTAP 198
+compares both bodies on a volume-shaped set (1 140 cases, two pages each): same rows, order and
+values. Same volume data, as the seed's admin:
+
+| Screen | Before (ms) | After (ms) |
+|---|---|---|
+| Demandes inbox, every request | 74 | 3 |
+| Demandes inbox, every request, with a search | 74–93 | 11 |
+| Demandes inbox, every request, a phone's digits | not measured | 15 |
+| Demandes inbox, closed, third page | not measured | 3 |
+| Demandes inbox, open requests (full read kept) | 3 | 3 |
