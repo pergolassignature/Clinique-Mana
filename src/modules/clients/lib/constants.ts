@@ -32,6 +32,14 @@ export type HolderRelation = (typeof HOLDER_RELATIONS)[number]
 export const CLIENT_STATUSES = ['active', 'archived', 'all'] as const
 export type ClientStatusFilter = (typeof CLIENT_STATUSES)[number]
 
+/** The list's order (`list_clients`' p_sort): by name, or by the last appointment (A-2). */
+export const CLIENT_SORTS = ['name', 'visit_recent', 'visit_oldest'] as const
+export type ClientSort = (typeof CLIENT_SORTS)[number]
+
+/** The list's « Dernier rendez-vous » filter (`list_clients`' p_last_visit, in the clinic's days). */
+export const LAST_VISIT_FILTERS = ['within_30', 'within_90', 'over_90', 'over_180', 'over_365', 'never'] as const
+export type LastVisitFilter = (typeof LAST_VISIT_FILTERS)[number]
+
 /** The record's tabs, in order: the URL's last segment (`/clients/:id/:onglet`). */
 export const RECORD_TABS = ['apercu', 'informations', 'proches', 'assurance-et-payeurs', 'consentements', 'demandes', 'visites-et-paiements', 'courriels', 'historique'] as const
 export type ClientRecordTab = (typeof RECORD_TABS)[number]

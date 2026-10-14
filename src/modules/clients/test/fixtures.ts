@@ -106,7 +106,8 @@ export function listRowFixture(overrides: Partial<ClientListRow> = {}): ClientLi
     isBanned: false,
     fileIncomplete: false,
     specialAgreement: false,
-    cursor: { last: 'tremblay', first: 'alice', id: CIDS.alice },
+    lastVisitAt: null,
+    cursor: { last: 'tremblay', first: 'alice', id: CIDS.alice, visit: null },
     ...overrides,
   }
 }

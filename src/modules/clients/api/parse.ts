@@ -34,6 +34,8 @@ export const listRowPayload = z
     special_agreement: z.boolean(),
     sort_last: z.string(),
     sort_first: z.string(),
+    last_visit_at: z.string().nullable(),
+    sort_visit: z.string().nullable(),
   })
   .transform((r) => ({
     id: r.id,
@@ -51,8 +53,10 @@ export const listRowPayload = z
     isBanned: r.is_banned,
     fileIncomplete: r.file_incomplete,
     specialAgreement: r.special_agreement,
-    /** The keyset cursor (the RPC's sort keys). */
-    cursor: { last: r.sort_last, first: r.sort_first, id: r.id },
+    /** The start of her last appointment that has begun (A-2); null when none, or without `appointments.view`. */
+    lastVisitAt: r.last_visit_at,
+    /** The keyset cursor (the RPC's sort keys; `visit` only in a visit order, ±infinity when none). */
+    cursor: { last: r.sort_last, first: r.sort_first, id: r.id, visit: r.sort_visit },
   }))
 export type ClientListRow = z.output<typeof listRowPayload>
 

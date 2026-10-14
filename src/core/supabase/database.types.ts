@@ -15683,9 +15683,12 @@ export type Database = {
           p_after_first?: string
           p_after_id?: string
           p_after_last?: string
+          p_after_visit?: string
+          p_last_visit?: string
           p_limit?: number
           p_professional_id?: string
           p_query?: string
+          p_sort?: string
           p_status?: string
           p_tag_id?: string
         }
@@ -15699,11 +15702,13 @@ export type Database = {
           is_archived: boolean
           is_banned: boolean
           last_name: string
+          last_visit_at: string
           mobile_e164: string
           primary_professional_id: string
           rate_variant: string
           sort_first: string
           sort_last: string
+          sort_visit: string
           special_agreement: boolean
           tag_ids: string[]
           tax_exempt: boolean

@@ -42,7 +42,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.clearAllMocks())
 
-function renderPage({ role = 'counselor' as FixtureRole, path = '/clients' as RouterEntry } = {}) {
+function renderPage({ role = 'counselor' as FixtureRole, path = '/clients' as RouterEntry, modules = undefined as string[] | undefined } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -50,7 +50,7 @@ function renderPage({ role = 'counselor' as FixtureRole, path = '/clients' as Ro
         <UnsavedChangesProvider>
           <ClientsListPage />
         </UnsavedChangesProvider>,
-        { path, access: { access: accessForRole(role) } },
+        { path, access: { access: accessForRole(role, modules ? { modules } : {}) } },
       )}
     </QueryClientProvider>,
   )
@@ -67,14 +67,14 @@ describe('ClientsListPage', () => {
     expect(alice).toHaveTextContent('Félix Gauthier')
     expect(alice).toHaveTextContent('Atelier')
     expect(within(table).getByRole('link', { name: 'Léa Gagnon' }).closest('tr')).toHaveTextContent(t(`${L}.flags.banned`))
-    expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: '', status: 'active', professionalId: null, tagId: null }, null)
+    expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: '', status: 'active', professionalId: null, tagId: null, sort: 'name', lastVisit: null }, null)
   })
 
   it('reads its filters from the URL, the search words from the history state (never the URL), and sends them', async () => {
     renderPage({ path: { pathname: '/clients', search: `?statut=archives&professionnel=${CIDS.pro}`, state: { q: 'trem' } } })
     await screen.findByRole('table', { name: t(`${L}.table`) })
     await waitFor(() =>
-      expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: 'trem', status: 'archived', professionalId: CIDS.pro, tagId: null }, null),
+      expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: 'trem', status: 'archived', professionalId: CIDS.pro, tagId: null, sort: 'name', lastVisit: null }, null),
     )
     expect(screen.getByRole('searchbox', { name: t(`${L}.searchLabel`) })).toHaveValue('trem')
   })
@@ -82,7 +82,7 @@ describe('ClientsListPage', () => {
   it('remembered filters: the saved ones apply on arrival without filters; a link with filters wins; never the search words', async () => {
     mocks.preferences.fetchUserPreference.mockResolvedValue({ query: 'statut=archives' })
     renderPage()
-    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: '', status: 'archived', professionalId: null, tagId: null }, null))
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith({ query: '', status: 'archived', professionalId: null, tagId: null, sort: 'name', lastVisit: null }, null))
     expect(mocks.api.fetchClientsPage).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }), null)
   })
 
@@ -91,6 +91,29 @@ describe('ClientsListPage', () => {
     renderPage({ path: '/clients?statut=tous' })
     await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ status: 'all' }), null))
     expect(mocks.api.fetchClientsPage).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'archived' }), null)
+  })
+
+  it('A-2: with the agenda\'s right and Rendez-vous on, « Dernier rendez-vous » shows, filters and orders (from the URL)', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchClientsPage.mockResolvedValue([listRowFixture({ lastVisitAt: '2026-10-02T14:00:00Z' }), listRowFixture({ id: CIDS.lea, firstName: 'Léa', lastName: 'Gagnon' })])
+    renderPage({ path: '/clients?tri=anciens&dernier=plus-de-90-jours', modules: ['professionals', 'clients', 'appointments'] })
+    const table = await screen.findByRole('table', { name: t(`${L}.table`) })
+    expect(within(table).getByRole('columnheader', { name: t(`${L}.columns.lastVisit`) })).toBeInTheDocument()
+    expect((await within(table).findByRole('link', { name: 'Alice Tremblay' })).closest('tr')).toHaveTextContent('2 oct. 2026')
+    expect(within(table).getByRole('link', { name: 'Léa Gagnon' }).closest('tr')).toHaveTextContent(t(`${L}.noVisit`))
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'visit_oldest', lastVisit: 'over_90' }), null))
+    await user.selectOptions(screen.getByRole('combobox', { name: t(`${L}.sortLabel`) }), 'visit_recent')
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'visit_recent', lastVisit: 'over_90' }), null))
+    await user.selectOptions(screen.getByRole('combobox', { name: t(`${L}.lastVisitLabel`) }), 'never')
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'visit_recent', lastVisit: 'never' }), null))
+  })
+
+  it('… without Rendez-vous: no column, no filter, and a visit order in the URL is ignored', async () => {
+    renderPage({ path: '/clients?tri=anciens&dernier=jamais' })
+    const table = await screen.findByRole('table', { name: t(`${L}.table`) })
+    expect(within(table).queryByRole('columnheader', { name: t(`${L}.columns.lastVisit`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: t(`${L}.sortLabel`) })).not.toBeInTheDocument()
+    await waitFor(() => expect(mocks.api.fetchClientsPage).toHaveBeenCalledWith(expect.objectContaining({ sort: 'name', lastVisit: null }), null))
   })
 
   it('« Nouveau client » for whoever manages files only', async () => {
