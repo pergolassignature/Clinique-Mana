@@ -10,8 +10,8 @@ import type { MutationFeedback } from './use-invoices'
 import { billingKeys } from './keys'
 
 export const useOverdueInvoices = () => useQuery({ queryKey: billingKeys.overdue(), queryFn: fetchOverdueInvoices })
-export const useFeeDecisions = (status: FeeStatus | null) =>
-  useQuery({ queryKey: billingKeys.fees(status), queryFn: () => fetchFeeDecisions(status) })
+export const useFeeDecisions = (status: FeeStatus | null, enabled = true) =>
+  useQuery({ queryKey: billingKeys.fees(status), queryFn: () => fetchFeeDecisions(status), enabled })
 
 function useFollowUpMutation<V, R>(mutationFn: (variables: V) => Promise<R>, successKey: TranslationKey | null, feedback?: MutationFeedback) {
   const queryClient = useQueryClient()

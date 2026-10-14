@@ -367,13 +367,13 @@ function AccountMapForm({ settings }: { settings: QboSettings }) {
     return (
       <FormField key={id} label={label} help={help}>
         {(field) => (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
             <Select
               {...field}
               ref={index === 0 ? firstSelect : undefined}
               value={value}
               onChange={(event) => setValues((prev) => ({ ...prev, [id]: event.target.value }))}
-              className="min-w-0 flex-1 sm:max-w-md"
+              className="w-full min-w-0 sm:max-w-md sm:flex-1"
             >
               <option value="">{t(`${Q}.accounts.none`)}</option>
               {choices.map((choice) => (
