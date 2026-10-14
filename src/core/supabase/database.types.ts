@@ -6594,6 +6594,24 @@ export type Database = {
           },
         ]
       }
+      oauth_state_nonces: {
+        Row: {
+          created_at: string
+          expires_at: string
+          nonce_hash: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          nonce_hash: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          nonce_hash?: string
+        }
+        Relationships: []
+      }
       org_module_settings: {
         Row: {
           module_key: string
@@ -17983,6 +18001,10 @@ export type Database = {
           p_provider_session_id: number
         }
         Returns: string
+      }
+      spend_oauth_state_nonce_for_service: {
+        Args: { p_expires_at: string; p_nonce_hash: string }
+        Returns: boolean
       }
       start_client_consent_campaign: {
         Args: { p_consent_key: string }
