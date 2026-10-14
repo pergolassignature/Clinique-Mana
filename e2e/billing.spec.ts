@@ -71,3 +71,21 @@ test('the adjointe applies a late-cancellation fee for the professional', async 
   await page.getByRole('tab', { name: 'File du matin' }).click()
   await expect(page.getByRole('list', { name: 'Brouillons de la file du matin' }).getByRole('link', { name: /Léa Gagnon-Fictive/ })).toBeVisible()
 })
+
+/**
+ * Parity audit L10 (local only, after `npm run db:reset`): the appointment sheet's « Facturation »
+ * tab. The adjointe opens Alice's appointment from « Visites et paiements » and reads its billing:
+ * not yet invoiced, the price it would be invoiced at (or its invoice when a run invoiced it).
+ */
+test('the appointment sheet’s « Facturation »: the price before invoicing, or its invoice', async ({ page, signIn }) => {
+  await signIn('adminAssistant')
+  await page.goto('/clients')
+  await page.getByRole('link', { name: /Alice Tremblay-Fictive/ }).first().click()
+  await page.getByRole('tab', { name: 'Visites et paiements' }).click()
+  await page.getByRole('link', { name: /^Ouvrir le rendez-vous du / }).first().click()
+  const sheet = page.getByRole('dialog')
+  await sheet.getByRole('tab', { name: 'Facturation', exact: true }).click()
+  const billing = sheet.getByRole('region', { name: 'Facturation du rendez-vous' })
+  await expect(billing).toBeVisible()
+  await expect(billing.getByText(/^(Pas encore facturé\.|Facture |Ce rendez-vous n’est pas à facturer)/).first()).toBeVisible()
+})

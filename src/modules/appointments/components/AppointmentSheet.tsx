@@ -3,10 +3,12 @@ import { CircleAlert, TriangleAlert, X } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { rpcErrorHint } from '@/core/modules/errors'
+import { ModuleSlotTargetContext, useModuleSlot } from '@/core/modules/slots'
 import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { ClientPicker, type PickedClient } from '@/modules/clients'
 import { CheckboxField } from '@/shared/components/CheckboxField'
 import { Loading } from '@/shared/components/LoadState'
+import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { softDisabledClasses } from '@/shared/components/soft-disabled'
 import { cn } from '@/shared/lib/utils'
 import { SaveButton } from '@/shared/components/SaveButton'
@@ -45,6 +47,7 @@ import { appointmentTitle, modeLabel, presenceLabel, servicesFor, stateBadgeVari
 import { isoWeekday } from '../lib/time'
 import { emptySeries, seriesComplete, seriesCount, type SeriesDraft } from '../lib/series'
 import { AppointmentHistory } from './AppointmentHistory'
+import { AppointmentMessages } from './AppointmentMessages'
 import { ConsentsNotice } from './ConsentsNotice'
 import { SeriesFields } from './SeriesFields'
 import { VideoSection } from './VideoSection'
@@ -329,7 +332,7 @@ function CreateForm({ target, reference, onClose }: { target: Extract<SheetTarge
   )
 }
 
-type EditTab = 'appointment' | 'notes' | 'cancel' | 'history'
+type EditTab = 'appointment' | 'notes' | 'cancel' | 'messages' | 'history' | 'billing'
 
 /** A personal appointment (AP-17): its professional takes it off her agenda (a cancellation, « Non spécifiée »). */
 function PersonalCancel({ id, onDone }: { id: string; onDone: () => void }) {
@@ -362,6 +365,10 @@ function EditPanel({
   const service = reference.services.find((s) => s.id === a.serviceId)
   const pro = reference.professionals.find((p) => p.id === a.professionalId)
   const open = a.state === 'booked' || a.state === 'confirmed'
+  // « Facturation » (L10): only when a module fills the slot for this user (Facturation, billing.view).
+  const billingPanels = useModuleSlot('appointment.sheet')
+  const tabs: readonly EditTab[] =
+    billingPanels.length > 0 ? ['appointment', 'notes', 'cancel', 'messages', 'history', 'billing'] : ['appointment', 'notes', 'cancel', 'messages', 'history']
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
@@ -382,7 +389,7 @@ function EditPanel({
       </SheetHeader>
       {!a.isPersonal && (
         <NavTabs className="px-6">
-          {(['appointment', 'notes', 'cancel', 'history'] as const).map((key) => (
+          {tabs.map((key) => (
             <NavTab key={key} active={tab === key} onClick={() => key !== tab && confirmLeave(() => setTab(key))}>
               {t(`${E}.tabs.${key}`)}
             </NavTab>
@@ -395,7 +402,19 @@ function EditPanel({
         {a.isPersonal && open && <PersonalCancel id={a.id} onDone={onClose} />}
         {tab === 'notes' && <NotesTab appointment={a} />}
         {tab === 'cancel' && <CancelTab appointment={a} reference={reference} open={open} onDone={onClose} />}
+        {tab === 'messages' && <AppointmentMessages appointment={a} />}
         {tab === 'history' && <AppointmentHistory appointment={a} reference={reference} />}
+        {tab === 'billing' && !a.isPersonal && (
+          <ModuleSlotTargetContext.Provider value={{ 'appointment.sheet': { appointmentId: a.id } }}>
+            {billingPanels.map(({ id, component: Panel }) => (
+              <RouteBoundary key={id} scope={`appointment.sheet:${id}`} compact>
+                <Suspense fallback={<Loading />}>
+                  <Panel />
+                </Suspense>
+              </RouteBoundary>
+            ))}
+          </ModuleSlotTargetContext.Provider>
+        )}
       </SheetBody>
     </div>
   )
