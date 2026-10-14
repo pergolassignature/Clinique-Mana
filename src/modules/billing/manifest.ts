@@ -1,7 +1,10 @@
 import { ArrowLeftRight, BookUser, Building2, CreditCard, HandCoins, Landmark, ReceiptText, Wallet } from 'lucide-react'
 import type { Access } from '@/core/access/access'
-import type { ModuleManifest } from '@/core/modules/types'
+import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
+
+// The settings menu's heading for this module's sections (NAV-3).
+const SETTINGS_AREA: SettingsArea = { key: 'billing', labelKey: 'modules.billing.settingsArea', order: 50 }
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
@@ -87,6 +90,7 @@ export const billingManifest: ModuleManifest = {
       permission: 'billing.view',
       editPermission: 'billing.settings',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/BillingSettingsPage'), 'BillingSettingsPage'),
     },
     {
@@ -98,6 +102,7 @@ export const billingManifest: ModuleManifest = {
       permission: ['billing.manage', 'billing.settings'],
       editPermission: 'billing.manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/PayersSettingsPage'), 'PayersSettingsPage'),
     },
     {
@@ -109,6 +114,7 @@ export const billingManifest: ModuleManifest = {
       permission: ['billing.settings', 'billing.payroll'],
       editPermission: 'billing.settings',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/PayrollSettingsPage'), 'PayrollSettingsPage'),
     },
     {
@@ -120,6 +126,7 @@ export const billingManifest: ModuleManifest = {
       permission: 'billing.settings',
       editPermission: 'billing.settings',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/OnlinePaymentsSettingsPage'), 'OnlinePaymentsSettingsPage'),
     },
     // FQ: the QuickBooks connection and its accounts map; the customers' matching report.
@@ -131,6 +138,7 @@ export const billingManifest: ModuleManifest = {
       permission: 'billing.settings',
       editPermission: 'billing.settings',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/QuickBooksSettingsPage'), 'QuickBooksSettingsPage'),
     },
     {
@@ -141,6 +149,7 @@ export const billingManifest: ModuleManifest = {
       permission: 'billing.settings',
       editPermission: 'billing.settings',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/QuickBooksCustomersPage'), 'QuickBooksCustomersPage'),
     },
   ],

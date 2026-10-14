@@ -63,13 +63,9 @@ describe('professionalsManifest', () => {
     expect(matchPath(`/${record.path}`, '/professionnels')).toBeNull()
   })
 
-  it('declares the five list sections of 4a.6–4a.9, « Documents requis » (4c.3; « Consentements » removed, P4-508), « Fiche PDF » (P4-353), « Contrats » (4d.3), « Invitations » (4b.3), then « Rémunération » (4a.18), in the Modules group', () => {
+  it('declares « Listes » (the five lists of 4a.6–4a.9 as tabs, NAV-3), « Documents requis » (4c.3; « Consentements » removed, P4-508), « Fiche PDF » (P4-353), « Contrats » (4d.3), « Invitations » (4b.3), then « Rémunération » (4a.18), under « Professionnels »', () => {
     expect(sections.map((s) => [s.id, s.path])).toEqual([
-      ['professions', 'professions'],
-      ['clienteles', 'clienteles'],
-      ['motifs', 'motifs'],
-      ['languages', 'langues'],
-      ['deactivation-reasons', 'raisons-desactivation'],
+      ['lists', 'listes'],
       ['required-documents', 'documents-requis'],
       ['fiche', 'fiche-pdf'],
       ['contracts', 'contrats'],
@@ -78,13 +74,24 @@ describe('professionalsManifest', () => {
     ])
     for (const s of sections) {
       expect(s.group).toBe('modules')
+      expect(s.area).toEqual({ key: 'professionals', labelKey: 'modules.professionals.settingsArea', order: 10 })
       expect(t(s.labelKey)).not.toBe(s.labelKey)
     }
-    for (const s of sections.slice(0, 8)) {
+    for (const s of sections.slice(0, 4)) {
       // Seen by whoever manages the records or the lists; changed only with professionals.settings.
       expect(s.permission).toEqual(['professionals.manage', 'professionals.settings'])
       expect(s.editPermission).toBe('professionals.settings')
     }
+  })
+
+  it('keeps the five lists\' former paths: each opens « Listes » on its tab', () => {
+    expect(sections.find((s) => s.id === 'lists')?.redirects).toEqual([
+      { path: 'professions', search: '' },
+      { path: 'clienteles', search: '?onglet=clienteles' },
+      { path: 'motifs', search: '?onglet=motifs' },
+      { path: 'langues', search: '?onglet=langues' },
+      { path: 'raisons-desactivation', search: '?onglet=raisons-desactivation' },
+    ])
   })
 
   it('opens « Invitations » to whoever invites, changed with professionals.settings', () => {

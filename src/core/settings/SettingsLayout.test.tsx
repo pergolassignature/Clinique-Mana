@@ -342,6 +342,7 @@ describe('SettingsLayout', () => {
     beforeEach(() => {
       width = PHONE
       listeners.clear()
+      window.localStorage.removeItem('settings.menu.open')
       vi.stubGlobal('matchMedia', (query: string) => ({
         get matches() {
           return matchesWidth(query)
@@ -430,6 +431,8 @@ describe('SettingsLayout', () => {
     it('does not move focus when the column menu is used (from xl)', async () => {
       width = DESKTOP
       render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      // In the column, a heading that does not hold the current page is folded (NAV-3).
+      await userEvent.click(within(nav()).getByRole('button', { name: t('settings.groups.plateforme') }))
       await userEvent.click(modulesLink())
       expect(await screen.findByRole('heading', { name: 'MODULES HEADING' })).not.toHaveFocus()
       expect(modulesLink()).toHaveFocus()
@@ -442,6 +445,7 @@ describe('SettingsLayout', () => {
       resize(DESKTOP)
       expect(nav()).toHaveAttribute('data-state', 'closed')
 
+      await userEvent.click(within(nav()).getByRole('button', { name: t('settings.groups.plateforme') }))
       await userEvent.click(modulesLink())
       expect(await screen.findByRole('heading', { name: 'MODULES HEADING' })).not.toHaveFocus()
       expect(modulesLink()).toHaveFocus()
@@ -523,6 +527,116 @@ describe('SettingsLayout', () => {
         expect(await screen.findByRole('heading', { name: 'LATE HEADING' })).not.toHaveFocus()
         expect(field).toHaveFocus()
       })
+    })
+  })
+
+  describe('NAV-3: module areas, folding, search, former paths', () => {
+    const area = (key: string, label: SettingsSection['labelKey'], order: number) => ({ key, labelKey: label, order })
+    const section = (id: string, labelKey: SettingsSection['labelKey'], extra: Partial<SettingsSection> = {}): SettingsSection => ({
+      id, path: id, labelKey, icon: Building2, permission: 'settings.view', group: 'modules', component: page(`PAGE ${id}`), ...extra,
+    })
+    const billing = area('billing', 'modules.billing.settingsArea', 50)
+    const pros = area('professionals', 'modules.professionals.settingsArea', 10)
+    const list = [
+      section('qbo', 'modules.billing.qbo.title', { area: billing }),
+      section('lists', 'modules.professionals.settings.lists.title', {
+        area: pros,
+        redirects: [{ path: 'motifs', search: '?onglet=motifs' }],
+      }),
+      section('payroll', 'modules.billing.payroll.settings.title', { area: billing }),
+      section('loose', 'nav.home'),
+      { ...visibleSection },
+    ]
+    const nav = () => screen.getByRole('navigation', { name: t('settings.navLabel') })
+    const headings = () => screen.getAllByRole('group').map((g) => document.getElementById(g.getAttribute('aria-labelledby') ?? '')?.textContent)
+    let width = 1440
+    beforeEach(() => {
+      width = 1440
+      vi.stubGlobal('matchMedia', (query: string) => {
+        const bound = /\((min|max)-width:\s*(\d+)px\)/.exec(query)
+        const matches = bound ? (bound[1] === 'min' ? width >= Number(bound[2]) : width <= Number(bound[2])) : false
+        return { matches, media: query, addEventListener: () => {}, removeEventListener: () => {} }
+      })
+      window.localStorage.removeItem('settings.menu.open')
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('one heading per area, in the areas\' order, each keeping its sections\' order; « Modules » for one without', () => {
+      render(settingsAt('/parametres/visible-fr', {}, list))
+      expect(headings()).toEqual([
+        t('settings.groups.clinique'),
+        t('modules.professionals.settingsArea'),
+        t('modules.billing.settingsArea'),
+        t('settings.groups.modules'),
+      ])
+    })
+
+    it('in the column, the current page\'s heading stays open and the others fold, remembered', async () => {
+      render(settingsAt('/parametres/payroll', {}, list))
+      expect(await screen.findByText('PAGE payroll')).toBeInTheDocument()
+      const billingGroup = screen.getByRole('group', { name: t('modules.billing.settingsArea') })
+      expect(within(billingGroup).queryByRole('button')).not.toBeInTheDocument()
+      expect(within(billingGroup).getByRole('link', { name: t('modules.billing.qbo.title') })).toBeVisible()
+      const prosButton = within(nav()).getByRole('button', { name: t('modules.professionals.settingsArea') })
+      expect(prosButton).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByRole('link', { name: t('modules.professionals.settings.lists.title') })).not.toBeInTheDocument()
+      await userEvent.click(prosButton)
+      expect(prosButton).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('link', { name: t('modules.professionals.settings.lists.title') })).toBeVisible()
+      expect(JSON.parse(window.localStorage.getItem('settings.menu.open') ?? '[]')).toContain('area:professionals')
+    })
+
+    it('below xl nothing folds: every section is listed', async () => {
+      width = 1024
+      render(settingsAt('/parametres/payroll', {}, list))
+      expect(await screen.findByText('PAGE payroll')).toBeInTheDocument()
+      expect(within(nav()).queryByRole('button', { name: t('modules.professionals.settingsArea') })).not.toBeInTheDocument()
+      expect(within(nav()).getByRole('link', { name: t('modules.professionals.settings.lists.title') })).toBeInTheDocument()
+    })
+
+    it('« Rechercher un réglage » filters the labels (accents and case ignored), opens the headings, says how many', async () => {
+      render(settingsAt('/parametres/visible-fr', {}, list))
+      const search = screen.getByRole('searchbox', { name: t('settings.search.label') })
+      await userEvent.type(search, 'LISTES')
+      expect(within(nav()).getAllByRole('link').map((l) => l.textContent)).toEqual([t('modules.professionals.settings.lists.title')])
+      expect(screen.getByRole('status')).toHaveTextContent(t('settings.search.one'))
+      await userEvent.clear(search)
+      await userEvent.type(search, 'facturation')
+      // A heading's name matches all its sections.
+      expect(within(nav()).getAllByRole('link')).toHaveLength(2)
+      await userEvent.clear(search)
+      await userEvent.type(search, 'zzz')
+      expect(within(nav()).getAllByText(t('settings.search.none')).length).toBeGreaterThan(0)
+      await userEvent.keyboard('{Escape}')
+      expect(search).toHaveValue('')
+    })
+
+    it('Entrée opens the first match; ↓ goes to the first link', async () => {
+      render(settingsAt('/parametres/visible-fr', {}, list))
+      const search = screen.getByRole('searchbox', { name: t('settings.search.label') })
+      await userEvent.type(search, 'paie')
+      await userEvent.keyboard('{ArrowDown}')
+      expect(within(nav()).getByRole('link', { name: t('modules.billing.payroll.settings.title') })).toHaveFocus()
+      search.focus()
+      await userEvent.keyboard('{Enter}')
+      expect(await screen.findByText('PAGE payroll')).toBeInTheDocument()
+      expect(search).toHaveValue('')
+    })
+
+    it('a merged section\'s former path opens it on its tab', async () => {
+      const Where = () => {
+        const location = useLocation()
+        return <p>{`AT ${location.pathname}${location.search}`}</p>
+      }
+      render(
+        renderWithContexts(
+          <Routes>
+            <Route path="/parametres/*" element={<><SettingsLayout sections={list} /><Where /></>} />
+          </Routes>,
+          { path: '/parametres/motifs' },
+        ),
+      )
+      expect(await screen.findByText('AT /parametres/lists?onglet=motifs')).toBeInTheDocument()
     })
   })
 })

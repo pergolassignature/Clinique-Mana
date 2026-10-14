@@ -1,6 +1,9 @@
 import { ReceiptText } from 'lucide-react'
-import type { ModuleManifest } from '@/core/modules/types'
+import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
+
+// The settings menu's heading for this module's sections (NAV-3).
+const SETTINGS_AREA: SettingsArea = { key: 'services', labelKey: 'modules.services.settingsArea', order: 20 }
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. The settings
 // section's API, hooks and schemas load with its page.
@@ -37,6 +40,7 @@ export const servicesManifest: ModuleManifest = {
       permission: ['services.manage', 'settings.view'],
       editPermission: 'services.manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/ServicesSettingsPage'), 'ServicesSettingsPage'),
     },
   ],

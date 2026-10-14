@@ -1,19 +1,19 @@
 import { createElement, Suspense, useEffect, useId, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { ChevronDown, Lock } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { Forbidden, NotFound } from '@/core/access/guards'
 import type { SettingsSection } from '@/core/modules/types'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
-import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from '@/shared/ui/field-classes'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { isUnder, SETTINGS_BASE_PATH, settingsSectionPath } from './paths'
 import { isSectionReadOnly, SettingsSectionContext } from './section-context'
-import { SETTINGS_GROUP_ORDER, visibleSettingsSections } from './visible-sections'
+import { SettingsMenu } from './SettingsMenu'
+import { visibleSettingsSections } from './visible-sections'
 
 const sectionScope = (s: SettingsSection) => (s.moduleKey ? `settings:${s.moduleKey}:${s.id}` : `settings:${s.id}`)
 
@@ -165,53 +165,27 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
               aria-hidden
             />
           </button>
-          <nav
+          <SettingsMenu
             id={navId}
-            aria-label={t('settings.navLabel')}
-            data-state={menuOpen ? 'open' : 'closed'}
-            className="max-xl:mt-2 max-xl:data-[state=closed]:hidden sm:max-xl:columns-2 sm:max-xl:gap-6"
-          >
-            {SETTINGS_GROUP_ORDER.map((group) => {
-              const items = visible.filter((s) => s.group === group)
-              if (items.length === 0) return null
-              const headingId = `${navId}-group-${group}`
-              return (
-                <div key={group} role="group" aria-labelledby={headingId} className="mb-3 break-inside-avoid">
-                  <p id={headingId} className="mb-0.5 px-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {t(`settings.groups.${group}`)}
-                  </p>
-                  {items.map((s) => (
-                    <GuardedNavLink
-                      key={s.id}
-                      to={settingsSectionPath(s, basePath)}
-                      onClick={() => {
-                        focusHeadingOf.current = isCompactLayout() ? settingsSectionPath(s, basePath) : null
-                      }}
-                      className={({ isActive }) =>
-                        cn(
-                          `flex min-h-11 items-center gap-2 rounded-md px-2 py-2.5 text-sm transition-colors duration-120 xl:min-h-0 xl:py-[5px] ${focusRing}`,
-                          isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                        )
-                      }
-                    >
-                      <s.icon className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
-                      {t(s.labelKey)}
-                      {isSectionReadOnly(s, can) && (
-                        <>
-                          <Lock className="ml-auto h-3 w-3 shrink-0 text-subtle" aria-hidden />
-                          <span className="sr-only"> {t('settings.navReadOnlyHint')}</span>
-                        </>
-                      )}
-                    </GuardedNavLink>
-                  ))}
-                </div>
-              )
-            })}
-          </nav>
+            open={menuOpen}
+            sections={visible}
+            current={current}
+            basePath={basePath}
+            can={can}
+            onChoose={(s) => {
+              focusHeadingOf.current = isCompactLayout() ? settingsSectionPath(s, basePath) : null
+            }}
+          />
         </div>
         <section ref={paneRef} className="min-w-0 flex-1">
           <Routes>
             <Route index element={<Navigate to={first.path} replace />} />
+            {/* A merged section's former paths open it on the right tab (NAV-3: no link breaks). */}
+            {visible.flatMap((s) =>
+              (s.redirects ?? []).map((r) => (
+                <Route key={`${s.id}:${r.path}`} path={r.path} element={<Navigate to={`${settingsSectionPath(s, basePath)}${r.search}`} replace />} />
+              )),
+            )}
             {visible.map((s) => (
               <Route
                 key={s.id}
@@ -233,7 +207,15 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
             <Route
               path="*"
               element={
-                sections.some((s) => isUnder(location.pathname, settingsSectionPath(s, basePath))) ? <Forbidden compact /> : <NotFound compact />
+                sections.some(
+                  (s) =>
+                    isUnder(location.pathname, settingsSectionPath(s, basePath)) ||
+                    (s.redirects ?? []).some((r) => isUnder(location.pathname, `${basePath}/${r.path}`)),
+                ) ? (
+                  <Forbidden compact />
+                ) : (
+                  <NotFound compact />
+                )
               }
             />
           </Routes>

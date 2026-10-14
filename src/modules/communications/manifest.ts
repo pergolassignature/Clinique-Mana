@@ -1,6 +1,9 @@
 import { Mail, MessageSquareText, Sparkles } from 'lucide-react'
-import type { ModuleManifest } from '@/core/modules/types'
+import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
+
+// The settings menu's heading for this module's sections (NAV-3).
+const SETTINGS_AREA: SettingsArea = { key: 'communications', labelKey: 'modules.communications.settingsArea', order: 60 }
 
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
@@ -63,6 +66,7 @@ export const communicationsManifest: ModuleManifest = {
       icon: Mail,
       permission: 'communications.mailboxes_manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/GmailSettingsPage'), 'GmailSettingsPage'),
     },
     {
@@ -74,6 +78,7 @@ export const communicationsManifest: ModuleManifest = {
       permission: 'communications.sms_manage',
       editPermission: 'communications.sms_manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/SmsSettingsPage'), 'SmsSettingsPage'),
     },
     {
@@ -85,6 +90,7 @@ export const communicationsManifest: ModuleManifest = {
       permission: 'communications.ai_manage',
       editPermission: 'communications.ai_manage',
       group: 'modules',
+      area: SETTINGS_AREA,
       component: lazyPage(() => import('./pages/settings/AiSettingsPage'), 'AiSettingsPage'),
     },
   ],
