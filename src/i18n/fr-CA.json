@@ -9805,6 +9805,25 @@
         "invalid": "Ce lien ne peut plus être utilisé. Pour toute question, appelez la clinique.",
         "error": "La confirmation n'a pas pu être enregistrée. Réessayez dans un moment ou appelez la clinique."
       },
+      "print": {
+        "open": "Imprimer",
+        "title": "Agenda à imprimer",
+        "loadError": "L'agenda à imprimer ne se charge pas.",
+        "back": "Retour à l'agenda",
+        "print": "Imprimer",
+        "week": "Semaine du {date}",
+        "everyone": "Tous les professionnels",
+        "printedAt": "Imprimé le {when}",
+        "none": "Aucun rendez-vous.",
+        "personal": "Personnel : {label}",
+        "keptCancelled": "Annulé (gardé à l'horaire)",
+        "columns": {
+          "time": "Heure",
+          "client": "Client",
+          "service": "Service",
+          "state": "État"
+        }
+      },
       "withoutReminder": {
         "title": "Clients sans rappel",
         "description": "Les rendez-vous des 7 prochains jours dont personne ne peut recevoir de rappel (aucun courriel, aucun texto autorisé) : appelez ces clients.",

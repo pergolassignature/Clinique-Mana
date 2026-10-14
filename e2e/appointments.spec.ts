@@ -224,6 +224,26 @@ test('the sheet’s « Messages »: the confirmation listed; « Renvoyer » righ
   await expect(page.getByText('Rendez-vous annulé.')).toBeVisible()
 })
 
+test('« Imprimer »: Félix’s week as a list to print, the shell hidden when printed (AP-48)', async ({ page, signIn }) => {
+  const monday = nextMonday()
+  await signIn('admin')
+  await page.goto(`/agenda?professionnel=${FELIX}&date=${monday}`)
+  await page.getByRole('link', { name: 'Imprimer' }).click()
+  await expect(page).toHaveURL(new RegExp(`/agenda/imprimer\\?professionnel=${FELIX}&date=${monday}`))
+  const sheet = page.getByRole('article', { name: 'Agenda à imprimer' })
+  await expect(sheet.getByRole('heading', { level: 1 })).toContainText('Semaine du')
+  await expect(sheet).toContainText('Félix Gauthier')
+  // The seed's appointments next week: their times and clients, never a note.
+  await expect(sheet.locator('tbody tr').first()).toBeVisible()
+  await page.emulateMedia({ media: 'print' })
+  await expect(page.getByRole('navigation', { name: 'Menu principal' })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Imprimer' })).toBeHidden()
+  if (process.env.AGENDA_PRINT_SHOT) await page.screenshot({ path: process.env.AGENDA_PRINT_SHOT, fullPage: true })
+  await page.emulateMedia({ media: 'screen' })
+  await page.getByRole('link', { name: "Retour à l'agenda" }).click()
+  await expect(page).toHaveURL(/\/agenda\?/)
+})
+
 test('Paramètres → Agenda: the late notice counts business hours by default (AP-31)', async ({ page, signIn }) => {
   await signIn('admin')
   await page.goto('/parametres/agenda')
