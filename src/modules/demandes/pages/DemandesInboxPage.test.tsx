@@ -115,7 +115,7 @@ describe('DemandesInboxPage', () => {
     expect(rows[0]).toHaveTextContent(t(`${I}.urgent`))
     expect(rows[1]).toHaveTextContent(t('modules.demandes.promise.late', { hours: '60' }))
     expect(rows[1]).toHaveTextContent(t(`${I}.handledBy`, { name: 'Conseillère B' }))
-    expect(rows[2]).toHaveTextContent(t(`${I}.fileNumber`, { number: '42' }))
+    expect(rows[2]).toHaveTextContent(t(`${I}.fileNumber`, { number: 'CLI-000042' }))
     expect(rows[2]).toHaveTextContent(t(`${I}.noAnswer`, { count: '2' }))
     expect(within(rows[0]!).getByRole('link', { name: 'Urgent Maintenant' })).toHaveAttribute('href', `/demandes/${D2}/accueil`)
     expect(mocks.api.listDemandes).toHaveBeenCalledWith({ view: 'open', assigned: 'any', flags: [], search: '', sort: 'priority' }, 0)

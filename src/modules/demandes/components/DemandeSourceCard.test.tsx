@@ -28,7 +28,7 @@ describe('DemandeSourceCard', () => {
     expect(screen.getByText('Page de réservation')).toBeInTheDocument()
     expect(screen.getByText('Instagram')).toBeInTheDocument()
     expect(screen.getByText(t(`${S}.heard`))).toHaveAttribute('title', t(`${S}.heardQuestion`))
-    expect(screen.getByText('source : instagram · medium : social')).toBeInTheDocument()
+    expect(screen.getByText('Source : instagram · Support : social')).toBeInTheDocument()
     expect(screen.getByText('https://site.test/services')).toBeInTheDocument()
     expect(screen.queryByText(t(`${S}.noCampaign`))).not.toBeInTheDocument()
   })

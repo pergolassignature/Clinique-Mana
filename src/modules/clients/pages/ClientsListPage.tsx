@@ -10,6 +10,7 @@ import { LoadError } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { EmailText } from '@/shared/components/EmailText'
 import { useDebouncedValue } from '@/shared/lib/use-debounced-value'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { cn } from '@/shared/lib/utils'
@@ -273,10 +274,11 @@ function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableP
         <TableHeader>
           <TableRow className="[&>th]:whitespace-nowrap">
             <TableHead>{t(`${L}.columns.name`)}</TableHead>
-            <TableHead className="max-sm:hidden">{t(`${L}.columns.number`)}</TableHead>
+            <TableHead className="max-xl:hidden">{t(`${L}.columns.number`)}</TableHead>
             <TableHead>{t(`${L}.columns.birthday`)}</TableHead>
             <TableHead className="max-md:hidden">{t(`${L}.columns.contact`)}</TableHead>
-            <TableHead className="max-lg:hidden">{t(`${L}.columns.professional`)}</TableHead>
+            {/* The menu takes 220 px: from xl only, so « Dernier rendez-vous » and the flags stay in view at 1024. */}
+            <TableHead className="max-xl:hidden">{t(`${L}.columns.professional`)}</TableHead>
             {visits && <TableHead className="max-md:hidden">{t(`${L}.columns.lastVisit`)}</TableHead>}
             <TableHead className="max-md:hidden">{t(`${L}.columns.flags`)}</TableHead>
           </TableRow>
@@ -295,17 +297,19 @@ function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableP
               const age = ageOf(row.birthday)
               return (
                 <TableRow key={row.id} className={cn(row.isArchived && 'text-muted-foreground')}>
-                  <TableCell className="font-medium">
+                  <TableCell className="min-w-40 font-medium">
                     <Link to={clientPath(row.id)} className="text-link underline-offset-2 hover:underline">
                       {row.firstName} {row.lastName}
                     </Link>
+                    {/* Below xl the number goes under the name: the table clips from lg (sticky header), so it must fit. */}
+                    <span className="block text-xs font-normal tabular text-muted-foreground xl:hidden">{clientNumberLabel(row.clientNumber)}</span>
                     {row.isArchived && (
                       <Badge variant="secondary" className="ml-2">
                         {t(`${L}.archived`)}
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="tabular whitespace-nowrap max-sm:hidden">{clientNumberLabel(row.clientNumber)}</TableCell>
+                  <TableCell className="tabular whitespace-nowrap max-xl:hidden">{clientNumberLabel(row.clientNumber)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     {row.birthday ? (
                       <>
@@ -317,10 +321,10 @@ function ClientsTable({ rows, professionals, tags, visits, more }: ClientsTableP
                     )}
                   </TableCell>
                   <TableCell className="max-md:hidden">
-                    <span className="block break-all">{row.email ?? ''}</span>
+                    {row.email && <EmailText value={row.email} className="block" />}
                     <span className="block tabular text-xs text-muted-foreground">{phoneLabel(row.mobile)}</span>
                   </TableCell>
-                  <TableCell className="max-lg:hidden">{proName(row.primaryProfessionalId)}</TableCell>
+                  <TableCell className="max-xl:hidden">{proName(row.primaryProfessionalId)}</TableCell>
                   {visits && (
                     <TableCell className="whitespace-nowrap max-md:hidden">
                       {row.lastVisitAt ? formatClinicDateShort(row.lastVisitAt) : <span className="text-muted-foreground">{t(`${L}.noVisit`)}</span>}

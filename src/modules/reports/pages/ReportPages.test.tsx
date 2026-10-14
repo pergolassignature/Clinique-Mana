@@ -55,6 +55,10 @@ describe('« Revenus » (RP-2)', () => {
     expect(figures).toContain('75,00')
     expect(screen.getByText(/créditées, non comptées : 1 \(90,00/)).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: t(`${R}.revenue.viewLabels.invoice`) })).toHaveAttribute('aria-selected', 'true')
+    // The report is the tab's panel (named by its tab), the filters with it.
+    const panel = screen.getByRole('tabpanel', { name: t(`${R}.revenue.viewLabels.invoice`) })
+    expect(panel).toContainElement(screen.getByText('2026-1'))
+    expect(panel).toContainElement(screen.getByRole('button', { name: t(`${R}.export`) }))
   })
 
   it('« Par paiement »: the mode filter, the truncation said, the export', async () => {

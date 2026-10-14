@@ -73,7 +73,8 @@ describe('CapacityPage', () => {
     expect(within(table).getByText(t(`${C}.placesOfOne`, { left: '0', declared: '2' }))).toBeInTheDocument()
     expect(within(table).getByText('0 place restante sur 2')).toBeInTheDocument()
     expect(within(table).getByText(t(`${C}.untracked`))).toBeInTheDocument()
-    expect(within(table).getByText(t(`${C}.notAccepting`))).toBeInTheDocument()
+    // The column, and on a phone the line under the name (one shows at a time).
+    expect(within(table).getAllByText(t(`${C}.notAccepting`))).toHaveLength(2)
     expect(within(table).getByText('Écrire avant de réserver.')).toBeInTheDocument()
     expect(within(table).getByText('Nouvelle')).toBeInTheDocument()
   })
