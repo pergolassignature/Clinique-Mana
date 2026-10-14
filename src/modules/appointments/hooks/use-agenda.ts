@@ -41,7 +41,7 @@ import {
   type AgendaSettings,
 } from '../api/changes'
 import { APPOINTMENT_HISTORY_PAGE_SIZE, fetchAppointmentHistory } from '../api/history'
-import { fetchWithoutReminder } from '../api/messages'
+import { fetchAppointmentMessages, fetchWithoutReminder, resendAppointmentNotification } from '../api/messages'
 import type { AppointmentMode, Presence } from '../api/parse'
 import { appointmentsKeys } from './keys'
 
@@ -200,4 +200,28 @@ export function useAppointmentHistory(id: string) {
 
 export function useAgendaSettings() {
   return useQuery({ queryKey: appointmentsKeys.settings(), queryFn: fetchAgendaSettings })
+}
+
+/** The sheet's « Messages » (AP-47). */
+export function useAppointmentMessages(id: string) {
+  return useQuery({ queryKey: appointmentsKeys.messages(id), queryFn: () => fetchAppointmentMessages(id) })
+}
+
+/** « Renvoyer la notification »: says how many went (or that nobody can be reached); refreshes the messages. */
+export function useResendNotification(id: string, feedback?: MutationFeedback) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => resendAppointmentNotification(id),
+    onSuccess: async (count) => {
+      await queryClient.invalidateQueries({ queryKey: appointmentsKeys.messages(id) })
+      if (count > 0) toast.success(t('modules.appointments.editor.messages.resent', { count: String(count) }))
+      else toast.error(t('modules.appointments.editor.messages.nobody'))
+    },
+    onError: (error) => {
+      if (rpcErrorCode(error) === '42501') void queryClient.invalidateQueries({ queryKey: accessKeys.all })
+      const message = moduleErrorMessage(error, t('modules.appointments.errors.saveFailed'), 'appointments')
+      if (feedback?.onErrorMessage) feedback.onErrorMessage(message, error)
+      else toast.error(message)
+    },
+  })
 }

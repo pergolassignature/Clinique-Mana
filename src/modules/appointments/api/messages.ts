@@ -33,6 +33,51 @@ export async function fetchWithoutReminder(fromIso: string, toIso: string): Prom
   return parseRpc(z.array(unreachablePayload), data)
 }
 
+// --- The sheet's « Messages » (AP-47) ----------------------------------------------------------
+
+export const MESSAGE_KINDS = ['confirmation', 'reminder', 'changed', 'cancelled'] as const
+export const MESSAGE_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const
+
+const sheetMessagePayload = z
+  .object({
+    id: z.string(),
+    kind: z.enum(MESSAGE_KINDS),
+    channel: z.enum(['email', 'sms']),
+    recipient_client_id: z.string(),
+    recipient_name: z.string().nullable(),
+    status: z.enum(MESSAGE_STATUSES),
+    skip_reason: z.string().nullable(),
+    attempts: z.number().int(),
+    created_at: z.string(),
+    sent_at: z.string().nullable(),
+  })
+  .transform((r) => ({
+    id: r.id,
+    kind: r.kind,
+    channel: r.channel,
+    recipientName: r.recipient_name ?? '',
+    status: r.status,
+    skipReason: r.skip_reason,
+    attempts: r.attempts,
+    createdAt: r.created_at,
+    sentAt: r.sent_at,
+  }))
+export type AppointmentMessage = z.output<typeof sheetMessagePayload>
+
+/** The appointment's messages to its clients, newest first (never an address, a number or a text). */
+export async function fetchAppointmentMessages(id: string): Promise<AppointmentMessage[]> {
+  const { data, error } = await supabase.rpc('list_appointment_messages', { p_id: id })
+  if (error) throw error
+  return parseRpc(z.array(sheetMessagePayload), data)
+}
+
+/** « Renvoyer la notification » (appointments.manage): how many messages were queued (0: nobody reachable). */
+export async function resendAppointmentNotification(id: string): Promise<number> {
+  const { data, error } = await supabase.rpc('resend_appointment_notification', { p_id: id })
+  if (error) throw error
+  return parseRpc(z.number().int(), data)
+}
+
 // --- Public: the confirmation link ----------------------------------------------------------------
 
 const linkSchema = z.object({
