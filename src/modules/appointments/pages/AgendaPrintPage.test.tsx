@@ -17,7 +17,7 @@ const REFERENCE: AgendaReference = {
     { id: 'p1', name: 'Félix Gauthier', active: true, titleIds: ['t1'] },
     { id: 'p2', name: 'Julie Morin', active: true, titleIds: ['t1'] },
   ],
-  services: [{ id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'] }],
+  services: [{ id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'], excludedProfessionalIds: [] }],
   reasons: [],
 }
 

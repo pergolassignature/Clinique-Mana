@@ -139,6 +139,10 @@ function TextsCard({
                       <dt className="text-muted-foreground">{t(lang === 'en' ? `${S}.texts.english` : `${S}.texts.french`)}</dt>
                       <dd className="min-w-0">
                         <TextChips template={textOf(lang)} />
+                        {/* R-75: no English text published, the French one is: say who gets what. */}
+                        {lang === 'en' && !textOf('en')?.published && textOf('fr')?.published && (
+                          <span className="ml-3 text-muted-foreground">{t(`${S}.texts.englishFallback`)}</span>
+                        )}
                       </dd>
                     </div>
                   ))}

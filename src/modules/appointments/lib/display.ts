@@ -41,10 +41,16 @@ export function stateBadgeVariant(state: AppointmentState): 'outline' | 'seconda
   return 'success'
 }
 
-/** The services a professional offers (her titles, or a clinic service). */
+/**
+ * The services a professional offers: her titles' (never one the clinic listed as not hers, R-83:
+ * Services' `excluded_professional_ids`), or a clinic service. The booking form, the availability
+ * windows' services and the agenda's service filter read it.
+ */
 export function servicesFor(reference: AgendaReference, professionalId: string) {
   const titles = reference.professionals.find((p) => p.id === professionalId)?.titleIds ?? []
-  return reference.services.filter((s) => s.titleIds.length === 0 || s.titleIds.some((id) => titles.includes(id)))
+  return reference.services.filter(
+    (s) => (s.titleIds.length === 0 || s.titleIds.some((id) => titles.includes(id))) && !s.excludedProfessionalIds.includes(professionalId),
+  )
 }
 
 /** Another professional's personal appointment, as `list_agenda` gives it to the staff: busy time only. */

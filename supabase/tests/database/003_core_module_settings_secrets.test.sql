@@ -223,6 +223,8 @@ select functions_are('public', array[
   'qbo_bill_to_check_for_service', 'clear_qbo_bill_for_service', 'force_clear_qbo_bill',
   'get_service_price', 'billing_policy_on', 'save_service', 'set_service_active', 'set_service_titles',
   'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices',
+  -- Services et tarifs, R-83 (the services a professional does not offer).
+  'set_professional_service_exclusions',
   -- Communications, batch SM (textos).
   'get_sms_settings', 'set_sms_settings', 'set_sms_consent',
   'queue_sms_for_service', 'claim_sms_batch_for_service', 'mark_sms_sent', 'mark_sms_failed',

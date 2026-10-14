@@ -79,8 +79,8 @@ const AVAILABILITY = '/agenda?date=2027-03-15&mode=disponibilites&professionnel=
 const REFERENCE: AgendaReference = {
   professionals: [{ id: 'p1', name: 'Félix Gauthier', active: true, titleIds: ['t1'] }],
   services: [
-    { id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'] },
-    { id: 's30', code: 10130, name: 'Consultation individuelle 30 min', durationMinutes: 30, bufferAfterMinutes: 0, forTwo: false, colour: null, titleIds: ['t1'] },
+    { id: 's50', code: 10150, name: 'Consultation individuelle 50 min', durationMinutes: 50, bufferAfterMinutes: 10, forTwo: false, colour: null, titleIds: ['t1'], excludedProfessionalIds: [] },
+    { id: 's30', code: 10130, name: 'Consultation individuelle 30 min', durationMinutes: 30, bufferAfterMinutes: 0, forTwo: false, colour: null, titleIds: ['t1'], excludedProfessionalIds: [] },
   ],
   reasons: [{ id: 'r1', key: 'not_specified', name: 'Non spécifiée', active: true }],
 }

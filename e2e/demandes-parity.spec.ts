@@ -1,12 +1,16 @@
+import { ACCOUNTS, SEED_PASSWORD } from './fixtures/accounts'
 import { expect, test } from './fixtures/auth'
+import { E2E_ORIGIN } from './fixtures/origin'
 
 /**
  * Demandes, the parity gaps (local only, after `npm run db:reset`): the intake's follow-up
  * questions (« Enjeux », « Contexte légal ») kept and cleared by « Non », a couple request that
  * says it counts one person, and « Jumelée » by hand with the seed's Félix Gauthier (a person
- * booked by phone). Fictional names, one per run.
+ * booked by phone). Then (R-80) Félix Gauthier (provider@mana.test) reads the whole request in
+ * « Mes demandes »: « Autre motif », « Autres disponibilités », « Enjeux » and its comment.
+ * Fictional names, one per run.
  */
-test('the intake\'s follow-ups, the couple count, and a match by hand', async ({ page, signIn }) => {
+test('the intake\'s follow-ups, the couple count, and a match by hand', async ({ page, signIn, browser }) => {
   const stamp = Date.now() % 100000
   const name = `Rose Parite${[...String(stamp)].map((digit) => 'abcdefghij'[Number(digit)]).join('')}`
 
@@ -23,6 +27,9 @@ test('the intake\'s follow-ups, the couple count, and a match by hand', async ({
   await page.getByRole('combobox', { name: 'Enjeux' }).selectOption('yes')
   await page.getByRole('group', { name: 'Enjeux nommés' }).getByRole('checkbox', { name: 'Coparentalité' }).check()
   await page.getByRole('textbox', { name: 'Précisions sur les enjeux' }).fill('Garde partagée')
+  const otherMotif = `Motif ${name}`
+  await page.getByRole('textbox', { name: /^Autre motif/ }).fill(otherMotif)
+  await page.getByRole('textbox', { name: /^Autres disponibilités/ }).fill('Le vendredi midi')
   await page.getByRole('combobox', { name: 'Contexte légal' }).selectOption('yes')
   await page.getByRole('group', { name: 'Contexte légal nommé' }).getByRole('checkbox', { name: 'DPJ' }).check()
   await page.getByRole('button', { name: 'Enregistrer' }).last().click()
@@ -57,4 +64,25 @@ test('the intake\'s follow-ups, the couple count, and a match by hand', async ({
   await match.getByRole('button', { name: 'Jumeler' }).click()
   await expect(page.getByText('La demande est jumelée à Félix Gauthier.')).toBeVisible()
   await expect(page.getByText('Jumelée', { exact: true }).first()).toBeVisible()
+
+  // R-80: the matched professional reads the whole request in « Mes demandes ».
+  const other = await browser.newContext({ baseURL: E2E_ORIGIN, locale: 'fr-CA' })
+  try {
+    const pro = await other.newPage()
+    await pro.goto('/connexion')
+    await pro.getByLabel('Courriel').fill(ACCOUNTS.provider.email)
+    await pro.getByLabel('Mot de passe').fill(SEED_PASSWORD)
+    await pro.getByRole('button', { name: 'Se connecter' }).click()
+    await expect(pro).toHaveURL(/\/accueil$/)
+    await pro.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Mes demandes' }).click()
+    await expect(pro.getByRole('heading', { level: 1, name: 'Mes demandes' })).toBeVisible()
+    const card = pro.getByRole('region').filter({ hasText: otherMotif })
+    await expect(card).toBeVisible()
+    await expect(card.getByText('Le vendredi midi')).toBeVisible()
+    await expect(card.getByText('Oui : Coparentalité')).toBeVisible()
+    await expect(card.getByText('Garde partagée')).toBeVisible()
+    await expect(card.getByText('Un couple')).toBeVisible()
+  } finally {
+    await other.close()
+  }
 })

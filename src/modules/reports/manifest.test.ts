@@ -12,7 +12,7 @@ describe('reportsManifest', () => {
       ['rapports/revenus', 'reports.finance'],
       ['rapports/annulations', 'reports.view'],
       ['rapports/consentements', 'reports.view'],
-      ['rapports/demandes', 'reports.view'],
+      ['rapports/demandes', ['reports.demandes_indicators', 'reports.view']],
       ['rapports/ivac', 'reports.finance'],
       ['rapports/paie', 'reports.payroll'],
     ])
@@ -25,7 +25,7 @@ describe('reportsManifest', () => {
       ['/rapports/paie', 'reports', 'reports.payroll', 'Paie des professionnels'],
       ['/rapports/ivac', 'reports', 'reports.finance', 'IVAC'],
       ['/rapports/annulations', 'reports', 'reports.view', 'Annulations'],
-      ['/rapports/demandes', 'reports', 'reports.view', 'Indicateurs des demandes'],
+      ['/rapports/demandes', 'reports', ['reports.demandes_indicators', 'reports.view'], 'Indicateurs des demandes'],
       ['/rapports/consentements', 'reports', 'reports.view', 'Consentements des clients'],
     ])
     expect(nav.map((n) => n.order)).toEqual([1, 2, 3, 4, 5, 6])
@@ -41,8 +41,18 @@ describe('reportsManifest', () => {
     const has = (role: keyof typeof ROLE_PERMISSIONS, key: string) => (ROLE_PERMISSIONS[role] as readonly string[]).includes(key)
     expect(has('admin', 'reports.view') && has('admin', 'reports.finance')).toBe(true)
     expect([has('admin_assistant', 'reports.finance'), has('admin_assistant', 'reports.view')]).toEqual([true, false])
-    expect(has('counselor', 'reports.view') || has('provider', 'reports.finance')).toBe(false)
+    expect(has('counselor', 'reports.view') || has('counselor', 'reports.finance') || has('provider', 'reports.finance')).toBe(false)
     // RP-9: the payroll report is the admin's only.
     expect([has('admin', 'reports.payroll'), has('admin_assistant', 'reports.payroll')]).toEqual([true, false])
+  })
+
+  it('« Indicateurs des demandes » with its own permission (the conseillère, the adjointe) or reports.view (R-81)', () => {
+    const has = (role: keyof typeof ROLE_PERMISSIONS, key: string) => (ROLE_PERMISSIONS[role] as readonly string[]).includes(key)
+    expect(['admin', 'admin_assistant', 'counselor', 'provider'].map((r) => has(r as keyof typeof ROLE_PERMISSIONS, 'reports.demandes_indicators'))).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ])
   })
 })

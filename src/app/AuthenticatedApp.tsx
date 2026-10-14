@@ -4,6 +4,7 @@ import { Home, Settings } from 'lucide-react'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
+import { canAny } from '@/core/access/can-any'
 import { Forbidden, NotFound, RequireAccess } from '@/core/access/guards'
 import { AccountPage } from '@/core/account/pages/AccountPage'
 import { ModuleAuditContext, type ModuleAuditSource } from '@/core/audit/module-labels'
@@ -41,9 +42,11 @@ export function AuthenticatedApp() {
   const access = useReadyAccess()
   const { modules: enabledKeys, org_timezone } = access
   const { can } = useAccess()
-  // A nav item or Accueil card may add a condition on the user beyond its permission (`shownWhen`).
+  // A nav item or Accueil card may add a condition on the user beyond its permission (`shownWhen`);
+  // a nav item's permission may be several keys, any of them (as its route's).
   const shown = useCallback(
-    (item: { permission: string; shownWhen?: (a: Access) => boolean }) => can(item.permission) && (item.shownWhen?.(access) ?? true),
+    (item: { permission: string | readonly string[]; shownWhen?: (a: Access) => boolean }) =>
+      canAny(item.permission, can) && (item.shownWhen?.(access) ?? true),
     [can, access],
   )
 
@@ -63,7 +66,7 @@ export function AuthenticatedApp() {
   // chunks only, the same for everyone: no data is fetched before the page itself mounts. Skipped
   // with Data Saver or on 2G (preloadWhenIdle).
   const routeComponents = useMemo(
-    () => modules.flatMap((m) => m.routes.filter((r) => can(r.permission)).map((r) => r.component)),
+    () => modules.flatMap((m) => m.routes.filter((r) => canAny(r.permission, can)).map((r) => r.component)),
     [modules, can],
   )
   useEffect(() => {

@@ -5031,16 +5031,26 @@
       "name": "Services et tarifs",
       "offered": {
         "title": "Services offerts",
-        "description": "Les services que ses titres professionnels permettent, avec son prix d'aujourd'hui (Paramètres → Services et tarifs).",
+        "description": "Les services que ses titres professionnels permettent et qu'elle offre, avec son prix d'aujourd'hui (Paramètres → Services et tarifs).",
         "loadError": "Les services offerts ne se chargent pas.",
         "empty": "Aucun service du catalogue pour ses titres.",
         "toConfirm": "À confirmer",
         "forTwo": "Pour deux personnes",
         "columns": {
+          "offered": "Offert",
           "service": "Service",
           "duration": "Durée",
           "price": "Prix aujourd'hui"
-        }
+        },
+        "editDescription": "Les services que ses titres professionnels permettent, avec son prix d'aujourd'hui. Décochez ceux qu'elle n'offre pas : l'agenda, ses disponibilités et les propositions des demandes ne les offriront plus pour elle.",
+        "notOffered": "Non offert",
+        "offerLabel": "Offre « {service} »",
+        "allOffered": "Elle offre tous les services de ses titres.",
+        "someNotOffered": {
+          "one": "{count} service de ses titres n'est pas offert.",
+          "other": "{count} services de ses titres ne sont pas offerts."
+        },
+        "saved": "Les services offerts sont enregistrés."
       },
       "settings": {
         "title": "Services et tarifs",
@@ -5340,7 +5350,8 @@
           "services": "Services",
           "service_titles": "Professions offrant un service",
           "service_rate_variants": "Tarifs étudiant et réduit",
-          "billing_policies": "Politiques d'annulation"
+          "billing_policies": "Politiques d'annulation",
+          "service_professional_exclusions": "Services non offerts par un professionnel"
         },
         "fields": {
           "service_families": {
@@ -5388,6 +5399,10 @@
             "next_fee_percent": "Frais les fois suivantes (%)",
             "file_opening_service_id": "Service d'ouverture de dossier",
             "fee_mode": "Mode des frais"
+          },
+          "service_professional_exclusions": {
+            "professional_id": "Professionnel",
+            "service_id": "Service"
           }
         },
         "values": {
@@ -5910,7 +5925,7 @@
           "loadError": "Impossible de charger les réglages des consentements.",
           "texts": {
             "title": "Textes des consentements",
-            "description": "Un consentement par ligne, en français et en anglais. « Modifier » ouvre ses deux textes. Rien n’est envoyé aux clients avant la publication.",
+            "description": "Un consentement par ligne, en français et en anglais. « Modifier » ouvre ses deux textes. Sans texte anglais publié, un client de langue anglaise reçoit le texte français. Rien n’est envoyé aux clients avant la publication.",
             "published": "Texte publié.",
             "publishedFlagged": "Texte publié : {count} clients devront signer de nouveau.",
             "publishTitle": "Publier la version {version} : {name} ({language})",
@@ -5930,7 +5945,8 @@
             "publishFirst": "Première publication : ce consentement pourra être demandé aux clients (« Quand demander »). Les prochaines demandes utiliseront cette version.",
             "whoSigns": "Qui doit signer cette version ?",
             "campaignNote": "Les clients qui ont signé une version précédente passent à « À signer de nouveau ». Pour leur envoyer la demande, lancez ensuite « Nouvelles signatures » (100 clients par jour au plus).",
-            "testersNote": "Tant que le module Clients est réservé aux testeurs, aucune demande ne part vers les clients."
+            "testersNote": "Tant que le module Clients est réservé aux testeurs, aucune demande ne part vers les clients.",
+            "englishFallback": "Les clients de langue anglaise reçoivent le texte français"
           },
           "rules": {
             "title": "Quand demander",
@@ -9286,6 +9302,24 @@
           "role": "Rôle",
           "professional": "Professionnel jumelé"
         }
+      },
+      "mine": {
+        "title": "Mes demandes",
+        "nav": "Mes demandes",
+        "description": "Les demandes jumelées avec vous, avec tout ce que la personne a dit à l'accueil. Ses coordonnées sont dans « Mes clients ».",
+        "loadError": "Impossible de charger vos demandes.",
+        "empty": {
+          "title": "Aucune demande jumelée",
+          "body": "Une demande paraît ici dès qu'elle est jumelée avec vous, avec tout ce que la personne a dit à l'accueil."
+        },
+        "cardTitle": "{reference} · {name}",
+        "received": "Reçue le {date}",
+        "matched": "jumelée le {date}",
+        "separator": ", ",
+        "people": "Personnes",
+        "participant": "{name} ({relationship})",
+        "motifCategory": "{category} : {motifs}",
+        "yesWith": "Oui : {items}"
       }
     },
     "appointments": {

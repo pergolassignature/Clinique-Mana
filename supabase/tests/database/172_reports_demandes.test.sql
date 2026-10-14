@@ -210,7 +210,7 @@ select is((current_setting('test.r')::jsonb -> 'places') - 'by_professional',
 -- Rules and permissions.
 select throws_ok($$ select public.report_demandes('2026-09-30', '2026-09-01') $$, 'P0001', null, 'a period the wrong way round');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select throws_ok($$ select public.report_demandes('2026-09-01', '2026-09-30') $$, '42501', null, 'the conseillère: reports.view needed');
+select lives_ok($$ select public.report_demandes('2026-09-01', '2026-09-30') $$, 'the conseillère: reports.demandes_indicators opens it (R-81)');
 reset role;
 update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'demandes';
 set local role authenticated;

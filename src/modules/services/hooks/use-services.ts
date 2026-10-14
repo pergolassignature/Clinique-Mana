@@ -17,6 +17,7 @@ import {
   type ServiceInput,
   type VariantInput,
 } from '../api/catalogue'
+import { setServiceExclusions } from '../api/offered'
 import { serviceKeys } from './keys'
 import { taxRateOn } from '@/core/settings/tax/api'
 import type { TaxRatesOn } from '../lib/taxes'
@@ -124,4 +125,13 @@ export function useAddBillingPolicy(feedback?: MutationFeedback) {
 
 export function useDeleteBillingPolicy(feedback?: MutationFeedback) {
   return useServicesMutation((id: string) => deleteBillingPolicy(id), () => t(`${S}.policy.deleted`), feedback)
+}
+
+/** R-83: « Services offerts » saved (the services of her titles she does not offer). */
+export function useSetServiceExclusions(feedback?: MutationFeedback) {
+  return useServicesMutation(
+    ({ professionalId, serviceIds }: { professionalId: string; serviceIds: readonly string[] }) => setServiceExclusions(professionalId, serviceIds),
+    () => t('modules.services.offered.saved'),
+    feedback,
+  )
 }

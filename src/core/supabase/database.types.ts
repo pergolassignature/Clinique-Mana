@@ -11419,6 +11419,80 @@ export type Database = {
           },
         ]
       }
+      service_professional_exclusions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          org_id: string
+          professional_id: string
+          service_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          org_id: string
+          professional_id: string
+          service_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          org_id?: string
+          professional_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_professional_exclusions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "service_professional_exclusions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_professional_exclusions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_professional_exclusions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_professional_exclusions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "service_professional_exclusions_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "service_professional_exclusions_service_fkey"
+            columns: ["org_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       service_rate_variants: {
         Row: {
           amount_cents: number | null
@@ -14103,21 +14177,32 @@ export type Database = {
       my_demandes: {
         Row: {
           availability_days: number[] | null
+          availability_other: string | null
           availability_periods: string[] | null
           beneficiary: string | null
           client_id: string | null
           clientele_id: string | null
           concerns: string | null
+          has_issues: boolean | null
+          has_legal_context: boolean | null
           id: string | null
           insurer: string | null
+          is_urgent: boolean | null
+          issues: string[] | null
+          issues_comment: string | null
           language: string | null
+          legal_context: string[] | null
+          legal_detail: string | null
           matched_at: string | null
           modality: string | null
           motif_ids: string[] | null
+          motif_other: string | null
           org_id: string | null
           participants: Json | null
           payer_kind: string | null
           preferred_pro_gender: string | null
+          previous_comment: string | null
+          previous_professionals: string[] | null
           previous_therapy: boolean | null
           profession_title_id: string | null
           received_at: string | null
@@ -14365,6 +14450,7 @@ export type Database = {
           colour: string | null
           description: string | null
           duration_minutes: number | null
+          excluded_professional_ids: string[] | null
           family_code: number | null
           family_id: string | null
           family_name: string | null
@@ -18093,6 +18179,10 @@ export type Database = {
       set_professional_refused_motifs: {
         Args: { p_id: string; p_motif_ids: string[] }
         Returns: string[]
+      }
+      set_professional_service_exclusions: {
+        Args: { p_professional_id: string; p_service_ids: string[] }
+        Returns: number
       }
       set_professional_signature: {
         Args: { p_file_id: string; p_professional_id: string }
