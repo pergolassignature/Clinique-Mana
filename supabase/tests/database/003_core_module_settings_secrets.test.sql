@@ -231,7 +231,7 @@ select functions_are('public', array[
   'list_sms_thread', 'link_sms_thread', 'unlink_sms_thread', 'get_sms_thread_link', 'list_sms_conversations', 'list_client_sms', 'release_sms_claims_for_service',
   'record_inbound_sms', 'apply_sms_delivery_event', 'sms_event_known_for_service', 'get_sms_provider_context',
   'acquire_sms_provider_lock', 'release_sms_provider_lock', 'store_sms_provider_session', 'set_sms_provider_channel',
-  'create_demande', 'update_demande', 'set_demande_state', 'assign_demande', 'log_demande_contact',
+  'create_demande', 'find_demande_matches', 'update_demande', 'set_demande_state', 'assign_demande', 'log_demande_contact',
   'add_demande_task', 'complete_demande_task', 'cancel_demande_task', 'set_demande_note', 'set_demande_participants', 'set_demande_source',
   'list_demandes', 'demandes_counts', 'get_demande', 'get_demandes_reference', 'set_demande_handler',
   -- Clients, batch C5a (consents).
