@@ -6,7 +6,7 @@
 -- unmatched or closed), but not while an appointment or another matched request holds it, nor for
 -- a link of another reason; the anonymisation blanks the requests' free text, their note and the
 -- waiting list's reasons; the audit redacts the remaining personal columns; the cancel link obeys
--- the module; « Facturer l'inscription » obeys P3-40; an offer's slots are stored rebuilt; the
+-- the module; « Facturer l'inscription » no longer refuses for P3-40 (D-52); an offer's slots are stored rebuilt; the
 -- « still waiting? » link names a professional's list.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -306,17 +306,18 @@ select is(public.resolve_waitlist_followup_link(current_setting('test.wl')::uuid
 reset role;
 
 -- =============================================================================
--- 6. « Facturer l'inscription » obeys P3-40
+-- 6. « Facturer l'inscription » while reserved: no P3-40 refusal any more (D-52, pgTAP 240: the
+--    invoice is made, its email held); here Facturation is off, so its own refusal answers
 -- =============================================================================
 update public.org_modules set testers_only = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'demandes';
 insert into public.org_module_testers (org_id, module_key, user_id)
 values ('b0000000-0000-0000-0000-00000000000a', 'demandes', 'a0000000-0000-0000-0000-000000000001');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select is(private.test_error_hint($$ select public.invoice_waitlist_fee('f0000000-0000-0000-0000-000000000002') $$), 'module_reserved',
-  'Demandes reserved for its testers: no registration invoice leaves for a client');
+select is(private.test_error_hint($$ select public.invoice_waitlist_fee('f0000000-0000-0000-0000-000000000002') $$), 'billing',
+  'Demandes reserved for its testers: no longer refused for P3-40 (D-52)');
 select throws_ok($$ select public.invoice_waitlist_fee('f0000000-0000-0000-0000-000000000002') $$, 'P0001',
-  'Demandes est réservé aux testeurs : aucune facture d''inscription ne part vers un client pour le moment.', '… said in French');
+  'La Facturation n''est pas activée : notez les frais à la main (payés ou exonérés).', '… Facturation off answers, in French');
 reset role;
 
 select * from finish();
