@@ -46,7 +46,7 @@ insert into public.org_module_testers (org_id, module_key, user_id) values ('b00
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select ok(public.invoice_waitlist_fee(current_setting('test.e')::uuid) ~ '^[0-9]{4}-1$', '« Facturer l''inscription »: the year''s first number');
+select ok(public.invoice_waitlist_fee(current_setting('test.e')::uuid) ->> 'number' ~ '^[0-9]{4}-1$', '« Facturer l''inscription »: the year''s first number');
 select throws_ok(format($$ select public.invoice_waitlist_fee(%L) $$, current_setting('test.e')),
   'P0001', 'Les frais de cette inscription ne sont pas « À facturer ».', 'a second click: refused');
 reset role;
@@ -96,7 +96,7 @@ select results_eq($$ select fee_status, fee_invoice_id is null from public.waitl
   $$ values ('to_invoice'::text, true) $$, 'credited: « À facturer » again');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select ok(public.invoice_waitlist_fee(current_setting('test.e')::uuid) ~ '^[0-9]{4}-2$', 'invoiced again: the next number');
+select ok(public.invoice_waitlist_fee(current_setting('test.e')::uuid) ->> 'number' ~ '^[0-9]{4}-2$', 'invoiced again: the next number');
 reset role;
 
 select * from finish();
