@@ -20,7 +20,7 @@ import { prefetchProfessionalOnboarding, useInvitationStates } from '../hooks/us
 import { prefetchProfessionalRecord } from '../hooks/use-professional-record'
 import { useProfessionalsList } from '../hooks/use-professionals-list'
 import { useUnansweredDays } from '../hooks/use-professionals-settings'
-import { filterProfessionals, paginate, searchHaystacks, withOnboarding } from '../lib/filters'
+import { filterProfessionals, isDefaultFilters, paginate, searchHaystacks, withOnboarding } from '../lib/filters'
 import { useRememberedProfessionalsFilters } from '../lib/remembered-filters'
 import { professionalRecordPage } from '../manifest'
 import type { Onboarding, ProfessionalListRow } from '../api/parse'
@@ -90,6 +90,13 @@ export function ProfessionalsListPage() {
     reset()
     filtersButton.current?.focus()
   }, [reset])
+  // With the default filters, only « Tous sauf inactifs » can hide rows (every file is inactive):
+  // « Réinitialiser » would bring nothing back, so the empty state offers « Tous les statuts ».
+  const onlyInactiveHidden = isDefaultFilters(filters)
+  const showAllStatuses = useCallback(() => {
+    setFilters({ status: 'all' })
+    filtersButton.current?.focus()
+  }, [setFilters])
 
   const failed = [list, catalog].filter((q) => q.isError && !q.data)
 
@@ -168,10 +175,10 @@ export function ProfessionalsListPage() {
           {shown?.length === 0 ? (
             <EmptyState
               title={t(`${L}.noMatch.title`)}
-              body={t(`${L}.noMatch.body`)}
+              body={t(onlyInactiveHidden ? `${L}.noMatch.inactiveHiddenBody` : `${L}.noMatch.body`)}
               action={
-                <Button variant="outline" onClick={resetAll}>
-                  {t(`${L}.reset`)}
+                <Button variant="outline" onClick={onlyInactiveHidden ? showAllStatuses : resetAll}>
+                  {t(onlyInactiveHidden ? `${L}.noMatch.showAllStatuses` : `${L}.reset`)}
                 </Button>
               }
             />
