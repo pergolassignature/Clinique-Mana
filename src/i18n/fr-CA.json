@@ -7634,7 +7634,9 @@
             "source_utm": "Paramètres de campagne",
             "source_referrer": "Page d’origine",
             "client_id": "Dossier client",
-            "contact_name": "Nom",
+            "contact_name": "Nom complet",
+            "contact_first_name": "Prénom",
+            "contact_last_name": "Nom",
             "contact_email": "Courriel",
             "contact_phone_e164": "Téléphone",
             "beneficiary": "Pour qui",
@@ -8234,8 +8236,9 @@
       "new": {
         "open": "Nouvelle demande",
         "title": "Nouvelle demande",
-        "description": "La saisie rapide : comment joindre la personne et d'où vient la demande. Le reste de l'accueil se remplit dans la demande.",
-        "name": "Nom",
+        "description": "La saisie rapide : qui appelle, comment la joindre et d'où vient la demande. Le reste de l'accueil se remplit dans la demande.",
+        "firstName": "Prénom",
+        "lastName": "Nom",
         "phone": "Téléphone",
         "email": "Courriel",
         "channel": "Reçue par",
@@ -8244,10 +8247,35 @@
         "note": "Note interne",
         "noteHelp": "Visible seulement par les personnes autorisées. Jamais d'information clinique.",
         "badPhone": "Ce numéro de téléphone n’est pas valide.",
-        "someone": "Indiquez au moins un nom, un téléphone ou un courriel.",
+        "someone": "Indiquez le prénom de la personne, ou choisissez son dossier dans « Dossiers existants ».",
         "create": "Créer la demande",
         "creating": "Création…",
-        "created": "La demande est créée."
+        "created": "La demande est créée.",
+        "firstNameHelp": "Facultatif si vous utilisez un dossier existant.",
+        "matches": {
+          "title": "Dossiers existants ({count})",
+          "description": "La clinique connaît peut-être déjà cette personne.",
+          "searching": "Recherche de dossiers existants…",
+          "announce": "Dossiers existants : {count}.",
+          "use": "Utiliser ce dossier",
+          "useFor": "Utiliser le dossier {file}",
+          "unlink": "Ne pas rattacher",
+          "chosen": "La demande sera rattachée au dossier {file}.",
+          "born": "Naissance : {year}",
+          "archived": "Archivé",
+          "matchedOn": {
+            "phone": "Même téléphone (…{hint})",
+            "partial_phone": "Téléphone presque identique (…{hint})",
+            "email": "Même courriel ({hint})",
+            "partial_email": "Courriel semblable ({hint})",
+            "name": "Même nom"
+          },
+          "open": "Une demande est déjà ouverte pour cette personne : {reference}",
+          "openContact": "Une demande est déjà ouverte avec ce téléphone ou ce courriel : {reference}",
+          "openLink": "Ouvrir la demande",
+          "openLinkFor": "Ouvrir la demande {reference} (nouvel onglet)",
+          "failed": "Les dossiers existants n’ont pas pu être vérifiés. Vous pouvez quand même créer la demande."
+        }
       },
       "contact": {
         "open": "Noter un appel",
@@ -8330,17 +8358,23 @@
       "intake": {
         "file": {
           "title": "Dossier client",
-          "description": "Le dossier de la personne servie, quand il existe. Il sera lié au professionnel jumelé.",
+          "description": "Le dossier de la personne qui fait la demande. Si la demande est pour quelqu'un d'autre (un enfant, un couple, une famille), ajoutez ces personnes dans « Participants ».",
           "none": "Aucun dossier rattaché.",
           "link": "Rattacher un dossier",
-          "change": "Changer de dossier"
+          "change": "Changer de dossier",
+          "remove": "Retirer le dossier",
+          "removed": "Le dossier est retiré de la demande."
         },
         "contact": {
           "title": "Coordonnées",
           "description": "Comment joindre la personne, tant qu'aucun dossier n'est rattaché.",
-          "name": "Nom",
+          "firstName": "Prénom",
+          "lastName": "Nom",
           "phone": "Téléphone",
-          "email": "Courriel"
+          "email": "Courriel",
+          "fromFile": "Les coordonnées viennent du dossier {number}.",
+          "openFile": "Ouvrir le dossier",
+          "firstNeeded": "Indiquez le prénom de la personne."
         },
         "need": {
           "title": "Besoin",
@@ -8365,7 +8399,8 @@
           "legalWhich": "Contexte légal nommé",
           "legalDetail": "Précisions sur le contexte légal",
           "motifOther": "Autre motif",
-          "motifOtherHelp": "Un motif nommé par la personne qui n'est pas dans la liste."
+          "motifOtherHelp": "Un motif nommé par la personne qui n'est pas dans la liste.",
+          "clienteleHelp": "Seulement si la personne cherche une clientèle précise (accompagnement parental, athlètes…). Sinon, l'app la déduit des participants."
         },
         "prefs": {
           "title": "Préférences",
@@ -9218,7 +9253,13 @@
         "nextSlot": {
           "label": "Prochaine plage libre : {when} ({service})",
           "none": "Aucune plage libre dans les 4 prochaines semaines ({service})"
-        }
+        },
+        "personFrom": {
+          "participant": "Âge et sexe : participant principal",
+          "file": "Âge et sexe : dossier de la demande"
+        },
+        "clienteleChosen": "Clientèle : {name} (choisie à la main)",
+        "clienteleAuto": "Clientèle : {text}, automatique"
       },
       "capacity": {
         "nav": "Places restantes",
@@ -9320,6 +9361,34 @@
         "participant": "{name} ({relationship})",
         "motifCategory": "{category} : {motifs}",
         "yesWith": "Oui : {items}"
+      },
+      "clientele": {
+        "auto": "Automatique : {text}",
+        "withSource": "{names} ({source})",
+        "because": {
+          "couple": "{names} (un couple)",
+          "family": "{names} (une famille)"
+        },
+        "toSpecify": "à préciser ({why})",
+        "why": {
+          "ageUnknown": "âge inconnu",
+          "nobody": "aucun participant ni dossier",
+          "noneFits": "aucune clientèle de la clinique ne correspond"
+        },
+        "person": {
+          "participant": "participant principal",
+          "file": "dossier de la demande"
+        },
+        "personAge": "{who}, {age} ans",
+        "conflict": "Les participants indiquent {names} : vérifiez la clientèle.",
+        "addPeople": {
+          "child": "Ajoutez l'enfant dans « Participants » : le jumelage se fera selon son âge.",
+          "teen": "Ajoutez l'adolescent ou l'adolescente dans « Participants » : le jumelage se fera selon son âge.",
+          "couple": "Ajoutez les deux personnes du couple dans « Participants » : le jumelage se fera selon leurs besoins.",
+          "family": "Ajoutez les membres de la famille dans « Participants » : le jumelage se fera selon leurs besoins.",
+          "other": "Ajoutez la personne concernée dans « Participants » : le jumelage se fera selon son âge et ses besoins."
+        },
+        "addPeopleLink": "Ouvrir « Participants »"
       }
     },
     "appointments": {

@@ -237,7 +237,13 @@ function NoteCard() {
     event.preventDefault()
     if (save.isPending || !dirty) return
     setError(null)
-    save.mutate(note, { onSuccess: () => toast.success(t(`${F}.note.saved`)), onError: (failure) => setError(demandesError(failure)) })
+    save.mutate(note, {
+      onSuccess: () => {
+        draft.commit()
+        toast.success(t(`${F}.note.saved`))
+      },
+      onError: (failure) => setError(demandesError(failure)),
+    })
   }
   return (
     <SettingsCard as="section" layout="section" title={t(`${F}.note.title`)} description={t(`${F}.note.description`)}>

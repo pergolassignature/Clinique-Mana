@@ -148,6 +148,9 @@ const demandeSchema = z.looseObject({
   source_landing_page: nullableString,
   client_id: nullableString,
   contact_name: nullableString,
+  // D-56: the two parts (contact_name stays « Prénom Nom », maintained by the database).
+  contact_first_name: nullableString.catch(null),
+  contact_last_name: nullableString.catch(null),
   contact_email: nullableString,
   contact_phone_e164: nullableString,
   beneficiary: nullableString,
@@ -195,6 +198,21 @@ const demandeSchema = z.looseObject({
 })
 
 const fileSchema = z.object({ client_number: z.number(), display_name: z.string() })
+
+export const CLIENTELE_BASES = ['chosen', 'couple', 'family', 'age', 'none'] as const
+const clienteleFitSchema = z.object({
+  basis: z.enum(CLIENTELE_BASES),
+  clienteles: z.array(z.object({ id: z.string(), key: z.string(), name: z.string() })),
+})
+export type ClienteleFit = z.infer<typeof clienteleFitSchema>
+const matchBasisSchema = z.object({
+  person: z.enum(['participant', 'file']).nullable(),
+  age: z.number().nullable(),
+  clientele_auto: clienteleFitSchema,
+  /** The clientèles the rule can give (ages, couples, families); « Parents », « Athlètes » are not among them. */
+  derivable_ids: z.array(z.string()).catch([]),
+})
+export type MatchBasis = z.infer<typeof matchBasisSchema>
 
 const bundleSchema = z.object({
   demande: demandeSchema,
@@ -252,6 +270,8 @@ const bundleSchema = z.object({
   ),
   note: z.object({ internal_note: z.string(), updated_at: z.string(), updated_by_name: nullableString }).nullable(),
   can: z.object({ manage: z.boolean(), notes: z.boolean() }),
+  /** D-59: whose age the match reads, and the clientèle the request's people give (the match's rule). */
+  match_basis: matchBasisSchema.catch({ person: null, age: null, clientele_auto: { basis: 'none', clienteles: [] }, derivable_ids: [] }),
 })
 export type DemandeBundle = z.infer<typeof bundleSchema>
 export type DemandeTask = DemandeBundle['tasks'][number]
@@ -279,6 +299,53 @@ export async function fetchReference(): Promise<DemandesReference> {
   const { data, error } = await supabase.rpc('get_demandes_reference')
   if (error) throw error
   return referenceSchema.parse(data)
+}
+
+// ---------------------------------------------------------------------------------------------
+// « Dossiers existants » (D-55): the files and open requests of the person being typed
+// ---------------------------------------------------------------------------------------------
+
+/** What the counselor typed, only the meaningful parts (a valid phone or email, a first and a last name). */
+export interface IntakeProbe {
+  firstName: string | null
+  lastName: string | null
+  phone: string | null
+  email: string | null
+}
+
+const openDemandeSchema = z.object({ id: z.string(), reference: z.string() })
+export const MATCHED_ON = ['phone', 'partial_phone', 'email', 'partial_email', 'name'] as const
+const intakeMatchesSchema = z.object({
+  clients: z.array(
+    z.object({
+      client_id: z.string(),
+      client_number: z.number(),
+      display_name: z.string(),
+      birth_year: z.number().nullable(),
+      is_archived: z.boolean(),
+      matched_on: z.array(z.string()).transform((list) => list.filter((m): m is (typeof MATCHED_ON)[number] => (MATCHED_ON as readonly string[]).includes(m))),
+      phone_hint: nullableString,
+      email_hint: nullableString,
+      open_demandes: z.array(openDemandeSchema),
+    }),
+  ),
+  open_demandes: z.array(openDemandeSchema),
+})
+export type IntakeMatches = z.infer<typeof intakeMatchesSchema>
+export type IntakeMatch = IntakeMatches['clients'][number]
+
+/** Clients' rule (the duplicate check, then the name), at most 5 files; never a write. */
+export async function findDemandeMatches(probe: IntakeProbe, signal?: AbortSignal): Promise<IntakeMatches> {
+  let query = supabase.rpc('find_demande_matches', {
+    p_first: probe.firstName ?? '',
+    p_last: probe.lastName ?? '',
+    p_phone: probe.phone ?? '',
+    p_email: probe.email ?? '',
+  })
+  if (signal) query = query.abortSignal(signal)
+  const { data, error } = await query
+  if (error) throw error
+  return intakeMatchesSchema.parse(data)
 }
 
 // ---------------------------------------------------------------------------------------------

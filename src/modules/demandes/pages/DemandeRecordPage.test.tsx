@@ -106,6 +106,8 @@ function bundle(over: Partial<DemandeBundle> = {}, demande: Partial<DemandeBundl
       source_landing_page: null,
       client_id: 'c1',
       contact_name: 'Alice Tremblay',
+      contact_first_name: 'Alice',
+      contact_last_name: 'Tremblay',
       contact_email: null,
       contact_phone_e164: '+15145550101',
       beneficiary: 'self',
@@ -174,6 +176,7 @@ function bundle(over: Partial<DemandeBundle> = {}, demande: Partial<DemandeBundl
     ],
     note: { internal_note: 'Préfère le soir.', updated_at: '2026-10-12T15:00:00Z', updated_by_name: 'Conseillère A' },
     can: { manage: true, notes: true },
+    match_basis: { person: 'file', age: 40, clientele_auto: { basis: 'age', clienteles: [{ id: 'cl1', key: 'adults', name: 'Adultes' }] }, derivable_ids: ['cl1'] },
     ...over,
   }
 }
@@ -700,6 +703,103 @@ describe('DemandeRecordPage', () => {
     await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.propositions.withdraw') }))
     await waitFor(() => expect(mocks.propositions.withdrawProposition).toHaveBeenCalledWith('pr1'))
     expect(screen.queryByRole('button', { name: t('modules.demandes.propositions.open') })).not.toBeInTheDocument()
+  })
+
+  it('Accueil with a file: the contact comes from the file, no inputs twice (D-57)', async () => {
+    renderPage()
+    expect(await screen.findByText(t('modules.demandes.intake.contact.fromFile', { number: 'CLI-000042' }))).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('modules.demandes.intake.contact.openFile') })).toHaveAttribute('href', '/clients/c1')
+    expect(screen.queryByRole('textbox', { name: t('modules.demandes.intake.contact.firstName') })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: t('modules.demandes.intake.contact.phone') })).not.toBeInTheDocument()
+  })
+
+  it('Accueil without a file: « Prénom » and « Nom », each saved as its own key; the first name stays', async () => {
+    const user = userEvent.setup()
+    mocks.api.getDemande.mockResolvedValue(bundle({ client: null }, { client_id: null }))
+    renderPage()
+    const first = await screen.findByRole('textbox', { name: t('modules.demandes.intake.contact.firstName') })
+    const last = screen.getByRole('textbox', { name: t('modules.demandes.intake.contact.lastName') })
+    expect(first).toHaveValue('Alice')
+    expect(last).toHaveValue('Tremblay')
+    expect(screen.getByRole('textbox', { name: t('modules.demandes.intake.contact.phone') })).toHaveValue('514 555-0101')
+    await user.clear(last)
+    await user.type(last, 'Gagnon')
+    await user.click(screen.getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.updateDemande).toHaveBeenCalledWith(ID, { contact_last_name: 'Gagnon' }))
+    await user.clear(first)
+    await user.click(screen.getByRole('button', { name: t('common.save') }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t('modules.demandes.intake.contact.firstNeeded'))
+    expect(mocks.api.updateDemande).toHaveBeenCalledTimes(1)
+  })
+
+  it('« Retirer le dossier »: the request is detached, its own contact comes back', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const remove = await screen.findByRole('button', { name: t('modules.demandes.intake.file.remove') })
+    mocks.api.getDemande.mockResolvedValue(bundle({ client: null }, { client_id: null }))
+    await user.click(remove)
+    await waitFor(() => expect(mocks.api.updateDemande).toHaveBeenCalledWith(ID, { client_id: null }))
+    expect(await screen.findByRole('textbox', { name: t('modules.demandes.intake.contact.firstName') })).toHaveValue('Alice')
+  })
+
+  it('Besoin: « Pour qui » someone else without the person in Participants says to add her, with the way there (D-60)', async () => {
+    mocks.api.getDemande.mockResolvedValue(bundle({}, { beneficiary: 'child' }))
+    renderPage()
+    expect(await screen.findByText(new RegExp(t('modules.demandes.clientele.addPeople.child').slice(0, 30)))).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('modules.demandes.clientele.addPeopleLink') })).toHaveAttribute('href', `/demandes/${ID}/participants`)
+  })
+
+  it('Besoin: no notice once the child is the main participant', async () => {
+    mocks.api.getDemande.mockResolvedValue(
+      bundle(
+        { participants: [{ id: 'p1', client_id: null, display_name: 'Léo', relationship: 'child', birthday: '2017-01-01', is_primary: true, client: null }] },
+        { beneficiary: 'child' },
+      ),
+    )
+    renderPage()
+    await screen.findByRole('textbox', { name: t('modules.demandes.intake.need.concerns') })
+    expect(screen.queryByRole('link', { name: t('modules.demandes.clientele.addPeopleLink') })).not.toBeInTheDocument()
+  })
+
+  it('Clientèle: « Automatique » shows what the server derived; a choice the participants contradict is warned (D-59)', async () => {
+    const user = userEvent.setup()
+    mocks.api.getDemande.mockResolvedValue(
+      bundle({
+        match_basis: { person: 'participant', age: 9, clientele_auto: { basis: 'age', clienteles: [{ id: 'k1', key: 'children', name: 'Enfants' }] }, derivable_ids: ['k1', 'cl1'] },
+      }),
+    )
+    renderPage()
+    const select = await screen.findByRole('combobox', { name: new RegExp(`^${t('modules.demandes.intake.need.clientele')}`) })
+    expect(within(select).getByRole('option', { name: 'Automatique : Enfants (participant principal, 9 ans)' })).toBeInTheDocument()
+    expect(select).toHaveValue('')
+    expect(screen.getByText(t('modules.demandes.intake.need.clienteleHelp'))).toBeInTheDocument()
+    expect(screen.queryByText(t('modules.demandes.clientele.conflict', { names: 'Enfants' }))).not.toBeInTheDocument()
+    await user.selectOptions(select, 'cl1')
+    expect(screen.getByText(t('modules.demandes.clientele.conflict', { names: 'Enfants' }))).toBeInTheDocument()
+  })
+
+  it('Participants: a save with a new row shows no stale notice; the row takes its id', async () => {
+    const user = userEvent.setup()
+    renderPage('participants')
+    await user.click(await screen.findByRole('button', { name: t('modules.demandes.participants.addFile', { file: 'CLI-000042 · Alice Tremblay' }) }))
+    // The server's next value: the row saved, with its id.
+    mocks.api.getDemande.mockResolvedValue(
+      bundle({
+        participants: [{ id: 'p1', client_id: 'c1', display_name: null, relationship: 'self', birthday: null, is_primary: true, client: { client_number: 42, display_name: 'Alice Tremblay' } }],
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.saveParticipants).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.demandes.participants.saved')))
+    await waitFor(() => expect(mocks.api.getDemande.mock.calls.length).toBeGreaterThan(1))
+    expect(screen.queryByText(t(`${R}.stale`))).not.toBeInTheDocument()
+    // Changed and saved again: the row now carries its id.
+    await user.selectOptions(screen.getByRole('combobox', { name: t('modules.demandes.participants.relationship') }), 'parent')
+    await user.click(screen.getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.saveParticipants).toHaveBeenCalledTimes(2))
+    expect(mocks.api.saveParticipants.mock.calls[1]![1]).toEqual([
+      { id: 'p1', client_id: 'c1', display_name: null, relationship: 'parent', birthday: null, is_primary: true },
+    ])
   })
 
   it('a request that is not the clinic\'s: « Demande introuvable »', async () => {

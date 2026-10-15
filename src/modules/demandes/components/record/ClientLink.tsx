@@ -10,17 +10,11 @@ import { useDemandeRecord } from './record-context'
 
 const C = 'modules.demandes.clientLink'
 
-/** « Prénom Nom » → its two parts (the last word is the family name). */
-function splitName(name: string | null): { first: string; last: string } {
-  const words = (name ?? '').trim().split(/\s+/).filter(Boolean)
-  if (words.length < 2) return { first: words[0] ?? '', last: '' }
-  return { first: words.slice(0, -1).join(' '), last: words[words.length - 1] ?? '' }
-}
-
 /**
  * « Rattacher un dossier » / « Changer de dossier » on the Accueil tab: Clients' picker
  * (`@/modules/clients`, lazy) opens in the card. A file chosen from the search, picked from the
- * duplicates panel or created through « Nouveau client » (prefilled with the request's contact)
+ * duplicates panel or created through « Nouveau client » (prefilled with the request's contact: its
+ * first and last name as typed, D-56, never guessed from one name)
  * becomes the request's file through `update_demande`.
  */
 export function ClientLink({ label }: { label: string }) {
@@ -52,8 +46,6 @@ export function ClientLink({ label }: { label: string }) {
       },
     )
   }
-  const name = splitName(d.contact_name)
-
   return (
     <section aria-labelledby={titleId} className="space-y-2 rounded-md border border-border p-3">
       <h3 id={titleId} className="text-sm font-medium">
@@ -65,8 +57,8 @@ export function ClientLink({ label }: { label: string }) {
           onSelect={(clientId) => link(clientId)}
           excludeIds={bundle.client ? [bundle.client.id] : []}
           initialValues={{
-            firstName: name.first,
-            lastName: name.last,
+            firstName: d.contact_first_name ?? '',
+            lastName: d.contact_last_name ?? '',
             email: d.contact_email ?? '',
             mobile: d.contact_phone_e164 ? formatPhone(d.contact_phone_e164) : '',
           }}

@@ -10,6 +10,7 @@ import {
   fetchClientDemandes,
   fetchDemandeConsents,
   fetchReference,
+  findDemandeMatches,
   getDemande,
   listDemandes,
   logContact,
@@ -24,6 +25,7 @@ import {
   type ContactOutcome,
   type DemandeState,
   type InboxQuery,
+  type IntakeProbe,
   type ParticipantInput,
   type TaskKind,
   type TaskOutcome,
@@ -51,6 +53,23 @@ export function useInboxCounts() {
 /** The record's bundle (the tabs read it, never refetching it themselves). */
 export function useDemande(id: string) {
   return useQuery({ queryKey: demandesKeys.record(id), queryFn: () => getDemande(id) })
+}
+
+/**
+ * « Dossiers existants » in « Nouvelle demande » (D-55): the probe is already debounced and
+ * meaningful (null: nothing asked). What was typed stays in memory only: never cached after the
+ * dialog (gcTime 0), never in the URL.
+ */
+export function useDemandeMatches(probe: IntakeProbe | null) {
+  const key = probe ? JSON.stringify(probe) : ''
+  return useQuery({
+    queryKey: demandesKeys.intakeMatches(key),
+    queryFn: ({ signal }) => findDemandeMatches(probe as IntakeProbe, signal),
+    enabled: probe !== null,
+    placeholderData: keepPreviousData,
+    gcTime: 0,
+    staleTime: 0,
+  })
 }
 
 export function useDemandesReference() {
