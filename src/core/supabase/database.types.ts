@@ -15801,7 +15801,7 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
-      invoice_waitlist_fee: { Args: { p_entry_id: string }; Returns: string }
+      invoice_waitlist_fee: { Args: { p_entry_id: string }; Returns: Json }
       issue_billing_link_for_service: {
         Args: {
           p_actor: string
