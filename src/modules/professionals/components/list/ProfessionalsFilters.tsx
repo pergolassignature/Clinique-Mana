@@ -10,9 +10,9 @@ import { Label } from '@/shared/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { Select } from '@/shared/ui/select'
 import type { CatalogView } from '../../lib/catalog-view'
-import { DISPLAY_STATUSES, type DisplayStatus } from '../../lib/constants'
+import { DISPLAY_STATUSES } from '../../lib/constants'
 import { statusLabel } from '../../lib/display'
-import { isDefaultFilters, SEARCH_MAX_LENGTH, type ProfessionalsFilters } from '../../lib/filters'
+import { isDefaultFilters, SEARCH_MAX_LENGTH, type ProfessionalsFilters, type StatusFilter } from '../../lib/filters'
 
 const F = 'modules.professionals.list.filters'
 
@@ -47,11 +47,12 @@ export function ProfessionalsFilters(props: ProfessionalsFiltersProps) {
         <SearchField value={filters.q} onChange={(q) => onChange({ q })} />
         <Select
           aria-label={t('modules.professionals.list.statusFilter.label')}
-          value={filters.status ?? ''}
-          onChange={(event) => onChange({ status: (event.target.value || null) as DisplayStatus | null })}
-          className="w-40"
+          value={filters.status}
+          onChange={(event) => onChange({ status: event.target.value as StatusFilter })}
+          className="w-44"
         >
-          <option value="">{t('modules.professionals.list.statusFilter.all')}</option>
+          <option value="all">{t('modules.professionals.list.statusFilter.all')}</option>
+          <option value="not_inactive">{t('modules.professionals.list.statusFilter.notInactive')}</option>
           {DISPLAY_STATUSES.map((status) => (
             <option key={status} value={status}>
               {statusLabel(status)}
@@ -172,10 +173,13 @@ function MoreFilters({ filters, catalog, onChange, onToggleMotif, filtersButtonR
         align="start"
         collisionPadding={16}
         aria-label={t(`${F}.label`)}
-        className="max-h-[min(70vh,var(--radix-popover-content-available-height))] w-[min(20rem,calc(100vw-2rem))] overflow-y-auto p-3"
+        className="max-h-[min(70vh,var(--radix-popover-content-available-height))] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overflow-x-hidden p-3"
       >
         {catalog ? (
-          <div className="grid gap-3">
+          // One column as wide as the popover: a grid track sized `auto` grows to its widest
+          // child's min-content, and a native <select> is as wide as its longest option (« Travailleuse
+          // sociale ou travailleur social »), which pushed every row past the popover's right edge.
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
             <FilterSelect
               label={t(`${F}.title`)}
               all={t(`${F}.titleAll`)}
@@ -268,7 +272,8 @@ function MotifFilter({ catalog, selected, onToggle }: { catalog: CatalogView; se
                   return (
                     <CommandItem key={motif.id} value={motif.id} keywords={[motif.name]} aria-checked={checked} onSelect={() => onToggle(motif.id)}>
                       <Check aria-hidden className={checked ? 'text-primary' : 'invisible'} />
-                      <span className="truncate">{choiceLabel(motif)}</span>
+                      {/* A long motif wraps, never cut: the list scrolls vertically only. */}
+                      <span className="min-w-0 break-words">{choiceLabel(motif)}</span>
                     </CommandItem>
                   )
                 })}

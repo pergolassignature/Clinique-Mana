@@ -9,16 +9,20 @@ import type { Onboarding, ProfessionalListRow } from '../api/parse'
 
 /**
  * The list's filters, with the URL as the source of truth (PS Hub `useCrmUrlState`): a reload, a
- * shared link or Back shows the same rows. Parameters are French: `q`, `statut`, `profession`,
- * `langue`, `clientele`, `motif` (repeatable), `nouveaux=1`, `surveiller=1`,
+ * shared link or Back shows the same rows. Parameters are French: `q`, `statut` (one status, or
+ * `tous`; none means « Tous sauf inactifs », the default), `profession`, `langue`, `clientele`, `motif` (repeatable), `nouveaux=1`, `surveiller=1`,
  * `documents=incomplets`, `page`. Unknown or
  * malformed values fall back to the defaults; ids the catalogue does not know are ignored when
  * filtering (a stale link shows everyone rather than no one).
  */
 export interface ProfessionalsFilters {
   q: string
-  /** As staff read it (P4-43): « À réviser » and « En préparation » are both stored `in_review`. */
-  status: DisplayStatus | null
+  /**
+   * As staff read it (P4-43): « À réviser » and « En préparation » are both stored `in_review`.
+   * `not_inactive` (« Tous sauf inactifs », the default: Jonathan, 2026-10-15) keeps every status
+   * but « Inactif »; `all` (« Tous les statuts ») keeps everyone.
+   */
+  status: StatusFilter
   /** The primary title (the list row carries only that one). */
   titleId: string | null
   languageId: string | null
@@ -36,7 +40,7 @@ export interface ProfessionalsFilters {
 
 export const DEFAULT_FILTERS: ProfessionalsFilters = {
   q: '',
-  status: null,
+  status: 'not_inactive',
   titleId: null,
   languageId: null,
   clienteleId: null,
@@ -50,8 +54,17 @@ export const DEFAULT_FILTERS: ProfessionalsFilters = {
 /** The search field's limit (and the URL's). */
 export const SEARCH_MAX_LENGTH = 280
 
-/** The statuses as URL values (French, like the routes). */
-const STATUS_PARAMS: Readonly<Record<DisplayStatus, string>> = {
+/** What the status select filters on: one displayed status, everyone, or everyone but « Inactif ». */
+export type StatusFilter = DisplayStatus | 'all' | 'not_inactive'
+
+/**
+ * The status filters as URL values (French, like the routes). The default (`not_inactive`) is
+ * written as no parameter, but `sauf-inactifs` is read too; « Tous les statuts » has its own value,
+ * so a link to the whole list keeps showing the inactive files.
+ */
+const STATUS_PARAMS: Readonly<Record<StatusFilter, string>> = {
+  all: 'tous',
+  not_inactive: 'sauf-inactifs',
   draft: 'a-inviter',
   invited: 'invite',
   in_review: 'a-reviser',
@@ -59,7 +72,13 @@ const STATUS_PARAMS: Readonly<Record<DisplayStatus, string>> = {
   active: 'actif',
   inactive: 'inactif',
 }
-const STATUS_BY_PARAM = new Map(DISPLAY_STATUSES.map((s) => [STATUS_PARAMS[s], s]))
+const STATUS_BY_PARAM = new Map((['all', 'not_inactive', ...DISPLAY_STATUSES] as const).map((s) => [STATUS_PARAMS[s], s]))
+
+/** Pure: whether a row whose displayed status is `status` passes `filter`. */
+export function matchesStatus(status: DisplayStatus, filter: StatusFilter): boolean {
+  if (filter === 'all') return true
+  return filter === 'not_inactive' ? status !== 'inactive' : status === filter
+}
 
 const PARAMS = ['q', 'statut', 'profession', 'langue', 'clientele', 'motif', 'nouveaux', 'surveiller', 'documents', 'page'] as const
 
@@ -75,7 +94,7 @@ export function parseProfessionalsFilters(params: URLSearchParams): Professional
   const motifIds = [...new Set(params.getAll('motif').map(idParam))].filter((id): id is string => id !== null)
   return {
     q: (params.get('q') ?? '').slice(0, SEARCH_MAX_LENGTH),
-    status: STATUS_BY_PARAM.get(params.get('statut') ?? '') ?? null,
+    status: STATUS_BY_PARAM.get(params.get('statut') ?? '') ?? DEFAULT_FILTERS.status,
     titleId: idParam(params.get('profession')),
     languageId: idParam(params.get('langue')),
     clienteleId: idParam(params.get('clientele')),
@@ -92,7 +111,7 @@ export function filtersToSearchParams(filters: ProfessionalsFilters, base: URLSe
   const params = new URLSearchParams(base)
   for (const name of PARAMS) params.delete(name)
   if (filters.q.trim() !== '') params.set('q', filters.q)
-  if (filters.status) params.set('statut', STATUS_PARAMS[filters.status])
+  if (filters.status !== DEFAULT_FILTERS.status) params.set('statut', STATUS_PARAMS[filters.status])
   if (filters.titleId) params.set('profession', filters.titleId)
   if (filters.languageId) params.set('langue', filters.languageId)
   if (filters.clienteleId) params.set('clientele', filters.clienteleId)
@@ -205,7 +224,7 @@ export function filterProfessionals(
   const motifIds = filters.motifIds.filter((id) => catalog.byId.motifs.has(id))
 
   return rows.filter((row) => {
-    if (filters.status && displayStatus(row.status, row.onboarding) !== filters.status) return false
+    if (!matchesStatus(displayStatus(row.status, row.onboarding), filters.status)) return false
     if (titleId && row.primaryTitleId !== titleId) return false
     if (languageId && !row.languageIds.includes(languageId)) return false
     if (clienteleId && !row.clienteleIds.includes(clienteleId)) return false

@@ -3039,7 +3039,8 @@
         },
         "statusFilter": {
           "label": "Statut",
-          "all": "Tous les statuts"
+          "all": "Tous les statuts",
+          "notInactive": "Tous sauf inactifs"
         },
         "filters": {
           "button": "Filtres",
@@ -3104,7 +3105,9 @@
         },
         "noMatch": {
           "title": "Aucun professionnel ne correspond",
-          "body": "Modifiez la recherche ou les filtres."
+          "body": "Modifiez la recherche ou les filtres.",
+          "inactiveHiddenBody": "Les professionnels inactifs sont masqués par défaut.",
+          "showAllStatuses": "Afficher tous les statuts"
         },
         "review": "Révision mensuelle"
       },
