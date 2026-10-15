@@ -18,6 +18,8 @@ const criteria = (over: Partial<MatchCriteria> = {}): MatchCriteria => ({
   sex: null,
   age: null,
   ignored: [],
+  person: null,
+  clientele_fit: null,
   ...over,
 })
 
@@ -98,6 +100,27 @@ describe('matching in words', () => {
       t(`${M}.preferredGender.female`),
     ])
     expect(criteriaLines(criteria({ ignored: ['profession'] }))).toContain(t(`${M}.ignored.profession`))
+  })
+
+  it('whose age and sex, and the clientèle with its source (D-59)', () => {
+    const child = criteriaLines(
+      criteria({
+        beneficiary: 'child',
+        age: 9,
+        person: 'participant',
+        clientele_fit: { basis: 'age', clienteles: [{ id: 'k1', key: 'children', name: 'Enfants' }] },
+      }),
+    )
+    expect(child).toContain(t(`${M}.personFrom.participant`))
+    expect(child).toContain('Clientèle : Enfants (participant principal, 9 ans), automatique')
+    const chosen = criteriaLines(
+      criteria({ person: 'file', age: 40, clientele_name: 'Athlètes', clientele_fit: { basis: 'chosen', clienteles: [{ id: 'k9', key: 'athletes', name: 'Athlètes' }] } }),
+    )
+    expect(chosen).toContain(t(`${M}.personFrom.file`))
+    expect(chosen).toContain('Clientèle : Athlètes (choisie à la main)')
+    expect(criteriaLines(criteria({ clientele_fit: { basis: 'none', clienteles: [] } }))).toContain(
+      'Clientèle : à préciser (aucun participant ni dossier), automatique',
+    )
     expect(criteriaLines(criteria())).toEqual([
       `Français · ${t(`${M}.ageUnknown`)} · ${t(`${M}.sexUnknown`)}`,
       t(`${M}.noMotifs`),

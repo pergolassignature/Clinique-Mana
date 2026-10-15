@@ -338,6 +338,17 @@ Migration `20261014010723_demandes_audit_followups` (pgTAP `182`); decisions **D
 
 « Liste d'attente » exports the entries shown (the list and the state chosen), in their order: rank, reference, person, file number, list, priority, registration day, days waited, state, exit reason, consent, fee, last and next contact. Never a free text (the priority's reason stays in the app). Built in the browser (`lib/waitlist-csv.ts`), nothing stored.
 
+## Quick entry and Accueil, after Jonathan's tests (2026-10-15, D-55 … D-60)
+
+Migrations `20261015125139_demandes_contact_first_last`, `20261015125143_clients_intake_matches` (Clients), `20261015125147_demandes_intake_matches`, `20261015125151_demandes_clientele_derivation`; pgTAP `250` … `253`.
+
+- **« Dossiers existants » (D-55):** `find_demande_matches(p_first, p_last, p_phone, p_email)` (`demandes.manage` and `clients.view` first) → `{ clients: [...], open_demandes: [...] }`: Clients' `private.clients_intake_matches` (at most 5), each with its open requests (its own, or as a participant), then the other open requests with the same typed phone (last 10 digits) or email (at most 3). Nothing is written. « Nouvelle demande » asks it 400 ms after the last keystroke, from a valid phone, a valid email, or a first and a last name; « Utiliser ce dossier » sends `client_id` to `create_demande`; an open request is a warning with « Ouvrir la demande » (new tab), never a block.
+- **« Prénom » and « Nom » (D-56):** `demandes.contact_first_name` / `contact_last_name`; `contact_name` stays, maintained as « Prénom Nom » by the trigger `demandes_contact_names` (a writer of `contact_name` alone has it split: first word, the rest). `create_demande` / `update_demande` take the two keys; the booking page writes them; `demandes_recipient` and `waitlist_email_of` greet by the first name. The forms require the first name without a file; the database keeps D1's rule.
+- **A request with a file (D-57):** « Coordonnées » says the contact comes from the file (« Ouvrir le dossier »); the request's own contact is kept and comes back with « Retirer le dossier ».
+- **Saves (D-58):** `useServerDraft` adopts the person's own edit come back and, after `commit()` (each record form's `onSuccess`), the server's next value; « Quelqu'un d'autre a modifié… » is left for a real conflict.
+- **Clientèle « Automatique » (D-59):** one predicate `private.demandes_clientele_holds` (used by `demandes_match`), `private.demandes_clientele_fit(org, clientele, beneficiary, age)` on the catalogue; `demandes_match_criteria` adds `person` (participant | file), `clientele_auto`, `clientele_fit`; `get_demande` adds `match_basis` { person, age, clientele_auto, derivable_ids }. Accueil shows « Automatique : Enfants (participant principal, 9 ans) » and warns about a choice the people contradict; « Jumelage » names whose age and sex and where the clientèle comes from.
+- **The request's file (D-60):** the person who asks; the people seen go in « Participants ». Besoin shows « Ajoutez l'enfant dans « Participants »… » until they are listed.
+
 ## What the module publishes
 
 For the professional: `my_demandes` and `my_waitlist_entries` (above). For definer code: `private.demandes_places_left(org, ids[])` (D4, places left per professional); for Rapports, D6's `private.demandes_report_requests`, `_matches`, `_waitlist`, `_capacity` (above). The view `demandes_sources` (D3c, below).

@@ -125,7 +125,10 @@ function ParticipantsForm() {
       is_primary: r.is_primary,
     }))
     save.mutate(payload, {
-      onSuccess: () => toast.success(t(`${P}.saved`)),
+      onSuccess: () => {
+        draft.commit()
+        toast.success(t(`${P}.saved`))
+      },
       onError: (failure) => setError(demandesError(failure)),
     })
   }

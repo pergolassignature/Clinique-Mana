@@ -72,6 +72,11 @@ const professionalSchema = z.object({
 })
 export type MatchedProfessional = z.infer<typeof professionalSchema>
 
+const clienteleFitSchema = z.object({
+  basis: z.enum(['chosen', 'couple', 'family', 'age', 'none']),
+  clienteles: z.array(z.object({ id: z.string(), key: z.string(), name: z.string() })),
+})
+
 const criteriaSchema = z.object({
   demande_id: z.string(),
   client_id: z.string().nullable(),
@@ -88,6 +93,9 @@ const criteriaSchema = z.object({
   age: z.number().nullable(),
   /** An archived profession or clientèle on the request: not applied (it would leave everyone out). */
   ignored: knownOf(['profession', 'clientele'] as const).default([]),
+  /** D-59: whose age and sex (the main participant, else the request's file), and the clientèle as applied. */
+  person: z.enum(['participant', 'file']).nullable().catch(null),
+  clientele_fit: clienteleFitSchema.nullable().catch(null),
 })
 export type MatchCriteria = z.infer<typeof criteriaSchema>
 

@@ -20,7 +20,9 @@ test('the counselor takes a request from the first call to its closing', async (
 
   await page.getByRole('button', { name: 'Nouvelle demande' }).click()
   const dialog = page.getByRole('dialog', { name: 'Nouvelle demande' })
-  await dialog.getByRole('textbox', { name: 'Nom' }).fill(name)
+  // « Prénom » and « Nom » (D-56): the first word, then the rest.
+  await dialog.getByRole('textbox', { name: /^Prénom/ }).fill(name.split(' ')[0]!)
+  await dialog.getByRole('textbox', { name: 'Nom', exact: true }).fill(name.split(' ').slice(1).join(' '))
   await dialog.getByRole('textbox', { name: 'Téléphone' }).fill(phone)
   await dialog.getByRole('button', { name: 'Créer la demande' }).click()
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()

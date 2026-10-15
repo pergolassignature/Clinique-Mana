@@ -1,5 +1,6 @@
 import { t } from '@/i18n'
 import type { MatchCriteria, MatchedProfessional, MatchReason, MatchWarning, Period } from '../api/matching'
+import { autoClienteleText } from './clientele'
 import { optionLabel } from './display'
 
 const M = 'modules.demandes.matching'
@@ -62,9 +63,13 @@ export function criteriaLines(c: MatchCriteria): string[] {
   who.push(c.age === null ? t(`${M}.ageUnknown`) : t(`${M}.age`, { age: String(c.age) }))
   who.push(c.sex === 'female' || c.sex === 'male' || c.sex === 'other' ? t(`${M}.sex.${c.sex}`) : t(`${M}.sexUnknown`))
   const lines = [[optionLabel('language', c.language), ...who].join(' · ')]
+  // Whose age and sex the match read (D-59).
+  if (c.person) lines.push(t(`${M}.personFrom.${c.person}`))
   if (c.profession_title_name) lines.push(t(`${M}.profession`, { name: c.profession_title_name }))
   if (c.ignored.includes('profession')) lines.push(t(`${M}.ignored.profession`))
-  if (c.clientele_name) lines.push(t(`${M}.clientele`, { name: c.clientele_name }))
+  // The clientèle and where it comes from: chosen by hand, or « automatique » from the people.
+  if (c.clientele_name) lines.push(t(`${M}.clienteleChosen`, { name: c.clientele_name }))
+  else if (c.clientele_fit) lines.push(t(`${M}.clienteleAuto`, { text: autoClienteleText(c.clientele_fit, c.person, c.age) }))
   if (c.ignored.includes('clientele')) lines.push(t(`${M}.ignored.clientele`))
   lines.push(c.motifs.length === 0 ? t(`${M}.noMotifs`) : t(`${M}.motifs`, { names: joinNames(c.motifs.map((m) => m.name)) }))
   lines.push(c.availability_periods.length === 0 ? t(`${M}.noPeriods`) : t(`${M}.periods`, { periods: periodsText(c.availability_periods) }))

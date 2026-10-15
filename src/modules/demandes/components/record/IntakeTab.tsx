@@ -1,4 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { Info } from 'lucide-react'
 import { t } from '@/i18n'
 import { demandesError } from '../../lib/errors'
 import { CheckboxField } from '@/shared/components/CheckboxField'
@@ -6,7 +8,10 @@ import { FormActions } from '@/shared/components/FormActions'
 import { SectionSurface, SettingsCard } from '@/shared/components/SettingsCard'
 import { formatPhone, parsePhone } from '@/shared/lib/format'
 import { formatDateOnlyShort } from '@/shared/lib/timezone'
+import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
+import { Button } from '@/shared/ui/button'
 import { FormField, FormRow } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
@@ -24,7 +29,8 @@ import {
   type DemandeBundle,
 } from '../../api/demandes'
 import { useSetDemandeSource, useUpdateDemande } from '../../hooks/use-demandes'
-import { fileLabel, optionLabel } from '../../lib/display'
+import { autoOptionLabel, clienteleConflict, participantsHint } from '../../lib/clientele'
+import { clientNumber, demandePath, fileLabel, optionLabel } from '../../lib/display'
 import { DemandeSourceCard } from '../DemandeSourceCard'
 import { ClientLink } from './ClientLink'
 import { useServerDraft } from '../../lib/use-server-draft'
@@ -35,7 +41,8 @@ const A = 'modules.demandes.intake'
 const DAYS = [1, 2, 3, 4, 5, 6, 7] as const
 
 interface Values {
-  contact_name: string
+  contact_first_name: string
+  contact_last_name: string
   contact_email: string
   contact_phone: string
   beneficiary: string
@@ -79,7 +86,8 @@ const yesNo = (value: boolean | null) => (value === null ? '' : value ? 'yes' : 
 function valuesOf(bundle: DemandeBundle): Values {
   const d = bundle.demande
   return {
-    contact_name: d.contact_name ?? '',
+    contact_first_name: d.contact_first_name ?? '',
+    contact_last_name: d.contact_last_name ?? '',
     contact_email: d.contact_email ?? '',
     contact_phone: d.contact_phone_e164 ? formatPhone(d.contact_phone_e164) : '',
     beneficiary: d.beneficiary ?? '',
@@ -182,8 +190,47 @@ function FileCard() {
       ) : (
         <p className="text-sm text-muted-foreground">{t(`${A}.file.none`)}</p>
       )}
-      {canEdit && <ClientLink label={client ? t(`${A}.file.change`) : t(`${A}.file.link`)} />}
+      {canEdit && (
+        <div className="flex flex-wrap items-start gap-2">
+          <ClientLink label={client ? t(`${A}.file.change`) : t(`${A}.file.link`)} />
+          {client && <RemoveFile />}
+        </div>
+      )}
     </SettingsCard>
+  )
+}
+
+/**
+ * « Retirer le dossier »: the request is no longer attached (D-57); its own contact, kept while the
+ * file was attached, is shown and editable again. Refused in French when the request would have
+ * nobody to call back.
+ */
+function RemoveFile() {
+  const { id } = useDemandeRecord()
+  const update = useUpdateDemande(id)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="max-sm:h-11"
+        aria-disabled={update.isPending || undefined}
+        onClick={() => {
+          if (update.isPending) return
+          setError(null)
+          update.mutate({ client_id: null }, { onSuccess: () => toast.success(t(`${A}.file.removed`)), onError: (failure) => setError(demandesError(failure)) })
+        }}
+      >
+        {t(`${A}.file.remove`)}
+      </Button>
+      {error && (
+        <p role="alert" className="basis-full text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </>
   )
 }
 
@@ -257,13 +304,22 @@ function IntakeForm() {
     event.preventDefault()
     if (update.isPending || !dirty) return
     setError(null)
+    // Without a file, the person to call back has a first name (D-56); a request typed before,
+    // with a phone only, may still save the rest of its intake.
+    if (!bundle.client && !values.contact_first_name.trim() && (initial.contact_first_name.trim() || values.contact_last_name.trim())) {
+      setError(t(`${A}.contact.firstNeeded`))
+      return
+    }
     const patch = patchOf(initial, values)
     if ('error' in patch && typeof patch.error === 'string') {
       setError(patch.error)
       return
     }
     update.mutate(patch, {
-      onSuccess: () => toast.success(t(`${A}.saved`)),
+      onSuccess: () => {
+        draft.commit()
+        toast.success(t(`${A}.saved`))
+      },
       onError: (failure) => setError(demandesError(failure)),
     })
   }
@@ -316,23 +372,19 @@ function IntakeForm() {
   return (
     <form onSubmit={submit} noValidate className="contents">
       {draft.stale && <StaleNotice onReload={draft.reload} />}
-      <SettingsCard as="section" layout="section" title={t(`${A}.contact.title`)} description={t(`${A}.contact.description`)}>
-        <FormField label={t(`${A}.contact.name`)}>
-          {(field) => <Input {...field} value={values.contact_name} onChange={(e) => set('contact_name', e.target.value)} readOnly={!canEdit} autoComplete="off" />}
-        </FormField>
-        {/* Two equal columns: an e-mail address reads whole (it was cut beside the phone). */}
-        <FormRow columns={2}>
-          <FormField label={t(`${A}.contact.phone`)}>
-            {(field) => (
-              <Input {...field} type="tel" value={values.contact_phone} onChange={(e) => set('contact_phone', e.target.value)} readOnly={!canEdit} autoComplete="off" />
-            )}
-          </FormField>
-          <FormField label={t(`${A}.contact.email`)}>
-            {(field) => (
-              <Input {...field} type="email" value={values.contact_email} onChange={(e) => set('contact_email', e.target.value)} readOnly={!canEdit} autoComplete="off" />
-            )}
-          </FormField>
-        </FormRow>
+      <SettingsCard as="section" layout="section" title={t(`${A}.contact.title`)} description={bundle.client ? undefined : t(`${A}.contact.description`)}>
+        {bundle.client ? (
+          // D-57: with a file, its contact is the one to use; the request's own stays stored (it
+          // comes back when the file is removed) but is not offered twice.
+          <p className="text-sm">
+            {t(`${A}.contact.fromFile`, { number: clientNumber(bundle.client.client_number) })}{' '}
+            <Link to={`/clients/${bundle.client.id}`} className="text-link underline-offset-2 hover:underline">
+              {t(`${A}.contact.openFile`)}
+            </Link>
+          </p>
+        ) : (
+          <ContactFields values={values} set={set} canEdit={canEdit} />
+        )}
       </SettingsCard>
 
       <SettingsCard as="section" layout="section" title={t(`${A}.need.title`)} description={t(`${A}.need.description`)}>
@@ -340,6 +392,7 @@ function IntakeForm() {
           {choice('beneficiary', BENEFICIARIES, 'beneficiary', t(`${A}.need.beneficiary`), true)}
           {yesNoField('previous_therapy', t(`${A}.need.previousTherapy`))}
         </FormRow>
+        <ParticipantsHint beneficiary={values.beneficiary} />
         {values.previous_therapy === 'yes' && (
           <div className="space-y-3 border-l-2 border-border-light pl-3">
             {codes('previous_professionals', 'previousProfessional', PREVIOUS_PROFESSIONALS, t(`${A}.need.previousProfessionals`))}
@@ -374,10 +427,10 @@ function IntakeForm() {
               </Select>
             )}
           </FormField>
-          <FormField label={t(`${A}.need.clientele`)}>
+          <FormField label={t(`${A}.need.clientele`)} help={t(`${A}.need.clienteleHelp`)} error={clienteleConflict(values.clientele_id, bundle.match_basis) ?? undefined}>
             {(field) => (
               <Select {...field} value={values.clientele_id} onChange={(e) => set('clientele_id', e.target.value)} readOnly={!canEdit}>
-                <option value="">{t(`${A}.unknown`)}</option>
+                <option value="">{autoOptionLabel(bundle.match_basis)}</option>
                 {reference.clienteles.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.name}
@@ -456,5 +509,67 @@ function IntakeForm() {
         )}
       </SettingsCard>
     </form>
+  )
+}
+
+/** « Prénom » and « Nom » on one row (stacked on a phone), then the phone and the email. */
+function ContactFields({
+  values,
+  set,
+  canEdit,
+}: {
+  values: Pick<Values, 'contact_first_name' | 'contact_last_name' | 'contact_phone' | 'contact_email'>
+  set: <K extends keyof Values>(key: K, value: Values[K]) => void
+  canEdit: boolean
+}) {
+  return (
+    <>
+      <FormRow columns={2}>
+        <FormField label={t(`${A}.contact.firstName`)}>
+          {(field) => (
+            <Input {...field} value={values.contact_first_name} onChange={(e) => set('contact_first_name', e.target.value)} readOnly={!canEdit} maxLength={100} autoComplete="off" />
+          )}
+        </FormField>
+        <FormField label={t(`${A}.contact.lastName`)}>
+          {(field) => (
+            <Input {...field} value={values.contact_last_name} onChange={(e) => set('contact_last_name', e.target.value)} readOnly={!canEdit} maxLength={100} autoComplete="off" />
+          )}
+        </FormField>
+      </FormRow>
+      {/* Two equal columns: an e-mail address reads whole (it was cut beside the phone). */}
+      <FormRow columns={2}>
+        <FormField label={t(`${A}.contact.phone`)}>
+          {(field) => (
+            <Input {...field} type="tel" value={values.contact_phone} onChange={(e) => set('contact_phone', e.target.value)} readOnly={!canEdit} autoComplete="off" />
+          )}
+        </FormField>
+        <FormField label={t(`${A}.contact.email`)}>
+          {(field) => (
+            <Input {...field} type="email" value={values.contact_email} onChange={(e) => set('contact_email', e.target.value)} readOnly={!canEdit} autoComplete="off" />
+          )}
+        </FormField>
+      </FormRow>
+    </>
+  )
+}
+
+/**
+ * « Pour qui » says someone else and « Participants » does not say who yet (D-60): a plain notice
+ * with the way there, never blocking. It reads the saved participants (the tab saves them).
+ */
+function ParticipantsHint({ beneficiary }: { beneficiary: string }) {
+  const { id, bundle } = useDemandeRecord()
+  const hint = participantsHint(beneficiary, bundle.participants, bundle.demande.client_id)
+  if (!hint) return null
+  return (
+    <Alert variant="default">
+      <Info aria-hidden />
+      <AlertDescription className="text-foreground">
+        {hint}{' '}
+        <GuardedNavLink to={demandePath(id, 'participants')} className="text-link underline-offset-2 hover:underline">
+          {t('modules.demandes.clientele.addPeopleLink')}
+        </GuardedNavLink>
+      </AlertDescription>
+    </Alert>
   )
 }

@@ -10,7 +10,7 @@ import type { InboxRow } from '../api/demandes'
 import { DemandesInboxPage } from './DemandesInboxPage'
 
 const mocks = vi.hoisted(() => ({
-  api: { listDemandes: vi.fn(), fetchCounts: vi.fn(), createDemande: vi.fn(), logContact: vi.fn() },
+  api: { listDemandes: vi.fn(), fetchCounts: vi.fn(), createDemande: vi.fn(), logContact: vi.fn(), findDemandeMatches: vi.fn() },
   realtime: { handlers: null as null | { onChange: (c: unknown) => void; onResync: () => void }, module: null as string | null },
   toast: { success: vi.fn(), error: vi.fn() },
   preferences: { fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn() },
@@ -82,6 +82,7 @@ beforeEach(() => {
   mocks.api.fetchCounts.mockResolvedValue({ open: 3, late: 1, no_answer: 1, due: 0, mine: 1, unassigned: 2, waitlist: 4 })
   mocks.api.createDemande.mockResolvedValue('e0000000-0000-0000-0000-000000000009')
   mocks.api.logContact.mockResolvedValue(undefined)
+  mocks.api.findDemandeMatches.mockResolvedValue({ clients: [], open_demandes: [] })
   mocks.preferences.fetchUserPreference.mockResolvedValue(null)
   mocks.preferences.saveUserPreference.mockResolvedValue(undefined)
 })
@@ -190,13 +191,15 @@ describe('DemandesInboxPage', () => {
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.new.create') }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(t('modules.demandes.new.someone'))
-    await user.type(within(dialog).getByRole('textbox', { name: t('modules.demandes.new.name') }), 'Nouvelle Personne')
+    await user.type(within(dialog).getByRole('textbox', { name: new RegExp(`^${t('modules.demandes.new.firstName')}`) }), 'Nouvelle')
+    await user.type(within(dialog).getByRole('textbox', { name: t('modules.demandes.new.lastName') }), 'Personne')
     await user.type(within(dialog).getByRole('textbox', { name: t('modules.demandes.new.phone') }), '514 555-0123')
     await user.click(within(dialog).getByRole('button', { name: t('modules.demandes.new.create') }))
     await waitFor(() => expect(mocks.api.createDemande).toHaveBeenCalledTimes(1))
     expect(mocks.api.createDemande.mock.calls[0]![0]).toMatchObject({
       channel: 'phone',
-      contact_name: 'Nouvelle Personne',
+      contact_first_name: 'Nouvelle',
+      contact_last_name: 'Personne',
       contact_phone_e164: '+15145550123',
     })
     expect(await screen.findByText('FICHE')).toBeInTheDocument()
