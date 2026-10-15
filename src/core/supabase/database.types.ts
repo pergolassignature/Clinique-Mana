@@ -4084,6 +4084,8 @@ export type Database = {
           concerns: string | null
           contact_attempts: number
           contact_email: string | null
+          contact_first_name: string | null
+          contact_last_name: string | null
           contact_name: string | null
           contact_phone_e164: string | null
           created_at: string
@@ -4142,6 +4144,8 @@ export type Database = {
           concerns?: string | null
           contact_attempts?: number
           contact_email?: string | null
+          contact_first_name?: string | null
+          contact_last_name?: string | null
           contact_name?: string | null
           contact_phone_e164?: string | null
           created_at?: string
@@ -4200,6 +4204,8 @@ export type Database = {
           concerns?: string | null
           contact_attempts?: number
           contact_email?: string | null
+          contact_first_name?: string | null
+          contact_last_name?: string | null
           contact_name?: string | null
           contact_phone_e164?: string | null
           created_at?: string
@@ -15315,6 +15321,15 @@ export type Database = {
           mobile_e164: string
           reasons: string[]
         }[]
+      }
+      find_demande_matches: {
+        Args: {
+          p_email: string
+          p_first: string
+          p_last: string
+          p_phone: string
+        }
+        Returns: Json
       }
       finish_appointment_message_for_service: {
         Args: {
