@@ -12,9 +12,14 @@
    - Les filtres « En retard », « Sans réponse », « Urgentes » et « À rappeler maintenant » donnent votre liste d'appels.
    - Ouvrez une demande, puis « Je m'en occupe » pour la prendre.
 3. **Un appel reçu ou donné.** Cliquez « Noter un appel », sur la ligne de la liste ou en haut de la demande : le résultat (répondu, sans réponse…) et le prochain essai.
-4. **Une nouvelle personne au téléphone.** Cliquez « Nouvelle demande ». Entrez le nom, le téléphone ou le courriel, et « Reçue par ». Cliquez « Créer la demande » : la demande s'ouvre sur son onglet « Accueil ».
+4. **Une personne au téléphone.** Cliquez « Nouvelle demande ». Entrez son prénom (son nom si elle le donne), son téléphone ou son courriel, et « Reçue par ».
+   - Si la clinique la connaît déjà, « Dossiers existants » s'affiche sous les champs : le numéro du dossier, le nom, l'année de naissance et ce qui correspond (« Même téléphone (…4567) »). Cliquez « Utiliser ce dossier » : la demande sera créée déjà rattachée à ce dossier. « Ne pas rattacher » annule ce choix.
+   - « Une demande est déjà ouverte pour cette personne » : ouvrez-la plutôt que d'en créer une autre, sauf si l'appel est pour quelqu'un d'autre de la famille.
+   - Cliquez « Créer la demande » : la demande s'ouvre sur son onglet « Accueil ».
 5. **Remplir l'accueil** (onglet « Accueil »), puis enregistrer :
-   - « Rattacher un dossier » : trouvez le dossier du client, ou créez-le ;
+   - « Rattacher un dossier » : le dossier de la personne qui fait la demande (celle qu'on rappelle). Une fois le dossier rattaché, ses coordonnées remplacent celles de la demande ;
+   - si la demande est pour quelqu'un d'autre (un enfant, un couple, une famille), ajoutez ces personnes dans l'onglet « Participants » : le jumelage lit l'âge du participant principal ;
+   - « Clientèle » reste sur « Automatique » : l'app la déduit des participants. Choisissez-en une seulement si la personne cherche une clientèle précise (accompagnement parental, athlètes…) ;
    - les motifs, écrits en entier, par catégorie ;
    - la langue, le mode (vidéo ou téléphone), les disponibilités, le payeur.
 6. **Planifier l'appel découverte.** Dans l'onglet « Suivi », ajoutez une tâche « Appel découverte ». Le jour venu, elle paraît dans « Appels découverte » (Aujourd'hui, Demain, 7 prochains jours).
