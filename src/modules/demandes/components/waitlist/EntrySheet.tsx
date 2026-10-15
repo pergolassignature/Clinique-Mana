@@ -438,7 +438,14 @@ function FeeBlock({
   const invoice = () => {
     if (actions.invoice.isPending) return
     actions.invoice.mutate(undefined, {
-      onSuccess: (number) => toast.success(t(`${E}.invoiced`, { number })),
+      onSuccess: ({ number, emailHeldBy }) =>
+        toast.success(
+          emailHeldBy === 'demandes'
+            ? t(`${E}.invoicedHeldDemandes`, { number })
+            : emailHeldBy === 'billing'
+              ? t(`${E}.invoicedHeldBilling`, { number })
+              : t(`${E}.invoiced`, { number })
+        ),
       onError: (failure) => toast.error(demandesError(failure)),
     })
   }

@@ -9,6 +9,7 @@ import {
   filtersToSearchParams,
   hasMissingDocuments,
   isDefaultFilters,
+  matchesStatus,
   paginate,
   parseProfessionalsFilters,
   SEARCH_MAX_LENGTH,
@@ -53,6 +54,26 @@ describe('parseProfessionalsFilters', () => {
 
   it('maps every status to its French URL value', () => {
     expect(['a-inviter', 'invite', 'a-reviser', 'actif', 'inactif'].map((s) => parse(`statut=${s}`).status)).toEqual(['draft', 'invited', 'in_review', 'active', 'inactive'])
+  })
+
+  it('defaults to « Tous sauf inactifs » (no parameter), and gives « Tous les statuts » its own value', () => {
+    expect(DEFAULT_FILTERS.status).toBe('not_inactive')
+    expect(parse('').status).toBe('not_inactive')
+    expect(parse('statut=sauf-inactifs').status).toBe('not_inactive')
+    expect(parse('statut=tous').status).toBe('all')
+    expect(filtersToSearchParams(filters({ status: 'not_inactive' })).toString()).toBe('')
+    expect(filtersToSearchParams(filters({ status: 'all' })).toString()).toBe('statut=tous')
+    expect(isDefaultFilters(filters({ status: 'not_inactive' }))).toBe(true)
+    expect(isDefaultFilters(filters({ status: 'all' }))).toBe(false)
+  })
+})
+
+describe('matchesStatus', () => {
+  it('keeps every status but « Inactif » for « Tous sauf inactifs », everyone for « Tous les statuts », one status otherwise', () => {
+    const all = ['draft', 'invited', 'in_review', 'preparing', 'active', 'inactive'] as const
+    expect(all.filter((s) => matchesStatus(s, 'not_inactive'))).toEqual(['draft', 'invited', 'in_review', 'preparing', 'active'])
+    expect(all.filter((s) => matchesStatus(s, 'all'))).toEqual(all)
+    expect(all.filter((s) => matchesStatus(s, 'preparing'))).toEqual(['preparing'])
   })
 })
 
@@ -124,6 +145,15 @@ describe('filterProfessionals', () => {
     expect(ids({ clienteleId: IDS.couples })).toEqual([marie.id])
     expect(ids({ motifIds: [IDS.anxiete, IDS.psychose] })).toEqual([marie.id, 'p2'])
     expect(ids({ motifIds: [IDS.deuil] })).toEqual(['p2'])
+  })
+
+  it('hides the inactive files by default (« Tous sauf inactifs »); « Tous les statuts » shows them', () => {
+    const gone = listRowFixture({ id: 'p3', status: 'inactive' })
+    const all = [marie, helene, gone]
+    const shown = (f: Partial<ProfessionalsFilters>) => filterProfessionals(all, filters(f), CATALOG_VIEW).map((r) => r.id)
+    expect(shown({})).toEqual([marie.id, 'p2'])
+    expect(shown({ status: 'all' })).toEqual([marie.id, 'p2', 'p3'])
+    expect(shown({ status: 'inactive' })).toEqual(['p3'])
   })
 
   it('filters on new clients and on « À surveiller »', () => {

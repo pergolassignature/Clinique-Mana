@@ -369,6 +369,7 @@ PS Hub (`NEW PS Hub`, read-only) settles uncertain choices (P4-39). Where this m
 - **List filters (4a.5, `lib/filters.ts`).**
   - `useProfessionalsFilters` follows `useCrmUrlState`: the URL is the source of truth, unknown values fall back to the defaults, and typing replaces the history entry.
   - Parameters are French (`statut`, `langue`, `surveiller`…), like the routes.
+  - The status filter defaults to « Tous sauf inactifs » (no `statut` in the URL; `statut=sauf-inactifs` is read too): every status but « Inactif » (Jonathan, 2026-10-15). « Tous les statuts » is `statut=tous`. With the default filters and every file inactive, the empty state offers « Afficher tous les statuts », since « Réinitialiser » would bring nothing back.
   - Each setter starts from the current URL, not the last render. PS Hub's setters copy the `searchParams` of their render, so two changes in one event lose the first one.
 - **Remembered search and filters (4a.10, `lib/remembered-filters.ts`, `src/core/preferences/`).**
   - PS Hub's `useCrmUrlState` restores each user's last search and assignee filter through `usePersistedSearch`. It stores them per user in `user_search_preferences (user_id, page_key, search_state)`, and that table has RLS on the user's own rows.

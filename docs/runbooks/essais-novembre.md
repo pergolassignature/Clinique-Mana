@@ -33,7 +33,7 @@
 | A4 | Facturation → la file du matin : la séance d'hier d'un client test, « Envoyer » | La facture sort avec son numéro, le bon payeur et les bonnes taxes ; son PDF est dans le dossier, son courriel retenu (module réservé). |
 | A5 | Enregistrer un paiement Interac partiel, puis le solde | Le reçu est créé. Le statut passe « Payée en partie », puis « Payée ». |
 | A6 | Rembourser une partie du paiement, puis créditer la facture | Le remboursement est enregistré, et la note de crédit NC-AAAA-N est créée. |
-| A7 | La liste d'attente : inscrire « Test Adjointe-1 », puis « Facturer l'inscription » | Les frais passent à « Facturés », puis à « Payés » une fois la facture payée, et l'inscription devient active. |
+| A7 | La liste d'attente : inscrire « Test Adjointe-1 », puis « Facturer l'inscription » | La facture sort avec son numéro, son courriel est retenu (module réservé) : le toast le dit et la facture paraît dans Facturation. Les frais passent à « Facturés », puis à « Payés » une fois la facture payée, et l'inscription devient active. |
 | A8 | Paramètres → Utilisateurs et accès : donner le rôle « Conseillère » au compte test d'une collègue | Le rôle se donne, même si un module est désactivé (CC-15). |
 
 ## 4. Conseillère

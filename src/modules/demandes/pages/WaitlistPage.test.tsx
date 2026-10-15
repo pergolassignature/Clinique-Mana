@@ -181,13 +181,27 @@ describe('WaitlistPage', () => {
 
   it('« Facturer l\u2019inscription » with Facturation on: the invoice\u2019s number in a toast; without it, no button', async () => {
     const user = userEvent.setup()
-    mocks.api.invoiceWaitlistFee.mockResolvedValue('2026-41')
+    mocks.api.invoiceWaitlistFee.mockResolvedValue({ number: '2026-41', emailHeldBy: null })
     renderPage('/liste-attente', ['demandes', 'clients', 'professionals', 'billing'])
     await user.click(await screen.findByRole('button', { name: t(`${W}.page.openFor`, { person: 'Alice Attente' }) }))
     const sheet = await screen.findByRole('dialog')
     await user.click(await within(sheet).findByRole('button', { name: t(`${W}.sheet.invoice`) }))
     await waitFor(() => expect(mocks.api.invoiceWaitlistFee).toHaveBeenCalledWith('e1'))
     expect(mocks.toast.success).toHaveBeenCalledWith(t(`${W}.sheet.invoiced`, { number: '2026-41' }))
+  })
+
+  it.each([
+    ['demandes', 'invoicedHeldDemandes'],
+    ['billing', 'invoicedHeldBilling'],
+  ] as const)('« Facturer l’inscription » while %s is reserved for its testers: the invoice is made, the toast says its email is held', async (heldBy, key) => {
+    const user = userEvent.setup()
+    mocks.api.invoiceWaitlistFee.mockResolvedValue({ number: '2026-42', emailHeldBy: heldBy })
+    renderPage('/liste-attente', ['demandes', 'clients', 'professionals', 'billing'])
+    await user.click(await screen.findByRole('button', { name: t(`${W}.page.openFor`, { person: 'Alice Attente' }) }))
+    const sheet = await screen.findByRole('dialog')
+    await user.click(await within(sheet).findByRole('button', { name: t(`${W}.sheet.invoice`) }))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${W}.sheet.${key}`, { number: '2026-42' })))
+    expect(t(`${W}.sheet.${key}`, { number: '2026-42' })).toMatch(/^Facture 2026-42 créée\. .* réservé aux testeurs : son courriel n'est pas envoyé au client\.$/)
   })
 
   it('without Facturation: no « Facturer l\u2019inscription »', async () => {

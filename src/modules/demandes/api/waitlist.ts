@@ -173,13 +173,28 @@ export async function updateWaitlistEntry(id: string, patch: Record<string, unkn
   if (error) throw error
 }
 
-/** « Facturer l'inscription »: Facturation invoices the fee and sends it to the dossier's payer. Returns the invoice's number. */
-export async function invoiceWaitlistFee(id: string): Promise<string> {
+/**
+ * The invoice « Facturer l'inscription » made: its number, and the module holding its email while it
+ * is reserved for its testers (D-52, P3-40: `demandes`, `billing`), null when it goes to the payer.
+ */
+export interface WaitlistFeeInvoice {
+  number: string
+  emailHeldBy: 'demandes' | 'billing' | null
+}
+
+const waitlistFeeInvoiceSchema = z.union([
+  z.object({ number: z.string(), email_held_by: z.enum(['demandes', 'billing']).nullable() }),
+  // The answer before migration `20261015123628` (the number only), for a deploy in between.
+  z.string().transform((number) => ({ number, email_held_by: null })),
+])
+
+/** « Facturer l'inscription »: Facturation invoices the fee and sends it to the dossier's payer (its email held while reserved). */
+export async function invoiceWaitlistFee(id: string): Promise<WaitlistFeeInvoice> {
   const { data, error } = await supabase.rpc('invoice_waitlist_fee', { p_entry_id: id })
   if (error) throw error
-  const parsed = z.string().safeParse(data)
+  const parsed = waitlistFeeInvoiceSchema.safeParse(data)
   if (!parsed.success) throw new Error('demandes: unexpected RPC shape')
-  return parsed.data
+  return { number: parsed.data.number, emailHeldBy: parsed.data.email_held_by }
 }
 
 export async function setWaitlistFee(id: string, status: 'to_invoice' | 'paid' | 'waived', reason: string | null): Promise<void> {

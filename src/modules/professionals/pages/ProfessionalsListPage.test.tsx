@@ -108,7 +108,9 @@ describe('ProfessionalsListPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.name') })).toBeInTheDocument()
     // The count in the header's count slot, then the active ones (A4: « 3 professionnels · 1 actif »).
     expect(await screen.findByText((_, el) => el?.tagName === 'P' && el.textContent === '3 professionnels · 1 actif')).toBeInTheDocument()
-    await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Paul Gagnon', 'Marie Tremblay']))
+    // « Tous sauf inactifs » by default (Jonathan, 2026-10-15): Paul, inactive, is not listed.
+    await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Marie Tremblay']))
+    expect(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) })).toHaveValue('not_inactive')
     const helene = screen.getByRole('link', { name: 'Hélène Côté' }).closest('[role=row]') as HTMLElement
     expect(within(helene).getByText('Naturopathe')).toBeInTheDocument()
     expect(within(helene).getByText('FR · EN')).toBeInTheDocument()
@@ -117,15 +119,38 @@ describe('ProfessionalsListPage', () => {
     const marie = screen.getByRole('link', { name: 'Marie Tremblay' }).closest('[role=row]') as HTMLElement
     expect(within(marie).getByText('OPQ 12345')).toBeInTheDocument()
     expect(within(marie).getByText(t(`${L}.table.nothingToWatch`))).toBeInTheDocument()
-    // One count on screen (audit 2026-10-09 §2.6): the results status speaks to screen readers only,
-    // and the whole list on one page has no footer.
-    expect(screen.getByText('3 résultats').closest('[role="status"]')).toHaveClass('sr-only')
+    // The results status speaks to screen readers only; the footer says how many of the clinic's
+    // files show, since the inactive ones are hidden.
+    expect(screen.getByText('2 résultats').closest('[role="status"]')).toHaveClass('sr-only')
+    expect(screen.getByText('2 sur 3 professionnels')).toBeInTheDocument()
+  })
+
+  it('« Tous les statuts » shows the inactive files too, with its own URL value; the whole list has one count', async () => {
+    renderPage()
+    await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Marie Tremblay']))
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) }), 'all')
+    await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Paul Gagnon', 'Marie Tremblay']))
+    expect(location()).toBe('/professionnels?statut=tous')
+    // One count on screen (audit 2026-10-09 §2.6): the whole list on one page has no footer.
     expect(screen.queryByText('3 sur 3 professionnels')).not.toBeInTheDocument()
     expect(screen.queryByText('Page 1 sur 1')).not.toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) }), 'not_inactive')
+    await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Marie Tremblay']))
+    expect(location()).toBe('/professionnels')
+  })
+
+  it('every file inactive: the empty state offers « Afficher tous les statuts », not a reset that would show nothing', async () => {
+    mocks.list.fetchProfessionalsList.mockResolvedValue({ rows: [PAUL], truncated: false })
+    renderPage()
+    expect(await screen.findByText(t(`${L}.noMatch.inactiveHiddenBody`))).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t(`${L}.noMatch.showAllStatuses`) }))
+    await waitFor(() => expect(names()).toEqual(['Paul Gagnon']))
+    expect(location()).toBe('/professionnels?statut=tous')
+    expect(screen.getByRole('button', { name: t(`${L}.filters.button`) })).toHaveFocus()
   })
 
   it('an inactive file: « Inactif depuis le … · {raison} » in « À surveiller » (P4-510)', async () => {
-    renderPage()
+    renderPage({ path: '/professionnels?statut=tous' })
     await waitFor(() => expect(names()).toContain('Paul Gagnon'))
     const paul = screen.getByRole('link', { name: 'Paul Gagnon' }).closest('[role=row]') as HTMLElement
     expect(within(paul).getByText(t('modules.professionals.watch.inactiveSinceFor', { date: '3 oct. 2026', reason: 'Congé' }))).toBeInTheDocument()
@@ -190,7 +215,7 @@ describe('ProfessionalsListPage', () => {
   })
 
   it('searches on name, email and licence, accents ignored, and keeps the search in the URL', async () => {
-    renderPage()
+    renderPage({ path: '/professionnels?statut=tous' })
     await screen.findByRole('link', { name: 'Marie Tremblay' })
     const search = screen.getByRole('searchbox', { name: t(`${L}.search.label`) })
     await userEvent.type(search, 'helene')
@@ -202,7 +227,7 @@ describe('ProfessionalsListPage', () => {
     await userEvent.type(search, 'marie.t@')
     await waitFor(() => expect(names()).toEqual(['Marie Tremblay']))
     expect(screen.getByText('1 résultat')).toBeInTheDocument()
-    expect(location()).toBe('/professionnels?q=marie.t%40')
+    expect(location()).toBe('/professionnels?q=marie.t%40&statut=tous')
   })
 
   it('reads its filters from the URL (a reload keeps them)', async () => {
@@ -241,7 +266,7 @@ describe('ProfessionalsListPage', () => {
       rows: Array.from({ length: PAGE_SIZE + 5 }, (_, i) => listRowFixture({ id: id(100 + i), lastName: `Nom ${String(i).padStart(2, '0')}`, status: i < 3 ? 'inactive' : 'active' })),
       truncated: false,
     })
-    renderPage({ path: '/professionnels?page=2' })
+    renderPage({ path: '/professionnels?statut=tous&page=2' })
     await waitFor(() => expect(names()).toHaveLength(5))
     expect(screen.getByText('Page 2 sur 2')).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) }), 'inactive')
@@ -274,8 +299,8 @@ describe('ProfessionalsListPage', () => {
 
   it('announces no page when there is only one', async () => {
     renderPage()
-    await waitFor(() => expect(names()).toHaveLength(3))
-    expect(screen.getByText('3 résultats').closest('[role="status"]')).not.toHaveTextContent('page')
+    await waitFor(() => expect(names()).toHaveLength(2))
+    expect(screen.getByText('2 résultats').closest('[role="status"]')).not.toHaveTextContent('page')
   })
 
   it('filters through « Filtres », shows the filters as chips, and removes one', async () => {
@@ -288,7 +313,7 @@ describe('ProfessionalsListPage', () => {
     const chip = screen.getByRole('button', { name: t(`${L}.chips.remove`, { label: 'Langue : Anglais' }) })
     expect(screen.getByRole('button', { name: t(`${L}.filters.buttonCount`, { count: '1' }) })).toBeInTheDocument()
     await userEvent.click(chip)
-    await waitFor(() => expect(names()).toHaveLength(3))
+    await waitFor(() => expect(names()).toHaveLength(2))
     expect(screen.getByRole('button', { name: t(`${L}.filters.button`) })).toHaveFocus()
   })
 
@@ -300,7 +325,7 @@ describe('ProfessionalsListPage', () => {
     const option = await screen.findByRole('option', { name: /Anxiété/ })
     expect(screen.queryByRole('option', { name: /Deuil/ })).not.toBeInTheDocument()
     await userEvent.click(option)
-    await waitFor(() => expect(names()).toEqual(['Paul Gagnon', 'Marie Tremblay']))
+    await waitFor(() => expect(names()).toEqual(['Marie Tremblay']))
     expect(screen.getByRole('option', { name: /Anxiété/ })).toHaveAttribute('aria-checked', 'true')
     await userEvent.click(screen.getByRole('checkbox', { name: t(`${L}.filters.watch`) }))
     await waitFor(() => expect(screen.getByText(t(`${L}.noMatch.title`))).toBeInTheDocument())
@@ -325,7 +350,7 @@ describe('ProfessionalsListPage', () => {
     expect(location()).toBe('/professionnels?documents=incomplets')
     await userEvent.keyboard('{Escape}')
     await userEvent.click(screen.getByRole('button', { name: t(`${L}.chips.remove`, { label: t(`${L}.filters.documentsIncomplete`) }) }))
-    await waitFor(() => expect(names()).toHaveLength(3))
+    await waitFor(() => expect(names()).toHaveLength(2))
   })
 
   it('says when nothing matches, and « Réinitialiser » shows everyone again', async () => {
@@ -334,7 +359,7 @@ describe('ProfessionalsListPage', () => {
     expect(screen.getByText(t(`${L}.noMatch.body`))).toBeInTheDocument()
     const resets = screen.getAllByRole('button', { name: t(`${L}.reset`) })
     await userEvent.click(resets[resets.length - 1] as HTMLElement)
-    await waitFor(() => expect(names()).toHaveLength(3))
+    await waitFor(() => expect(names()).toHaveLength(2))
     expect(screen.getByRole('searchbox')).toHaveValue('')
   })
 
@@ -417,7 +442,7 @@ describe('ProfessionalsListPage — remembered filters', () => {
     mocks.preferences.fetchUserPreference.mockRejectedValue(new Error('network'))
     mocks.preferences.saveUserPreference.mockRejectedValue(new Error('network'))
     renderPage()
-    await waitFor(() => expect(names()).toHaveLength(3))
+    await waitFor(() => expect(names()).toHaveLength(2))
     await userEvent.selectOptions(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) }), 'active')
     await waitFor(() => expect(mocks.preferences.saveUserPreference).toHaveBeenCalled(), { timeout: PREFERENCE_WRITE_DELAY + 1000 })
     expect(names()).toEqual(['Marie Tremblay'])
