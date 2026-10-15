@@ -8829,6 +8829,8 @@
           "exit": "Sortir de la liste",
           "invoice": "Facturer l'inscription",
           "invoiced": "Facture {number} envoyée au payeur.",
+          "invoicedHeldDemandes": "Facture {number} créée. Demandes est réservé aux testeurs : son courriel n'est pas envoyé au client.",
+          "invoicedHeldBilling": "Facture {number} créée. Facturation est réservé aux testeurs : son courriel n'est pas envoyé au client.",
           "invoicedHelp": "La facture suit dans Facturation : payée, les frais passent à « Payés » ; créditée, ils reviennent « à facturer »."
         },
         "page": {
@@ -11099,7 +11101,7 @@
           "pending": "Envoi en cours : le PDF se prépare.",
           "sent": "Envoyée au payeur par courriel le {date}.",
           "no_email": "PDF prêt. Pas envoyé par courriel : le payeur n’a pas d’adresse.",
-          "reserved": "PDF prêt. Pas envoyé par courriel : la Facturation est réservée à ses testeurs.",
+          "reserved": "PDF prêt. Pas envoyé par courriel : module réservé aux testeurs (Facturation, ou Demandes pour des frais d’inscription).",
           "not_requested": "PDF prêt. Pas envoyé par courriel.",
           "module_disabled": "PDF prêt. Pas envoyé par courriel : le module est désactivé.",
           "emailFailed": "L’adresse courriel du payeur a été refusée.",
