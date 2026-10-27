@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { t } from '@/i18n'
 import { EMAIL_PATTERN } from '@/shared/lib/email'
 import { formatPostalCode, parsePhone } from '@/shared/lib/format'
+import { looksMojibake } from '@/shared/lib/mojibake'
 
 /**
  * Field schemas shared by the settings cards and the modules (Professionnels: identity, address,
@@ -17,6 +18,7 @@ const MESSAGES = {
   phone: t('settings.validation.phone'),
   email: t('auth.errors.invalidEmail'),
   controlChar: t('settings.validation.controlChar'),
+  mojibake: t('settings.validation.mojibake'),
 } as const
 
 /** The 13 province and territory codes allowed by `organizations_province_check`. */
@@ -56,6 +58,14 @@ export const optionalPattern = (pattern: RegExp, message: string, normalize: (v:
  */
 export const withoutControlChars = <T extends z.ZodType<unknown, string>>(schema: T) =>
   z.string().trim().refine((v) => !CONTROL_CHARS.test(v), { error: MESSAGES.controlChar, abort: true }).pipe(schema)
+
+/**
+ * Refuses text whose accents were mangled by a bad decode (« Saint-Irã©Nã©E » for
+ * « Saint-Irénée »): pasted from elsewhere, nothing downstream would catch it and the file would
+ * keep it. Aborts like `withoutControlChars`, so no second message about the format follows.
+ */
+export const withoutMojibake = <T extends z.ZodType<unknown, string>>(schema: T) =>
+  z.string().refine((v) => !looksMojibake(v), { error: MESSAGES.mojibake, abort: true }).pipe(schema)
 
 /** Optional email (EMAIL_PATTERN, the SQL checks' rule); control characters refused first. */
 export const optionalEmail = () => withoutControlChars(optionalPattern(EMAIL_PATTERN, MESSAGES.email))

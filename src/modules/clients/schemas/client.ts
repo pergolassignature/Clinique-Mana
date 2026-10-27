@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { emptyToNull, optionalEmail, optionalPhone, optionalPostalCode, optionalProvince, optionalText, requiredText } from '@/shared/lib/field-schemas'
+import { emptyToNull, optionalEmail, optionalPhone, optionalPostalCode, optionalProvince, optionalText, requiredText, withoutMojibake } from '@/shared/lib/field-schemas'
 import { formatPhone } from '@/shared/lib/format'
 import { isCalendarDate } from '@/shared/lib/timezone'
 import type { ClientFields } from '../api/clients'
@@ -89,9 +89,9 @@ const FIELDS = {
   language: z.enum(LANGUAGES, { error: t(`${V}.language`) }),
   remindersBySms: z.boolean(),
   remindersByEmail: z.boolean(),
-  addressLine1: optionalText(200),
-  addressLine2: optionalText(200),
-  city: optionalText(100),
+  addressLine1: withoutMojibake(optionalText(200)),
+  addressLine2: withoutMojibake(optionalText(200)),
+  city: withoutMojibake(optionalText(100)),
   // Checked against the country below (a Canadian code, or free text abroad).
   province: z.string().trim(),
   postalCode: z.string().trim(),
