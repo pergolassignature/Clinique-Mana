@@ -10,6 +10,7 @@ import {
   optionalText,
   requiredText,
   withoutControlChars,
+  withoutMojibake,
 } from '@/shared/lib/field-schemas'
 import { compactTaxNumber, formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import type { Organization } from './api'
@@ -101,9 +102,9 @@ export function toClinicFormValues(org: Organization): z.input<typeof clinicSche
 // --- Identité légale: « Adresse du siège social » ------------------------------------------------
 
 export const addressSchema = z.object({
-  address_line1: optionalText(200),
-  address_line2: optionalText(200),
-  city: optionalText(100),
+  address_line1: withoutMojibake(optionalText(200)),
+  address_line2: withoutMojibake(optionalText(200)),
+  city: withoutMojibake(optionalText(100)),
   province: optionalProvince(),
   postal_code: optionalPostalCode(),
 })

@@ -40,6 +40,16 @@ describe('personalSchema', () => {
     expect(messages).toContainEqual(['postal_code', t(`${V}.postalCodeRequired`)])
   })
 
+  it('refuses an address pasted with mangled accents, and never autosaves it', () => {
+    // « Saint-Irénée » as it reached the clinic's file: UTF-8 read as Latin-1, then a title-case.
+    const pasted = { ...filled, city: 'Saint-Irã©Nã©E' }
+    const result = personalSchema.safeParse(pasted)
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((i) => [i.path[0], i.message])).toContainEqual(['city', t('settings.validation.mojibake')])
+    // The autosave keeps only the fields that parse, so the mangled city is left out of the draft.
+    expect(parseValidFields(personalSchema, pasted)).not.toHaveProperty('city')
+  })
+
   it('shows the stored phone as typed in Québec, and defaults the province', () => {
     expect(toPersonalValues({ personal_phone: '+15145551234', province: null })).toMatchObject({ personal_phone: '514 555-1234', province: 'QC' })
   })

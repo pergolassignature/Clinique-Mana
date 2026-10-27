@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
 import { EMAIL_PATTERN } from '@/shared/lib/email'
-import { optionalPhone, optionalPostalCode, optionalText, PROVINCES, withoutControlChars } from '@/shared/lib/field-schemas'
+import { optionalPhone, optionalPostalCode, optionalText, PROVINCES, withoutControlChars, withoutMojibake } from '@/shared/lib/field-schemas'
 import { formatPhone } from '@/shared/lib/format'
 import type { Professional } from '../api/parse'
 
@@ -28,9 +28,9 @@ export type LoginEmailValues = z.input<typeof loginEmailSchema>
 /** Personal phone and home address. The province is required (the column is not null, default QC). */
 export const contactSchema = z.object({
   personalPhone: optionalPhone(),
-  addressLine1: optionalText(200),
-  addressLine2: optionalText(200),
-  city: optionalText(100),
+  addressLine1: withoutMojibake(optionalText(200)),
+  addressLine2: withoutMojibake(optionalText(200)),
+  city: withoutMojibake(optionalText(100)),
   province: z.enum(PROVINCES, { error: t('settings.validation.province') }),
   postalCode: optionalPostalCode(),
 })

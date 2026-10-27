@@ -1550,6 +1550,7 @@
       "https": "L'adresse doit commencer par https://",
       "url": "Adresse web invalide.",
       "controlChar": "Caractère invalide.",
+      "mojibake": "Les accents de ce texte sont brouillés. Retapez-le.",
       "retention": "Entre 1 et 50 ans.",
       "timezone": "Choisissez un fuseau horaire."
     },

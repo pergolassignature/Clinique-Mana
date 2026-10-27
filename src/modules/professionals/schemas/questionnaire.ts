@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { optionalEmail, optionalPattern, optionalPhone, optionalPostalCode, PROVINCES } from '@/shared/lib/field-schemas'
+import { optionalEmail, optionalPattern, optionalPhone, optionalPostalCode, PROVINCES, withoutMojibake } from '@/shared/lib/field-schemas'
 import { compactTaxNumber, formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import { isCalendarDate } from '@/shared/lib/timezone'
 import { AVAILABILITY_PERIODS, type AvailabilityPeriod } from '../lib/constants'
@@ -27,9 +27,9 @@ const required = <S extends z.ZodType<unknown, string>>(schema: S, message: stri
 
 export const personalSchema = z.object({
   personal_phone: required(optionalPhone(), t(`${Q}.phoneRequired`)),
-  address_line1: tidyText({ max: 200, requiredMessage: t(`${Q}.addressRequired`) }),
-  address_line2: tidyText({ max: 200 }),
-  city: tidyText({ max: 100, requiredMessage: t(`${Q}.cityRequired`) }),
+  address_line1: withoutMojibake(tidyText({ max: 200, requiredMessage: t(`${Q}.addressRequired`) })),
+  address_line2: withoutMojibake(tidyText({ max: 200 })),
+  city: withoutMojibake(tidyText({ max: 100, requiredMessage: t(`${Q}.cityRequired`) })),
   province: z.enum(PROVINCES, { error: t('settings.validation.province') }),
   postal_code: required(optionalPostalCode(), t(`${Q}.postalCodeRequired`)),
 })

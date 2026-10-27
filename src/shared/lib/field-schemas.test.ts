@@ -10,6 +10,7 @@ import {
   PROVINCES,
   requiredText,
   withoutControlChars,
+  withoutMojibake,
 } from './field-schemas'
 
 /** The French message of the first issue, or undefined when the value parses. */
@@ -97,6 +98,28 @@ describe('withoutControlChars', () => {
     const result = withoutControlChars(z.string().min(10, { error: 'trop court' })).safeParse('a\u0085b')
     expect(result.success).toBe(false)
     expect(result.error?.issues.map((issue) => issue.message)).toEqual(['Caractère invalide.'])
+  })
+})
+
+describe('withoutMojibake', () => {
+  /** What a UTF-8 string becomes when it is read back as Latin-1, one byte to one character. */
+  const mangle = (text: string) => Array.from(new TextEncoder().encode(text), (b) => String.fromCharCode(b)).join('')
+
+  it('runs the wrapped schema on a city whose accents are sound', () => {
+    expect(withoutMojibake(optionalText(100)).parse(' Saint-Irénée ')).toBe('Saint-Irénée')
+    expect(withoutMojibake(optionalText(100)).parse('')).toBeNull()
+  })
+
+  it('refuses mangled accents, raw or after a title-case', () => {
+    expect(errorOf(withoutMojibake(optionalText(100)), mangle('Saint-Irénée'))).toBe('Les accents de ce texte sont brouillés. Retapez-le.')
+    // The value found in the clinic's file.
+    expect(errorOf(withoutMojibake(optionalText(100)), 'Saint-Irã©Nã©E')).toBe('Les accents de ce texte sont brouillés. Retapez-le.')
+  })
+
+  it('says it once, without the wrapped schema’s message (abort)', () => {
+    const result = withoutMojibake(optionalText(4)).safeParse(mangle('Montréal'))
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual(['Les accents de ce texte sont brouillés. Retapez-le.'])
   })
 })
 
