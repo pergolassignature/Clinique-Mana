@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import { fetchStoredFile } from '@/core/storage/api'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { browserShowsPdfInline } from '@/shared/lib/pdf-viewer'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { previewProfessionalContract, type PreviewAction, type SigningForm } from '../../api/contracts'
@@ -25,6 +28,8 @@ interface Loaded {
   pageCount: number | null
   signers: { role: string; name: string }[]
   summary: { label: string; value: string }[]
+  /** The document's own title, for the download's file name; null for a sent PDF (it has none here). */
+  title: string | null
 }
 
 type LoadState = { status: 'loading' } | { status: 'ready'; loaded: Loaded } | { status: 'error'; message: string }
@@ -56,6 +61,10 @@ interface SigningPreviewDialogProps {
  * A prints; « Envoyer pour signature à {prénom} » sends what is shown (the same key, so the same
  * snapshot). Also « Voir le contrat envoyé » (`sent`), read-only. The PDF lives in this component's
  * state as a blob URL, revoked on close or reload; nothing is cached.
+ *
+ * A browser that does not draw PDFs in the page (`browserShowsPdfInline`) is offered the document
+ * to open or download instead of the frame: a refused frame reports nothing, so it would otherwise
+ * stand there empty and the preview would look broken while the PDF was fine.
  */
 export function SigningPreviewDialog({
   form,
@@ -82,10 +91,10 @@ export function SigningPreviewDialog({
     const load = async (): Promise<Omit<Loaded, 'url'> & { bytes: Uint8Array }> => {
       if (source.kind === 'sent') {
         const bytes = await fetchStoredFile(source.fileId, { signal: controller.signal })
-        return { bytes, pageCount: source.pageCount, signers: source.signers, summary: [] }
+        return { bytes, pageCount: source.pageCount, signers: source.signers, summary: [], title: null }
       }
       const preview = await previewProfessionalContract(professionalId, source.action, source.key, form, controller.signal)
-      return { bytes: preview.bytes, pageCount: preview.pageCount, signers: preview.signers, summary: preview.summary }
+      return { bytes: preview.bytes, pageCount: preview.pageCount, signers: preview.signers, summary: preview.summary, title: preview.title }
     }
     load().then(
       ({ bytes, ...rest }) => {
@@ -110,6 +119,8 @@ export function SigningPreviewDialog({
   const sent = source?.kind === 'sent'
   const regenerate = source?.kind === 'prepare' && source.action === 'regenerate'
   const ready = state.status === 'ready' ? state.loaded : null
+  // Read at render: the setting can change between two openings of the dialog.
+  const inlinePdf = browserShowsPdfInline()
 
   return (
     <Dialog open={source !== null} onOpenChange={(open) => !open && onClose()}>
@@ -134,7 +145,23 @@ export function SigningPreviewDialog({
                 <RefusalAlert message={state.message} />
               </div>
             )}
-            {ready && <iframe src={ready.url} title={t(`${P}.frameTitle`)} className="h-full w-full bg-white" />}
+            {ready && inlinePdf && <iframe src={ready.url} title={t(`${P}.frameTitle`)} className="h-full w-full bg-white" />}
+            {ready && !inlinePdf && (
+              // The frame would draw nothing here: the PDF is offered instead, never a silent broken box.
+              <div className="w-full max-w-md p-4">
+                <Alert variant="warning">
+                  <TriangleAlert aria-hidden />
+                  <AlertDescription className="space-y-3 text-foreground">
+                    <p>{t(`${P}.noInlineViewer`)}</p>
+                    <Button asChild size="sm">
+                      <a href={ready.url} download={ready.title ? `${ready.title}.pdf` : undefined}>
+                        {t(`${P}.download`)}
+                      </a>
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
           </div>
 
           <aside className="shrink-0 space-y-4 overflow-y-auto text-sm lg:w-80">

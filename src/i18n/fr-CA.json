@@ -4543,6 +4543,8 @@
           "loadingSent": "Chargement du PDF…",
           "sentLoadFailed": "Le PDF envoyé n'a pas pu être ouvert. Réessayez dans un moment.",
           "frameTitle": "Aperçu du PDF",
+          "noInlineViewer": "Votre navigateur n'affiche pas les PDF dans la page. Le document est prêt : ouvrez-le ou téléchargez-le pour le lire.",
+          "download": "Télécharger le PDF",
           "pages": "Pages",
           "version": "Version du modèle",
           "signers": "Signataires",
