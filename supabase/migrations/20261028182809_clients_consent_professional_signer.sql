@@ -151,7 +151,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select pg_catalog.coalesce(p_client_id, p_professional_id)
+  select coalesce(p_client_id, p_professional_id)
 $$;
 revoke all on function private.clients_consent_signer_key(uuid, uuid) from public, anon, authenticated, service_role;
 
