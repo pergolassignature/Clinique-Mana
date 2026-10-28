@@ -225,7 +225,7 @@ select functions_are('public', array[
   'add_service_rate_variant', 'end_service_rate_variant', 'add_billing_policy', 'delete_billing_policy', 'list_service_prices',
   -- Services et tarifs, R-83 (the services a professional does not offer).
   'set_professional_service_exclusions',
-  -- Professionnels, P4-510 (« Approches » counted, off the fiche).
+  -- Professionnels, P4-561 (« Approches » counted, off the fiche).
   'count_professional_approaches',
   -- Communications, batch SM (textos).
   'get_sms_settings', 'set_sms_settings', 'set_sms_consent',

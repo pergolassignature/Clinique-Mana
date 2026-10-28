@@ -107,6 +107,10 @@ export function toProfessionalValues(values: Readonly<Record<string, unknown>>):
 export const portraitSchema = z.object({
   bio: longText(4000).refine((v) => v !== null, { error: t(`${Q}.bioRequired`) }),
   approach: longText(4000),
+  // P4-561: the approaches she checked. Optional, so the portrait is still complete with its bio.
+  approach_ids: z.array(z.uuid()).max(40).transform((ids) => [...ids].sort()),
+  // What « Autre — précisez » means, kept only while that box is checked (the step clears it).
+  approach_other: tidyText({ max: 200 }),
   // Stored lower-cased, 254 characters at most (`normalize_submission_section`).
   public_email: optionalEmail()
     .transform((v) => v?.toLowerCase() ?? null)
@@ -119,6 +123,8 @@ export function toPortraitValues(values: Readonly<Record<string, unknown>>): Por
   return {
     bio: str(values, 'bio'),
     approach: str(values, 'approach'),
+    approach_ids: Array.isArray(values.approach_ids) ? values.approach_ids.filter((id): id is string => typeof id === 'string') : [],
+    approach_other: str(values, 'approach_other'),
     public_email: str(values, 'public_email'),
     public_phone: formatPhone(str(values, 'public_phone')),
   }

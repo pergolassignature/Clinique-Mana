@@ -1,5 +1,5 @@
 -- =============================================================================
--- Professionnels: « Approches » back, as checkboxes, counted but off the fiche (P4-510)
+-- Professionnels: « Approches » back, as checkboxes, counted but off the fiche (P4-561)
 -- =============================================================================
 -- Asked by Jonathan, « Suivi - application » of 22 October 2026: « Ajouter case à cocher pour
 -- sélectionner les approches, je veux les comptabiliser mais je ne veux pas les ajouter sur la
@@ -11,7 +11,7 @@
 -- Rules:   docs/standards/database-conventions.md; CLAUDE.md §6.
 --
 -- **Revives what P4-240 and P4-276 removed** — both Jonathan's own decisions, and he is the one
--- asking for them back, so the reversal is his (P4-510, decisions log).
+-- asking for them back, so the reversal is his (P4-561, decisions log).
 --
 -- Key choices
 -- * A catalogue (`approaches`) and a per-professional set (`professional_approaches`), as the
@@ -40,9 +40,11 @@ create table public.approaches (
   org_id uuid not null references public.organizations(id) on delete cascade,
   key text not null,
   name text not null,
-  -- `other` and the sixteen named ones are the clinic's own list: none is matched on by key, so
-  -- none is `is_system`; every one may be archived.
+  -- Whether the row asks the professional to write what she means (« Autre — précisez »).
   requires_text boolean not null default false,
+  -- As the other catalogues. None of the seventeen is seeded as a system row: nothing matches on
+  -- an approach's key, so the clinic may rename, reorder or archive any of them.
+  is_system boolean not null default false,
   sort_order int not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -188,21 +190,21 @@ as $$
     ('personal', 'province', 'plain', 5), ('personal', 'postal_code', 'plain', 6),
     ('professional', 'professions', 'set', 7), ('professional', 'years_experience', 'plain', 8),
     ('portrait', 'bio', 'plain', 9), ('portrait', 'approach', 'plain', 10),
-    ('portrait', 'approach_ids', 'set', 11),
-    ('portrait', 'public_email', 'plain', 12), ('portrait', 'public_phone', 'plain', 13),
-    ('languages', 'language_ids', 'set', 14),
-    ('clienteles', 'clienteles', 'set', 15), ('clienteles', 'min_client_age', 'plain', 16),
-    ('clienteles', 'women_only', 'plain', 17),
-    ('motifs', 'motif_ids', 'set', 18),
-    ('availability', 'accepting_new_clients', 'plain', 19), ('availability', 'availability_periods', 'plain', 20),
-    ('availability', 'availability_note', 'plain', 21),
-    ('photo', 'photo', 'file', 22),
-    ('insurance', 'insurance', 'file', 23),
-    ('tax_bank', 'business_number', 'private', 24), ('tax_bank', 'gst_number', 'private', 25),
-    ('tax_bank', 'qst_number', 'private', 26), ('tax_bank', 'bank_institution', 'private', 27),
-    ('tax_bank', 'bank_transit', 'private', 28), ('tax_bank', 'bank_account', 'private', 29),
-    ('tax_bank', 'sin', 'private', 30),
-    ('consent', 'consent', 'consent', 31)
+    ('portrait', 'approach_ids', 'set', 11), ('portrait', 'approach_other', 'plain', 12),
+    ('portrait', 'public_email', 'plain', 13), ('portrait', 'public_phone', 'plain', 14),
+    ('languages', 'language_ids', 'set', 15),
+    ('clienteles', 'clienteles', 'set', 16), ('clienteles', 'min_client_age', 'plain', 17),
+    ('clienteles', 'women_only', 'plain', 18),
+    ('motifs', 'motif_ids', 'set', 19),
+    ('availability', 'accepting_new_clients', 'plain', 20), ('availability', 'availability_periods', 'plain', 21),
+    ('availability', 'availability_note', 'plain', 22),
+    ('photo', 'photo', 'file', 23),
+    ('insurance', 'insurance', 'file', 24),
+    ('tax_bank', 'business_number', 'private', 25), ('tax_bank', 'gst_number', 'private', 26),
+    ('tax_bank', 'qst_number', 'private', 27), ('tax_bank', 'bank_institution', 'private', 28),
+    ('tax_bank', 'bank_transit', 'private', 29), ('tax_bank', 'bank_account', 'private', 30),
+    ('tax_bank', 'sin', 'private', 31),
+    ('consent', 'consent', 'consent', 32)
   ) as x(section, field, kind, ord)
 $$;
 
@@ -212,7 +214,7 @@ alter table public.professional_submissions
 alter table public.professional_submissions
   add constraint professional_submissions_applied_fields_check check (
     applied_fields <@ array['personal_phone', 'address_line1', 'address_line2', 'city', 'province', 'postal_code',
-                            'professions', 'years_experience', 'bio', 'approach', 'approach_ids', 'public_email', 'public_phone',
+                            'professions', 'years_experience', 'bio', 'approach', 'approach_ids', 'approach_other', 'public_email', 'public_phone',
                             'language_ids', 'clienteles', 'min_client_age', 'women_only', 'motif_ids', 'accepting_new_clients',
                             'availability_periods', 'availability_note', 'photo', 'insurance', 'business_number',
                             'gst_number', 'qst_number', 'bank_institution', 'bank_transit', 'bank_account', 'sin',
@@ -465,8 +467,8 @@ begin
   if 'motif_ids' = any (v_fields) then
     perform private.apply_professional_motifs(v_org, v_pid, private.submission_uuid_array(v_values #> '{motifs,motif_ids}', 'motif_ids'), false);
   end if;
-  -- P4-510: the approaches she checked, and the text of « Autre — précisez ».
-  if 'approach_ids' = any (v_fields) then
+  -- P4-561: the approaches she checked, and the text of « Autre — précisez ».
+  if v_fields && array['approach_ids', 'approach_other'] then
     perform private.apply_professional_approaches(v_org, v_pid,
       private.submission_uuid_array(v_values #> '{portrait,approach_ids}', 'approach_ids'),
       v_values #>> '{portrait,approach_other}');

@@ -1,5 +1,5 @@
 -- « Approches » back as checkboxes, counted but off the fiche (migration
--- *_professionals_approaches.sql, decision P4-510, reviving what P4-240 and P4-276 removed).
+-- *_professionals_approaches.sql, decision P4-561, reviving what P4-240 and P4-276 removed).
 -- Covers: the seventeen seeded per clinic in Jonathan's order, and a clinic created later gets
 -- them too; the set is read by staff and by the professional herself only; writing it replaces
 -- what she held, keeps the text of « Autre — précisez » on that row alone, and refuses an unknown
@@ -8,7 +8,7 @@
 -- permission; nothing is added to the public profile.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(19);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -111,8 +111,10 @@ select ok((select (private.professional_submission_snapshot(
              'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001') #> '{portrait,approach_ids}') is not null),
   'the snapshot the questionnaire prefills from carries her approaches');
 -- P4-173: the portrait is complete with its bio; the approaches never hold a questionnaire back.
-select is((select count(*)::int from private.submission_fields() where section = 'portrait'), 5,
-  'the portrait has five fields now');
+select is((select count(*)::int from private.submission_fields() where section = 'portrait'), 6,
+  'the portrait has six fields now (the set and the text of « Autre »)');
+select results_eq($$ select kind from private.submission_fields() where field = 'approach_other' $$,
+  $$ values ('plain') $$, 'the text of « Autre — précisez » is a field of its own, so the section accepts it');
 
 -- =============================================================================
 -- Reading: staff, herself, and the counts
