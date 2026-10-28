@@ -6681,7 +6681,21 @@
           "language": "Langue"
         },
         "primary": "Professionnel principal",
-        "archived": "Archivé"
+        "archived": "Archivé",
+        "consents": {
+          "title": "Consentements à signer",
+          "description": "Les consentements de vos clients que vous devez signer comme professionnel attitré au dossier.",
+          "loadError": "Impossible de charger les consentements à signer.",
+          "sign": "Signer",
+          "signError": "Impossible d’ouvrir le consentement à signer.",
+          "dueOn": "à signer avant le {date}",
+          "waitingClient": "Le client doit répondre aux questions et signer avant vous. Vous pourrez signer ensuite.",
+          "states": {
+            "waitingClient": "En attente du client",
+            "ready": "À signer",
+            "signed": "Signé"
+          }
+        }
       },
       "merge": {
         "title": "Fusionner deux dossiers",

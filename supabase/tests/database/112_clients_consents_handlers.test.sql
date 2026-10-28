@@ -8,7 +8,7 @@
 -- names removed from her consents and from those she signed, the withdrawal note gone, the PDF kept).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(26);
 
 select function_privs_are('private', f.name, f.args, 'authenticated', array[]::text[], f.name || ': no role')
   from (values ('clients_consents_reassign_client', array['uuid', 'uuid']), ('clients_consents_anonymize_client', array['uuid']),
@@ -49,13 +49,27 @@ insert into public.client_relations (org_id, client_a_id, client_b_id, type_a_to
 update public.client_relations set b_manages_appointments = true
  where client_a_id = 'd0000000-0000-0000-0000-000000000006' and client_b_id = 'd0000000-0000-0000-0000-000000000007';
 update public.clients set archived_at = now() where id = 'd0000000-0000-0000-0000-000000000007';
+-- CC-22: a client consent is countersigned by the professional assigned to the file.
+insert into public.professionals (id, org_id, first_name, last_name, email, status) values
+  ('c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Pro', 'Un', 'pro@a.test', 'active');
+-- Only the two children whose signers are computed below: the merge and anonymisation fixtures
+-- write their signer rows by hand, so they need no professional.
+update public.clients set primary_professional_id = 'c0000000-0000-0000-0000-000000000001'
+ where id in ('d0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000006');
 
--- Who signs, through client_contacts_for: Lou's authorised parent, not the archived one.
+-- Who signs, through client_contacts_for: Lou's authorised parent, not the archived one, then the
+-- professional assigned to her file (CC-22).
 select results_eq($$ select (s ->> 'signer_client_id')::uuid, s ->> 'role', s ->> 'relation_id' is not null
                        from jsonb_array_elements(private.clients_consent_signers('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000006')) s $$,
-  $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, 'client', true) $$, 'who signs for a child: her authorised parent, read through client_contacts_for');
-select is(jsonb_array_length(private.clients_consent_signers('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000003')), 2,
-  'shared custody: both parents');
+  $$ values ('d0000000-0000-0000-0000-000000000001'::uuid, 'client', true),
+            (null::uuid, 'professional', false) $$,
+  'who signs for a child: her authorised parent, read through client_contacts_for, then her professional');
+select is(jsonb_array_length(private.clients_consent_signers('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000003')), 3,
+  'shared custody: both parents and the assigned professional');
+select is((select s ->> 'signer_professional_id'
+             from jsonb_array_elements(private.clients_consent_signers('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000006')) s
+            where s ->> 'role' = 'professional'),
+  'c0000000-0000-0000-0000-000000000001', 'the professional signer names the file''s assigned professional');
 
 create temporary table v as
 select v.id from public.document_template_versions v join public.document_templates t on t.id = v.template_id

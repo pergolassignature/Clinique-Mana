@@ -120,8 +120,9 @@ const openSchema = z.discriminatedUnion('state', [
   }),
 ])
 
+/** The envelope's recipients: the client side, and the assigned professional (CC-22, order 3). */
 const signerSchema = z.object({
-  role: z.enum(['client', 'client_2']),
+  role: z.enum(['client', 'client_2', 'professional']),
   name: z.string(),
   email: z.string(),
   order: z.number().int(),
@@ -145,7 +146,7 @@ const startSchema = z.discriminatedUnion('state', [
     template_version_id: z.string(),
     title: z.string(),
     values: z.record(z.string(), z.unknown()),
-    signers: z.array(signerSchema).min(1).max(2),
+    signers: z.array(signerSchema).min(1).max(3),
     clauses: z.array(clauseSchema),
     answers: z.record(z.string(), z.enum(['yes', 'no'])),
     language: z.enum(['fr', 'en']),

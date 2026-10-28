@@ -16966,6 +16966,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      my_client_consent_signatures: { Args: never; Returns: Json }
       open_client_consent_for_service: {
         Args: {
           p_birth_year: number
@@ -17009,6 +17010,10 @@ export type Database = {
       }
       prepare_mail_send: {
         Args: { p_actor: string; p_org_id: string; p_send: Json }
+        Returns: Json
+      }
+      prepare_my_client_consent_signature_for_service: {
+        Args: { p_actor: string; p_org_id: string; p_request_id: string }
         Returns: Json
       }
       prepare_my_image_consent: {
