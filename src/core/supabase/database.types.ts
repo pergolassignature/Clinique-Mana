@@ -1931,7 +1931,8 @@ export type Database = {
           relation_id: string | null
           request_id: string
           role: string
-          signer_client_id: string
+          signer_client_id: string | null
+          signer_professional_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1945,7 +1946,8 @@ export type Database = {
           relation_id?: string | null
           request_id: string
           role: string
-          signer_client_id: string
+          signer_client_id?: string | null
+          signer_professional_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1959,7 +1961,8 @@ export type Database = {
           relation_id?: string | null
           request_id?: string
           role?: string
-          signer_client_id?: string
+          signer_client_id?: string | null
+          signer_professional_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1969,6 +1972,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "secure_links"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_professional_fkey"
+            columns: ["org_id", "signer_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_professional_fkey"
+            columns: ["org_id", "signer_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_professional_fkey"
+            columns: ["org_id", "signer_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "client_consent_request_signers_professional_fkey"
+            columns: ["org_id", "signer_professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
           },
           {
             foreignKeyName: "client_consent_request_signers_relation_fkey"
