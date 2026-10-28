@@ -5693,6 +5693,7 @@
             "request_id": "Demande",
             "role": "Rôle",
             "signer_client_id": "Signataire",
+            "signer_professional_id": "Professionnel qui signe",
             "relation_id": "Lien avec le client",
             "link_id": "Lien sécurisé",
             "last_sent_at": "Dernier envoi",
