@@ -10,7 +10,7 @@
 -- `resume` after, and never another professional's).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(30);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -59,10 +59,12 @@ insert into public.user_roles (user_id, org_id, role) values
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000a', 'clients', true);
-insert into public.professionals (id, org_id, profile_id, first_name, last_name, email, status) values
-  ('c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000003', 'Dominique', 'Un', 'u3@ps.test', 'active'),
-  ('c0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000004', 'Camille', 'Deux', 'u4@ps.test', 'active'),
-  ('c0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', null, 'Parti', 'Trois', 'pro3@ps.test', 'inactive');
+-- `professionals_deactivation_check`: an inactive file names why it was deactivated.
+insert into public.professionals (id, org_id, profile_id, first_name, last_name, email, status, deactivation_reason_id) values
+  ('c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000003', 'Dominique', 'Un', 'u3@ps.test', 'active', null),
+  ('c0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-000000000004', 'Camille', 'Deux', 'u4@ps.test', 'active', null),
+  ('c0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', null, 'Parti', 'Trois', 'pro3@ps.test', 'inactive',
+   (select r.id from public.deactivation_reasons r where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.key = 'collaboration_ended'));
 insert into public.clients (id, org_id, first_name, last_name, email, birthday, language, primary_professional_id) values
   ('d0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Alice', 'Tremblay', 'alice@exemple.test', date '1990-03-04', 'fr', 'c0000000-0000-0000-0000-000000000001'),
   ('d0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Bob', 'Sanspro', 'bob@exemple.test', date '1988-05-06', 'fr', null),
@@ -101,20 +103,27 @@ delete from public.client_consent_requests where id = 'e9000000-0000-0000-0000-0
 -- Who signs: the client, then her professional
 -- =============================================================================
 select results_eq($$ select s ->> 'role', s ->> 'signer_professional_id'
-                       from jsonb_array_elements(private.clients_consent_signers(
+                       from jsonb_array_elements(private.clients_consent_signers_for_signature(
                               'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000001')) s $$,
   $$ values ('client', null::text), ('professional', 'c0000000-0000-0000-0000-000000000001') $$,
   'an adult signs herself, then the professional assigned to her file (CC-22)');
-select is(private.test_error_hint($$ select private.clients_consent_signers(
+select is(private.test_error_hint($$ select private.clients_consent_signers_for_signature(
             'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000002') $$),
   'professional_required', 'a file with no assigned professional is refused');
-select is(private.test_error_message($$ select private.clients_consent_signers(
+select is(private.test_error_message($$ select private.clients_consent_signers_for_signature(
             'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000002') $$),
   'Ce dossier n''a pas de professionnel attitré : le consentement doit être signé par le professionnel assigné au dossier. Choisissez-le dans la fiche du client, puis envoyez la demande.',
   '… in French, naming what to do');
-select is(private.test_error_hint($$ select private.clients_consent_signers(
+select is(private.test_error_hint($$ select private.clients_consent_signers_for_signature(
             'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000003') $$),
   'professional_required', 'a file whose professional is not active is refused too');
+-- « Envoyer la copie signée » (CC-17) asks `clients_consent_signers`, which must stay the client
+-- side alone: a copy of an already-signed consent cannot depend on a professional being assigned.
+select results_eq($$ select s ->> 'role', s ? 'signer_professional_id'
+                       from jsonb_array_elements(private.clients_consent_signers(
+                              'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000002')) s $$,
+  $$ values ('client', false) $$,
+  'the copy path''s signers are the client side alone, and a file without a professional is not refused');
 
 -- =============================================================================
 -- The templates: a third signature box on the seeded drafts

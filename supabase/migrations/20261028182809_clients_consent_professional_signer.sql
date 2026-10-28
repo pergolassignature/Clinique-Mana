@@ -72,10 +72,15 @@ create index client_consent_request_signers_professional_idx
 -- -----------------------------------------------------------------------------
 -- Who signs (R-48 revised by CC-22): the client side, then the assigned professional
 -- -----------------------------------------------------------------------------
--- Latest body: 20261013031103_clients_consents_handlers.sql.
--- Each element is {role, signer_client_id, signer_professional_id, relation_id}: the client-side
--- signers as before (`client`, then `client_2` under shared custody), then `professional`.
-create or replace function private.clients_consent_signers(p_org uuid, p_client_id uuid)
+-- `private.clients_consent_signers` is left exactly as it is (latest body:
+-- 20261013031103_clients_consents_handlers.sql): it answers the **client side**, and
+-- « Envoyer la copie signée » asks it who represents the client today (CC-17,
+-- `prepare_client_consent_copy_for_service`). A copy of an already-signed consent must not
+-- depend on a professional being assigned now, so that path must keep its answer — and its
+-- refusals — unchanged.
+-- The signing paths ask this one instead: the client side, then the file's assigned
+-- professional, each element {role, signer_client_id, signer_professional_id, relation_id}.
+create function private.clients_consent_signers_for_signature(p_org uuid, p_client_id uuid)
 returns jsonb
 language plpgsql
 stable
@@ -83,47 +88,14 @@ set search_path = ''
 as $$
 declare
   v_client public.clients%rowtype;
-  v_age int;
-  v_people jsonb;
-  v_needed int;
-  v_out jsonb;
   v_pro public.professionals%rowtype;
+  v_out jsonb;
 begin
+  -- The client side first, with its own refusals (HINT `client`, `signer_required`).
+  select pg_catalog.jsonb_agg(o.s || pg_catalog.jsonb_build_object('signer_professional_id', null) order by o.ord)
+    into v_out
+    from pg_catalog.jsonb_array_elements(private.clients_consent_signers(p_org, p_client_id)) with ordinality o(s, ord);
   select * into v_client from public.clients c where c.org_id = p_org and c.id = p_client_id;
-  if v_client.id is null then
-    raise exception 'Client introuvable.' using errcode = 'P0001', hint = 'client';
-  end if;
-  v_age := private.clients_age_on(v_client.birthday, private.clients_org_today(p_org));
-  if v_age is null or v_age >= 14 then
-    v_out := pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
-      'role', 'client', 'signer_client_id', v_client.id, 'signer_professional_id', null, 'relation_id', null));
-  else
-    -- The people who manage this client's appointments and forms, as parent or guardian, with a
-    -- file still active; the main contact first.
-    select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('signer_client_id', k.client_id, 'relation_id', r.id)
-                                         order by k.is_main_contact desc, r.created_at, k.client_id), '[]')
-      into v_people
-      from private.client_contacts_for(p_org, p_client_id, 'appointments') k
-      join public.clients o on o.org_id = p_org and o.id = k.client_id and o.archived_at is null
-      left join public.client_relations r
-        on r.org_id = p_org
-       and ((r.client_a_id = p_client_id and r.client_b_id = k.client_id) or (r.client_b_id = p_client_id and r.client_a_id = k.client_id))
-     where not k.is_self and k.relation_type in ('parent', 'guardian');
-    v_needed := case when v_client.shared_custody then 2 else 1 end;
-    if pg_catalog.jsonb_array_length(v_people) < v_needed then
-      raise exception '%', case when v_client.shared_custody
-        then 'Ce client a moins de 14 ans et sa garde est partagée : ses deux parents doivent signer. Ajoutez-les dans ses proches avec le droit « Gérer les rendez-vous et formulaires ».'
-        else 'Ce client a moins de 14 ans : un parent ou un tuteur doit signer. Ajoutez-le dans ses proches avec le droit « Gérer les rendez-vous et formulaires ».' end
-        using errcode = 'P0001', hint = 'signer_required';
-    end if;
-    v_out := (select pg_catalog.jsonb_agg(p.value
-                       || pg_catalog.jsonb_build_object('role', case when p.ordinality = 1 then 'client' else 'client_2' end,
-                                                        'signer_professional_id', null)
-                       order by p.ordinality)
-                from pg_catalog.jsonb_array_elements(v_people) with ordinality p
-               where p.ordinality <= v_needed);
-  end if;
-
   -- CC-22: the professional assigned to the file signs too.
   if v_client.primary_professional_id is null then
     raise exception 'Ce dossier n''a pas de professionnel attitré : le consentement doit être signé par le professionnel assigné au dossier. Choisissez-le dans la fiche du client, puis envoyez la demande.'
@@ -135,12 +107,13 @@ begin
     raise exception 'Le professionnel attitré à ce dossier n''est pas actif : il ne peut pas signer le consentement. Changez-le dans la fiche du client, puis envoyez la demande.'
       using errcode = 'P0001', hint = 'professional_required';
   end if;
-  return v_out || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+  -- `coalesce`: a client side that somehow came back empty must not swallow the professional.
+  return coalesce(v_out, '[]'::jsonb) || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
     'role', 'professional', 'signer_client_id', null,
     'signer_professional_id', v_pro.id, 'relation_id', null));
 end;
 $$;
-revoke all on function private.clients_consent_signers(uuid, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.clients_consent_signers_for_signature(uuid, uuid) from public, anon, authenticated, service_role;
 
 -- Whether a signer row and a computed signer element name the same person, whichever side signs:
 -- the rebuild comparisons key on this, since `signer_client_id` is null for the professional and
@@ -261,7 +234,7 @@ begin
        or ((p_context_type is null) <> (p_context_id is null)) then
       raise exception 'Invalid context' using errcode = '22023';
     end if;
-    v_signers := private.clients_consent_signers(p_org_id, p_client_id);
+    v_signers := private.clients_consent_signers_for_signature(p_org_id, p_client_id);
     insert into public.client_consent_requests
       (org_id, client_id, consent_key, language, template_version_id, clauses, context_type, context_id, due_at, requested_by)
     values
@@ -282,7 +255,7 @@ begin
     if not exists (select 1 from public.signature_requests s
                     where s.org_id = p_org_id and s.purpose = 'clients.consent' and s.subject_type = 'client_consent_request'
                       and s.subject_id = v_req.id and s.status in ('draft', 'sent', 'viewed')) then
-      v_signers := private.clients_consent_signers(p_org_id, v_req.client_id);
+      v_signers := private.clients_consent_signers_for_signature(p_org_id, v_req.client_id);
       if exists (select 1 from public.client_consent_request_signers x
                   where x.request_id = v_req.id
                     and not exists (select 1 from pg_catalog.jsonb_array_elements(v_signers) s
@@ -433,7 +406,7 @@ begin
     -- Before any envelope: the signers must still be the ones the rules name (R-48, CC-22), else
     -- the links are revoked and the clinic sends again; the text is the one published now.
     begin
-      v_signers := private.clients_consent_signers(v_req.org_id, v_req.client_id);
+      v_signers := private.clients_consent_signers_for_signature(v_req.org_id, v_req.client_id);
     exception when others then
       v_signers := '[]'::jsonb;
     end;

@@ -352,7 +352,11 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     aiDraftUser: ['communications.ai_draft_user', 40, 3_600],
     clientConsentSendUser: ['clients.consent_send_user', 60, 3_600],
     clientConsentSignIp: ['clients.consent_sign_ip', 60, 600],
-    clientConsentProfessionalSignUser: ['clients.consent_professional_sign_user', 20, 3_600],
+    clientConsentProfessionalSignUser: [
+      'clients.consent_professional_sign_user',
+      20,
+      3_600,
+    ],
     clientConsentLink: ['clients.consent_link', 20, 3_600],
     bookingPageIp: ['demandes.booking_page_ip', 60, 600],
     bookingIp: ['demandes.booking_ip', 5, 3_600],
