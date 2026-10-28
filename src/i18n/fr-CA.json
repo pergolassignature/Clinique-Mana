@@ -1576,6 +1576,7 @@
           "professional_motifs": "Motifs des professionnels",
           "professional_refused_motifs": "Motifs refusés",
           "professional_clienteles": "Clientèles des professionnels",
+          "professional_approaches": "Approches des professionnels",
           "professional_languages": "Langues des professionnels",
           "professional_private": "Données privées des professionnels",
           "professional_invitation_deliveries": "Envois des invitations",
@@ -1599,6 +1600,7 @@
           "profession_categories": "Catégories de professions",
           "profession_titles": "Titres professionnels",
           "clienteles": "Clientèles",
+          "approaches": "Approches",
           "motif_categories": "Catégories de motifs",
           "motifs": "Motifs",
           "languages": "Langues",
@@ -1666,6 +1668,11 @@
           "professional_motifs": {
             "professional_id": "Professionnel",
             "motif_id": "Motif"
+          },
+          "professional_approaches": {
+            "professional_id": "Professionnel",
+            "approach_id": "Approche",
+            "other_text": "Précision"
           },
           "professional_clienteles": {
             "professional_id": "Professionnel",
@@ -1884,6 +1891,14 @@
             "is_active": "Actif",
             "min_age": "Âge minimum",
             "max_age": "Âge maximum"
+          },
+          "approaches": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "requires_text": "Demande une précision"
           },
           "motif_categories": {
             "key": "Clé",
