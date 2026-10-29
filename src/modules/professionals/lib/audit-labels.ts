@@ -47,6 +47,7 @@ export const PROFESSIONALS_AUDITED_TABLES = [
   'professional_session_counts',
   'professional_retention',
   'professional_client_agreements',
+  'questionnaire_section_texts',
   'document_types',
   'consent_versions',
   'retention_grids',

@@ -1,4 +1,4 @@
-import { CircleUser, FileCheck, FileSignature, FileText, FolderOpen, HandCoins, ListChecks, Send, Users } from 'lucide-react'
+import { CircleUser, FileCheck, FileSignature, FileText, FolderOpen, HandCoins, ListChecks, MessageSquareText, Send, Users } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -127,6 +127,15 @@ export const professionalsManifest: ModuleManifest = {
       icon: FileCheck,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/RequiredDocumentsSettingsPage'), 'RequiredDocumentsSettingsPage'),
+    },
+    {
+      // P4-562: the questionnaire's own wording, so the clinic rewords a step without a deploy.
+      id: 'questionnaire-texts',
+      path: 'consignes-questionnaire',
+      labelKey: 'modules.professionals.settings.questionnaireTexts.title',
+      icon: MessageSquareText,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/QuestionnaireTextsSettingsPage'), 'QuestionnaireTextsSettingsPage'),
     },
     {
       // What the fiche given to clients shows (P4-353): read like the lists, changed with `professionals.settings`.

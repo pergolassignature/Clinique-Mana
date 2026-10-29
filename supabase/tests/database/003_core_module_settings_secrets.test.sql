@@ -227,6 +227,8 @@ select functions_are('public', array[
   'set_professional_service_exclusions',
   -- Professionnels, P4-561 (« Approches » counted, off the fiche).
   'count_professional_approaches',
+  -- Professionnels, P4-562 (the clinic rewords the questionnaire's steps).
+  'set_questionnaire_section_text', 'get_questionnaire_section_texts',
   -- Communications, batch SM (textos).
   'get_sms_settings', 'set_sms_settings', 'set_sms_consent',
   'queue_sms_for_service', 'claim_sms_batch_for_service', 'mark_sms_sent', 'mark_sms_failed',

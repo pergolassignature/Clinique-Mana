@@ -25,6 +25,9 @@ export type SubmissionSection = (typeof SUBMISSION_SECTIONS)[number]
 /** A step: a requested section, or « Révision » (always last). */
 export type QuestionnaireStep = SubmissionSection | 'review'
 
+/** Every step the questionnaire can show, in order: what Paramètres lets the clinic reword (P4-562). */
+export const QUESTIONNAIRE_STEPS: readonly QuestionnaireStep[] = [...SUBMISSION_SECTIONS, 'review']
+
 /** The URL segment of each step (`?etape=`): French, as the app's routes. */
 export const STEP_SLUGS: Readonly<Record<QuestionnaireStep, string>> = {
   personal: 'renseignements-personnels',

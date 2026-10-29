@@ -15013,6 +15013,7 @@ export type Database = {
           total: number
         }[]
       }
+      count_professional_approaches: { Args: never; Returns: Json }
       create_client: {
         Args: { p_client: Json; p_confirm_medium?: boolean }
         Returns: string
@@ -15694,6 +15695,7 @@ export type Database = {
         }[]
       }
       get_qbo_settings: { Args: never; Returns: Json }
+      get_questionnaire_section_texts: { Args: never; Returns: Json }
       get_service_price: {
         Args: {
           p_on: string
@@ -18254,6 +18256,10 @@ export type Database = {
           p_refresh_token_expires_at: string
         }
         Returns: boolean
+      }
+      set_questionnaire_section_text: {
+        Args: { p_description: string; p_section: string; p_title: string }
+        Returns: Json
       }
       set_retention_grid: {
         Args: {

@@ -136,6 +136,8 @@ export const professionalCatalogKeys = {
 export const professionalsSettingsKeys = {
   all: ['professionals-settings'] as const,
   settings: () => [...professionalsSettingsKeys.all, 'settings'] as const,
+  /** P4-562: the questionnaire's wording, as the clinic reworded it (read by the questionnaire too). */
+  questionnaireTexts: () => [...professionalsSettingsKeys.all, 'questionnaire-texts'] as const,
 }
 
 /**

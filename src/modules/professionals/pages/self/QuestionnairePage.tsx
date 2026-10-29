@@ -30,6 +30,7 @@ import type { OnFilePrivate, StepContext } from '../../components/questionnaire/
 import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { useMyProfessionalPrivate, useMySubmission, useQuestionnaireAutosave } from '../../hooks/use-my-submission'
 import { useMyImageConsent } from '../../hooks/use-consent-sign'
+import { useQuestionnaireSectionTexts } from '../../hooks/use-questionnaire-texts'
 import type { CatalogView } from '../../lib/catalog-view'
 import { MY_PROFILE_PATH } from '../../lib/my-profile'
 import {
@@ -215,6 +216,8 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
   })
   const today = useClinicDate()
   const onFile = useOnFilePrivate(submission)
+  // P4-562: the clinic's own wording for a step, where it reworded one; else the app's.
+  const texts = useQuestionnaireSectionTexts()
   // The consent step's state (P4-487), only when the consent is requested.
   const imageConsent = useMyImageConsent(submission.requestedSections.includes('consent'))
   const { params, update } = useUrlParams()
@@ -370,9 +373,9 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
               {t(`${Q}.stepOf`, { current: String(index + 1), total: String(steps.length) })}
             </p>
             <h2 id="questionnaire-step-title" ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-foreground outline-none">
-              {t(`${Q}.steps.${step}.title`)}
+              {texts.data?.[step]?.title ?? t(`${Q}.steps.${step}.title`)}
             </h2>
-            <p className="text-sm text-muted-foreground">{t(`${Q}.steps.${step}.description`)}</p>
+            <p className="text-sm text-muted-foreground">{texts.data?.[step]?.description ?? t(`${Q}.steps.${step}.description`)}</p>
             {step !== 'review' && (
               <div className="pt-1">
                 <AutosaveStatus state={autosave.state} onRetry={retry} savesOnContinue={savesOnContinue} />

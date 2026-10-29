@@ -1590,6 +1590,7 @@
           "professional_session_counts": "Séances des professionnels",
           "professional_retention": "Taux de retenue des professionnels",
           "professional_client_agreements": "Ententes particulières",
+          "questionnaire_section_texts": "Consignes du questionnaire",
           "document_types": "Documents requis",
           "consent_versions": "Versions des consentements",
           "retention_grids": "Grilles de rétention",
@@ -1899,6 +1900,12 @@
             "sort_order": "Ordre d'affichage",
             "is_active": "Actif",
             "requires_text": "Demande une précision"
+          },
+          "questionnaire_section_texts": {
+            "section": "Étape",
+            "title": "Titre",
+            "description": "Consigne",
+            "updated_by": "Modifié par"
           },
           "motif_categories": {
             "key": "Clé",
@@ -3922,6 +3929,18 @@
           "title": "Listes",
           "description": "Les listes de référence des professionnels : professions et ordres, clientèles, motifs, langues et raisons de désactivation.",
           "tabs": "Listes de référence"
+        },
+        "questionnaireTexts": {
+          "title": "Consignes du questionnaire",
+          "description": "Les titres et les consignes que le professionnel lit à chaque étape. Laissez un champ vide pour garder le texte de l'application.",
+          "stepTitle": "Titre",
+          "stepDescription": "Consigne",
+          "appText": "Texte de l'application : {text}",
+          "save": "Enregistrer",
+          "saved": "Consigne enregistrée.",
+          "saveError": "Impossible d'enregistrer la consigne.",
+          "loadError": "Impossible de charger les consignes.",
+          "reworded": "Reformulé par la clinique"
         }
       },
       "review": {
