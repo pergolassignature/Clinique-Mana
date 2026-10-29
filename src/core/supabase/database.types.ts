@@ -668,6 +668,53 @@ export type Database = {
           },
         ]
       }
+      approaches: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          requires_text: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          requires_text?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          requires_text?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approaches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -7711,6 +7758,69 @@ export type Database = {
           },
         ]
       }
+      professional_approaches: {
+        Row: {
+          approach_id: string
+          created_at: string
+          org_id: string
+          other_text: string | null
+          professional_id: string
+          updated_at: string
+        }
+        Insert: {
+          approach_id: string
+          created_at?: string
+          org_id: string
+          other_text?: string | null
+          professional_id: string
+          updated_at?: string
+        }
+        Update: {
+          approach_id?: string
+          created_at?: string
+          org_id?: string
+          other_text?: string | null
+          professional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_approaches_approach_fkey"
+            columns: ["org_id", "approach_id"]
+            isOneToOne: false
+            referencedRelation: "approaches"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       professional_client_agreements: {
         Row: {
           client_id: string | null
@@ -10708,6 +10818,51 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "professionals_readiness"
             referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      questionnaire_section_texts: {
+        Row: {
+          created_at: string
+          description: string | null
+          org_id: string
+          section: string
+          title: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          org_id: string
+          section: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          org_id?: string
+          section?: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questionnaire_section_texts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questionnaire_section_texts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }

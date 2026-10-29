@@ -59,7 +59,7 @@ const required = (label: string) => `${label} ${t('common.form.required')}`
 const COMPLETE_VALUES = {
   personal: { personal_phone: '+15145551234', address_line1: '1 rue A', city: 'Laval', province: 'QC', postal_code: 'H7A 1A1' },
   professional: { professions: [{ title_id: IDS.naturopathe, licence_number: null, is_primary: true }] },
-  portrait: { bio: 'Bonjour' },
+  portrait: { bio: 'Bonjour', approach_ids: [], approach_other: null },
   languages: { language_ids: [IDS.fr] },
   clienteles: { clienteles: [{ id: IDS.couples, specialized: false }] },
   motifs: { motif_ids: [IDS.anxiete] },

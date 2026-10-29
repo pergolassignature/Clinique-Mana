@@ -36,7 +36,7 @@ export const OPEN_SUBMISSION_STATUSES = ['draft', 'submitted'] as const
 export const SUBMISSION_STATUSES = ['draft', 'submitted', 'approved', 'cancelled'] as const
 
 /**
- * `private.submission_fields()`: the thirty fields a submission can answer, in the questionnaire's
+ * `private.submission_fields()`: the thirty-two fields a submission can answer, in the questionnaire's
  * order (the review lists them so, `apply_professional_submission` applies them so).
  */
 export const SUBMISSION_FIELDS = [
@@ -50,6 +50,8 @@ export const SUBMISSION_FIELDS = [
   'years_experience',
   'bio',
   'approach',
+  'approach_ids',
+  'approach_other',
   'public_email',
   'public_phone',
   'language_ids',

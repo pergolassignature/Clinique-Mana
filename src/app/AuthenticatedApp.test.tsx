@@ -123,10 +123,12 @@ const ALL_SECTIONS = [
 
 /**
  * Professionnels' « Listes » (the five lists as tabs since NAV-3), « Documents requis » (4c.3),
- * « Fiche PDF » (P4-353) and « Contrats » (Task 4d.3), read like them, after the core ones.
+ * « Consignes du questionnaire » (P4-562), « Fiche PDF » (P4-353) and « Contrats » (Task 4d.3),
+ * read like them, after the core ones.
  */
 const PROFESSIONALS_LIST_SECTIONS = [
   'modules.professionals.settings.lists.title', 'modules.professionals.settings.requiredDocuments.title',
+  'modules.professionals.settings.questionnaireTexts.title',
   'modules.professionals.settings.fiche.title',
   'modules.professionals.settings.contracts.title',
 ] as const
@@ -134,7 +136,7 @@ const PROFESSIONALS_LIST_SECTIONS = [
 const PROFESSIONALS_SEEN_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.invitations.title'] as const
 /** Then « Rémunération » (`professionals.compensation`: the admin only, by default). */
 const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_SEEN_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
-const PROFESSIONALS_LIST_SECTION_IDS = ['lists', 'required-documents', 'fiche', 'contracts', 'invitations'].map(
+const PROFESSIONALS_LIST_SECTION_IDS = ['lists', 'required-documents', 'questionnaire-texts', 'fiche', 'contracts', 'invitations'].map(
   (id) => `professionals:${id}`,
 )
 const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professionals:compensation']

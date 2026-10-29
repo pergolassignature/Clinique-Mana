@@ -14,7 +14,7 @@ export const MY_SUBMISSION_JSON = {
   status: 'draft',
   requested_sections: ['personal', 'professional', 'portrait', 'languages', 'clienteles', 'motifs', 'availability', 'photo', 'insurance', 'tax_bank', 'consent'],
   prefill: { personal: { personal_phone: null, address_line1: null, province: 'QC' }, languages: { language_ids: [IDS.fr] } },
-  values: { portrait: { bio: 'Bonjour' } },
+  values: { portrait: { bio: 'Bonjour', approach_ids: [], approach_other: null } },
   decision_note: null,
   submitted_at: null,
   updated_at: '2026-10-08T14:32:00.123456+00:00',

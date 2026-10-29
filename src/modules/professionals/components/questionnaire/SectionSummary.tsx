@@ -127,6 +127,17 @@ export function ProfileSectionSummary({ section, values, catalog, gender }: Prof
           rows={[
             { label: t(`${L}.portrait.bio`), value: text(values, 'bio') && <span className="line-clamp-4 whitespace-pre-line">{text(values, 'bio')}</span> },
             { label: t(`${L}.portrait.approach`), value: text(values, 'approach') && <span className="line-clamp-4 whitespace-pre-line">{text(values, 'approach')}</span> },
+            // P4-561: named from the catalogue, with the text of « Autre — précisez » after them.
+            {
+              label: t(`${L}.portrait.approaches`),
+              value: (() => {
+                const names = ids(values, 'approach_ids')
+                  .map((id) => catalog.byId.approaches.get(id)?.name)
+                  .filter((name): name is string => name !== undefined)
+                const other = text(values, 'approach_other')
+                return names.length === 0 ? null : <span>{[...names, other].filter(Boolean).join(', ')}</span>
+              })(),
+            },
             { label: t(`${L}.portrait.publicEmail`), value: text(values, 'public_email') },
             { label: t(`${L}.portrait.publicPhone`), value: text(values, 'public_phone') && formatPhone(text(values, 'public_phone')) },
           ]}

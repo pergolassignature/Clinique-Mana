@@ -18,6 +18,7 @@ const COLUMNS = {
   motif_categories: ['id', 'org_id', 'key', 'name', 'description', 'icon', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   motifs: ['id', 'org_id', 'key', 'name', 'category_id', 'is_restricted', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   languages: ['id', 'org_id', 'code', 'name', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
+  approaches: ['id', 'org_id', 'key', 'name', 'requires_text', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   deactivation_reasons: ['id', 'org_id', 'key', 'name', 'requires_note', 'disables_account', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   professionals: [
     'id', 'org_id', 'profile_id', 'first_name', 'last_name', 'email', 'personal_phone', 'address_line1', 'address_line2', 'city', 'province',
@@ -37,6 +38,7 @@ const COLUMNS = {
   professional_professions: ['id', 'org_id', 'professional_id', 'profession_title_id', 'licence_number', 'is_primary', 'created_at', 'updated_at'],
   professional_clienteles: ['org_id', 'professional_id', 'clientele_id', 'is_specialized', 'created_at', 'updated_at'],
   professional_motifs: ['org_id', 'professional_id', 'motif_id', 'created_at'],
+  professional_approaches: ['org_id', 'professional_id', 'approach_id', 'other_text', 'created_at', 'updated_at'],
   professional_languages: ['org_id', 'professional_id', 'language_id', 'created_at'],
   professional_payer_numbers: ['org_id', 'professional_id', 'payer_type', 'number', 'created_at', 'updated_at'],
   // 4a.17 (labels added by 4a.18): the private data (every value redacted in the log).
@@ -61,6 +63,7 @@ const COLUMNS = {
     'effective_to', 'note', 'created_at', 'created_by',
   ],
   // 4c.2: « Documents requis » and the professionals' documents.
+  questionnaire_section_texts: ['org_id', 'section', 'title', 'description', 'updated_by', 'created_at', 'updated_at'],
   document_types: [
     'id', 'org_id', 'key', 'name', 'is_system', 'required', 'expiry_rule', 'reminder_days', 'weekly_after_expiry', 'accepted_mime', 'max_bytes',
     'sort_order', 'is_active', 'created_at', 'updated_at',
