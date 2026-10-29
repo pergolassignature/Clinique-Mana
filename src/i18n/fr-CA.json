@@ -5000,6 +5000,8 @@
           },
           "bankTitle": "Dépôt direct",
           "bankHelp": "Facultatif. Vous pourrez l'ajouter plus tard. Pour l'ajouter maintenant, remplissez les trois numéros : ils figurent sur un spécimen de chèque ou dans votre institution en ligne.",
+          "chequeSpecimen": "Vous pouvez aussi joindre un spécimen de chèque : la clinique vérifiera vos trois numéros avec lui.",
+          "chequeSpecimenLink": "Joindre un spécimen dans « Mes documents »",
           "institution": "Institution",
           "transit": "Transit",
           "account": "Numéro de compte",
