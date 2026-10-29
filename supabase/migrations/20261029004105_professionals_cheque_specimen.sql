@@ -26,7 +26,9 @@
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_cheque_specimen', true);
 
--- Latest body: 20261009000253_professionals_documents.sql. One more type; nothing else changes.
+-- Latest body: 20261009221543_professionals_image_consent_one_source.sql (which moved the image
+-- consent to `expiry_rule = 'none'` and added the constraint that pins it). One more type;
+-- nothing else changes.
 create or replace function private.seed_professionals_document_types(p_org uuid)
 returns void
 language plpgsql
@@ -45,7 +47,8 @@ begin
     (p_org, 'photo', 'Photo professionnelle', true, true, 'none', '{}', false, array['image/jpeg', 'image/png'], 5242880, 10),
     (p_org, 'insurance', 'Preuve d''assurance responsabilité', true, true, 'next_march_31', '{7}', true,
      array['application/pdf', 'image/jpeg', 'image/png'], 10485760, 20),
-    (p_org, 'image_consent', 'Consentement droit à l''image', true, true, 'months_12', '{}', false,
+    -- `document_types_image_consent_no_expiry` (P4-508): the image consent never expires.
+    (p_org, 'image_consent', 'Consentement droit à l''image', true, true, 'none', '{}', false,
      array['application/pdf', 'image/jpeg', 'image/png'], 10485760, 30),
     -- P4-563: what the three deposit numbers are checked against, so a typo is caught.
     (p_org, 'cheque_specimen', 'Spécimen de chèque', false, false, 'none', '{}', false,
