@@ -53,16 +53,19 @@ select is(private.demandes_clientele_fit('b0000000-0000-0000-0000-00000000000a',
 
 -- =============================================================================
 -- The criteria and the bundle
+-- The ages come from `private.clinic_today_for_org` (America/Toronto), so the birthdays must too:
+-- with `current_date` (UTC) a run between 00:00 and 04:00 UTC read the clinic's yesterday and the
+-- « 40 years » client turned 39.
 -- =============================================================================
 insert into public.clients (id, org_id, first_name, last_name, birthday) values
-  ('d0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Maman', 'Parent', (current_date - interval '40 years')::date);
+  ('d0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Maman', 'Parent', (private.clinic_today_for_org('b0000000-0000-0000-0000-00000000000a') - interval '40 years')::date);
 -- D1: the mother's file, her child (9) the main participant, « Adultes » chosen by hand.
 insert into public.demandes (id, org_id, client_id, beneficiary, clientele_id) values
   ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000001', 'child',
    (select id from public.clienteles where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'adults'));
 insert into public.demande_participants (demande_id, org_id, display_name, relationship, birthday, is_primary) values
   ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Léo', 'child',
-   (current_date - interval '9 years 2 months')::date, true);
+   (private.clinic_today_for_org('b0000000-0000-0000-0000-00000000000a') - interval '9 years 2 months')::date, true);
 -- D2: her file only. D3: no file, no participant.
 insert into public.demandes (id, org_id, client_id) values
   ('e0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000001');
