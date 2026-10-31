@@ -8,6 +8,8 @@ const INVITATION_JSON = { invitation_expiry_days: 7, invitation_reminder_after_d
 const INVITATION = { invitationExpiryDays: 7, invitationReminderAfterDays: 3 }
 const FICHE_JSON = { fiche_show_pro_contact: true, fiche_show_clinic_footer: true, fiche_show_closing: true }
 const FICHE = { ficheShowProContact: true, ficheShowClinicFooter: true, ficheShowClosing: true }
+/** P4-565: absent from these payloads, « L'entente d'abord » reads off. */
+const CONTRACT_FIRST = { invitationContractFirst: false }
 vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc } }))
 
 afterEach(() => vi.clearAllMocks())
@@ -15,7 +17,7 @@ afterEach(() => vi.clearAllMocks())
 describe('fetchProfessionalsSettings', () => {
   it('reads the effective settings (defaults merged in SQL)', async () => {
     mocks.rpc.mockResolvedValue({ data: { collect_sin: false, ...INVITATION_JSON, ...FICHE_JSON }, error: null })
-    await expect(fetchProfessionalsSettings()).resolves.toEqual({ collectSin: false, ...INVITATION, ...FICHE })
+    await expect(fetchProfessionalsSettings()).resolves.toEqual({ collectSin: false, ...INVITATION, ...FICHE, ...CONTRACT_FIRST })
     expect(mocks.rpc).toHaveBeenCalledWith('get_professionals_settings')
   })
 
@@ -28,7 +30,7 @@ describe('fetchProfessionalsSettings', () => {
 describe('saveProfessionalsSettings', () => {
   it('sends only the changed keys, in SQL names, and returns the effective settings', async () => {
     mocks.rpc.mockResolvedValue({ data: { collect_sin: true, ...INVITATION_JSON, ...FICHE_JSON }, error: null })
-    await expect(saveProfessionalsSettings({ collectSin: true })).resolves.toEqual({ collectSin: true, ...INVITATION, ...FICHE })
+    await expect(saveProfessionalsSettings({ collectSin: true })).resolves.toEqual({ collectSin: true, ...INVITATION, ...FICHE, ...CONTRACT_FIRST })
     expect(mocks.rpc).toHaveBeenCalledWith('set_professionals_settings', { p_patch: { collect_sin: true } })
   })
 

@@ -613,6 +613,8 @@ export const settingsPayload = z
     fiche_show_pro_contact: z.boolean(),
     fiche_show_clinic_footer: z.boolean(),
     fiche_show_closing: z.boolean(),
+    // P4-565; a payload without it (a fixture) reads off.
+    invitation_contract_first: z.boolean().default(false),
   })
   .transform((s) => ({
     collectSin: s.collect_sin,
@@ -621,5 +623,7 @@ export const settingsPayload = z
     ficheShowProContact: s.fiche_show_pro_contact,
     ficheShowClinicFooter: s.fiche_show_clinic_footer,
     ficheShowClosing: s.fiche_show_closing,
+    /** « L'entente d'abord »: an invitation asks only the sections the service contract needs. */
+    invitationContractFirst: s.invitation_contract_first,
   }))
 export type ProfessionalsSettings = z.output<typeof settingsPayload>

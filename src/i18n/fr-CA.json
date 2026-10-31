@@ -2253,6 +2253,11 @@
           "copyFailed": "Le lien d'invitation n'a pas pu être créé. Réessayez dans un instant.",
           "revokeFailed": "L'invitation n'a pas pu être révoquée. Réessayez dans un instant.",
           "updateFailed": "La demande de mise à jour n'a pas pu être envoyée. Réessayez dans un instant."
+        },
+        "restOfProfile": {
+          "title": "L'entente est en vigueur : au tour du profil",
+          "body": "{firstName} n'a pas encore rempli : {sections}. Envoyez-lui la demande pour qu'elle complète son profil.",
+          "action": "Demander le reste du profil"
         }
       },
       "record": {
@@ -3685,6 +3690,13 @@
             "expiryRange": "Entrez un nombre entier de 1 à 30.",
             "reminderRange": "Entrez un nombre entier de 1 à 29.",
             "reminderBeforeExpiry": "Le rappel doit partir avant la fin de validité du lien : moins de {max} jours."
+          },
+          "contractFirst": {
+            "title": "L'entente d'abord",
+            "description": "Faire lire et signer l'entente avant de demander le profil complet.",
+            "label": "Demander d'abord ce que l'entente exige",
+            "help": "L'invitation ne demande que les renseignements personnels et le profil professionnel. Une fois l'entente signée, la fiche du professionnel propose « Demander le reste du profil ». Une invitation déjà envoyée garde son questionnaire.",
+            "loadError": "Impossible de charger ce réglage."
           }
         },
         "compensation": {
