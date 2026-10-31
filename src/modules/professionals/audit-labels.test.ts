@@ -21,7 +21,7 @@ const COLUMNS = {
   approaches: ['id', 'org_id', 'key', 'name', 'requires_text', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   deactivation_reasons: ['id', 'org_id', 'key', 'name', 'requires_note', 'disables_account', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   professionals: [
-    'id', 'org_id', 'profile_id', 'first_name', 'last_name', 'email', 'personal_phone', 'address_line1', 'address_line2', 'city', 'province',
+    'id', 'org_id', 'profile_id', 'first_name', 'last_name', 'email', 'birthday', 'personal_phone', 'address_line1', 'address_line2', 'city', 'province',
     'postal_code', 'country', 'years_experience', 'gender', 'status', 'status_changed_at', 'status_changed_by', 'deactivation_reason_id',
     'deactivation_note', 'deactivation_disabled_account', 'activation_override_reason', 'created_at', 'created_by', 'updated_at',
     'fiche_generated_at', 'supervisor_professional_id', 'signature_file_id',

@@ -2,6 +2,7 @@ import { t } from '@/i18n'
 import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone } from '@/shared/lib/format'
 import type { StatusTone } from '@/shared/ui/status-dot'
+import { birthdayLabel } from './birthday'
 import type { SpecializedRef } from '../api/parse'
 import type { ReviewField, SubmissionReview, SubmissionRow } from '../api/submissions'
 import { AVAILABILITY_PERIODS, SUBMISSION_FIELDS, type SubmissionField, type SubmissionKind, type SubmissionSection } from './constants'
@@ -68,8 +69,9 @@ export function fieldLabel(field: SubmissionField): string {
 // --- Sets ----------------------------------------------------------------------------------------
 
 /** The sets the sheet says as « ajoutés / retirés » (the titles read side by side: two at most). */
-export type SetField = 'language_ids' | 'clienteles' | 'motif_ids'
-export const isSetDiffField = (field: SubmissionField): field is SetField => field === 'language_ids' || field === 'clienteles' || field === 'motif_ids'
+export type SetField = 'language_ids' | 'clienteles' | 'motif_ids' | 'approach_ids'
+export const isSetDiffField = (field: SubmissionField): field is SetField =>
+  field === 'language_ids' || field === 'clienteles' || field === 'motif_ids' || field === 'approach_ids'
 
 /** Ids of a set value (`language_ids`, `motif_ids`); anything else is no id. */
 export function idList(value: unknown): string[] {
@@ -146,6 +148,9 @@ export function plainValueText(field: SubmissionField, value: unknown): string |
       return typeof value === 'string' ? provinceName(value) : null
     case 'years_experience':
       return typeof value === 'number' ? t(value < 2 ? `${S}.values.year` : `${S}.values.years`, { count: String(value) }) : null
+    // P4-564: « 14 mars », never the stored « 03-14 ».
+    case 'birthday':
+      return typeof value === 'string' ? birthdayLabel(value) || null : null
     case 'min_client_age':
       return typeof value === 'number' ? minClientAgeLabel(value) : null
     case 'women_only':

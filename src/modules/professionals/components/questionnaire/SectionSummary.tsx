@@ -4,6 +4,7 @@ import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import { formatDateOnly } from '@/shared/lib/timezone'
 import type { MySubmission, SectionValues } from '../../api/self'
+import { birthdayLabel } from '../../lib/birthday'
 import type { CatalogView } from '../../lib/catalog-view'
 import { AVAILABILITY_PERIODS, type Gender } from '../../lib/constants'
 import { clienteleLabel, minClientAgeLabel, periodsLabel, professionLine } from '../../lib/display'
@@ -117,6 +118,7 @@ export function ProfileSectionSummary({ section, values, catalog, gender }: Prof
                 ) : null,
             },
             { label: t(`${L}.professional.years`), value: typeof years === 'number' ? t(years <= 1 ? `${R}.year` : `${R}.years`, { count: String(years) }) : null },
+            { label: t(`${L}.professional.birthday`), value: birthdayLabel(text(values, 'birthday')) || null },
           ]}
         />
       )

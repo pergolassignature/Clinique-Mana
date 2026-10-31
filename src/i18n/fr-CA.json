@@ -1613,6 +1613,7 @@
             "first_name": "Prénom",
             "last_name": "Nom",
             "email": "Courriel",
+            "birthday": "Date d'anniversaire",
             "personal_phone": "Téléphone personnel",
             "address_line1": "Adresse",
             "address_line2": "Appartement ou bureau",
@@ -4025,6 +4026,7 @@
           "postal_code": "Code postal",
           "professions": "Titres professionnels et permis",
           "years_experience": "Années d'expérience",
+          "birthday": "Date d'anniversaire",
           "bio": "Présentation",
           "approach": "Approche",
           "approach_ids": "Approches",
@@ -4909,7 +4911,13 @@
           "titlesHelp": "Deux titres au plus, dont un principal. Le numéro de permis est demandé pour un titre d'un ordre professionnel.",
           "noTitle": "Aucun titre pour l'instant.",
           "years": "Années d'expérience",
-          "yearsHelp": "Facultatif. De 0 à 60."
+          "yearsHelp": "Facultatif. De 0 à 60.",
+          "birthday": "Date d'anniversaire",
+          "birthdayHelp": "Facultatif. Le jour et le mois seulement : la clinique le soulignera.",
+          "birthdayDay": "Jour de l'anniversaire",
+          "birthdayMonth": "Mois de l'anniversaire",
+          "birthdayDayPlaceholder": "Jour",
+          "birthdayMonthPlaceholder": "Mois"
         },
         "portrait": {
           "bio": "Présentation",
@@ -5070,7 +5078,9 @@
           "institutionRequired": "Saisissez le numéro d'institution.",
           "transitRequired": "Saisissez le numéro de transit.",
           "accountRequired": "Saisissez votre numéro de compte.",
-          "sinRequired": "Saisissez votre NAS."
+          "sinRequired": "Saisissez votre NAS.",
+          "birthdayIncomplete": "Choisissez le jour et le mois.",
+          "birthdayInvalid": "Ce jour n'existe pas dans ce mois."
         }
       },
       "settingsArea": "Professionnels"

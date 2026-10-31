@@ -9753,6 +9753,7 @@ export type Database = {
           activation_override_reason: string | null
           address_line1: string | null
           address_line2: string | null
+          birthday: string | null
           city: string | null
           country: string
           created_at: string
@@ -9783,6 +9784,7 @@ export type Database = {
           activation_override_reason?: string | null
           address_line1?: string | null
           address_line2?: string | null
+          birthday?: string | null
           city?: string | null
           country?: string
           created_at?: string
@@ -9813,6 +9815,7 @@ export type Database = {
           activation_override_reason?: string | null
           address_line1?: string | null
           address_line2?: string | null
+          birthday?: string | null
           city?: string | null
           country?: string
           created_at?: string
@@ -17228,6 +17231,10 @@ export type Database = {
           starts_at: string
         }[]
       }
+      professional_birthdays: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       proposition_services: {
         Args: { p_professional_id: string }
         Returns: {
@@ -17749,6 +17756,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_staff_invitation: { Args: { p_id: string }; Returns: undefined }
+      run_professionals_birthday_notices_for_service: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       run_professionals_document_notices_for_service: {
         Args: { p_org: string; p_today?: string }
         Returns: Json
