@@ -44,4 +44,9 @@ export const consentKeys = {
   clauses: (versionId: string) => [...consentKeys.all, 'clauses', versionId] as const,
   /** The re-sign campaigns (C5b.4): a start or a stop refetches `all` (the flags change the states too). */
   campaigns: () => [...consentKeys.all, 'campaigns'] as const,
+  /**
+   * CC-22: what the signed-in professional still has to countersign. Refetched after she signs;
+   * her signing link is never cached (a credential, component state only).
+   */
+  mine: () => [...consentKeys.all, 'mine'] as const,
 }

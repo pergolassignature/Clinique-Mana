@@ -12,6 +12,7 @@ import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import { Input } from '@/shared/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { MyConsentsToSignCard } from '../components/consents/MyConsentsToSignCard'
 import { useMyClients } from '../hooks/use-clients'
 import { ageOf, clientNumberLabel, languageLabel, phoneLabel } from '../lib/display'
 
@@ -35,6 +36,10 @@ export function MyClientsPage() {
   return (
     <>
       <PageHeader level={1} title={t(`${M}.title`)} description={t(`${M}.description`)} />
+      {/* CC-22: the consents she must countersign, above her clients; nothing when none waits. */}
+      <div className="mb-4 empty:mb-0">
+        <MyConsentsToSignCard />
+      </div>
       {mine.isError && !mine.data ? (
         <LoadError message={t(`${M}.loadError`)} onRetry={() => void mine.refetch()} retrying={mine.isFetching} />
       ) : mine.data?.length === 0 ? (

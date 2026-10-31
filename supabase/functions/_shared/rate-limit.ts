@@ -395,6 +395,15 @@ export const LIMITS = {
     max: 60,
     windowSeconds: 600,
   },
+  /**
+   * The professional countersigning a client consent in the app (CC-22), per caller: she opens
+   * her own signing token, a few files at a time, and a retry after a lost tab asks for it again.
+   */
+  clientConsentProfessionalSignUser: {
+    bucket: 'clients.consent_professional_sign_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
   /** The same page, per link: the identity check (first name, birth year) cannot be brute-forced. */
   clientConsentLink: {
     bucket: 'clients.consent_link',

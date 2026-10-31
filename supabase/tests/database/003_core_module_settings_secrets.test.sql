@@ -244,6 +244,8 @@ select functions_are('public', array[
   'set_client_consent_rule', 'set_client_consent_settings', 'cancel_client_consent_request', 'publish_client_consent_version',
   'prepare_client_consent_request_for_service', 'open_client_consent_for_service', 'start_client_consent_signing_for_service',
   'client_consent_reminders_for_service', 'import_client_consent_fact_for_service', 'resolve_client_consent_link',
+  -- Clients, CC-22 (the assigned professional countersigns a client consent).
+  'my_client_consent_signatures', 'prepare_my_client_consent_signature_for_service',
   -- Clients, batch I1 (the GOrendezvous import).
   'import_client', 'import_client_relation',
   -- Demandes, batch D3c (the booking page).
