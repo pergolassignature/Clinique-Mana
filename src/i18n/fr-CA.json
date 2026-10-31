@@ -3138,7 +3138,8 @@
           "inactiveHiddenBody": "Les professionnels inactifs sont masqués par défaut.",
           "showAllStatuses": "Afficher tous les statuts"
         },
-        "review": "Révision mensuelle"
+        "review": "Révision mensuelle",
+        "approaches": "Approches"
       },
       "create": {
         "heading": "Ajouter un professionnel",
@@ -5095,7 +5096,23 @@
           "birthdayInvalid": "Ce jour n'existe pas dans ce mois."
         }
       },
-      "settingsArea": "Professionnels"
+      "settingsArea": "Professionnels",
+      "approaches": {
+        "title": "Approches",
+        "description": "Combien de professionnels actifs travaillent avec chaque approche. Ces approches servent au portrait d'ensemble de la clinique : elles ne paraissent pas sur les fiches.",
+        "back": "Professionnels",
+        "loadError": "Impossible de charger les approches.",
+        "table": "Approches et nombre de professionnels",
+        "columns": {
+          "approach": "Approche",
+          "professionals": "Professionnels actifs"
+        },
+        "archived": "Archivée",
+        "empty": {
+          "title": "Aucune approche cochée pour le moment",
+          "body": "Les approches s'affichent ici dès qu'un professionnel actif les a cochées dans son questionnaire."
+        }
+      }
     },
     "services": {
       "name": "Services et tarifs",

@@ -131,6 +131,8 @@ export const professionalCatalogKeys = {
   all: ['professionals-catalog'] as const,
   catalog: () => [...professionalCatalogKeys.all, 'catalog'] as const,
   usage: () => [...professionalCatalogKeys.all, 'usage'] as const,
+  /** P4-561: how many active professionals hold each approach (refetched with the catalogue). */
+  approachCounts: () => [...professionalCatalogKeys.all, 'approach-counts'] as const,
 }
 
 export const professionalsSettingsKeys = {

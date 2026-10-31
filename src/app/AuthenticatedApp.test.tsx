@@ -143,6 +143,8 @@ const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professio
 const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
 /** « Révision mensuelle »: professionals.compensation only (admin by default). */
 const PROFESSIONALS_REVIEW_ROUTE = 'professionals:/professionnels/revision-mensuelle'
+/** « Approches » (P4-561): the approach counts, professionals.view. */
+const PROFESSIONALS_APPROACHES_ROUTE = 'professionals:/professionnels/approches'
 /** The provider's questionnaire (`professionals.self`; the test's admin-like access holds every key). */
 const PROFESSIONALS_QUESTIONNAIRE_ROUTE = 'professionals:/mon-profil/questionnaire'
 // « Mon profil » (4b.5, professionals.self).
@@ -651,7 +653,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE, PROFESSIONALS_MY_DOCUMENTS_ROUTE])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_APPROACHES_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE, PROFESSIONALS_MY_DOCUMENTS_ROUTE])
   })
 
   it('skips the pages the user may not open', () => {
@@ -662,6 +664,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     // « Signature électronique », and Professionnels.
     expect(preloaded()).toEqual([
       'identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'signing', ...PROFESSIONALS_LIST_SECTION_IDS, ...PROFESSIONALS_ROUTES,
+      PROFESSIONALS_APPROACHES_ROUTE,
     ])
   })
 
