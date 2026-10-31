@@ -1576,6 +1576,7 @@
           "professional_motifs": "Motifs des professionnels",
           "professional_refused_motifs": "Motifs refusés",
           "professional_clienteles": "Clientèles des professionnels",
+          "professional_approaches": "Approches des professionnels",
           "professional_languages": "Langues des professionnels",
           "professional_private": "Données privées des professionnels",
           "professional_invitation_deliveries": "Envois des invitations",
@@ -1589,6 +1590,7 @@
           "professional_session_counts": "Séances des professionnels",
           "professional_retention": "Taux de retenue des professionnels",
           "professional_client_agreements": "Ententes particulières",
+          "questionnaire_section_texts": "Consignes du questionnaire",
           "document_types": "Documents requis",
           "consent_versions": "Versions des consentements",
           "retention_grids": "Grilles de rétention",
@@ -1599,6 +1601,7 @@
           "profession_categories": "Catégories de professions",
           "profession_titles": "Titres professionnels",
           "clienteles": "Clientèles",
+          "approaches": "Approches",
           "motif_categories": "Catégories de motifs",
           "motifs": "Motifs",
           "languages": "Langues",
@@ -1610,6 +1613,7 @@
             "first_name": "Prénom",
             "last_name": "Nom",
             "email": "Courriel",
+            "birthday": "Date d'anniversaire",
             "personal_phone": "Téléphone personnel",
             "address_line1": "Adresse",
             "address_line2": "Appartement ou bureau",
@@ -1666,6 +1670,11 @@
           "professional_motifs": {
             "professional_id": "Professionnel",
             "motif_id": "Motif"
+          },
+          "professional_approaches": {
+            "professional_id": "Professionnel",
+            "approach_id": "Approche",
+            "other_text": "Précision"
           },
           "professional_clienteles": {
             "professional_id": "Professionnel",
@@ -1884,6 +1893,20 @@
             "is_active": "Actif",
             "min_age": "Âge minimum",
             "max_age": "Âge maximum"
+          },
+          "approaches": {
+            "key": "Clé",
+            "name": "Nom",
+            "is_system": "Élément protégé",
+            "sort_order": "Ordre d'affichage",
+            "is_active": "Actif",
+            "requires_text": "Demande une précision"
+          },
+          "questionnaire_section_texts": {
+            "section": "Étape",
+            "title": "Titre",
+            "description": "Consigne",
+            "updated_by": "Modifié par"
           },
           "motif_categories": {
             "key": "Clé",
@@ -2230,6 +2253,11 @@
           "copyFailed": "Le lien d'invitation n'a pas pu être créé. Réessayez dans un instant.",
           "revokeFailed": "L'invitation n'a pas pu être révoquée. Réessayez dans un instant.",
           "updateFailed": "La demande de mise à jour n'a pas pu être envoyée. Réessayez dans un instant."
+        },
+        "restOfProfile": {
+          "title": "L'entente est en vigueur : au tour du profil",
+          "body": "{firstName} n'a pas encore rempli : {sections}. Envoyez-lui la demande pour qu'elle complète son profil.",
+          "action": "Demander le reste du profil"
         }
       },
       "record": {
@@ -3110,7 +3138,8 @@
           "inactiveHiddenBody": "Les professionnels inactifs sont masqués par défaut.",
           "showAllStatuses": "Afficher tous les statuts"
         },
-        "review": "Révision mensuelle"
+        "review": "Révision mensuelle",
+        "approaches": "Approches"
       },
       "create": {
         "heading": "Ajouter un professionnel",
@@ -3662,6 +3691,13 @@
             "expiryRange": "Entrez un nombre entier de 1 à 30.",
             "reminderRange": "Entrez un nombre entier de 1 à 29.",
             "reminderBeforeExpiry": "Le rappel doit partir avant la fin de validité du lien : moins de {max} jours."
+          },
+          "contractFirst": {
+            "title": "L'entente d'abord",
+            "description": "Faire lire et signer l'entente avant de demander le profil complet.",
+            "label": "Demander d'abord ce que l'entente exige",
+            "help": "L'invitation ne demande que les renseignements personnels et le profil professionnel. Une fois l'entente signée, la fiche du professionnel propose « Demander le reste du profil ». Une invitation déjà envoyée garde son questionnaire.",
+            "loadError": "Impossible de charger ce réglage."
           }
         },
         "compensation": {
@@ -3907,6 +3943,18 @@
           "title": "Listes",
           "description": "Les listes de référence des professionnels : professions et ordres, clientèles, motifs, langues et raisons de désactivation.",
           "tabs": "Listes de référence"
+        },
+        "questionnaireTexts": {
+          "title": "Consignes du questionnaire",
+          "description": "Les titres et les consignes que le professionnel lit à chaque étape. Laissez un champ vide pour garder le texte de l'application.",
+          "stepTitle": "Titre",
+          "stepDescription": "Consigne",
+          "appText": "Texte de l'application : {text}",
+          "save": "Enregistrer",
+          "saved": "Consigne enregistrée.",
+          "saveError": "Impossible d'enregistrer la consigne.",
+          "loadError": "Impossible de charger les consignes.",
+          "reworded": "Reformulé par la clinique"
         }
       },
       "review": {
@@ -3991,8 +4039,11 @@
           "postal_code": "Code postal",
           "professions": "Titres professionnels et permis",
           "years_experience": "Années d'expérience",
+          "birthday": "Date d'anniversaire",
           "bio": "Présentation",
           "approach": "Approche",
+          "approach_ids": "Approches",
+          "approach_other": "Approche — précision",
           "public_email": "Courriel public",
           "public_phone": "Téléphone public",
           "language_ids": "Langues",
@@ -4873,13 +4924,23 @@
           "titlesHelp": "Deux titres au plus, dont un principal. Le numéro de permis est demandé pour un titre d'un ordre professionnel.",
           "noTitle": "Aucun titre pour l'instant.",
           "years": "Années d'expérience",
-          "yearsHelp": "Facultatif. De 0 à 60."
+          "yearsHelp": "Facultatif. De 0 à 60.",
+          "birthday": "Date d'anniversaire",
+          "birthdayHelp": "Facultatif. Le jour et le mois seulement : la clinique le soulignera.",
+          "birthdayDay": "Jour de l'anniversaire",
+          "birthdayMonth": "Mois de l'anniversaire",
+          "birthdayDayPlaceholder": "Jour",
+          "birthdayMonthPlaceholder": "Mois"
         },
         "portrait": {
           "bio": "Présentation",
           "bioHelp": "Quelques phrases sur votre pratique, écrites pour les clients.",
           "approach": "Approche",
           "approachHelp": "Facultatif. Votre façon de travailler, dans vos mots.",
+          "approaches": "Approches",
+          "approachesTitle": "Approches",
+          "approachesHelp": "Cochez les approches avec lesquelles vous travaillez. Elles servent au portrait d'ensemble de la clinique et ne paraissent pas sur votre fiche.",
+          "approachOther": "Précisez votre approche",
           "counter": "{count} / {max} caractères.",
           "publicTitle": "Coordonnées publiques",
           "publicHelp": "Facultatif. Laissez vide pour ne pas les afficher sur votre fiche.",
@@ -4960,6 +5021,8 @@
           },
           "bankTitle": "Dépôt direct",
           "bankHelp": "Facultatif. Vous pourrez l'ajouter plus tard. Pour l'ajouter maintenant, remplissez les trois numéros : ils figurent sur un spécimen de chèque ou dans votre institution en ligne.",
+          "chequeSpecimen": "Vous pouvez aussi joindre un spécimen de chèque : la clinique vérifiera vos trois numéros avec lui.",
+          "chequeSpecimenLink": "Joindre un spécimen dans « Mes documents »",
           "institution": "Institution",
           "transit": "Transit",
           "account": "Numéro de compte",
@@ -5028,10 +5091,28 @@
           "institutionRequired": "Saisissez le numéro d'institution.",
           "transitRequired": "Saisissez le numéro de transit.",
           "accountRequired": "Saisissez votre numéro de compte.",
-          "sinRequired": "Saisissez votre NAS."
+          "sinRequired": "Saisissez votre NAS.",
+          "birthdayIncomplete": "Choisissez le jour et le mois.",
+          "birthdayInvalid": "Ce jour n'existe pas dans ce mois."
         }
       },
-      "settingsArea": "Professionnels"
+      "settingsArea": "Professionnels",
+      "approaches": {
+        "title": "Approches",
+        "description": "Combien de professionnels actifs travaillent avec chaque approche. Ces approches servent au portrait d'ensemble de la clinique : elles ne paraissent pas sur les fiches.",
+        "back": "Professionnels",
+        "loadError": "Impossible de charger les approches.",
+        "table": "Approches et nombre de professionnels",
+        "columns": {
+          "approach": "Approche",
+          "professionals": "Professionnels actifs"
+        },
+        "archived": "Archivée",
+        "empty": {
+          "title": "Aucune approche cochée pour le moment",
+          "body": "Les approches s'affichent ici dès qu'un professionnel actif les a cochées dans son questionnaire."
+        }
+      }
     },
     "services": {
       "name": "Services et tarifs",
@@ -9931,7 +10012,10 @@
         "windowServices": "Services choisis : {count}",
         "monthDay": "{day} : {count} rendez-vous",
         "more": "et {count} autres",
-        "upcomingEmpty": "Aucun rendez-vous dans les prochains jours"
+        "upcomingEmpty": "Aucun rendez-vous dans les prochains jours",
+        "birthdays": "Anniversaires :",
+        "birthdayOn": "{name}, {day}",
+        "monthBirthday": "anniversaire de {names}"
       },
       "editor": {
         "newTitle": "Nouveau rendez-vous",

@@ -4,6 +4,7 @@ import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import { formatDateOnly } from '@/shared/lib/timezone'
 import type { MySubmission, SectionValues } from '../../api/self'
+import { birthdayLabel } from '../../lib/birthday'
 import type { CatalogView } from '../../lib/catalog-view'
 import { AVAILABILITY_PERIODS, type Gender } from '../../lib/constants'
 import { clienteleLabel, minClientAgeLabel, periodsLabel, professionLine } from '../../lib/display'
@@ -117,6 +118,7 @@ export function ProfileSectionSummary({ section, values, catalog, gender }: Prof
                 ) : null,
             },
             { label: t(`${L}.professional.years`), value: typeof years === 'number' ? t(years <= 1 ? `${R}.year` : `${R}.years`, { count: String(years) }) : null },
+            { label: t(`${L}.professional.birthday`), value: birthdayLabel(text(values, 'birthday')) || null },
           ]}
         />
       )
@@ -127,6 +129,17 @@ export function ProfileSectionSummary({ section, values, catalog, gender }: Prof
           rows={[
             { label: t(`${L}.portrait.bio`), value: text(values, 'bio') && <span className="line-clamp-4 whitespace-pre-line">{text(values, 'bio')}</span> },
             { label: t(`${L}.portrait.approach`), value: text(values, 'approach') && <span className="line-clamp-4 whitespace-pre-line">{text(values, 'approach')}</span> },
+            // P4-561: named from the catalogue, with the text of « Autre — précisez » after them.
+            {
+              label: t(`${L}.portrait.approaches`),
+              value: (() => {
+                const names = ids(values, 'approach_ids')
+                  .map((id) => catalog.byId.approaches.get(id)?.name)
+                  .filter((name): name is string => name !== undefined)
+                const other = text(values, 'approach_other')
+                return names.length === 0 ? null : <span>{[...names, other].filter(Boolean).join(', ')}</span>
+              })(),
+            },
             { label: t(`${L}.portrait.publicEmail`), value: text(values, 'public_email') },
             { label: t(`${L}.portrait.publicPhone`), value: text(values, 'public_phone') && formatPhone(text(values, 'public_phone')) },
           ]}

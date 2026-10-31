@@ -13,6 +13,8 @@ import {
   stepsFor,
   SUBMISSION_SECTIONS,
   type CompletenessContext,
+  CONTRACT_SECTIONS,
+  sectionsStillToAsk,
 } from './questionnaire'
 
 const ctx = (over: Partial<CompletenessContext> = {}): CompletenessContext => ({
@@ -188,5 +190,30 @@ describe('insurance', () => {
     expect(nextMarch31('2027-03-31')).toBe('2028-03-31')
     expect(nextMarch31('2027-04-01')).toBe('2028-03-31')
     expect(nextMarch31('2027-12-31')).toBe('2028-03-31')
+  })
+})
+
+describe('« L’entente d’abord » (P4-565): the sections still to ask once the entente is in force', () => {
+  const approved = (requestedSections: readonly string[]) => ({ status: 'approved', requestedSections: requestedSections as never })
+
+  it('after an entente-first onboarding, every section but the contract’s', () => {
+    expect(sectionsStillToAsk([approved(CONTRACT_SECTIONS)], true)).toEqual([
+      'portrait', 'languages', 'clienteles', 'motifs', 'availability', 'photo', 'insurance', 'tax_bank', 'consent',
+    ])
+  })
+
+  it('nothing before the entente is in force, nor while a questionnaire is open', () => {
+    expect(sectionsStillToAsk([approved(CONTRACT_SECTIONS)], false)).toBeNull()
+    expect(sectionsStillToAsk([approved(CONTRACT_SECTIONS), { status: 'draft', requestedSections: [] }], true)).toBeNull()
+    expect(sectionsStillToAsk([approved(CONTRACT_SECTIONS), { status: 'submitted', requestedSections: [] }], true)).toBeNull()
+  })
+
+  it('nothing once every section has been asked, nor for a file never onboarded through the questionnaire', () => {
+    expect(sectionsStillToAsk([approved(CONTRACT_SECTIONS), approved(['portrait', 'languages', 'clienteles', 'motifs', 'availability', 'photo', 'insurance', 'tax_bank', 'consent'])], true)).toBeNull()
+    expect(sectionsStillToAsk([], true)).toBeNull()
+  })
+
+  it('a returned or cancelled questionnaire does not count as asked', () => {
+    expect(sectionsStillToAsk([approved(CONTRACT_SECTIONS), { status: 'cancelled', requestedSections: ['portrait'] }], true)).toContain('portrait')
   })
 })

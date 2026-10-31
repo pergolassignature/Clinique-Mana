@@ -420,8 +420,8 @@ select results_eq($$ select r.key from public.deactivation_reasons r order by r.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select set_config('test.catalog', public.get_professionals_catalog()::text, true);
 select results_eq($$ select k from jsonb_object_keys(current_setting('test.catalog')::jsonb) k order by k $$,
-  array['categories', 'clienteles', 'deactivation_reasons', 'document_types', 'languages', 'motif_categories', 'motifs', 'orders', 'titles'],
-  'the catalogue holds the 9 lists (4c.2: document types)');
+  array['approaches', 'categories', 'clienteles', 'deactivation_reasons', 'document_types', 'languages', 'motif_categories', 'motifs', 'orders', 'titles'],
+  'the catalogue holds the 10 lists (4c.2: document types; P4-561: approaches)');
 select results_eq($$ select (select count(*)::int from jsonb_array_elements(current_setting('test.catalog')::jsonb -> 'motifs')),
                             (select count(*)::int from public.motifs) $$,
   $$ values (127, 127) $$, 'the conseillère gets every motif of org A (124 + 3 created), as RLS shows them');
@@ -440,12 +440,12 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is(jsonb_array_length(public.get_professionals_catalog() -> 'clienteles'), 9, 'the provider reads the catalogue (professionals.self)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select is(public.get_professionals_catalog(),
-  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": [], "document_types": []}'::jsonb,
-  'K, without a professionals key, gets 9 empty lists');
+  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "motif_categories": [], "motifs": [], "languages": [], "approaches": [], "deactivation_reasons": [], "document_types": []}'::jsonb,
+  'K, without a professionals key, gets 10 empty lists');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000008","role":"authenticated"}', true);
 select is(public.get_professionals_catalog(),
-  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": [], "document_types": []}'::jsonb,
-  'a disabled admin gets 9 empty lists');
+  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "motif_categories": [], "motifs": [], "languages": [], "approaches": [], "deactivation_reasons": [], "document_types": []}'::jsonb,
+  'a disabled admin gets 10 empty lists');
 
 -- Published views (conseillère A)
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
@@ -461,14 +461,14 @@ select results_eq($$ select l.code from public.languages_catalog l order by l.so
 -- =============================================================================
 -- Module settings
 -- =============================================================================
-select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true}'::jsonb, 'collect_sin is off by default (P4-7)');
+select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true, "invitation_contract_first": false}'::jsonb, 'collect_sin is off by default (P4-7)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select set_config('app.audit_source', 'test:outer', true);
-select is(public.set_professionals_settings('{"collect_sin": true}'), '{"collect_sin": true, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true}'::jsonb,
+select is(public.set_professionals_settings('{"collect_sin": true}'), '{"collect_sin": true, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true, "invitation_contract_first": false}'::jsonb,
   'admin A turns SIN collection on and gets the effective settings');
 select is(current_setting('app.audit_source', true), 'test:outer', 'set_professionals_settings gives the audit source back');
 select set_config('app.audit_source', '', true);
-select is(public.get_professionals_settings(), '{"collect_sin": true, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true}'::jsonb, 'the setting is stored');
+select is(public.get_professionals_settings(), '{"collect_sin": true, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true, "invitation_contract_first": false}'::jsonb, 'the setting is stored');
 select throws_ok($$ select public.set_professionals_settings('{"unknown": 1}') $$,
   '22023', 'Réglage inconnu : unknown', 'an unknown key is refused');
 select throws_ok($$ select public.set_professionals_settings('{"collect_sin": "yes"}') $$,
@@ -485,7 +485,7 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.get_professionals_settings() $$,
   '42501', 'Accès refusé aux réglages des professionnels.', 'K, without a professionals key, cannot read the settings');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
-select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true}'::jsonb, 'org B keeps its own default');
+select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true, "invitation_contract_first": false}'::jsonb, 'org B keeps its own default');
 
 -- =============================================================================
 -- Permissions: only professionals.settings writes the lists
@@ -527,6 +527,7 @@ select bag_eq($$ select (e ->> 'id')::uuid from jsonb_each(current_setting('test
      union all select id from public.motif_categories where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.languages where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.approaches where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.deactivation_reasons where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.document_types where org_id = 'b0000000-0000-0000-0000-00000000000b' $$,
   'admin B''s catalogue holds exactly the rows of org B');

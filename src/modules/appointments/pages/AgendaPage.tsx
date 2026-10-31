@@ -23,6 +23,7 @@ import type { AgendaReference } from '../api/agenda'
 import type { AgendaAppointment } from '../api/parse'
 import { AgendaLegend } from '../components/AgendaLegend'
 import { AppointmentSheet, type SheetTarget } from '../components/AppointmentSheet'
+import { BirthdaysBanner } from '../components/BirthdaysBanner'
 import { ExceptionsPanel, RuleDialog, type RuleTarget } from '../components/AvailabilityEditors'
 import { AvailabilityGrid, type AvailabilityTool } from '../components/AvailabilityGrid'
 import { MonthView } from '../components/MonthView'
@@ -30,7 +31,7 @@ import { PersonalDialog } from '../components/PersonalDialog'
 import { TimeGrid, type GridColumn } from '../components/TimeGrid'
 import { UpcomingList } from '../components/UpcomingList'
 import { WithoutReminderSheet } from '../components/WithoutReminderSheet'
-import { useAgenda, useAgendaReference, useAvailability, useMoveAppointment, useMyAgendaReference } from '../hooks/use-agenda'
+import { useAgenda, useAgendaBirthdays, useAgendaReference, useAvailability, useMoveAppointment, useMyAgendaReference } from '../hooks/use-agenda'
 import { useAvailabilityEditing } from '../hooks/use-availability-edit'
 import { useExternalBusy } from '../hooks/use-calendar'
 import { APPOINTMENT_LINK_PARAM as LINK_PARAM, servicesFor, weekdayLabel } from '../lib/display'
@@ -142,6 +143,16 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   const range = rangeOf(first, length)
   const availabilityEditing = useAvailabilityEditing(pro, first)
   const agenda = useAgenda(range.from, range.to, shownIds, mode === 'rendez-vous')
+  // P4-564: the professionals' birthdays of the days shown, for those who read their files
+  // (never « Mon agenda »: a professional does not see her colleagues' birthdays).
+  const showBirthdays = !mine && mode === 'rendez-vous' && can('professionals.view')
+  const birthdays = useAgendaBirthdays(first, addDays(first, length - 1), showBirthdays)
+  const birthdayRows = useMemo(() => (showBirthdays ? (birthdays.data ?? []) : []), [showBirthdays, birthdays.data])
+  const birthdaysByDay = useMemo(() => {
+    const byDay = new Map<string, string[]>()
+    for (const b of birthdayRows) byDay.set(b.day, [...(byDay.get(b.day) ?? []), b.name])
+    return byDay
+  }, [birthdayRows])
   const availabilityIds = mode === 'disponibilites' ? (pro ? [pro] : []) : effectiveView === 'jour' ? shown.map((p) => p.id) : pro ? [pro] : []
   const availability = useAvailability(availabilityIds, range.from)
   // Google busy times (R6): drawn where a column has one professional (the day, or a week of one).
@@ -323,12 +334,13 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
         />
       </div>
 
+      {effectiveView !== 'mois' && <BirthdaysBanner birthdays={birthdayRows} />}
       {mode === 'disponibilites' && !pro ? (
         <EmptyState title={t(`${A}.choosePro`)} body={t(`${A}.chooseProBody`)} />
       ) : agenda.isError && !agenda.data && mode === 'rendez-vous' ? (
         <LoadError message={t(`${A}.loadError`)} onRetry={() => void agenda.refetch()} retrying={agenda.isFetching} />
       ) : effectiveView === 'mois' ? (
-        <MonthView day={day} today={today} appointments={appointments} onDay={(d) => update({ vue: 'jour', date: d })} />
+        <MonthView day={day} today={today} appointments={appointments} birthdays={birthdaysByDay} onDay={(d) => update({ vue: 'jour', date: d })} />
       ) : effectiveView === 'jours' ? (
         <UpcomingList appointments={appointments} services={reference.services} professionalName={professionalName} onOpen={(a) => setSheet({ kind: 'edit', id: a.id })} />
       ) : (

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   api: {
     fetchAgendaReference: vi.fn(),
     fetchAgenda: vi.fn(),
+    fetchAgendaBirthdays: vi.fn(),
     fetchAvailability: vi.fn(),
     fetchAppointmentDetail: vi.fn(),
     bookAppointment: vi.fn(),
@@ -115,6 +116,7 @@ const appointment = (overrides: Partial<AgendaAppointment> = {}): AgendaAppointm
 beforeEach(() => {
   mocks.api.fetchAgendaReference.mockResolvedValue(REFERENCE)
   mocks.api.fetchAgenda.mockResolvedValue([appointment()])
+  mocks.api.fetchAgendaBirthdays.mockResolvedValue([])
   mocks.api.fetchAvailability.mockResolvedValue({
     rules: [{ id: 'w1', professionalId: 'p1', weekday: 1, startTime: '09:00', endTime: '17:00', serviceIds: [], visibleToClients: true, overflowAllowed: false, validFrom: '2026-01-01', validUntil: null }],
     exceptions: [],
@@ -169,6 +171,31 @@ function renderPage({ role = 'counselor' as FixtureRole, path = '/agenda?date=20
     </QueryClientProvider>,
   )
 }
+
+describe('AgendaPage — birthdays (P4-564)', () => {
+  const birthday = { professionalId: 'p1', name: 'Pia Un', day: '2027-03-17' }
+
+  it('names the birthdays of the week above the grid, and asks for the days shown', async () => {
+    mocks.api.fetchAgendaBirthdays.mockResolvedValue([birthday])
+    renderPage({ role: 'admin' })
+    expect(await screen.findByText(t('modules.appointments.agenda.birthdays'))).toBeInTheDocument()
+    expect(screen.getByText(/Pia Un, mercredi 17 mars/)).toBeInTheDocument()
+    expect(mocks.api.fetchAgendaBirthdays).toHaveBeenCalledWith('2027-03-15', '2027-03-21')
+  })
+
+  it('marks the day in the month view, in its label too', async () => {
+    mocks.api.fetchAgendaBirthdays.mockResolvedValue([birthday])
+    renderPage({ role: 'admin', path: '/agenda?vue=mois&date=2027-03-15' })
+    const cell = await screen.findByRole('button', { name: /anniversaire de Pia Un/ })
+    expect(cell).toHaveTextContent('Pia Un')
+  })
+
+  it('is not asked for without professionals.view', async () => {
+    renderPage({ role: 'provider' })
+    await screen.findAllByRole('tab')
+    expect(mocks.api.fetchAgendaBirthdays).not.toHaveBeenCalled()
+  })
+})
 
 describe('AgendaPage', () => {
   it('shows the week of one professional: four views as real tabs, the appointment at its clinic time', async () => {

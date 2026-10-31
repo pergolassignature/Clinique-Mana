@@ -12,6 +12,7 @@ const SETTING_KEYS = {
   ficheShowProContact: 'fiche_show_pro_contact',
   ficheShowClinicFooter: 'fiche_show_clinic_footer',
   ficheShowClosing: 'fiche_show_closing',
+  invitationContractFirst: 'invitation_contract_first',
 } as const satisfies Record<keyof ProfessionalsSettings, string>
 
 /** The effective settings (stored values over the defaults). Open to any professionals permission. */

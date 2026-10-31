@@ -33,6 +33,7 @@ describe('professionalsManifest', () => {
       ['professionnels', 'professionals.view'],
       ['professionnels/:id/:onglet?', 'professionals.view'],
       ['professionnels/revision-mensuelle', 'professionals.compensation'],
+      ['professionnels/approches', 'professionals.view'],
       ['mon-profil', 'professionals.self'],
       ['mon-profil/questionnaire', 'professionals.self'],
       ['mes-documents', 'professionals.self'],
@@ -63,10 +64,11 @@ describe('professionalsManifest', () => {
     expect(matchPath(`/${record.path}`, '/professionnels')).toBeNull()
   })
 
-  it('declares « Listes » (the five lists of 4a.6–4a.9 as tabs, NAV-3), « Documents requis » (4c.3; « Consentements » removed, P4-508), « Fiche PDF » (P4-353), « Contrats » (4d.3), « Invitations » (4b.3), then « Rémunération » (4a.18), under « Professionnels »', () => {
+  it('declares « Listes » (the five lists of 4a.6–4a.9 as tabs, NAV-3), « Documents requis » (4c.3; « Consentements » removed, P4-508), « Consignes du questionnaire » (P4-562), « Fiche PDF » (P4-353), « Contrats » (4d.3), « Invitations » (4b.3), then « Rémunération » (4a.18), under « Professionnels »', () => {
     expect(sections.map((s) => [s.id, s.path])).toEqual([
       ['lists', 'listes'],
       ['required-documents', 'documents-requis'],
+      ['questionnaire-texts', 'consignes-questionnaire'],
       ['fiche', 'fiche-pdf'],
       ['contracts', 'contrats'],
       ['invitations', 'invitations'],
@@ -77,7 +79,7 @@ describe('professionalsManifest', () => {
       expect(s.area).toEqual({ key: 'professionals', labelKey: 'modules.professionals.settingsArea', order: 10 })
       expect(t(s.labelKey)).not.toBe(s.labelKey)
     }
-    for (const s of sections.slice(0, 4)) {
+    for (const s of sections.slice(0, 5)) {
       // Seen by whoever manages the records or the lists; changed only with professionals.settings.
       expect(s.permission).toEqual(['professionals.manage', 'professionals.settings'])
       expect(s.editPermission).toBe('professionals.settings')

@@ -22,6 +22,7 @@ const DEFAULTS: ProfessionalsSettings = {
   ficheShowProContact: true,
   ficheShowClinicFooter: true,
   ficheShowClosing: true,
+  invitationContractFirst: false,
 }
 
 beforeEach(() => {

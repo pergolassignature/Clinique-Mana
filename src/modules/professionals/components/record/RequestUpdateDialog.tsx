@@ -5,6 +5,7 @@ import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { useRequestUpdate } from '../../hooks/use-invitations'
+import type { SubmissionSection } from '../../lib/constants'
 import { fullName } from '../../lib/display'
 import { SectionChecklist } from '../SectionChecklist'
 import { useSectionChoice } from '../use-section-choice'
@@ -22,10 +23,17 @@ const U = 'modules.professionals.onboarding.requestUpdate'
  * (decision #36). A refusal (an account removed, a submission opened meanwhile) stays here, the
  * record refetched.
  */
-export function RequestUpdateDialog({ onClose, onCloseAutoFocus }: StatusDialogProps) {
+export function RequestUpdateDialog({
+  onClose,
+  onCloseAutoFocus,
+  initial = [],
+}: StatusDialogProps & {
+  /** P4-565: « Demander le reste du profil » opens with the sections still to ask ticked. */
+  initial?: readonly SubmissionSection[]
+}) {
   const { record } = useRecordData()
   const { professional } = record
-  const choice = useSectionChoice()
+  const choice = useSectionChoice(initial)
   const [refusal, setRefusal] = useState<string | null>(null)
   const mutation = useRequestUpdate({ onErrorMessage: (message) => setRefusal(message) })
   const pending = mutation.isPending
