@@ -65,16 +65,26 @@ describe('professionalSchema', () => {
   const schema = professionalSchema(CATALOG_VIEW, { heldTitleIds: [], heldMotifIds: [] })
 
   it('needs a title, and the licence of a regulated one', () => {
-    expect(schema.safeParse({ professions: [], years_experience: '' }).error?.issues[0]?.message).toBe(t(`${V}.titleRequired`))
-    expect(schema.safeParse({ professions: [{ titleId: IDS.psychologue, licenceNumber: '', isPrimary: true }], years_experience: '' }).success).toBe(false)
+    expect(schema.safeParse({ professions: [], years_experience: '', birthday: '' }).error?.issues[0]?.message).toBe(t(`${V}.titleRequired`))
+    expect(schema.safeParse({ professions: [{ titleId: IDS.psychologue, licenceNumber: '', isPrimary: true }], years_experience: '', birthday: '' }).success).toBe(false)
   })
 
   it('parses titles into the section’s shape, years 0–60', () => {
-    expect(schema.parse({ professions: [{ titleId: IDS.psychologue, licenceNumber: '12345', isPrimary: true }], years_experience: '12' })).toEqual({
+    expect(schema.parse({ professions: [{ titleId: IDS.psychologue, licenceNumber: '12345', isPrimary: true }], years_experience: '12', birthday: '' })).toEqual({
       professions: [{ title_id: IDS.psychologue, licence_number: '12345', is_primary: true }],
       years_experience: 12,
+      birthday: null,
     })
     expect(schema.shape.years_experience.safeParse('61').success).toBe(false)
+  })
+
+  it('takes a birthday as a day of the year, optional, never a day that does not exist (P4-564)', () => {
+    const birthday = schema.shape.birthday
+    expect(birthday.parse('03-14')).toBe('03-14')
+    expect(birthday.parse('02-29')).toBe('02-29')
+    expect(birthday.parse('')).toBeNull()
+    expect(birthday.safeParse('03').error?.issues[0]?.message).toBe(t(`${V}.birthdayIncomplete`))
+    expect(birthday.safeParse('04-31').error?.issues[0]?.message).toBe(t(`${V}.birthdayInvalid`))
   })
 })
 
