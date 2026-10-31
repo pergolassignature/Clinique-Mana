@@ -552,4 +552,175 @@ as $$
   )
 $$;
 
+-- -----------------------------------------------------------------------------
+-- Saving the portrait: the normaliser keeps the two new fields
+-- -----------------------------------------------------------------------------
+-- Latest body: 20261011162525_professionals_core_helpers_wording.sql. Each section's output is
+-- rebuilt field by field and only the keys rebuilt survive, so without this the questionnaire's
+-- `approach_ids` and `approach_other` passed the unknown-key check and were then dropped: the
+-- boxes she checked never reached the draft. Only the portrait branch changes.
+create or replace function private.normalize_submission_section(p_section text, p_values jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_keys text[];
+  v jsonb := p_values;
+  v_out jsonb;
+  v_text text;
+  v_num numeric;
+  v_items record;
+  v_ids uuid[];
+  v_flags boolean[];
+  v_file uuid;
+  v_date date;
+begin
+  if p_values is null or pg_catalog.jsonb_typeof(p_values) <> 'object' then
+    raise exception 'Valeurs invalides : objet JSON attendu.' using errcode = '22023';
+  end if;
+  v_keys := case p_section
+    when 'photo' then array['file_id']
+    when 'insurance' then array['file_id', 'expires_on']
+    else array(select f.field from private.submission_fields() f where f.section = p_section and f.kind in ('plain', 'set'))
+  end;
+  if p_section in ('tax_bank', 'consent') or pg_catalog.cardinality(v_keys) = 0 then
+    raise exception 'Section invalide pour cet enregistrement.' using errcode = '22023';
+  end if;
+  -- Unknown keys (private ones included: a SIN or an account never enters the draft, P4-38).
+  if exists (select 1 from pg_catalog.jsonb_object_keys(v) k where not (k = any (v_keys))) then
+    raise exception 'Champ inconnu pour cette section.' using errcode = '22023';
+  end if;
+
+  case p_section
+  when 'personal' then
+    v_text := pg_catalog.upper(pg_catalog.regexp_replace(coalesce(private.submission_string(v, 'postal_code'), ''), '\s', '', 'g'));
+    if v_text <> '' and v_text !~ '^[A-Z][0-9][A-Z][0-9][A-Z][0-9]$' then
+      raise exception 'Code postal invalide : format A1A 1A1 attendu.' using errcode = 'P0001', hint = 'postal_code';
+    end if;
+    v_out := pg_catalog.jsonb_build_object(
+      'personal_phone', case when nullif(pg_catalog.btrim(private.submission_string(v, 'personal_phone')), '') is not null
+                             then private.submission_phone(private.submission_string(v, 'personal_phone'), 'personal_phone') end,
+      'address_line1', private.submission_label(private.submission_string(v, 'address_line1'), 'L''adresse', 200, 'address_line1'),
+      'address_line2', private.submission_label(private.submission_string(v, 'address_line2'), 'Le complément d''adresse', 200, 'address_line2'),
+      'city', private.submission_label(private.submission_string(v, 'city'), 'La ville', 100, 'city'),
+      'province', nullif(pg_catalog.upper(pg_catalog.btrim(coalesce(private.submission_string(v, 'province'), ''))), ''),
+      'postal_code', case when v_text <> '' then pg_catalog.left(v_text, 3) || ' ' || pg_catalog.right(v_text, 3) end);
+    if (v_out ->> 'province') not in ('AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT') then
+      raise exception 'Province inconnue.' using errcode = 'P0001', hint = 'province';
+    end if;
+
+  when 'professional' then
+    select * into v_items from private.parse_profession_items(coalesce(v -> 'professions', '[]'));
+    if coalesce(pg_catalog.jsonb_typeof(v -> 'years_experience'), 'null') not in ('number', 'null') then
+      raise exception 'Valeur invalide : nombre attendu.' using errcode = '22023', hint = 'years_experience';
+    end if;
+    v_num := (v ->> 'years_experience')::numeric;
+    if v_num is not null and (v_num not between 0 and 60 or v_num <> pg_catalog.trunc(v_num)) then
+      raise exception 'Les années d''expérience vont de 0 à 60.' using errcode = 'P0001', hint = 'years_experience';
+    end if;
+    v_out := pg_catalog.jsonb_build_object(
+      'professions', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+                                        'title_id', x.tid,
+                                        'licence_number', nullif(pg_catalog.btrim(x.licence, E' \t\r\n'), ''),
+                                        'is_primary', x.primary_flag) order by x.ord)
+                                 from unnest(v_items.titles, v_items.licences, v_items.primary_flags)
+                                      with ordinality as x(tid, licence, primary_flag, ord)), '[]'),
+      'years_experience', v_num::int);
+
+  when 'portrait' then
+    v_text := pg_catalog.lower(nullif(pg_catalog.btrim(coalesce(private.submission_string(v, 'public_email'), ''), E' \t\r\n'), ''));
+    if v_text is not null and (pg_catalog.char_length(v_text) > 254 or v_text !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$') then
+      raise exception 'Courriel invalide.' using errcode = 'P0001', hint = 'public_email';
+    end if;
+    v_out := pg_catalog.jsonb_build_object(
+      'bio', private.submission_long_text(private.submission_string(v, 'bio'), 'La présentation', 4000, 'bio'),
+      'approach', private.submission_long_text(private.submission_string(v, 'approach'), 'L''approche', 4000, 'approach'),
+      -- P4-561: the approaches she checked, sorted as stored (checked against the catalogue when
+      -- applied), and what « Autre — précisez » means.
+      'approach_ids', pg_catalog.to_jsonb(coalesce((select pg_catalog.array_agg(x order by x)
+                                       from pg_catalog.unnest(private.submission_uuid_array(v -> 'approach_ids', 'approach_ids')) as x), '{}'::uuid[])),
+      'approach_other', private.submission_label(private.submission_string(v, 'approach_other'), 'La précision', 200, 'approach_other'),
+      'public_email', v_text,
+      'public_phone', case when nullif(pg_catalog.btrim(private.submission_string(v, 'public_phone')), '') is not null
+                           then private.submission_phone(private.submission_string(v, 'public_phone'), 'public_phone') end);
+
+  when 'languages' then
+    v_out := pg_catalog.jsonb_build_object('language_ids',
+      pg_catalog.to_jsonb(coalesce((select pg_catalog.array_agg(x order by x)
+                                      from pg_catalog.unnest(private.submission_uuid_array(v -> 'language_ids', 'language_ids')) as x), '{}'::uuid[])));
+
+  when 'motifs' then
+    v_out := pg_catalog.jsonb_build_object('motif_ids',
+      pg_catalog.to_jsonb(coalesce((select pg_catalog.array_agg(x order by x)
+                                      from pg_catalog.unnest(private.submission_uuid_array(v -> 'motif_ids', 'motif_ids')) as x), '{}'::uuid[])));
+
+  when 'clienteles' then
+    select x.ids, x.flags into v_ids, v_flags from private.parse_specialized_items(coalesce(v -> p_section, '[]')) x;
+    -- The client limits (P4-245): the youngest client age (null: none) and « Femmes seulement ».
+    if coalesce(pg_catalog.jsonb_typeof(v -> 'min_client_age'), 'null') not in ('number', 'null') then
+      raise exception 'Valeur invalide : nombre attendu.' using errcode = '22023', hint = 'min_client_age';
+    end if;
+    v_num := (v ->> 'min_client_age')::numeric;
+    if v_num is not null and (v_num not between 0 and 120 or v_num <> pg_catalog.trunc(v_num)) then
+      raise exception 'Les âges vont de 0 à 120 ans.' using errcode = 'P0001', hint = 'min_client_age';
+    end if;
+    if coalesce(pg_catalog.jsonb_typeof(v -> 'women_only'), 'null') not in ('boolean', 'null') then
+      raise exception 'Valeur invalide : booléen attendu.' using errcode = '22023', hint = 'women_only';
+    end if;
+    v_out := pg_catalog.jsonb_build_object(p_section,
+      coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', x.id, 'specialized', x.flag) order by x.id)
+                  from unnest(v_ids, v_flags) as x(id, flag)), '[]'),
+      'min_client_age', v_num::int,
+      'women_only', coalesce(v -> 'women_only', 'null'::jsonb));
+
+  when 'availability' then
+    if coalesce(pg_catalog.jsonb_typeof(v -> 'accepting_new_clients'), 'null') not in ('boolean', 'null') then
+      raise exception 'Valeur invalide : booléen attendu.' using errcode = '22023', hint = 'accepting_new_clients';
+    end if;
+    if coalesce(pg_catalog.jsonb_typeof(v -> 'availability_periods'), 'null') not in ('array', 'null')
+       or exists (select 1 from pg_catalog.jsonb_array_elements(coalesce(v -> 'availability_periods', '[]')) as e(x)
+                   where coalesce(e.x #>> '{}', '') not in ('am', 'pm', 'end_of_day', 'evening', 'weekend')
+                      or pg_catalog.jsonb_typeof(e.x) <> 'string') then
+      raise exception 'Périodes invalides : am, pm, end_of_day, evening, weekend attendues.' using errcode = '22023', hint = 'availability_periods';
+    end if;
+    v_out := pg_catalog.jsonb_build_object(
+      'accepting_new_clients', coalesce(v -> 'accepting_new_clients', 'null'::jsonb),
+      'availability_periods', coalesce((select pg_catalog.jsonb_agg(d.x order by pg_catalog.array_position(array['am', 'pm', 'end_of_day', 'evening', 'weekend'], d.x))
+                                          from (select distinct e.x #>> '{}' as x
+                                                  from pg_catalog.jsonb_array_elements(coalesce(v -> 'availability_periods', '[]')) as e(x)) d), '[]'),
+      'availability_note', private.submission_long_text(private.submission_string(v, 'availability_note'), 'La note', 500, 'availability_note'));
+
+  when 'photo' then
+    v_out := pg_catalog.jsonb_build_object('file_id', private.submission_uuid(v -> 'file_id', 'photo'));
+
+  when 'insurance' then
+    v_file := private.submission_uuid(v -> 'file_id', 'insurance');
+    v_text := private.submission_string(v, 'expires_on');
+    if v_text is not null then
+      if v_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+        raise exception 'Date invalide.' using errcode = 'P0001', hint = 'expires_on';
+      end if;
+      begin
+        v_date := v_text::date;
+      exception when invalid_datetime_format or datetime_field_overflow then
+        raise exception 'Date invalide.' using errcode = 'P0001', hint = 'expires_on';
+      end;
+      -- Date-only (P4-2): a proof already expired is refused; no absurd year (4a.17 lesson).
+      if v_date < private.clinic_today() then
+        raise exception 'Cette assurance est déjà expirée : joignez une preuve en vigueur.' using errcode = 'P0001', hint = 'expires_on';
+      end if;
+      if v_date > date '2100-12-31' then
+        raise exception 'La date doit être au plus tard le 31 décembre 2100.' using errcode = 'P0001', hint = 'expires_on';
+      end if;
+    end if;
+    v_out := pg_catalog.jsonb_build_object('file_id', v_file, 'expires_on', v_date);
+  end case;
+  -- Only the keys given: a field left out keeps whatever the section already holds (P4-176).
+  return coalesce((select pg_catalog.jsonb_object_agg(e.key, e.value) from pg_catalog.jsonb_each(v_out) e
+                    where p_values ? e.key), '{}'::jsonb);
+end;
+$$;
+
 select pg_catalog.set_config('app.audit_source', '', true);

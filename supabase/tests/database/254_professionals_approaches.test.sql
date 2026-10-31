@@ -8,7 +8,7 @@
 -- permission; nothing is added to the public profile.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(22);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -115,6 +115,19 @@ select is((select count(*)::int from private.submission_fields() where section =
   'the portrait has six fields now (the set and the text of « Autre »)');
 select results_eq($$ select kind from private.submission_fields() where field = 'approach_other' $$,
   $$ values ('plain') $$, 'the text of « Autre — précisez » is a field of its own, so the section accepts it');
+
+-- The save path itself: the normaliser rebuilds each section field by field and keeps only what
+-- it rebuilt, so the approaches must be among them or the boxes she checks never reach the draft.
+select is(private.normalize_submission_section('portrait', jsonb_build_object(
+            'approach_ids', (select jsonb_agg(a.id order by a.sort_order desc) from public.approaches a
+                              where a.org_id = 'b0000000-0000-0000-0000-00000000000a' and a.key in ('cbt', 'emdr')))) -> 'approach_ids',
+  (select jsonb_agg(a.id order by a.id) from public.approaches a
+    where a.org_id = 'b0000000-0000-0000-0000-00000000000a' and a.key in ('cbt', 'emdr')),
+  'saving the portrait keeps the approaches she checked, sorted as stored');
+select is(private.normalize_submission_section('portrait', '{"approach_other": "  Approche maison  "}') ->> 'approach_other',
+  'Approche maison', '… and the text of « Autre — précisez », trimmed');
+select ok(not (private.normalize_submission_section('portrait', '{"bio": "Bonjour"}') ? 'approach_ids'),
+  'a save of the bio alone leaves her approaches as they were (P4-176)');
 
 -- =============================================================================
 -- Reading: staff, herself, and the counts
