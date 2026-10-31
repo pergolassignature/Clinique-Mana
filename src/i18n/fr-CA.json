@@ -9983,7 +9983,10 @@
         "windowServices": "Services choisis : {count}",
         "monthDay": "{day} : {count} rendez-vous",
         "more": "et {count} autres",
-        "upcomingEmpty": "Aucun rendez-vous dans les prochains jours"
+        "upcomingEmpty": "Aucun rendez-vous dans les prochains jours",
+        "birthdays": "Anniversaires :",
+        "birthdayOn": "{name}, {day}",
+        "monthBirthday": "anniversaire de {names}"
       },
       "editor": {
         "newTitle": "Nouveau rendez-vous",
