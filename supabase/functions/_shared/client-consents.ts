@@ -27,6 +27,17 @@ const signerSchema = z.object({
   link_id: z.string(),
 })
 
+/**
+ * The professional assigned to the file, who countersigns in the app (CC-22): she has a signer
+ * row but no link and no email, so she is reported apart from the emailed `signers`.
+ */
+const preparedProfessionalSchema = z.object({
+  professional_id: z.string(),
+  signer_id: z.string(),
+  full_name: z.string(),
+  email: z.string(),
+})
+
 /** `prepare_client_consent_request_for_service`'s answer. */
 export const preparedRequestSchema = z.object({
   request_id: z.string(),
@@ -37,6 +48,7 @@ export const preparedRequestSchema = z.object({
   clinic_name: z.string(),
   expires_at: z.string(),
   signers: z.array(signerSchema).min(1).max(2),
+  professional: preparedProfessionalSchema.nullish(),
 })
 export type PreparedRequest = z.infer<typeof preparedRequestSchema>
 

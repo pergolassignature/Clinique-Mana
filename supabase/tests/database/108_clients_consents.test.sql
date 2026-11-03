@@ -122,6 +122,10 @@ insert into public.clients (id, org_id, first_name, last_name, email, birthday, 
   ('d0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'Zoé', 'Côté', 'zoe@exemple.test', date '1995-05-05', false);
 insert into public.client_professional_links (org_id, client_id, professional_id, reason) values
   ('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'created');
+-- CC-22: every client consent is countersigned by the professional assigned to the file, so each
+-- file that can be asked for one has one. Her own signer row carries no link and no email.
+update public.clients set primary_professional_id = 'c0000000-0000-0000-0000-000000000001'
+ where org_id = 'b0000000-0000-0000-0000-00000000000a';
 
 -- =============================================================================
 -- Seeds
@@ -227,8 +231,8 @@ select is((public.prepare_client_consent_request_for_service(
 reset role;
 select results_eq($$ select r.state, r.language, r.requested_by, pg_catalog.jsonb_array_length(r.clauses), (select count(*)::int from public.client_consent_request_signers s where s.request_id = r.id)
                       from public.client_consent_requests r where r.client_id = 'd0000000-0000-0000-0000-000000000001' $$,
-  $$ values ('pending', 'fr', 'a0000000-0000-0000-0000-000000000002'::uuid, 1, 1) $$,
-  'a pending request in French, by the conseillère, with the clauses and one signer');
+  $$ values ('pending', 'fr', 'a0000000-0000-0000-0000-000000000002'::uuid, 1, 2) $$,
+  'a pending request in French, by the conseillère, with the clauses, Alice and her professional (CC-22)');
 select is((select count(*)::int from public.secure_links l where l.purpose = 'client_consent' and l.revoked_at is null), 1, 'one live link');
 select is((public.resolve_client_consent_link((select l.id from public.secure_links l where l.token_hash = sha256('t-alice-1'::bytea)))) ->> 'consent_name',
   'Consentement général', 'resolve-link shows the consent''s name (nothing personal)');

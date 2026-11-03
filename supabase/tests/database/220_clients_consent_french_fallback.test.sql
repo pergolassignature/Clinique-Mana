@@ -54,6 +54,11 @@ insert into public.clients (id, org_id, first_name, last_name, email, birthday, 
   ('d0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Alice', 'Tremblay', 'alice@exemple.test', date '1990-03-04', 'fr'),
   ('d0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'John', 'Smith', 'john@exemple.test', date '1985-06-07', 'en'),
   ('d0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Kate', 'Brown', 'kate@exemple.test', date '1979-08-09', 'en');
+-- CC-22: a client consent is countersigned by the professional assigned to the file.
+insert into public.professionals (id, org_id, first_name, last_name, email, status) values
+  ('c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Pro', 'Un', 'pro@ff.test', 'active');
+update public.clients set primary_professional_id = 'c0000000-0000-0000-0000-000000000001'
+ where org_id = 'b0000000-0000-0000-0000-00000000000a';
 
 -- =============================================================================
 -- Nothing published: still refused, in French
