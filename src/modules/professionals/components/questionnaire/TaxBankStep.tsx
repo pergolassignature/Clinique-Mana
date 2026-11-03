@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useForm, type Path, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Link } from 'react-router-dom'
 import { t } from '@/i18n'
 import { moduleErrorMessage, rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import { formatTaxNumber } from '@/shared/lib/format'
@@ -119,6 +120,13 @@ function TaxBankForm({ ctx }: { ctx: StepContext }) {
             {(field) => <Input {...field} {...register('bank_account')} inputMode="numeric" maxLength={20} {...SENSITIVE_INPUT_PROPS} className="tabular" />}
           </FormField>
         </div>
+        {/* P4-563: the specimen is what the three numbers are checked against, so a typo is caught. */}
+        <p className="text-sm text-muted-foreground">
+          {t(`${T}.chequeSpecimen`)}{' '}
+          <Link to="/mes-documents" className="underline underline-offset-2">
+            {t(`${T}.chequeSpecimenLink`)}
+          </Link>
+        </p>
       </FieldGroup>
       <FieldGroup title={t(`${T}.taxTitle`)} description={t(`${T}.taxHelp`)}>
         <div className={FIELD_GRID}>

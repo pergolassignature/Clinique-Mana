@@ -104,7 +104,7 @@ update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select is(public.get_professionals_settings() - array['collect_sin', 'invitation_expiry_days', 'invitation_reminder_after_days'],
+select is(public.get_professionals_settings() - array['collect_sin', 'invitation_expiry_days', 'invitation_reminder_after_days', 'invitation_contract_first'],
   '{"fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true}'::jsonb,
   'the conseillère reads the fiche options, all on by default');
 select throws_ok($$ select public.set_professionals_settings('{"fiche_show_closing": false}') $$,
@@ -112,7 +112,7 @@ select throws_ok($$ select public.set_professionals_settings('{"fiche_show_closi
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(public.set_professionals_settings('{"fiche_show_pro_contact": false, "fiche_show_closing": false}')
-            - array['collect_sin', 'invitation_expiry_days', 'invitation_reminder_after_days'],
+            - array['collect_sin', 'invitation_expiry_days', 'invitation_reminder_after_days', 'invitation_contract_first'],
   '{"fiche_show_pro_contact": false, "fiche_show_clinic_footer": true, "fiche_show_closing": false}'::jsonb,
   'the admin turns two off; the effective settings come back');
 select throws_ok($$ select public.set_professionals_settings('{"fiche_show_clinic_footer": "non"}') $$,

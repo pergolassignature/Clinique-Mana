@@ -668,6 +668,53 @@ export type Database = {
           },
         ]
       }
+      approaches: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          requires_text: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          requires_text?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          requires_text?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approaches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -7742,6 +7789,69 @@ export type Database = {
           },
         ]
       }
+      professional_approaches: {
+        Row: {
+          approach_id: string
+          created_at: string
+          org_id: string
+          other_text: string | null
+          professional_id: string
+          updated_at: string
+        }
+        Insert: {
+          approach_id: string
+          created_at?: string
+          org_id: string
+          other_text?: string | null
+          professional_id: string
+          updated_at?: string
+        }
+        Update: {
+          approach_id?: string
+          created_at?: string
+          org_id?: string
+          other_text?: string | null
+          professional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_approaches_approach_fkey"
+            columns: ["org_id", "approach_id"]
+            isOneToOne: false
+            referencedRelation: "approaches"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_approaches_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       professional_client_agreements: {
         Row: {
           client_id: string | null
@@ -9674,6 +9784,7 @@ export type Database = {
           activation_override_reason: string | null
           address_line1: string | null
           address_line2: string | null
+          birthday: string | null
           city: string | null
           country: string
           created_at: string
@@ -9704,6 +9815,7 @@ export type Database = {
           activation_override_reason?: string | null
           address_line1?: string | null
           address_line2?: string | null
+          birthday?: string | null
           city?: string | null
           country?: string
           created_at?: string
@@ -9734,6 +9846,7 @@ export type Database = {
           activation_override_reason?: string | null
           address_line1?: string | null
           address_line2?: string | null
+          birthday?: string | null
           city?: string | null
           country?: string
           created_at?: string
@@ -10739,6 +10852,51 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "professionals_readiness"
             referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      questionnaire_section_texts: {
+        Row: {
+          created_at: string
+          description: string | null
+          org_id: string
+          section: string
+          title: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          org_id: string
+          section: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          org_id?: string
+          section?: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questionnaire_section_texts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questionnaire_section_texts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -15044,6 +15202,7 @@ export type Database = {
           total: number
         }[]
       }
+      count_professional_approaches: { Args: never; Returns: Json }
       create_client: {
         Args: { p_client: Json; p_confirm_medium?: boolean }
         Returns: string
@@ -15725,6 +15884,7 @@ export type Database = {
         }[]
       }
       get_qbo_settings: { Args: never; Returns: Json }
+      get_questionnaire_section_texts: { Args: never; Returns: Json }
       get_service_price: {
         Args: {
           p_on: string
@@ -17107,6 +17267,10 @@ export type Database = {
           starts_at: string
         }[]
       }
+      professional_birthdays: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       proposition_services: {
         Args: { p_professional_id: string }
         Returns: {
@@ -17628,6 +17792,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_staff_invitation: { Args: { p_id: string }; Returns: undefined }
+      run_professionals_birthday_notices_for_service: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       run_professionals_document_notices_for_service: {
         Args: { p_org: string; p_today?: string }
         Returns: Json
@@ -18290,6 +18458,10 @@ export type Database = {
           p_refresh_token_expires_at: string
         }
         Returns: boolean
+      }
+      set_questionnaire_section_text: {
+        Args: { p_description: string; p_section: string; p_title: string }
+        Returns: Json
       }
       set_retention_grid: {
         Args: {

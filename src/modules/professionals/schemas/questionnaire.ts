@@ -4,6 +4,7 @@ import { optionalEmail, optionalPattern, optionalPhone, optionalPostalCode, PROV
 import { compactTaxNumber, formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import { isCalendarDate } from '@/shared/lib/timezone'
 import { AVAILABILITY_PERIODS, type AvailabilityPeriod } from '../lib/constants'
+import { isBirthday } from '../lib/birthday'
 import type { CatalogView } from '../lib/catalog-view'
 import { ACCOUNT, BUSINESS_NUMBER, GST, INSTITUTION, isValidSin, QST, strip, TRANSIT } from './private'
 import { professionsSchema, type ProfessionItemValues } from './professions'
@@ -78,9 +79,16 @@ export function professionalSchema(catalog: CatalogView, context: { heldTitleIds
       .refine((items) => items.length > 0, { error: t(`${Q}.titleRequired`) })
       .transform((items): SubmittedProfession[] => items.map((i) => ({ title_id: i.titleId, licence_number: i.licenceNumber, is_primary: i.isPrimary }))),
     years_experience: yearsField(),
+    // P4-564: a day of the year, never a year. Optional; a half-chosen one is not sent.
+    birthday: z
+      .string()
+      .trim()
+      .refine((v) => v === '' || /^[0-9]{2}-[0-9]{2}$/.test(v), { error: t(`${Q}.birthdayIncomplete`), abort: true })
+      .refine((v) => v === '' || isBirthday(v), { error: t(`${Q}.birthdayInvalid`) })
+      .transform((v) => (v === '' ? null : v)),
   })
 }
-export type ProfessionalValues = { professions: ProfessionItemValues[]; years_experience: string }
+export type ProfessionalValues = { professions: ProfessionItemValues[]; years_experience: string; birthday: string }
 
 /** The section's titles, whatever their shape in the prefill (malformed rows are dropped). */
 export function submittedProfessions(values: Readonly<Record<string, unknown>>): SubmittedProfession[] {
@@ -99,6 +107,7 @@ export function toProfessionalValues(values: Readonly<Record<string, unknown>>):
   return {
     professions: submittedProfessions(values).map((p) => ({ titleId: p.title_id, licenceNumber: p.licence_number ?? '', isPrimary: p.is_primary })),
     years_experience: typeof years === 'number' ? String(years) : '',
+    birthday: typeof values.birthday === 'string' ? values.birthday : '',
   }
 }
 
@@ -107,6 +116,10 @@ export function toProfessionalValues(values: Readonly<Record<string, unknown>>):
 export const portraitSchema = z.object({
   bio: longText(4000).refine((v) => v !== null, { error: t(`${Q}.bioRequired`) }),
   approach: longText(4000),
+  // P4-561: the approaches she checked. Optional, so the portrait is still complete with its bio.
+  approach_ids: z.array(z.uuid()).max(40).transform((ids) => [...ids].sort()),
+  // What « Autre — précisez » means, kept only while that box is checked (the step clears it).
+  approach_other: tidyText({ max: 200 }),
   // Stored lower-cased, 254 characters at most (`normalize_submission_section`).
   public_email: optionalEmail()
     .transform((v) => v?.toLowerCase() ?? null)
@@ -119,6 +132,8 @@ export function toPortraitValues(values: Readonly<Record<string, unknown>>): Por
   return {
     bio: str(values, 'bio'),
     approach: str(values, 'approach'),
+    approach_ids: Array.isArray(values.approach_ids) ? values.approach_ids.filter((id): id is string => typeof id === 'string') : [],
+    approach_other: str(values, 'approach_other'),
     public_email: str(values, 'public_email'),
     public_phone: formatPhone(str(values, 'public_phone')),
   }

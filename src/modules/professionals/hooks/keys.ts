@@ -131,11 +131,15 @@ export const professionalCatalogKeys = {
   all: ['professionals-catalog'] as const,
   catalog: () => [...professionalCatalogKeys.all, 'catalog'] as const,
   usage: () => [...professionalCatalogKeys.all, 'usage'] as const,
+  /** P4-561: how many active professionals hold each approach (refetched with the catalogue). */
+  approachCounts: () => [...professionalCatalogKeys.all, 'approach-counts'] as const,
 }
 
 export const professionalsSettingsKeys = {
   all: ['professionals-settings'] as const,
   settings: () => [...professionalsSettingsKeys.all, 'settings'] as const,
+  /** P4-562: the questionnaire's wording, as the clinic reworded it (read by the questionnaire too). */
+  questionnaireTexts: () => [...professionalsSettingsKeys.all, 'questionnaire-texts'] as const,
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   createSeries,
   deleteAvailabilityRule,
   fetchAgenda,
+  fetchAgendaBirthdays,
   fetchAgendaReference,
   fetchAppointmentDetail,
   fetchAvailability,
@@ -47,6 +48,19 @@ import { APPOINTMENT_HISTORY_PAGE_SIZE, fetchAppointmentHistory } from '../api/h
 import { fetchAppointmentMessages, fetchWithoutReminder, resendAppointmentNotification } from '../api/messages'
 import type { AppointmentMode, Presence } from '../api/parse'
 import { appointmentsKeys } from './keys'
+
+/**
+ * The professionals' birthdays on the days shown (P4-564). Only for those who read the
+ * professionals' files: « Mon agenda » never shows a colleague's birthday.
+ */
+export function useAgendaBirthdays(fromDay: string, toDay: string, enabled: boolean) {
+  return useQuery({
+    queryKey: appointmentsKeys.birthdays(fromDay, toDay),
+    queryFn: () => fetchAgendaBirthdays(fromDay, toDay),
+    placeholderData: keepPreviousData,
+    enabled,
+  })
+}
 
 export function useAgenda(from: string, to: string, professionalIds: readonly string[] | null, enabled = true) {
   return useQuery({

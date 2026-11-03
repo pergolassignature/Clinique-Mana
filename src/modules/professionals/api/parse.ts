@@ -81,6 +81,10 @@ const motifPayload = z
   .object({ ...keyedRow, category_id: z.string().nullable(), is_restricted: z.boolean() })
   .transform((r) => ({ ...keyed(r), categoryId: r.category_id, isRestricted: r.is_restricted }))
 const languagePayload = z.object({ ...listRow, code: z.string() }).transform((r) => ({ ...base(r), code: r.code }))
+/** P4-561: counted, never on the fiche; `requiresText` marks « Autre — précisez ». */
+const approachPayload = z
+  .object({ ...keyedRow, requires_text: z.boolean() })
+  .transform((r) => ({ ...keyed(r), requiresText: r.requires_text }))
 const deactivationReasonPayload = z
   .object({ ...keyedRow, requires_note: z.boolean(), disables_account: z.boolean() })
   .transform((r) => ({ ...keyed(r), requiresNote: r.requires_note, disablesAccount: r.disables_account }))
@@ -124,8 +128,9 @@ export type Language = z.output<typeof languagePayload>
 export type DeactivationReason = z.output<typeof deactivationReasonPayload>
 /** « Documents requis » (Task 4c.2): a document type, its rule and its file limits. System types are photo, insurance, image_consent. */
 export type DocumentType = z.output<typeof documentTypePayload>
+export type Approach = z.output<typeof approachPayload>
 
-/** The nine lists of the caller's clinic, each in its sort order, archived rows included (`isActive`). */
+/** The ten lists of the caller's clinic, each in its sort order, archived rows included (`isActive`). */
 export const catalogPayload = z
   .object({
     orders: z.array(orderPayload),
@@ -135,6 +140,8 @@ export const catalogPayload = z
     motif_categories: z.array(motifCategoryPayload),
     motifs: z.array(motifPayload),
     languages: z.array(languagePayload),
+    // P4-561; a payload without it (a fixture) has no approaches.
+    approaches: z.array(approachPayload).default([]),
     deactivation_reasons: z.array(deactivationReasonPayload),
     // Task 4c.2; a payload without it (a fixture) has no types.
     document_types: z.array(documentTypePayload).default([]),
@@ -606,6 +613,8 @@ export const settingsPayload = z
     fiche_show_pro_contact: z.boolean(),
     fiche_show_clinic_footer: z.boolean(),
     fiche_show_closing: z.boolean(),
+    // P4-565; a payload without it (a fixture) reads off.
+    invitation_contract_first: z.boolean().default(false),
   })
   .transform((s) => ({
     collectSin: s.collect_sin,
@@ -614,5 +623,7 @@ export const settingsPayload = z
     ficheShowProContact: s.fiche_show_pro_contact,
     ficheShowClinicFooter: s.fiche_show_clinic_footer,
     ficheShowClosing: s.fiche_show_closing,
+    /** « L'entente d'abord »: an invitation asks only the sections the service contract needs. */
+    invitationContractFirst: s.invitation_contract_first,
   }))
 export type ProfessionalsSettings = z.output<typeof settingsPayload>

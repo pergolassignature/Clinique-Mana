@@ -277,6 +277,8 @@ describe('settingsPayload', () => {
       ficheShowProContact: true,
       ficheShowClinicFooter: false,
       ficheShowClosing: true,
+      // P4-565: absent from the payload, it reads off.
+      invitationContractFirst: false,
     })
     expect(parseRpc(settingsPayload, { ...json, collect_sin: true, invitation_expiry_days: 14, invitation_reminder_after_days: null }).invitationReminderAfterDays).toBeNull()
   })

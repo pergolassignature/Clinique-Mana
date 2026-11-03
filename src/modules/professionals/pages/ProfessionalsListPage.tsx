@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { CalendarCheck, ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react'
+import { CalendarCheck, ChartColumn, ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react'
 import { t, type TranslationKey } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -108,19 +108,24 @@ export function ProfessionalsListPage() {
         count={rows ? totalLabel(rows) : undefined}
         description={rows ? activeLabel(rows) : undefined}
         actions={
-          can('professionals.manage') || can('professionals.compensation') ? (
-            <>
-              {can('professionals.compensation') && (
-                <Button asChild variant="outline">
-                  <Link to="/professionnels/revision-mensuelle">
-                    <CalendarCheck aria-hidden />
-                    {t(`${L}.review`)}
-                  </Link>
-                </Button>
-              )}
-              {can('professionals.manage') && <CreateProfessionalDialog />}
-            </>
-          ) : undefined
+          <>
+            {/* P4-561: how many professionals hold each approach. */}
+            <Button asChild variant="outline">
+              <Link to="/professionnels/approches">
+                <ChartColumn aria-hidden />
+                {t(`${L}.approaches`)}
+              </Link>
+            </Button>
+            {can('professionals.compensation') && (
+              <Button asChild variant="outline">
+                <Link to="/professionnels/revision-mensuelle">
+                  <CalendarCheck aria-hidden />
+                  {t(`${L}.review`)}
+                </Link>
+              </Button>
+            )}
+            {can('professionals.manage') && <CreateProfessionalDialog />}
+          </>
         }
       />
       {failed.length > 0 ? (

@@ -105,6 +105,11 @@ export function SetChange({ field, current, submitted, ctx }: { field: SetField;
     const row = catalog.byId.languages.get(id)
     return row ? { name: row.name, archived: !row.isActive } : unknown
   }
+  // P4-561: named from the catalogue like the languages.
+  const approach = (id: string) => {
+    const row = catalog.byId.approaches.get(id)
+    return row ? { name: row.name, archived: !row.isActive } : unknown
+  }
   const clientele = (specialized: ReadonlySet<string>) => (id: string) => {
     const row = catalog.byId.clienteles.get(id)
     if (!row) return unknown
@@ -120,13 +125,14 @@ export function SetChange({ field, current, submitted, ctx }: { field: SetField;
       { key: 'removed', title: t(`${V}.removed`, { count: String(diff.removed.length) }), groups: motifGroups(diff.removed, catalog) },
     ]
     kept = motifGroups(diff.kept, catalog)
-  } else if (field === 'language_ids') {
+  } else if (field === 'language_ids' || field === 'approach_ids') {
     const diff = idsDiff(current, submitted)
+    const named = field === 'language_ids' ? language : approach
     parts = [
-      { key: 'added', title: t(`${V}.added`, { count: String(diff.added.length) }), groups: namedList(diff.added, language) },
-      { key: 'removed', title: t(`${V}.removed`, { count: String(diff.removed.length) }), groups: namedList(diff.removed, language) },
+      { key: 'added', title: t(`${V}.added`, { count: String(diff.added.length) }), groups: namedList(diff.added, named) },
+      { key: 'removed', title: t(`${V}.removed`, { count: String(diff.removed.length) }), groups: namedList(diff.removed, named) },
     ]
-    kept = namedList(diff.kept, language)
+    kept = namedList(diff.kept, named)
   } else {
     const diff = clienteleDiff(current, submitted)
     const plainName = clientele(new Set())
@@ -167,7 +173,7 @@ export function SetValue({ field, value, ctx }: { field: SetField; value: unknow
           const name = row ? clienteleLabel(row) : t(`${V}.unknown`)
           return specialized ? `${name} ${t(`${V}.specialized`)}` : name
         })
-      : idList(value).map((id) => catalog.byId.languages.get(id)?.name ?? t(`${V}.unknown`))
+      : idList(value).map((id) => (field === 'approach_ids' ? catalog.byId.approaches : catalog.byId.languages).get(id)?.name ?? t(`${V}.unknown`))
   return names.length === 0 ? <NotIndicated /> : <>{names.join(' · ')}</>
 }
 

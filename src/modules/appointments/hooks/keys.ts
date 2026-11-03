@@ -5,6 +5,8 @@
 export const appointmentsKeys = {
   all: ['appointments'] as const,
   agenda: (from: string, to: string, professionalIds: readonly string[] | null) => [...appointmentsKeys.all, 'agenda', from, to, professionalIds] as const,
+  /** P4-564: the professionals' birthdays of the days shown. */
+  birthdays: (fromDay: string, toDay: string) => [...appointmentsKeys.all, 'birthdays', fromDay, toDay] as const,
   detail: (id: string) => [...appointmentsKeys.all, 'detail', id] as const,
   reference: () => [...appointmentsKeys.all, 'reference'] as const,
   availability: (professionalIds: readonly string[], since: string) => [...appointmentsKeys.all, 'availability', professionalIds, since] as const,

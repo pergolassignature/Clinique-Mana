@@ -164,11 +164,13 @@ select results_eq($$ select key, is_system, required, expiry_rule, reminder_days
             ('insurance', true, true, 'next_march_31', '{7}', true, 10485760),
             -- No expiry since P4-504 (*_professionals_image_consent_no_expiry.sql).
             ('image_consent', true, true, 'none', '{}', false, 10485760),
+            -- P4-563: what the deposit numbers are checked against; optional, never expiring.
+            ('cheque_specimen', false, false, 'none', '{}', false, 10485760),
             ('cv', false, false, 'none', '{}', false, 10485760),
             ('diploma', false, false, 'none', '{}', false, 10485760),
             ('licence_attestation', false, false, 'none', '{}', false, 10485760),
             ('other', false, false, 'none', '{}', false, 10485760) $$,
-  'seven types per clinic; photo, insurance and the image consent are system types; never `license`');
+  'eight types per clinic; photo, insurance and the image consent are system types; never `license`');
 select is((select accepted_mime from public.document_types where org_id = current_setting('test.a')::uuid and key = 'photo'),
   array['image/jpeg', 'image/png'], 'the photo is a JPEG or PNG (the fiche)');
 
@@ -236,9 +238,9 @@ select is((select key from public.document_types where org_id = current_setting(
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.save_document_type(null, 'Autre chose') $$, '42501', null, 'the adjointe does not edit the list');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select is(jsonb_array_length(public.get_professionals_catalog() -> 'document_types'), 8, 'the catalogue carries the clinic''s types, archived included');
+select is(jsonb_array_length(public.get_professionals_catalog() -> 'document_types'), 9, 'the catalogue carries the clinic''s types, archived included');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select is((select count(*)::int from public.document_types), 8, 'the provider reads the types (Mes documents)');
+select is((select count(*)::int from public.document_types), 9, 'the provider reads the types (Mes documents)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is((select count(*)::int from public.document_types where org_id = current_setting('test.a')::uuid), 0, 'another clinic reads none');
 reset role;

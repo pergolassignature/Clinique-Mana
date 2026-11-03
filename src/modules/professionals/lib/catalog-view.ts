@@ -1,6 +1,7 @@
 import { t } from '@/i18n'
 import type { MotifCategoryIcon } from './constants'
 import type {
+  Approach,
   Clientele,
   DeactivationReason,
   DocumentType,
@@ -42,6 +43,7 @@ export interface CatalogView extends ProfessionalsCatalog {
     motifCategories: ReadonlyMap<string, MotifCategory>
     motifs: ReadonlyMap<string, Motif>
     languages: ReadonlyMap<string, Language>
+    approaches: ReadonlyMap<string, Approach>
     deactivationReasons: ReadonlyMap<string, DeactivationReason>
     documentTypes: ReadonlyMap<string, DocumentType>
   }
@@ -77,6 +79,7 @@ export function buildCatalogView(catalog: ProfessionalsCatalog): CatalogView {
       motifCategories: byId(catalog.motifCategories),
       motifs: byId(catalog.motifs),
       languages: byId(catalog.languages),
+      approaches: byId(catalog.approaches),
       deactivationReasons: byId(catalog.deactivationReasons),
       documentTypes: byId(catalog.documentTypes),
     },

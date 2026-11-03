@@ -50,6 +50,22 @@ export async function fetchAgenda(fromIso: string, toIso: string, professionalId
   return parseRpc(z.array(agendaRowPayload), data)
 }
 
+const birthdayRow = z
+  .object({ professional_id: z.string(), name: z.string(), day: z.string() })
+  .transform((r) => ({ professionalId: r.professional_id, name: r.name, day: r.day }))
+/** A professional's birthday on a day of the agenda (P4-564). */
+export type AgendaBirthday = z.output<typeof birthdayRow>
+
+/**
+ * The professionals' birthdays between two clinic days (`yyyy-MM-dd`, inclusive): Professionnels'
+ * published `professional_birthdays` (`professionals.view`, active professionals only).
+ */
+export async function fetchAgendaBirthdays(fromDay: string, toDay: string): Promise<AgendaBirthday[]> {
+  const { data, error } = await supabase.rpc('professional_birthdays', { p_from: fromDay, p_to: toDay })
+  if (error) throw error
+  return parseRpc(z.array(birthdayRow), data)
+}
+
 export async function fetchAppointmentDetail(id: string): Promise<AppointmentDetail | null> {
   const { data, error } = await supabase
     .from('appointments')

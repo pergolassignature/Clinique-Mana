@@ -25,6 +25,9 @@ export type SubmissionSection = (typeof SUBMISSION_SECTIONS)[number]
 /** A step: a requested section, or « Révision » (always last). */
 export type QuestionnaireStep = SubmissionSection | 'review'
 
+/** Every step the questionnaire can show, in order: what Paramètres lets the clinic reword (P4-562). */
+export const QUESTIONNAIRE_STEPS: readonly QuestionnaireStep[] = [...SUBMISSION_SECTIONS, 'review']
+
 /** The URL segment of each step (`?etape=`): French, as the app's routes. */
 export const STEP_SLUGS: Readonly<Record<QuestionnaireStep, string>> = {
   personal: 'renseignements-personnels',
@@ -43,6 +46,29 @@ export const STEP_SLUGS: Readonly<Record<QuestionnaireStep, string>> = {
 
 export const stepFromSlug = (slug: string | null, steps: readonly QuestionnaireStep[]): QuestionnaireStep | null =>
   steps.find((step) => STEP_SLUGS[step] === slug) ?? null
+
+/**
+ * P4-565 « L'entente d'abord »: what the service contract needs, asked first
+ * (`private.contract_submission_sections()`).
+ */
+export const CONTRACT_SECTIONS: readonly SubmissionSection[] = ['personal', 'professional']
+
+/**
+ * P4-565: once the entente is in force, the sections no approved questionnaire has asked yet —
+ * what « Demander le reste du profil » sends. Null while nothing is left, while a questionnaire is
+ * open, without an entente in force, or for a file never onboarded through the questionnaire.
+ */
+export function sectionsStillToAsk(
+  submissions: readonly { status: string; requestedSections: readonly SubmissionSection[] }[],
+  contractInForce: boolean,
+): SubmissionSection[] | null {
+  if (!contractInForce) return null
+  if (submissions.some((s) => s.status === 'draft' || s.status === 'submitted')) return null
+  const asked = new Set(submissions.filter((s) => s.status === 'approved').flatMap((s) => s.requestedSections))
+  if (asked.size === 0) return null
+  const rest = SUBMISSION_SECTIONS.filter((section) => !asked.has(section))
+  return rest.length > 0 ? rest : null
+}
 
 /** The steps of a submission: its requested sections in questionnaire order, then « Révision ». */
 export function stepsFor(requested: readonly SubmissionSection[]): QuestionnaireStep[] {

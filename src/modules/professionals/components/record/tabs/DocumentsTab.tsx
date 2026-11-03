@@ -10,6 +10,7 @@ import { DocumentsPanel } from '../DocumentsPanel'
 import { useRecordData } from '../record-context'
 import { ContractCard } from '../ContractCard'
 import { ImageConsentSigning } from '../ImageConsentSigning'
+import { RestOfProfileCard } from '../RestOfProfileCard'
 import { SubmissionsCard } from '../SubmissionsCard'
 
 const D = 'modules.professionals.documents'
@@ -51,6 +52,7 @@ export function DocumentsTab() {
     <div className="flex flex-col gap-8">
       <SectionGroup as="h3" title={t(`${D}.groups.contract`)}>
         <ContractCard />
+        <RestOfProfileCard />
         <SubmissionsCard id={submissionsId} />
       </SectionGroup>
       {documents.isPending ? (

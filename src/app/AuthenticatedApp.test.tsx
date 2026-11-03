@@ -123,10 +123,12 @@ const ALL_SECTIONS = [
 
 /**
  * Professionnels' « Listes » (the five lists as tabs since NAV-3), « Documents requis » (4c.3),
- * « Fiche PDF » (P4-353) and « Contrats » (Task 4d.3), read like them, after the core ones.
+ * « Consignes du questionnaire » (P4-562), « Fiche PDF » (P4-353) and « Contrats » (Task 4d.3),
+ * read like them, after the core ones.
  */
 const PROFESSIONALS_LIST_SECTIONS = [
   'modules.professionals.settings.lists.title', 'modules.professionals.settings.requiredDocuments.title',
+  'modules.professionals.settings.questionnaireTexts.title',
   'modules.professionals.settings.fiche.title',
   'modules.professionals.settings.contracts.title',
 ] as const
@@ -134,13 +136,15 @@ const PROFESSIONALS_LIST_SECTIONS = [
 const PROFESSIONALS_SEEN_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.invitations.title'] as const
 /** Then « Rémunération » (`professionals.compensation`: the admin only, by default). */
 const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_SEEN_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
-const PROFESSIONALS_LIST_SECTION_IDS = ['lists', 'required-documents', 'fiche', 'contracts', 'invitations'].map(
+const PROFESSIONALS_LIST_SECTION_IDS = ['lists', 'required-documents', 'questionnaire-texts', 'fiche', 'contracts', 'invitations'].map(
   (id) => `professionals:${id}`,
 )
 const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professionals:compensation']
 const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
 /** « Révision mensuelle »: professionals.compensation only (admin by default). */
 const PROFESSIONALS_REVIEW_ROUTE = 'professionals:/professionnels/revision-mensuelle'
+/** « Approches » (P4-561): the approach counts, professionals.view. */
+const PROFESSIONALS_APPROACHES_ROUTE = 'professionals:/professionnels/approches'
 /** The provider's questionnaire (`professionals.self`; the test's admin-like access holds every key). */
 const PROFESSIONALS_QUESTIONNAIRE_ROUTE = 'professionals:/mon-profil/questionnaire'
 // « Mon profil » (4b.5, professionals.self).
@@ -649,7 +653,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE, PROFESSIONALS_MY_DOCUMENTS_ROUTE])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_APPROACHES_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE, PROFESSIONALS_MY_DOCUMENTS_ROUTE])
   })
 
   it('skips the pages the user may not open', () => {
@@ -660,6 +664,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     // « Signature électronique », and Professionnels.
     expect(preloaded()).toEqual([
       'identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'signing', ...PROFESSIONALS_LIST_SECTION_IDS, ...PROFESSIONALS_ROUTES,
+      PROFESSIONALS_APPROACHES_ROUTE,
     ])
   })
 

@@ -1,4 +1,4 @@
-import { CircleUser, FileCheck, FileSignature, FileText, FolderOpen, HandCoins, ListChecks, Send, Users } from 'lucide-react'
+import { CircleUser, FileCheck, FileSignature, FileText, FolderOpen, HandCoins, ListChecks, MessageSquareText, Send, Users } from 'lucide-react'
 import type { Access } from '@/core/access/access'
 import type { ModuleManifest, SettingsArea } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
@@ -65,6 +65,12 @@ export const professionalsManifest: ModuleManifest = {
       permission: 'professionals.compensation',
       component: lazyPage(() => import('./pages/RetentionReviewPage'), 'RetentionReviewPage'),
     },
+    // « Approches » (P4-561): the counts Jonathan asked for, linked from the list. A static segment.
+    {
+      path: 'professionnels/approches',
+      permission: 'professionals.view',
+      component: lazyPage(() => import('./pages/ApproachesPage'), 'ApproachesPage'),
+    },
     // « Mon profil » (4b.5): the professional's own file, read-only, and « Mettre mon profil à jour ».
     { path: 'mon-profil', permission: 'professionals.self', component: lazyPage(() => import('./pages/self/MyProfilePage'), 'MyProfilePage') },
     // The provider's questionnaire (4b.4): where an accepted invitation lands (P4-266) and where an
@@ -127,6 +133,15 @@ export const professionalsManifest: ModuleManifest = {
       icon: FileCheck,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/RequiredDocumentsSettingsPage'), 'RequiredDocumentsSettingsPage'),
+    },
+    {
+      // P4-562: the questionnaire's own wording, so the clinic rewords a step without a deploy.
+      id: 'questionnaire-texts',
+      path: 'consignes-questionnaire',
+      labelKey: 'modules.professionals.settings.questionnaireTexts.title',
+      icon: MessageSquareText,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/QuestionnaireTextsSettingsPage'), 'QuestionnaireTextsSettingsPage'),
     },
     {
       // What the fiche given to clients shows (P4-353): read like the lists, changed with `professionals.settings`.

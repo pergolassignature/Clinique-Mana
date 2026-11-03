@@ -9,6 +9,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Radio } from '@/shared/ui/radio'
+import { BIRTHDAY_DAYS, BIRTHDAY_MONTHS, joinBirthday, splitBirthday } from '../../lib/birthday'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
 import { professionalSchema, submittedProfessions, toProfessionalValues, type ProfessionalValues } from '../../schemas/questionnaire'
 import { FIELD_GRID, FieldGroup, StepActions, StepAlert, StepForm } from './StepParts'
@@ -59,6 +60,49 @@ export function ProfessionalStep({ ctx }: { ctx: StepContext }) {
           {(field) => <Input {...field} {...form.register('years_experience')} inputMode="numeric" maxLength={2} autoComplete="off" className="tabular max-w-[6rem]" />}
         </FormField>
       </div>
+      {/* P4-564: the day and the month, never the year. */}
+      <FormField label={t(`${P}.birthday`)} help={t(`${P}.birthdayHelp`)} error={form.formState.errors.birthday?.message}>
+        {(field) => (
+          <Controller
+            control={form.control}
+            name="birthday"
+            render={({ field: value }) => {
+              const { month, day } = splitBirthday(value.value ?? '')
+              return (
+                <div className="flex gap-2">
+                  <Select
+                    {...field}
+                    aria-label={t(`${P}.birthdayDay`)}
+                    value={day}
+                    onChange={(event) => value.onChange(joinBirthday(month, event.target.value))}
+                    className="w-24"
+                  >
+                    <option value="">{t(`${P}.birthdayDayPlaceholder`)}</option>
+                    {BIRTHDAY_DAYS.map((d) => (
+                      <option key={d} value={d}>
+                        {Number(d)}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    aria-label={t(`${P}.birthdayMonth`)}
+                    value={month}
+                    onChange={(event) => value.onChange(joinBirthday(event.target.value, day))}
+                    className="w-40"
+                  >
+                    <option value="">{t(`${P}.birthdayMonthPlaceholder`)}</option>
+                    {BIRTHDAY_MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )
+            }}
+          />
+        )}
+      </FormField>
       <StepAlert message={alert} />
       <StepActions back={ctx.back} pending={pending} />
     </StepForm>
