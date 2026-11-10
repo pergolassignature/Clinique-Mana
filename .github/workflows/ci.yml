@@ -24,7 +24,12 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      # @pergolas-signature/email-render comes from GitHub Packages (.npmrc), which needs a token
+      # even to read: a read:packages token in the repository secret NODE_AUTH_TOKEN. Only the
+      # install step sees it.
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run lint:supabase
@@ -92,7 +97,12 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      # @pergolas-signature/email-render comes from GitHub Packages (.npmrc), which needs a token
+      # even to read: a read:packages token in the repository secret NODE_AUTH_TOKEN. Only the
+      # install step sees it.
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
       # Every migration, then supabase/seed.sql: the specs sign in with its local logins. Mailpit stays:
       # the onboarding spec reads the invitation email there. imgproxy stays too: storage-sign's
       # image variants (the photos' small copies, ADR 0009) are rendered by it.
