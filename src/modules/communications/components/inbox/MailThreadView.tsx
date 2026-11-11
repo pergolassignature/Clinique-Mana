@@ -16,8 +16,8 @@ import {
 } from '@/shared/ui/dropdown-menu'
 import type { MailAction, MailAttachment, MailLabel, MailMessage, MailThread } from '../../api/inbox'
 import { useMailAction, useMailLabels, useMailThread } from '../../hooks/use-inbox'
-import { htmlHasContent, prepareEmailHtml } from '../../lib/email-html'
-import { SafeEmailHtml } from '../SafeEmailHtml'
+import { htmlHasContent } from '../../lib/email-html'
+import { MessageHtml } from './MessageHtml'
 import { gmailThreadUrl, senderLabel } from '../../lib/inbox-format'
 import { ThreadClientLink } from './ThreadClientLink'
 import type { ComposeMode } from '../../api/composer'
@@ -253,7 +253,6 @@ function MessageItem({ message, thread, openByDefault }: { message: MailMessage;
 
 /** The body: the sanitized HTML (cid images resolved, remote ones held), else the text, else why there is none. */
 function MessageBody({ message }: { message: MailMessage }) {
-  const [showImages, setShowImages] = useState(false)
   const inline = useMemo(
     () => message.attachments.filter((a) => a.content_id && a.stored_file_id && a.status === 'stored'),
     [message.attachments],
@@ -267,26 +266,10 @@ function MessageBody({ message }: { message: MailMessage }) {
     }
     return map
   }, [inline, urls])
-  const prepared = useMemo(
-    () => (htmlHasContent(message.body_html) ? prepareEmailHtml(message.body_html as string, { inlineImages, showRemoteImages: showImages }) : null),
-    [message.body_html, inlineImages, showImages],
-  )
 
   if (message.body_purged) return <p className="text-sm text-muted-foreground">{t(`${V}.purged`)}</p>
-  if (prepared) {
-    return (
-      <div className="space-y-2">
-        {prepared.blockedImages > 0 && (
-          <p className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
-            {t(`${V}.imagesHeld`)}
-            <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setShowImages(true)}>
-              {t(`${V}.showImages`)}
-            </Button>
-          </p>
-        )}
-        <SafeEmailHtml html={prepared.html} />
-      </div>
-    )
+  if (message.body_html && htmlHasContent(message.body_html)) {
+    return <MessageHtml html={message.body_html} inlineImages={inlineImages} />
   }
   if (message.body_text?.trim()) {
     return <p className="whitespace-pre-wrap break-words text-sm text-foreground">{message.body_text}</p>
