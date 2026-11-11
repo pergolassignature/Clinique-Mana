@@ -20,8 +20,8 @@ interface MessageHtmlProps {
 
 /**
  * A received message's HTML in `@pergolas-signature/email-render`'s sandboxed frame (no scripts,
- * links in a new tab, a layout wider than the pane scaled down to fit), its remote images held
- * until « Afficher les images ».
+ * no referrer, links in a new tab and reachable by keyboard, a layout wider than the pane scaled
+ * down to fit), its remote images held until « Afficher les images ».
  *
  * The frame gets the **raw** HTML and sanitizes it itself with the same options: sanitized HTML
  * passed in would be sanitized again, and that second pass would hold the inline images the first
@@ -54,6 +54,8 @@ export function MessageHtml({ html, inlineImages }: MessageHtmlProps) {
         linkColor={LINK_COLOR}
         minHeight={MIN_HEIGHT}
         className="block w-full"
+        // In the tab order: a keyboard reaches the links inside the email.
+        tabbable
       />
     </div>
   )

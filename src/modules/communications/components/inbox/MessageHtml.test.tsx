@@ -39,6 +39,11 @@ describe('MessageHtml (the package frame, with the clinic options)', () => {
     expect(first?.html).toBe(RAW)
     expect(first?.title).toBe(t('modules.communications.inbox.messageFrame'))
     expect(first?.sanitizeOptions).toMatchObject({ remoteImages: 'hold', styleFetch: 'block', maxInlineWidthPx: 800 })
+    // In the tab order (links reachable by keyboard), and no referrer for the images it loads.
+    expect(first?.tabbable).toBe(true)
+    expect(frame()).not.toHaveAttribute('tabindex')
+    expect(frame()).toHaveAttribute('referrerpolicy', 'no-referrer')
+    expect(srcdoc()).toContain('<meta name="referrer" content="no-referrer"')
     // Same options object on a re-render: the frame does not sanitize again.
     expect(last?.sanitizeOptions).toBe(first?.sanitizeOptions)
 
