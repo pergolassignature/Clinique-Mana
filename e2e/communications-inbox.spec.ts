@@ -54,17 +54,22 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await expect(page.getByText('La boîte info@clinique.test est connectée.')).toBeVisible({ timeout: 60_000 })
 
   await page.goto('/courriels')
-  const list = page.getByRole('list', { name: 'Conversations' })
+  // The list and the thread are the email-ui kit's: rows are buttons in the « Conversations » region,
+  // each body is in its sanitized frame.
+  const list = page.getByRole('region', { name: 'Conversations' })
+  const body = page.frameLocator('iframe[title="Contenu du courriel"]').first()
   const thread = list.getByRole('button', { name: /Attestation pour mes assurances/ })
   await expect(thread).toBeVisible()
   await expect(list.getByRole('button', { name: /Annulation de mon rendez-vous de jeudi/ })).toBeVisible()
 
-  // The thread: the subject takes the focus, the attachment opens through a signed address.
+  // The thread: its pane takes the focus (named by the subject), the attachment opens through a
+  // signed address.
   await thread.click()
   await expect(page).toHaveURL(/[?&]fil=[0-9a-f-]{36}/)
-  const subject = page.getByRole('heading', { level: 2, name: 'Attestation pour mes assurances' })
-  await expect(subject).toBeFocused()
-  await expect(page.getByText(/pourriez-vous m’envoyer une attestation/)).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Attestation pour mes assurances' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Attestation pour mes assurances' })).toBeFocused()
+  await expect(thread).toHaveAttribute('aria-current', 'true')
+  await expect(body.getByText(/pourriez-vous m’envoyer une attestation/)).toBeVisible()
   const attachment = page.getByRole('link', { name: /formulaire-assurance\.pdf/ })
   await expect(attachment).toHaveAttribute('href', /\/storage\/v1\/object\/sign\//)
 
@@ -120,8 +125,8 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await expect(composer.getByText(/Envoi dans \d s\./)).toBeVisible()
   await expect(page.getByText('Courriel envoyé.')).toBeVisible({ timeout: 20_000 })
   await expect(composer).toHaveCount(0)
-  // The reply is in the thread at once (mirrored by gmail-send), from the clinic.
-  await expect(page.getByRole('article', { name: /Clinique MANA/ })).toBeVisible()
+  // The reply is in the thread at once (mirrored by gmail-send), from the clinic: its header names it.
+  await expect(page.getByRole('region', { name: 'Attestation pour mes assurances' }).getByText(/^Clinique MANA/)).toBeVisible()
 
   // Disconnect, so the next run starts as the first.
   await page.goto('/parametres/courriels-gmail')
