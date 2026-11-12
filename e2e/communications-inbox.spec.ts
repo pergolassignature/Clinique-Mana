@@ -62,12 +62,12 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await expect(thread).toBeVisible()
   await expect(list.getByRole('button', { name: /Annulation de mon rendez-vous de jeudi/ })).toBeVisible()
 
-  // The thread: its pane takes the focus (named by the subject), the attachment opens through a
-  // signed address.
+  // The thread: its subject heading takes the focus (in a pane named by the subject), the
+  // attachment opens through a signed address.
   await thread.click()
   await expect(page).toHaveURL(/[?&]fil=[0-9a-f-]{36}/)
-  await expect(page.getByRole('heading', { level: 2, name: 'Attestation pour mes assurances' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Attestation pour mes assurances' })).toBeFocused()
+  await expect(page.getByRole('region', { name: 'Attestation pour mes assurances' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Attestation pour mes assurances' })).toBeFocused()
   await expect(thread).toHaveAttribute('aria-current', 'true')
   await expect(body.getByText(/pourriez-vous m’envoyer une attestation/)).toBeVisible()
   const attachment = page.getByRole('link', { name: /formulaire-assurance\.pdf/ })
