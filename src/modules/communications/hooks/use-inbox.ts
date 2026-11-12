@@ -88,6 +88,17 @@ function applyToRow(row: MailThreadRow, action: MailAction): MailThreadRow {
   return { ...row, label_ids: labelsAfter(row.label_ids, action), unread_count: unread }
 }
 
+/** The views made of the inbox's threads: an archived thread leaves them. */
+const INBOX_VIEWS = new Set<unknown>(['inbox', 'to_link'])
+/** Where a list key holds its view and its search (`mailKeys.threadList`). */
+const VIEW_AT = mailKeys.threadLists().length + 1
+const SEARCH_AT = mailKeys.threadLists().length + 3
+
+/** Whether `action` takes a thread out of the list under `key` (archiving, in an inbox view). */
+function leavesList(key: readonly unknown[], action: MailAction): boolean {
+  return action.kind === 'archive' && INBOX_VIEWS.has(key[VIEW_AT]) && key[SEARCH_AT] === null
+}
+
 function applyToThread(thread: MailThread, action: MailAction): MailThread {
   const last = thread.messages.length - 1
   return {
@@ -106,10 +117,10 @@ function applyToThread(thread: MailThread, action: MailAction): MailThread {
 
 /**
  * An action on threads (`gmail-modify`), optimistic: the lists and the open thread show the
- * result at once and roll back if Gmail refuses (a French toast says why). Once settled, the
- * lists, the threads and the mailboxes' unread counts are read again: that is when an archived
- * thread leaves « Boîte de réception », and when threads named in a partial answer's `failed`
- * show their real state again. Actions run one after the other (one mutation scope), so a
+ * result at once (an archived thread leaves « Boîte de réception » and « À rattacher ») and roll
+ * back if Gmail refuses (a French toast says why). Once settled, the
+ * lists, the threads and the mailboxes' unread counts are read again: that is when threads named
+ * in a partial answer's `failed` show their real state again. Actions run one after the other (one mutation scope), so a
  * rollback never undoes a later action and Gmail receives them in order.
  */
 export function useMailAction({ silent = false }: { silent?: boolean } = {}) {
@@ -126,9 +137,17 @@ export function useMailAction({ silent = false }: { silent?: boolean } = {}) {
       const lists = queryClient.getQueriesData<InfiniteData<MailThreadRow[]>>({ queryKey: mailKeys.threadLists() })
       const threads = threadIds.map((id) => [id, queryClient.getQueryData<MailThread | null>(mailKeys.thread(id))] as const)
       const ids = new Set(threadIds)
-      queryClient.setQueriesData<InfiniteData<MailThreadRow[]>>({ queryKey: mailKeys.threadLists() }, (data) =>
-        data ? { ...data, pages: data.pages.map((page) => page.map((row) => (ids.has(row.id) ? applyToRow(row, action) : row))) } : data,
-      )
+      // An archived thread leaves the inbox's views at once (a finger's swipe slides its row out).
+      for (const [key, data] of lists) {
+        if (!data) continue
+        const leaves = leavesList(key, action)
+        queryClient.setQueryData<InfiniteData<MailThreadRow[]>>(key, {
+          ...data,
+          pages: data.pages.map((page) =>
+            leaves ? page.filter((row) => !ids.has(row.id)) : page.map((row) => (ids.has(row.id) ? applyToRow(row, action) : row)),
+          ),
+        })
+      }
       for (const [id, thread] of threads) {
         if (thread) queryClient.setQueryData(mailKeys.thread(id), applyToThread(thread, action))
       }

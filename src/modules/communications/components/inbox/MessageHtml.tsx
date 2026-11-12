@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { prepareEmailHtml, SafeEmailHtml } from '@pergolas-signature/email-render'
 import { t } from '@/i18n'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { emailSanitizeOptions } from '../../lib/email-html'
 
@@ -16,6 +17,7 @@ interface MessageHtmlProps {
   html: string
   /** `content_id` (without angle brackets) → the attachment's signed URL. */
   inlineImages: ReadonlyMap<string, string>
+  className?: string
 }
 
 /**
@@ -28,7 +30,7 @@ interface MessageHtmlProps {
  * one had resolved to their signed `https` URL. The count of held images comes from a separate
  * pass over the same raw HTML, only while they are held.
  */
-export function MessageHtml({ html, inlineImages }: MessageHtmlProps) {
+export function MessageHtml({ html, inlineImages, className }: MessageHtmlProps) {
   const [showImages, setShowImages] = useState(false)
   // A dependency of the frame's own memo: a new object would sanitize again on every render.
   const sanitizeOptions = useMemo(() => emailSanitizeOptions(inlineImages, showImages), [inlineImages, showImages])
@@ -38,7 +40,7 @@ export function MessageHtml({ html, inlineImages }: MessageHtmlProps) {
   )
 
   return (
-    <div className="space-y-2">
+    <div className={cn('space-y-2', className)}>
       {blockedImages > 0 && (
         <p className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
           {t(`${V}.imagesHeld`)}

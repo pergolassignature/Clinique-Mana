@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// jsdom: every body is in the sanitized frame (DOMPurify, as in production), read from its srcdoc.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -61,6 +63,8 @@ vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const I = 'modules.communications.inbox'
+/** The kit's words (`@pergolas-signature/email-ui`). */
+const UI = 'modules.communications.emailUi'
 const T1 = 'a0000000-0000-0000-0000-000000000001'
 const T2 = 'a0000000-0000-0000-0000-000000000002'
 
@@ -175,17 +179,30 @@ function renderPage(path = '/courriels', { files = true }: { files?: boolean } =
   return queryClient
 }
 
+/** The kit's rows, in order: each a `role="button"` keyed by its thread (`data-row-key`). */
+async function listRows(): Promise<HTMLElement[]> {
+  const list = await screen.findByRole('region', { name: t(`${I}.list.label`) })
+  await waitFor(() => expect(list.querySelectorAll('[data-row-key]').length).toBeGreaterThan(0))
+  return [...list.querySelectorAll<HTMLElement>('[data-row-key]')]
+}
+
+/** What the message frames show: their sanitized HTML (`srcdoc`), joined. */
+const framesHtml = () => [...document.querySelectorAll('iframe')].map((frame) => frame.getAttribute('srcdoc') ?? '').join('\n')
+
 describe('InboxPage', () => {
   it('lists the inbox of the first mailbox, newest first, with unread, starred and attachments marked', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: t(`${I}.title`) })).toBeInTheDocument()
-    const list = await screen.findByRole('list', { name: t(`${I}.list.label`) })
-    const rows = within(list).getAllByRole('button')
+    const rows = await listRows()
     expect(rows).toHaveLength(2)
+    expect(rows.map((row) => row.dataset.rowKey)).toEqual([T1, T2])
     expect(rows[0]).toHaveTextContent('Alice Exemple')
-    expect(rows[0]).toHaveTextContent(t(`${I}.list.unread`))
-    expect(within(rows[0]!).getByLabelText(t(`${I}.list.attachments`))).toBeInTheDocument()
-    expect(within(rows[1]!).getByLabelText(t(`${I}.list.starred`))).toBeInTheDocument()
+    expect(rows[0]).toHaveTextContent('Demande de rendez-vous')
+    expect(within(rows[0]!).getByRole('img', { name: t(`${UI}.mailbox.unread`) })).toBeInTheDocument()
+    expect(within(rows[1]!).queryByRole('img', { name: t(`${UI}.mailbox.unread`) })).not.toBeInTheDocument()
+    // The kit's paperclip and follow flag (unlabelled icons).
+    expect(rows[0]!.querySelector('.lucide-paperclip')).not.toBeNull()
+    expect(rows[1]!.querySelector('.lucide-flag')).not.toBeNull()
     expect(mocks.inbox.listMailThreads).toHaveBeenCalledWith(
       { connectionId: MAILBOX.id, view: 'inbox', labelId: null, search: '' },
       null,
@@ -198,17 +215,21 @@ describe('InboxPage', () => {
     expect(screen.getByText(t(`${I}.thread.select`))).toBeInTheDocument()
   })
 
-  it('opens a thread: the unread and latest messages open, the others folded; marks it read once, silently', async () => {
+  it('opens a thread from its row: the latest first, the read one behind « 1 message précédent »; marks it read once', async () => {
     const user = userEvent.setup()
     renderPage()
-    const list = await screen.findByRole('list', { name: t(`${I}.list.label`) })
-    await user.click(within(list).getAllByRole('button')[0]!)
-    expect(await screen.findByRole('heading', { level: 2, name: 'Demande de rendez-vous' })).toHaveFocus()
-    expect(screen.getByText('Bonjour, je voudrais un rendez-vous mardi.')).toBeInTheDocument()
-    // The read one is folded to a line; a click opens it.
-    expect(screen.queryByText('Premier message, déjà lu.')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Premier message/ }))
-    expect(screen.getByText('Premier message, déjà lu.')).toBeInTheDocument()
+    await user.click((await listRows())[0]!)
+    // The pane takes the focus, named by the subject (the kit's heading takes none).
+    expect(await screen.findByRole('region', { name: 'Demande de rendez-vous' })).toHaveFocus()
+    expect(screen.getByRole('heading', { level: 2, name: 'Demande de rendez-vous' })).toBeInTheDocument()
+    expect((await listRows())[0]).toHaveAttribute('aria-current', 'true')
+    await waitFor(() => expect(framesHtml()).toContain('Bonjour, je voudrais un rendez-vous mardi.'))
+    // The read one waits behind the history toggle, then folded to a line; a click opens it.
+    expect(framesHtml()).not.toContain('Premier message, déjà lu.')
+    await user.click(screen.getByRole('button', { name: new RegExp(t(`${UI}.email.thread.previousMessagesCount_one`, { count: '1' })) }))
+    await user.click(await screen.findByRole('button', { name: /Premier message/ }))
+    await waitFor(() => expect(framesHtml()).toContain('Premier message, déjà lu.'))
+    // Read once: by the row's click (the kit), not again by the thread.
     await waitFor(() => expect(mocks.inbox.modifyMailThreads).toHaveBeenCalledTimes(1))
     expect(mocks.inbox.modifyMailThreads).toHaveBeenCalledWith([T1], { kind: 'read' })
     // The stored attachment opens through its signed URL; the other points to Gmail.
@@ -218,19 +239,31 @@ describe('InboxPage', () => {
     expect(screen.getByText(new RegExp(t(`${I}.thread.attachmentInGmail`)))).toBeInTheDocument()
   })
 
+  it('opened from a link, an unread thread marks itself read, once and silently', async () => {
+    renderPage(`/courriels?fil=${T1}`)
+    await waitFor(() => expect(mocks.inbox.modifyMailThreads).toHaveBeenCalledWith([T1], { kind: 'read' }))
+    await screen.findByRole('heading', { level: 2, name: 'Demande de rendez-vous' })
+    expect(mocks.inbox.modifyMailThreads).toHaveBeenCalledTimes(1)
+    expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
   it('archives at once (optimistic) and puts the thread back when Gmail refuses, with a French toast', async () => {
     const user = userEvent.setup()
     mocks.inbox.getMailThread.mockResolvedValue(thread({ unread_count: 0, label_ids: ['INBOX'] }))
     let refuse: (error: unknown) => void = () => {}
     mocks.inbox.modifyMailThreads.mockImplementation(() => new Promise((_resolve, reject) => (refuse = reject)))
     renderPage(`/courriels?fil=${T1}`)
-    const archive = await screen.findByRole('button', { name: t(`${I}.thread.archive`) })
+    const archive = await screen.findByRole('button', { name: t(`${UI}.mailThread.archive`) })
     await user.click(archive)
     expect(mocks.inbox.modifyMailThreads).toHaveBeenCalledWith([T1], { kind: 'archive' })
     // Out of the inbox at once: the action offers the way back.
-    expect(await screen.findByRole('button', { name: t(`${I}.thread.toInbox`) })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: t(`${UI}.mailThread.moveToInbox`) })).toBeInTheDocument()
+    // …and leaves « Boîte de réception » at once (a swipe slides its row out).
+    await waitFor(() => expect(document.querySelector(`[data-row-key="${T1}"]`)).toBeNull())
+    expect(document.querySelector(`[data-row-key="${T2}"]`)).not.toBeNull()
     refuse(new FunctionCallError('provider_error', 502, 'Gmail refused'))
-    expect(await screen.findByRole('button', { name: t(`${I}.thread.archive`) })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: t(`${UI}.mailThread.archive`) })).toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector(`[data-row-key="${T1}"]`)).not.toBeNull())
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledTimes(1))
   })
 
@@ -302,21 +335,22 @@ describe('InboxPage', () => {
     const user = userEvent.setup()
     mocks.inbox.getMailThread.mockResolvedValue(thread({ unread_count: 0, label_ids: ['INBOX'] }))
     renderPage(`/courriels?fil=${T1}`)
-    await user.click(await screen.findByRole('button', { name: t(`${I}.thread.back`) }))
+    // The thread, not its loading state (which has its own « Retour »).
+    await screen.findByRole('heading', { level: 2, name: 'Demande de rendez-vous' })
+    await user.click(screen.getByRole('button', { name: t(`${UI}.mailThread.back`) }))
     expect(await screen.findByText(t(`${I}.thread.select`))).toBeInTheDocument()
-    const list = screen.getByRole('list', { name: t(`${I}.list.label`) })
-    await waitFor(() => expect(within(list).getAllByRole('button')[0]).toHaveFocus())
+    await waitFor(() => expect(document.querySelector(`[data-row-key="${T1}"]`)).toHaveFocus())
   })
 
   it('says when the thread is gone', async () => {
     mocks.inbox.getMailThread.mockResolvedValue(null)
     renderPage(`/courriels?fil=${T2}`)
-    expect(await screen.findByText(t(`${I}.thread.gone`))).toBeInTheDocument()
+    expect(await screen.findByText(t(`${UI}.mailThread.emptyThread`))).toBeInTheDocument()
   })
 
   it('ignores a malformed thread id in the address', async () => {
     renderPage('/courriels?fil=pas-un-identifiant')
-    expect(await screen.findByRole('list', { name: t(`${I}.list.label`) })).toBeInTheDocument()
+    expect(await listRows()).toHaveLength(2)
     expect(screen.getByText(t(`${I}.thread.select`))).toBeInTheDocument()
     expect(mocks.inbox.getMailThread).not.toHaveBeenCalled()
   })
@@ -346,7 +380,7 @@ describe('InboxPage', () => {
     renderPage()
     expect(await screen.findByText(t(`${I}.list.loadError`))).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: t('common.retry') }))
-    expect(await screen.findByRole('list', { name: t(`${I}.list.label`) })).toBeInTheDocument()
+    expect(await listRows()).toHaveLength(2)
   })
 })
 
@@ -453,7 +487,7 @@ describe('InboxPage: the composer (CM3)', () => {
   it('« Répondre » opens the composer on the thread: the sender, « Re : », the quote', async () => {
     const user = userEvent.setup()
     renderPage(`/courriels?fil=${T1}`)
-    await user.click(await screen.findByRole('button', { name: t(`${I}.thread.reply`) }))
+    await user.click(await screen.findByRole('button', { name: t(`${UI}.mailThread.reply`) }))
     const composer = await screen.findByRole('dialog', { name: /Demande de rendez-vous/ })
     expect(within(composer).getByLabelText(t(`${K}.to`))).toHaveValue('alice@exemple.test')
     expect(within(composer).getByLabelText(t(`${K}.subject`))).toHaveValue(`${t(`${K}.prefixReply`)} Demande de rendez-vous`)

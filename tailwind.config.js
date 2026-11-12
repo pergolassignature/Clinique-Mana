@@ -1,4 +1,5 @@
 import plugin from 'tailwindcss/plugin'
+import emailUiPreset from '@pergolas-signature/email-ui/tailwind-preset'
 
 /** A design-system colour (RGB channels in src/styles/globals.css), opacity modifiers included. */
 const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
@@ -12,8 +13,11 @@ const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
  * @type {import('tailwindcss').Config}
  */
 export default {
+  // The mail list and thread kit (« Courriels ») is written in PS Hub's tokens: its preset declares
+  // them (`ink-900`…, `rule-*`, `crm-gray-*`, the `t-*` sizes); a key defined below wins over it.
+  presets: [emailUiPreset],
   darkMode: ['class'],
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}', './node_modules/@pergolas-signature/email-ui/dist/**/*.js'],
   theme: {
     extend: {
       colors: {
