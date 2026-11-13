@@ -219,9 +219,9 @@ describe('InboxPage', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click((await listRows())[0]!)
-    // The pane takes the focus, named by the subject (the kit's heading takes none).
-    expect(await screen.findByRole('region', { name: 'Demande de rendez-vous' })).toHaveFocus()
-    expect(screen.getByRole('heading', { level: 2, name: 'Demande de rendez-vous' })).toBeInTheDocument()
+    // The subject heading takes the focus, in a pane named by the subject.
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Demande de rendez-vous' })).toHaveFocus())
+    expect(screen.getByRole('region', { name: 'Demande de rendez-vous' })).toContainElement(document.activeElement as HTMLElement)
     expect((await listRows())[0]).toHaveAttribute('aria-current', 'true')
     await waitFor(() => expect(framesHtml()).toContain('Bonjour, je voudrais un rendez-vous mardi.'))
     // The read one waits behind the history toggle, then folded to a line; a click opens it.
@@ -237,6 +237,34 @@ describe('InboxPage', () => {
     expect(mocks.storage.useSignedFileUrl).toHaveBeenCalledWith('f0000000-0000-0000-0000-000000000001', { refresh: true })
     expect(screen.getByText(/dossier\.zip/)).toBeInTheDocument()
     expect(screen.getByText(new RegExp(t(`${I}.thread.attachmentInGmail`)))).toBeInTheDocument()
+  })
+
+  it('with the subject heading focused, J / K open the next / previous thread, its heading focused, and E archives', async () => {
+    mocks.inbox.getMailThread.mockImplementation(async (id: string) =>
+      id === T2
+        ? thread({
+            id: T2,
+            gmail_thread_id: '18c0002',
+            subject: 'Facture',
+            label_ids: ['INBOX', 'STARRED'],
+            unread_count: 0,
+            message_count: 1,
+            messages: [message({ subject: 'Facture' })],
+          })
+        : thread(),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await user.click((await listRows())[0]!)
+    const first = () => screen.getByRole('heading', { level: 2, name: 'Demande de rendez-vous' })
+    await waitFor(() => expect(first()).toHaveFocus())
+    await user.keyboard('j')
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Facture' })).toHaveFocus())
+    expect(document.querySelector(`[data-row-key="${T2}"]`)).toHaveAttribute('aria-current', 'true')
+    await user.keyboard('k')
+    await waitFor(() => expect(first()).toHaveFocus())
+    await user.keyboard('e')
+    expect(mocks.inbox.modifyMailThreads).toHaveBeenCalledWith([T1], { kind: 'archive' })
   })
 
   it('opened from a link, an unread thread marks itself read, once and silently', async () => {

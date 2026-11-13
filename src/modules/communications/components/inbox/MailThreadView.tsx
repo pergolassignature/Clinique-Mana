@@ -70,7 +70,8 @@ interface MailThreadViewProps {
  * « Retour » on a phone). E archives, F forwards, R answers all, J / K move through the list.
  *
  * Opening an unread thread marks it read once, silently (as Gmail), unless its row opened it: the
- * row's click already did. The pane takes the focus once the thread is there, named by its subject.
+ * row's click already did. Its subject heading takes the focus once the thread is there (a screen
+ * reader reads it; J / K land on the next one's), the pane if the header has none.
  * Received HTML is sanitized in a sandboxed frame, remote images held (`MessageBodySlot`).
  */
 export function MailThreadView({ threadId, onBack, preview, markReadOnOpen = true, onNextThread, onPrevThread }: MailThreadViewProps) {
@@ -89,6 +90,7 @@ export function MailThreadView({ threadId, onBack, preview, markReadOnOpen = tru
   // List and thread side by side: no « Retour ».
   const wide = useMediaQuery(WIDE_INBOX_QUERY)
   const pane = useRef<HTMLElement>(null)
+  const title = useRef<HTMLHeadingElement>(null)
   const markedRead = useRef<string | null>(null)
 
   const messages = useMemo(() => (data ? toStackMessages(data) : []), [data])
@@ -132,10 +134,11 @@ export function MailThreadView({ threadId, onBack, preview, markReadOnOpen = tru
     prevThread: onPrevThread,
   })
 
-  // The pane takes the focus once the thread is there (it is not rendered while it loads).
+  // The subject heading takes the focus once the thread is there (neither is rendered while it
+  // loads); the pane if the header has none.
   const loaded = data !== null
   useEffect(() => {
-    if (loaded) pane.current?.focus()
+    if (loaded) (title.current ?? pane.current)?.focus()
   }, [threadId, loaded])
   useEffect(() => {
     if (!markReadOnOpen || !data || data.unread_count === 0 || markedRead.current === threadId) return
@@ -154,10 +157,12 @@ export function MailThreadView({ threadId, onBack, preview, markReadOnOpen = tru
   const icon = touch ? TOUCH_ICON : ICON
   const followLabel = starred ? t(`${V}.unstar`) : t(`${V}.star`)
 
+  // Named by the subject: a region a screen reader can jump to. Focusable for the fallback above.
   return (
     <section ref={pane} tabIndex={-1} aria-label={subject} className="flex min-h-0 min-w-0 flex-1 flex-col bg-card outline-none">
       <ThreadHeader
         title={subject}
+        titleRef={title}
         participants={participants(data)}
         // A finger has « Retour » in its bar at the foot.
         onBack={back}
