@@ -125,6 +125,8 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await expect(composer.getByText(/Envoi dans \d s\./)).toBeVisible()
   await expect(page.getByText('Courriel envoyé.')).toBeVisible({ timeout: 20_000 })
   await expect(composer).toHaveCount(0)
+  // The composer gone, the focus is back on what opened it.
+  await expect(page.getByRole('button', { name: 'Répondre', exact: true })).toBeFocused()
   // The reply is in the thread at once (mirrored by gmail-send), from the clinic: its header names it.
   await expect(page.getByRole('region', { name: 'Attestation pour mes assurances' }).getByText(/^Clinique MANA/)).toBeVisible()
 
