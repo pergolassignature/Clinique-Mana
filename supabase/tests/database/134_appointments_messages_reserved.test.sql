@@ -32,7 +32,9 @@ values ('b0000000-0000-0000-0000-00000000000a', 'd0000000-0000-0000-0000-0000000
 insert into public.sms_consents (org_id, phone_e164, status, source, granted_at)
 values ('b0000000-0000-0000-0000-00000000000a', '+15145550101', 'opted_in', 'staff', now());
 select set_config('test.s50', (select id::text from public.services where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 10150), true);
-select set_config('test.d', (((now() at time zone 'America/Toronto')::date + 3 + time '10:00') at time zone 'America/Toronto')::text, true);
+-- Ten days out: beyond the reminder window (one business day ahead; a Friday's reaches Monday, 3 days
+-- out), so the pass queues no reminder here, whatever the day and hour the test runs.
+select set_config('test.d', (((now() at time zone 'America/Toronto')::date + 10 + time '10:00') at time zone 'America/Toronto')::text, true);
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);

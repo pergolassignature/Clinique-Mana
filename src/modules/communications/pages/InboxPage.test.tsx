@@ -522,6 +522,30 @@ describe('InboxPage: the composer (CM3)', () => {
     expect((within(composer).getByLabelText(t(`${K}.body`)) as HTMLTextAreaElement).value).toContain('<blockquote>')
   })
 
+  it('closed, the composer gives the focus back: to « Répondre », or to the subject heading after R or F', async () => {
+    const user = userEvent.setup()
+    renderPage(`/courriels?fil=${T1}`)
+    const reply = await screen.findByRole('button', { name: t(`${UI}.mailThread.reply`) })
+    await user.click(reply)
+    const composer = await screen.findByRole('dialog', { name: /Demande de rendez-vous/ })
+    await waitFor(() => expect(within(composer).getByLabelText(t(`${K}.to`))).toHaveFocus())
+    await user.click(within(composer).getByRole('button', { name: t(`${K}.close`) }))
+    await waitFor(() => expect(composer).not.toBeInTheDocument())
+    expect(reply).toHaveFocus()
+
+    // Gmail's keys: R answers everyone, F forwards; « Supprimer le brouillon » closes a draft never saved.
+    const heading = screen.getByRole('heading', { level: 2, name: 'Demande de rendez-vous' })
+    for (const key of ['r', 'f']) {
+      heading.focus()
+      await user.keyboard(key)
+      const opened = await screen.findByRole('dialog', { name: /Demande de rendez-vous/ })
+      await waitFor(() => expect(within(opened).getByLabelText(t(`${K}.to`))).toHaveFocus())
+      await user.click(within(opened).getByRole('button', { name: t(`${K}.discard`) }))
+      await waitFor(() => expect(opened).not.toBeInTheDocument())
+      expect(heading).toHaveFocus()
+    }
+  })
+
   it('« Nouveau message » opens an empty composer; « Brouillons » lists the drafts and reopens one', async () => {
     const user = userEvent.setup()
     mocks.composer.listDrafts.mockResolvedValue([
