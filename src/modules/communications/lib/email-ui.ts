@@ -5,6 +5,7 @@ import type {
   MailThreadMessage,
   ThreadStackMessage,
 } from '@pergolas-signature/email-ui'
+import type { ComposerStringKey } from '@pergolas-signature/email-ui/composer'
 import { t, type TranslationKey } from '@/i18n'
 import type { MailAction, MailMessage, MailThread, MailThreadRow } from '../api/inbox'
 import { messageToAnswer, replyRecipients } from './compose'
@@ -31,6 +32,15 @@ const plural = new Intl.PluralRules('fr-CA')
  * `_one` / `_other` form (the kit's i18next convention), every value goes in as text.
  */
 export function emailUiText(key: EmailUiStringKey, values?: Record<string, unknown>): string {
+  return kitText(key, values)
+}
+
+/** The composer's `t` (`@pergolas-signature/email-ui/composer`): its keys sit beside the inbox's. */
+export function composerText(key: ComposerStringKey, values?: Record<string, unknown>): string {
+  return kitText(key, values)
+}
+
+function kitText(key: string, values?: Record<string, unknown>): string {
   const count = values?.count
   const path = typeof count === 'number' ? `${WORDS}.${key}_${plural.select(count) === 'one' ? 'one' : 'other'}` : `${WORDS}.${key}`
   if (!values) return t(path as TranslationKey)

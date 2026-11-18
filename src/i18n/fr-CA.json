@@ -3214,8 +3214,8 @@
           "feesPending": "À confirmer",
           "feeLine": "{duration} : {price}",
           "feeDurations": {
-            "50": "Rencontre 50 min",
             "30": "Rencontre 30 min",
+            "50": "Rencontre 50 min",
             "60": "Rencontre 60 min (couple ou famille)"
           },
           "specialized": "Domaine de spécialisation",
@@ -3367,9 +3367,9 @@
           "pricesRequired": "Indiquez au moins un prix."
         },
         "durations": {
-          "60": "60 min (couple ou famille)",
+          "30": "30 min",
           "50": "50 min",
-          "30": "30 min"
+          "60": "60 min (couple ou famille)"
         },
         "sessionsCount": {
           "one": "{count} séance",
@@ -7565,7 +7565,15 @@
         },
         "mailCompose": {
           "draft": "Brouillon",
-          "discardDraft": "Supprimer le brouillon"
+          "discardDraft": "Supprimer le brouillon",
+          "bodyDefaultPlaceholder": "Écrivez votre message…",
+          "aiWriting": "Rédaction en cours…",
+          "quoteShow": "Afficher le message original",
+          "quoteHide": "Masquer le message original",
+          "quoteShowShort": "Message original",
+          "quoteHideShort": "Masquer",
+          "attachmentPreview": "Cliquer pour prévisualiser",
+          "attachmentRemove": "Retirer {name}"
         },
         "email": {
           "thread": {
@@ -7575,6 +7583,20 @@
             "previousMessagesCount_one": "{count} message précédent",
             "previousMessagesCount_other": "{count} messages précédents"
           }
+        },
+        "richEditor": {
+          "bold": "Gras",
+          "italic": "Italique",
+          "underline": "Souligné",
+          "bulletList": "Liste à puces",
+          "orderedList": "Liste numérotée",
+          "link": "Lien",
+          "linkUrlPlaceholder": "https://",
+          "linkApply": "Appliquer",
+          "linkCancel": "Annuler",
+          "toolbar": "Mise en forme",
+          "unlink": "Retirer le lien",
+          "linkInvalid": "Cette adresse n'est pas valide (https://… ou mailto:…)."
         }
       },
       "composer": {
@@ -7589,16 +7611,6 @@
         "subject": "Objet",
         "body": "Message",
         "bodyPlaceholder": "Écrivez votre message…",
-        "toolbar": "Mise en forme",
-        "bold": "Gras",
-        "italic": "Italique",
-        "bulletList": "Liste à puces",
-        "orderedList": "Liste numérotée",
-        "link": "Lien",
-        "linkAddress": "Adresse du lien",
-        "linkInvalid": "Cette adresse n'est pas valide (https://… ou mailto:…).",
-        "linkApply": "Appliquer",
-        "unlink": "Retirer le lien",
         "insert": "Insérer",
         "insertHint": "Rempli à l'envoi",
         "placeholders": {

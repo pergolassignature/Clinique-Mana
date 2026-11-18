@@ -1,10 +1,10 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
-import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import { Placeholder } from '@tiptap/extensions'
-import { Bold, Braces, Italic, Link as LinkIcon, List, ListOrdered, Unlink } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import type { Editor } from '@tiptap/react'
+import type { StarterKitOptions } from '@tiptap/starter-kit'
+import { Braces } from 'lucide-react'
+import { ComposerUiProvider } from '@pergolas-signature/email-ui/composer'
+import { RichEmailEditor as KitEditor } from '@pergolas-signature/email-ui/rich-editor'
 import { t } from '@/i18n'
-import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import {
   DropdownMenu,
@@ -13,12 +13,32 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
-import { Input } from '@/shared/ui/input'
-import { Label } from '@/shared/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { COMPOSE_PLACEHOLDERS } from '../../api/composer'
+import { COMPOSER_UI_PORTS } from './composer-ui-ports'
 
 const C = 'modules.communications.composer'
+
+/** What a link may point to: what `gmail-send` keeps (`_shared/gmail/compose.ts`), so the editor never holds a link the send would strip. */
+const LINK_SCHEMES = /^(https?:|mailto:|tel:|cid:)/i
+
+/**
+ * MANA's changes to the kit's StarterKit set: no headings, and blockquotes kept, because a reply carries
+ * the quoted message in its body. Each key replaces the kit's.
+ */
+const STARTER_KIT: Partial<StarterKitOptions> = {
+  heading: false,
+  blockquote: {},
+  link: {
+    openOnClick: false,
+    autolink: true,
+    protocols: ['mailto'],
+    defaultProtocol: 'https',
+    isAllowedUri: (url, ctx) => LINK_SCHEMES.test(url) && ctx.defaultValidate(url),
+  },
+}
+
+/** The body's typography: MANA's `.prose-email` (no typography plugin here). */
+const BODY_CLASS = 'prose-email min-h-40 px-3 py-2 text-sm text-foreground'
 
 interface RichEmailEditorProps {
   /** The HTML to start from (a draft, a quote); later changes come from the editor only. */
@@ -33,202 +53,71 @@ interface RichEmailEditorProps {
 }
 
 /**
- * The composer's editor (TipTap, as PS Hub's `RichEmailEditor`): paragraphs, bold, italic, lists,
- * links (https and mailto only), and « Insérer » for the placeholders the server fills
- * (`{{person.first_name}}`…). No image, no HTML pasted as is: the schema keeps what it knows, and
- * `gmail-send` hardens what it receives.
+ * The composer's editor: PS Hub's (`@pergolas-signature/email-ui/rich-editor`), with MANA's rules. Bold,
+ * italic, underline, lists and links (the kit's toolbar and link field, which refuses what `gmail-send`
+ * would strip), and « Insérer » for the placeholders the server fills (`{{person.first_name}}`…). No
+ * image, no HTML pasted as is: the schema keeps what it knows, and `gmail-send` hardens what it receives.
  */
 export function RichEmailEditor({ initialHtml, replaceWith, onChange, label, personKnown }: RichEmailEditorProps) {
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: false,
-        code: false,
-        codeBlock: false,
-        horizontalRule: false,
-        strike: false,
-        link: { openOnClick: false, autolink: true, protocols: ['mailto'], defaultProtocol: 'https' },
-      }),
-      Placeholder.configure({ placeholder: t(`${C}.bodyPlaceholder`) }),
-    ],
-    content: initialHtml,
-    editorProps: {
-      attributes: {
-        'aria-label': label,
-        'aria-multiline': 'true',
-        role: 'textbox',
-        class: 'prose-email min-h-40 px-3 py-2 text-sm text-foreground outline-none',
-      },
-    },
-    onUpdate: ({ editor: e }) => onChange(e.getHTML()),
-  })
+  const [html, setHtml] = useState(initialHtml)
+  const editor = useRef<Editor | null>(null)
 
   useEffect(() => {
-    if (editor && replaceWith) {
-      editor.commands.setContent(replaceWith.html, { emitUpdate: true })
-      editor.commands.focus('end')
-    }
+    const current = editor.current
+    if (!current || !replaceWith) return
+    // Through the editor, not the kit's value: the composer then saves what the editor kept (a template's
+    // heading becomes a paragraph here, and must not be sent as a heading).
+    current.commands.setContent(replaceWith.html, { emitUpdate: true })
+    current.commands.focus('end')
     // Only a new version replaces the text (the same template twice is two versions).
-  }, [editor, replaceWith?.version]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [replaceWith?.version]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const state = useEditorState({
-    editor,
-    selector: ({ editor: e }) =>
-      e
-        ? {
-            bold: e.isActive('bold'),
-            italic: e.isActive('italic'),
-            bullet: e.isActive('bulletList'),
-            ordered: e.isActive('orderedList'),
-            link: e.isActive('link'),
-          }
-        : null,
-  })
-
-  if (!editor) return null
-  const toggle = (active: boolean | undefined, run: () => void, text: string, Icon: typeof Bold) => (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      aria-pressed={active ?? false}
-      aria-label={text}
-      title={text}
-      onClick={run}
-      className={cn('h-8 w-8 p-0', active && 'bg-muted text-foreground')}
-    >
-      <Icon aria-hidden className="size-4" />
-    </Button>
-  )
   return (
-    <div className="rounded-md border border-border bg-card focus-within:ring-2 focus-within:ring-ring">
-      <div role="toolbar" aria-label={t(`${C}.toolbar`)} className="flex flex-wrap items-center gap-0.5 border-b border-border-light px-1 py-1">
-        {toggle(state?.bold, () => editor.chain().focus().toggleBold().run(), t(`${C}.bold`), Bold)}
-        {toggle(state?.italic, () => editor.chain().focus().toggleItalic().run(), t(`${C}.italic`), Italic)}
-        {toggle(state?.bullet, () => editor.chain().focus().toggleBulletList().run(), t(`${C}.bulletList`), List)}
-        {toggle(state?.ordered, () => editor.chain().focus().toggleOrderedList().run(), t(`${C}.orderedList`), ListOrdered)}
-        <LinkButton
-          active={state?.link ?? false}
-          onSet={(href) => editor.chain().focus().extendMarkRange('link').setLink({ href }).run()}
-          onUnset={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
-          currentHref={() => (editor.getAttributes('link').href as string | undefined) ?? ''}
+    <ComposerUiProvider ports={COMPOSER_UI_PORTS}>
+      <div className="rounded-md border border-border bg-card px-1 pt-1 focus-within:ring-2 focus-within:ring-ring">
+        <KitEditor
+          valueHtml={html}
+          onChange={(value) => {
+            setHtml(value.html)
+            onChange(value.html)
+          }}
+          placeholder={t(`${C}.bodyPlaceholder`)}
+          label={label}
+          starterKit={STARTER_KIT}
+          bodyClassName={BODY_CLASS}
+          editorRef={editor}
+          toolbarExtras={(kitEditor) => <InsertMenu editor={kitEditor} personKnown={personKnown} />}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 px-2">
-              <Braces aria-hidden className="size-4" />
-              {t(`${C}.insert`)}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>{t(`${C}.insertHint`)}</DropdownMenuLabel>
-            {COMPOSE_PLACEHOLDERS.map((path) => {
-              const needsFile = path.startsWith('person.')
-              return (
-                <DropdownMenuItem
-                  key={path}
-                  disabled={needsFile && !personKnown}
-                  onSelect={() => editor.chain().focus().insertContent(`{{${path}}}`).run()}
-                >
-                  {t(`${C}.placeholders.${path.replace('.', '_') as 'person_first_name'}`)}
-                </DropdownMenuItem>
-              )
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
-      <EditorContent editor={editor} />
-    </div>
+    </ComposerUiProvider>
   )
 }
 
-/** « Lien »: an address for the selection (https or mailto), or « Retirer le lien ». */
-function LinkButton({
-  active,
-  onSet,
-  onUnset,
-  currentHref,
-}: {
-  active: boolean
-  onSet: (href: string) => void
-  onUnset: () => void
-  currentHref: () => string
-}) {
-  const [open, setOpen] = useState(false)
-  const [href, setHref] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const id = useId()
-  const submit = (event: FormEvent) => {
-    // The popover is portalled, but its submit still bubbles through React to the composer's form.
-    event.preventDefault()
-    event.stopPropagation()
-    const value = href.trim()
-    const normalized = /^(https?:\/\/|mailto:)/i.test(value) ? value : `https://${value}`
-    if (!/^(https?:\/\/[^\s<>"]+\.[^\s<>"]+|mailto:[^\s<>"]+@[^\s<>"]+)$/i.test(normalized)) {
-      setError(t(`${C}.linkInvalid`))
-      return
-    }
-    onSet(normalized)
-    setOpen(false)
-  }
+/** « Insérer »: the placeholders the server fills at the send; a person's need a linked file. */
+function InsertMenu({ editor, personKnown }: { editor: Editor; personKnown: boolean }) {
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next) {
-          setHref(currentHref())
-          setError(null)
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-pressed={active}
-          aria-label={t(`${C}.link`)}
-          title={t(`${C}.link`)}
-          className={cn('h-8 w-8 p-0', active && 'bg-muted text-foreground')}
-        >
-          <LinkIcon aria-hidden className="size-4" />
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" className="ml-1 h-8 gap-1 px-2">
+          <Braces aria-hidden className="size-4" />
+          {t(`${C}.insert`)}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
-        <form onSubmit={submit} className="space-y-2" noValidate>
-          <Label htmlFor={id}>{t(`${C}.linkAddress`)}</Label>
-          <Input
-            id={id}
-            value={href}
-            autoFocus
-            autoComplete="off"
-            placeholder="https://"
-            aria-invalid={error !== null || undefined}
-            onChange={(event) => setHref(event.target.value)}
-          />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex flex-wrap justify-end gap-2">
-            {active && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onUnset()
-                  setOpen(false)
-                }}
-              >
-                <Unlink aria-hidden className="size-3.5" />
-                {t(`${C}.unlink`)}
-              </Button>
-            )}
-            <Button type="submit" size="sm">
-              {t(`${C}.linkApply`)}
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuLabel>{t(`${C}.insertHint`)}</DropdownMenuLabel>
+        {COMPOSE_PLACEHOLDERS.map((path) => {
+          const needsFile = path.startsWith('person.')
+          return (
+            <DropdownMenuItem
+              key={path}
+              disabled={needsFile && !personKnown}
+              onSelect={() => editor.chain().focus().insertContent(`{{${path}}}`).run()}
+            >
+              {t(`${C}.placeholders.${path.replace('.', '_') as 'person_first_name'}`)}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
