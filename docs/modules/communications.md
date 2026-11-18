@@ -138,7 +138,7 @@ Migration `20261013165711_communications_composer` (pgTAP `156`); decisions CM-1
   - **Answer:** `{ text, subject, history }`. OpenAI's refusals: the credit exhausted or the key refused give a French refusal; a busy service gives 429; anything else gives 502 `provider_error`. Each call is recorded, a failure at 0 $.
   - **Origin:** OpenAI's. `OPENAI_API_BASE_URL` (the local fake, `npm run fake:openai`, port 55398) is honoured only while APP_URL is local.
 - **Frontend:**
-  - **The bar** (`AiBar`, in the composer when `get_ai_draft_status` says available): « Rédiger avec l'IA » opens the instruction box (Entrée sends, Maj+Entrée goes to the line, Échap closes); in a reply, « Générer une réponse » writes one at once.
+  - **The bar** (PS Hub's `AiQuickBar` over MANA's adapter `use-composer-ai.ts`, CM-24; in the composer when `get_ai_draft_status` says available): « Rédiger avec l'IA » opens the instruction box (Entrée sends, Maj+Entrée goes to the line, Échap closes); in a reply, « Générer une réponse » writes one at once. A proposal shows with « Utiliser », « Raffiner » and « Annuler »; « Utiliser » replaces the text above the quote, with « Rétablir » for 10 seconds. The month's cap greys the bar out and says so. No tone, no selection rewrite and no file reading: the server has none of them.
   - **The proposal:** « Objet proposé » when the subject is empty, then **« Utiliser »** (it replaces the text above the quote, with « Rétablir » for 10 s in the toast), **« Annuler »** and **« Raffiner »** (one more instruction in the same conversation). These are PS Hub's labels, taken as is (CM-18).
   - **Paramètres → IA** (`ia`, `communications.ai_manage`): the key (SecretField), the settings and the month's use.
 - **Tests:**
