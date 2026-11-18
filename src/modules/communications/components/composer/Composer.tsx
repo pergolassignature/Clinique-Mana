@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
-import { ChevronDown, FileText, Minus, Paperclip, Send, Trash2, X } from 'lucide-react'
+import { FilePlus, FileText, Paperclip, X } from 'lucide-react'
+import { COMPOSER_ICON_BUTTON, ComposerLayout, ComposerUiProvider, ComposerWindow, type ComposerPresentation } from '@pergolas-signature/email-ui/composer'
 import { t } from '@/i18n'
+import { useAuth } from '@/core/auth/auth-context'
 import { uploadFile } from '@/core/storage/api'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { FileDropzone } from '@/shared/components/FileDropzone'
+import { useMediaQuery } from '@/shared/lib/use-media-query'
 import { formatClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import {
@@ -47,9 +50,14 @@ import { useDeleteDraft, useDeleteTemplate, useSaveDraft, useSaveTemplate, useSe
 import { useAiDraftStatus } from '../../hooks/use-ai'
 import { hasText, htmlToText, parseAddresses, sendProblem, textToHtml } from '../../lib/compose'
 import { AiBar } from './AiBar'
+import { COMPOSER_UI_PORTS } from './composer-ui-ports'
 import { RichEmailEditor } from './RichEmailEditor'
 
 const C = 'modules.communications.composer'
+/** Below this width the composer fills the screen (the kit's « mobile » sheet); from it, it docks. */
+export const SHEET_QUERY = '(max-width: 1023px)'
+/** The kit's whole-composer drop zone stays off: a file is dropped on `FileDropzone` (CLAUDE.md §8). */
+const NO_DROP_ZONE = { isDragging: false, handlers: { onDragOver: () => undefined, onDragLeave: () => undefined, onDrop: () => undefined } }
 /** « Annuler l'envoi »: the message leaves this many seconds after « Envoyer » (ADR 0063 in PS Hub). */
 export const UNDO_SECONDS = 5
 /** The autosave waits this long after the last change. */
@@ -87,9 +95,13 @@ function useAddressField(initial: string[]) {
  * templates (the clinic's and one's own, « Enregistrer comme modèle »), then « Envoyer » with five
  * seconds to « Annuler l'envoi ». The draft is saved as one types (the database, never the
  * browser's storage): closing keeps it in « Brouillons ».
+ *
+ * Drawn by PS Hub's kit (`ComposerWindow`, `ComposerLayout`, CM-23): docked at the bottom right
+ * from 1024 px (« Réduire » to a pill, « Plein écran »), the whole screen below. Échap minimizes
+ * the dock and brings the full screen back to it; it never closes. The rows' contents (the
+ * addresses, the mailbox, the AI bar, the attachments, the templates) stay MANA's.
  */
 export function Composer({ draftId: initialDraftId, initial: initialProp, mailboxes, fileLabel, personKnown, onClose, onSent }: ComposerProps) {
-  const ids = useId()
   // The starting content, as it was at the opening: a parent rendering again never resets it.
   const [initial] = useState(initialProp)
   const [connectionId, setConnectionId] = useState(initial.connectionId)
@@ -99,7 +111,10 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const to = useAddressField(initial.to)
   const cc = useAddressField(initial.cc)
   const bcc = useAddressField(initial.bcc)
-  const [showCopies, setShowCopies] = useState(initial.cc.length > 0 || initial.bcc.length > 0)
+  const [showCc, setShowCc] = useState(initial.cc.length > 0)
+  const [showBcc, setShowBcc] = useState(initial.bcc.length > 0)
+  // The copy row a toggle just opened takes the focus as it mounts (never the rows a draft reopens with).
+  const [focusOnOpen, setFocusOnOpen] = useState<'cc' | 'bcc' | null>(null)
   const [replaceWith, setReplaceWith] = useState<{ html: string; version: number } | null>(null)
   const [pendingTemplate, setPendingTemplate] = useState<ComposeTemplate | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -107,7 +122,9 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const [problem, setProblem] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveFailed, setSaveFailed] = useState(false)
-  const [minimized, setMinimized] = useState(false)
+  const [view, setView] = useState<Exclude<ComposerPresentation, 'mobile'>>('open')
+  const sheet = useMediaQuery(SHEET_QUERY)
+  const userId = useAuth().session?.user.id ?? null
   // The quote under a reply or a forward: a template replaces the text above it only.
   const quote = useRef(initial.mode === 'new' ? '' : initial.bodyHtml)
   const draftId = useRef<string | null>(initialDraftId)
@@ -116,6 +133,10 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   // (the server answers what the first « Envoyer » did, and looks in Gmail after no answer).
   const sendKey = useRef<{ key: string; content: string } | null>(null)
   const firstField = useRef<HTMLInputElement>(null)
+  const bodyBox = useRef<HTMLDivElement>(null)
+  const attachButton = useRef<HTMLButtonElement>(null)
+  // The kit draws a hidden file input for its paperclip; MANA's paperclip opens `FileDropzone`'s.
+  const unusedFileInput = useRef<HTMLInputElement>(null)
   // A change not saved yet: kept even when the composer goes (replaced, or the page left).
   const dirty = useRef(false)
   const phaseRef = useRef<Phase>({ kind: 'editing' })
@@ -141,13 +162,13 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
       ...initial,
       connectionId,
       to: to.valid,
-      cc: showCopies ? cc.valid : [],
-      bcc: showCopies ? bcc.valid : [],
+      cc: showCc ? cc.valid : [],
+      bcc: showBcc ? bcc.valid : [],
       subject,
       bodyHtml: body,
       attachments,
     }),
-    [initial, connectionId, to.valid, cc.valid, bcc.valid, showCopies, subject, body, attachments],
+    [initial, connectionId, to.valid, cc.valid, bcc.valid, showCc, showBcc, subject, body, attachments],
   )
   const latest = useRef(content)
   latest.current = content
@@ -231,7 +252,7 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const startSend = async (event?: FormEvent) => {
     event?.preventDefault()
     if (phase.kind !== 'editing') return
-    const invalid = [...to.invalid, ...(showCopies ? [...cc.invalid, ...bcc.invalid] : [])]
+    const invalid = [...to.invalid, ...(showCc ? cc.invalid : []), ...(showBcc ? bcc.invalid : [])]
     const why = invalid.length > 0 ? t(`${C}.problems.badAddress`, { address: invalid[0] ?? '' }) : sendProblem(content)
     setProblem(why)
     if (why) return
@@ -252,200 +273,177 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   }
 
   const totalBytes = attachments.reduce((sum, a) => sum + a.size_bytes, 0)
-  const counting = phase.kind === 'counting'
   const busy = phase.kind !== 'editing'
   const mailbox = mailboxes.find((m) => m.id === connectionId)
   const title =
     initial.mode === 'new' ? t(`${C}.titleNew`) : initial.mode === 'forward' ? t(`${C}.titleForward`) : t(`${C}.titleReply`)
-  const titleId = `${ids}-title`
+  const presentation: ComposerPresentation = sheet ? 'mobile' : view
+  /** The editor's editable area: Tab from « Objet », a click in the body's margin, a change of presentation. */
+  const focusBody = () => bodyBox.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus()
+  const close = () => {
+    void saveNow().then(onClose)
+  }
+  const discard = () => {
+    if (draftId.current) {
+      setConfirmDelete(true)
+    } else {
+      // Never saved: nothing to delete, nothing to keep.
+      dirty.current = false
+      onClose()
+    }
+  }
 
   return (
-    <section
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby={titleId}
-      className={cn(
-        'fixed z-40 flex flex-col bg-card text-foreground shadow-large',
-        'max-lg:inset-0',
-        'lg:bottom-4 lg:right-4 lg:w-[40rem] lg:rounded-lg lg:border lg:border-border',
-        minimized ? 'lg:h-auto' : 'lg:h-[min(46rem,88dvh)]',
-      )}
-    >
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <h2 id={titleId} className="min-w-0 flex-1 truncate text-sm font-semibold">
-          {subject.trim() || title}
-        </h2>
-        <span role="status" className="text-xs text-muted-foreground">
-          {saveFailed ? t(`${C}.saveFailed`) : savedAt ? t(`${C}.savedAt`, { time: formatClinicTime(savedAt) }) : ''}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          tabIndex={-1}
-          aria-label={minimized ? t(`${C}.expand`) : t(`${C}.minimize`)}
-          onClick={() => setMinimized((m) => !m)}
-          className="h-8 w-8 p-0 max-lg:hidden"
-        >
-          {minimized ? <ChevronDown aria-hidden className="size-4 rotate-180" /> : <Minus aria-hidden className="size-4" />}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          tabIndex={-1}
-          aria-label={t(`${C}.close`)}
-          disabled={busy}
-          onClick={() => {
-            void saveNow().then(onClose)
-          }}
-          className="h-8 w-8 p-0"
-        >
-          <X aria-hidden className="size-4" />
-        </Button>
-      </header>
-
-      <form
-        onSubmit={(event) => void startSend(event)}
-        noValidate
-        className={cn('flex min-h-0 flex-1 flex-col', minimized && 'lg:hidden')}
-        aria-busy={busy || undefined}
+    <ComposerUiProvider ports={COMPOSER_UI_PORTS}>
+      <ComposerWindow
+        presentation={presentation}
+        title={subject.trim() || title}
+        status={
+          <span role="status" className="truncate text-xs text-muted-foreground">
+            {saveFailed ? t(`${C}.saveFailed`) : savedAt ? t(`${C}.savedAt`, { time: formatClinicTime(savedAt) }) : ''}
+          </span>
+        }
+        onMinimize={() => setView('minimized')}
+        onRestore={() => setView('open')}
+        onExpand={() => setView('fullscreen')}
+        onShrink={() => setView('open')}
+        onClose={close}
+        // A send under way: closing would leave its outcome unsaid.
+        closeDisabled={busy}
+        closeInTabOrder={false}
+        // The dock's size as the person dragged it: a convenience, never content (CM-14).
+        sizeStorageKey={userId ? `mana-mail-dock-size:${userId}` : null}
+        focus={{ restore: () => (to.text.trim() ? focusBody() : firstField.current?.focus()), body: focusBody }}
       >
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2">
-          {fileLabel && <p className="text-xs text-muted-foreground">{t(`${C}.aboutFile`, { file: fileLabel })}</p>}
-          <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-2 gap-y-2">
-            <Label htmlFor={`${ids}-from`} className="text-muted-foreground">
-              {t(`${C}.from`)}
-            </Label>
-            {mailboxes.length > 1 ? (
-              <Select id={`${ids}-from`} value={connectionId} disabled={busy || initial.mode !== 'new'} onChange={(e) => setConnectionId(e.target.value)}>
-                {mailboxes.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.email_address}
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <Input id={`${ids}-from`} readOnly value={mailbox?.email_address ?? ''} />
-            )}
-            <AddressRow id={`${ids}-to`} label={t(`${C}.to`)} field={to} inputRef={firstField} disabled={busy} />
-            {!showCopies && (
-              <div className="col-start-2">
-                <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setShowCopies(true)}>
-                  {t(`${C}.addCopies`)}
-                </Button>
+        {({ roomy }) => (
+          <ComposerLayout
+            roomy={roomy}
+            dropZone={NO_DROP_ZONE}
+            banners={(padX) =>
+              fileLabel ? <p className={cn('pt-2 text-xs text-muted-foreground', padX)}>{t(`${C}.aboutFile`, { file: fileLabel })}</p> : null
+            }
+            from={
+              mailboxes.length > 1 ? (
+                <Select aria-label={t(`${C}.from`)} value={connectionId} disabled={busy || initial.mode !== 'new'} onChange={(e) => setConnectionId(e.target.value)}>
+                  {mailboxes.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.email_address}
+                    </option>
+                  ))}
+                </Select>
+              ) : undefined
+            }
+            recipients={{
+              to: <AddressInput label={t(`${C}.to`)} field={to} inputRef={firstField} disabled={busy} />,
+              cc: <AddressInput label={t(`${C}.cc`)} field={cc} disabled={busy} autoFocus={focusOnOpen === 'cc'} />,
+              bcc: <AddressInput label={t(`${C}.bcc`)} field={bcc} disabled={busy} autoFocus={focusOnOpen === 'bcc'} />,
+              showCc,
+              showBcc,
+              onShowCc: () => {
+                setFocusOnOpen('cc')
+                setShowCc(true)
+              },
+              onShowBcc: () => {
+                setFocusOnOpen('bcc')
+                setShowBcc(true)
+              },
+            }}
+            subject={{ value: subject, onChange: (value) => setSubject(value.replace(/[\r\n]+/g, ' ')), disabled: busy, maxLength: 250 }}
+            attachments={
+              attachments.length > 0 ? (
+                <div className={cn('py-2', roomy ? 'px-6' : 'px-4')}>
+                  <AttachmentList attachments={attachments} disabled={busy} onRemove={(id) => setAttachments((list) => list.filter((a) => a.id !== id))} />
+                </div>
+              ) : undefined
+            }
+            body={
+              <div ref={bodyBox} className="space-y-2">
+                {ai.data?.available && (
+                  <AiBar
+                    replying={initial.mode === 'reply'}
+                    draftText={htmlToText(body.replace(quote.current, ''))}
+                    originalText={initial.mode === 'reply' ? htmlToText(quote.current) : ''}
+                    subjectEmpty={!subject.trim()}
+                    clientId={initial.clientId}
+                    threadId={initial.threadId}
+                    capReached={ai.data.cap_reached}
+                    disabled={busy}
+                    onUse={(proposal) => {
+                      const previous = body
+                      setReplaceWith((prev) => ({ html: textToHtml(proposal.text) + quote.current, version: (prev?.version ?? 0) + 1 }))
+                      if (proposal.subject && !subject.trim()) setSubject(proposal.subject)
+                      toast.success(t('modules.communications.ai.used'), {
+                        action: {
+                          label: t('modules.communications.ai.restore'),
+                          onClick: () => setReplaceWith((prev) => ({ html: previous, version: (prev?.version ?? 0) + 1 })),
+                        },
+                        duration: 10_000,
+                      })
+                    }}
+                  />
+                )}
+                <RichEmailEditor initialHtml={initial.bodyHtml} replaceWith={replaceWith} onChange={setBody} label={t(`${C}.body`)} personKnown={personKnown} />
+                {/* Files go through FileDropzone (CLAUDE.md §8): the kit's paperclip opens its picker. */}
+                {attachments.length < MAX_ATTACHMENTS && !busy && (
+                  <FileDropzone
+                    buttonRef={attachButton}
+                    buttonLabel={t(`${C}.attach`)}
+                    hint={t(`${C}.attachHint`)}
+                    accept={OUTGOING_TYPES}
+                    maxBytes={OUTGOING_MAX_BYTES}
+                    errorMessage={(error) =>
+                      error instanceof ComposerLimit ? error.message : communicationsErrorMessage(error, t(`${C}.errors.uploadFailed`))
+                    }
+                    onUpload={async (file, mimeType, onStep) => {
+                      if (totalBytes + file.size > MAX_ATTACHMENTS_BYTES) throw new ComposerLimit(t(`${C}.problems.tooLarge`))
+                      // The upload's subject is the draft: saved first.
+                      await saveNow()
+                      if (!draftId.current) throw new ComposerLimit(t(`${C}.saveFailed`))
+                      const { fileId } = await uploadFile({ purpose: OUTGOING_PURPOSE, subjectType: 'mail_draft', subjectId: draftId.current, file, mimeType, onStep })
+                      setAttachments((list) => [...list, { id: fileId, name: file.name, mime_type: mimeType, size_bytes: file.size }])
+                    }}
+                  />
+                )}
               </div>
-            )}
-            {showCopies && <AddressRow id={`${ids}-cc`} label={t(`${C}.cc`)} field={cc} disabled={busy} />}
-            {showCopies && <AddressRow id={`${ids}-bcc`} label={t(`${C}.bcc`)} field={bcc} disabled={busy} />}
-            <Label htmlFor={`${ids}-subject`} className="text-muted-foreground">
-              {t(`${C}.subject`)}
-            </Label>
-            <Input id={`${ids}-subject`} value={subject} maxLength={250} autoComplete="off" disabled={busy} onChange={(e) => setSubject(e.target.value.replace(/[\r\n]+/g, ' '))} />
-          </div>
-
-          {ai.data?.available && (
-            <AiBar
-              replying={initial.mode === 'reply'}
-              draftText={htmlToText(body.replace(quote.current, ''))}
-              originalText={initial.mode === 'reply' ? htmlToText(quote.current) : ''}
-              subjectEmpty={!subject.trim()}
-              clientId={initial.clientId}
-              threadId={initial.threadId}
-              capReached={ai.data.cap_reached}
-              disabled={busy}
-              onUse={(proposal) => {
-                const previous = body
-                setReplaceWith((prev) => ({ html: textToHtml(proposal.text) + quote.current, version: (prev?.version ?? 0) + 1 }))
-                if (proposal.subject && !subject.trim()) setSubject(proposal.subject)
-                toast.success(t('modules.communications.ai.used'), {
-                  action: {
-                    label: t('modules.communications.ai.restore'),
-                    onClick: () => setReplaceWith((prev) => ({ html: previous, version: (prev?.version ?? 0) + 1 })),
-                  },
-                  duration: 10_000,
-                })
-              }}
-            />
-          )}
-          <RichEmailEditor
-            initialHtml={initial.bodyHtml}
-            replaceWith={replaceWith}
-            onChange={setBody}
-            label={t(`${C}.body`)}
-            personKnown={personKnown}
+            }
+            focusBody={focusBody}
+            fileInput={{ inputRef: unusedFileInput, onFiles: () => undefined }}
+            notice={
+              problem || phase.kind === 'counting' ? (
+                <div className="space-y-2">
+                  {problem && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {problem}
+                    </p>
+                  )}
+                  {phase.kind === 'counting' && (
+                    <div role="status" className="flex flex-wrap items-center gap-3">
+                      <span className="text-sm text-foreground">{t(`${C}.sendingIn`, { seconds: String(phase.left) })}</span>
+                      <Button type="button" variant="outline" size="sm" autoFocus onClick={() => setPhase({ kind: 'editing' })}>
+                        {t(`${C}.undo`)}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : null
+            }
+            footer={{
+              onSend: () => void startSend(),
+              sendDisabled: busy,
+              isSending: phase.kind === 'sending',
+              onAttach: () => attachButton.current?.click(),
+              actions: (
+                <>
+                  <TemplatesMenu templates={templates.data ?? []} disabled={busy} onChoose={chooseTemplate} />
+                  <SaveTemplateButton subject={initial.mode === 'new' ? subject : ''} body={body.replace(quote.current, '')} disabled={busy || !hasText(body.replace(quote.current, ''))} />
+                </>
+              ),
+              via: mailbox?.email_address,
+              onDiscard: busy ? undefined : discard,
+            }}
           />
-
-          <AttachmentList
-            attachments={attachments}
-            disabled={busy}
-            onRemove={(id) => setAttachments((list) => list.filter((a) => a.id !== id))}
-          />
-          {attachments.length < MAX_ATTACHMENTS && !busy && (
-            <FileDropzone
-              buttonLabel={t(`${C}.attach`)}
-              hint={t(`${C}.attachHint`)}
-              accept={OUTGOING_TYPES}
-              maxBytes={OUTGOING_MAX_BYTES}
-              errorMessage={(error) =>
-                error instanceof ComposerLimit ? error.message : communicationsErrorMessage(error, t(`${C}.errors.uploadFailed`))
-              }
-              onUpload={async (file, mimeType, onStep) => {
-                if (totalBytes + file.size > MAX_ATTACHMENTS_BYTES) throw new ComposerLimit(t(`${C}.problems.tooLarge`))
-                // The upload's subject is the draft: saved first.
-                await saveNow()
-                if (!draftId.current) throw new ComposerLimit(t(`${C}.saveFailed`))
-                const { fileId } = await uploadFile({ purpose: OUTGOING_PURPOSE, subjectType: 'mail_draft', subjectId: draftId.current, file, mimeType, onStep })
-                setAttachments((list) => [...list, { id: fileId, name: file.name, mime_type: mimeType, size_bytes: file.size }])
-              }}
-            />
-          )}
-        </div>
-
-        <footer className="space-y-2 border-t border-border px-3 py-2">
-          {problem && (
-            <p role="alert" className="text-sm text-destructive">
-              {problem}
-            </p>
-          )}
-          {counting ? (
-            <div role="status" className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-foreground">{t(`${C}.sendingIn`, { seconds: String(phase.left) })}</span>
-              <Button type="button" variant="outline" size="sm" autoFocus onClick={() => setPhase({ kind: 'editing' })}>
-                {t(`${C}.undo`)}
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" size="sm" disabled={busy} className="max-sm:h-11">
-                <Send aria-hidden className="size-3.5" />
-                {phase.kind === 'sending' ? t(`${C}.sending`) : t(`${C}.send`)}
-              </Button>
-              <TemplatesMenu templates={templates.data ?? []} disabled={busy} onChoose={chooseTemplate} />
-              <SaveTemplateButton subject={initial.mode === 'new' ? subject : ''} body={body.replace(quote.current, '')} disabled={busy || !hasText(body.replace(quote.current, ''))} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                className="ml-auto max-sm:h-11"
-                onClick={() => {
-                  if (draftId.current) {
-                    setConfirmDelete(true)
-                  } else {
-                    // Never saved: nothing to delete, nothing to keep.
-                    dirty.current = false
-                    onClose()
-                  }
-                }}
-              >
-                <Trash2 aria-hidden className="size-3.5" />
-                {t(`${C}.discard`)}
-              </Button>
-            </div>
-          )}
-        </footer>
-      </form>
+        )}
+      </ComposerWindow>
 
       <AlertDialog open={pendingTemplate !== null} onOpenChange={(open) => !open && setPendingTemplate(null)}>
         <AlertDialogContent>
@@ -485,51 +483,48 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+    </ComposerUiProvider>
   )
 }
 
-function AddressRow({
-  id,
+/** An address field inside the kit's row: the row draws the visible label, this one names the field. */
+function AddressInput({
   label,
   field,
   inputRef,
   disabled,
+  autoFocus,
 }: {
-  id: string
   label: string
   field: ReturnType<typeof useAddressField>
   inputRef?: React.Ref<HTMLInputElement>
   disabled: boolean
+  autoFocus?: boolean
 }) {
-  const errorId = `${id}-error`
+  const errorId = useId()
   return (
-    <>
-      <Label htmlFor={id} className="text-muted-foreground">
-        {label}
-      </Label>
-      <div className="min-w-0 space-y-1">
-        <Input
-          id={id}
-          ref={inputRef}
-          type="text"
-          inputMode="email"
-          autoComplete="off"
-          spellCheck={false}
-          value={field.text}
-          disabled={disabled}
-          aria-invalid={field.invalid.length > 0 || undefined}
-          aria-describedby={field.invalid.length > 0 ? errorId : undefined}
-          onChange={(event) => field.setText(event.target.value)}
-          onBlur={() => field.setText([...field.valid, ...field.invalid].join(', '))}
-        />
-        {field.invalid.length > 0 && (
-          <p id={errorId} className="text-xs text-destructive">
-            {t(`${C}.problems.badAddress`, { address: field.invalid[0] ?? '' })}
-          </p>
-        )}
-      </div>
-    </>
+    <div className="min-w-0 space-y-1">
+      <Input
+        ref={inputRef}
+        type="text"
+        inputMode="email"
+        autoComplete="off"
+        spellCheck={false}
+        autoFocus={autoFocus}
+        aria-label={label}
+        value={field.text}
+        disabled={disabled}
+        aria-invalid={field.invalid.length > 0 || undefined}
+        aria-describedby={field.invalid.length > 0 ? errorId : undefined}
+        onChange={(event) => field.setText(event.target.value)}
+        onBlur={() => field.setText([...field.valid, ...field.invalid].join(', '))}
+      />
+      {field.invalid.length > 0 && (
+        <p id={errorId} className="text-xs text-destructive">
+          {t(`${C}.problems.badAddress`, { address: field.invalid[0] ?? '' })}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -575,10 +570,9 @@ function TemplatesMenu({ templates, disabled, onChoose }: { templates: ComposeTe
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="sm" disabled={disabled} className="max-sm:h-11">
-            <FileText aria-hidden className="size-3.5" />
-            {t(`${C}.templates`)}
-          </Button>
+          <button type="button" disabled={disabled} className={COMPOSER_ICON_BUTTON} aria-label={t(`${C}.templates`)} title={t(`${C}.templates`)}>
+            <FileText aria-hidden className="size-4" />
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
           {templates.length === 0 && <DropdownMenuLabel>{t(`${C}.noTemplates`)}</DropdownMenuLabel>}
@@ -673,9 +667,9 @@ function SaveTemplateButton({ subject, body, disabled }: { subject: string; body
       }}
     >
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" disabled={disabled} className="max-sm:h-11">
-          {t(`${C}.saveAsTemplate`)}
-        </Button>
+        <button type="button" disabled={disabled} className={COMPOSER_ICON_BUTTON} aria-label={t(`${C}.saveAsTemplate`)} title={t(`${C}.saveAsTemplate`)}>
+          <FilePlus aria-hidden className="size-4" />
+        </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
         <form onSubmit={submit} noValidate className="space-y-2">
