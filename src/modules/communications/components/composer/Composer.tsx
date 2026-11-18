@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { FilePlus, FileText, Paperclip, X } from 'lucide-react'
-import { COMPOSER_ICON_BUTTON, ComposerLayout, ComposerUiProvider, ComposerWindow, type ComposerPresentation } from '@pergolas-signature/email-ui/composer'
+import { AiQuickBar, COMPOSER_ICON_BUTTON, ComposerLayout, ComposerUiProvider, ComposerWindow, type ComposerPresentation } from '@pergolas-signature/email-ui/composer'
 import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
 import { uploadFile } from '@/core/storage/api'
@@ -49,9 +49,9 @@ import type { MailConnection } from '../../api/mailboxes'
 import { useDeleteDraft, useDeleteTemplate, useSaveDraft, useSaveTemplate, useSendMail, useTemplates } from '../../hooks/use-composer'
 import { useAiDraftStatus } from '../../hooks/use-ai'
 import { hasText, htmlToText, parseAddresses, sendProblem, textToHtml } from '../../lib/compose'
-import { AiBar } from './AiBar'
 import { COMPOSER_UI_PORTS } from './composer-ui-ports'
 import { RichEmailEditor } from './RichEmailEditor'
+import { useManaComposerAi } from './use-composer-ai'
 
 const C = 'modules.communications.composer'
 /** Below this width the composer fills the screen (the kit's « mobile » sheet); from it, it docks. */
@@ -278,6 +278,14 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const title =
     initial.mode === 'new' ? t(`${C}.titleNew`) : initial.mode === 'forward' ? t(`${C}.titleForward`) : t(`${C}.titleReply`)
   const presentation: ComposerPresentation = sheet ? 'mobile' : view
+  // PS Hub's AI bar over MANA's server (CM-24): a reply, a new message, a refinement.
+  const composerAi = useManaComposerAi({
+    original: initial.mode === 'reply' ? htmlToText(quote.current) : '',
+    subjectEmpty: !subject.trim(),
+    clientId: initial.clientId,
+    threadId: initial.threadId,
+    capReached: ai.data?.cap_reached ?? false,
+  })
   /** The editor's editable area: Tab from « Objet », a click in the body's margin, a change of presentation. */
   const focusBody = () => bodyBox.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus()
   const close = () => {
@@ -359,27 +367,19 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
             body={
               <div ref={bodyBox} className="space-y-2">
                 {ai.data?.available && (
-                  <AiBar
-                    replying={initial.mode === 'reply'}
-                    draftText={htmlToText(body.replace(quote.current, ''))}
-                    originalText={initial.mode === 'reply' ? htmlToText(quote.current) : ''}
-                    subjectEmpty={!subject.trim()}
-                    clientId={initial.clientId}
-                    threadId={initial.threadId}
-                    capReached={ai.data.cap_reached}
+                  <AiQuickBar
+                    ai={composerAi}
+                    bodyText={htmlToText(body.replace(quote.current, ''))}
+                    // Whole-body only: the selection rewrite is a server MANA does not have.
+                    selection={null}
+                    // The proposal replaces the text above the quote; « Rétablir » gives the previous text back.
+                    onReplaceAll={(text) => setReplaceWith((prev) => ({ html: textToHtml(text) + quote.current, version: (prev?.version ?? 0) + 1 }))}
+                    onReplaceSelection={() => undefined}
+                    parentMessage={initial.mode === 'reply' ? htmlToText(quote.current) : undefined}
+                    subject={subject}
+                    onSubjectChange={setSubject}
+                    onRequestEditorFocus={focusBody}
                     disabled={busy}
-                    onUse={(proposal) => {
-                      const previous = body
-                      setReplaceWith((prev) => ({ html: textToHtml(proposal.text) + quote.current, version: (prev?.version ?? 0) + 1 }))
-                      if (proposal.subject && !subject.trim()) setSubject(proposal.subject)
-                      toast.success(t('modules.communications.ai.used'), {
-                        action: {
-                          label: t('modules.communications.ai.restore'),
-                          onClick: () => setReplaceWith((prev) => ({ html: previous, version: (prev?.version ?? 0) + 1 })),
-                        },
-                        duration: 10_000,
-                      })
-                    }}
                   />
                 )}
                 <RichEmailEditor initialHtml={initial.bodyHtml} replaceWith={replaceWith} onChange={setBody} label={t(`${C}.body`)} personKnown={personKnown} />
