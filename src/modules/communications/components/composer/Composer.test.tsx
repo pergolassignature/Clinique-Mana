@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import { composerText } from '../../lib/email-ui'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { renderWithContexts } from '@/test/contexts'
 import type { DraftContent } from '../../api/composer'
@@ -77,7 +78,7 @@ describe('Composer', () => {
   it('saves the draft as one types (the database, never the browser)', async () => {
     const { user } = renderComposer()
     await user.type(screen.getByLabelText(t(`${C}.to`)), 'Alice@Exemple.test')
-    await user.type(screen.getByLabelText(t(`${C}.subject`)), 'Bonjour')
+    await user.type(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder')), 'Bonjour')
     await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_MS + 100))
     await waitFor(() => expect(mocks.api.saveDraft).toHaveBeenCalled())
     const [id, content] = mocks.api.saveDraft.mock.calls.at(-1)!
@@ -99,10 +100,10 @@ describe('Composer', () => {
 
   it('says what is missing instead of counting down', async () => {
     const { user } = renderComposer()
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     expect(screen.getByRole('alert')).toHaveTextContent(t(`${C}.problems.noRecipient`))
     await user.type(screen.getByLabelText(t(`${C}.to`)), 'pas-une-adresse')
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     expect(screen.getAllByText(t(`${C}.problems.badAddress`, { address: 'pas-une-adresse' })).length).toBeGreaterThan(0)
     expect(mocks.api.sendMail).not.toHaveBeenCalled()
   })
@@ -110,14 +111,14 @@ describe('Composer', () => {
   it('« Envoyer »: five seconds to « Annuler l’envoi », then one send with its key and the draft', async () => {
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
     const { user, onSent } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     expect(await screen.findByText(t(`${C}.sendingIn`, { seconds: String(UNDO_SECONDS) }))).toBeInTheDocument()
     // « Annuler l'envoi » stops it.
     await user.click(screen.getByRole('button', { name: t(`${C}.undo`) }))
     await tick(UNDO_SECONDS + 1)
     expect(mocks.api.sendMail).not.toHaveBeenCalled()
     // Again, left to run.
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     await tick(UNDO_SECONDS + 1)
     await waitFor(() => expect(mocks.api.sendMail).toHaveBeenCalledTimes(1))
     const [key, draftId, content] = mocks.api.sendMail.mock.calls[0]!
@@ -132,7 +133,7 @@ describe('Composer', () => {
     mocks.api.sendMail.mockRejectedValue(new FunctionCallError('provider_error', 502, 'Google refused the send'))
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
     const { user, onSent } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     await tick(UNDO_SECONDS + 1)
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.notConfirmed`))
     expect(onSent).not.toHaveBeenCalled()
@@ -142,10 +143,10 @@ describe('Composer', () => {
     mocks.api.sendMail.mockRejectedValueOnce(new FunctionCallError('provider_error', 502, 'x', { outcome: 'unknown' }))
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
     const { user, onSent } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     await tick(UNDO_SECONDS + 1)
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.notConfirmed`))
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     await tick(UNDO_SECONDS + 1)
     await waitFor(() => expect(onSent).toHaveBeenCalledWith('t9'))
     const [first, second] = mocks.api.sendMail.mock.calls
@@ -156,7 +157,7 @@ describe('Composer', () => {
     mocks.api.sendMail.mockRejectedValue(new FunctionCallError('provider_error', 502, 'x', { outcome: 'refused' }))
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
     const { user } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     await tick(UNDO_SECONDS + 1)
     expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.refused`))
   })
@@ -164,7 +165,7 @@ describe('Composer', () => {
   it('closed during the five seconds: nothing leaves, and the person is told', async () => {
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
     const { user, view } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: t(`${C}.send`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
     view.unmount()
     await act(() => vi.advanceTimersByTimeAsync((UNDO_SECONDS + 1) * 1_000))
     expect(mocks.api.sendMail).not.toHaveBeenCalled()
@@ -175,15 +176,65 @@ describe('Composer', () => {
     const { user } = renderComposer()
     await user.click(screen.getByRole('button', { name: t(`${C}.templates`) }))
     await user.click(await screen.findByRole('menuitem', { name: 'Accusé de réception' }))
-    expect(screen.getByLabelText(t(`${C}.subject`))).toHaveValue('Votre message')
+    expect(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder'))).toHaveValue('Votre message')
     expect(screen.getByLabelText(t(`${C}.body`))).toHaveValue('<p>Bonjour {{person.first_name}},</p><p>Merci.</p>')
   })
 
   it('« Supprimer le brouillon » asks, then deletes it', async () => {
     const { user, onClose } = renderComposer(initialContent({ connectionId: MAILBOX.id, mode: 'new' }), 'd1')
-    await user.click(screen.getByRole('button', { name: t(`${C}.discard`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.discardDraft') }))
     await user.click(await screen.findByRole('button', { name: t(`${C}.discardAction`) }))
     await waitFor(() => expect(mocks.api.deleteDraft).toHaveBeenCalledWith('d1', expect.anything()))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  // CM-23: PS Hub's window around MANA's composer.
+  it('docks in PS Hub\'s window: Échap minimizes it, never closes it, and « Agrandir » brings it back', async () => {
+    const { user, onClose } = renderComposer()
+    const composer = screen.getByRole('dialog', { name: t(`${C}.titleNew`) })
+    expect(composer).not.toHaveAttribute('aria-modal')
+    await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.expand') }))
+    expect(screen.getByRole('dialog', { name: t(`${C}.titleNew`) })).toBeInTheDocument()
+    expect(screen.getByLabelText(t(`${C}.to`))).toHaveFocus()
+  })
+
+  it('« Plein écran » and back keep what was typed', async () => {
+    const { user } = renderComposer()
+    await user.type(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder')), 'Bonjour')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.fullscreen') }))
+    expect(screen.getByRole('dialog', { name: 'Bonjour' })).toHaveAttribute('aria-modal', 'true')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.exitFullscreen') }))
+    expect(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder'))).toHaveValue('Bonjour')
+  })
+
+  it('the close is greyed out while the send counts down, and the X keeps the draft otherwise', async () => {
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
+    const { user, onClose } = renderComposer(initial, 'd1')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
+    expect(screen.getByRole('button', { name: composerText('mailCompose.close') })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: t(`${C}.undo`) }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.close') }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('« Cc » opens its row, focused; « Cci » stays offered', async () => {
+    const { user } = renderComposer()
+    expect(screen.queryByLabelText(t(`${C}.cc`))).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.addCopy') }))
+    expect(screen.getByLabelText(t(`${C}.cc`))).toHaveFocus()
+    expect(screen.getByRole('button', { name: composerText('mailCompose.addBlindCopy') })).toBeInTheDocument()
+  })
+
+  it('the paperclip opens « Joindre un fichier »\'s picker (files go through FileDropzone)', async () => {
+    const { user } = renderComposer()
+    const pick = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined)
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.attachFile') }))
+    const input = pick.mock.contexts.at(-1) as HTMLInputElement
+    expect(input.type).toBe('file')
+    expect(input.accept).toContain('application/pdf')
+    pick.mockRestore()
   })
 })

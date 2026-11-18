@@ -5,6 +5,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import { composerText } from '../lib/email-ui'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole } from '@/test/role-fixtures'
@@ -518,7 +519,7 @@ describe('InboxPage: the composer (CM3)', () => {
     await user.click(await screen.findByRole('button', { name: t(`${UI}.mailThread.reply`) }))
     const composer = await screen.findByRole('dialog', { name: /Demande de rendez-vous/ })
     expect(within(composer).getByLabelText(t(`${K}.to`))).toHaveValue('alice@exemple.test')
-    expect(within(composer).getByLabelText(t(`${K}.subject`))).toHaveValue(`${t(`${K}.prefixReply`)} Demande de rendez-vous`)
+    expect(within(composer).getByLabelText(composerText('mailCompose.subjectPlaceholder'))).toHaveValue(`${t(`${K}.prefixReply`)} Demande de rendez-vous`)
     expect((within(composer).getByLabelText(t(`${K}.body`)) as HTMLTextAreaElement).value).toContain('<blockquote>')
   })
 
@@ -540,7 +541,7 @@ describe('InboxPage: the composer (CM3)', () => {
       await user.keyboard(key)
       const opened = await screen.findByRole('dialog', { name: /Demande de rendez-vous/ })
       await waitFor(() => expect(within(opened).getByLabelText(t(`${K}.to`))).toHaveFocus())
-      await user.click(within(opened).getByRole('button', { name: t(`${K}.discard`) }))
+      await user.click(within(opened).getByRole('button', { name: composerText('mailCompose.discardDraft') }))
       await waitFor(() => expect(opened).not.toBeInTheDocument())
       expect(heading).toHaveFocus()
     }

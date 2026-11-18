@@ -16,6 +16,13 @@
   }
 
   :root {
+    /* The email composer's window (PS Hub's kit, CM-23) reads PS Hub's layers. Here it sits where
+       MANA's composer always did: above the top bar (30), under the menus, dialogs and toasts (50),
+       so a confirmation opened from it, even full screen, is drawn above it. */
+    --z-action-dock: 40;
+    --z-modal: 40;
+    --z-modal-content: 40;
+
     /* Brand scales. Wine is the logo colour only; teal is the single action colour. */
     --wine-50: 251 242 244;  --wine-100: 246 225 231; --wine-200: 237 194 206; --wine-300: 222 147 168;
     --wine-400: 200 92 122;  --wine-500: 155 27 60;   --wine-600: 134 23 47;   --wine-700: 110 19 39;
