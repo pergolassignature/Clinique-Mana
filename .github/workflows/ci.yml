@@ -89,7 +89,10 @@ jobs:
 
   e2e:
     name: End-to-end (Playwright)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 in November 2026, and Playwright cannot install Chromium
+    # there yet (« Playwright does not support chromium on ubuntu26.04-x64 »). Back to ubuntu-latest
+    # once a Playwright release supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
