@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { EMAIL_UI_STRING_KEYS } from '@pergolas-signature/email-ui'
+import { COMPOSER_STRING_KEYS } from '@pergolas-signature/email-ui/composer'
 import { t, type TranslationKey } from '@/i18n'
 import type { MailAttachment, MailMessage, MailThread, MailThreadRow } from '../api/inbox'
-import { canReplyAll, emailUiText, inboxMessageOf, participants, toMailAction, toMailListRow, toStackMessages } from './email-ui'
+import { canReplyAll, composerText, emailUiText, inboxMessageOf, participants, toMailAction, toMailListRow, toStackMessages } from './email-ui'
 
 const row = (over: Partial<MailThreadRow> = {}): MailThreadRow => ({
   id: 'a0000000-0000-0000-0000-000000000001',
@@ -83,6 +84,16 @@ describe('the kit’s words', () => {
     expect(emailUiText('mailThread.attachmentCount', { count: 3 })).toBe('3 pièces jointes')
     expect(emailUiText('email.thread.previousMessagesCount', { count: 2 })).toBe('2 messages précédents')
     expect(emailUiText('mailThread.archive')).toBe('Archiver')
+  })
+
+  it('fr-CA has every key the composer kit asks for, beside the inbox’s', () => {
+    const missing = COMPOSER_STRING_KEYS.filter((key) => {
+      const path = `modules.communications.emailUi.${key}`
+      return t(path as TranslationKey) === path
+    })
+    expect(missing).toEqual([])
+    expect(composerText('richEditor.bold')).toBe('Gras')
+    expect(composerText('mailCompose.attachmentRemove', { name: 'recu.pdf' })).toBe('Retirer recu.pdf')
   })
 })
 
