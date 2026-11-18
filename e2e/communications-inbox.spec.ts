@@ -116,7 +116,8 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   // and mirrored at once in the thread.
   await page.getByRole('button', { name: 'Répondre', exact: true }).click()
   const composer = page.getByRole('dialog', { name: /Attestation pour mes assurances/ })
-  await expect(composer.getByLabel('À', { exact: true })).toHaveValue('macote@example.test')
+  // The reply's address is a chip in « À » (CM-25).
+  await expect(composer.getByText('macote@example.test', { exact: true })).toBeVisible()
   const editor = composer.getByRole('textbox', { name: 'Message' })
   await editor.click()
   await page.keyboard.press('ControlOrMeta+Home')

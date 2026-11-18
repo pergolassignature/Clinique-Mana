@@ -7588,7 +7588,9 @@
           "addBlindCopy": "Ajouter une copie cachée",
           "subjectPlaceholder": "Objet",
           "sendAction": "Envoyer",
-          "attachFile": "Joindre un fichier"
+          "attachFile": "Joindre un fichier",
+          "toPlaceholder": "Destinataire",
+          "removeRecipient": "Retirer {email}"
         },
         "email": {
           "thread": {

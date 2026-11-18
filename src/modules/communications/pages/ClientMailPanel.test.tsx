@@ -90,7 +90,7 @@ describe('ClientMailPanel', () => {
     renderPanel()
     await user.click(await screen.findByRole('button', { name: t(`${P}.write`) }))
     const composer = await screen.findByRole('dialog', { name: t('modules.communications.composer.titleNew') })
-    expect(within(composer).getByLabelText(t('modules.communications.composer.to'))).toHaveValue('alice@exemple.test')
+    expect(within(composer).getByText('alice@exemple.test')).toBeInTheDocument()
     expect(within(composer).getByText(t('modules.communications.composer.aboutFile', { file: 'CLI-000042 · Alice Exemple' }))).toBeInTheDocument()
   })
 

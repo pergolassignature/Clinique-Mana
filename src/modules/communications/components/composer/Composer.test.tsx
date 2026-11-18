@@ -77,7 +77,9 @@ function renderComposer(initial: DraftContent = initialContent({ connectionId: M
 describe('Composer', () => {
   it('saves the draft as one types (the database, never the browser)', async () => {
     const { user } = renderComposer()
-    await user.type(screen.getByLabelText(t(`${C}.to`)), 'Alice@Exemple.test')
+    // Entrée makes the address a chip (CM-25), as Tab, a comma or leaving the field do.
+    await user.type(screen.getByLabelText(t(`${C}.to`)), 'Alice@Exemple.test{Enter}')
+    expect(screen.getByText('alice@exemple.test')).toBeInTheDocument()
     await user.type(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder')), 'Bonjour')
     await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_MS + 100))
     await waitFor(() => expect(mocks.api.saveDraft).toHaveBeenCalled())
@@ -85,6 +87,17 @@ describe('Composer', () => {
     expect(id).toBeNull()
     expect(content).toMatchObject({ to: ['alice@exemple.test'], subject: 'Bonjour', mode: 'new' })
     expect(await screen.findByText(new RegExp(t(`${C}.savedAt`, { time: '' }).trim().slice(0, 10)))).toBeInTheDocument()
+  })
+
+  it('a pasted list of addresses becomes one chip each, and the draft keeps them all (CM-25)', async () => {
+    const { user } = renderComposer()
+    await user.click(screen.getByLabelText(t(`${C}.to`)))
+    await user.paste('Alice <alice@exemple.test>, bruno@exemple.test; carole@exemple.test')
+    await user.keyboard('{Enter}')
+    for (const address of ['alice@exemple.test', 'bruno@exemple.test', 'carole@exemple.test']) expect(screen.getByText(address)).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_MS + 100))
+    await waitFor(() => expect(mocks.api.saveDraft).toHaveBeenCalled())
+    expect(mocks.api.saveDraft.mock.calls.at(-1)![1]).toMatchObject({ to: ['alice@exemple.test', 'bruno@exemple.test', 'carole@exemple.test'] })
   })
 
   it('saves nothing on opening, nor when the page renders again: only a real change', async () => {
@@ -96,6 +109,15 @@ describe('Composer', () => {
     await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_MS * 3))
     view.unmount()
     expect(mocks.api.saveDraft).not.toHaveBeenCalled()
+  })
+
+  it('a typed text that is not a real address stays in « À », and « Envoyer » says so (CM-25)', async () => {
+    const { user } = renderComposer()
+    await user.type(screen.getByLabelText(t(`${C}.to`)), 'marc@clinique{Enter}')
+    expect(screen.getByLabelText(t(`${C}.to`))).toHaveValue('marc@clinique')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
+    expect(screen.getByRole('alert')).toHaveTextContent(t(`${C}.problems.badAddress`, { address: 'marc@clinique' }))
+    expect(mocks.api.sendMail).not.toHaveBeenCalled()
   })
 
   it('says what is missing instead of counting down', async () => {

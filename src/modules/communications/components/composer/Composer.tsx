@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { FilePlus, FileText, Paperclip, X } from 'lucide-react'
-import { AiQuickBar, COMPOSER_ICON_BUTTON, ComposerLayout, ComposerUiProvider, ComposerWindow, type ComposerPresentation } from '@pergolas-signature/email-ui/composer'
+import {
+  AiQuickBar,
+  COMPOSER_ICON_BUTTON,
+  ComposerLayout,
+  ComposerUiProvider,
+  ComposerWindow,
+  EmailAutocomplete,
+  moveRecipient,
+  type ComposerPresentation,
+  type EmailAutocompleteHandle,
+  type RecipientDrag,
+  type RecipientField,
+} from '@pergolas-signature/email-ui/composer'
 import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
 import { uploadFile } from '@/core/storage/api'
@@ -82,11 +94,11 @@ export interface ComposerProps {
   onSent: (threadId: string | null) => void
 }
 
-/** A field's typed text and its parsed addresses. */
-function useAddressField(initial: string[]) {
-  const [text, setText] = useState(initial.join(', '))
-  const parsed = useMemo(() => parseAddresses(text), [text])
-  return { text, setText, ...parsed }
+/** A field's addresses (the kit's chips) and which of them are real ones. */
+function useAddressList(initial: string[]) {
+  const [list, setList] = useState(initial)
+  const parsed = useMemo(() => parseAddresses(list.join(', ')), [list])
+  return { list, setList, ...parsed }
 }
 
 /**
@@ -108,13 +120,20 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const [subject, setSubject] = useState(initial.subject)
   const [body, setBody] = useState(initial.bodyHtml)
   const [attachments, setAttachments] = useState<DraftAttachment[]>(initial.attachments)
-  const to = useAddressField(initial.to)
-  const cc = useAddressField(initial.cc)
-  const bcc = useAddressField(initial.bcc)
+  const to = useAddressList(initial.to)
+  const cc = useAddressList(initial.cc)
+  const bcc = useAddressList(initial.bcc)
+  // The send reads the fields after their typed text became chips (a render later).
+  const fields = useRef({ to, cc, bcc })
+  fields.current = { to, cc, bcc }
   const [showCc, setShowCc] = useState(initial.cc.length > 0)
   const [showBcc, setShowBcc] = useState(initial.bcc.length > 0)
   // The copy row a toggle just opened takes the focus as it mounts (never the rows a draft reopens with).
   const [focusOnOpen, setFocusOnOpen] = useState<'cc' | 'bcc' | null>(null)
+  useEffect(() => {
+    if (focusOnOpen === 'cc' && showCc) ccRef.current?.focus()
+    if (focusOnOpen === 'bcc' && showBcc) bccRef.current?.focus()
+  }, [focusOnOpen, showCc, showBcc])
   const [replaceWith, setReplaceWith] = useState<{ html: string; version: number } | null>(null)
   const [pendingTemplate, setPendingTemplate] = useState<ComposeTemplate | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -132,7 +151,9 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   // The send's key, and the content it was made for: the same content sends with the same key
   // (the server answers what the first « Envoyer » did, and looks in Gmail after no answer).
   const sendKey = useRef<{ key: string; content: string } | null>(null)
-  const firstField = useRef<HTMLInputElement>(null)
+  const toRef = useRef<EmailAutocompleteHandle>(null)
+  const ccRef = useRef<EmailAutocompleteHandle>(null)
+  const bccRef = useRef<EmailAutocompleteHandle>(null)
   const bodyBox = useRef<HTMLDivElement>(null)
   const attachButton = useRef<HTMLButtonElement>(null)
   // The kit draws a hidden file input for its paperclip; MANA's paperclip opens `FileDropzone`'s.
@@ -206,7 +227,7 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   }, [snapshot, phase.kind, saveNow])
 
   useEffect(() => {
-    firstField.current?.focus()
+    toRef.current?.focus()
     return () => {
       // Closed (or replaced, or the page left) during the five seconds: nothing leaves, and the
       // person is told where the message is.
@@ -252,8 +273,19 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const startSend = async (event?: FormEvent) => {
     event?.preventDefault()
     if (phase.kind !== 'editing') return
-    const invalid = [...to.invalid, ...(showCc ? cc.invalid : []), ...(showBcc ? bcc.invalid : [])]
-    const why = invalid.length > 0 ? t(`${C}.problems.badAddress`, { address: invalid[0] ?? '' }) : sendProblem(content)
+    // Text typed and not yet a chip: a bad address is said at once; a real one becomes a chip
+    // first, and the fields are read again after that render.
+    const shown = [toRef, ...(showCc ? [ccRef] : []), ...(showBcc ? [bccRef] : [])]
+    const typed = shown.map((field) => field.current?.pendingText() ?? '')
+    const badTyped = typed.find((text) => text && parseAddresses(text).invalid.length > 0)
+    if (!badTyped && typed.some(Boolean)) {
+      for (const field of shown) field.current?.commitPending()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    const now = fields.current
+    const invalid = [...now.to.invalid, ...(showCc ? now.cc.invalid : []), ...(showBcc ? now.bcc.invalid : [])]
+    const bad = badTyped || invalid[0]
+    const why = bad ? t(`${C}.problems.badAddress`, { address: bad }) : sendProblem(latest.current)
     setProblem(why)
     if (why) return
     await saveNow()
@@ -278,6 +310,12 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const title =
     initial.mode === 'new' ? t(`${C}.titleNew`) : initial.mode === 'forward' ? t(`${C}.titleForward`) : t(`${C}.titleReply`)
   const presentation: ComposerPresentation = sheet ? 'mobile' : view
+  const dropOn = (target: RecipientField) => (drag: RecipientDrag) => {
+    const next = moveRecipient({ to: to.list, cc: cc.list, bcc: bcc.list }, drag.email, drag.from, target)
+    to.setList(next.to)
+    cc.setList(next.cc)
+    bcc.setList(next.bcc)
+  }
   // PS Hub's AI bar over MANA's server (CM-24): a reply, a new message, a refinement.
   const composerAi = useManaComposerAi({
     original: initial.mode === 'reply' ? htmlToText(quote.current) : '',
@@ -321,7 +359,7 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
         closeInTabOrder={false}
         // The dock's size as the person dragged it: a convenience, never content (CM-14).
         sizeStorageKey={userId ? `mana-mail-dock-size:${userId}` : null}
-        focus={{ restore: () => (to.text.trim() ? focusBody() : firstField.current?.focus()), body: focusBody }}
+        focus={{ restore: () => (to.list.length > 0 ? focusBody() : toRef.current?.focus()), body: focusBody }}
       >
         {({ roomy }) => (
           <ComposerLayout
@@ -342,9 +380,9 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
               ) : undefined
             }
             recipients={{
-              to: <AddressInput label={t(`${C}.to`)} field={to} inputRef={firstField} disabled={busy} />,
-              cc: <AddressInput label={t(`${C}.cc`)} field={cc} disabled={busy} autoFocus={focusOnOpen === 'cc'} />,
-              bcc: <AddressInput label={t(`${C}.bcc`)} field={bcc} disabled={busy} autoFocus={focusOnOpen === 'bcc'} />,
+              to: <AddressField name="to" label={t(`${C}.to`)} field={to} fieldRef={toRef} onDrop={dropOn('to')} disabled={busy} />,
+              cc: <AddressField name="cc" label={t(`${C}.cc`)} field={cc} fieldRef={ccRef} onDrop={dropOn('cc')} disabled={busy} />,
+              bcc: <AddressField name="bcc" label={t(`${C}.bcc`)} field={bcc} fieldRef={bccRef} onDrop={dropOn('bcc')} disabled={busy} />,
               showCc,
               showBcc,
               onShowCc: () => {
@@ -487,42 +525,40 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   )
 }
 
-/** An address field inside the kit's row: the row draws the visible label, this one names the field. */
-function AddressInput({
+/**
+ * An address field inside the kit's row: the kit's chips (PS Hub's field, CM-25), named for
+ * assistive tech (the row draws the visible label), with MANA's « adresse invalide » under it for a
+ * chip that is not a real address.
+ */
+function AddressField({
+  name,
   label,
   field,
-  inputRef,
+  fieldRef,
+  onDrop,
   disabled,
-  autoFocus,
 }: {
+  name: RecipientField
   label: string
-  field: ReturnType<typeof useAddressField>
-  inputRef?: React.Ref<HTMLInputElement>
+  field: ReturnType<typeof useAddressList>
+  fieldRef: React.Ref<EmailAutocompleteHandle>
+  onDrop: (drag: RecipientDrag) => void
   disabled: boolean
-  autoFocus?: boolean
 }) {
-  const errorId = useId()
   return (
     <div className="min-w-0 space-y-1">
-      <Input
-        ref={inputRef}
-        type="text"
-        inputMode="email"
-        autoComplete="off"
-        spellCheck={false}
-        autoFocus={autoFocus}
-        aria-label={label}
-        value={field.text}
+      <EmailAutocomplete
+        ref={fieldRef}
+        emails={field.list}
+        onChange={field.setList}
+        label={label}
         disabled={disabled}
-        aria-invalid={field.invalid.length > 0 || undefined}
-        aria-describedby={field.invalid.length > 0 ? errorId : undefined}
-        onChange={(event) => field.setText(event.target.value)}
-        onBlur={() => field.setText([...field.valid, ...field.invalid].join(', '))}
+        field={name}
+        onDropRecipient={onDrop}
+        placeholder={name === 'to' ? undefined : ''}
       />
       {field.invalid.length > 0 && (
-        <p id={errorId} className="text-xs text-destructive">
-          {t(`${C}.problems.badAddress`, { address: field.invalid[0] ?? '' })}
-        </p>
+        <p className="text-xs text-destructive">{t(`${C}.problems.badAddress`, { address: field.invalid[0] ?? '' })}</p>
       )}
     </div>
   )
