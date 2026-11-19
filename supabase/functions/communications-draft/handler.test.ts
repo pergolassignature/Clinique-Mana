@@ -466,3 +466,78 @@ Deno.test("the origin: OpenAI's, the fake only on a dev machine; the cost at the
     225,
   )
 })
+
+Deno.test('a selection rewrite: the passage is masked, the email goes as context only, the passage alone comes back, recorded as « rewrite »', async () => {
+  const s = setup()
+  const res = await s.handler(post({
+    mode: 'rewrite',
+    instruction: 'Raccourcis ce passage sans perdre de fait.',
+    draft:
+      'Bonjour Camille,\n\nMerci pour votre message. Vous pouvez nous joindre au 514 555-1234 en tout temps.',
+    selection: 'Vous pouvez nous joindre au 514 555-1234 en tout temps.',
+    subject_empty: true,
+    client_id: CLIENT_ID,
+  }))
+  assertEquals(res.status, 200)
+  const body = await res.json()
+  assertEquals(body.text, 'Passage réécrit par l’IA simulée.')
+  // No « Objet: » is asked for, nor split off, even with an empty subject.
+  assertEquals(body.subject, null)
+  const [request] = s.openai.requests
+  const system = request!.messages.find((m) => m.role === 'system')!.content
+  const user = request!.messages.at(-1)!.content
+  assertMatch(system, /réponds avec ce passage réécrit et rien d'autre/)
+  assertFalse(/Commence par une ligne "Objet:/.test(system))
+  assertMatch(user, /^Courriel complet, pour contexte seulement/)
+  assertMatch(
+    user,
+    /Sélection:\n---\nVous pouvez nous joindre au \[\[téléphone-1\]\] en tout temps\.\n---\n\nInstruction: Raccourcis/,
+  )
+  const sent = JSON.stringify(s.openai.requests)
+  for (const secret of ['Camille', '514 555-1234']) {
+    assertFalse(sent.includes(secret), `OpenAI saw ${secret}`)
+  }
+  const [call] = recorded(s)
+  assertEquals(call!.p_kind, 'rewrite')
+  assertEquals(call!.p_status, 'ok')
+  assertFalse(JSON.stringify(call).includes('joindre'))
+})
+
+Deno.test('a selection rewrite with nothing selected is refused in French, and OpenAI is not called', async () => {
+  const s = setup()
+  const res = await s.handler(post({
+    mode: 'rewrite',
+    instruction: 'Corrige les fautes.',
+    draft: 'Bonjour,',
+    selection: '   ',
+  }))
+  assertEquals(res.status, 400)
+  assertMatch(
+    JSON.stringify(await res.json()),
+    /Sélectionnez le passage à réécrire/,
+  )
+  assertEquals(s.openai.requests.length, 0)
+  assertEquals(recorded(s).length, 0)
+})
+
+Deno.test('the rewrite prompts: the passage and the instruction, the email only as context, no subject line', () => {
+  const system = buildSystemPrompt({
+    mode: 'rewrite',
+    subjectEmpty: true,
+    personKnown: false,
+  })
+  assertMatch(system, /sans ligne "Objet:"/)
+  assertFalse(/Commence par une ligne "Objet:/.test(system))
+  assertEquals(
+    buildUserTurn({
+      mode: 'rewrite',
+      instruction: 'Corrige les fautes.',
+      draft: '',
+      original: 'ignoré',
+      selection: '  Merci beaucou.  ',
+      subjectEmpty: true,
+      personKnown: false,
+    }),
+    "Réécris seulement la sélection ci-dessous selon l'instruction. Garde les mêmes faits et la même intention.\n\nSélection:\n---\nMerci beaucou.\n---\n\nInstruction: Corrige les fautes.",
+  )
+})

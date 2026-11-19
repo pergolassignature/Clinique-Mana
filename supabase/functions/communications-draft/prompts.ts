@@ -2,10 +2,11 @@
  * The prompts of « Rédiger avec l'IA » (CM4): PS Hub's (`ai-rewrite-email/prompts.ts`), taken as
  * is where it fits a dispatch clinic, with three changes (CM-19): no CRM context (names, addresses
  * and numbers are replaced by placeholders and tokens before the call, `mask.ts`), the
- * placeholders the model must keep, and nothing clinical. Pure.
+ * placeholders the model must keep, and nothing clinical. Pure. A selection rewrite (CM-29) is PS Hub's
+ * too: the passage alone comes back, the email around it as context only.
  */
 
-export type DraftMode = 'write' | 'reply' | 'refine'
+export type DraftMode = 'write' | 'reply' | 'refine' | 'rewrite'
 
 export interface PromptInput {
   mode: DraftMode
@@ -19,6 +20,8 @@ export interface PromptInput {
   subjectEmpty: boolean
   /** A file's person is known: the model may greet with {{person.first_name}}. */
   personKnown: boolean
+  /** `rewrite`: the selected passage, as text (masked). */
+  selection?: string
 }
 
 export const ORIGINAL_MAX = 3_000
@@ -48,6 +51,10 @@ Confidentialité:
     ? `\n- Pour nommer la personne à qui l'on écrit, utilise {{person.first_name}} (et {{person.last_name}} au besoin).`
     : `\n- Le nom de la personne à qui l'on écrit n'est pas connu: salue sans nom (« Bonjour, »).`
   if (input.mode === 'refine') return prompt
+  if (input.mode === 'rewrite') {
+    return prompt +
+      `\n- On te donne un passage sélectionné dans le courriel: réponds avec ce passage réécrit et rien d'autre, sans salutation, sans ligne "Objet:", sans fermeture ni signature. Garde la langue du passage.`
+  }
   prompt += input.subjectEmpty
     ? `\n- Commence par une ligne "Objet: [ligne sujet concise, 60 caractères max, en français]", puis une ligne vide, puis le corps du courriel.`
     : `\n- N'écris pas de ligne "Objet:"; l'utilisateur a déjà rempli l'objet du courriel.`
@@ -59,6 +66,19 @@ Confidentialité:
 /** The user's turn. */
 export function buildUserTurn(input: PromptInput): string {
   if (input.mode === 'refine') return `Raffinement: ${input.instruction}`
+  if (input.mode === 'rewrite') {
+    const context = input.draft.trim()
+      ? [
+        `Courriel complet, pour contexte seulement (ne pas le réécrire):\n---\n${input.draft.trim()}\n---`,
+      ]
+      : []
+    return [
+      ...context,
+      `Réécris seulement la sélection ci-dessous selon l'instruction. Garde les mêmes faits et la même intention.\n\nSélection:\n---\n${
+        (input.selection ?? '').trim()
+      }\n---\n\nInstruction: ${input.instruction}`,
+    ].join('\n\n')
+  }
   const parts: string[] = []
   const original = input.original.trim()
   if (original) {

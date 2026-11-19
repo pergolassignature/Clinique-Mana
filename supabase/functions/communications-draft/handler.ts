@@ -1,6 +1,7 @@
 /**
- * `communications-draft` (CM4): « Rédiger avec l'IA » in the composer. A user
- * function (CLAUDE.md §7).
+ * `communications-draft` (CM4): « Rédiger avec l'IA » in the composer, and the
+ * selection bubble's rewrite (`rewrite`, CM-29: the passage alone comes back).
+ * A user function (CLAUDE.md §7).
  *
  * 1. CORS, `POST` only, the body (`readJson`), then `verifyAuth(req, {
  *    module: 'communications', permission: 'communications.ai_draft' })`
@@ -66,10 +67,12 @@ const turnSchema = z.object({
 })
 
 const bodySchema = z.object({
-  mode: z.enum(['write', 'reply', 'refine']),
+  mode: z.enum(['write', 'reply', 'refine', 'rewrite']),
   instruction: z.string().max(2_000).default(''),
   draft: z.string().max(TEXT_MAX).default(''),
   original: z.string().max(TEXT_MAX).default(''),
+  /** `rewrite`: the selected passage. */
+  selection: z.string().max(TEXT_MAX).default(''),
   subject_empty: z.boolean().default(false),
   client_id: z.guid().nullable().optional(),
   thread_id: z.guid().nullable().optional(),
@@ -128,6 +131,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       (mode === 'reply' ? REPLY_INSTRUCTION : '')
     if (!instruction) {
       return refusalResponse('Écrivez ce que l’IA doit rédiger.', req)
+    }
+    if (mode === 'rewrite' && !body.selection.trim()) {
+      return refusalResponse('Sélectionnez le passage à réécrire.', req)
     }
 
     const client = deps.serviceClient()
@@ -201,6 +207,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       instruction: masker.mask(instruction),
       draft: masker.mask(body.draft),
       original: masker.mask(body.original),
+      selection: masker.mask(body.selection),
       subjectEmpty: body.subject_empty,
       personKnown: settings.person !== null,
     })
@@ -286,7 +293,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (recorded.error) await report('ai_record_failed')
 
     const answer = masker.unmask(result.content)
-    const split = mode === 'refine' || !body.subject_empty
+    const split = mode === 'refine' || mode === 'rewrite' || !body.subject_empty
       ? { subject: null, body: answer.trim() }
       : splitSubjectAndBody(answer)
     return jsonResponse(

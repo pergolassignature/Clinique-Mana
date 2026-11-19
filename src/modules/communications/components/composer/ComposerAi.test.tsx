@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AiQuickBar, ComposerUiProvider } from '@pergolas-signature/email-ui/composer'
+import { AiQuickBar, ComposerUiProvider, type ComposerAi } from '@pergolas-signature/email-ui/composer'
 import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { composerText } from '../../lib/email-ui'
@@ -87,6 +87,58 @@ describe('the composer AI: PS Hub’s bar over communications-draft (CM-24)', ()
     await waitFor(() =>
       expect(mocks.ai.draftWithAi).toHaveBeenCalledWith(expect.objectContaining({ mode: 'reply', instruction: '', original: 'Puis-je venir mardi ?', threadId: 't1', history: [] })),
     )
+  })
+
+  it('a reply: « Ton de la réponse » offers the clinic’s three tones, and « Décliner poliment » sends its instruction (CM-29)', async () => {
+    mocks.ai.draftWithAi.mockResolvedValue(PROPOSAL)
+    const user = renderBar({ parentMessage: 'Puis-je venir mardi ?', args: { original: 'Puis-je venir mardi ?', threadId: 't1' } })
+    await user.click(screen.getByRole('button', { name: composerText('aiBar.write') }))
+    expect(screen.getByText(composerText('aiBar.toneGroup'))).toBeInTheDocument()
+    for (const label of ['Demander des précisions', 'Décliner poliment', 'Remercier']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+    }
+    await user.click(screen.getByRole('button', { name: 'Décliner poliment' }))
+    await waitFor(() =>
+      expect(mocks.ai.draftWithAi).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'reply',
+          instruction: 'Décline poliment et brièvement, sans inventer de raison.',
+          original: 'Puis-je venir mardi ?',
+          threadId: 't1',
+          history: [],
+        }),
+      ),
+    )
+  })
+
+  it('a selection rewrite: the preset’s instruction, the passage and the text go to the server as « rewrite » (CM-29)', async () => {
+    mocks.ai.draftWithAi.mockResolvedValue({ text: 'Merci beaucoup.', subject: null, history: [] })
+    let port: ComposerAi | null = null
+    function Probe() {
+      port = useManaComposerAi({ original: '', subjectEmpty: false, clientId: null, threadId: 't1', capReached: false })
+      return null
+    }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Probe />
+      </QueryClientProvider>,
+    )
+    const ai = port as unknown as ComposerAi
+    expect(ai.presets.rewrite.map((preset) => preset.label)).toEqual(['Corriger', 'Reformuler', 'Développer', 'Raccourcir'])
+    const result = await ai.draft({ kind: 'rewrite', preset: 'proofread', draft: 'Bonjour,\n\nMerci beaucou.', selection: 'Merci beaucou.' })
+    expect(mocks.ai.draftWithAi).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'rewrite',
+        instruction: "Corrige les fautes d'orthographe, de grammaire et de ponctuation sans changer le sens.",
+        draft: 'Bonjour,\n\nMerci beaucou.',
+        selection: 'Merci beaucou.',
+        history: [],
+      }),
+    )
+    expect(result.text).toBe('Merci beaucoup.')
+    // The person's own words on a selection go as written.
+    await ai.draft({ kind: 'rewrite', instruction: 'Plus chaleureux', draft: 'Merci.', selection: 'Merci.' })
+    expect(mocks.ai.draftWithAi.mock.calls[1]?.[0]).toMatchObject({ mode: 'rewrite', instruction: 'Plus chaleureux', selection: 'Merci.' })
   })
 
   it('« Raffiner » continues the same conversation: the server’s history goes back', async () => {

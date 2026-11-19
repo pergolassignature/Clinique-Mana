@@ -20,7 +20,7 @@ export async function fetchAiDraftStatus(): Promise<AiDraftStatus> {
   return statusSchema.parse(data)
 }
 
-export type AiDraftMode = 'write' | 'reply' | 'refine'
+export type AiDraftMode = 'write' | 'reply' | 'refine' | 'rewrite'
 export interface AiTurn {
   role: 'user' | 'assistant'
   content: string
@@ -33,6 +33,8 @@ export interface AiDraftInput {
   draft: string
   /** The message replied to (plain text). */
   original: string
+  /** `rewrite`: the selected passage (plain text). */
+  selection?: string
   subjectEmpty: boolean
   clientId: string | null
   threadId: string | null
@@ -58,6 +60,7 @@ export async function draftWithAi(input: AiDraftInput, signal?: AbortSignal): Pr
       instruction: input.instruction,
       draft: clip(input.draft),
       original: clip(input.original),
+      selection: clip(input.selection ?? ''),
       subject_empty: input.subjectEmpty,
       client_id: input.clientId,
       thread_id: input.threadId,

@@ -410,7 +410,15 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
                     disabled={busy}
                   />
                 )}
-                <RichEmailEditor initialHtml={initial.bodyHtml} replaceWith={replaceWith} onChange={setBody} label={t(`${C}.body`)} personKnown={personKnown} />
+                <RichEmailEditor
+                  initialHtml={initial.bodyHtml}
+                  replaceWith={replaceWith}
+                  onChange={setBody}
+                  label={t(`${C}.body`)}
+                  personKnown={personKnown}
+                  // The selection bubble rewrites a passage with the same AI (CM-29), while a draft can be asked for.
+                  rewriteAi={ai.data?.available && !busy ? composerAi : undefined}
+                />
                 {/* Files go through FileDropzone (CLAUDE.md §8): the kit's paperclip opens its picker. */}
                 {attachments.length < MAX_ATTACHMENTS && !busy && (
                   <FileDropzone
