@@ -1,7 +1,7 @@
 # « Courriels »: searching beyond the mirror (design)
 
 - **Date:** 2026-11-19
-- **Status:** decided and built (CM-30). Pierre-Luc chose B on 2026-11-19; the window (24 months) and who may search (whoever reads the mailbox) are the defaults below, open to Jonathan's review (and Christine's, for retention).
+- **Status:** decided and built (CM-30). Pierre-Luc chose B on 2026-11-19, and confirmed the recommended window (24 months) and who may search (whoever reads the mailbox) the same day. If Christine changes the retention (roadmap question 30), the window follows it.
 - **Where it comes from:** PS Hub's shared-email plan, stage 3, slice 3c (`new-ps-hub` `docs/plans/2026-10-29-email-ui-shared-with-clinique-mana.md`). It is the one Gmail gap a person feels; 3a (the parser) is done (PR #233), and 3b (inline GIF images) waits until one shows up.
 
 ## The problem
