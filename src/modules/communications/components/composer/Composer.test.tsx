@@ -194,12 +194,37 @@ describe('Composer', () => {
     expect(mocks.toast.info).toHaveBeenCalledWith(t(`${C}.cancelledByClose`))
   })
 
+  // CM-26: PS Hub's template picker over MANA's templates.
   it('a clinic template fills an empty message and its subject', async () => {
     const { user } = renderComposer()
-    await user.click(screen.getByRole('button', { name: t(`${C}.templates`) }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Accusé de réception' }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.templates.choose') }))
+    await user.click(await screen.findByText('Accusé de réception'))
     expect(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder'))).toHaveValue('Votre message')
     expect(screen.getByLabelText(t(`${C}.body`))).toHaveValue('<p>Bonjour {{person.first_name}},</p><p>Merci.</p>')
+  })
+
+  it('a message saved as a template needs no subject (a reply keeps its own)', async () => {
+    mocks.api.saveTemplate.mockResolvedValue('tpl-9')
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), bodyHtml: '<p>Merci pour votre message.</p>' }
+    const { user } = renderComposer(initial, 'd1')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.templates.choose') }))
+    await user.click(await screen.findByRole('button', { name: composerText('mailCompose.templates.create') }))
+    await user.type(await screen.findByPlaceholderText(composerText('mailCompose.templates.namePlaceholder')), 'Remerciement')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.templates.save') }))
+    await waitFor(() => expect(mocks.api.saveTemplate).toHaveBeenCalledWith(null, 'Remerciement', '', '<p>Merci pour votre message.</p>'))
+  })
+
+  it('deleting one of my templates asks first', async () => {
+    mocks.api.listTemplates.mockResolvedValue([
+      { kind: 'personal', id: 'tpl-1', name: 'Mon suivi', subject: 'Suivi', body: '<p>Merci.</p>', format: 'html' },
+    ])
+    mocks.api.deleteTemplate.mockResolvedValue(undefined)
+    const { user } = renderComposer()
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.templates.choose') }))
+    await user.click(await screen.findByRole('button', { name: composerText('mailCompose.templates.deleteOne') }))
+    expect(mocks.api.deleteTemplate).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: t(`${C}.deleteTemplateAction`) }))
+    await waitFor(() => expect(mocks.api.deleteTemplate).toHaveBeenCalledWith('tpl-1', expect.anything()))
   })
 
   it('« Supprimer le brouillon » asks, then deletes it', async () => {

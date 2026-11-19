@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
-import { FilePlus, FileText, Paperclip, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Paperclip, X } from 'lucide-react'
 import {
   AiQuickBar,
-  COMPOSER_ICON_BUTTON,
   ComposerLayout,
   ComposerUiProvider,
   ComposerWindow,
   EmailAutocomplete,
   moveRecipient,
+  TemplatePill,
   type ComposerPresentation,
   type EmailAutocompleteHandle,
   type RecipientDrag,
@@ -32,17 +32,6 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import { Button, buttonVariants } from '@/shared/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/shared/ui/dropdown-menu'
-import { Input } from '@/shared/ui/input'
-import { Label } from '@/shared/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import {
@@ -58,12 +47,13 @@ import {
 } from '../../api/composer'
 import { communicationsErrorMessage } from '../../api/errors'
 import type { MailConnection } from '../../api/mailboxes'
-import { useDeleteDraft, useDeleteTemplate, useSaveDraft, useSaveTemplate, useSendMail, useTemplates } from '../../hooks/use-composer'
+import { useDeleteDraft, useDeleteTemplate, useSaveDraft, useSendMail } from '../../hooks/use-composer'
 import { useAiDraftStatus } from '../../hooks/use-ai'
 import { hasText, htmlToText, parseAddresses, sendProblem, textToHtml } from '../../lib/compose'
 import { COMPOSER_UI_PORTS } from './composer-ui-ports'
 import { RichEmailEditor } from './RichEmailEditor'
 import { useManaComposerAi } from './use-composer-ai'
+import { useManaComposerTemplates } from './use-composer-templates'
 
 const C = 'modules.communications.composer'
 /** Below this width the composer fills the screen (the kit's « mobile » sheet); from it, it docks. */
@@ -135,7 +125,8 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
     if (focusOnOpen === 'bcc' && showBcc) bccRef.current?.focus()
   }, [focusOnOpen, showCc, showBcc])
   const [replaceWith, setReplaceWith] = useState<{ html: string; version: number } | null>(null)
-  const [pendingTemplate, setPendingTemplate] = useState<ComposeTemplate | null>(null)
+  const [pendingTemplate, setPendingTemplate] = useState<{ subject: string; html: string } | null>(null)
+  const [templateToDelete, setTemplateToDelete] = useState<ComposeTemplate | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [phase, setPhase] = useState<Phase>({ kind: 'editing' })
   const [problem, setProblem] = useState<string | null>(null)
@@ -175,7 +166,9 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   sendRef.current = send
   const onSentRef = useRef(onSent)
   onSentRef.current = onSent
-  const templates = useTemplates()
+  // PS Hub's template picker over MANA's templates (CM-26); a deletion asks first, below.
+  const templates = useManaComposerTemplates({ confirmDelete: setTemplateToDelete })
+  const removeTemplate = useDeleteTemplate()
   const ai = useAiDraftStatus()
 
   const content: DraftContent = useMemo(
@@ -292,13 +285,12 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
     setPhase({ kind: 'counting', left: UNDO_SECONDS })
   }
 
-  const applyTemplate = (template: ComposeTemplate) => {
-    const html = template.format === 'text' ? textToHtml(template.body) : template.body
-    setReplaceWith((prev) => ({ html: html + quote.current, version: (prev?.version ?? 0) + 1 }))
+  const applyTemplate = (template: { subject: string; html: string }) => {
+    setReplaceWith((prev) => ({ html: template.html + quote.current, version: (prev?.version ?? 0) + 1 }))
     if (initial.mode === 'new' && template.subject.trim() && !subject.trim()) setSubject(template.subject)
     setPendingTemplate(null)
   }
-  const chooseTemplate = (template: ComposeTemplate) => {
+  const chooseTemplate = (template: { subject: string; html: string }) => {
     // Replacing a text one wrote asks first.
     if (body !== quote.current && hasText(body.replace(quote.current, ''))) setPendingTemplate(template)
     else applyTemplate(template)
@@ -471,10 +463,16 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
               isSending: phase.kind === 'sending',
               onAttach: () => attachButton.current?.click(),
               actions: (
-                <>
-                  <TemplatesMenu templates={templates.data ?? []} disabled={busy} onChoose={chooseTemplate} />
-                  <SaveTemplateButton subject={initial.mode === 'new' ? subject : ''} body={body.replace(quote.current, '')} disabled={busy || !hasText(body.replace(quote.current, ''))} />
-                </>
+                <TemplatePill
+                  templates={templates}
+                  iconTrigger
+                  disabled={busy}
+                  onApply={(templateSubject, templateBody) => chooseTemplate({ subject: templateSubject, html: templateBody.html })}
+                  // « Enregistrer comme modèle »: the text written, without the quote; a reply's subject stays its own.
+                  currentSubject={initial.mode === 'new' ? subject : ''}
+                  currentBodyHtml={body.replace(quote.current, '')}
+                  currentBody={htmlToText(body.replace(quote.current, ''))}
+                />
               ),
               via: mailbox?.email_address,
               onDiscard: busy ? undefined : discard,
@@ -492,6 +490,30 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => pendingTemplate && applyTemplate(pendingTemplate)}>{t(`${C}.replaceAction`)}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={templateToDelete !== null} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t(`${C}.deleteTemplateTitle`, { name: templateToDelete?.name ?? '' })}</AlertDialogTitle>
+            <AlertDialogDescription>{t(`${C}.deleteTemplateBody`)}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: 'destructive' })}
+              onClick={() =>
+                templateToDelete &&
+                removeTemplate.mutate(templateToDelete.id, {
+                  onSuccess: () => toast.success(t(`${C}.templateDeleted`)),
+                  onError: (error) => toast.error(communicationsErrorMessage(error)),
+                })
+              }
+            >
+              {t(`${C}.deleteTemplateAction`)}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -593,132 +615,5 @@ function AttachmentList({ attachments, disabled, onRemove }: { attachments: Draf
         </li>
       ))}
     </ul>
-  )
-}
-
-/** « Modèles »: the clinic's starting texts, then one's own (« Mes modèles », with « Supprimer »). */
-function TemplatesMenu({ templates, disabled, onChoose }: { templates: ComposeTemplate[]; disabled: boolean; onChoose: (template: ComposeTemplate) => void }) {
-  const remove = useDeleteTemplate()
-  const [toDelete, setToDelete] = useState<ComposeTemplate | null>(null)
-  const clinic = templates.filter((x) => x.kind === 'clinic')
-  const personal = templates.filter((x) => x.kind === 'personal')
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" disabled={disabled} className={COMPOSER_ICON_BUTTON} aria-label={t(`${C}.templates`)} title={t(`${C}.templates`)}>
-            <FileText aria-hidden className="size-4" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
-          {templates.length === 0 && <DropdownMenuLabel>{t(`${C}.noTemplates`)}</DropdownMenuLabel>}
-          {clinic.length > 0 && <DropdownMenuLabel>{t(`${C}.clinicTemplates`)}</DropdownMenuLabel>}
-          {clinic.map((x) => (
-            <DropdownMenuItem key={x.id} onSelect={() => onChoose(x)}>
-              {x.name}
-            </DropdownMenuItem>
-          ))}
-          {personal.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>{t(`${C}.myTemplates`)}</DropdownMenuLabel>
-            </>
-          )}
-          {personal.map((x) => (
-            <DropdownMenuItem key={x.id} onSelect={() => onChoose(x)}>
-              {x.name}
-            </DropdownMenuItem>
-          ))}
-          {personal.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              {personal.map((x) => (
-                <DropdownMenuItem key={`delete-${x.id}`} onSelect={() => setToDelete(x)} className="text-destructive">
-                  {t(`${C}.deleteTemplate`, { name: x.name })}
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <AlertDialog open={toDelete !== null} onOpenChange={(open) => !open && setToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t(`${C}.deleteTemplateTitle`, { name: toDelete?.name ?? '' })}</AlertDialogTitle>
-            <AlertDialogDescription>{t(`${C}.deleteTemplateBody`)}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              className={buttonVariants({ variant: 'destructive' })}
-              onClick={() =>
-                toDelete &&
-                remove.mutate(toDelete.id, {
-                  onSuccess: () => toast.success(t(`${C}.templateDeleted`)),
-                  onError: (error) => toast.error(communicationsErrorMessage(error)),
-                })
-              }
-            >
-              {t(`${C}.deleteTemplateAction`)}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  )
-}
-
-/** « Enregistrer comme modèle »: the text written (without the quote), under a name. */
-function SaveTemplateButton({ subject, body, disabled }: { subject: string; body: string; disabled: boolean }) {
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const save = useSaveTemplate()
-  const id = useId()
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    if (!name.trim()) {
-      setError(t(`${C}.templateNameMissing`))
-      return
-    }
-    save.mutate(
-      { id: null, name: name.trim(), subject, bodyHtml: body },
-      {
-        onSuccess: () => {
-          toast.success(t(`${C}.templateSaved`, { name: name.trim() }))
-          setOpen(false)
-          setName('')
-        },
-        onError: (failure) => setError(communicationsErrorMessage(failure)),
-      },
-    )
-  }
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        setError(null)
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button type="button" disabled={disabled} className={COMPOSER_ICON_BUTTON} aria-label={t(`${C}.saveAsTemplate`)} title={t(`${C}.saveAsTemplate`)}>
-          <FilePlus aria-hidden className="size-4" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
-        <form onSubmit={submit} noValidate className="space-y-2">
-          <Label htmlFor={id}>{t(`${C}.templateName`)}</Label>
-          <Input id={id} value={name} maxLength={80} autoFocus autoComplete="off" onChange={(e) => setName(e.target.value)} aria-invalid={error !== null || undefined} />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={save.isPending}>
-              {t(`${C}.templateSave`)}
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
   )
 }
