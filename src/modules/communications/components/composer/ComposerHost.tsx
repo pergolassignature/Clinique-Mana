@@ -19,7 +19,9 @@ interface ComposerHostProps {
  * « Courriels », a record's « Courriels » — holds its own): `useComposerLauncher().open(…)` shows
  * it, docked at the bottom right on a computer, full screen on a phone. One at a time: opening
  * another replaces it (its draft is saved first). Once it closes (the X, « Supprimer le brouillon »,
- * the send), the focus goes back to what opened it.
+ * « Envoyer »), the focus goes back to what opened it. A send leaves five seconds after the composer
+ * closed (CM-27): its « Courriel envoyé » reaches the page then, and never closes the composer open
+ * at that time.
  */
 export function ComposerHost({ mailboxes, onSent, children }: ComposerHostProps) {
   const [request, setRequest] = useState<{ value: ComposeRequest; key: number } | null>(null)
@@ -57,10 +59,7 @@ export function ComposerHost({ mailboxes, onSent, children }: ComposerHostProps)
           request={request.value}
           mailboxes={mailboxes}
           onClose={close}
-          onSent={(threadId) => {
-            close()
-            onSent?.(threadId)
-          }}
+          onSent={(threadId) => onSent?.(threadId)}
         />
       )}
     </ComposerContext.Provider>
@@ -78,7 +77,21 @@ function OpenComposer({
   onClose: () => void
   onSent: (threadId: string | null) => void
 }) {
-  const draft = useDraft(request.kind === 'draft' ? request.draftId : null)
+  // A draft reopened with its content (« Annuler », « Rouvrir ») needs no read.
+  const draft = useDraft(request.kind === 'draft' && !request.content ? request.draftId : null)
+  if (request.kind === 'draft' && request.content) {
+    return (
+      <Composer
+        draftId={request.draftId}
+        initial={request.content}
+        mailboxes={mailboxes}
+        fileLabel={request.fileLabel}
+        personKnown={request.personKnown || request.content.clientId !== null}
+        onClose={onClose}
+        onSent={onSent}
+      />
+    )
+  }
   if (request.kind === 'content') {
     return (
       <Composer

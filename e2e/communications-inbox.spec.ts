@@ -112,8 +112,8 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await page.getByRole('button', { name: 'Remettre dans la boîte de réception' }).click()
   await expect(page.getByRole('button', { name: 'Archiver' })).toBeVisible()
 
-  // CM3: « Répondre », a template-free text, « Envoyer », five seconds, sent through the fake Gmail
-  // and mirrored at once in the thread.
+  // CM3: « Répondre », a template-free text, « Envoyer », five seconds (CM-27: a notice, the composer
+  // closed), sent through the fake Gmail and mirrored at once in the thread.
   await page.getByRole('button', { name: 'Répondre', exact: true }).click()
   const composer = page.getByRole('dialog', { name: /Attestation pour mes assurances/ })
   // The reply's address is a chip in « À » (CM-25).
@@ -123,9 +123,10 @@ test('with the fake Google: read, follow, archive and search a thread, then put 
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.type('Bonjour, voici votre attestation. ')
   await composer.getByRole('button', { name: 'Envoyer' }).click()
-  await expect(composer.getByText(/Envoi dans \d s\./)).toBeVisible()
-  await expect(page.getByText('Courriel envoyé.')).toBeVisible({ timeout: 20_000 })
+  // CM-27: the composer closes at once; the five seconds of « Annuler » are a notice on the page.
   await expect(composer).toHaveCount(0)
+  await expect(page.getByText(/Envoi dans \d s\./)).toBeVisible()
+  await expect(page.getByText('Courriel envoyé.')).toBeVisible({ timeout: 20_000 })
   // The composer gone, the focus is back on what opened it.
   await expect(page.getByRole('button', { name: 'Répondre', exact: true })).toBeFocused()
   // The reply is in the thread at once (mirrored by gmail-send), from the clinic: its header names it.

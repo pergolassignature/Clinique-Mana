@@ -1,9 +1,13 @@
 import { createContext, useContext } from 'react'
 import type { DraftContent } from '../api/composer'
 
-/** What opens the composer: a saved draft, or a new message (new, a reply, a forward). */
+/**
+ * What opens the composer: a saved draft, or a new message (new, a reply, a forward). A draft
+ * reopened by « Annuler » or « Rouvrir » (CM-27) carries its content as it was at the send or the
+ * deletion, so nothing typed since the last autosave is lost.
+ */
 export type ComposeRequest =
-  | { kind: 'draft'; draftId: string; personKnown: boolean; fileLabel?: string | null }
+  | { kind: 'draft'; draftId: string; personKnown: boolean; fileLabel?: string | null; content?: DraftContent }
   | { kind: 'content'; content: DraftContent; personKnown: boolean; fileLabel?: string | null }
 
 export interface ComposerLauncher {
