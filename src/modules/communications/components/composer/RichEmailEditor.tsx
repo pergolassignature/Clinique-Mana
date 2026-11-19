@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import type { StarterKitOptions } from '@tiptap/starter-kit'
 import { Braces } from 'lucide-react'
-import { ComposerUiProvider } from '@pergolas-signature/email-ui/composer'
+import { ComposerUiProvider, type ComposerAi } from '@pergolas-signature/email-ui/composer'
 import { RichEmailEditor as KitEditor } from '@pergolas-signature/email-ui/rich-editor'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
@@ -50,6 +50,8 @@ interface RichEmailEditorProps {
   label: string
   /** Whether the person may insert the file's placeholders (a file is linked). */
   personKnown: boolean
+  /** The composer's AI (CM-29): given, a selection shows PS Hub's bubble (Corriger, Reformuler, Développer, Raccourcir, or one's own words). */
+  rewriteAi?: ComposerAi
 }
 
 /**
@@ -58,7 +60,7 @@ interface RichEmailEditorProps {
  * would strip), and « Insérer » for the placeholders the server fills (`{{person.first_name}}`…). No
  * image, no HTML pasted as is: the schema keeps what it knows, and `gmail-send` hardens what it receives.
  */
-export function RichEmailEditor({ initialHtml, replaceWith, onChange, label, personKnown }: RichEmailEditorProps) {
+export function RichEmailEditor({ initialHtml, replaceWith, onChange, label, personKnown, rewriteAi }: RichEmailEditorProps) {
   const [html, setHtml] = useState(initialHtml)
   const editor = useRef<Editor | null>(null)
 
@@ -87,6 +89,7 @@ export function RichEmailEditor({ initialHtml, replaceWith, onChange, label, per
           bodyClassName={BODY_CLASS}
           editorRef={editor}
           toolbarExtras={(kitEditor) => <InsertMenu editor={kitEditor} personKnown={personKnown} />}
+          rewriteAi={rewriteAi}
         />
       </div>
     </ComposerUiProvider>

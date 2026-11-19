@@ -7768,6 +7768,17 @@
       },
       "ai": {
         "reply": "Générer une réponse",
+        "tones": {
+          "ask_details": "Demander des précisions",
+          "decline": "Décliner poliment",
+          "thanks": "Remercier"
+        },
+        "rewrite": {
+          "proofread": "Corriger",
+          "rephrase": "Reformuler",
+          "expand": "Développer",
+          "shorten": "Raccourcir"
+        },
         "capReached": "Le plafond mensuel de l'IA est atteint.",
         "errors": {
           "rateLimited": "Trop de demandes à l'IA en peu de temps.",

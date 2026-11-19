@@ -38,6 +38,10 @@ function draftFor(body: FakeOpenAiRequest): string {
   const greeting = /\{\{person\.first_name\}\}/.test(system)
     ? 'Bonjour {{person.first_name}},'
     : 'Bonjour,'
+  // A selection rewrite (CM-29): the passage alone comes back.
+  if (last.includes('Réécris seulement la sélection')) {
+    return 'Passage réécrit par l’IA simulée.'
+  }
   if (last.startsWith('Raffinement:')) {
     return `${greeting}\n\nVoici la version raffinée de la réponse (IA simulée).\n\nAu plaisir,`
   }
