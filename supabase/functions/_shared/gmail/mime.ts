@@ -9,7 +9,12 @@
  * (a large body) fetched by the sync, and addresses lower-cased once here.
  *
  * Parts with a file name or an attachment id are attachments; an image whose
- * `Content-ID` the HTML names as `cid:` is inline. An attachment is `accepted`
+ * `Content-ID` the HTML names as `cid:` is inline. A part with children and
+ * no file name is a container, never an attachment itself: its files are its
+ * children (a multipart some mail servers attach whole, so Gmail gives it an
+ * attachment id). What is inside an attached part or an attached message is
+ * never this message's body. PS Hub's parser (`gmail-mime.ts`) treats both
+ * the same way since its DLP invoices of 2026-08. An attachment is `accepted`
  * when its type is one the storage map takes (the sync copies those; the
  * others stay in Gmail, listed with their name).
  */
@@ -170,7 +175,7 @@ export function parseMessage(message: GmailMessage, now: Date): ParsedMessage {
   const candidates: AttachmentPart[] = []
   const bodyRefs: ParsedMessage['body_refs'] = []
 
-  const walk = (part: GmailPart, index: string) => {
+  const walk = (part: GmailPart, index: string, attached: boolean) => {
     const mime = (part.mimeType ?? '').toLowerCase()
     const body = part.body ?? {}
     const filename = part.filename ?? ''
@@ -178,7 +183,10 @@ export function parseMessage(message: GmailMessage, now: Date): ParsedMessage {
     const partId = part.partId || index
     const isBody = (mime === 'text/html' || mime === 'text/plain') &&
       filename === ''
+    const container = (part.parts?.length ?? 0) > 0 && filename === ''
     if (isBody) {
+      // An attached message's text is its own, not this message's body.
+      if (attached) return
       const charset = charsetOf(header(part.headers, 'Content-Type'))
       if (mime === 'text/html' && html === null) {
         if (body.data) html = bodyText(body.data, charset)
@@ -199,7 +207,7 @@ export function parseMessage(message: GmailMessage, now: Date): ParsedMessage {
           })
         }
       }
-    } else if (body.attachmentId || filename !== '') {
+    } else if (!container && (body.attachmentId || filename !== '')) {
       const contentId = stripAngles(header(part.headers, 'Content-ID'))
       candidates.push({
         part_id: partId,
@@ -212,9 +220,10 @@ export function parseMessage(message: GmailMessage, now: Date): ParsedMessage {
         accepted: extensionForMime(mime.split(';')[0].trim()) !== null,
       })
     }
-    part.parts?.forEach((child, i) => walk(child, `${index}.${i + 1}`))
+    const inside = attached || !!body.attachmentId || mime === 'message/rfc822'
+    part.parts?.forEach((child, i) => walk(child, `${index}.${i + 1}`, inside))
   }
-  if (message.payload) walk(message.payload, '0')
+  if (message.payload) walk(message.payload, '0', false)
 
   const attachments = candidates.map((a) => ({
     ...a,
