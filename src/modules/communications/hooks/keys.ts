@@ -39,6 +39,9 @@ export const mailKeys = {
   threadLink: (id: string) => [...mailKeys.threads(), 'link', id] as const,
   /** The search of a file to link a thread to (Clients' `search_clients`). */
   fileSearch: (query: string) => [...mailKeys.all, 'file-search', query] as const,
+  /** « Dans Gmail » (CM-30): Gmail's matches for a search; an open reads them again (the opened one leaves). */
+  gmailSearches: () => [...mailKeys.all, 'gmail-search'] as const,
+  gmailSearch: (connectionId: string, query: string) => [...mailKeys.gmailSearches(), connectionId, query] as const,
   labels: (connectionId: string) => [...mailKeys.all, 'labels', connectionId] as const,
   /** The composer (CM3). */
   drafts: () => [...mailKeys.all, 'drafts'] as const,

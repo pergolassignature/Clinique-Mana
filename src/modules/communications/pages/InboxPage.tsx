@@ -16,6 +16,7 @@ import { MailboxNav, type ViewChoice } from '../components/inbox/MailboxNav'
 import { EMAIL_UI_PORTS } from '../components/inbox/email-ui-ports'
 import { MailThreadView } from '../components/inbox/MailThreadView'
 import { DraftList } from '../components/inbox/DraftList'
+import { GmailSearchResults } from '../components/inbox/GmailSearchResults'
 import { ComposerHost } from '../components/composer/ComposerHost'
 import { useMailLabels, useMailThreads } from '../hooks/use-inbox'
 import { useMailConnections } from '../hooks/use-mailboxes'
@@ -59,6 +60,8 @@ export function InboxPage() {
   const sendable = useMemo(() => mailboxes.filter((m) => m.status === 'connected'), [mailboxes])
   const wanted = params.get('boite')
   const mailboxId = mailboxes.find((m) => m.id === wanted)?.id ?? mailboxes[0]?.id ?? null
+  // « Dans Gmail » asks a connected mailbox only (the function refuses any other).
+  const searchable = mailboxes.find((m) => m.id === mailboxId && m.status === 'connected') ?? null
   const canSeeFiles = useAccess().can('clients.view')
   const choice = parseView(params.get('vue'), canSeeFiles)
   const threadParam = params.get('fil')
@@ -186,6 +189,12 @@ export function InboxPage() {
         // Pull to refresh reads the list again (the mailbox's own sync is Gmail's push and the job).
         refresh={{ onRefresh: () => void threads.refetch(), isSyncing: refreshing, isManualSyncing: refreshing }}
         header={searchField}
+        // « Dans Gmail » (CM-30): what Gmail finds that the mirror does not hold.
+        footer={
+          search && searchable ? (
+            <GmailSearchResults connectionId={searchable.id} mailbox={searchable.email_address} search={search} onOpened={openThread} />
+          ) : undefined
+        }
       />
     )
   }

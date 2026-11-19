@@ -7446,6 +7446,15 @@
           "noSubject": "(sans objet)",
           "emptyToLink": "Aucun courriel à rattacher."
         },
+        "gmailSearch": {
+          "title": "Dans Gmail",
+          "searching": "Recherche dans Gmail…",
+          "failed": "Gmail n'a pas pu être consulté. Réessayez dans un instant.",
+          "nothingMore": "Rien de plus dans Gmail sur les 24 derniers mois.",
+          "opening": "Ouverture…",
+          "openFailed": "Ce courriel n'a pas pu être ouvert.",
+          "older": "Plus ancien que 24 mois : chercher dans Gmail"
+        },
         "thread": {
           "select": "Choisissez un courriel pour le lire.",
           "more": "Plus d'actions",

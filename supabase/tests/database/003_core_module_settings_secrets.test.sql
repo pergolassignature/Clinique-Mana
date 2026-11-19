@@ -211,6 +211,8 @@ select functions_are('public', array[
   'upsert_mail_labels', 'upsert_mail_messages', 'delete_mail_messages', 'apply_mail_label_changes',
   'list_mail_attachments_to_store', 'record_mail_attachment',
   'list_mail_threads', 'get_mail_thread', 'get_mail_threads_for_action',
+  -- Communications, CM-30 (« Dans Gmail »: the search beyond the mirror).
+  'get_mail_search_threads_for_service',
   -- Facturation, batch FQ (QuickBooks connection).
   'store_qbo_connection', 'disconnect_qbo_connection', 'get_qbo_credentials', 'set_qbo_tokens',
   'set_qbo_connection_status', 'finish_qbo_sync', 'replace_qbo_accounts', 'upsert_qbo_customers',

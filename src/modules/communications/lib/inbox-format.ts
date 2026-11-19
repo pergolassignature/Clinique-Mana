@@ -10,6 +10,11 @@ export function gmailThreadUrl(mailbox: string, gmailThreadId: string): string {
   return `https://mail.google.com/mail/?authuser=${encodeURIComponent(mailbox)}#all/${encodeURIComponent(gmailThreadId)}`
 }
 
+/** Gmail's own search of the mailbox, for mail older than the mirror's 24 months (CM-30). */
+export function gmailSearchUrl(mailbox: string, query: string): string {
+  return `https://mail.google.com/mail/?authuser=${encodeURIComponent(mailbox)}#search/${encodeURIComponent(query)}`
+}
+
 /**
  * « CLI-000123 · Alice Exemple » (CM2b): the file's number as Clients writes it (its
  * `clientNumberLabel`; Communications does not import Clients' code, CM-12).

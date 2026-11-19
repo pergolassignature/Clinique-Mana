@@ -94,6 +94,11 @@ const listSchema = z.looseObject({
   resultSizeEstimate: z.number().optional(),
 })
 
+const threadSchema = z.looseObject({
+  id: z.string(),
+  messages: z.array(messageSchema).optional(),
+})
+
 const labelChangeSchema = z.looseObject({
   message: messageRefSchema,
   labelIds: z.array(z.string()).optional(),
@@ -416,6 +421,19 @@ export class GmailClient {
       raw: { contentType: `multipart/related; boundary=${boundary}`, bytes },
       retry: false,
     })
+  }
+
+  /** `threads.get` (CM-30's open): its messages, `minimal` (ids, dates) by default. */
+  getThread(
+    threadId: string,
+    format: 'full' | 'metadata' | 'minimal' = 'minimal',
+  ) {
+    return this.#call(
+      'GET',
+      `threads/${encodeURIComponent(threadId)}`,
+      threadSchema,
+      { query: { format } },
+    )
   }
 
   /** `threads.modify`: every message of the thread. */

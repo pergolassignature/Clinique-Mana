@@ -15720,6 +15720,18 @@ export type Database = {
         }[]
       }
       get_mail_draft: { Args: { p_id: string }; Returns: Json }
+      get_mail_search_threads_for_service: {
+        Args: {
+          p_actor: string
+          p_connection_id: string
+          p_gmail_thread_ids: string[]
+          p_org_id: string
+        }
+        Returns: {
+          gmail_thread_id: string
+          thread_id: string
+        }[]
+      }
       get_mail_thread: { Args: { p_thread_id: string }; Returns: Json }
       get_mail_thread_link: { Args: { p_thread_id: string }; Returns: Json }
       get_mail_threads_for_action: {

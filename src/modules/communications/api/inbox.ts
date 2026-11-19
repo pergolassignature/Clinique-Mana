@@ -156,3 +156,26 @@ export type ModifyResult = z.infer<typeof modifySchema>
 export async function modifyMailThreads(threadIds: string[], action: MailAction): Promise<ModifyResult> {
   return modifySchema.parse(await invokeFunction('gmail-modify', { thread_ids: threadIds, action }))
 }
+
+const gmailHitSchema = z.object({
+  gmail_thread_id: z.string(),
+  subject: z.string(),
+  from_name: z.string().nullable(),
+  from_address: z.string().nullable(),
+  date: z.string().nullable(),
+  snippet: z.string(),
+})
+/** One of Gmail's matches that the mirror does not hold (CM-30): read from Gmail, never stored. */
+export type GmailSearchHit = z.output<typeof gmailHitSchema>
+
+/** « Dans Gmail » (CM-30): Gmail's own search of the mailbox, within the mirror's 24 months. */
+export async function searchGmail(connectionId: string, query: string, signal?: AbortSignal): Promise<GmailSearchHit[]> {
+  const data = await invokeFunction('gmail-search', { action: 'search', connection_id: connectionId, query }, { signal })
+  return z.object({ threads: z.array(gmailHitSchema) }).parse(data).threads
+}
+
+/** Opens one of Gmail's matches: the thread is copied into the mirror, and its id comes back. */
+export async function openGmailThread(connectionId: string, gmailThreadId: string): Promise<string> {
+  const data = await invokeFunction('gmail-search', { action: 'open', connection_id: connectionId, gmail_thread_id: gmailThreadId })
+  return z.object({ thread_id: z.string() }).parse(data).thread_id
+}
