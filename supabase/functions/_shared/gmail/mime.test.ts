@@ -214,3 +214,142 @@ Deno.test('mime: a body handed out by attachment id is referenced for the sync; 
     NOW.toISOString(),
   )
 })
+
+// PS Hub's parser lost files twice (PS Hub #622, and the Electricité DLP invoices of 2026-08); its
+// recover pass re-parsed what it had synced. These hold MANA's parser on the same messages.
+
+Deno.test('mime: a file Apple Mail marks `Content-Disposition: inline` is still an attachment', () => {
+  const parsed = parseMessage({
+    id: 'm5',
+    threadId: 't5',
+    internalDate: String(NOW.getTime()),
+    payload: {
+      partId: '',
+      mimeType: 'multipart/mixed',
+      filename: '',
+      body: { size: 0 },
+      parts: [
+        {
+          partId: '0',
+          mimeType: 'text/html',
+          filename: '',
+          body: { size: 12, data: b64('<p>Voici</p>') },
+        },
+        {
+          partId: '1',
+          mimeType: 'application/pdf',
+          filename: 'plan.pdf',
+          headers: [{
+            name: 'Content-Disposition',
+            value: 'inline; filename="plan.pdf"',
+          }],
+          body: { size: 900, attachmentId: 'att-plan' },
+        },
+      ],
+    },
+  } as GmailMessage, NOW)
+  assertEquals(
+    parsed.attachments.map((
+      a,
+    ) => [a.part_id, a.filename, a.is_inline, a.accepted]),
+    [['1', 'plan.pdf', false, true]],
+  )
+})
+
+Deno.test('mime: files inside an attached multipart container are listed, and the container itself is not', () => {
+  // Some mail servers wrap the files in a multipart/mixed that carries `Content-Disposition:
+  // attachment`, so Gmail gives the container an attachment id and no file name.
+  const parsed = parseMessage({
+    id: 'm6',
+    threadId: 't6',
+    internalDate: String(NOW.getTime()),
+    payload: {
+      partId: '',
+      mimeType: 'multipart/mixed',
+      filename: '',
+      body: { size: 0 },
+      parts: [
+        {
+          partId: '0',
+          mimeType: 'text/html',
+          filename: '',
+          body: { size: 14, data: b64('<p>Facture</p>') },
+        },
+        {
+          partId: '1',
+          mimeType: 'multipart/mixed',
+          filename: '',
+          headers: [{ name: 'Content-Disposition', value: 'attachment' }],
+          body: { size: 5000, attachmentId: 'att-box' },
+          parts: [
+            {
+              partId: '1.0',
+              mimeType: 'application/pdf',
+              filename: 'facture.pdf',
+              body: { size: 4800, attachmentId: 'att-facture' },
+            },
+          ],
+        },
+      ],
+    },
+  } as GmailMessage, NOW)
+  assertEquals(
+    parsed.attachments.map((a) => [a.part_id, a.filename, a.accepted]),
+    [['1.0', 'facture.pdf', true]],
+  )
+  assertEquals(parsed.body_html, '<p>Facture</p>')
+})
+
+Deno.test('mime: a message forwarded as an attachment never lends its body to the message around it', () => {
+  // The outer message has only a text part; the attached one has its own text and HTML.
+  const parsed = parseMessage({
+    id: 'm7',
+    threadId: 't7',
+    internalDate: String(NOW.getTime()),
+    payload: {
+      partId: '',
+      mimeType: 'multipart/mixed',
+      filename: '',
+      body: { size: 0 },
+      parts: [
+        {
+          partId: '0',
+          mimeType: 'text/plain',
+          filename: '',
+          body: { size: 26, data: b64('Voir le courriel ci-joint.') },
+        },
+        {
+          partId: '1',
+          mimeType: 'message/rfc822',
+          filename: '',
+          body: { size: 3000, attachmentId: 'att-msg' },
+          parts: [
+            {
+              partId: '1.0',
+              mimeType: 'multipart/alternative',
+              filename: '',
+              body: { size: 0 },
+              parts: [
+                {
+                  partId: '1.0.0',
+                  mimeType: 'text/plain',
+                  filename: '',
+                  body: { size: 9, data: b64('Intérieur') },
+                },
+                {
+                  partId: '1.0.1',
+                  mimeType: 'text/html',
+                  filename: '',
+                  body: { size: 16, data: b64('<p>Intérieur</p>') },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  } as GmailMessage, NOW)
+  assertEquals(parsed.body_text, 'Voir le courriel ci-joint.')
+  assertEquals(parsed.body_html, null)
+  assertEquals(parsed.body_refs, [])
+})
