@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
     getMailThread: vi.fn(),
     listMailLabels: vi.fn(),
     modifyMailThreads: vi.fn(),
+    searchGmail: vi.fn(),
+    openGmailThread: vi.fn(),
   },
   mailboxes: { listMailConnections: vi.fn() },
   composer: {
@@ -158,6 +160,7 @@ beforeEach(() => {
     { gmail_label_id: 'Label_1', name: 'Factures', type: 'user', visibility: null, color_background: null },
   ])
   mocks.inbox.modifyMailThreads.mockResolvedValue({ changed: 1, failed: [] })
+  mocks.inbox.searchGmail.mockResolvedValue([])
   mocks.composer.listDrafts.mockResolvedValue([])
   mocks.composer.listTemplates.mockResolvedValue([])
   mocks.composer.saveDraft.mockResolvedValue({ id: 'd1', updatedAt: '2026-10-13T15:00:00Z' })
@@ -324,6 +327,58 @@ describe('InboxPage', () => {
       ),
     )
     expect(await screen.findByText(t(`${I}.list.noResult`))).toBeInTheDocument()
+  })
+
+  it('« Dans Gmail » (CM-30): under a search, Gmail’s matches the mirror does not hold; opening one copies it and opens the thread', async () => {
+    const user = userEvent.setup()
+    mocks.inbox.searchGmail.mockResolvedValue([
+      {
+        gmail_thread_id: '18c0abc',
+        subject: 'Suivi',
+        from_name: 'Alice Exemple',
+        from_address: 'alice@exemple.test',
+        date: '2025-09-12T14:00:00Z',
+        snippet: 'Voici la facture de mars.',
+      },
+    ])
+    mocks.inbox.openGmailThread.mockResolvedValue(T2)
+    renderPage()
+    const search = await screen.findByRole('searchbox', { name: t(`${I}.search`) })
+    mocks.inbox.listMailThreads.mockResolvedValue([])
+    await user.type(search, 'facture')
+    // The mirror finds nothing; Gmail, within its 24 months, finds a message older than the mirror.
+    expect(await screen.findByText(t(`${I}.list.noResult`))).toBeInTheDocument()
+    const gmail = await screen.findByRole('region', { name: t(`${I}.gmailSearch.title`) })
+    await waitFor(() => expect(mocks.inbox.searchGmail).toHaveBeenLastCalledWith(MAILBOX.id, 'facture', expect.anything()))
+    const hit = await within(gmail).findByRole('button', { name: /Alice Exemple/ })
+    expect(hit).toHaveTextContent('Suivi')
+    expect(hit).toHaveTextContent('Voici la facture de mars.')
+    expect(within(gmail).getByRole('link', { name: t(`${I}.gmailSearch.older`) })).toHaveAttribute(
+      'href',
+      `https://mail.google.com/mail/?authuser=${encodeURIComponent(MAILBOX.email_address)}#search/facture`,
+    )
+    // Nothing was copied until a person opened it.
+    expect(mocks.inbox.openGmailThread).not.toHaveBeenCalled()
+    mocks.inbox.getMailThread.mockResolvedValue(thread({ id: T2, subject: 'Suivi' }))
+    await user.click(hit)
+    await waitFor(() => expect(mocks.inbox.openGmailThread).toHaveBeenCalledWith(MAILBOX.id, '18c0abc'))
+    await waitFor(() => expect(mocks.inbox.getMailThread).toHaveBeenCalledWith(T2))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Suivi' })).toBeInTheDocument()
+  })
+
+  it('« Dans Gmail » says when Gmail has nothing more, and is not asked for one letter', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const search = await screen.findByRole('searchbox', { name: t(`${I}.search`) })
+    await user.type(search, 'f')
+    await waitFor(() =>
+      expect(mocks.inbox.listMailThreads).toHaveBeenLastCalledWith({ connectionId: MAILBOX.id, view: 'all', labelId: null, search: 'f' }, null),
+    )
+    expect(screen.queryByRole('region', { name: t(`${I}.gmailSearch.title`) })).not.toBeInTheDocument()
+    expect(mocks.inbox.searchGmail).not.toHaveBeenCalled()
+    await user.type(search, 'acture')
+    const gmail = await screen.findByRole('region', { name: t(`${I}.gmailSearch.title`) })
+    expect(await within(gmail).findByText(t(`${I}.gmailSearch.nothingMore`))).toBeInTheDocument()
   })
 
   it('opens the view named in the address (a label) and a thread from a link', async () => {

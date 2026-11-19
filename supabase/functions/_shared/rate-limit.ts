@@ -374,6 +374,15 @@ export const LIMITS = {
   smsTestUser: { bucket: 'sms.test_user', max: 5, windowSeconds: 3_600 },
   /** Every text `sms-send` sends, per org: a runaway-loop brake (the dispatch has the queue's own pace). */
   smsOrgDay: { bucket: 'sms.org_day', max: 500, windowSeconds: 86_400 },
+  /**
+   * `gmail-search` (« Dans Gmail », CM-30), per caller: a search follows
+   * typing (300 ms after the last key), an open copies one thread.
+   */
+  gmailSearchUser: {
+    bucket: 'gmail.search_user',
+    max: 30,
+    windowSeconds: 60,
+  },
   /** `communications-draft` (« Rédiger avec l'IA », CM4), per caller: the monthly cap is the clinic's money brake. */
   aiDraftUser: {
     bucket: 'communications.ai_draft_user',

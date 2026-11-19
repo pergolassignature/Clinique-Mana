@@ -1,7 +1,7 @@
 # « Courriels »: searching beyond the mirror (design)
 
 - **Date:** 2026-11-19
-- **Status:** proposed. Nothing is built. Three decisions below wait on Jonathan (and Christine for retention).
+- **Status:** decided and built (CM-30). Pierre-Luc chose B on 2026-11-19; the window (24 months) and who may search (whoever reads the mailbox) are the defaults below, open to Jonathan's review (and Christine's, for retention).
 - **Where it comes from:** PS Hub's shared-email plan, stage 3, slice 3c (`new-ps-hub` `docs/plans/2026-10-29-email-ui-shared-with-clinique-mana.md`). It is the one Gmail gap a person feels; 3a (the parser) is done (PR #233), and 3b (inline GIF images) waits until one shows up.
 
 ## The problem
@@ -65,7 +65,7 @@ Whoever reads the mailbox (`communications.inbox`, `private.readable_mail_connec
 
 Opening a hit says « Ouverture… », then shows the thread. If the footer's rows want the kit's own row drawing, that is a small kit option, decided when built.
 
-**Database:** one RPC, `mail_threads_in_mirror(p_connection_id, p_gmail_thread_ids)`, security invoker, which returns the ids the mirror holds. Its pgTAP test covers another mailbox's and another clinic's threads. No table, no column. Deploying it means a migration and a function, merged with Jonathan's go-ahead.
+**Database:** one service RPC on the inbox's actor model (conventions §8b), `get_mail_search_threads_for_service(p_actor, p_org_id, p_connection_id, p_gmail_thread_ids)`: the caller re-checked (active, `communications.inbox`, the mailbox connected and readable by them), then the ids of the given Gmail threads the mirror holds in that mailbox. Its pgTAP test (260) covers another mailbox's and another clinic's threads, a disabled member, a disconnected and someone else's personal mailbox. No table, no column. (The design first had a security-invoker RPC; the function needs the caller's right checked before it reads the mailbox's token, as `gmail-modify` does.)
 
 **Tests:**
 - the function, with a fake Gmail:

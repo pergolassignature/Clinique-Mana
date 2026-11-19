@@ -21,8 +21,12 @@
  *   otherwise); every write bumps the history id and appends records;
  * - `history.list` from an id older than `HISTORY_KEPT` records → 404
  *   (Google's « start history id too old »);
- * - `messages.list` honours `q=newer_than:Nd`, `q=rfc822msgid:<id>`,
- *   `maxResults` and `pageToken`;
+ * - `messages.list` honours `q=newer_than:N` in days, months or years
+ *   (`d`, `m`, `y`), `q=rfc822msgid:<id>`, the plain words of `q` (each must
+ *   appear in the subject, the sender, the snippet or the text; CM-30's
+ *   search), `maxResults` and `pageToken`;
+ * - `threads.get` answers the thread's messages, oldest first, in the
+ *   format asked (404 for a thread it does not have);
  * - `watch` records the topic and answers an expiry 7 days ahead;
  *   `onWatchNotification` (the local server posts Pub/Sub pushes) fires on
  *   each `deliver`;
@@ -189,6 +193,12 @@ const b64url = (bytes: Uint8Array): string => {
   )
 }
 const encodeText = (text: string) => b64url(new TextEncoder().encode(text))
+/** Gmail's base64url (no padding) back to bytes. */
+const fromB64url = (data: string): Uint8Array =>
+  Uint8Array.from(
+    atob(data.replaceAll('-', '+').replaceAll('_', '/')),
+    (c) => c.charCodeAt(0),
+  )
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -414,6 +424,22 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
         ...(labelsRemoved.length ? { labelsRemoved } : {}),
       })
     }
+  }
+
+  /** What the plain words of a search are looked for in: subject, sender, snippet, text. */
+  function searchableText(m: FakeMessage): string {
+    const field = (name: string) =>
+      m.payload.headers.find((h) => h.name === name)?.value ?? ''
+    const texts: string[] = []
+    const walk = (part: FakePart) => {
+      if (part.mimeType === 'text/plain' && part.body.data) {
+        texts.push(new TextDecoder().decode(fromB64url(part.body.data)))
+      }
+      part.parts?.forEach(walk)
+    }
+    walk(m.payload)
+    return [field('Subject'), field('From'), m.snippet, ...texts].join(' ')
+      .toLowerCase()
   }
 
   function serveMessage(m: FakeMessage, format: string) {
@@ -729,8 +755,16 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
         500,
       )
       const q = url.searchParams.get('q') ?? ''
-      const newer = /newer_than:(\d+)d/.exec(q)
-      const since = newer ? now() - Number(newer[1]) * 86_400_000 : 0
+      const newer = /newer_than:(\d+)([dmy])/.exec(q)
+      const day = 86_400_000
+      const since = newer
+        ? now() -
+          Number(newer[1]) *
+            (newer[2] === 'y' ? 365 * day : newer[2] === 'm' ? 30 * day : day)
+        : 0
+      // The plain words: every one must appear in the message (Gmail's own search, simplified).
+      const words = q.split(/\s+/).filter((w) => w !== '' && !w.includes(':'))
+        .map((w) => w.toLowerCase())
       const msgid = /rfc822msgid:<?([^<>\s]+)>?/.exec(q)?.[1]
       const labelIds = url.searchParams.getAll('labelIds')
       let all = [...messages.values()].filter((m) =>
@@ -743,6 +777,11 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
           )
         )
         .filter((m) => labelIds.every((l) => m.labelIds.includes(l)))
+        .filter((m) => {
+          if (words.length === 0) return true
+          const haystack = searchableText(m)
+          return words.every((w) => haystack.includes(w))
+        })
         .sort((a, b) => Number(b.internalDate) - Number(a.internalDate))
       const start = Number(url.searchParams.get('pageToken') ?? 0)
       if (!Number.isInteger(start) || start < 0) {
@@ -756,6 +795,19 @@ export function fakeGmail(options: FakeGmailOptions = {}): FakeGmail {
           ? { nextPageToken: String(start + max) }
           : {}),
         resultSizeEstimate: page.length,
+      })
+    }
+    const threadPath = /^threads\/([^/]+)$/.exec(rest)
+    if (threadPath && req.method === 'GET') {
+      const id = decodeURIComponent(threadPath[1])
+      const format = url.searchParams.get('format') ?? 'full'
+      const ofThread = [...messages.values()].filter((m) => m.threadId === id)
+        .sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
+      if (ofThread.length === 0) return error(404, 'NOT_FOUND')
+      return json(200, {
+        id,
+        historyId: String(historyId),
+        messages: ofThread.map((m) => serveMessage(m, format)),
       })
     }
     if (rest === 'messages/batchModify' && req.method === 'POST') {

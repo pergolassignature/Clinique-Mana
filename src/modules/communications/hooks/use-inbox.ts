@@ -6,6 +6,8 @@ import {
   listMailLabels,
   listMailThreads,
   modifyMailThreads,
+  openGmailThread,
+  searchGmail,
   THREAD_PAGE_SIZE,
   type MailAction,
   type MailThread,
@@ -172,5 +174,32 @@ export function useMailAction({ silent = false }: { silent?: boolean } = {}) {
         queryClient.invalidateQueries({ queryKey: mailKeys.connections() }),
         ...threadIds.map((id) => queryClient.invalidateQueries({ queryKey: mailKeys.thread(id) })),
       ]),
+  })
+}
+
+/** Shorter searches are not sent to Gmail (as the function refuses them). */
+export const GMAIL_SEARCH_MIN = 2
+
+/** « Dans Gmail » (CM-30): Gmail's matches the mirror does not hold, for a search of the mailbox. */
+export function useGmailSearch(connectionId: string | null, search: string) {
+  const query = search.trim()
+  return useQuery({
+    queryKey: mailKeys.gmailSearch(connectionId ?? '', query),
+    queryFn: ({ signal }) => searchGmail(connectionId!, query, signal),
+    enabled: connectionId !== null && query.length >= GMAIL_SEARCH_MIN,
+    staleTime: 60_000,
+    retry: false,
+  })
+}
+
+/** Opens one of Gmail's matches: copied into the mirror, the lists and the matches read again. */
+export function useOpenGmailThread() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ connectionId, gmailThreadId }: { connectionId: string; gmailThreadId: string }) => openGmailThread(connectionId, gmailThreadId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mailKeys.threadLists() })
+      void queryClient.invalidateQueries({ queryKey: mailKeys.gmailSearches() })
+    },
   })
 }
