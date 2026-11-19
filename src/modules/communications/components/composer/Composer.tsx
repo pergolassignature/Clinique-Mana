@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Paperclip, X } from 'lucide-react'
 import {
   AiQuickBar,
+  AttachmentChips,
   ComposerLayout,
   ComposerUiProvider,
   ComposerWindow,
@@ -35,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
-import { Button, buttonVariants } from '@/shared/ui/button'
+import { buttonVariants } from '@/shared/ui/button'
 import { Select } from '@/shared/ui/select'
 import { toast } from '@/shared/ui/sonner'
 import {
@@ -384,11 +384,13 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
             }}
             subject={{ value: subject, onChange: (value) => setSubject(value.replace(/[\r\n]+/g, ' ')), disabled: busy, maxLength: 250 }}
             attachments={
-              attachments.length > 0 ? (
-                <div className={cn('py-2', roomy ? 'px-6' : 'px-4')}>
-                  <AttachmentList attachments={attachments} disabled={busy} onRemove={(id) => setAttachments((list) => list.filter((a) => a.id !== id))} />
-                </div>
-              ) : undefined
+              <AttachmentChips
+                attachments={attachments}
+                getName={(a) => a.name}
+                getSize={(a) => size(a.size_bytes)}
+                disabled={busy}
+                onRemove={(gone) => setAttachments((list) => list.filter((a) => a.id !== gone.id))}
+              />
             }
             body={
               <div ref={bodyBox} className="space-y-2">
@@ -550,30 +552,4 @@ function AddressField({
 function size(bytes: number): string {
   if (bytes < 1024 * 1024) return t(`${C}.sizeKb`, { size: String(Math.max(1, Math.round(bytes / 1024))) })
   return t(`${C}.sizeMb`, { size: (bytes / 1024 / 1024).toLocaleString('fr-CA', { maximumFractionDigits: 1 }) })
-}
-
-function AttachmentList({ attachments, disabled, onRemove }: { attachments: DraftAttachment[]; disabled: boolean; onRemove: (id: string) => void }) {
-  if (attachments.length === 0) return null
-  return (
-    <ul aria-label={t(`${C}.attachments`)} className="flex flex-wrap gap-2">
-      {attachments.map((a) => (
-        <li key={a.id} className="inline-flex max-w-[18rem] items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
-          <Paperclip aria-hidden className="size-3 shrink-0" />
-          <span className="truncate">{a.name}</span>
-          <span className="tabular shrink-0 text-muted-foreground">{size(a.size_bytes)}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            aria-label={t(`${C}.removeAttachment`, { name: a.name })}
-            onClick={() => onRemove(a.id)}
-            className="h-6 w-6 p-0"
-          >
-            <X aria-hidden className="size-3" />
-          </Button>
-        </li>
-      ))}
-    </ul>
-  )
 }
