@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
@@ -324,5 +324,26 @@ describe('Composer', () => {
     expect(input.type).toBe('file')
     expect(input.accept).toContain('application/pdf')
     pick.mockRestore()
+  })
+
+  it('its files are PS Hub’s chips: a list « Pièces jointes », and « Retirer » takes one out of the draft', async () => {
+    const initial = {
+      ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }),
+      attachments: [
+        { id: 'f1', name: 'Plan.pdf', mime_type: 'application/pdf', size_bytes: 20 * 1024 },
+        { id: 'f2', name: 'Photo.jpg', mime_type: 'image/jpeg', size_bytes: 1_468_006 },
+      ],
+    }
+    const { user } = renderComposer(initial, 'd1')
+    const list = screen.getByRole('list', { name: composerText('mailCompose.attachmentList') })
+    const [plan, photo] = within(list).getAllByRole('listitem')
+    expect(plan).toHaveTextContent('Plan.pdf')
+    expect(plan).toHaveTextContent(t(`${C}.sizeKb`, { size: '20' }))
+    expect(photo).toHaveTextContent(t(`${C}.sizeMb`, { size: '1,4' }))
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.attachmentRemove', { name: 'Plan.pdf' }) }))
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_MS + 100))
+    await waitFor(() => expect(mocks.api.saveDraft).toHaveBeenCalled())
+    expect(mocks.api.saveDraft.mock.calls.at(-1)![1]).toMatchObject({ attachments: [{ id: 'f2' }] })
   })
 })
