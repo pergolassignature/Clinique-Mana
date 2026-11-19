@@ -4,7 +4,7 @@
 -- Gmail threads the mirror holds in that mailbox, never another mailbox's nor another clinic's.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (counselor 02 with the inbox, provider 03 without it, admin 01 who
@@ -101,12 +101,10 @@ reset role;
 -- =============================================================================
 -- Only the service role calls it
 -- =============================================================================
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select throws_ok($$ select * from public.get_mail_search_threads_for_service('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a',
-                    'c0000000-0000-0000-0000-00000000000a', array['t1']) $$,
-  '42501', null, 'a signed-in caller cannot call it directly');
-reset role;
+select function_privs_are('public', 'get_mail_search_threads_for_service', array['uuid', 'uuid', 'uuid', 'text[]'], 'authenticated', array[]::text[],
+  'get_mail_search_threads_for_service: not authenticated');
+select function_privs_are('public', 'get_mail_search_threads_for_service', array['uuid', 'uuid', 'uuid', 'text[]'], 'service_role', array['EXECUTE'],
+  'get_mail_search_threads_for_service: service_role');
 
 select * from finish();
 rollback;
