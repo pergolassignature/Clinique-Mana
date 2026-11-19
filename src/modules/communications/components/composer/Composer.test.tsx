@@ -9,7 +9,8 @@ import { renderWithContexts } from '@/test/contexts'
 import type { DraftContent } from '../../api/composer'
 import { MAILBOX } from '../../test/fixtures'
 import { initialContent } from '../../lib/compose'
-import { AUTOSAVE_MS, Composer, UNDO_SECONDS } from './Composer'
+import { ComposerContext, type ComposeRequest } from '../../hooks/use-composer-launcher'
+import { AUTOSAVE_MS, Composer } from './Composer'
 
 const mocks = vi.hoisted(() => ({
   api: {
@@ -20,7 +21,8 @@ const mocks = vi.hoisted(() => ({
     deleteTemplate: vi.fn(),
     sendMail: vi.fn(),
   },
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(), dismiss: vi.fn() }),
+  open: vi.fn(),
 }))
 vi.mock('../../api/composer', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/composer')>()), ...mocks.api }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
@@ -34,9 +36,13 @@ vi.mock('./RichEmailEditor', () => ({
 
 const C = 'modules.communications.composer'
 
-/** The countdown, one second at a time (each second is its own timer). */
-async function tick(seconds: number) {
-  for (let i = 0; i < seconds; i++) await act(() => vi.advanceTimersByTimeAsync(1_000))
+/** The engine's five seconds of « Annuler » (email-ui 0.7.0). */
+const UNDO_MS = 5_000
+
+/** The last notice the engine showed with a button (the countdown, a deletion): its button. */
+function noticeAction(): { label: string; onClick: () => void } {
+  const calls = [...mocks.toast.mock.calls, ...mocks.toast.error.mock.calls].filter(([, options]) => options?.action)
+  return calls.at(-1)![1].action
 }
 
 beforeEach(() => {
@@ -57,11 +63,15 @@ function renderComposer(initial: DraftContent = initialContent({ connectionId: M
   const onClose = vi.fn()
   const onSent = vi.fn()
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  // The page's launcher: « Annuler » and « Rouvrir » reopen the composer through it.
+  const launcher = { open: (request: ComposeRequest) => mocks.open(request), isOpen: true }
   const tree = (value: DraftContent) => (
     <QueryClientProvider client={queryClient}>
-      {renderWithContexts(
-        <Composer draftId={draftId} initial={value} mailboxes={[MAILBOX]} personKnown={false} onClose={onClose} onSent={onSent} />,
-      )}
+      <ComposerContext.Provider value={launcher}>
+        {renderWithContexts(
+          <Composer draftId={draftId} initial={value} mailboxes={[MAILBOX]} personKnown={false} onClose={onClose} onSent={onSent} />,
+        )}
+      </ComposerContext.Provider>
     </QueryClientProvider>
   )
   const view = render(tree(initial))
@@ -112,67 +122,78 @@ describe('Composer', () => {
   })
 
   it('a typed text that is not a real address stays in « À », and « Envoyer » says so (CM-25)', async () => {
-    const { user } = renderComposer()
+    const { user, onClose } = renderComposer()
     await user.type(screen.getByLabelText(t(`${C}.to`)), 'marc@clinique{Enter}')
     expect(screen.getByLabelText(t(`${C}.to`))).toHaveValue('marc@clinique')
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    expect(screen.getByRole('alert')).toHaveTextContent(t(`${C}.problems.badAddress`, { address: 'marc@clinique' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.problems.badAddress`, { address: 'marc@clinique' }))
+    expect(onClose).not.toHaveBeenCalled()
     expect(mocks.api.sendMail).not.toHaveBeenCalled()
   })
 
-  it('says what is missing instead of counting down', async () => {
-    const { user } = renderComposer()
+  it('says what is missing, stays open and sends nothing', async () => {
+    const { user, onClose } = renderComposer()
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    expect(screen.getByRole('alert')).toHaveTextContent(t(`${C}.problems.noRecipient`))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.problems.noRecipient`))
     await user.type(screen.getByLabelText(t(`${C}.to`)), 'pas-une-adresse')
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    expect(screen.getAllByText(t(`${C}.problems.badAddress`, { address: 'pas-une-adresse' })).length).toBeGreaterThan(0)
+    await waitFor(() => expect(screen.getAllByText(t(`${C}.problems.badAddress`, { address: 'pas-une-adresse' })).length).toBeGreaterThan(0))
+    expect(onClose).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS * 2))
     expect(mocks.api.sendMail).not.toHaveBeenCalled()
   })
 
-  it('« Envoyer »: five seconds to « Annuler l’envoi », then one send with its key and the draft', async () => {
+  // CM-27: PS Hub's compose engine.
+  it('« Envoyer » closes the composer; the message leaves five seconds later, with its key and the draft', async () => {
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
-    const { user, onSent } = renderComposer(initial, 'd1')
+    const { user, onClose, onSent } = renderComposer(initial, 'd1')
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    expect(await screen.findByText(t(`${C}.sendingIn`, { seconds: String(UNDO_SECONDS) }))).toBeInTheDocument()
-    // « Annuler l'envoi » stops it.
-    await user.click(screen.getByRole('button', { name: t(`${C}.undo`) }))
-    await tick(UNDO_SECONDS + 1)
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    // Saved first, so « Annuler » finds the draft.
+    expect(mocks.api.saveDraft).toHaveBeenCalledWith('d1', expect.objectContaining({ subject: 'Bonjour' }))
+    expect(mocks.toast).toHaveBeenCalledWith(
+      composerText('mailCompose.sendPendingCountdown', { seconds: 5 }),
+      expect.objectContaining({ action: expect.objectContaining({ label: composerText('mailCompose.sendUndo') }) }),
+    )
     expect(mocks.api.sendMail).not.toHaveBeenCalled()
-    // Again, left to run.
-    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    await tick(UNDO_SECONDS + 1)
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS + 100))
     await waitFor(() => expect(mocks.api.sendMail).toHaveBeenCalledTimes(1))
     const [key, draftId, content] = mocks.api.sendMail.mock.calls[0]!
     expect(key).toMatch(/^[0-9a-f-]{36}$/)
     expect(draftId).toBe('d1')
     expect(content).toMatchObject({ to: ['alice@exemple.test'], subject: 'Bonjour' })
     await waitFor(() => expect(onSent).toHaveBeenCalledWith('t9'))
-    expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.sent`))
+    expect(mocks.toast.success).toHaveBeenCalledWith(composerText('mailCompose.sendSuccess'), expect.anything())
   })
 
-  it('a send Gmail did not confirm says to look in « Envoyés »; the composer stays open', async () => {
+  it('« Annuler » in the five seconds reopens the composer with what it held, and nothing leaves', async () => {
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
+    const { user, onClose } = renderComposer(initial, 'd1')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    act(() => noticeAction().onClick())
+    expect(mocks.open).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'draft', draftId: 'd1', content: expect.objectContaining({ subject: 'Bonjour', to: ['alice@exemple.test'] }) }),
+    )
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS * 2))
+    expect(mocks.api.sendMail).not.toHaveBeenCalled()
+  })
+
+  it('a send Gmail did not confirm: « L’envoi a échoué » says to look in « Envoyés », with « Rouvrir »', async () => {
     mocks.api.sendMail.mockRejectedValue(new FunctionCallError('provider_error', 502, 'Google refused the send'))
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
     const { user, onSent } = renderComposer(initial, 'd1')
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    await tick(UNDO_SECONDS + 1)
-    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.notConfirmed`))
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS + 100))
+    await waitFor(() =>
+      expect(mocks.toast.error).toHaveBeenCalledWith(
+        composerText('mailCompose.sendFailedTitle'),
+        expect.objectContaining({ description: t(`${C}.errors.notConfirmed`), action: expect.objectContaining({ label: composerText('mailCompose.sendReopen') }) }),
+      ),
+    )
     expect(onSent).not.toHaveBeenCalled()
-  })
-
-  it('« Envoyer » again after no answer keeps the same key (the server looks before sending)', async () => {
-    mocks.api.sendMail.mockRejectedValueOnce(new FunctionCallError('provider_error', 502, 'x', { outcome: 'unknown' }))
-    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
-    const { user, onSent } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    await tick(UNDO_SECONDS + 1)
-    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.notConfirmed`))
-    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    await tick(UNDO_SECONDS + 1)
-    await waitFor(() => expect(onSent).toHaveBeenCalledWith('t9'))
-    const [first, second] = mocks.api.sendMail.mock.calls
-    expect(second![0]).toBe(first![0])
+    act(() => noticeAction().onClick())
+    expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ kind: 'draft', draftId: 'd1' }))
   })
 
   it('a send Gmail refused says so (not « look in Envoyés »)', async () => {
@@ -180,18 +201,36 @@ describe('Composer', () => {
     const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
     const { user } = renderComposer(initial, 'd1')
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    await tick(UNDO_SECONDS + 1)
-    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.errors.refused`))
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS + 100))
+    await waitFor(() =>
+      expect(mocks.toast.error).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ description: t(`${C}.errors.refused`) })),
+    )
   })
 
-  it('closed during the five seconds: nothing leaves, and the person is told', async () => {
-    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
-    const { user, view } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    view.unmount()
-    await act(() => vi.advanceTimersByTimeAsync((UNDO_SECONDS + 1) * 1_000))
-    expect(mocks.api.sendMail).not.toHaveBeenCalled()
-    expect(mocks.toast.info).toHaveBeenCalledWith(t(`${C}.cancelledByClose`))
+  it('the same message sent again from the reopened composer keeps its key (the server looks before sending)', async () => {
+    mocks.api.sendMail.mockRejectedValueOnce(new FunctionCallError('provider_error', 502, 'x', { outcome: 'unknown' }))
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Même clé', bodyHtml: '<p>Texte</p>' }
+    const first = renderComposer(initial, 'd1')
+    await first.user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS + 100))
+    await waitFor(() => expect(mocks.api.sendMail).toHaveBeenCalledTimes(1))
+    first.view.unmount()
+    // « Rouvrir »: a new composer on the same draft and content.
+    const second = renderComposer(initial, 'd1')
+    await second.user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS + 100))
+    await waitFor(() => expect(second.onSent).toHaveBeenCalledWith('t9'))
+    const [firstCall, secondCall] = mocks.api.sendMail.mock.calls
+    expect(secondCall![0]).toBe(firstCall![0])
+  })
+
+  it('the X closes at once and saves behind it, then « Brouillon enregistré »', async () => {
+    const { user, onClose } = renderComposer(initialContent({ connectionId: MAILBOX.id, mode: 'new' }), 'd1')
+    await user.type(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder')), 'Bonjour')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.close') }))
+    expect(onClose).toHaveBeenCalled()
+    await waitFor(() => expect(mocks.api.saveDraft).toHaveBeenCalledWith('d1', expect.objectContaining({ subject: 'Bonjour' })))
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(composerText('mailCompose.draftSaved'), expect.anything()))
   })
 
   // CM-26: PS Hub's template picker over MANA's templates.
@@ -227,12 +266,24 @@ describe('Composer', () => {
     await waitFor(() => expect(mocks.api.deleteTemplate).toHaveBeenCalledWith('tpl-1', expect.anything()))
   })
 
-  it('« Supprimer le brouillon » asks, then deletes it', async () => {
+  it('« Supprimer le brouillon » closes it, says « Brouillon supprimé » with « Annuler », and deletes it five seconds later', async () => {
     const { user, onClose } = renderComposer(initialContent({ connectionId: MAILBOX.id, mode: 'new' }), 'd1')
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.discardDraft') }))
-    await user.click(await screen.findByRole('button', { name: t(`${C}.discardAction`) }))
-    await waitFor(() => expect(mocks.api.deleteDraft).toHaveBeenCalledWith('d1', expect.anything()))
     expect(onClose).toHaveBeenCalled()
+    expect(mocks.toast).toHaveBeenCalledWith(composerText('mailCompose.draftDeleted'), expect.objectContaining({ action: expect.anything() }))
+    expect(mocks.api.deleteDraft).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS + 100))
+    await waitFor(() => expect(mocks.api.deleteDraft).toHaveBeenCalledWith('d1', expect.anything()))
+  })
+
+  it('« Annuler » after « Supprimer le brouillon » reopens the draft and deletes nothing', async () => {
+    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), subject: 'Gardé' }
+    const { user } = renderComposer(initial, 'd1')
+    await user.click(screen.getByRole('button', { name: composerText('mailCompose.discardDraft') }))
+    act(() => noticeAction().onClick())
+    expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ kind: 'draft', draftId: 'd1', content: expect.objectContaining({ subject: 'Gardé' }) }))
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_MS * 2))
+    expect(mocks.api.deleteDraft).not.toHaveBeenCalled()
   })
 
   // CM-23: PS Hub's window around MANA's composer.
@@ -255,16 +306,6 @@ describe('Composer', () => {
     expect(screen.getByRole('dialog', { name: 'Bonjour' })).toHaveAttribute('aria-modal', 'true')
     await user.click(screen.getByRole('button', { name: composerText('mailCompose.exitFullscreen') }))
     expect(screen.getByLabelText(composerText('mailCompose.subjectPlaceholder'))).toHaveValue('Bonjour')
-  })
-
-  it('the close is greyed out while the send counts down, and the X keeps the draft otherwise', async () => {
-    const initial = { ...initialContent({ connectionId: MAILBOX.id, mode: 'new' }), to: ['alice@exemple.test'], subject: 'Bonjour', bodyHtml: '<p>Texte</p>' }
-    const { user, onClose } = renderComposer(initial, 'd1')
-    await user.click(screen.getByRole('button', { name: composerText('mailCompose.sendAction') }))
-    expect(screen.getByRole('button', { name: composerText('mailCompose.close') })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: t(`${C}.undo`) }))
-    await user.click(screen.getByRole('button', { name: composerText('mailCompose.close') }))
-    await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
   it('« Cc » opens its row, focused; « Cci » stays offered', async () => {

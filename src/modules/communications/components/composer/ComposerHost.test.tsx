@@ -10,6 +10,7 @@ import type { ComposerProps } from './Composer'
 import { ComposerHost } from './ComposerHost'
 
 const sent = vi.hoisted(() => ({ current: null as ((threadId: string | null) => void) | null }))
+const closer = vi.hoisted(() => ({ current: null as (() => void) | null }))
 // The host's part only: a composer that takes the focus on opening, as the real one does, and closes
 // or sends on demand (the real one is Composer.test's).
 vi.mock('./Composer', () => ({
@@ -17,6 +18,7 @@ vi.mock('./Composer', () => ({
     const field = useRef<HTMLInputElement>(null)
     useEffect(() => field.current?.focus(), [])
     sent.current = onSent
+    closer.current = onClose
     return (
       <section role="dialog" aria-label="Composer">
         <input ref={field} aria-label="À" />
@@ -30,6 +32,7 @@ vi.mock('./Composer', () => ({
 
 afterEach(() => {
   sent.current = null
+  closer.current = null
 })
 
 function Openers() {
@@ -54,11 +57,11 @@ function Openers() {
   )
 }
 
-function renderHost() {
+function renderHost(onSent?: (threadId: string | null) => void) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
-      <ComposerHost mailboxes={[MAILBOX]}>
+      <ComposerHost mailboxes={[MAILBOX]} onSent={onSent}>
         <Openers />
       </ComposerHost>
     </QueryClientProvider>,
@@ -66,7 +69,7 @@ function renderHost() {
 }
 
 describe('ComposerHost: the focus once the composer closes', () => {
-  it('goes back to what opened it, after « Fermer » and after the send', async () => {
+  it('goes back to what opened it, after « Fermer » and after « Envoyer » (which closes it too, CM-27)', async () => {
     const user = userEvent.setup()
     renderHost()
     await user.click(screen.getByRole('button', { name: 'Répondre' }))
@@ -77,9 +80,24 @@ describe('ComposerHost: the focus once the composer closes', () => {
 
     await user.click(screen.getByRole('button', { name: 'Transférer' }))
     expect(screen.getByRole('textbox', { name: 'À' })).toHaveFocus()
-    act(() => sent.current?.('t1'))
+    // « Envoyer » queued: the composer closes itself.
+    act(() => closer.current?.())
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Transférer' })).toHaveFocus()
+  })
+
+  it('a send that ends five seconds later tells the page, and never closes the composer open then (CM-27)', async () => {
+    const user = userEvent.setup()
+    const onSent = vi.fn()
+    renderHost(onSent)
+    await user.click(screen.getByRole('button', { name: 'Répondre' }))
+    const firstSent = sent.current
+    act(() => closer.current?.())
+    // Another message is being written when the first one's send ends.
+    await user.click(screen.getByRole('button', { name: 'Transférer' }))
+    act(() => firstSent?.('t1'))
+    expect(onSent).toHaveBeenCalledWith('t1')
+    expect(screen.getByRole('dialog', { name: 'Composer' })).toBeInTheDocument()
   })
 
   it('a composer replaced by another gives it back to the second opener', async () => {
@@ -91,12 +109,12 @@ describe('ComposerHost: the focus once the composer closes', () => {
     expect(screen.getByRole('button', { name: 'Transférer' })).toHaveFocus()
   })
 
-  it('stays where the person put it meanwhile (a send ending while they type elsewhere)', async () => {
+  it('stays where the person put it meanwhile (the composer closing while they type elsewhere)', async () => {
     const user = userEvent.setup()
     renderHost()
     await user.click(screen.getByRole('button', { name: 'Répondre' }))
     await user.click(screen.getByRole('textbox', { name: 'Rechercher' }))
-    act(() => sent.current?.('t1'))
+    act(() => closer.current?.())
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Rechercher' })).toHaveFocus()
   })

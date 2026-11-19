@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Paperclip, X } from 'lucide-react'
 import {
   AiQuickBar,
@@ -8,7 +8,12 @@ import {
   EmailAutocomplete,
   moveRecipient,
   TemplatePill,
+  useComposeEngine,
+  useDiscardQueue,
+  useDraftAutosave,
+  useSendQueue,
   type ComposerPresentation,
+  type DraftSaver,
   type EmailAutocompleteHandle,
   type RecipientDrag,
   type RecipientField,
@@ -16,7 +21,6 @@ import {
 import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
 import { uploadFile } from '@/core/storage/api'
-import { FunctionCallError } from '@/core/supabase/functions'
 import { FileDropzone } from '@/shared/components/FileDropzone'
 import { useMediaQuery } from '@/shared/lib/use-media-query'
 import { formatClinicTime } from '@/shared/lib/timezone'
@@ -40,7 +44,6 @@ import {
   OUTGOING_MAX_BYTES,
   OUTGOING_PURPOSE,
   OUTGOING_TYPES,
-  saveDraft as saveDraftNow,
   type ComposeTemplate,
   type DraftAttachment,
   type DraftContent,
@@ -48,8 +51,10 @@ import {
 import { communicationsErrorMessage } from '../../api/errors'
 import type { MailConnection } from '../../api/mailboxes'
 import { useDeleteDraft, useDeleteTemplate, useSaveDraft, useSendMail } from '../../hooks/use-composer'
+import { useComposerLauncher } from '../../hooks/use-composer-launcher'
 import { useAiDraftStatus } from '../../hooks/use-ai'
 import { hasText, htmlToText, parseAddresses, sendProblem, textToHtml } from '../../lib/compose'
+import { COMPOSER_ENGINE_PORTS } from './composer-engine-ports'
 import { COMPOSER_UI_PORTS } from './composer-ui-ports'
 import { RichEmailEditor } from './RichEmailEditor'
 import { useManaComposerAi } from './use-composer-ai'
@@ -60,15 +65,38 @@ const C = 'modules.communications.composer'
 export const SHEET_QUERY = '(max-width: 1023px)'
 /** The kit's whole-composer drop zone stays off: a file is dropped on `FileDropzone` (CLAUDE.md §8). */
 const NO_DROP_ZONE = { isDragging: false, handlers: { onDragOver: () => undefined, onDragLeave: () => undefined, onDrop: () => undefined } }
-/** « Annuler l'envoi »: the message leaves this many seconds after « Envoyer » (ADR 0063 in PS Hub). */
-export const UNDO_SECONDS = 5
 /** The autosave waits this long after the last change. */
 export const AUTOSAVE_MS = 1_500
 
 /** A limit the composer checks itself; its message is shown as is. */
 class ComposerLimit extends Error {}
 
-type Phase = { kind: 'editing' } | { kind: 'counting'; left: number } | { kind: 'sending' }
+/** A draft as the database answers it. */
+interface SavedDraft {
+  id: string
+  updatedAt: string
+}
+
+/** What a queued send carries (the engine's payload). */
+interface QueuedSend {
+  draftId: string | null
+  content: DraftContent
+}
+
+// The send's key, per draft and content, for the life of the tab: the same content sends with the
+// same key, also from the composer « Rouvrir » opens after a failure (the server answers what the
+// first « Envoyer » did, and looks in Gmail after no answer). Memory only, never the browser's
+// storage (CM-14).
+const sendKeys = new Map<string, string>()
+function sendKeyFor(draftId: string | null, content: DraftContent): string {
+  const at = `${draftId ?? ''}|${JSON.stringify(content)}`
+  let key = sendKeys.get(at)
+  if (!key) {
+    key = crypto.randomUUID()
+    sendKeys.set(at, key)
+  }
+  return key
+}
 
 export interface ComposerProps {
   /** The draft already saved (reopened), or null for a new one. */
@@ -94,9 +122,15 @@ function useAddressList(initial: string[]) {
 /**
  * The composer (CM3; PS Hub's `ComposerCore`): the mailbox, « À », « Cc », « Cci », « Objet », the
  * editor, the attachments (uploaded to our storage, or a forwarded message's stored copies), the
- * templates (the clinic's and one's own, « Enregistrer comme modèle »), then « Envoyer » with five
- * seconds to « Annuler l'envoi ». The draft is saved as one types (the database, never the
- * browser's storage): closing keeps it in « Brouillons ».
+ * templates (the clinic's and one's own, « Enregistrer comme modèle »), then « Envoyer ». The draft
+ * is saved as one types (the database, never the browser's storage): closing keeps it in
+ * « Brouillons ».
+ *
+ * What happens when is PS Hub's compose engine (email-ui 0.7.0, CM-27): « Envoyer » closes the
+ * composer and the message leaves five seconds later, with « Annuler » in a notice; « Supprimer le
+ * brouillon » closes it and deletes the draft five seconds later, with « Annuler »; the X closes at
+ * once and saves behind it. Either « Annuler » (and « Rouvrir » after a failed send) reopens the
+ * composer with what it held.
  *
  * Drawn by PS Hub's kit (`ComposerWindow`, `ComposerLayout`, CM-23): docked at the bottom right
  * from 1024 px (« Réduire » to a pill, « Plein écran »), the whole screen below. Échap minimizes
@@ -127,21 +161,14 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const [replaceWith, setReplaceWith] = useState<{ html: string; version: number } | null>(null)
   const [pendingTemplate, setPendingTemplate] = useState<{ subject: string; html: string } | null>(null)
   const [templateToDelete, setTemplateToDelete] = useState<ComposeTemplate | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [phase, setPhase] = useState<Phase>({ kind: 'editing' })
   const [problem, setProblem] = useState<string | null>(null)
-  const [savedAt, setSavedAt] = useState<string | null>(null)
-  const [saveFailed, setSaveFailed] = useState(false)
+  // From « Envoyer » until the send is queued (the draft saved first): the fields are locked.
+  const [sending, setSending] = useState(false)
   const [view, setView] = useState<Exclude<ComposerPresentation, 'mobile'>>('open')
   const sheet = useMediaQuery(SHEET_QUERY)
   const userId = useAuth().session?.user.id ?? null
   // The quote under a reply or a forward: a template replaces the text above it only.
   const quote = useRef(initial.mode === 'new' ? '' : initial.bodyHtml)
-  const draftId = useRef<string | null>(initialDraftId)
-  const saving = useRef<Promise<void>>(Promise.resolve())
-  // The send's key, and the content it was made for: the same content sends with the same key
-  // (the server answers what the first « Envoyer » did, and looks in Gmail after no answer).
-  const sendKey = useRef<{ key: string; content: string } | null>(null)
   const toRef = useRef<EmailAutocompleteHandle>(null)
   const ccRef = useRef<EmailAutocompleteHandle>(null)
   const bccRef = useRef<EmailAutocompleteHandle>(null)
@@ -149,23 +176,13 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const attachButton = useRef<HTMLButtonElement>(null)
   // The kit draws a hidden file input for its paperclip; MANA's paperclip opens `FileDropzone`'s.
   const unusedFileInput = useRef<HTMLInputElement>(null)
-  // A change not saved yet: kept even when the composer goes (replaced, or the page left).
-  const dirty = useRef(false)
-  const phaseRef = useRef<Phase>({ kind: 'editing' })
 
-  const saveDraft = useSaveDraft()
-  // The mutation object changes each render: read through a ref, so the autosave's timer is not
-  // restarted (nor a save run) by a render.
-  const saveDraftRef = useRef(saveDraft.mutateAsync)
-  saveDraftRef.current = saveDraft.mutateAsync
-  const deleteDraft = useDeleteDraft()
-  const send = useSendMail()
-  // The mutation object changes each render: the countdown reads it through a ref, so a render
-  // during the five seconds never restarts the second under way.
-  const sendRef = useRef(send)
-  sendRef.current = send
-  const onSentRef = useRef(onSent)
-  onSentRef.current = onSent
+  // The mutations' functions keep their identity across renders and work once the composer is
+  // gone: the engine saves behind a close and sends five seconds after it.
+  const { mutateAsync: saveDraft } = useSaveDraft()
+  const { mutateAsync: deleteDraft } = useDeleteDraft()
+  const { mutateAsync: sendMail } = useSendMail()
+  const launcher = useComposerLauncher()
   // PS Hub's template picker over MANA's templates (CM-26); a deletion asks first, below.
   const templates = useManaComposerTemplates({ confirmDelete: setTemplateToDelete })
   const removeTemplate = useDeleteTemplate()
@@ -187,103 +204,94 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   const latest = useRef(content)
   latest.current = content
   const snapshot = useMemo(() => JSON.stringify(content), [content])
-  // What the database holds (the opening's content until a save): nothing is saved on opening.
-  const savedSnapshot = useRef(snapshot)
-  phaseRef.current = phase
+  // What the composer opened with: nothing is saved until something differs from it.
+  const opening = useRef(snapshot)
 
-  /** Saves what is there now, after any save under way (so a new draft is created once). */
-  const saveNow = useCallback(() => {
-    saving.current = saving.current.then(async () => {
-      const value = latest.current
-      const text = JSON.stringify(value)
-      try {
-        const saved = await saveDraftRef.current({ id: draftId.current, content: value })
-        draftId.current = saved.id
-        savedSnapshot.current = text
-        dirty.current = JSON.stringify(latest.current) !== text
-        setSavedAt(saved.updatedAt)
-        setSaveFailed(false)
-      } catch {
-        setSaveFailed(true)
-      }
-    })
-    return saving.current
-  }, [])
-
-  // The autosave: a while after the last change, while editing; only a real change.
+  // The draft, saved as one types (the database): one save at a time, so a new draft is created once.
+  const drafts = useMemo<DraftSaver<DraftContent, SavedDraft>>(
+    () => ({ save: (ref, value) => saveDraft({ id: ref?.id ?? null, content: value }), remove: (ref) => deleteDraft(ref.id) }),
+    [saveDraft, deleteDraft],
+  )
+  const draft = useDraftAutosave({ drafts, delayMs: AUTOSAVE_MS })
+  const { init: initDraft } = draft
   useEffect(() => {
-    if (snapshot === savedSnapshot.current) return
-    dirty.current = true
-    if (phase.kind !== 'editing') return
-    const timer = setTimeout(() => void saveNow(), AUTOSAVE_MS)
-    return () => clearTimeout(timer)
-  }, [snapshot, phase.kind, saveNow])
+    initDraft(initialDraftId ? { id: initialDraftId, updatedAt: '' } : null)
+  }, [initDraft, initialDraftId])
+
+  const transport = useMemo(
+    () => ({ send: (sendKey: string, queued: QueuedSend) => sendMail({ sendKey, draftId: queued.draftId, content: queued.content }) }),
+    [sendMail],
+  )
+  const { queueSend } = useSendQueue<QueuedSend>({ ports: COMPOSER_ENGINE_PORTS, transport, storageKey: null })
+  const { queueDiscard } = useDiscardQueue({ ports: COMPOSER_ENGINE_PORTS })
+
+  /** « Annuler », « Rouvrir »: the composer again, with what it held. */
+  const reopenWith = (id: string | null, value: DraftContent) => () =>
+    launcher?.open(id ? { kind: 'draft', draftId: id, content: value, personKnown, fileLabel } : { kind: 'content', content: value, personKnown, fileLabel })
 
   useEffect(() => {
     toRef.current?.focus()
-    return () => {
-      // Closed (or replaced, or the page left) during the five seconds: nothing leaves, and the
-      // person is told where the message is.
-      if (phaseRef.current.kind === 'counting') toast.info(t(`${C}.cancelledByClose`))
-      // Unmounted with a change the autosave had not reached: saved once more, quietly.
-      if (dirty.current) void saveDraftNow(draftId.current, latest.current).catch(() => undefined)
-    }
   }, [])
 
-  // « Annuler l'envoi »: the countdown, then the send.
-  useEffect(() => {
-    if (phase.kind !== 'counting') return
-    if (phase.left === 0) {
-      setPhase({ kind: 'sending' })
-      const text = JSON.stringify(latest.current)
-      if (sendKey.current?.content !== text) sendKey.current = { key: crypto.randomUUID(), content: text }
-      sendRef.current.mutate(
-        { sendKey: sendKey.current.key, draftId: draftId.current, content: latest.current },
-        {
-          onSuccess: (result) => {
-            dirty.current = false
-            toast.success(t(`${C}.sent`))
-            onSentRef.current(result.thread_id)
-          },
-          onError: (error) => {
-            setPhase({ kind: 'editing' })
-            setProblem(
-              error instanceof FunctionCallError && error.code === 'provider_error'
-                ? error.extra.outcome === 'refused'
-                  ? t(`${C}.errors.refused`)
-                  : t(`${C}.errors.notConfirmed`)
-                : communicationsErrorMessage(error, t(`${C}.errors.sendFailed`)),
-            )
-          },
-        },
-      )
-      return
-    }
-    const timer = setTimeout(() => setPhase({ kind: 'counting', left: phase.left - 1 }), 1_000)
-    return () => clearTimeout(timer)
-  }, [phase])
-
-  const startSend = async (event?: FormEvent) => {
-    event?.preventDefault()
-    if (phase.kind !== 'editing') return
-    // Text typed and not yet a chip: a bad address is said at once; a real one becomes a chip
-    // first, and the fields are read again after that render.
+  /** « Envoyer », once the typed addresses became chips: true once the send is queued. */
+  const send = async (): Promise<boolean> => {
+    // Text still typed after that is no address (only a real one becomes a chip).
     const shown = [toRef, ...(showCc ? [ccRef] : []), ...(showBcc ? [bccRef] : [])]
-    const typed = shown.map((field) => field.current?.pendingText() ?? '')
-    const badTyped = typed.find((text) => text && parseAddresses(text).invalid.length > 0)
-    if (!badTyped && typed.some(Boolean)) {
-      for (const field of shown) field.current?.commitPending()
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
+    const typed = shown.map((field) => field.current?.pendingText() ?? '').find(Boolean)
     const now = fields.current
     const invalid = [...now.to.invalid, ...(showCc ? now.cc.invalid : []), ...(showBcc ? now.bcc.invalid : [])]
-    const bad = badTyped || invalid[0]
-    const why = bad ? t(`${C}.problems.badAddress`, { address: bad }) : sendProblem(latest.current)
+    const value = latest.current
+    const bad = typed || invalid[0]
+    const why = bad ? t(`${C}.problems.badAddress`, { address: bad }) : sendProblem(value)
     setProblem(why)
-    if (why) return
-    await saveNow()
-    setPhase({ kind: 'counting', left: UNDO_SECONDS })
+    if (why) return false
+    setSending(true)
+    // Saved first, so « Annuler » and « Rouvrir » find the draft; a failed save still sends.
+    const saved = await draft.saveNow(value).catch(() => null)
+    const id = saved?.id ?? draft.getCurrentRef()?.id ?? null
+    queueSend({
+      payload: { draftId: id, content: value },
+      sendKey: sendKeyFor(id, value),
+      reopen: reopenWith(id, value),
+      onSent: (result) => onSent((result as { thread_id: string | null }).thread_id),
+    })
+    return true
   }
+
+  /** « Supprimer le brouillon »: five seconds with « Annuler », then deleted. */
+  const discard = () => {
+    const value = latest.current
+    const id = draft.getCurrentRef()?.id ?? null
+    draft.deactivate()
+    // Never saved and never changed: nothing to delete, nothing to keep.
+    if (!id && snapshot === opening.current) return
+    queueDiscard({
+      // After any save under way, or its draft would be left behind.
+      discard: async () => {
+        const ref = await draft.getSettledRef()
+        if (ref) await deleteDraft(ref.id)
+      },
+      reopen: reopenWith(id, value),
+    })
+  }
+
+  const engine = useComposeEngine({
+    ports: COMPOSER_ENGINE_PORTS,
+    open: true,
+    close: onClose,
+    draft,
+    keepsDraft: true,
+    canSaveDraft: true,
+    dirty: snapshot !== opening.current,
+    contentKey: snapshot,
+    getDraftContent: () => latest.current,
+    encodeDraftAttachments: async () => [],
+    // Replaced by another composer, or the page left: saved behind, as the X does.
+    saveOnUnmount: true,
+    pendingRecipients: () => [toRef.current, showCc ? ccRef.current : null, showBcc ? bccRef.current : null],
+    send,
+    discard,
+  })
 
   const applyTemplate = (template: { subject: string; html: string }) => {
     setReplaceWith((prev) => ({ html: template.html + quote.current, version: (prev?.version ?? 0) + 1 }))
@@ -297,7 +305,8 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   }
 
   const totalBytes = attachments.reduce((sum, a) => sum + a.size_bytes, 0)
-  const busy = phase.kind !== 'editing'
+  const busy = sending
+  const savedAt = draft.status === 'saved' && draft.ref?.updatedAt ? draft.ref.updatedAt : null
   const mailbox = mailboxes.find((m) => m.id === connectionId)
   const title =
     initial.mode === 'new' ? t(`${C}.titleNew`) : initial.mode === 'forward' ? t(`${C}.titleForward`) : t(`${C}.titleReply`)
@@ -318,19 +327,6 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
   })
   /** The editor's editable area: Tab from « Objet », a click in the body's margin, a change of presentation. */
   const focusBody = () => bodyBox.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus()
-  const close = () => {
-    void saveNow().then(onClose)
-  }
-  const discard = () => {
-    if (draftId.current) {
-      setConfirmDelete(true)
-    } else {
-      // Never saved: nothing to delete, nothing to keep.
-      dirty.current = false
-      onClose()
-    }
-  }
-
   return (
     <ComposerUiProvider ports={COMPOSER_UI_PORTS}>
       <ComposerWindow
@@ -338,15 +334,15 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
         title={subject.trim() || title}
         status={
           <span role="status" className="truncate text-xs text-muted-foreground">
-            {saveFailed ? t(`${C}.saveFailed`) : savedAt ? t(`${C}.savedAt`, { time: formatClinicTime(savedAt) }) : ''}
+            {draft.status === 'error' ? t(`${C}.saveFailed`) : savedAt ? t(`${C}.savedAt`, { time: formatClinicTime(savedAt) }) : ''}
           </span>
         }
         onMinimize={() => setView('minimized')}
         onRestore={() => setView('open')}
         onExpand={() => setView('fullscreen')}
         onShrink={() => setView('open')}
-        onClose={close}
-        // A send under way: closing would leave its outcome unsaid.
+        onClose={engine.handleClose}
+        // « Envoyer » under way (the draft saving before the send is queued).
         closeDisabled={busy}
         closeInTabOrder={false}
         // The dock's size as the person dragged it: a convenience, never content (CM-14).
@@ -427,9 +423,10 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
                     onUpload={async (file, mimeType, onStep) => {
                       if (totalBytes + file.size > MAX_ATTACHMENTS_BYTES) throw new ComposerLimit(t(`${C}.problems.tooLarge`))
                       // The upload's subject is the draft: saved first.
-                      await saveNow()
-                      if (!draftId.current) throw new ComposerLimit(t(`${C}.saveFailed`))
-                      const { fileId } = await uploadFile({ purpose: OUTGOING_PURPOSE, subjectType: 'mail_draft', subjectId: draftId.current, file, mimeType, onStep })
+                      const saved = await draft.saveNow(latest.current).catch(() => null)
+                      const id = saved?.id ?? draft.getCurrentRef()?.id
+                      if (!id) throw new ComposerLimit(t(`${C}.saveFailed`))
+                      const { fileId } = await uploadFile({ purpose: OUTGOING_PURPOSE, subjectType: 'mail_draft', subjectId: id, file, mimeType, onStep })
                       setAttachments((list) => [...list, { id: fileId, name: file.name, mime_type: mimeType, size_bytes: file.size }])
                     }}
                   />
@@ -439,28 +436,16 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
             focusBody={focusBody}
             fileInput={{ inputRef: unusedFileInput, onFiles: () => undefined }}
             notice={
-              problem || phase.kind === 'counting' ? (
-                <div className="space-y-2">
-                  {problem && (
-                    <p role="alert" className="text-sm text-destructive">
-                      {problem}
-                    </p>
-                  )}
-                  {phase.kind === 'counting' && (
-                    <div role="status" className="flex flex-wrap items-center gap-3">
-                      <span className="text-sm text-foreground">{t(`${C}.sendingIn`, { seconds: String(phase.left) })}</span>
-                      <Button type="button" variant="outline" size="sm" autoFocus onClick={() => setPhase({ kind: 'editing' })}>
-                        {t(`${C}.undo`)}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+              problem ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {problem}
+                </p>
               ) : null
             }
             footer={{
-              onSend: () => void startSend(),
+              onSend: engine.handleSend,
               sendDisabled: busy,
-              isSending: phase.kind === 'sending',
+              isSending: sending,
               onAttach: () => attachButton.current?.click(),
               actions: (
                 <TemplatePill
@@ -475,7 +460,7 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
                 />
               ),
               via: mailbox?.email_address,
-              onDiscard: busy ? undefined : discard,
+              onDiscard: busy ? undefined : engine.handleDiscard,
             }}
           />
         )}
@@ -518,31 +503,6 @@ export function Composer({ draftId: initialDraftId, initial: initialProp, mailbo
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t(`${C}.discardTitle`)}</AlertDialogTitle>
-            <AlertDialogDescription>{t(`${C}.discardBody`)}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              className={buttonVariants({ variant: 'destructive' })}
-              onClick={() => {
-                const id = draftId.current
-                dirty.current = false
-                void saving.current.then(() => {
-                  if (id) deleteDraft.mutate(id)
-                  toast.success(t(`${C}.discarded`))
-                  onClose()
-                })
-              }}
-            >
-              {t(`${C}.discardAction`)}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </ComposerUiProvider>
   )
 }
