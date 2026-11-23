@@ -60,6 +60,9 @@ test('the admin books, moves and cancels an appointment in Félix’s week', asy
   // Cancel it (and leave the database as found).
   await moved.click()
   const editor = page.getByRole('dialog', { name: 'Marc Gagnon-Fictif' })
+  // The sheet slides in from the right: a tab clicked mid-slide moves between the press and the
+  // release, and the click is lost (seen on CI). Let it land first.
+  await editor.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
   await editor.getByRole('tab', { name: 'Annulation' }).click()
   await editor.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
   await editor.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
