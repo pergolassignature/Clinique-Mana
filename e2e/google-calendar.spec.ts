@@ -76,7 +76,8 @@ test('« Connecter mon agenda Google » through the fake Google, « Occupé » i
   await expect(page.getByText('Vos moments occupés sont à jour.')).toBeVisible()
 
   await page.goto(`/mon-agenda?vue=jour&date=${day}`)
-  const block = page.getByTestId('agenda-busy')
+  // The grid's busy band (`@pergolas-signature/calendar-ui`: a `busy` layer).
+  const block = page.locator('[data-testid="calendar-layer"][data-kind="busy"]')
   await expect(block).toHaveCount(1)
   await expect(block).toHaveText('Occupé')
 
@@ -85,5 +86,5 @@ test('« Connecter mon agenda Google » through the fake Google, « Occupé » i
   await page.getByRole('alertdialog').getByRole('button', { name: 'Déconnecter', exact: true }).click()
   await expect(page.getByText('Agenda Google non connecté', { exact: true })).toBeVisible()
   await page.goto(`/mon-agenda?vue=jour&date=${day}`)
-  await expect(page.getByTestId('agenda-busy')).toHaveCount(0)
+  await expect(page.locator('[data-testid="calendar-layer"][data-kind="busy"]')).toHaveCount(0)
 })

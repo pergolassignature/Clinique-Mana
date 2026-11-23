@@ -77,6 +77,27 @@ const D = 'modules.appointments.availability'
 const E = 'modules.appointments.editor'
 const AVAILABILITY = '/agenda?date=2027-03-15&mode=disponibilites&professionnel=p1'
 
+/** A day's column of the booking grid (`@pergolas-signature/calendar-ui`: `data-day`, the clinic's date). */
+async function findColumn(day: string): Promise<HTMLElement> {
+  const column = (await screen.findAllByTestId('calendar-day-column')).find((c) => c.dataset.day === day)
+  if (!column) throw new Error(`No column for ${day}`)
+  return column
+}
+
+/**
+ * A drag as the grid listens to it (its README, « Testing against the grid »): a primary mouse
+ * button, a first move that only starts the drag, the move itself; then the 50 ms in which the grid
+ * swallows the drop's own click.
+ */
+async function dragBy(block: HTMLElement, dy: number) {
+  const mouse = { isPrimary: true, button: 0, pointerType: 'mouse', pointerId: 1, clientX: 10 }
+  fireEvent.pointerDown(block, { ...mouse, buttons: 1, clientY: 100 })
+  fireEvent.pointerMove(block, { ...mouse, buttons: 1, clientY: 105 })
+  fireEvent.pointerMove(block, { ...mouse, buttons: 1, clientY: 100 + dy })
+  fireEvent.pointerUp(block, { ...mouse, buttons: 0, clientY: 100 + dy })
+  await new Promise((resolve) => setTimeout(resolve, 60))
+}
+
 const REFERENCE: AgendaReference = {
   professionals: [{ id: 'p1', name: 'Félix Gauthier', active: true, titleIds: ['t1'] }],
   services: [
@@ -240,7 +261,7 @@ describe('AgendaPage', () => {
     renderPage()
     await screen.findByRole('button', { name: '10:00, Alice Essai' })
     // Tuesday's column, 11:30 (6:00 + 5.5 h at 48 px per hour).
-    const column = screen.getByTestId('agenda-column-2027-03-16')
+    const column = await findColumn('2027-03-16')
     fireEvent.click(column, { clientY: 5.5 * 48 + 1 })
     const sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })
     expect(within(sheet).getByLabelText(/^Heure/)).toHaveValue('11:30')
@@ -270,9 +291,7 @@ describe('AgendaPage', () => {
   it('drags an appointment by 30 minutes (15-minute snapping): the move goes to the database', async () => {
     renderPage()
     const block = await screen.findByRole('button', { name: '10:00, Alice Essai' })
-    fireEvent.pointerDown(block, { clientY: 100, pointerId: 1 })
-    fireEvent.pointerMove(block, { clientY: 124, pointerId: 1 })
-    fireEvent.pointerUp(block, { clientY: 124, pointerId: 1 })
+    await dragBy(block, 24)
     await waitFor(() => expect(mocks.api.moveAppointment).toHaveBeenCalledWith({ id: 'a1', startsAt: '2027-03-15T14:30:00.000Z', professionalId: null, outsideAvailabilityReason: null }))
   })
 
@@ -280,12 +299,11 @@ describe('AgendaPage', () => {
     const user = userEvent.setup()
     mocks.api.fetchAgenda.mockResolvedValue([appointment({ state: 'held' })])
     renderPage()
-    const block = await screen.findByRole('button', { name: '10:00, Alice Essai' })
-    expect(within(block).getByText("En attente d'acceptation")).toBeInTheDocument()
-    expect(block.className).toContain('border-dashed')
-    fireEvent.pointerDown(block, { clientY: 100, pointerId: 1 })
-    fireEvent.pointerMove(block, { clientY: 124, pointerId: 1 })
-    fireEvent.pointerUp(block, { clientY: 124, pointerId: 1 })
+    // Its name says it; the grid hatches it (a tentative block) and offers no drag.
+    const block = await screen.findByRole('button', { name: "10:00, Alice Essai, En attente d'acceptation" })
+    expect(block.className).toContain('repeating-linear-gradient')
+    expect(block).not.toHaveAttribute('aria-roledescription')
+    await dragBy(block, 24)
     await user.click(block)
     const sheet = await screen.findByRole('dialog')
     expect(within(sheet).getByText(t(`${E}.heldNotice`))).toBeInTheDocument()
@@ -566,15 +584,15 @@ describe('AgendaPage', () => {
       expect(early.style.height).toBe('40px')
       // 5:00 to 24:00 at 48 px an hour: 22:30 is 17.5 h below 5:00.
       expect(late.style.top).toBe(`${17.5 * 48}px`)
-      expect(screen.getByTestId('agenda-column-2027-03-15').style.height).toBe(`${19 * 48}px`)
+      expect(screen.getByTestId('calendar-time-grid').style.height).toBe(`${19 * 48}px`)
     })
 
     it("a service with a colour marks the block's left edge", async () => {
       mocks.api.fetchAgendaReference.mockResolvedValue({ ...REFERENCE, services: [{ ...REFERENCE.services[0]!, colour: '#2f855a' }] })
       renderPage()
       const block = await screen.findByRole('button', { name: '10:00, Alice Essai' })
-      expect(block.style.borderLeftColor).toBe('#2f855a')
-      expect(block.style.borderLeftWidth).toBe('4px')
+      // The grid draws the edge in the hue's colour (`--cal-edge`), the tint from it.
+      expect(block.style.getPropertyValue('--cal-edge')).toBe('#2f855a')
     })
 
     it('`rendez-vous=<id>` opens the appointment (a link from the client file); closing it drops the parameter', async () => {

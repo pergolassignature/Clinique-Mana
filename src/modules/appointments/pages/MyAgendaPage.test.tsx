@@ -9,6 +9,13 @@ import { accessForRole } from '@/test/role-fixtures'
 import type { AgendaReference } from '../api/agenda'
 import { MyAgendaPage } from './AgendaPage'
 
+/** A day's column of the booking grid (`@pergolas-signature/calendar-ui`: `data-day`, the clinic's date). */
+async function findColumn(day: string): Promise<HTMLElement> {
+  const column = (await screen.findAllByTestId('calendar-day-column')).find((c) => c.dataset.day === day)
+  if (!column) throw new Error(`No column for ${day}`)
+  return column
+}
+
 const mocks = vi.hoisted(() => ({
   api: {
     fetchMyAgendaReference: vi.fn(),
@@ -82,7 +89,7 @@ describe('MyAgendaPage', () => {
     renderPage()
     await screen.findByRole('heading', { level: 1, name: t('modules.appointments.mine.title') })
     // Tuesday, 12:00 (6:00 + 6 h at 48 px per hour).
-    fireEvent.click(await screen.findByTestId('agenda-column-2027-03-16'), { clientY: 6 * 48 + 1 })
+    fireEvent.click(await findColumn('2027-03-16'), { clientY: 6 * 48 + 1 })
     const dialog = await screen.findByRole('dialog', { name: t(`${P}.title`) })
     await user.type(within(dialog).getByLabelText(/^Libellé/), 'Dentiste')
     await user.click(within(dialog).getByRole('button', { name: t(`${P}.save`) }))
@@ -123,7 +130,7 @@ describe('MyAgendaPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByRole('heading', { level: 1, name: t('modules.appointments.mine.title') })
-    fireEvent.click(await screen.findByTestId('agenda-column-2027-03-16'), { clientY: 6 * 48 + 1 })
+    fireEvent.click(await findColumn('2027-03-16'), { clientY: 6 * 48 + 1 })
     const dialog = await screen.findByRole('dialog', { name: t(`${P}.title`) })
     await user.click(within(dialog).getByRole('button', { name: t(`${P}.withClient`) }))
     const sheet = await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })

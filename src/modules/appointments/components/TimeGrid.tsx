@@ -1,20 +1,29 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Ban, Bell, BellOff, CircleCheck, Phone, Repeat, TriangleAlert } from 'lucide-react'
+import { useMemo, type ReactNode } from 'react'
+import {
+  CalendarGridProvider,
+  CalendarWeekView,
+  type CalendarGridPorts,
+  type CalendarHue,
+  type CalendarItemLook,
+} from '@pergolas-signature/calendar-ui'
+import { fr } from 'date-fns/locale'
+import { Ban, Bell, BellOff, CircleCheck, Phone, TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
-import { formatClinicTime } from '@/shared/lib/timezone'
-import { cn } from '@/shared/lib/utils'
+import { getClinicDateString, getClinicTimezone, formatClinicTime } from '@/shared/lib/timezone'
+import { PHONE_QUERY, useMediaQuery } from '@/shared/lib/use-media-query'
+import { useNow } from '@/shared/lib/use-now'
 import type { ExternalBusy } from '../api/calendar'
 import type { AgendaAppointment, AvailabilityException, AvailabilityRule } from '../api/parse'
-import { busyOn, exceptionsOn, placeAppointments, verticalBox, windowsOn } from '../lib/layout'
-import { DEFAULT_GRID, SNAP, gridRangeFor, hhmm, instantOf, minutesOnDay, snap, type GridRange } from '../lib/time'
-import { appointmentTitle, blockClasses, isBusyOnly, reminderMarks, stateLabel } from '../lib/display'
+import { gridDays, gridText, toGridColumns, toGridItems, toGridLayers, type AgendaGridItem } from '../lib/calendar-grid'
+import { appointmentTitle, isBusyOnly, reminderMarks, stateLabel } from '../lib/display'
+import { DEFAULT_GRID, GRID_END, GRID_START, hhmm, minutesOnDay, type GridRange } from '../lib/time'
 
 /** Pixels per hour of the grid (16 hours by default: 6:00 to 22:00). */
 export const HOUR_HEIGHT = 48
-/** A block's text line (text-xs, 16 px): a block shows the lines it has room for. */
-const LINE_HEIGHT = 16
 const hoursOf = (range: GridRange) => Array.from({ length: (range.end - range.start) / 60 }, (_, i) => range.start + i * 60)
 const A = 'modules.appointments.agenda'
+/** From this width a column of « Jour » may take 128px; under it 96px, on a phone 176px (as before the grid moved). */
+const XL_QUERY = '(min-width: 1280px)'
 
 export interface GridColumn {
   key: string
@@ -42,43 +51,151 @@ interface TimeGridProps {
   serviceColour?: (serviceId: string | null) => string | null
   /** The professionals' Google busy times (R6): « Occupé », never a title, nothing to open. */
   busy?: readonly ExternalBusy[]
-}
-
-interface Drag {
-  id: string
-  originY: number
-  offset: number
-  moved: boolean
+  /** The phone's week strip picks a day (« Jour »). Absent, it only shows the week. */
+  onDay?: (day: string) => void
 }
 
 /**
- * The agenda's time grid (plan R2): columns of days or professionals, 6:00–22:00, widened by whole
- * hours to any appointment outside it (one is never hidden), each item placed by its clinic date and clock time (`lib/time`, so 9:00 stays on the 9:00 line across a
- * daylight-saving change). Booking mode: availability windows shaded and exceptions hatched, a
- * professional's Google busy times « Occupé » (R6, times only); a
- * click on an empty quarter hour creates an appointment there; an appointment opens on click and
- * moves by dragging (Pointer Events, 15-minute snapping), the move confirmed by the database.
- * « Disponibilités » is `AvailabilityGrid` (direct manipulation, AP-27). Blocks are buttons (keyboard: Tab then Entrée); creation also has the toolbar's button.
+ * The agenda's time grid (plan R2) on PS Hub's `@pergolas-signature/calendar-ui` (stage 3a there):
+ * columns of days or professionals, 6:00–22:00 at 48px an hour, widened by whole hours to any
+ * appointment outside it (one is never hidden), every item placed by its clinic date and clock time
+ * (`lib/calendar-grid`, so 9:00 stays on the 9:00 line across a daylight-saving change). The grid is
+ * as tall as its hours and the page scrolls; many professionals scroll sideways, a column never under
+ * 96px (128px from 1280px, 176px on a phone).
+ *
+ * Booking mode: availability windows shaded and exceptions hatched, a professional's Google busy times
+ * « Occupé » (R6, times only); one click on an empty quarter hour creates an appointment there; an
+ * appointment opens on click and moves by dragging (15-minute snapping), never resized (AP-33), the
+ * move confirmed by the database. A held appointment is hatched, a cancelled one dashed and struck,
+ * another professional's personal one busy time with nothing to open (AP-13). « Disponibilités » is
+ * `AvailabilityGrid` (direct manipulation, AP-27), which keeps this file's rail, header and lines.
+ * Blocks are buttons (keyboard: Tab then Entrée); creation also has the toolbar's button.
  */
 export function TimeGrid(props: TimeGridProps) {
-  const { columns } = props
-  const range = gridRangeFor(columns.flatMap((column) => placeAppointments(ownOf(props.appointments, column), column.day)))
-  const height = ((range.end - range.start) / 60) * HOUR_HEIGHT
+  const { columns, appointments, rules, exceptions, busy, shadeProfessionalId, professionalName, showProfessional, serviceColour, canWrite } = props
+  const phone = useMediaQuery(PHONE_QUERY)
+  const xl = useMediaQuery(XL_QUERY)
+  const nowMs = useNow(60_000)
+  const now = useMemo(() => new Date(nowMs), [nowMs])
+
+  const gridColumns = useMemo(() => toGridColumns(columns), [columns])
+  const days = useMemo(() => gridDays(columns), [columns])
+  const items = useMemo(() => toGridItems(appointments), [appointments])
+  const layers = useMemo(
+    () => toGridLayers(columns, { rules, exceptions, busy: busy ?? [], shadeProfessionalId }),
+    [columns, rules, exceptions, busy, shadeProfessionalId],
+  )
+  const ports = useMemo<CalendarGridPorts<AgendaGridItem>>(() => {
+    const describe = (item: AgendaGridItem): CalendarItemLook => lookOf(item.appointment, { professionalName, showProfessional, serviceColour })
+    return {
+      useT: () => gridText,
+      useDateLocale: () => fr,
+      useDescribeItem: () => describe,
+      timeZone: getClinicTimezone(),
+      weekStartsOn: 1,
+      hours: { start: GRID_START / 60, end: GRID_END / 60, widen: true, hourPx: HOUR_HEIGHT },
+      hourLabel: (hour) => hhmm(hour * 60),
+    }
+  }, [professionalName, showProfessional, serviceColour])
+
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-card">
-      <div className="flex min-w-max">
-        <HourRail range={range} />
-        {columns.map((column) => (
-          <Column key={column.key} column={column} height={height} range={range} {...props} />
-        ))}
-      </div>
+    <div className="overflow-hidden rounded-md border border-border bg-card">
+      <CalendarGridProvider ports={ports}>
+        <CalendarWeekView
+          days={days}
+          columns={gridColumns}
+          layers={layers}
+          items={items}
+          onSelectItem={(item) => props.onOpen(item.appointment)}
+          onSelectDay={props.onDay ? (day) => props.onDay?.(getClinicDateString(day)) : undefined}
+          isMobile={phone}
+          now={now}
+          isLoading={false}
+          slotActivation="single"
+          onSlotClick={
+            canWrite
+              ? (start, _anchor, column) => {
+                  const day = getClinicDateString(start)
+                  props.onCreate(day, minutesOnDay(start.toISOString(), day), column?.resourceKey ?? null)
+                }
+              : undefined
+          }
+          canMoveItem={(item) => canWrite && canDrag(item.appointment)}
+          canResizeItem={() => false}
+          // The time moves; the professional stays hers (a drop in another one's column moves the time only).
+          onMoveItem={(item, next) => props.onMove(item.appointment, next.start.toISOString())}
+          columnMinWidth={phone ? 176 : xl ? 128 : 96}
+          height="content"
+        />
+      </CalendarGridProvider>
     </div>
   )
 }
 
-/** A column's appointments: all of them in a week of several professionals, else its professional's. */
-const ownOf = (appointments: readonly AgendaAppointment[], column: GridColumn) =>
-  appointments.filter((a) => column.professionalId === null || a.professionalId === column.professionalId)
+/** Only a booked or confirmed appointment moves; never a personal one (R2). */
+const canDrag = (a: AgendaAppointment) => !a.isPersonal && (a.state === 'booked' || a.state === 'confirmed')
+
+/**
+ * How the grid draws an appointment: its time, its marks and its names; its service's colour; held
+ * hatched (« En attente d'acceptation »), cancelled dashed and struck, another professional's personal
+ * appointment busy time. Its accessible name says the time, the names, the marks and a held state.
+ */
+export function lookOf(
+  a: AgendaAppointment,
+  opts: { professionalName: (id: string) => string; showProfessional: boolean; serviceColour?: (serviceId: string | null) => string | null },
+): CalendarItemLook {
+  const title = appointmentTitle(a)
+  const marks = reminderMarks(a)
+  const label = [
+    t(`${A}.blockLabel`, { time: formatClinicTime(a.startsAt), title }),
+    ...marks.map((mark) => t(`${A}.marks.${mark}`)),
+    ...(a.state === 'held' || a.state === 'cancelled' ? [stateLabel(a.state)] : []),
+  ].join(', ')
+  return {
+    name: title,
+    kind: formatClinicTime(a.startsAt),
+    label,
+    barLabel: () => title,
+    status: null,
+    quiet: false,
+    hue: hueOf(a, opts.serviceColour?.(a.serviceId) ?? null),
+    glyph: () => <BlockMarks appointment={a} />,
+    recurring: Boolean(a.seriesId),
+    // The third line, where it fits: the state of a held or cancelled one, else the professional in a week of several.
+    detail:
+      a.state === 'held' || a.state === 'cancelled'
+        ? stateLabel(a.state)
+        : opts.showProfessional
+          ? opts.professionalName(a.professionalId)
+          : undefined,
+    inert: isBusyOnly(a),
+    tone: a.state === 'held' ? 'tentative' : a.state === 'cancelled' ? 'cancelled' : undefined,
+  }
+}
+
+/** The block's edge and tint: its service's colour, else the clinic's; a personal one grey. */
+function hueOf(a: AgendaAppointment, colour: string | null): CalendarHue {
+  if (a.isPersonal) return { hue: 'personal', colors: { edge: 'rgb(var(--border-strong))', tint: 'rgb(var(--muted))' } }
+  const edge = colour ?? 'rgb(var(--primary))'
+  return { hue: 'service', colors: { edge, tint: `color-mix(in srgb, ${edge} 10%, white)` } }
+}
+
+/** The marks before the time: by phone, outside the availability, cancelled, the reminder's. */
+function BlockMarks({ appointment: a }: { appointment: AgendaAppointment }): ReactNode {
+  const marks = reminderMarks(a)
+  if (a.mode !== 'phone' && !a.outsideAvailability && a.state !== 'cancelled' && marks.length === 0) return null
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      {a.mode === 'phone' && <Phone aria-hidden className="size-3" />}
+      {a.outsideAvailability && <TriangleAlert aria-hidden className="size-3 text-warning" />}
+      {a.state === 'cancelled' && <Ban aria-hidden className="size-3" />}
+      {marks.map((mark) => {
+        const Icon = mark === 'confirmed' ? CircleCheck : mark === 'reminded' ? Bell : BellOff
+        return <Icon key={mark} aria-hidden className={mark === 'unreachable' ? 'size-3 shrink-0 text-warning' : 'size-3 shrink-0'} />
+      })}
+    </span>
+  )
+}
 
 /** The hours down the grid's left side. */
 export function HourRail({ range = DEFAULT_GRID }: { range?: GridRange }) {
@@ -112,162 +229,4 @@ export function HourLines({ range = DEFAULT_GRID }: { range?: GridRange }) {
   return hoursOf(range).map((m) => (
     <div key={m} aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-border/60" style={{ top: ((m - range.start) / 60) * HOUR_HEIGHT }} />
   ))
-}
-
-function Column({ column, height, range, ...props }: TimeGridProps & { column: GridColumn; height: number; range: GridRange }) {
-  const { appointments, rules, exceptions, canWrite } = props
-  const shadeFor = column.professionalId ?? props.shadeProfessionalId
-  const placed = placeAppointments(ownOf(appointments, column), column.day)
-  const windows = shadeFor ? windowsOn(rules, shadeFor, column.day) : []
-  const offs = shadeFor ? exceptionsOn(exceptions, shadeFor, column.day) : []
-  const busy = shadeFor && props.busy ? busyOn(props.busy, shadeFor, column.day) : []
-  const [drag, setDrag] = useState<Drag | null>(null)
-  const dragRef = useRef<Drag | null>(null)
-  // A drag ends with a click on the block: that click must not open it.
-  const justDragged = useRef(false)
-
-  const minutesAt = (event: { clientY: number; currentTarget: HTMLElement }) => {
-    const rect = event.currentTarget.getBoundingClientRect()
-    return Math.floor(((event.clientY - rect.top) / HOUR_HEIGHT) * 60 / SNAP) * SNAP + range.start
-  }
-
-  const onBackground = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!canWrite || event.target !== event.currentTarget) return
-    props.onCreate(column.day, minutesAt(event), column.professionalId)
-  }
-
-  const startDrag = (event: ReactPointerEvent<HTMLButtonElement>, a: AgendaAppointment) => {
-    if (!canWrite || a.isPersonal || (a.state !== 'booked' && a.state !== 'confirmed')) return
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    dragRef.current = { id: a.id, originY: event.clientY, offset: 0, moved: false }
-    setDrag(dragRef.current)
-  }
-  const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>, a: AgendaAppointment) => {
-    const d = dragRef.current
-    if (!d) return
-    // Kept on the grid: its first hour at the earliest, its end at the last hour at the latest.
-    const start = minutesOnDay(a.startsAt, column.day)
-    const length = minutesOnDay(a.endsAt, column.day) - start
-    const offset = Math.min(Math.max(snap(((event.clientY - d.originY) / HOUR_HEIGHT) * 60), range.start - start), range.end - length - start)
-    if (offset === d.offset) return
-    dragRef.current = { ...d, offset, moved: d.moved || offset !== 0 }
-    setDrag(dragRef.current)
-  }
-  const endDrag = (a: AgendaAppointment) => {
-    const d = dragRef.current
-    dragRef.current = null
-    setDrag(null)
-    if (d && d.moved) {
-      justDragged.current = true
-      if (d.offset !== 0) props.onMove(a, instantOf(column.day, minutesOnDay(a.startsAt, column.day) + d.offset))
-    }
-  }
-
-  return (
-    <div className="w-44 shrink-0 border-r border-border last:border-r-0 sm:w-auto sm:min-w-24 sm:flex-1 xl:min-w-32">
-      <ColumnHeader column={column} />
-      <div
-        className={cn('relative', canWrite && 'cursor-copy')}
-        style={{ height }}
-        onClick={onBackground}
-        data-testid={`agenda-column-${column.key}`}
-      >
-        <HourLines range={range} />
-        {windows.map(({ rule, start, end }) => (
-          <div key={rule.id} aria-hidden className="pointer-events-none absolute inset-x-0 bg-primary/5" style={verticalBox(start, end, HOUR_HEIGHT, range)} />
-        ))}
-        {offs.map(({ exception, start, end }) => (
-          <div
-            key={exception.id}
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bg-muted [background-image:repeating-linear-gradient(135deg,transparent_0_6px,rgb(var(--border-strong))_6px_7px)]"
-            style={verticalBox(start, end, HOUR_HEIGHT, range)}
-          />
-        ))}
-        {busy.map(({ start, end }) => (
-          // Busy elsewhere (her Google agenda): under the appointments; a click still books there (AP-43).
-          <div
-            key={`busy-${start}-${end}`}
-            data-testid="agenda-busy"
-            className="pointer-events-none absolute inset-x-0.5 overflow-hidden rounded-md border border-dashed border-border-strong bg-muted/80 px-1.5 py-0.5 text-xs text-muted-foreground"
-            style={verticalBox(start, end, HOUR_HEIGHT, range)}
-          >
-            {t('modules.appointments.calendar.busy')}
-          </div>
-        ))}
-        {placed.map(({ item: a, start, end, lane, lanes }) => {
-            const offset = drag?.id === a.id ? drag.offset : 0
-            const box = verticalBox(start + offset, end + offset, HOUR_HEIGHT, range)
-            const width = 100 / lanes
-            const colour = props.serviceColour?.(a.serviceId) ?? null
-            const position = {
-              top: box.top,
-              height: Math.max(box.height, 18),
-              left: `calc(${lane * width}% + 2px)`,
-              width: `calc(${width}% - 4px)`,
-              // The service's colour on the left edge (AP-33); the state keeps the block's own tone.
-              ...(colour && { borderLeftColor: colour, borderLeftWidth: 4 }),
-            }
-            // Another professional's personal appointment: busy time, nothing to open (AP-13).
-            if (isBusyOnly(a)) {
-              return (
-                <div key={a.id} className={cn('absolute overflow-hidden rounded-md border px-1.5 py-0.5 text-xs', blockClasses(a))} style={position}>
-                  {appointmentTitle(a)}
-                </div>
-              )
-            }
-            return (
-              <button
-                key={a.id}
-                type="button"
-                onPointerDown={(event) => startDrag(event, a)}
-                onPointerMove={(event) => moveDrag(event, a)}
-                onPointerUp={() => endDrag(a)}
-                onPointerCancel={() => {
-                  dragRef.current = null
-                  setDrag(null)
-                }}
-                onClick={() => {
-                  if (justDragged.current) {
-                    justDragged.current = false
-                    return
-                  }
-                  props.onOpen(a)
-                }}
-                className={cn(
-                  'absolute touch-none overflow-hidden rounded-md border px-1.5 py-0.5 text-left text-xs shadow-sm',
-                  blockClasses(a),
-                  drag?.id === a.id && 'z-10 opacity-80 ring-2 ring-primary',
-                )}
-                style={position}
-                aria-label={[
-                  t(`${A}.blockLabel`, { time: formatClinicTime(a.startsAt), title: appointmentTitle(a) }),
-                  ...reminderMarks(a).map((mark) => t(`${A}.marks.${mark}`)),
-                ].join(', ')}
-                // The professional on hover when the block is too short to write her name.
-                title={props.showProfessional ? props.professionalName(a.professionalId) : undefined}
-              >
-                <span className="flex items-center gap-1 font-medium">
-                  <span className="tabular">{offset ? hhmm(start + offset) : formatClinicTime(a.startsAt)}</span>
-                  {a.mode === 'phone' && <Phone aria-hidden className="size-3" />}
-                  {a.outsideAvailability && <TriangleAlert aria-hidden className="size-3 text-warning" />}
-                  {a.state === 'cancelled' && <Ban aria-hidden className="size-3 shrink-0" />}
-                  {a.state === 'cancelled' && <span className="truncate font-normal">{stateLabel(a.state)}</span>}
-                  {a.seriesId && <Repeat aria-hidden className="size-3" />}
-                  {reminderMarks(a).map((mark) => {
-                    const Icon = mark === 'confirmed' ? CircleCheck : mark === 'reminded' ? Bell : BellOff
-                    return <Icon key={mark} aria-hidden className={cn('size-3 shrink-0', mark === 'unreachable' && 'text-warning')} />
-                  })}
-                </span>
-                <span className="block truncate">{appointmentTitle(a)}</span>
-                {a.state === 'held' && <span className="block truncate text-muted-foreground">{stateLabel(a.state)}</span>}
-                {props.showProfessional && position.height >= 3 * LINE_HEIGHT + 4 && (
-                  <span className="block truncate text-muted-foreground">{props.professionalName(a.professionalId)}</span>
-                )}
-              </button>
-            )
-          })}
-      </div>
-    </div>
-  )
 }

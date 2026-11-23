@@ -10172,7 +10172,28 @@
         "upcomingEmpty": "Aucun rendez-vous dans les prochains jours",
         "birthdays": "Anniversaires :",
         "birthdayOn": "{name}, {day}",
-        "monthBirthday": "anniversaire de {names}"
+        "monthBirthday": "anniversaire de {names}",
+        "grid": {
+          "allDay": "journée",
+          "noon": "12:00",
+          "untitled": "(sans titre)",
+          "emptyWeek": "Aucun rendez-vous cette semaine",
+          "emptyDays": "Aucun rendez-vous ces jours-là",
+          "emptyDay": "Aucun rendez-vous ce jour-là",
+          "create": "Nouveau rendez-vous",
+          "weekStrip": "Jours de la semaine",
+          "today": "Aujourd'hui",
+          "tomorrow": "Demain",
+          "yesterday": "Hier",
+          "todayCaption": "Aujourd'hui · {date}",
+          "dragRole": "déplaçable",
+          "dragInstructions": "Appuyez sur un rendez-vous puis glissez-le pour le déplacer.",
+          "announceStart": "{name} saisi.",
+          "announceDrop": "{name} déposé.",
+          "announceCancel": "Déplacement annulé.",
+          "monthAllDay": "Journée",
+          "dayEmpty": "Aucun rendez-vous"
+        }
       },
       "editor": {
         "newTitle": "Nouveau rendez-vous",
