@@ -256,6 +256,17 @@ describe('AgendaPage', () => {
     }
   })
 
+  it('an empty week says so; « Nouveau rendez-vous » stays the toolbar’s one button, the grid’s own is « Créer »', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchAgenda.mockResolvedValue([])
+    renderPage()
+    expect(await screen.findByTestId('calendar-empty-range')).toHaveTextContent(t(`${A}.grid.emptyWeek`))
+    expect(screen.getAllByRole('button', { name: t(`${A}.new`) })).toHaveLength(1)
+    // « Créer » books at the next round hour, like a click on that slot.
+    await user.click(screen.getByRole('button', { name: t(`${A}.grid.create`) }))
+    expect(await screen.findByRole('dialog', { name: t(`${E}.newTitle`) })).toBeInTheDocument()
+  })
+
   it('a click on a free quarter hour opens « Nouveau rendez-vous » there; the booking goes to the database', async () => {
     const user = userEvent.setup()
     renderPage()
