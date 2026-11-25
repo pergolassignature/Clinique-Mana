@@ -13,6 +13,8 @@ import { clinicTimeToUTC, getClinicDateString, getClinicTimeString } from '@/sha
 export const GRID_START = 6 * 60
 export const GRID_END = 22 * 60
 export const SNAP = 15
+/** Pixels per hour of the grids (16 hours by default: 6:00 to 22:00). */
+export const HOUR_HEIGHT = 48
 
 /** The minutes a grid shows, [start, end), on whole hours. */
 export interface GridRange {
