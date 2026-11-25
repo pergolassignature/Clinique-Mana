@@ -136,6 +136,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
   }, [reference, pro, service])
   const shownIds = pro || service ? shown.map((p) => p.id) : null
   const professionalName = (id: string) => reference.professionals.find((p) => p.id === id)?.name ?? ''
+  const serviceColour = (id: string | null) => reference.services.find((s) => s.id === id)?.colour ?? null
 
   const effectiveView: View = mode === 'disponibilites' ? 'semaine' : view
   const first = effectiveView === 'jour' ? day : effectiveView === 'semaine' ? startOfWeek(day) : effectiveView === 'jours' ? day : monthGrid(day)[0]!
@@ -340,7 +341,15 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
       ) : agenda.isError && !agenda.data && mode === 'rendez-vous' ? (
         <LoadError message={t(`${A}.loadError`)} onRetry={() => void agenda.refetch()} retrying={agenda.isFetching} />
       ) : effectiveView === 'mois' ? (
-        <MonthView day={day} today={today} appointments={appointments} birthdays={birthdaysByDay} onDay={(d) => update({ vue: 'jour', date: d })} />
+        <MonthView
+          day={day}
+          appointments={appointments}
+          birthdays={birthdaysByDay}
+          onDay={(d) => update({ vue: 'jour', date: d })}
+          onOpen={(a) => setSheet({ kind: 'edit', id: a.id })}
+          professionalName={professionalName}
+          serviceColour={serviceColour}
+        />
       ) : effectiveView === 'jours' ? (
         <UpcomingList appointments={appointments} services={reference.services} professionalName={professionalName} onOpen={(a) => setSheet({ kind: 'edit', id: a.id })} />
       ) : (
@@ -392,7 +401,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
               onCreate={onCreate}
               onOpen={(a) => setSheet({ kind: 'edit', id: a.id })}
               onMove={onMove}
-              serviceColour={(id) => reference.services.find((s) => s.id === id)?.colour ?? null}
+              serviceColour={serviceColour}
               busy={externalBusy.data ?? []}
               onDay={(d) => update({ date: d })}
             />

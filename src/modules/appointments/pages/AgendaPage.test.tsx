@@ -207,14 +207,66 @@ describe('AgendaPage — birthdays (P4-564)', () => {
   it('marks the day in the month view, in its label too', async () => {
     mocks.api.fetchAgendaBirthdays.mockResolvedValue([birthday])
     renderPage({ role: 'admin', path: '/agenda?vue=mois&date=2027-03-15' })
-    const cell = await screen.findByRole('button', { name: /anniversaire de Pia Un/ })
-    expect(cell).toHaveTextContent('Pia Un')
+    // The day's number says it to a screen reader; the line under it shows it.
+    const number = await screen.findByRole('button', { name: /anniversaire de Pia Un/ })
+    expect(number.closest('[data-testid="month-cell"]')).toHaveTextContent('Pia Un')
   })
 
   it('is not asked for without professionals.view', async () => {
     renderPage({ role: 'provider' })
     await screen.findAllByRole('tab')
     expect(mocks.api.fetchAgendaBirthdays).not.toHaveBeenCalled()
+  })
+})
+
+describe('AgendaPage — Mois', () => {
+  const MOIS = '/agenda?vue=mois&date=2027-03-15&professionnel=p1'
+  /** Monday the 15th: five appointments from 9:00, one of them cancelled (never shown nor counted). */
+  const five = [9, 10, 11, 13, 14].map((h, i) =>
+    appointment({ id: `m${i}`, startsAt: `2027-03-15T${h + 4}:00:00Z`, endsAt: `2027-03-15T${h + 4}:50:00Z`, blocksUntil: `2027-03-15T${h + 5}:00:00Z`, state: i === 4 ? 'cancelled' : 'booked' }),
+  )
+  const cellOf = (day: string) => screen.getAllByTestId('month-cell').find((c) => c.dataset.day === day)!
+  const jour = () => screen.getByRole('tab', { name: 'Jour' })
+
+  it('shows a day’s first three appointments, then « et n autres »; a cancelled one is left out and not counted', async () => {
+    mocks.api.fetchAgenda.mockResolvedValue(five)
+    renderPage({ path: MOIS })
+    await screen.findByRole('button', { name: /4 rendez-vous/ })
+    const cell = cellOf('2027-03-15')
+    expect(within(cell).getAllByTestId('month-line')).toHaveLength(3)
+    expect(within(cell).getByTestId('month-more')).toHaveTextContent('et 1 autres')
+  })
+
+  it.each([
+    ['its number', (cell: HTMLElement) => within(cell).getByTestId('month-open-day')],
+    ['« et n autres »', (cell: HTMLElement) => within(cell).getByTestId('month-more')],
+    ['its empty part', (cell: HTMLElement) => cell],
+  ])('opens a day in « Jour » from %s', async (_, target) => {
+    mocks.api.fetchAgenda.mockResolvedValue(five)
+    renderPage({ path: MOIS })
+    await screen.findByRole('button', { name: /4 rendez-vous/ })
+    fireEvent.click(target(cellOf('2027-03-15')))
+    await waitFor(() => expect(jour()).toHaveAttribute('aria-selected', 'true'))
+  })
+
+  it('opens an appointment from its line', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchAgenda.mockResolvedValue([appointment()])
+    renderPage({ path: MOIS })
+    await user.click(await screen.findByRole('button', { name: '10:00, Alice Essai' }))
+    expect(await screen.findByRole('dialog', { name: 'Alice Essai' })).toBeInTheDocument()
+    // The sheet is modal: the page behind it is hidden from the accessibility tree.
+    expect(screen.getByRole('tab', { name: 'Mois', hidden: true })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('opens the day, never a sheet, from another professional’s personal appointment (AP-13)', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchAgenda.mockResolvedValue([appointment({ isPersonal: true, serviceId: null, personalLabel: null, participants: [] })])
+    renderPage({ path: MOIS })
+    const line = await screen.findByTestId('month-line')
+    await user.click(line)
+    await waitFor(() => expect(jour()).toHaveAttribute('aria-selected', 'true'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 

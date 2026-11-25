@@ -10168,7 +10168,6 @@
         "windowLabel": "Plage de {start} à {end}",
         "windowServices": "Services choisis : {count}",
         "monthDay": "{day} : {count} rendez-vous",
-        "more": "et {count} autres",
         "upcomingEmpty": "Aucun rendez-vous dans les prochains jours",
         "birthdays": "Anniversaires :",
         "birthdayOn": "{name}, {day}",
@@ -10192,7 +10191,8 @@
           "announceDrop": "{name} déposé.",
           "announceCancel": "Déplacement annulé.",
           "monthAllDay": "Journée",
-          "dayEmpty": "Aucun rendez-vous"
+          "dayEmpty": "Aucun rendez-vous",
+          "monthMore": "et {count} autres"
         }
       },
       "editor": {

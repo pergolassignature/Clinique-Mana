@@ -26,8 +26,8 @@ import {
 } from '../lib/availability-edit'
 import { exceptionKindLabel } from '../lib/display'
 import { exceptionsOn, verticalBox, windowsOn } from '../lib/layout'
-import { GRID_END, GRID_START, isoWeekday, minutesOf } from '../lib/time'
-import { ColumnHeader, HOUR_HEIGHT, HourLines, HourRail, type GridColumn } from './TimeGrid'
+import { GRID_END, GRID_START, HOUR_HEIGHT, isoWeekday, minutesOf } from '../lib/time'
+import { ColumnHeader, HourLines, HourRail, type GridColumn } from './TimeGrid'
 
 const A = 'modules.appointments.agenda'
 const D = 'modules.appointments.availability'
