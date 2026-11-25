@@ -31,7 +31,8 @@ test('the admin books, moves and cancels an appointment in Félix’s week', asy
   await expect(page.getByRole('button', { name: /^10:00, Alice Tremblay-Fictive(,|$)/ })).toBeVisible()
 
   // Friday 10:00: 4 hours below 6:00 at 48 px an hour.
-  const column = page.getByTestId(`agenda-column-${fridayKey}`)
+  // The booking grid's column of a day (`@pergolas-signature/calendar-ui`: `data-day`, the clinic's date).
+  const column = page.locator(`[data-testid="calendar-day-column"][data-day="${fridayKey}"]`)
   await column.click({ position: { x: 20, y: 4 * 48 + 2 } })
   const sheet = page.getByRole('dialog', { name: 'Nouveau rendez-vous' })
   await expect(sheet.getByLabel(/^Heure/)).toHaveValue('10:00')
@@ -59,6 +60,9 @@ test('the admin books, moves and cancels an appointment in Félix’s week', asy
   // Cancel it (and leave the database as found).
   await moved.click()
   const editor = page.getByRole('dialog', { name: 'Marc Gagnon-Fictif' })
+  // The sheet slides in from the right: a tab clicked mid-slide moves between the press and the
+  // release, and the click is lost (seen on CI). Let it land first.
+  await editor.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
   await editor.getByRole('tab', { name: 'Annulation' }).click()
   await editor.getByLabel(/^Raison de l'annulation/).selectOption({ label: 'Plus requis' })
   await editor.getByRole('button', { name: 'Annuler le rendez-vous' }).click()
@@ -134,7 +138,7 @@ test('« Mon agenda »: Félix sees his week and adds then removes a personal ap
   await expect(page.getByLabel('Professionnel')).toHaveCount(0)
 
   // Tuesday 12:00: 6 hours below 6:00 at 48 px an hour.
-  const column = page.getByTestId(`agenda-column-${tuesday.toISOString().slice(0, 10)}`)
+  const column = page.locator(`[data-testid="calendar-day-column"][data-day="${tuesday.toISOString().slice(0, 10)}"]`)
   await column.click({ position: { x: 20, y: 6 * 48 + 2 } })
   const dialog = page.getByRole('dialog', { name: 'Rendez-vous personnel' })
   await dialog.getByLabel(/^Libellé/).fill('Dentiste')

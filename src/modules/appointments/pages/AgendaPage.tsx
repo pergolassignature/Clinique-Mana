@@ -394,6 +394,7 @@ function Agenda({ reference, mine = false }: { reference: AgendaReference; mine?
               onMove={onMove}
               serviceColour={(id) => reference.services.find((s) => s.id === id)?.colour ?? null}
               busy={externalBusy.data ?? []}
+              onDay={(d) => update({ date: d })}
             />
           )}
           {mode === 'disponibilites' && pro && (
